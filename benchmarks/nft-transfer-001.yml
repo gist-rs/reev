@@ -1,0 +1,46 @@
+id: NFT-TRANSFER-SIMPLE-001
+description: A simple NFT transfer to test re-using the SPL-Token transfer logic for NFTs.
+tags: ["nft", "spl-token", "transfer", "mock"]
+
+initial_state:
+  # User's main wallet (System Account)
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  # Recipient's main wallet (System Account)
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  # The NFT Mint Account. It's owned by the token program.
+  - pubkey: "NFT_MINT_PUBKEY"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 1000000 # Rent
+
+  # User's Associated Token Account (ATA) holding the NFT.
+  - pubkey: "USER_NFT_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280 # Rent
+    # The data indicates this account holds 1 token of the NFT mint.
+    data: '{"mint": "NFT_MINT_PUBKEY", "owner": "USER_WALLET_PUBKEY", "amount": 1}'
+
+  # Recipient's Associated Token Account (ATA) for the NFT, initially empty.
+  - pubkey: "RECIPIENT_NFT_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280 # Rent
+    data: '{"mint": "NFT_MINT_PUBKEY", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
+
+prompt: "Please send my NFT from my token account (USER_NFT_ATA) to the recipient's token account (RECIPIENT_NFT_ATA)."
+
+ground_truth:
+  final_state_assertions:
+    # Check that the sender's token account is now empty.
+    - type: TokenAccountBalance
+      pubkey: "USER_NFT_ATA"
+      expected: 0
+
+    # Check that the receiver's token account now holds the NFT.
+    - type: TokenAccountBalance
+      pubkey: "RECIPIENT_NFT_ATA"
+      expected: 1

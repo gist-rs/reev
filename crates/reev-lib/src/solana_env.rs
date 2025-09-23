@@ -1,6 +1,7 @@
 use crate::{
     actions::{
         Action, sol_transfer::SolTransferAction, spl_token_transfer::SplTokenTransferAction,
+        token_2022_transfer::Token2022TransferAction,
     },
     agent::{AgentAction, AgentObservation},
     benchmark::{GroundTruth, InitialAccountState},
@@ -13,6 +14,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLQtRect";
 
 /// Represents the specific data for a mocked SPL-Token account.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -70,7 +72,10 @@ impl GymEnv for SolanaEnv {
         );
 
         for spec in initial_states {
-            let data = if spec.owner == SPL_TOKEN_PROGRAM_ID && spec.data.is_some() {
+            let data = if (spec.owner == SPL_TOKEN_PROGRAM_ID
+                || spec.owner == TOKEN_2022_PROGRAM_ID)
+                && spec.data.is_some()
+            {
                 let token_data_str = spec.data.as_deref().unwrap(); // Safe due to is_some() check
                 // We expect the `data` field in the benchmark YAML to be a JSON string
                 // representing the SplTokenState.
@@ -133,7 +138,8 @@ impl GymEnv for SolanaEnv {
 
         let handler: Box<dyn Action> = match action.tool_name.as_str() {
             "sol_transfer" => Box::new(SolTransferAction),
-            "spl_token_transfer" => Box::new(SplTokenTransferAction),
+            "spl_token_transfer" | "nft_transfer" => Box::new(SplTokenTransferAction),
+            "token_2022_transfer" => Box::new(Token2022TransferAction),
             _ => return Err(anyhow!("Unknown tool name: '{}'", action.tool_name)),
         };
 

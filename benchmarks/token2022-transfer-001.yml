@@ -1,0 +1,42 @@
+id: TOKEN2022-TRANSFER-SIMPLE-001
+description: A simple Token-2022 transfer to test mocked token functionality with a different program ID.
+tags: ["token-2022", "transfer", "mock"]
+
+initial_state:
+  # A placeholder for the Token-2022 Program ID.
+  # In the mock environment, this is just a string that needs to be consistent.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  - pubkey: "MOCK_WSOL_MINT_2022"
+    owner: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLQtRect" # Token-2022 Program ID
+    lamports: 1000000 # Rent
+
+  # User's Token-2022 Account for wSOL
+  - pubkey: "USER_WSOL_ATA_2022"
+    owner: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLQtRect"
+    lamports: 2039280 # Rent
+    data: '{"mint": "MOCK_WSOL_MINT_2022", "owner": "USER_WALLET_PUBKEY", "amount": 1000}'
+
+  # Recipient's Token-2022 Account for wSOL
+  - pubkey: "RECIPIENT_WSOL_ATA_2022"
+    owner: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLQtRect"
+    lamports: 2039280 # Rent
+    data: '{"mint": "MOCK_WSOL_MINT_2022", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
+
+prompt: "Send 250 wSOL (Token-2022) from my account to the recipient's account."
+
+ground_truth:
+  final_state_assertions:
+    - type: TokenAccountBalance
+      pubkey: "USER_WSOL_ATA_2022"
+      expected: 750
+
+    - type: TokenAccountBalance
+      pubkey: "RECIPIENT_WSOL_ATA_2022"
+      expected: 250

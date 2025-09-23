@@ -31,6 +31,12 @@ pub struct DummyAgent {
     has_acted: bool,
 }
 
+impl Default for DummyAgent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DummyAgent {
     /// Creates a new `DummyAgent`.
     pub fn new() -> Self {
@@ -41,26 +47,26 @@ impl DummyAgent {
 impl Agent for DummyAgent {
     fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
         if !self.has_acted {
-            // If the agent hasn't acted yet, perform the SPL Token transfer.
+            // If the agent hasn't acted yet, perform the NFT transfer.
             self.has_acted = true;
-            println!("[DummyAgent] Deciding to perform the SPL-Token transfer.");
+            println!("[DummyAgent] Deciding to perform the NFT transfer.");
             let mut parameters = HashMap::new();
             parameters.insert(
                 "source_pubkey".to_string(),
-                serde_json::json!("USER_USDC_ATA"),
+                serde_json::json!("USER_NFT_ATA"),
             );
             parameters.insert(
                 "destination_pubkey".to_string(),
-                serde_json::json!("RECIPIENT_USDC_ATA"),
+                serde_json::json!("RECIPIENT_NFT_ATA"),
             );
             parameters.insert(
                 "owner_pubkey".to_string(),
                 serde_json::json!("USER_WALLET_PUBKEY"),
             );
-            parameters.insert("amount".to_string(), serde_json::json!(15000000));
+            parameters.insert("amount".to_string(), serde_json::json!(1));
 
             Ok(AgentAction {
-                tool_name: "spl_token_transfer".to_string(),
+                tool_name: "nft_transfer".to_string(),
                 parameters,
             })
         } else {
