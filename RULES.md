@@ -1,6 +1,6 @@
 # RULES.md: Engineering and Development Guidelines
 
-This document establishes the official coding conventions and architectural rules for the `anyrag` project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, scalable, and easy for both humans and AI agents to understand and modify.
+This document establishes the official coding conventions and architectural rules for this project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, scalable, and easy for both humans and AI agents to understand and modify.
 
 ---
 
@@ -8,9 +8,9 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 1.1: Strict Separation of Concerns
 
--   **`anyrag-server` (The Web Layer)**: Its **only** job is to handle HTTP communication. It receives requests, validates them, authenticates the user, calls the appropriate function in the library, and serializes the response. It must **never** contain core business logic.
--   **`anyrag-lib` (The Core Library)**: This is the brain of the application. It contains all business logic, orchestrates workflows (ingestion, search), and provides a stable, public API for the server and CLI to consume. It is completely agnostic of the web.
--   **Plugin Crates (The Feature Layer)**: Specialized functionalities, especially data ingestion (`github`, `pdf`, etc.), must be encapsulated in their own crates.
+-   **Binary Crates (e.g., `<project>-server`, `<project>-cli`)**: Their **only** job is to handle the user interface layer (e.g., HTTP, command-line arguments). They receive input, validate it, call the appropriate function in the core library, and format the output. They must **never** contain core business logic.
+-   **The Core Library (e.g., `<project>-lib`)**: This is the brain of the application. It contains all business logic, orchestrates workflows, and provides a stable, public API for other crates to consume. It must be completely agnostic of the user interface (web, CLI, etc.).
+-   **Plugin/Feature Crates**: Specialized functionalities (e.g., data sources, specific features) should be encapsulated in their own crates to promote modularity and extensibility.
 
 ### Rule 1.2: Plugin-First for Extensibility
 
@@ -19,8 +19,8 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 1.3: Workspace and Crate Structure
 
--   **Flat `crates/` Directory**: The workspace MUST maintain a flat directory structure under `crates/`. Logical grouping is achieved through crate naming, not nested directories.
--   **Naming Convention**: All crates that are part of the `anyrag` ecosystem MUST be prefixed with `anyrag-` (e.g., `anyrag-github`, `anyrag-server`). This is configured in each crate's `Cargo.toml`.
+-   **Flat `crates/` Directory**: The workspace SHOULD maintain a flat directory structure under `crates/`. Logical grouping is achieved through crate naming, not nested directories.
+-   **Naming Convention**: All crates that are part of the project's ecosystem SHOULD be prefixed with `<project>-` (e.g., `<project>-feature`, `<project>-server`). This is configured in each crate's `Cargo.toml`.
 
 ---
 
@@ -29,11 +29,11 @@ This document establishes the official coding conventions and architectural rule
 ### Rule 2.1: Centralized vs. Local Types
 
 -   **Local Types**: Each crate SHOULD have its own `src/types.rs` for internal data structures that are not part of its public API.
--   **Shared Public Types**: The central `anyrag-lib/src/types.rs` module MUST only contain types that are part of the public API of `anyrag-lib` or are shared between two or more crates in the workspace.
+-   **Shared Public Types**: The central `<project>-lib/src/types.rs` module MUST only contain types that are part of the public API of the core library or are shared between two or more crates in the workspace.
 
 ### Rule 2.2: Thin Binaries (`main.rs`)
 
--   The `main.rs` file of any binary crate (`anyrag-server`, `anyrag-cli`) MUST be a "thin entrypoint."
+-   The `main.rs` file of any binary crate (e.g., `<project>-server`, `<project>-cli`) MUST be a "thin entrypoint."
 -   Its responsibilities are limited to:
     1.  Setting up logging, configuration, and environment variables.
     2.  Calling a single, well-documented `run()` or `start()` function from its corresponding library.
@@ -72,8 +72,8 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 3.2: Use Feature Flags for Optional Functionality
 
--   Any functionality that can be considered optional, especially ingestion plugins, MUST be gated by a Cargo feature flag. This allows for the compilation of smaller, specialized binaries.
--   Features should be defined in `anyrag-lib` and propagated up to `anyrag-server`.
+-   Any functionality that can be considered optional, especially plugins or features with heavy dependencies, MUST be gated by a Cargo feature flag. This allows for the compilation of smaller, specialized binaries.
+-   Features should be defined in the core library and propagated up to the binary crates.
 
 ---
 
@@ -81,7 +81,7 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 4.1: End-to-End Testing with `examples`
 
--   End-to-end (E2E) tests, which verify a full user workflow, MUST be implemented in the `examples/` directory of the relevant crate (e.g., `anyrag-server/examples/`).
+-   End-to-end (E2E) tests, which verify a full user workflow, MUST be implemented in the `examples/` directory of the relevant crate (e.g., `<project>-server/examples/`).
 -   Each file in `examples/` is a small, runnable binary that acts as a client, demonstrating usage and asserting correctness.
 -   **Documentation**: The `README.md` of the crate must document how to run these examples (e.g., `cargo run --example <example_filename>`).
 -   This provides both a robust E2E test suite and living documentation for consumers of the library.
@@ -96,7 +96,7 @@ To ensure consistency and leverage high-quality, community-vetted solutions, thi
     -   **Use Case**: The required runtime for all `async` operations. This includes networking, file I/O, and managing green threads (tasks).
 
 -   **Error Handling**: `anyhow` and `thiserror`
-    -   **`thiserror`**: MUST be used in library crates (`anyrag-lib`, `anyrag-github`, etc.) to create specific, structured, and typed errors (e.g., `IngestError`, `PromptError`).
+    -   **`thiserror`**: MUST be used in library crates (e.g., `<project>-lib`, `<project>-feature`) to create specific, structured, and typed errors (e.g., `FeatureError`, `ApiError`).
     -   **`anyhow`**: SHOULD be used in binary entrypoints (`main.rs`) and examples for simple, flexible error handling where the exact error type is less important than the context message.
 
 -   **HTTP Client**: `reqwest`
