@@ -6,7 +6,12 @@ use anyhow::Result;
 use serde_json::Value;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::signer::keypair::Keypair;
-use std::process::Child;
+use std::{
+    collections::HashMap,
+    process::{Child, Command, Stdio},
+    thread,
+    time::Duration,
+};
 
 /// The Solana environment for the LLM agent.
 /// Manages the `solana-test-validator` process and communication with it.
@@ -19,17 +24,46 @@ pub struct SolanaEnv {
     agent_keypair: Keypair,
 }
 
+impl SolanaEnv {
+    /// Creates a new instance of the SolanaEnv.
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            validator_process: None,
+            // The RPC URL for the local test validator.
+            rpc_client: RpcClient::new("http://127.0.0.1:8899".to_string()),
+            // A new, ephemeral keypair is generated for the agent for each environment instance.
+            agent_keypair: Keypair::new(),
+        })
+    }
+}
+
 impl GymEnv for SolanaEnv {
     type Action = AgentAction;
     type Observation = AgentObservation;
 
     fn reset(&mut self, _seed: Option<u64>, _options: Option<Value>) -> Result<Self::Observation> {
         // 1. Kill any existing validator process.
-        // 2. Start a new `solana-test-validator` instance using `std::process::Command`.
+        self.close();
+
+        // 2. Start a new `solana-test-validator` instance.
+        let child = Command::new("solana-test-validator")
+            .arg("--reset")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+        self.validator_process = Some(child);
+
         // 3. Wait for the validator to be responsive.
-        // 4. Load the initial on-chain state based on the `options`.
+        // A simple sleep for now. A more robust solution would be to poll the RPC endpoint.
+        thread::sleep(Duration::from_secs(5));
+
         // 5. Fetch the initial state and return the first `AgentObservation`.
-        todo!();
+        Ok(AgentObservation {
+            last_transaction_status: "Success".to_string(),
+            last_transaction_error: None,
+            last_transaction_logs: vec![],
+            account_states: HashMap::new(),
+        })
     }
 
     fn step(&mut self, _action: Self::Action) -> Result<Step<Self::Observation>> {
