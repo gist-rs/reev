@@ -1,3 +1,4 @@
+use crate::benchmark::GroundTruth;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -48,7 +49,11 @@ pub trait GymEnv {
     ///
     /// # Returns
     /// A `Step` struct containing the outcome of the action.
-    fn step(&mut self, action: Self::Action) -> anyhow::Result<Step<Self::Observation>>;
+    fn step(
+        &mut self,
+        action: Self::Action,
+        ground_truth: &GroundTruth,
+    ) -> anyhow::Result<Step<Self::Observation>>;
 
     /// Renders a representation of the environment's current state.
     ///

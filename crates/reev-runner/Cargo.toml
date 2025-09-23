@@ -7,3 +7,4 @@ edition = "2024"
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
 serde_yaml = "0.9"
+serde_json = "1.0"

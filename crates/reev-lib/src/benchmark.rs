@@ -1,9 +1,9 @@
 use crate::agent::AgentAction;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Defines a specific condition that must be true on the blockchain
 /// after the agent has completed its task.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "PascalCase")]
 pub enum StateAssertion {
     /// Asserts the final SOL balance of a specific account.
@@ -28,7 +28,7 @@ pub enum StateAssertion {
 }
 
 /// Defines the initial state of a single on-chain account for a test case.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct InitialAccountState {
     /// A unique identifier or the public key for the account.
     pub pubkey: String,
@@ -49,7 +49,7 @@ pub struct InitialAccountState {
 }
 
 /// Contains the objective criteria for judging the agent's performance on a test case.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GroundTruth {
     /// A list of conditions that must be true on the blockchain after the agent has finished.
     pub final_state_assertions: Vec<StateAssertion>,
@@ -61,7 +61,7 @@ pub struct GroundTruth {
 
 /// Represents a single, self-contained test case for evaluating an agent.
 /// This struct is designed to be deserialized from a YAML file.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TestCase {
     /// A unique identifier for the test case (e.g., "TRANSFER-SIMPLE-001").
     pub id: String,

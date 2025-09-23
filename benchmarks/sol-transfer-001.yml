@@ -1,0 +1,24 @@
+id: SOL-TRANSFER-SIMPLE-001
+description: A simple SOL transfer to test the mocked sol_transfer action and the end-to-end evaluation flow.
+tags: ["native", "transfer", "mock"]
+
+initial_state:
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 0
+
+prompt: "Send 0.1 SOL from my user wallet to the recipient wallet."
+
+ground_truth:
+  final_state_assertions:
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected: 900000000 # 0.9 SOL remaining
+
+    - type: SolBalance
+      pubkey: "RECIPIENT_WALLET_PUBKEY"
+      expected: 100000000 # 0.1 SOL received

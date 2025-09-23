@@ -1,40 +1,76 @@
-# TASKS.md: Phase 1 - Foundational Scaffolding & Core Types
+# TASKS.md: Development Roadmap
 
-This file lists the specific, actionable tasks required to complete Phase 1 of the development plan. The goal is to establish a solid, well-typed foundation for the entire framework.
+This document outlines the development plan for `reev`, focusing on a mock-first, modular approach to building the evaluation framework.
 
-## Workspace and Crate Setup
+---
 
--   [ ] Initialize a new Cargo workspace named `reev`.
--   [ ] Create a library crate `reev-lib` within the workspace. This crate will contain all the core logic, traits, and types for the framework.
--   [ ] Create a binary crate `reev-runner` within the workspace. This will be the entry point for the evaluation harness application.
--   [ ] Configure the root `Cargo.toml` to correctly reference both workspace members.
--   [ ] Add initial dependencies to `reev-lib`:
-    -   `serde` (with `derive` feature) for serialization.
-    -   `serde_json` for flexible data structures.
-    -   `anyhow` for error handling.
+## Phase 1: Foundational Scaffolding & Core Types (Complete)
 
-## Core Environment Traits and Types (`reev-lib`)
+-   [x] Initialize Cargo Workspace (`reev-lib`, `reev-runner`).
+-   [x] Define Core Traits and Structs (`GymEnv`, `AgentAction`, `AgentObservation`, `Step`).
+-   [x] Define Benchmark Specification (`TestCase` and related structs).
+-   [x] Implement a unit test to load and parse a benchmark YAML file.
 
--   [ ] Create a new module `reev-lib/src/env.rs`.
--   [ ] In `env.rs`, define the `Step<Obs>` struct to represent the output of an environment step. It should contain `observation`, `reward`, `terminated`, `truncated`, and `info`.
--   [ ] In `env.rs`, define the core `GymEnv` trait with the following methods:
-    -   `reset(&mut self, seed: Option<u64>, options: Option<serde_json::Value>) -> anyhow::Result<Self::Observation>`
-    -   `step(&mut self, action: Self::Action) -> anyhow::Result<Step<Self::Observation>>`
-    -   `render(&self)`
-    -   `close(&mut self)`
--   [ ] Create a new module `reev-lib/src/agent.rs`.
--   [ ] In `agent.rs`, define the `AgentAction` struct. It should contain `tool_name` (String) and `parameters` (e.g., `HashMap<String, serde_json::Value>`).
--   [ ] In `agent.rs`, define the `AgentObservation` struct. It should contain fields like `last_transaction_status`, `last_transaction_error`, etc., as specified in the IDEA.
+---
 
-## Benchmark Specification Types (`reev-lib`)
+## Phase 2: Mocked Solana Environment & Core Action
 
--   [ ] Add `serde_yaml` as a dependency to `reev-lib`.
--   [ ] Create a new module `reev-lib/src/benchmark.rs`.
--   [ ] In `benchmark.rs`, define a `TestCase` struct that represents a single test case from a YAML file.
--   [ ] Define the necessary sub-structs for `TestCase`, including:
-    -   `InitialState` (e.g., list of accounts to create).
-    -   `GroundTruth` (containing `final_state_assertions`).
-    -   `StateAssertion` (e.g., an enum for `SolBalance`, `TokenAccountBalance`).
--   [ ] Add `#[derive(Deserialize)]` to all benchmark structs to enable parsing from YAML files.
--   [ ] Create a dummy `solana-bench-001.yml` file in a new `benchmarks/` directory at the root of the workspace to test the deserialization.
--   [ ] Write a unit test in `reev-lib` that successfully loads and parses the dummy benchmark file.
+**Goal:** Create a fully functional, in-memory simulation of the Solana environment that can execute a basic SOL transfer.
+
+-   [ ] **Task 2.1: Refactor `SolanaEnv` to be In-Memory**
+    -   [ ] Remove `solana-sdk`, `solana-client`, and `solana-program` dependencies from `reev-lib/Cargo.toml`.
+    -   [ ] Remove all `solana-test-validator` process management code from `solana_env.rs`.
+    -   [ ] Add an in-memory `HashMap` to `SolanaEnv` to store the mocked state of on-chain accounts (e.g., `HashMap<String, AccountState>`).
+    -   [ ] Update the `reset` function to populate this in-memory store directly from the `initial_state` of a `TestCase`.
+
+-   [ ] **Task 2.2: Create the Actions Module**
+    -   [ ] Create a new module `reev-lib/src/actions/mod.rs`.
+    -   [ ] Define a common `Action` trait that all specific transaction handlers will implement (e.g., `trait Action { fn execute(&self, state: &mut MockedState, params: &Value) -> Result<()>; }`).
+
+-   [ ] **Task 2.3: Implement Mocked SOL Transfer**
+    -   [ ] Create a new file `reev-lib/src/actions/sol_transfer.rs`.
+    -   [ ] Implement the `sol_transfer` action logic. It should take parameters (from, to, amount), validate them, and update the balances in the in-memory state map.
+    -   [ ] The function should return appropriate errors for failures (e.g., insufficient funds).
+
+-   [ ] **Task 2.4: Implement the `step` Function as a Dispatcher**
+    -   [ ] Modify `SolanaEnv::step` to read the `tool_name` from the incoming `AgentAction`.
+    -   [ ] Based on the `tool_name` (e.g., "sol_transfer"), call the corresponding action handler from the `actions` module.
+    -   [ ] Update the `AgentObservation` with the new state from the in-memory map and return it.
+
+---
+
+## Phase 3: End-to-End Evaluation & Metrics
+
+**Goal:** Achieve a complete, end-to-end run of the evaluation harness using the mocked environment and calculate a meaningful result.
+
+-   [ ] **Task 3.1: Update `DummyAgent` for SOL Transfer**
+    -   [ ] Modify `DummyAgent` to return a hardcoded `sol_transfer` `AgentAction` with correct parameters when it sees the initial observation from the `transfer-simple-001` benchmark.
+
+-   [ ] **Task 3.2: Verify Metrics Calculation**
+    -   [ ] Run the `reev-runner`.
+    -   [ ] Confirm that the `sol_transfer` is executed by the mock environment.
+    -   [ ] Confirm that the final `AgentObservation` reflects the new balances.
+    -   [ ] Confirm that the `calculate_task_success_rate` function now passes, yielding a TSR of 1.0.
+
+---
+
+## Phase 4: Expanding Mocked Actions (Future Work)
+
+**Goal:** Increase the capability of the mocked environment to support a wide range of Solana interactions.
+
+-   [ ] **Task 4.1: Implement Mocked SPL-Token Transfer**
+-   [ ] **Task 4.2: Implement Mocked Token2022 Transfer**
+-   [ ] **Task 4.3: Implement Mocked NFT Transfer**
+-   [ ] **Task 4.4: Implement Mocked Swap**
+-   [ ] **Task 4.5: Implement Mocked Deposit (e.g., to a lending protocol)**
+-   [ ] **Task 4.6: Implement Mocked Withdraw**
+
+---
+
+## Phase 5: Real Environment Implementation (Deferred)
+
+**Goal:** Re-implement the environment actions to interact with a real `solana-test-validator` using the `solana-sdk`.
+
+-   [ ] **Task 5.1: Resolve Solana SDK Dependencies and Imports**
+-   [ ] **Task 5.2: Re-implement `sol_transfer` with Real Transactions**
+-   [ ] **Task 5.3: Re-implement `reset` to Create Real On-Chain Accounts**

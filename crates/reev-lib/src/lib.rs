@@ -1,7 +1,10 @@
+pub mod actions;
 pub mod agent;
 pub mod benchmark;
 pub mod env;
+pub mod metrics;
 pub mod solana_env;
+pub mod trace;
 
 #[cfg(test)]
 mod tests {
