@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 pub mod sol_transfer;
+pub mod spl_token_transfer;
 
 /// A type alias for the mocked in-memory state of the Solana ledger.
 pub type MockedState = HashMap<String, MockAccountState>;

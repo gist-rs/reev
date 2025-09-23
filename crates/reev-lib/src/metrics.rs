@@ -60,18 +60,27 @@ pub fn calculate_task_success_rate(
 fn check_assertion(observation: &AgentObservation, assertion: &StateAssertion) -> Result<bool> {
     match assertion {
         StateAssertion::SolBalance { pubkey, expected } => {
-            let actual_state = observation.account_states.get(pubkey).ok_or_else(|| {
+            let account_value = observation.account_states.get(pubkey).ok_or_else(|| {
                 anyhow!("Assertion failed: Account '{pubkey}' not found in final observation")
             })?;
-
-            // Assuming the balance is stored as a simple u64 in the account_states map.
-            let actual_balance = actual_state.as_u64().ok_or_else(|| {
-                anyhow!(
-                    "Assertion failed: Could not parse state for account '{pubkey}' as a u64 balance"
-                )
+            let account_state: crate::solana_env::MockAccountState =
+                serde_json::from_value(account_value.clone())?;
+            Ok(account_state.lamports == *expected)
+        }
+        StateAssertion::TokenAccountBalance { pubkey, expected } => {
+            let account_value = observation.account_states.get(pubkey).ok_or_else(|| {
+                anyhow!("Assertion failed: Account '{pubkey}' not found in final observation")
             })?;
+            let account_state: crate::solana_env::MockAccountState =
+                serde_json::from_value(account_value.clone())?;
 
-            Ok(actual_balance == *expected)
+            if let crate::solana_env::MockAccountData::SplToken(token_state) = account_state.data {
+                Ok(token_state.amount == *expected)
+            } else {
+                Err(anyhow!(
+                    "Assertion failed: Account '{pubkey}' is not an SPL Token account."
+                ))
+            }
         }
         // As more assertion types are defined, their checking logic will be added here.
         _ => {

@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     println!("--- Reev Evaluation Runner ---");
 
     // 1. Load the benchmark file.
-    let benchmark_path = Path::new("benchmarks/sol-transfer-001.yml");
+    let benchmark_path = Path::new("benchmarks/spl-transfer-001.yml");
     println!("[1/7] Loading benchmark from: {benchmark_path:?}");
     let f = File::open(benchmark_path)?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
