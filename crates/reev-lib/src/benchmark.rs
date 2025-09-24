@@ -1,5 +1,11 @@
 use crate::agent::AgentAction;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+};
+use std::str::FromStr;
 
 /// Defines a specific condition that must be true on the blockchain
 /// after the agent has completed its task.
@@ -61,6 +67,57 @@ pub struct InitialAccountState {
     pub mint_data: Option<MintData>,
 }
 
+/// A deserializable representation of a Solana instruction account,
+/// tailored for use in benchmark files.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct BenchmarkAccountMeta {
+    pub pubkey: String,
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
+
+/// A deserializable representation of a Solana instruction,
+/// tailored for use in benchmark files.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct BenchmarkInstruction {
+    pub program_id: String,
+    pub accounts: Vec<BenchmarkAccountMeta>,
+    pub data: String, // Expected to be a Base58 encoded string
+}
+
+impl TryFrom<BenchmarkInstruction> for AgentAction {
+    type Error = anyhow::Error;
+
+    fn try_from(bench_instruction: BenchmarkInstruction) -> Result<Self, Self::Error> {
+        let program_id = Pubkey::from_str(&bench_instruction.program_id)
+            .context("Failed to parse 'program_id' string into a Pubkey")?;
+
+        let accounts = bench_instruction
+            .accounts
+            .into_iter()
+            .map(|acc| {
+                let pubkey = Pubkey::from_str(&acc.pubkey)
+                    .context(format!("Failed to parse account pubkey: '{}'", acc.pubkey))?;
+                Ok(AccountMeta {
+                    pubkey,
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+            })
+            .collect::<Result<Vec<AccountMeta>>>()?;
+
+        let data = bs58::decode(&bench_instruction.data)
+            .into_vec()
+            .context("Failed to decode base58 'data' string")?;
+
+        Ok(AgentAction(Instruction {
+            program_id,
+            accounts,
+            data,
+        }))
+    }
+}
+
 /// Contains the objective criteria for judging the agent's performance on a test case.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GroundTruth {
@@ -69,7 +126,7 @@ pub struct GroundTruth {
     /// An optional, ordered list of the ideal tool calls the agent should make.
     /// This is used for calculating metrics like Tool Selection Accuracy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub expected_tool_calls: Vec<AgentAction>,
+    pub expected_tool_calls: Vec<BenchmarkInstruction>,
 }
 
 /// Represents a single, self-contained test case for evaluating an agent.

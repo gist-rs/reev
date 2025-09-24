@@ -1,66 +1,67 @@
 # PLAN.md: Master Development Plan for `reev`
 
-This document outlines the high-level, phased development plan for the `reev` project. It serves as the single source of truth for the project's roadmap, ensuring each development phase builds logically on the last.
+This document outlines the high-level, phased development plan for the `reev` project. It serves as the single source of truth for the project's roadmap.
 
 ## Guiding Principles
 
--   **Iterative Development**: Build the framework in layers, starting with a solid foundation and progressively adding features. Each phase results in a testable, functional system.
--   **Hermetic & Reproducible**: The core environment must be completely isolated and deterministic, a non-negotiable principle for verifiable evaluations.
--   **Clear Interfaces**: Define clean `trait`-based interfaces between components (Environment, Agent, Runner) to ensure modularity and separation of concerns.
--   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is an external, ephemeral service managed by the framework, not a linked library.
+-   **Iterative Development**: Build the framework in layers, starting with a solid foundation and progressively adding features.
+-   **Hermetic & Reproducible**: The core environment must be completely isolated and deterministic for verifiable evaluations.
+-   **Clear Interfaces**: Define clean `trait`-based interfaces between components (Environment, Agent, Runner).
+-   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is an external, ephemeral service managed by the framework.
 
 ---
 
-## Completed Work (Phases 1-4)
+## Completed Work (Phases 1-6)
 
-The foundational work for the `reev` framework and its initial reporting layer is complete. This includes:
+The foundational work for the framework, reporting, and the interactive TUI is complete.
 
--   **Workspace Scaffolding**: The `reev-lib` and `reev-runner` crates are set up with a clear separation of concerns.
--   **Hermetic `SolanaEnv`**: The core `SolanaEnv` is implemented, successfully managing the `surfpool` lifecycle and configuring on-chain state via RPC "cheatcodes".
--   **Core Action Handlers**: Handlers for `sol_transfer` and `spl_transfer` (including mint initialization) are fully functional.
--   **Benchmark Specification**: The Rust structs representing the `reev-benchmarks` format are defined and integrated with `serde` for YAML parsing.
--   **Generic `DummyAgent`**: A generic test agent that executes the `expected_tool_calls` from any benchmark file is implemented.
--   **Reporting Primitives**:
-    -   The canonical `TestResult` struct is defined to aggregate all evaluation data.
-    -   The `reev-runner` serializes this `TestResult` into a structured YAML output.
-    -   Advanced metrics (Task Success Rate, Tool Selection Accuracy, Parameterization Accuracy) are calculated.
-    -   A human-readable ASCII tree of the execution trace is rendered to the console.
+-   **Workspace Scaffolding**: `reev-lib`, `reev-runner`, and `reev-tui` crates are set up.
+-   **Hermetic `SolanaEnv`**: Manages the `surfpool` lifecycle and on-chain state.
+-   **Benchmark Specification**: YAML-based test case definitions.
+-   **Reporting Primitives**: Structured YAML output and console tree rendering.
+-   **Interactive TUI Cockpit**: A `ratatui`-based TUI for running benchmarks and analyzing results.
+-   **Observability**: The framework is instrumented with OpenTelemetry for tracing.
 
 ---
 
-## Phase 5: Advanced Observability (OpenTelemetry) (Next Up)
+## Phase 7: LLM Integration - Instruction Generation Model (Current)
 
-**Goal:** Instrument the framework to emit standardized OpenTelemetry (OTel) traces for advanced performance analysis, as detailed in `UI.md`.
+**Goal:** Evaluate an LLM's ability to act as a raw **instruction generator**, testing its low-level knowledge of the Solana transaction format.
 
-1.  **Instrument Core Logic**:
-    -   Integrate the `tracing` and `opentelemetry` crates into `reev-lib` and `reev-runner`.
-    -   Add `spans` to key operations (`reset`, `step`, `agent.get_action`, RPC calls) to measure latency and capture contextual attributes.
+1.  **Redefine `AgentAction` to Represent a Raw Instruction**:
+    -   The `AgentAction` struct in `reev-lib` is designed to hold the components of a raw Solana instruction (`program_id`, `accounts`, `data`).
 
-2.  **Configure OTel Exporter**:
-    -   In `reev-runner`, implement the logic to initialize an OTel pipeline.
-    -   Provide a default exporter that prints traces to the console or a file, with clear instructions on how to swap it for an exporter that sends data to Jaeger, Honeycomb, etc.
+2.  **Implement `LlmAgent` for Instruction Generation**:
+    -   The `LlmAgent` communicates with an external LLM API (e.g., `localhost:9090/gen/tx`).
+    -   It expects the API to return a JSON object representing a single, complete Solana instruction.
+    -   The agent's primary task is to correctly parse this JSON and deserialize it into the native `AgentAction` struct, including decoding the `data` field from Base58.
 
-## Phase 6: Interactive TUI Cockpit
+3.  **Adapt `SolanaEnv` to Process Raw Instructions**:
+    -   The `SolanaEnv::step` function receives the raw `AgentAction` from the agent.
+    -   Its responsibility is to build a `Transaction`, sign it using its securely managed internal keypairs, and send it to the `surfpool` validator.
 
-**Goal:** Create a rich, interactive Terminal User Interface for running benchmarks and analyzing results, as detailed in `UI.md`.
+---
 
-1.  **Create `reev-tui` Crate**:
-    -   Initialize a new binary crate and add `ratatui` as a dependency.
+## Phase 8: Scoring and Persistence (Next Up)
 
-2.  **Build the TUI Layout**:
-    -   Implement the three-panel layout (Benchmark Navigator, Trace View, Details Pane) and the top-level control bar (`[RUN]`, `[SETTINGS]`) as specified in `UI.md`.
+**Goal:** Record evaluation results in a persistent database for analysis and comparison.
 
-3.  **Implement Interactive Functionality**:
-    -   The TUI will manage the full evaluation lifecycle: scanning for benchmarks, selecting tests, triggering runs, and loading the resulting YAML trace files to populate the UI dynamically.
+1.  **Add Turso/libSQL Dependency**:
+    -   The `turso` crate (`tursodatabase-turso`) will be added as a dependency to the `reev-runner` crate to provide a local, file-based SQLite database.
 
-## Phase 7: LLM Integration
+2.  **Implement Database Schema and Connection**:
+    -   In `reev-runner`, a new module will be created to manage the database connection.
+    -   It will be responsible for creating a database file (e.g., `reev_results.db`) and setting up the necessary tables to store benchmark results.
 
-**Goal:** Replace the `DummyAgent` with a true LLM-powered agent and evaluate its performance on the `reev-benchmarks` suite.
+3.  **Implement Score Calculation**:
+    -   After each benchmark run, the `reev-runner` will iterate through the `final_state_assertions` defined in the benchmark's YAML file.
+    -   It will query the `SolanaEnv` for the final on-chain state and compare it against each assertion to determine a final pass/fail score.
 
-1.  **Implement `LlmAgent`**:
-    -   Create a new `LlmAgent` struct that implements the `Agent` trait.
-    -   It will use `reqwest` to communicate with an external LLM API.
-    -   Implement robust prompt engineering to serialize the `AgentObservation` into the LLM's context and parse the tool-call response back into an `AgentAction`.
-
-2.  **Expand `reev-benchmarks` Suite**:
-    -   Curate a comprehensive suite of test cases covering all capability areas (T1-T5) defined in `IDEA.md`, including multi-step reasoning, error handling, and optimization challenges.
+4.  **Persist Evaluation Results**:
+    -   The runner will write a complete record of the evaluation to the database, including:
+        -   The benchmark ID.
+        -   The initial prompt.
+        -   The raw instruction JSON generated by the LLM.
+        -   The final on-chain state observation.
+        -   The calculated score (pass/fail).
+        -   A timestamp.

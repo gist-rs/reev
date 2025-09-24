@@ -1,101 +1,58 @@
-use reev_lib::{
-    results::{FinalStatus, TestResult},
-    trace::TraceStep,
-};
+use ascii_tree::{Tree, write_tree};
+use reev_lib::{results::TestResult, trace::TraceStep};
 
-/// Main public entry point to render a `TestResult` as an ASCII tree.
+/// Renders a `TestResult` object into a human-readable ASCII tree format.
+///
+/// This provides a quick, high-level overview of the agent's execution trace
+/// directly in the terminal.
 pub fn render_result_as_tree(result: &TestResult) -> String {
-    let mut output = String::new();
-
-    // 1. Render the main header for the test case result.
-    let status_icon = match result.final_status {
-        FinalStatus::Succeeded => "✔",
-        FinalStatus::Failed => "✗",
+    let status_icon = if result.final_status == reev_lib::results::FinalStatus::Succeeded {
+        "✅"
+    } else {
+        "❌"
     };
-    output.push_str(&format!(
-        "{} {}: {:?}\n",
-        status_icon, result.id, result.final_status
-    ));
+    let root_label = format!("{} {}: {}", status_icon, result.id, result.final_status);
 
-    // 2. Render each step in the execution trace.
-    let steps = &result.trace.steps;
-    let num_steps = steps.len();
-    for (i, step) in steps.iter().enumerate() {
-        let is_last_step = i == num_steps - 1;
-        render_step(&mut output, step, i + 1, is_last_step);
+    let mut step_nodes = Vec::new();
+    for (i, step) in result.trace.steps.iter().enumerate() {
+        step_nodes.push(render_step_node(i + 1, step));
     }
 
-    output
+    let tree = Tree::Node(root_label, step_nodes);
+    let mut buffer = String::new();
+    write_tree(&mut buffer, &tree).unwrap();
+    buffer
 }
 
-/// Renders a single `TraceStep`, including its action and observation.
-fn render_step(output: &mut String, step: &TraceStep, step_num: usize, is_last_step: bool) {
-    let prefix = if is_last_step { "└─ " } else { "├─ " };
-    output.push_str(&format!("{prefix}Step {step_num}:\n"));
+/// Renders a single `TraceStep` into a `Tree` node for the ASCII tree.
+fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
+    let step_label = format!("Step {step_number}");
 
-    let child_prefix = if is_last_step { "   " } else { "│  " };
+    // Since the new AgentAction is a raw instruction, serializing it to JSON
+    // is the most effective way to display its complex structure in the tree.
+    let action_str = match serde_json::to_string_pretty(&step.action.0) {
+        Ok(json_str) => {
+            // Indent the JSON for better readability within the tree
+            json_str
+                .lines()
+                .map(|line| format!("     {line}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+        Err(_) => " [Error serializing action]".to_string(),
+    };
+    let action_node = Tree::Leaf(vec![format!("ACTION:\n{}", action_str)]);
 
-    // An action is always the first child of a step, and there's always an observation after it.
-    render_action_node(output, step, child_prefix, false);
-    // The observation is always the last child of a step.
-    render_observation_node(output, step, child_prefix, true);
-}
-
-/// Renders the ACTION part of a step as a formatted node in the tree.
-fn render_action_node(output: &mut String, step: &TraceStep, prefix: &str, is_last: bool) {
-    let connector = if is_last { "└─ " } else { "├─ " };
-    let params = step
-        .action
-        .parameters
-        .iter()
-        .map(|(k, v)| {
-            let s = v.to_string();
-            // Don't add extra quotes around simple strings or numbers for readability.
-            if v.is_string() || v.is_number() {
-                format!("{}: {}", k, s.trim_matches('"'))
-            } else {
-                format!("{k}: {s}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    output.push_str(&format!(
-        "{}{}ACTION: {}({})\n",
-        prefix, connector, step.action.tool_name, params
-    ));
-}
-
-/// Renders the OBSERVATION part of a step, including any errors or logs.
-fn render_observation_node(output: &mut String, step: &TraceStep, prefix: &str, is_last: bool) {
-    let connector = if is_last { "└─ " } else { "├─ " };
-    output.push_str(&format!(
-        "{}{}OBSERVATION: {}\n",
-        prefix, connector, step.observation.last_transaction_status
-    ));
-
-    // Determine the prefix for the children of the observation node.
-    let child_prefix = if is_last { "   " } else { "│  " };
-    let new_prefix = format!("{prefix}{child_prefix}");
-
-    let logs = &step.observation.last_transaction_logs;
-
-    // Render the error, if it exists.
+    let observation_label = format!("OBSERVATION: {}", step.observation.last_transaction_status);
+    let mut observation_children = Vec::new();
     if let Some(error) = &step.observation.last_transaction_error {
-        // The error is the last item only if there are no logs.
-        let is_last_child = logs.is_empty();
-        let error_connector = if is_last_child { "└─ " } else { "├─ " };
-        // Take only the first line of the error for a concise tree view.
-        let error_text = format!("Error: {}", error.lines().next().unwrap_or(""));
-        output.push_str(&format!(
-            "{new_prefix}{error_connector}{error_text}\n"
-        ));
+        observation_children.push(Tree::Leaf(vec![format!("Error: {}", error)]));
+    }
+    if let Some(log) = step.observation.last_transaction_logs.first() {
+        observation_children.push(Tree::Leaf(vec![format!("Log: {}", log)]));
     }
 
-    // Render any transaction logs.
-    let num_logs = logs.len();
-    for (i, log) in logs.iter().enumerate() {
-        let is_last_child = i == num_logs - 1;
-        let log_connector = if is_last_child { "└─ " } else { "├─ " };
-        output.push_str(&format!("{new_prefix}{log_connector}{log}\n"));
-    }
+    let observation_node = Tree::Node(observation_label, observation_children);
+
+    Tree::Node(step_label, vec![action_node, observation_node])
 }

@@ -31,10 +31,19 @@ ground_truth:
       pubkey: "USER_WALLET_PUBKEY"
       expected: 899995000 # 1 SOL - 0.1 SOL - 0.000005 SOL fee
 
-  # The ideal sequence of tool calls the agent should make.
+  # The ideal sequence of tool calls the agent should make. This now reflects
+  # a raw Solana instruction, which is what the agent is expected to generate.
   expected_tool_calls:
-    - tool_name: "sol_transfer"
-      parameters:
-        from_pubkey: "USER_WALLET_PUBKEY"
-        to_pubkey: "RECIPIENT_WALLET_PUBKEY"
-        lamports: 100000000
+    - program_id: "11111111111111111111111111111111" # System Program
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: true
+        - pubkey: "RECIPIENT_WALLET_PUBKEY"
+          is_signer: false
+          is_writable: true
+      # Instruction data for a System Program transfer:
+      # - 4 bytes: instruction index (2 for transfer)
+      # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)
+      # This is base58 encoded.
+      data: "2E4pS263t"

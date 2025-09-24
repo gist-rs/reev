@@ -1,30 +1,11 @@
-use crate::agent::{Agent, AgentAction, AgentObservation};
+use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
+use serde_json::json;
 use tracing::instrument;
 
-/// Represents the JSON payload sent to the LLM API.
-#[derive(Serialize)]
-struct LlmRequestPayload {
-    model: String,
-    prompt: String,
-    // Add other parameters like temperature, max_tokens, etc., as needed.
-}
-
-/// Represents the expected JSON structure of a successful LLM API response.
-/// This is a simplified example; a real implementation would need to handle
-/// various response formats and potential errors.
-#[derive(Deserialize)]
-struct LlmResponse {
-    tool_name: String,
-    parameters: HashMap<String, Value>,
-}
-
-/// An agent that uses a large language model to decide the next action.
+/// An agent that uses a large language model to generate raw Solana instructions.
 pub struct LlmAgent {
     client: Client,
     api_url: String,
@@ -34,7 +15,7 @@ pub struct LlmAgent {
 impl LlmAgent {
     /// Creates a new `LlmAgent`.
     ///
-    /// It initializes a `reqwest` client and a `tokio` runtime.
+    /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
     pub fn new() -> Result<Self> {
         // In a real application, the API key should be loaded securely,
@@ -42,7 +23,7 @@ impl LlmAgent {
         let api_key =
             std::env::var("LLM_API_KEY").unwrap_or_else(|_| "YOUR_API_KEY_HERE".to_string());
         let api_url = std::env::var("LLM_API_URL")
-            .unwrap_or_else(|_| "https://api.example.com/v1/chat/completions".to_string());
+            .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
 
         if api_key == "YOUR_API_KEY_HERE" {
             println!("[LlmAgent] WARNING: Using a placeholder API key. Please set the LLM_API_KEY environment variable.");
@@ -54,42 +35,6 @@ impl LlmAgent {
             api_key,
         })
     }
-
-    /// Asynchronously calls the LLM API with a given prompt.
-    async fn call_llm_api(&self, prompt: String) -> Result<AgentAction> {
-        let payload = LlmRequestPayload {
-            model: "gpt-4-turbo".to_string(), // This can also be made configurable
-            prompt,
-        };
-
-        let response = self
-            .client
-            .post(&self.api_url)
-            .bearer_auth(&self.api_key)
-            .json(&payload)
-            .send()
-            .await
-            .context("Failed to send request to LLM API")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Could not retrieve error body".to_string());
-            anyhow::bail!("LLM API request failed with status {status}: {error_body}");
-        }
-
-        let llm_response = response
-            .json::<LlmResponse>()
-            .await
-            .context("Failed to deserialize LLM API response")?;
-
-        Ok(AgentAction {
-            tool_name: llm_response.tool_name,
-            parameters: llm_response.parameters,
-        })
-    }
 }
 
 #[async_trait]
@@ -99,19 +44,51 @@ impl Agent for LlmAgent {
         // 1. Serialize the observation into a prompt. A real implementation would
         //    include conversation history and more sophisticated prompt engineering.
         let prompt = format!(
-            "Based on the following observation, what is the next tool to call? Provide the response as a JSON object with `tool_name` and `parameters` keys.\n\nObservation:\n{}",
+            "Based on the following observation, what is the next Solana instruction to execute? Provide the response as a JSON object with `program_id`, `accounts`, and `data` keys.\n\nObservation:\n{}",
             serde_json::to_string_pretty(observation)?
         );
         println!("[LlmAgent] Generating prompt...");
         tracing::debug!(prompt = %prompt, "Generated LLM prompt");
 
         // 2. Send the prompt to the LLM API.
-        println!("[LlmAgent] Sending prompt to LLM...");
-        let action = self.call_llm_api(prompt).await?;
+        println!("[LlmAgent] Sending prompt to LLM at {}...", self.api_url);
 
-        // 3. Return the parsed action.
-        println!("[LlmAgent] Parsed action: {}", action.tool_name);
-        tracing::info!(tool_name = %action.tool_name, "LLM decided on action");
+        let response = self
+            .client
+            .post(&self.api_url)
+            .bearer_auth(&self.api_key)
+            // The user's server code expects a `Json(payload)` of `GenTextRequest`,
+            // which likely contains a `prompt` field.
+            .json(&json!({ "prompt": prompt }))
+            .send()
+            .await
+            .context("Failed to send request to LLM API")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            anyhow::bail!("LLM API request failed with status {status}: {error_body}");
+        }
+
+        println!("[LlmAgent] Received successful response from LLM.");
+
+        // 3. Deserialize the entire third-party response using the structs defined in `agent.rs`.
+        // This now correctly expects the `{"result": {"text": {...}}}` structure.
+        let llm_response = response
+            .json::<LlmResponse>()
+            .await
+            .context("Failed to deserialize the third-party LLM API response")?;
+
+        // 4. Extract the inner instruction and convert it into a native AgentAction.
+        // The `TryFrom` implementation handles the complex parsing and decoding (e.g., base58 for data).
+        let action: AgentAction = llm_response.result.text.try_into()?;
+
+        // 5. Return the parsed action.
+        println!(
+            "[LlmAgent] Successfully parsed instruction for program: {}",
+            action.0.program_id
+        );
+        tracing::info!(program_id = %action.0.program_id, "LLM generated a raw instruction");
 
         Ok(action)
     }

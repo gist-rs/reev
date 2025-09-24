@@ -17,7 +17,7 @@ The evaluation of Large Language Models (LLMs) has matured for core competencies
 Evaluating an LLM agent is fundamentally different from evaluating a simple text generator. The focus shifts from the quality of a single output to the effectiveness of a sequence of actions. For a Solana agent, we must evaluate:
 
 -   **Task Completion Rate:** Did the agent achieve the goal specified by the user's prompt?
--   **Tool Selection & Parameterization:** Did the agent choose the correct on-chain programs and supply the correct parameters?
+-   **Instruction Generation Quality:** Did the agent generate a correct and secure raw transaction instruction to achieve the goal? This represents an evolution from the initial "tool-choosing" model to a more advanced "instruction-generating" model, testing the LLM's deep, low-level knowledge.
 -   **Efficiency:** How many transactions and how much in fees did the agent consume?
 -   **Robustness:** How does the agent handle errors like failed transactions?
 
@@ -44,7 +44,7 @@ This library contains all the core logic, including:
 -   **`SolanaEnv`**: The concrete implementation of the `GymEnv` trait. It manages the `surfpool` lifecycle and all RPC communication.
 -   **`Agent` Trait**: A simple trait defining the agent interface. It includes a `DummyAgent` implementation that follows a predefined script from a benchmark file, serving as a baseline for testing.
 -   **Benchmark Structs**: Rust types that define the structure of a `reev-benchmarks` YAML file, enabling strongly-typed parsing with `serde`.
--   **Action Handlers**: A modular system under `src/actions/` for building specific Solana transactions (e.g., `sol_transfer`, `spl_transfer`).
+-   **Instruction Processing**: The framework is designed to receive a complete, raw instruction from the agent. The `SolanaEnv` is then responsible for safely constructing, signing, and executing a transaction from this instruction.
 
 ### 2.2. `reev-runner`: The CLI Orchestrator
 
