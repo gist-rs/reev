@@ -1,7 +1,7 @@
 use crate::agent::AgentObservation;
 use crate::benchmark::{GroundTruth, StateAssertion};
 use crate::trace::ExecutionTrace;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use solana_program::program_pack::Pack;
 use solana_sdk::account::Account;
 
@@ -83,7 +83,9 @@ fn check_assertion(observation: &AgentObservation, assertion: &StateAssertion) -
             let token_account = spl_token::state::Account::unpack(&account.data)
                 .context("Failed to unpack SPL token account data")?;
             let actual_amount = token_account.amount;
-            println!("[Metrics] Checking TokenAccountBalance for {pubkey}: Expected={expected}, Actual={actual_amount}");
+            println!(
+                "[Metrics] Checking TokenAccountBalance for {pubkey}: Expected={expected}, Actual={actual_amount}"
+            );
             Ok(actual_amount == *expected)
         }
         // For now, any other assertion type is considered unhandled and will fail.
@@ -114,13 +116,13 @@ fn calculate_tool_selection_accuracy(
         .collect();
 
     let mut correct_selections = 0;
-    for i in 0..expected_calls.len() {
+    (0..expected_calls.len()).for_each(|i| {
         if let Some(actual_call) = actual_calls.get(i) {
             if actual_call.tool_name == expected_calls[i].tool_name {
                 correct_selections += 1;
             }
         }
-    }
+    });
 
     Ok(correct_selections as f32 / expected_calls.len() as f32)
 }
@@ -146,7 +148,7 @@ fn calculate_parameterization_accuracy(
     let mut correct_selections = 0;
     let mut correct_params = 0;
 
-    for i in 0..expected_calls.len() {
+    (0..expected_calls.len()).for_each(|i| {
         if let Some(actual_call) = actual_calls.get(i) {
             if actual_call.tool_name == expected_calls[i].tool_name {
                 correct_selections += 1;
@@ -156,7 +158,7 @@ fn calculate_parameterization_accuracy(
                 }
             }
         }
-    }
+    });
 
     if correct_selections == 0 {
         return Ok(0.0); // No tools were selected correctly, so 0% param accuracy.

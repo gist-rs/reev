@@ -29,13 +29,13 @@ The foundational framework and the initial reporting layer are complete.
 
 **Goal:** Instrument the framework to emit standardized OpenTelemetry (OTel) traces for advanced performance analysis.
 
--   [ ] **Task 5.1: Add Dependencies**
-    -   [ ] Add `tracing`, `opentelemetry`, `opentelemetry-sdk`, and an exporter crate (e.g., `opentelemetry-stdout`) to the `Cargo.toml` of `reev-runner`.
+-   [x] **Task 5.1: Add Dependencies**
+    -   [x] Add `tracing`, `opentelemetry`, `opentelemetry-sdk`, and an exporter crate (e.g., `opentelemetry-stdout`) to the `Cargo.toml` of `reev-runner`.
 
--   [ ] **Task 5.2: Initialize OTel Pipeline**
-    -   [ ] In `reev-runner/src/main.rs`, create a function to set up the global tracer provider.
-    -   [ ] Configure a simple "stdout" exporter that prints traces to the console in a machine-readable format for initial verification.
-    -   [ ] Ensure the pipeline is properly shut down at the end of the `main` function.
+-   [x] **Task 5.2: Initialize OTel Pipeline**
+    -   [x] In `reev-runner/src/main.rs`, create a function to set up the global tracer provider.
+    -   [x] Configure a simple "stdout" exporter that prints traces to the console in a machine-readable format for initial verification.
+    -   [x] Ensure the pipeline is properly shut down at the end of the `main` function.
 
 -   [ ] **Task 5.3: Instrument Code with Spans**
     -   [ ] Add `#[tracing::instrument]` macros to key functions to create spans.

@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use opentelemetry::global;
+use opentelemetry::global::{self};
 use opentelemetry::trace::TracerProvider;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace as sdktrace;
 use reev_lib::{
     agent::{Agent, DummyAgent},
@@ -31,13 +32,14 @@ struct Cli {
 ///
 /// Sets up a pipeline that exports traces to stdout in a machine-readable
 /// JSON format. It integrates `tracing` with `opentelemetry`.
-fn init_tracing() -> Result<()> {
+fn init_tracing() -> Result<sdktrace::SdkTracerProvider> {
     let exporter = opentelemetry_stdout::SpanExporter::default();
-    let provider = sdktrace::TracerProvider::builder()
+    let provider = sdktrace::SdkTracerProvider::builder()
         .with_simple_exporter(exporter)
+        .with_resource(Resource::builder().with_service_name("reev-runner").build())
         .build();
     let tracer = provider.tracer("reev-runner");
-    global::set_tracer_provider(provider);
+    global::set_tracer_provider(provider.clone());
 
     let subscriber = Registry::default()
         // Filter logs based on the RUST_LOG env var, or a default.
@@ -47,12 +49,12 @@ fn init_tracing() -> Result<()> {
     subscriber::set_global_default(subscriber)
         .context("Failed to set global default tracing subscriber")?;
 
-    Ok(())
+    Ok(provider)
 }
 
 fn main() -> Result<()> {
     // This must be the first call in main.
-    init_tracing()?;
+    let tracer_provider = init_tracing()?;
 
     // When running with `cargo run -p`, the CWD is the crate root.
     // We change it to the workspace root to resolve benchmark paths correctly.
@@ -128,15 +130,15 @@ fn main() -> Result<()> {
 
     // Render the result as a tree for immediate, human-readable feedback.
     let tree_output = renderer::render_result_as_tree(&result);
-    println!("{}", tree_output);
+    println!("{tree_output}");
 
     env.close()?;
     println!("      Environment closed.");
 
     println!("\n--- Evaluation Runner Finished ---");
 
-    // Shutdown the tracer provider. This must be the last call.
-    global::shutdown_tracer_provider();
+    // Shutdown the provider when application is exiting.
+    tracer_provider.shutdown()?;
 
     Ok(())
 }

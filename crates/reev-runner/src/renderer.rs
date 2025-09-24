@@ -31,7 +31,7 @@ pub fn render_result_as_tree(result: &TestResult) -> String {
 /// Renders a single `TraceStep`, including its action and observation.
 fn render_step(output: &mut String, step: &TraceStep, step_num: usize, is_last_step: bool) {
     let prefix = if is_last_step { "└─ " } else { "├─ " };
-    output.push_str(&format!("{}Step {}:\n", prefix, step_num));
+    output.push_str(&format!("{prefix}Step {step_num}:\n"));
 
     let child_prefix = if is_last_step { "   " } else { "│  " };
 
@@ -54,7 +54,7 @@ fn render_action_node(output: &mut String, step: &TraceStep, prefix: &str, is_la
             if v.is_string() || v.is_number() {
                 format!("{}: {}", k, s.trim_matches('"'))
             } else {
-                format!("{}: {}", k, s)
+                format!("{k}: {s}")
             }
         })
         .collect::<Vec<_>>()
@@ -75,7 +75,7 @@ fn render_observation_node(output: &mut String, step: &TraceStep, prefix: &str, 
 
     // Determine the prefix for the children of the observation node.
     let child_prefix = if is_last { "   " } else { "│  " };
-    let new_prefix = format!("{}{}", prefix, child_prefix);
+    let new_prefix = format!("{prefix}{child_prefix}");
 
     let logs = &step.observation.last_transaction_logs;
 
@@ -87,8 +87,7 @@ fn render_observation_node(output: &mut String, step: &TraceStep, prefix: &str, 
         // Take only the first line of the error for a concise tree view.
         let error_text = format!("Error: {}", error.lines().next().unwrap_or(""));
         output.push_str(&format!(
-            "{}{}{}\n",
-            new_prefix, error_connector, error_text
+            "{new_prefix}{error_connector}{error_text}\n"
         ));
     }
 
@@ -97,6 +96,6 @@ fn render_observation_node(output: &mut String, step: &TraceStep, prefix: &str, 
     for (i, log) in logs.iter().enumerate() {
         let is_last_child = i == num_logs - 1;
         let log_connector = if is_last_child { "└─ " } else { "├─ " };
-        output.push_str(&format!("{}{}{}\n", new_prefix, log_connector, log));
+        output.push_str(&format!("{new_prefix}{log_connector}{log}\n"));
     }
 }
