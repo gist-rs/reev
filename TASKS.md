@@ -59,9 +59,9 @@ The foundational framework and the initial reporting layer are complete.
     -   [x] Implement the static three-panel layout and the header bar as specified in `UI.md`.
 -   [x] **Task 6.3: Implement State Management**
     -   [x] Develop the application state struct that will hold the list of benchmarks, the results of runs, and the current UI focus.
--   [ ] **Task 6.4: Implement Interactive Functionality**
-    -   [ ] Wire up the `[RUN]` button to trigger the evaluation logic from `reev-lib`.
-    -   [ ] Implement the logic to load and display YAML results in the UI panels.
+-   [x] **Task 6.4: Implement Interactive Functionality**
+    -   [x] Wire up the `[RUN]` button to trigger the evaluation logic from `reev-lib`.
+    -   [x] Implement the logic to load and display YAML results in the UI panels.
 
 ---
 
