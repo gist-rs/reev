@@ -47,23 +47,28 @@ impl DummyAgent {
 impl Agent for DummyAgent {
     fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
         if !self.has_acted {
-            // If the agent hasn't acted yet, perform the SOL transfer.
+            // If the agent hasn't acted yet, perform the SPL transfer.
             self.has_acted = true;
-            println!("[DummyAgent] Deciding to perform the SOL transfer.");
+            println!("[DummyAgent] Deciding to perform the SPL transfer.");
             let mut parameters = HashMap::new();
+            // These parameters should match the spl-transfer-001.yml benchmark.
             parameters.insert(
                 "from_pubkey".to_string(),
-                serde_json::json!("USER_WALLET_PUBKEY"),
+                serde_json::json!("USER_USDC_ATA"),
             );
             parameters.insert(
                 "to_pubkey".to_string(),
-                serde_json::json!("RECIPIENT_WALLET_PUBKEY"),
+                serde_json::json!("RECIPIENT_USDC_ATA"),
             );
-            // This amount should match the amount needed to satisfy the sol-transfer-001.yml assertions.
-            parameters.insert("lamports".to_string(), serde_json::json!(100_000_000));
+            parameters.insert(
+                "authority_pubkey".to_string(),
+                serde_json::json!("USER_WALLET_PUBKEY"),
+            );
+            // 15 USDC with 6 decimals.
+            parameters.insert("amount".to_string(), serde_json::json!(15_000_000));
 
             Ok(AgentAction {
-                tool_name: "sol_transfer".to_string(),
+                tool_name: "spl_transfer".to_string(),
                 parameters,
             })
         } else {

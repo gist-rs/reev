@@ -46,6 +46,7 @@ To run a specific benchmark, use the `reev-runner` crate with the `--benchmark` 
 2.  **Run the command:**
 
     ```bash
+    surfpool start
     cargo run -p reev-runner -- --benchmark benchmarks/transfer-simple-001.yml
     ```
 
