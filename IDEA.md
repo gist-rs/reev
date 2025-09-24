@@ -64,7 +64,7 @@ A thin binary that orchestrates the evaluation process. It is responsible for:
 
 Each `.yml` file is a self-contained test case with a standardized structure:
 
--   **`id`**: A unique identifier (e.g., `SPL-TRANSFER-SIMPLE-001`).
+-   **`id`**: A unique identifier (e.g., `001-SPL-TRANSFER-SIMPLE`).
 -   **`description`**: A human-readable summary.
 -   **`initial_state`**: A declarative list of accounts to create on the test validator, supporting SOL accounts, SPL token accounts, and on-the-fly SPL token mint initialization.
 -   **`prompt`**: The natural language instruction for the agent.
@@ -75,7 +75,7 @@ Each `.yml` file is a self-contained test case with a standardized structure:
 ### 3.2. Example Benchmark (`spl-transfer-001.yml`)
 
 ```yaml
-id: SPL-TRANSFER-SIMPLE-001
+id: 001-SPL-TRANSFER-SIMPLE
 description: A simple SPL-Token transfer using the real USDC mint.
 tags: ["spl-token", "transfer", "usdc"]
 

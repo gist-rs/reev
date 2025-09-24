@@ -14,7 +14,7 @@ This document outlines the phased development plan for creating a rich user inte
 
 **Example YAML Output (`result-spl-transfer-001.yml`):**
 ```yaml
-id: SPL-TRANSFER-SIMPLE-001
+id: 001-SPL-TRANSFER-SIMPLE
 prompt: "Please send 15 USDC from my token account..."
 final_status: Succeeded
 metrics:
@@ -46,7 +46,7 @@ trace:
 
 **Example ASCII Output:**
 ```
-✓ SPL-TRANSFER-SIMPLE-001: SUCCEEDED
+✓ 001-SPL-TRANSFER-SIMPLE: SUCCEEDED
 |
 └─ Step 1:
    ├─ ACTION: spl_transfer(from_pubkey: "...", to_pubkey: "...", amount: 15000000)
@@ -67,8 +67,8 @@ trace:
 ├───────────────────────────┬──────────────────────────────────────────────┤
 │ A: Benchmark Navigator    │ B: Execution Trace View                      │
 │                           │                                              │
-│ [✔] SPL-TRANSFER-001      │ ✔ SPL-TRANSFER-SIMPLE-001: SUCCEEDED         │
-│ [✗] NFT-TRANSFER-001      │ │                                            │
+│ [✔] SPL-TRANSFER-001      │ ✔ 001-SPL-TRANSFER-SIMPLE: SUCCEEDED         │
+│ [✗] 001-SPL-TRANSFER      │ │                                            │
 │ [ ] TRANSFER-SIMPLE-001   │ └─ Step 1:                                  │
 │                           │    ├─ ACTION: spl_transfer(...)             │
 │                           │    └─ OBSERVATION: Failure                  │

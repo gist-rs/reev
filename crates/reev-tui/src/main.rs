@@ -21,11 +21,18 @@ enum ActivePanel {
     Details,
 }
 
+/// Represents a single benchmark test case.
+struct Benchmark<'a> {
+    name: String,
+    trace: Vec<Line<'a>>,
+    details: String,
+}
+
 /// Application state.
 struct App<'a> {
     should_quit: bool,
     active_panel: ActivePanel,
-    benchmarks: Vec<&'a str>,
+    benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
 }
 
@@ -34,15 +41,41 @@ impl<'a> App<'a> {
     fn new() -> Self {
         let mut benchmark_state = ListState::default();
         benchmark_state.select(Some(0)); // Select the first item by default.
+
+        let benchmarks = vec![
+            Benchmark {
+                name: "[✔] SPL-TRANSFER-001".to_string(),
+                trace: vec![
+                    Line::from("✔ SPL-TRANSFER-001: SUCCEEDED"),
+                    Line::from("│"),
+                    Line::from("└─ Step 1:"),
+                    Line::from("   ├─ ACTION: spl_transfer(...)"),
+                    Line::from("   └─ OBSERVATION: Success"),
+                ],
+                details: "> Transaction confirmed: 3fLx...".to_string(),
+            },
+            Benchmark {
+                name: "[✗] 001-SPL-TRANSFER".to_string(),
+                trace: vec![
+                    Line::from("✗ 001-SPL-TRANSFER: FAILED"),
+                    Line::from("│"),
+                    Line::from("└─ Step 1:"),
+                    Line::from("   ├─ ACTION: nft_transfer(...)"),
+                    Line::from("   └─ OBSERVATION: Failure"),
+                ],
+                details: "> Error: Transaction failed: RPC response error -32002".to_string(),
+            },
+            Benchmark {
+                name: "[ ] TRANSFER-SIMPLE-001".to_string(),
+                trace: vec![Line::from("… PENDING EXECUTION")],
+                details: "> This benchmark has not been run yet.".to_string(),
+            },
+        ];
+
         Self {
             should_quit: false,
             active_panel: ActivePanel::BenchmarkNavigator,
-            // Placeholder data for the benchmark navigator.
-            benchmarks: vec![
-                "[✔] SPL-TRANSFER-001",
-                "[✗] NFT-TRANSFER-001",
-                "[ ] TRANSFER-SIMPLE-001",
-            ],
+            benchmarks,
             benchmark_state,
         }
     }
@@ -84,6 +117,31 @@ impl<'a> App<'a> {
             ActivePanel::ExecutionTrace => ActivePanel::Details,
             ActivePanel::Details => ActivePanel::BenchmarkNavigator,
         };
+    }
+
+    /// Simulates running the selected benchmark.
+    fn on_run(&mut self) {
+        if let Some(i) = self.benchmark_state.selected() {
+            let benchmark = &mut self.benchmarks[i];
+            let base_name = benchmark.name.clone();
+            let base_name = base_name.split_at(4).1;
+            benchmark.name = format!("[✔] {base_name}");
+            benchmark.trace = vec![
+                Line::from(format!("✔ {base_name}: SUCCEEDED (Simulated)")),
+                Line::from("│"),
+                Line::from("└─ Step 1:"),
+                Line::from("   ├─ ACTION: simulated_action(...)"),
+                Line::from("   └─ OBSERVATION: Success"),
+            ];
+            benchmark.details = "> Simulated run successful.".to_string();
+        }
+    }
+
+    /// Returns the currently selected benchmark, if any.
+    fn get_selected_benchmark(&self) -> Option<&Benchmark> {
+        self.benchmark_state
+            .selected()
+            .and_then(|i| self.benchmarks.get(i))
     }
 }
 
@@ -142,11 +200,9 @@ fn handle_events(app: &mut App) -> Result<()> {
                         KeyCode::Down | KeyCode::Char('j') => app.on_down(),
                         _ => {}
                     },
-                    ActivePanel::ExecutionTrace => {
-                        // Add keybindings for trace view later
+                    ActivePanel::ExecutionTrace => { // Add keybindings for trace view later
                     }
-                    ActivePanel::Details => {
-                        // Add keybindings for details view later
+                    ActivePanel::Details => { // Add keybindings for details view later
                     }
                 }
 
@@ -154,6 +210,7 @@ fn handle_events(app: &mut App) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
+                    KeyCode::Char('r') => app.on_run(),
                     _ => {}
                 }
             }
@@ -244,7 +301,11 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let items: Vec<ListItem> = app.benchmarks.iter().map(|i| ListItem::new(*i)).collect();
+    let items: Vec<ListItem> = app
+        .benchmarks
+        .iter()
+        .map(|b| ListItem::new(b.name.as_str()))
+        .collect();
 
     let list = List::new(items)
         .block(block)
@@ -272,13 +333,11 @@ fn render_trace_view(f: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let text = vec![
-        Line::from("✔ SPL-TRANSFER-SIMPLE-001: SUCCEEDED"),
-        Line::from("│"),
-        Line::from("└─ Step 1:"),
-        Line::from("   ├─ ACTION: spl_transfer(...)"),
-        Line::from("   └─ OBSERVATION: Failure"),
-    ];
+    let text = if let Some(benchmark) = app.get_selected_benchmark() {
+        benchmark.trace.clone()
+    } else {
+        vec![Line::from("No benchmark selected")]
+    };
 
     let paragraph = Paragraph::new(text).block(block);
     f.render_widget(paragraph, area);
@@ -296,7 +355,12 @@ fn render_details_pane(f: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let text = "> Error: Transaction failed: RPC response error -32002";
+    let text = if let Some(benchmark) = app.get_selected_benchmark() {
+        benchmark.details.as_str()
+    } else {
+        "No benchmark selected"
+    };
+
     let paragraph = Paragraph::new(text).block(block);
     f.render_widget(paragraph, area);
 }
