@@ -1,61 +1,65 @@
-# reev
-🪸 Re-Eval: A Framework for the Reproducible Evaluation of LLM Agents
+# reev 🪸
+
+**Re-Eval: A Rust-native framework for the reproducible evaluation of Solana LLM agents.**
+
+---
 
 ## Summary
 
-`reev` is a framework for the reproducible evaluation of Large Language Model (LLM) agents, specifically those designed to operate on the Solana blockchain. Traditional LLM benchmarks are insufficient for agents that perceive, plan, and act within dynamic environments. This framework provides the necessary tools and methodologies to assess agent behavior in a rigorous, verifiable, and standardized manner.
+`reev` is a framework for the reproducible evaluation of Large Language Model (LLM) agents designed to operate on the Solana blockchain. Traditional LLM benchmarks are insufficient for agents that perceive, plan, and act within dynamic, high-stakes environments. This framework provides the necessary tools and methodologies to assess agent behavior in a rigorous, verifiable, and standardized manner.
 
-The core of the project is based on the Gymnasium (a fork of OpenAI's Gym) API, which provides a standard interface for agent-environment interaction. This ensures that evaluations are reproducible and align with established AI research community standards.
+The architecture is grounded in the principles of the Gymnasium API but implemented as a native Rust framework to ensure performance, type safety, and seamless integration with the Solana ecosystem.
+
+### Core Principles
+
+-   **Reproducibility**: The primary goal. Every test run is hermetic, guaranteeing that a given benchmark will produce the exact same result every time.
+-   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is treated as a managed, external service that the environment spawns, configures via RPC, and terminates for each test. This ensures a clean architectural boundary and prevents dependency conflicts.
+-   **Gymnasium-Inspired API**: The agent-environment interaction is modeled via a standard Rust `trait` (`GymEnv`) inspired by the Gymnasium API, promoting a clear separation of concerns.
 
 ### Key Components
 
-1.  **Solana-Gym Environment (`SolanaEnv`)**:
-    *   A custom, hermetic evaluation environment that simulates interaction with the Solana blockchain.
-    *   Uses a local, ephemeral `solana-test-validator` for each test run to guarantee reproducibility and isolation from external network factors.
-    *   Provides a standardized `step` and `reset` interface for the agent to submit actions (transactions) and receive observations (on-chain state changes).
+1.  **`reev-lib` (Core Library)**:
+    *   **`SolanaEnv`**: A custom, hermetic evaluation environment that manages an external `surfpool` process. It handles state setup, transaction execution, and observation generation.
+    *   **Agent Interface**: Defines a simple `Agent` trait and provides a `DummyAgent` that executes a pre-defined sequence of actions from a benchmark file.
+    *   **Action Handlers**: A modular system for building different types of Solana transactions (e.g., `sol_transfer`, `spl_transfer`).
+    *   **Benchmark Structs**: Rust types that define the structure of a `SolanaBench` YAML file, enabling strongly-typed parsing.
 
-2.  **Solana Agent Benchmark (`SolanaBench`)**:
-    *   A suite of curated test cases defined in a machine-readable format (YAML/JSON).
-    *   Each test case includes an initial on-chain state, a natural language prompt for the agent, and ground-truth assertions for verifying success.
-    *   Tasks are designed to test a taxonomy of agent capabilities, from simple state comprehension to complex, multi-step reasoning and error handling.
+2.  **`reev-runner` (CLI Orchestrator)**:
+    *   The command-line tool for loading and running benchmarks.
+    *   Orchestrates the entire evaluation loop, from setting up the environment to calculating metrics and reporting results.
 
-3.  **Multi-Faceted Evaluation Harness**:
-    *   An automated runner that orchestrates the entire evaluation process.
-    *   Calculates a suite of quantitative metrics:
-        *   **Task Success Rate (TSR):** Did the agent achieve the goal?
-        *   **Tool Selection & Parameterization Accuracy:** Did the agent use the correct tools with the right parameters?
-        *   **Gas Consumption Efficiency (GCE):** How economically did the agent operate?
-    *   Incorporates a qualitative "LLM-as-a-Judge" assessment to score the agent's reasoning, planning, and adaptability.
-
-4.  **Execution Trace Visualization**:
-    *   Captures a detailed, hierarchical trace of the agent's entire thought process and interaction loop.
-    *   Renders this trace as a human-readable ASCII tree, providing an "Explainable AI" (XAI) view for debugging, analysis, and building trust.
-
-5.  **Rust-Native Implementation**:
-    *   The entire framework is specified to be built in Rust for performance, type safety, and seamless integration with the Solana ecosystem and its tooling. Core concepts from Gymnasium are translated into idiomatic Rust traits and structs.
-
-This framework aims to provide a comprehensive, rigorous, and transparent methodology for developing and verifying the capabilities of sophisticated LLM agents in high-stakes blockchain environments.
+3.  **`SolanaBench` (Benchmark Suite)**:
+    *   A suite of evaluation tasks defined in YAML files located in the `benchmarks/` directory.
+    *   Each test case includes a declarative `initial_state`, a natural language `prompt`, and `ground_truth` criteria for success.
 
 ## Usage
 
 To run a specific benchmark, use the `reev-runner` crate with the `--benchmark` flag.
 
-### Example: Running the Simple SOL Transfer Benchmark
+### Prerequisites
+
+You must have the `surfpool` local validator installed.
+
+```bash
+brew install txtx/taps/surfpool
+```
+
+### Example: Running the SPL-Token Transfer Benchmark
 
 1.  **Navigate to the project root.**
 2.  **Run the command:**
 
     ```bash
-    brew install txtx/taps/surfpool
-    surfpool start
-    cargo run -p reev-runner -- --benchmark benchmarks/transfer-simple-001.yml
+    cargo run -p reev-runner -- --benchmark benchmarks/001-sol-transfer.yml
     ```
 
-3.  The runner will:
-    *   Load the specified benchmark file.
+3.  The runner will execute the following steps:
+    *   Load and parse the `001-sol-transfer.yml` file.
     *   Instantiate the `DummyAgent` and `SolanaEnv`.
-    *   Start a local `surfpool` validator process.
-    *   Set up the initial on-chain state via RPC.
-    *   Execute the agent-environment loop until the task is complete.
-    *   Calculate and display the final performance metrics.
-    *   Cleanly shut down the validator process.
+    *   Spawn a new, clean `surfpool start` process in the background.
+    *   Wait for the validator to become responsive.
+    *   Use RPC "cheatcodes" to set up the initial on-chain state (wallets, USDC mint, token accounts) as defined in the benchmark.
+    *   Execute the agent-environment loop, where the `DummyAgent` performs the `spl_transfer` action.
+    *   Calculate and display the final performance metrics (e.g., Task Success Rate).
+    *   Print a detailed JSON execution trace for analysis.
+    *   Cleanly shut down the `surfpool` process.

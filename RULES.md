@@ -1,6 +1,6 @@
 # RULES.md: Engineering and Development Guidelines
 
-This document establishes the official coding conventions and architectural rules for this project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, scalable, and easy for both humans and AI agents to understand and modify.
+This document establishes the official coding conventions and architectural rules for the `reev` project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, scalable, and easy for both humans and AI agents to understand and modify.
 
 ---
 
@@ -8,57 +8,46 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 1.1: Strict Separation of Concerns
 
--   **Binary Crates (e.g., `<project>-server`, `<project>-cli`)**: Their **only** job is to handle the user interface layer (e.g., HTTP, command-line arguments). They receive input, validate it, call the appropriate function in the core library, and format the output. They must **never** contain core business logic.
--   **The Core Library (e.g., `<project>-lib`)**: This is the brain of the application. It contains all business logic, orchestrates workflows, and provides a stable, public API for other crates to consume. It must be completely agnostic of the user interface (web, CLI, etc.).
--   **Plugin/Feature Crates**: Specialized functionalities (e.g., data sources, specific features) should be encapsulated in their own crates to promote modularity and extensibility.
+-   **The Runner Crate (`reev-runner`)**: This is a binary crate. Its **only** job is to handle the user interface layer (i.e., command-line arguments via `clap`). It receives input, calls the appropriate functions in the core library to orchestrate the evaluation run, and formats the final output (reports, traces). It must **never** contain core evaluation or environment logic.
+-   **The Core Library (`reev-lib`)**: This is the brain of the application. It contains all core logic, including the `GymEnv` trait, the `SolanaEnv` implementation, agent definitions, action handlers, and metrics calculations. It must be completely agnostic of the user interface.
+-   **Action Modules (`reev-lib/src/actions/`)**: Each distinct on-chain action (e.g., `sol_transfer`, `spl_transfer`) MUST be encapsulated in its own module. This promotes modularity and makes it easy to add new capabilities to the environment.
 
-### Rule 1.2: Plugin-First for Extensibility
+### Rule 1.2: Workspace and Crate Structure
 
--   **Prefer Traits for Behavior**: For behaviors that can be extended (like ingestion sources), a generic `trait` (e.g., `trait Ingestor`) MUST be defined in the core library. Each plugin then provides a struct that implements this trait. This is the required pattern for extensibility.
--   **Self-Contained Logic**: A plugin crate should contain everything it needs to operate: its specific logic, its dependencies, and any prompts or configuration templates it requires.
-
-### Rule 1.3: Workspace and Crate Structure
-
--   **Flat `crates/` Directory**: The workspace SHOULD maintain a flat directory structure under `crates/`. Logical grouping is achieved through crate naming, not nested directories.
--   **Naming Convention**: All crates that are part of the project's ecosystem SHOULD be prefixed with `<project>-` (e.g., `<project>-feature`, `<project>-server`). This is configured in each crate's `Cargo.toml`.
+-   **Flat `crates/` Directory**: The workspace MUST maintain a flat directory structure under `crates/`.
+-   **Naming Convention**: All crates that are part of the project's ecosystem MUST be prefixed with `reev-` (e.g., `reev-lib`, `reev-runner`). This is configured in each crate's `Cargo.toml`.
 
 ---
 
 ## 2. Code and Module Structure
 
-### Rule 2.1: Centralized vs. Local Types
+### Rule 2.1: Thin Binaries (`main.rs`)
 
--   **Local Types**: Each crate SHOULD have its own `src/types.rs` for internal data structures that are not part of its public API.
--   **Shared Public Types**: The central `<project>-lib/src/types.rs` module MUST only contain types that are part of the public API of the core library or are shared between two or more crates in the workspace.
-
-### Rule 2.2: Thin Binaries (`main.rs`)
-
--   The `main.rs` file of any binary crate (e.g., `<project>-server`, `<project>-cli`) MUST be a "thin entrypoint."
+-   The `main.rs` file of any binary crate (`reev-runner`) MUST be a "thin entrypoint."
 -   Its responsibilities are limited to:
-    1.  Setting up logging, configuration, and environment variables.
-    2.  Calling a single, well-documented `run()` or `start()` function from its corresponding library.
-    3.  Handling the final `Result` at the top level.
--   All application logic MUST reside in the library portion of the crate.
+    1.  Parsing command-line arguments.
+    2.  Setting up any necessary configuration.
+    3.  Calling a single, well-documented `run()` function from its corresponding library or internal module.
+    4.  Handling the final `Result` at the top level.
 
-### Rule 2.3: Clean Module Declarations (`mod.rs`)
+### Rule 2.2: Clean Module Declarations (`mod.rs`)
 
 -   A `mod.rs` file should only be used to declare the modules of its parent directory.
 -   It should exclusively contain `pub mod <module_name>;` and occasionally `pub use <module_name>::<item>;` to re-export items and define the module's public API.
 -   It MUST NOT contain any `struct`, `enum`, `fn`, or `trait` definitions. This logic belongs in the submodule files themselves.
 
-### Rule 2.4: Return Early Pattern
+### Rule 2.3: Return Early Pattern
 
 -   Functions MUST use the "return early" pattern (guard clauses) to handle errors or trivial cases at the beginning of the function. This reduces nesting and improves readability.
 
-### Rule 2.5: Use `match` for Complex Conditionals
+### Rule 2.4: Use `match` for Complex Conditionals
 
--   For conditional logic with more than one `else if` case, a `match` statement MUST be used. This improves readability and ensures exhaustive checking.
+-   For conditional logic with more than one `else if` case, a `match` statement MUST be used. This improves readability and ensures exhaustive checking where applicable.
 
-### Rule 2.6: Avoid Magic Strings
+### Rule 2.5: Avoid Magic Strings for Tool Names
 
--   String literals that are used in multiple places or represent important constants (e.g., database paths, configuration keys, task names) MUST NOT be hardcoded directly.
--   They SHOULD be defined as `const` variables in a relevant module or loaded from a configuration file (`config.yml`, `.env`).
--   **Example**: Instead of `let storage = StorageManager::new("db/github_ingest")`, prefer `const GITHUB_DB_DIR: &str = "db/github_ingest"; let storage = StorageManager::new(GITHUB_DB_DIR);`. This centralizes the value, making it easy to change and preventing typos.
+-   The string literals for `tool_name` (e.g., "sol_transfer", "spl_transfer") are a critical interface between the agent and the environment.
+-   While they are defined in benchmark files, within the Rust code they SHOULD be handled via pattern matching in the `SolanaEnv::step` function to ensure all supported tools are explicitly handled.
 
 ---
 
@@ -66,50 +55,40 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 3.1: Plan Before Coding
 
--   Before undertaking any significant feature development or refactoring, a plan must be laid out in a `PLAN.md` file. It should outline the "why," the proposed changes, and the expected outcome.
--   The plan must then be broken down into a series of small, actionable steps in a `TASK.md` file or as a checklist in a GitHub issue.
--   Each task must be specific and verifiable (e.g., "Move struct `SearchResult` to `anyrag-lib/src/types.rs`").
+-   Before undertaking any significant feature development or refactoring, the project's planning documents (`PLAN.md`, `TASKS.md`, `NOW.md`) must be updated.
+-   The plan must be broken down into a series of small, actionable steps in `TASKS.md` or a related document.
+-   Each task must be specific and verifiable (e.g., "Add `mint_data` field to `InitialAccountState` struct").
 
 ### Rule 3.2: Use Feature Flags for Optional Functionality
 
--   Any functionality that can be considered optional, especially plugins or features with heavy dependencies, MUST be gated by a Cargo feature flag. This allows for the compilation of smaller, specialized binaries.
--   Features should be defined in the core library and propagated up to the binary crates.
+-   Any functionality that can be considered optional, especially future agents or features with heavy dependencies, SHOULD be gated by a Cargo feature flag. This allows for the compilation of smaller, specialized binaries.
 
 ---
 
 ## 4. Testing Methodology
 
-### Rule 4.1: End-to-End Testing with `examples`
+### Rule 4.1: Benchmark-Driven Testing
 
--   End-to-end (E2E) tests, which verify a full user workflow, MUST be implemented in the `examples/` directory of the relevant crate (e.g., `<project>-server/examples/`).
--   Each file in `examples/` is a small, runnable binary that acts as a client, demonstrating usage and asserting correctness.
--   **Documentation**: The `README.md` of the crate must document how to run these examples (e.g., `cargo run --example <example_filename>`).
--   This provides both a robust E2E test suite and living documentation for consumers of the library.
+-   The primary method for testing the framework's functionality is through end-to-end benchmark tests run by the `reev-runner`.
+-   Each new feature (e.g., a new action handler) MUST be accompanied by a new benchmark `.yml` file that specifically tests its functionality.
+-   Benchmarks serve as both the test suite and the living specification for the agent's expected capabilities.
 
 ---
 
 ## 5. Standard Toolchain
 
-To ensure consistency and leverage high-quality, community-vetted solutions, this project standardizes on the following foundational crates. All new code should prefer these libraries for their respective tasks.
+To ensure consistency, this project standardizes on the following foundational crates.
 
--   **Asynchronous Runtime**: `tokio`
-    -   **Use Case**: The required runtime for all `async` operations. This includes networking, file I/O, and managing green threads (tasks).
+-   **Error Handling**: `anyhow`
+    -   **Use Case**: Used throughout the application for simple, flexible error handling with context. Since this is an application-focused workspace (not a general-purpose library), `anyhow` is preferred over `thiserror` for its ease of use.
 
--   **Error Handling**: `anyhow` and `thiserror`
-    -   **`thiserror`**: MUST be used in library crates (e.g., `<project>-lib`, `<project>-feature`) to create specific, structured, and typed errors (e.g., `FeatureError`, `ApiError`).
-    -   **`anyhow`**: SHOULD be used in binary entrypoints (`main.rs`) and examples for simple, flexible error handling where the exact error type is less important than the context message.
+-   **Serialization / Deserialization**: `serde`, `serde_yaml`, `serde_json`
+    -   **Use Case**: The universal framework for all data serialization and deserialization, especially for parsing benchmark files and handling RPC data.
 
--   **HTTP Client**: `reqwest`
-    -   **Use Case**: The standard for making all outgoing HTTP requests to external APIs (e.g., AI providers, web scrapers).
+-   **Command-Line Interface**: `clap`
+    -   **Use Case**: The standard for building the command-line interface in the `reev-runner` binary.
 
--   **Serialization / Deserialization**: `serde`
-    -   **Use Case**: The universal framework for all data serialization and deserialization. This applies to JSON, YAML, and any other data format.
+-   **Solana Interaction**: `solana-client`, `solana-sdk`, `spl-token`
+    -   **Use Case**: The official crates for all interactions with the Solana blockchain, including RPC communication, transaction building, and SPL token operations.
 
--   **Date and Time**: `chrono`
-    -   **Use Case**: The standard for all date and time manipulation, parsing, and formatting.
-
--   **Async Primitives**: `futures`
-    -   **Use Case**: For advanced asynchronous operations, such as working with streams or joining multiple futures.
-
--   **Configuration Loading**: `dotenvy`
-    -   **Use Case**: Used exclusively in binary entrypoints (`main.rs`) to load secrets and configuration from `.env` files into the environment.
+-   **Asynchronous Code**: The core `reev-lib` environment is **synchronous** to simplify state management and reproducibility. Asynchronous code (using `tokio` and `reqwest`) will be introduced specifically for the `LlmAgent` implementation in a later phase and should be strictly confined to that component.

@@ -11,77 +11,35 @@ This document outlines the high-level, phased development plan for the `reev` pr
 
 ---
 
-## Phase 1: Foundational Scaffolding & Core Types
+## Phase 1: Foundational Scaffolding (Completed)
 
-This phase focuses on setting up the project structure and defining the fundamental data types that will be used throughout the framework. The goal is to establish a solid, well-typed foundation.
+This phase focused on setting up the project structure and defining the fundamental data types that will be used throughout the framework.
 
-1.  **Initialize Cargo Workspace**:
-    -   Set up a new Rust workspace.
-    -   Create the initial crates: `reev-lib` for the core framework logic and `reev-runner` for the binary that will orchestrate the evaluations.
+-   **Cargo Workspace**: Established a workspace with two primary crates: `reev-lib` for the core framework logic and `reev-runner` for the command-line orchestrator.
+-   **Core Traits and Structs**: Defined the central `GymEnv` and `Agent` traits, along with the primary data structures (`Step`, `AgentAction`, `AgentObservation`).
+-   **Benchmark Specification**: Created the Rust structs (`TestCase`, `InitialAccountState`, `GroundTruth`, etc.) to represent `SolanaBench` test cases, with `serde` support for YAML deserialization.
 
-2.  **Define Core Traits and Structs (`reev-lib`)**:
-    -   Create a `src/env.rs` module.
-    -   Define the central `GymEnv` trait, which will be the Rust equivalent of the Gymnasium `Env` class. This trait will use standard synchronous functions.
-    -   Define the primary data structures:
-        -   `Step<Observation>`: The standard return type for the `step` method.
-        -   `AgentAction`: A struct representing a tool call from the agent (e.g., tool name and parameters).
-        -   `AgentObservation`: A struct representing the state of the world returned by the environment.
+## Phase 2: Hermetic `SolanaEnv` with External Process Management (Completed)
 
-3.  **Define Benchmark Specification (`reev-lib`)**:
-    -   Create a `src/benchmark.rs` module.
-    -   Define the Rust structs that represent a `SolanaBench` test case (`TestCase`, `InitialState`, `GroundTruth`, etc.).
-    -   Use `serde` to enable deserialization from YAML, which will be the format for benchmark files.
+This phase was dedicated to building the reproducible `SolanaEnv`. The implementation treats the `surfpool` validator as a managed, black-box service, ensuring hermetic test execution.
 
-## Phase 2: Hermetic `SolanaEnv` with External Process Management
+-   **`SolanaEnv` Implementation**: Implemented the `GymEnv` trait for `SolanaEnv`, which manages the `surfpool` child process and communicates via an `RpcClient`.
+-   **`reset` Logic**: The `reset` function successfully spawns a new `surfpool` instance, waits for it to become responsive, generates ephemeral keypairs for the test case, and uses the `surfnet_setAccount` RPC to configure the initial on-chain state.
+-   **`step` Logic**: The `step` function correctly translates an `AgentAction` into a signed Solana transaction, sends it to the validator, and returns the result. Initial implementation covered basic system program instructions.
+-   **`close` Logic**: The `close` function ensures the `surfpool` child process is cleanly terminated after each test run.
 
-This phase is dedicated to building the heart of the framework: the reproducible Solana environment. The focus is on correctly managing an external `surfpool` process and interacting with it exclusively via its JSON-RPC API.
+## Phase 3: Expanding Action Space & Agent Capabilities (Completed)
 
-1.  **Implement `SolanaEnv` Struct (`reev-lib`)**:
-    -   Create the `SolanaEnv` struct, which will hold the state for the environment, including the `std::process::Child` handle for the `surfpool` validator and an `RpcClient`.
-    -   Implement the synchronous `GymEnv` trait for `SolanaEnv`.
+This phase expanded the environment's capabilities to handle more complex on-chain interactions and made the `DummyAgent` more generic.
 
-2.  **Implement `reset` Logic**:
-    -   The `reset` function will first ensure any previously running `surfpool` process is terminated.
-    -   It will then spawn a new `surfpool start` process using `std::process::Command`.
-    -   It will poll the `surfpool` RPC endpoint (e.g., by calling `get_latest_blockhash`) until it becomes responsive.
-    -   It will generate new, random `Keypair`s for each account defined in the `TestCase`'s `initial_state` and store them in its internal `keypair_map`.
-    -   For each account, it will make a JSON-RPC call to the `surfnet_setAccount` "cheatcode" endpoint provided by `surfpool`. This call will create the account on-chain with the specified lamports and owner, using the public key from the newly generated keypair.
-    -   Finally, it will query the initial state of all accounts and return the first `AgentObservation`.
+-   **SPL-Token Transfer Action**: Implemented a robust action handler for `spl_token::instruction::transfer`.
+-   **Mint Account Initialization**: Enhanced the `SolanaEnv::reset` logic and benchmark specification to support the on-the-fly creation and initialization of SPL Token mint accounts, enabling tests with custom tokens like the real USDC.
+-   **Generic Dummy Agent**: Refactored the `DummyAgent` to dynamically execute the `expected_tool_calls` from the loaded benchmark's `ground_truth`. This allows the agent to run any benchmark without requiring code changes.
+-   **NFT Transfer Capability**: Verified that the existing `spl_transfer` logic correctly handles NFT transfers (as they are a subset of SPL token transfers).
 
-3.  **Implement `step` Logic**:
-    -   Write the logic to receive an `AgentAction`, translate it into a Solana transaction using the `solana-sdk`, sign it with the appropriate `Keypair` from the `keypair_map`, and send it to the test validator using the `RpcClient`.
-    -   Wait for transaction confirmation and query the result (success/failure, logs, etc.).
-    -   Format the result into the `Step<AgentObservation>` return type.
-    -   Check the `ground_truth` assertions to determine if the `terminated` flag should be set.
+## Phase 4: Metrics, Tracing, and Reporting (In Progress)
 
-4.  **Implement `close` Logic**:
-    -   Ensure the `surfpool` child process is cleanly terminated using its `.kill()` method when the environment is closed.
-
-## Phase 3: The Evaluation Runner & Agent Interface
-
-This phase focuses on the orchestrator application that runs the benchmarks and provides a way to plug in an agent.
-
-1.  **Benchmark Loading (`reev-runner`)**:
-    -   Implement the logic to scan a directory for `SolanaBench` `.yml` files.
-    -   Parse the YAML files into the `TestCase` structs defined in Phase 1.
-
-2.  **Create the Main Evaluation Loop (`reev-runner`)**:
-    -   The `main` function will be a standard, synchronous entry point.
-    -   Loop through each loaded `TestCase`.
-    -   For each case, instantiate and `reset` the `SolanaEnv`.
-    -   Run the agent-environment interaction loop until the `terminated` or `truncated` flag is set.
-    -   `close` the environment after each test case.
-
-3.  **Define the `Agent` Trait (`reev-lib`)**:
-    -   Define a simple `trait Agent` with a single method: `get_action(observation: &AgentObservation) -> Result<AgentAction>`.
-
-4.  **Create a Dummy Agent**:
-    -   Create a simple struct `DummyAgent` that implements the `Agent` trait.
-    -   This agent will return hardcoded actions, allowing for end-to-end testing of the runner-environment loop without needing a real LLM.
-
-## Phase 4: Metrics, Tracing, and Reporting
-
-With the core loop functional, this phase adds the ability to measure performance and understand what the agent did.
+With the core interaction loop functional, this phase adds the ability to measure performance and understand what the agent did.
 
 1.  **Implement Trace Capture**:
     -   Create a `Trace` or `ExecutionLog` struct.
@@ -98,9 +56,9 @@ With the core loop functional, this phase adds the ability to measure performanc
 4.  **Generate a Summary Report**:
     -   At the end of a benchmark run, aggregate all metrics and generate a summary report (e.g., in Markdown or JSON format) that provides a high-level overview of the agent's performance.
 
-## Phase 5: LLM Integration and Advanced Evaluation
+## Phase 5: LLM Integration and Advanced Evaluation (Next Up)
 
-This final phase integrates a real LLM and adds the more nuanced qualitative evaluation.
+This final phase will integrate a real LLM and add more nuanced qualitative evaluation.
 
 1.  **Implement an LLM-Powered Agent**:
     -   Create a new `LlmAgent` struct that implements the `Agent` trait.

@@ -1,19 +1,20 @@
-# NOW: Refactoring to a Service-Oriented `surfpool` Architecture
+# NOW: Implementing Advanced Metrics and Reporting
 
-**Main Goal:** Pivot away from library integration and refactor `SolanaEnv` to treat `surfpool` as a managed, external service. The environment will be responsible for spawning, managing, and communicating with the `surfpool start` process via its JSON-RPC API. This ensures a robust, clean separation of concerns.
+**Main Goal:** With the core environment and action handlers in place, the focus now shifts to building out the framework's ability to measure and report on agent performance in detail. This phase is critical for moving beyond simple pass/fail checks to a nuanced understanding of agent behavior.
 
 **Immediate Tasks:**
 
-1.  **Update `PLAN.md`**: Revise the master plan to reflect the new service-oriented architecture (Completed).
-2.  **Clean Up Dependencies**: Remove all local `path` dependencies to `surfpool-core`, `surfpool-mcp`, and `surfpool-types` from `reev-lib/Cargo.toml`. Remove `async-trait`, `tokio`, etc., as the environment will now be synchronous.
-3.  **Revert `GymEnv` to be Synchronous**: Remove `async_trait` and `async fn` from the `GymEnv` trait definition in `src/env.rs`.
-4.  **Rewrite `SolanaEnv::reset`**:
-    *   The function will be synchronous (`fn`).
-    *   It will use `std::process::Command` to spawn `surfpool start` as a child process and store the `Child` handle.
-    *   It will poll the validator's RPC endpoint (e.g., `http://127.0.0.1:8899`) until it becomes responsive.
-    *   It will generate new, random `Keypair`s for each account in the benchmark's `initial_state` and store them locally in the `keypair_map`.
-    *   It will construct and send raw JSON-RPC requests to the `surfnet_setAccount` cheatcode endpoint to create and fund each account on the validator.
-5.  **Update `reev-runner`**:
-    *   Ensure the `main` function is synchronous (remove `#[tokio::main]`).
-    *   Update the evaluation loop to call the synchronous `env.reset()` and `env.step()` methods.
-6.  **Verify End-to-End**: Run the `transfer-simple-001.yml` benchmark to confirm the new service-based setup works correctly.
+1.  **Implement Full Execution Tracing**:
+    *   Enhance the `ExecutionTrace` struct and the runner loop to meticulously record every `AgentAction`, the resulting `AgentObservation`, and the `info` dictionary from each step. This creates a complete, auditable log of the agent-environment interaction.
+
+2.  **Implement Advanced Quantitative Metrics**:
+    *   **Tool Selection Accuracy (TSA)**: Implement the logic in `metrics.rs` to compare the agent's sequence of tool calls against the `expected_tool_calls` defined in the benchmark's ground truth.
+    *   **Parameterization Accuracy (PA)**: For tool calls that were correctly selected, implement checks to verify that the parameters provided by the agent match the ground truth.
+
+3.  **Implement ASCII Trace Visualization**:
+    *   Create a new module or function responsible for rendering the `ExecutionTrace`.
+    *   This renderer will traverse the trace and generate a human-readable ASCII tree that clearly visualizes the agent's actions and the environment's responses, as specified in `IDEA.md`.
+
+4.  **Generate a Final Summary Report**:
+    *   Modify the `reev-runner` to aggregate the metrics (TSR, TSA, PA, etc.) from all executed test cases.
+    *   At the end of a run, print a comprehensive summary report to the console or a file, providing a high-level overview of the agent's performance.

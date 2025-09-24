@@ -41,15 +41,15 @@ This document outlines the development plan based on the service-oriented archit
 
 **Goal:** Implement handlers for more complex Solana interactions (SPL Tokens, NFTs) and make the agent more capable.
 
--   [ ] **Task 3.1: Implement SPL-Token Transfer Action**
-    -   [ ] Create a new module `reev-lib/src/actions/spl_transfer.rs`.
-    -   [ ] Implement a `build_transaction` function that creates an `spl_token::instruction::transfer` transaction.
-    -   [ ] Update `SolanaEnv::step` to dispatch to this new action handler when `tool_name` is `spl_transfer`.
-    -   [ ] Update `check_assertion` in `metrics.rs` to handle `TokenAccountBalance` assertions by fetching and parsing SPL token account data.
+-   [x] **Task 3.1: Implement SPL-Token Transfer Action**
+    -   [x] Create a new module `reev-lib/src/actions/spl_transfer.rs`.
+    -   [x] Implement a `build_transaction` function that creates an `spl_token::instruction::transfer` transaction.
+    -   [x] Update `SolanaEnv::step` to dispatch to this new action handler when `tool_name` is `spl_transfer`.
+    -   [x] Update `check_assertion` in `metrics.rs` to handle `TokenAccountBalance` assertions by fetching and parsing SPL token account data.
 
--   [ ] **Task 3.2: Verify with `spl-transfer-001.yml`**
-    -   [ ] Update `DummyAgent` to be able to execute the `spl_transfer` action from the benchmark file.
-    -   [ ] Run the `spl-transfer-001.yml` benchmark and ensure it passes.
+-   [x] **Task 3.2: Verify with `001-sol-transfer.yml`**
+    -   [x] Update `DummyAgent` to be able to execute the `spl_transfer` action from the benchmark file.
+    -   [x] Run the `001-sol-transfer.yml` benchmark and ensure it passes.
 
 -   [ ] **Task 3.3: Abstract Agent Action Logic**
     -   [ ] Modify `DummyAgent` to parse the `expected_tool_calls` from the `GroundTruth` of a `TestCase` instead of having hardcoded actions. This makes the agent generic enough to run any benchmark without code changes.
