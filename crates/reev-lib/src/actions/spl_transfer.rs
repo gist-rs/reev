@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use serde_json::Value;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::{instruction::Instruction, transaction::Transaction};
 use std::collections::HashMap;
 
 /// A helper struct for deserializing the parameters required for an SPL token transfer.
@@ -16,6 +16,36 @@ struct SplTransferParams {
     authority_pubkey: String,
     /// The amount of tokens to transfer, in the smallest denomination.
     amount: u64,
+}
+
+/// Creates an SPL token transfer instruction.
+///
+/// This is a pure function that returns the instruction, which can then be
+/// embedded in a transaction.
+///
+/// # Arguments
+/// * `from_pubkey`: The source token account pubkey.
+/// * `to_pubkey`: The destination token account pubkey.
+/// * `authority_pubkey`: The pubkey of the account authorized to sign.
+/// * `amount`: The amount of tokens to transfer.
+///
+/// # Returns
+/// A `Result<Instruction>` for the transfer.
+pub fn create_instruction(
+    from_pubkey: &Pubkey,
+    to_pubkey: &Pubkey,
+    authority_pubkey: &Pubkey,
+    amount: u64,
+) -> Result<Instruction> {
+    let ix = spl_token::instruction::transfer(
+        &spl_token::id(),
+        from_pubkey,
+        to_pubkey,
+        authority_pubkey,
+        &[authority_pubkey], // The authority is the only signer required.
+        amount,
+    )?;
+    Ok(ix)
 }
 
 /// Builds an SPL token transfer transaction.
@@ -55,13 +85,10 @@ pub fn build_transaction(
             transfer_params.authority_pubkey
         ))?;
 
-    // This function requires the `spl-token` crate.
-    let ix = spl_token::instruction::transfer(
-        &spl_token::id(),
+    let ix = create_instruction(
         from_pubkey,
         to_pubkey,
         authority_pubkey,
-        &[authority_pubkey], // The authority is the only signer required.
         transfer_params.amount,
     )?;
 
