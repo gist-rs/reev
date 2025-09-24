@@ -10,10 +10,12 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use serde_json::Value;
 use solana_client::{rpc_client::RpcClient, rpc_request::RpcRequest};
+use solana_program::program_pack::Pack;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
 };
+use spl_token::state::{Account as SplTokenAccount, AccountState};
 use std::{
     collections::HashMap,
     process::{Child, Command, Stdio},
@@ -139,13 +141,58 @@ impl GymEnv for SolanaEnv {
         println!("[SolanaEnv] Configuring initial on-chain state via RPC...");
         for spec in &initial_states {
             let keypair = self.keypair_map.get(&spec.pubkey).unwrap();
-            // The `surfpool` server expects the data to be hex-encoded, but the benchmark
-            // file provides it as base64. We must decode from base64 and re-encode as hex.
-            let b64_data = spec.data.clone().unwrap_or_default();
-            let data_bytes = STANDARD
-                .decode(b64_data)
-                .context("Failed to decode base64 account data from benchmark spec")?;
-            let hex_data = hex::encode(data_bytes);
+            // Handle account data. The benchmark spec can provide data in two ways:
+            // 1. As a JSON string, for structured accounts like SPL token accounts.
+            // 2. As a base64 string, for arbitrary binary data.
+            let hex_data = if let Some(data_str) = &spec.data {
+                if let Ok(json_val) = serde_json::from_str::<Value>(data_str) {
+                    // It's a JSON string, assume it's an SPL Token Account.
+                    #[derive(serde::Deserialize)]
+                    struct SplTokenData {
+                        mint: String,
+                        owner: String,
+                        amount: u64,
+                    }
+                    let token_data: SplTokenData = serde_json::from_value(json_val)
+                        .context("Failed to deserialize SPL token data from benchmark spec")?;
+
+                    let mint_pubkey = self
+                        .keypair_map
+                        .get(&token_data.mint)
+                        .with_context(|| {
+                            format!("Mint placeholder '{}' not found", token_data.mint)
+                        })?
+                        .pubkey();
+                    let owner_pubkey = self
+                        .keypair_map
+                        .get(&token_data.owner)
+                        .with_context(|| {
+                            format!("Owner placeholder '{}' not found", token_data.owner)
+                        })?
+                        .pubkey();
+
+                    let spl_account = SplTokenAccount {
+                        mint: mint_pubkey,
+                        owner: owner_pubkey,
+                        amount: token_data.amount,
+                        state: AccountState::Initialized,
+                        ..Default::default()
+                    };
+
+                    let mut account_data_bytes = vec![0; SplTokenAccount::LEN];
+                    spl_account.pack_into_slice(&mut account_data_bytes);
+                    hex::encode(account_data_bytes)
+                } else {
+                    // Not valid JSON, so assume it's a base64 encoded string.
+                    let data_bytes = STANDARD
+                        .decode(data_str)
+                        .context("Failed to decode base64 account data from benchmark spec")?;
+                    hex::encode(data_bytes)
+                }
+            } else {
+                // No data field provided.
+                String::new()
+            };
 
             let params = SetAccountParams {
                 lamports: spec.lamports,
@@ -179,7 +226,7 @@ impl GymEnv for SolanaEnv {
     fn step(
         &mut self,
         action: Self::Action,
-        ground_truth: &GroundTruth,
+        _ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
         let observation;
         let mut terminated = false;
@@ -279,15 +326,6 @@ impl GymEnv for SolanaEnv {
             "Success"
         };
         observation = self.get_observation(status, error.clone(), logs)?;
-
-        // Check if the task is finished after the step, if not already terminated.
-        if !terminated {
-            let scores = metrics::calculate_quantitative_metrics(&observation, ground_truth)?;
-            if scores.task_success_rate == 1.0 {
-                println!("[SolanaEnv] All ground truth assertions passed. Terminating episode.");
-                terminated = true;
-            }
-        }
 
         Ok(Step {
             reward: if terminated && error.is_none() {

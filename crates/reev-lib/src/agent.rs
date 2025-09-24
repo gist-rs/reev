@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// Represents an action taken by the agent, typically a tool call.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -26,54 +26,36 @@ pub trait Agent {
     fn get_action(&mut self, observation: &AgentObservation) -> Result<AgentAction>;
 }
 
-/// A simple, stateful agent that performs a single hardcoded action and then stops.
+/// A simple, stateful agent that executes a pre-defined sequence of actions.
+/// This agent is "dumb" and does not react to observations; it just follows its script.
 pub struct DummyAgent {
-    has_acted: bool,
-}
-
-impl Default for DummyAgent {
-    fn default() -> Self {
-        Self::new()
-    }
+    action_queue: VecDeque<AgentAction>,
 }
 
 impl DummyAgent {
-    /// Creates a new `DummyAgent`.
-    pub fn new() -> Self {
-        Self { has_acted: false }
+    /// Creates a new `DummyAgent` with a sequence of actions to execute.
+    ///
+    /// The actions are typically sourced from the `expected_tool_calls` field
+    /// of a benchmark's `ground_truth`.
+    pub fn new(actions: Vec<AgentAction>) -> Self {
+        Self {
+            action_queue: VecDeque::from(actions),
+        }
     }
 }
 
 impl Agent for DummyAgent {
     fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
-        if !self.has_acted {
-            // If the agent hasn't acted yet, perform the SPL transfer.
-            self.has_acted = true;
-            println!("[DummyAgent] Deciding to perform the SPL transfer.");
-            let mut parameters = HashMap::new();
-            // These parameters should match the spl-transfer-001.yml benchmark.
-            parameters.insert(
-                "from_pubkey".to_string(),
-                serde_json::json!("USER_USDC_ATA"),
+        if let Some(action) = self.action_queue.pop_front() {
+            // If there's an action in the queue, perform it.
+            println!(
+                "[DummyAgent] Executing next action from queue: {}",
+                action.tool_name
             );
-            parameters.insert(
-                "to_pubkey".to_string(),
-                serde_json::json!("RECIPIENT_USDC_ATA"),
-            );
-            parameters.insert(
-                "authority_pubkey".to_string(),
-                serde_json::json!("USER_WALLET_PUBKEY"),
-            );
-            // 15 USDC with 6 decimals.
-            parameters.insert("amount".to_string(), serde_json::json!(15_000_000));
-
-            Ok(AgentAction {
-                tool_name: "spl_transfer".to_string(),
-                parameters,
-            })
+            Ok(action)
         } else {
-            // If the agent has already acted, it considers its job done.
-            println!("[DummyAgent] Already acted, deciding to do nothing (no_op).");
+            // If the queue is empty, the agent considers its job done.
+            println!("[DummyAgent] Action queue is empty. Deciding to do nothing (no_op).");
             Ok(AgentAction {
                 tool_name: "no_op".to_string(),
                 parameters: HashMap::new(),

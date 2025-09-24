@@ -57,7 +57,9 @@ fn check_assertion(observation: &AgentObservation, assertion: &StateAssertion) -
                 .context(format!("Failed to deserialize account state for {pubkey}"))?;
             let token_account = spl_token::state::Account::unpack(&account.data)
                 .context("Failed to unpack SPL token account data")?;
-            Ok(token_account.amount == *expected)
+            let actual_amount = token_account.amount;
+            println!("[Metrics] Checking TokenAccountBalance for {pubkey}: Expected={expected}, Actual={actual_amount}");
+            Ok(actual_amount == *expected)
         }
         // For now, any other assertion type is considered unhandled and will fail.
         _ => {

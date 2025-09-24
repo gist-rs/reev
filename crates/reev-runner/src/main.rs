@@ -34,7 +34,7 @@ fn main() -> Result<()> {
 
     // 2. Instantiate the agent.
     println!("[2/6] Instantiating agent...");
-    let mut agent = DummyAgent::new();
+    let mut agent = DummyAgent::new(test_case.ground_truth.expected_tool_calls.clone());
     println!("      Using DummyAgent");
 
     // 3. Instantiate the environment.
