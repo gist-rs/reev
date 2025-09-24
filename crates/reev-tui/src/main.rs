@@ -14,9 +14,17 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 
+#[derive(PartialEq)]
+enum ActivePanel {
+    BenchmarkNavigator,
+    ExecutionTrace,
+    Details,
+}
+
 /// Application state.
 struct App<'a> {
     should_quit: bool,
+    active_panel: ActivePanel,
     benchmarks: Vec<&'a str>,
     benchmark_state: ListState,
 }
@@ -28,6 +36,7 @@ impl<'a> App<'a> {
         benchmark_state.select(Some(0)); // Select the first item by default.
         Self {
             should_quit: false,
+            active_panel: ActivePanel::BenchmarkNavigator,
             // Placeholder data for the benchmark navigator.
             benchmarks: vec![
                 "[✔] SPL-TRANSFER-001",
@@ -66,6 +75,15 @@ impl<'a> App<'a> {
             None => 0,
         };
         self.benchmark_state.select(Some(i));
+    }
+
+    /// Handles the `Tab` key press event to cycle through panels.
+    fn on_tab(&mut self) {
+        self.active_panel = match self.active_panel {
+            ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
+            ActivePanel::ExecutionTrace => ActivePanel::Details,
+            ActivePanel::Details => ActivePanel::BenchmarkNavigator,
+        };
     }
 }
 
@@ -117,10 +135,25 @@ fn handle_events(app: &mut App) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(50))? {
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
+                // Panel-specific keybindings
+                match app.active_panel {
+                    ActivePanel::BenchmarkNavigator => match key.code {
+                        KeyCode::Up | KeyCode::Char('k') => app.on_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                        _ => {}
+                    },
+                    ActivePanel::ExecutionTrace => {
+                        // Add keybindings for trace view later
+                    }
+                    ActivePanel::Details => {
+                        // Add keybindings for details view later
+                    }
+                }
+
+                // Global keybindings
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
-                    KeyCode::Up | KeyCode::Char('k') => app.on_up(),
-                    KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                    KeyCode::Tab => app.on_tab(),
                     _ => {}
                 }
             }
@@ -159,8 +192,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         ])
         .split(content_layout[1]);
 
-    render_trace_view(f, right_layout[0]);
-    render_details_pane(f, right_layout[1]);
+    render_trace_view(f, app, right_layout[0]);
+    render_details_pane(f, app, right_layout[1]);
 }
 
 fn render_header(f: &mut Frame, area: Rect) {
@@ -169,7 +202,7 @@ fn render_header(f: &mut Frame, area: Rect) {
         .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
-    let title = Line::from(vec![" Gemini 2.5 Pro ".into()]);
+    let title = Line::from(vec![" Gemini 1.5 Pro ".into()]);
     f.render_widget(Paragraph::new(title), header_layout[0]);
 
     let controls = Line::from(vec![
@@ -200,14 +233,21 @@ fn render_header(f: &mut Frame, area: Rect) {
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
+    let border_style = if app.active_panel == ActivePanel::BenchmarkNavigator {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
+    let block = Block::default()
+        .title("A: Benchmark Navigator")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
     let items: Vec<ListItem> = app.benchmarks.iter().map(|i| ListItem::new(*i)).collect();
 
     let list = List::new(items)
-        .block(
-            Block::default()
-                .title("Benchmark Navigator")
-                .borders(Borders::ALL),
-        )
+        .block(block)
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
@@ -220,7 +260,18 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(list, area, &mut app.benchmark_state);
 }
 
-fn render_trace_view(f: &mut Frame, area: Rect) {
+fn render_trace_view(f: &mut Frame, app: &App, area: Rect) {
+    let border_style = if app.active_panel == ActivePanel::ExecutionTrace {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
+    let block = Block::default()
+        .title("B: Execution Trace View")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
     let text = vec![
         Line::from("✔ SPL-TRANSFER-SIMPLE-001: SUCCEEDED"),
         Line::from("│"),
@@ -229,17 +280,23 @@ fn render_trace_view(f: &mut Frame, area: Rect) {
         Line::from("   └─ OBSERVATION: Failure"),
     ];
 
-    let paragraph = Paragraph::new(text).block(
-        Block::default()
-            .title("Execution Trace View")
-            .borders(Borders::ALL),
-    );
+    let paragraph = Paragraph::new(text).block(block);
     f.render_widget(paragraph, area);
 }
 
-fn render_details_pane(f: &mut Frame, area: Rect) {
+fn render_details_pane(f: &mut Frame, app: &App, area: Rect) {
+    let border_style = if app.active_panel == ActivePanel::Details {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+
+    let block = Block::default()
+        .title("C: Details Pane")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
     let text = "> Error: Transaction failed: RPC response error -32002";
-    let paragraph =
-        Paragraph::new(text).block(Block::default().title("Details Pane").borders(Borders::ALL));
+    let paragraph = Paragraph::new(text).block(block);
     f.render_widget(paragraph, area);
 }
