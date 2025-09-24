@@ -11,6 +11,8 @@ use reev_lib::{
 use std::fs::File;
 use std::path::PathBuf;
 
+mod renderer;
+
 /// A command-line runner for the Reev evaluation framework.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -84,13 +86,17 @@ fn main() -> Result<()> {
     }
     println!("      --------------------");
 
-    // 6. Construct and serialize the final result.
+    // 6. Construct the final result and render it.
     println!("\n[6/6] Finalizing run...");
     let result = TestResult::new(&test_case, final_status, scores, trace);
-    let yaml_output = serde_yaml::to_string(&result)?;
 
-    println!("      --- Final Result (YAML) ---");
-    println!("{yaml_output}");
+    // The YAML output is generated but not printed by default in this step.
+    // It will be saved to a file as part of the reporting phase.
+    let _yaml_output = serde_yaml::to_string(&result)?;
+
+    // Render the result as a tree for immediate, human-readable feedback.
+    let tree_output = renderer::render_result_as_tree(&result);
+    println!("{}", tree_output);
 
     env.close()?;
     println!("      Environment closed.");

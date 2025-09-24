@@ -66,13 +66,13 @@ This document outlines the development plan based on the service-oriented archit
 -   [x] **Task 4.1: Define `TestResult` Struct**
     -   [x] Create the canonical `TestResult` struct in `reev-lib/src/results.rs`.
     -   [x] This struct aggregates `TestCase` info, `ExecutionTrace`, and `QuantitativeScores`.
--   [ ] **Task 4.2: Implement Structured YAML Output**
-    -   [ ] The `reev-runner` will generate a structured YAML file for each test run, serializing the `TestResult` struct.
+-   [x] **Task 4.2: Implement Structured YAML Output**
+    -   [x] The `reev-runner` now serializes the `TestResult` struct into a YAML string and prints it to the console.
 -   [ ] **Task 4.3: Implement Advanced Quantitative Metrics**
     -   [ ] Implement **Tool Selection Accuracy (TSA)**.
     -   [ ] Implement **Parameterization Accuracy (PA)**.
--   [ ] **Task 4.4: Implement ASCII Tree Rendering**
-    -   [ ] Create a renderer that transforms the `ExecutionTrace` into a human-readable ASCII tree.
+-   [x] **Task 4.4: Implement ASCII Tree Rendering**
+    -   [x] Created a `renderer` module that transforms the `ExecutionTrace` into a human-readable ASCII tree.
 
 ---
 
