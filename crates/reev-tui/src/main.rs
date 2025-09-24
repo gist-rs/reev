@@ -73,7 +73,7 @@ fn ui(f: &mut Frame) {
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([Constraint::Percentage(100)].as_ref())
-        .split(f.size());
+        .split(f.area());
 
     let placeholder_text =
         Paragraph::new("TUI Application Stub. Layout will be implemented next.").block(main_block);

@@ -13,5 +13,6 @@ categories.workspace = true
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
-ratatui = "0.26.3"
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
 crossterm = "0.27.0"
+solana-system-interface = "2.0.0"

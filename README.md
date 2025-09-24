@@ -51,6 +51,7 @@ brew install txtx/taps/surfpool
 
     ```bash
     cargo run -p reev-runner -- --benchmark benchmarks/001-sol-transfer.yml
+    cargo run -p reev-runner -- --benchmark benchmarks/002-spl-transfer.yml
     ```
 
 3.  The runner will execute the following steps:

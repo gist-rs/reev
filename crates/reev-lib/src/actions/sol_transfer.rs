@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use serde_json::Value;
-use solana_program::{pubkey::Pubkey, system_instruction};
-use solana_sdk::transaction::Transaction;
+use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
+use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
 
 /// A helper struct for deserializing the parameters required for a SOL transfer.

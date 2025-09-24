@@ -80,7 +80,7 @@ fn check_assertion(observation: &AgentObservation, assertion: &StateAssertion) -
             })?;
             let account: Account = serde_json::from_value(account_value.clone())
                 .context(format!("Failed to deserialize account state for {pubkey}"))?;
-            let token_account = spl_token::state::Account::unpack(&account.data)
+            let token_account = spl_token::state::Account::unpack_from_slice(&account.data)
                 .context("Failed to unpack SPL token account data")?;
             let actual_amount = token_account.amount;
             println!(
