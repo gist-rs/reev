@@ -1,7 +1,9 @@
-id: SOL-TRANSFER-SIMPLE-001
-description: A simple SOL transfer to test the mocked sol_transfer action and the end-to-end evaluation flow.
-tags: ["native", "transfer", "mock"]
+id: TRANSFER-SIMPLE-001
+description: A simple SOL transfer from one wallet to another to test basic tool selection and parameterization.
+tags: ["system-program", "transfer", "t2"]
 
+# Defines the on-chain state at the beginning of the test.
+# Placeholders like USER_WALLET_PUBKEY will be replaced by the test runner.
 initial_state:
   - pubkey: "USER_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111" # System Program
@@ -11,14 +13,28 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 0
 
-prompt: "Send 0.1 SOL from my user wallet to the recipient wallet."
+# The natural language prompt given to the agent.
+prompt: "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)."
 
+# The objective criteria for judging the agent's performance.
 ground_truth:
+  # A list of on-chain conditions that must be true after the agent has finished.
   final_state_assertions:
     - type: SolBalance
-      pubkey: "USER_WALLET_PUBKEY"
-      expected: 900000000 # 0.9 SOL remaining
-
-    - type: SolBalance
       pubkey: "RECIPIENT_WALLET_PUBKEY"
-      expected: 100000000 # 0.1 SOL received
+      expected: 100000000 # 0.1 SOL
+
+    # Note: Checking the sender's balance is tricky due to variable fees.
+    # A more robust check would be 'balance_less_than' or 'balance_change_approx'.
+    # For this simple case, we'll assume a fixed fee of 5000 lamports.
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected: 899995000 # 1 SOL - 0.1 SOL - 0.000005 SOL fee
+
+  # The ideal sequence of tool calls the agent should make.
+  expected_tool_calls:
+    - tool_name: "sol_transfer"
+      parameters:
+        from_pubkey: "USER_WALLET_PUBKEY"
+        to_pubkey: "RECIPIENT_WALLET_PUBKEY"
+        lamports: 100000000
