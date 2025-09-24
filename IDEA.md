@@ -159,9 +159,9 @@ To provide maximum clarity for the implementation team, the following table expl
 | truncated | bool | A flag indicating an external limit was reached, such as a maximum number of steps (transactions) or a time limit. | True if the agent has not completed the task within a predefined limit of, for example, 10 steps. |
 | info | Dict | A rich dictionary of diagnostic data for analysis and logging, not visible to the agent. | Contains metadata for metrics calculation, e.g., {'tx\_signature': '...', 'gas\_used': 5000, 'final\_balances': {'from': 900, 'to': 200}}. |
 
-## **Part III: Designing the Solana Agent Benchmark (SolanaBench)**
+## **Part III: Designing the `reev-benchmarks` Suite**
 
-With the environment's architecture defined, the focus now shifts to the content: the SolanaBench benchmark suite. A benchmark is more than just a set of tests; it is an embodiment of the desired capabilities of the agent. A well-designed benchmark provides a comprehensive measure of performance and serves as a clear target for model improvement.1 This section details the principles and structure for creating a robust, domain-specific benchmark for Solana-native agents. The benchmark itself should be treated as a first-class project artifact, version-controlled and maintained alongside the agent's source code, as it forms an executable specification of correct and desirable behavior.
+With the environment's architecture defined, the focus now shifts to the content: the `reev-benchmarks` suite. A benchmark is more than just a set of tests; it is an embodiment of the desired capabilities of the agent. A well-designed benchmark provides a comprehensive measure of performance and serves as a clear target for model improvement. This section details the principles and structure for creating a robust, domain-specific benchmark for Solana-native agents. The benchmark itself should be treated as a first-class project artifact, version-controlled and maintained alongside the agent's source code, as it forms an executable specification of correct and desirable behavior.
 
 ### **3.1 A Taxonomy of Solana Agent Capabilities to Test**
 
@@ -178,9 +178,9 @@ To ensure the benchmark has comprehensive coverage, its tasks should be designed
 * **T5: Economic Efficiency & Optimization:** This advanced capability measures the agent's ability to achieve a goal while minimizing resource consumption. On Solana, the primary resource is transaction fees (gas).  
   * *Examples:* "Send 1 SOL to Alice, 2 SOL to Bob, and 3 SOL to Carol." An inefficient agent might create three separate transactions. A more optimized agent would bundle these into a single transaction with multiple transfer instructions, saving significant fees.
 
-### **3.2 Anatomy of a SolanaBench Test Case**
+### **3.2 Anatomy of a `reev-benchmarks` Test Case**
 
-To enable automated processing by the evaluation harness, every test case in SolanaBench must adhere to a standardized, machine-readable format. A YAML or JSON file per test case is recommended. This structure makes the benchmark explicit and easy to audit.15
+To enable automated processing by the evaluation harness, every test case in the `reev-benchmarks` suite must adhere to a standardized, machine-readable format. A YAML file per test case is the standard. This structure makes the benchmark explicit and easy to audit.
 
 Each test case file will contain the following key sections:
 

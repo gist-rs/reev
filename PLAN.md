@@ -17,7 +17,7 @@ This phase focused on setting up the project structure and defining the fundamen
 
 -   **Cargo Workspace**: Established a workspace with two primary crates: `reev-lib` for the core framework logic and `reev-runner` for the command-line orchestrator.
 -   **Core Traits and Structs**: Defined the central `GymEnv` and `Agent` traits, along with the primary data structures (`Step`, `AgentAction`, `AgentObservation`).
--   **Benchmark Specification**: Created the Rust structs (`TestCase`, `InitialAccountState`, `GroundTruth`, etc.) to represent `SolanaBench` test cases, with `serde` support for YAML deserialization.
+-   **Benchmark Specification**: Created the Rust structs (`TestCase`, `InitialAccountState`, `GroundTruth`, etc.) to represent `reev-benchmarks` test cases, with `serde` support for YAML deserialization.
 
 ## Phase 2: Hermetic `SolanaEnv` with External Process Management (Completed)
 
@@ -56,7 +56,21 @@ With the core interaction loop functional, this phase adds the ability to measur
 4.  **Generate a Summary Report**:
     -   At the end of a benchmark run, aggregate all metrics and generate a summary report (e.g., in Markdown or JSON format) that provides a high-level overview of the agent's performance.
 
-## Phase 5: LLM Integration and Advanced Evaluation (Next Up)
+## Phase 5: UI/UX for Visualization and Reporting (Next Up)
+
+This phase focuses on building a rich user interface for visualizing and analyzing test results, as detailed in `UI.md`.
+
+1.  **Implement Structured YAML Output**:
+    -   The `reev-runner` will serialize the `ExecutionTrace` for each test case into a structured YAML file. This serves as the data foundation for all UI layers.
+
+2.  **Implement ASCII Tree Rendering**:
+    -   Create a renderer that parses the YAML trace and prints a human-readable ASCII tree to the console, providing an immediate summary of the agent's execution flow.
+
+3.  **Develop Interactive TUI with `Ratatui`**:
+    -   Create a new crate, `reev-tui`, to house a full-featured Terminal User Interface.
+    -   The TUI will feature a multi-panel layout allowing users to navigate a list of test cases, view the corresponding execution tree, and drill down into the details of any specific action or observation.
+
+## Phase 6: LLM Integration and Advanced Evaluation
 
 This final phase will integrate a real LLM and add more nuanced qualitative evaluation.
 
@@ -71,6 +85,6 @@ This final phase will integrate a real LLM and add more nuanced qualitative eval
     -   Develop the rubric and prompt templates for the judge to score aspects like reasoning, efficiency, and robustness.
     -   Integrate these qualitative scores into the final report.
 
-3.  **Expand `SolanaBench`**:
+3.  **Expand `reev-benchmarks`**:
     -   Curate a comprehensive suite of test cases covering all the capability areas (T1-T5) defined in `IDEA.md`.
     -   Include simple "unit tests," multi-step "integration tests," and "adversarial" edge cases.

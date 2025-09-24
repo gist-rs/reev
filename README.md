@@ -28,7 +28,7 @@ The architecture is grounded in the principles of the Gymnasium API but implemen
     *   The command-line tool for loading and running benchmarks.
     *   Orchestrates the entire evaluation loop, from setting up the environment to calculating metrics and reporting results.
 
-3.  **`SolanaBench` (Benchmark Suite)**:
+2.  **`reev-benchmarks` Benchmark Suite**:
     *   A suite of evaluation tasks defined in YAML files located in the `benchmarks/` directory.
     *   Each test case includes a declarative `initial_state`, a natural language `prompt`, and `ground_truth` criteria for success.
 
