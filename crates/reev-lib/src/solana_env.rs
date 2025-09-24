@@ -3,7 +3,6 @@ use crate::{
     agent::{AgentAction, AgentObservation},
     benchmark::{GroundTruth, InitialAccountState},
     env::{GymEnv, Step},
-    metrics,
 };
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};

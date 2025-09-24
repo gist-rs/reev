@@ -33,7 +33,7 @@ ground_truth:
 
   # The ideal sequence of tool calls the agent should make.
   expected_tool_calls:
-    - tool_name: "system_transfer"
+    - tool_name: "sol_transfer"
       parameters:
         from_pubkey: "USER_WALLET_PUBKEY"
         to_pubkey: "RECIPIENT_WALLET_PUBKEY"
