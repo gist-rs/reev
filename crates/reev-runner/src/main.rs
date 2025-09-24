@@ -5,9 +5,10 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace as sdktrace;
 use reev_lib::{
-    agent::{Agent, DummyAgent},
+    agent::Agent,
     benchmark::TestCase,
     env::GymEnv,
+    llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     solana_env::SolanaEnv,
     trace::{ExecutionTrace, TraceStep},
@@ -52,7 +53,8 @@ fn init_tracing() -> Result<sdktrace::SdkTracerProvider> {
     Ok(provider)
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // This must be the first call in main.
     let tracer_provider = init_tracing()?;
 
@@ -82,8 +84,8 @@ fn main() -> Result<()> {
 
     // 2. Instantiate the agent.
     println!("[2/6] Instantiating agent...");
-    let mut agent = DummyAgent::new(test_case.ground_truth.expected_tool_calls.clone());
-    println!("      Using DummyAgent");
+    let mut agent = LlmAgent::new()?;
+    println!("      Using LlmAgent");
 
     // 3. Instantiate the environment.
     println!("[3/6] Instantiating Solana environment...");
@@ -91,7 +93,7 @@ fn main() -> Result<()> {
     println!("      Environment created.");
 
     // 4. Run the evaluation loop and get the final state.
-    let (final_observation, trace) = run_evaluation_loop(&mut env, &mut agent, &test_case)?;
+    let (final_observation, trace) = run_evaluation_loop(&mut env, &mut agent, &test_case).await?;
 
     // 5. Calculate metrics and determine final status.
     println!("\n[5/6] Calculating metrics...");
@@ -144,9 +146,9 @@ fn main() -> Result<()> {
 }
 
 #[tracing::instrument(skip_all, fields(benchmark_id = %test_case.id))]
-fn run_evaluation_loop(
+async fn run_evaluation_loop(
     env: &mut SolanaEnv,
-    agent: &mut dyn Agent,
+    agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
 ) -> Result<(reev_lib::agent::AgentObservation, ExecutionTrace)> {
     println!(
@@ -166,13 +168,13 @@ fn run_evaluation_loop(
 
         // Max 10 steps
         println!("\n--- Step {} ---", i + 1);
-        let action = agent.get_action(&observation)?;
+        let action = agent.get_action(&observation).await?;
         tracing::info!(tool_name = %action.tool_name, "Agent requested action");
         let step_result = env.step(action.clone(), &test_case.ground_truth)?;
         env.render();
 
         let trace_step = TraceStep {
-            thought: None, // DummyAgent doesn't have "thoughts"
+            thought: None, // LlmAgent doesn't have "thoughts" yet
             action,
             observation: step_result.observation.clone(),
             info: step_result.info,

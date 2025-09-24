@@ -1,4 +1,5 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -22,9 +23,10 @@ pub struct AgentObservation {
 }
 
 /// A trait that defines the interface for an LLM agent.
+#[async_trait]
 pub trait Agent {
     /// Takes an observation from the environment and returns the next action to take.
-    fn get_action(&mut self, observation: &AgentObservation) -> Result<AgentAction>;
+    async fn get_action(&mut self, observation: &AgentObservation) -> Result<AgentAction>;
 }
 
 /// A simple, stateful agent that executes a pre-defined sequence of actions.
@@ -45,9 +47,10 @@ impl DummyAgent {
     }
 }
 
+#[async_trait]
 impl Agent for DummyAgent {
     #[instrument(skip_all, fields(action_in_queue = !self.action_queue.is_empty()))]
-    fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
+    async fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
         if let Some(action) = self.action_queue.pop_front() {
             // If there's an action in the queue, perform it.
             println!(
