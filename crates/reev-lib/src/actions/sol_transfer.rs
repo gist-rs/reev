@@ -1,10 +1,9 @@
-use crate::actions::{Action, MockedState};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use serde_json::Value;
-
-/// A struct that implements the `Action` trait for handling native SOL transfers.
-pub struct SolTransferAction;
+use solana_program::{pubkey::Pubkey, system_instruction};
+use solana_sdk::transaction::Transaction;
+use std::collections::HashMap;
 
 /// A helper struct for deserializing the parameters required for a SOL transfer.
 #[derive(Deserialize, Debug)]
@@ -14,59 +13,37 @@ struct SolTransferParams {
     lamports: u64,
 }
 
-impl Action for SolTransferAction {
-    /// Executes a mocked SOL transfer.
-    ///
-    /// This function validates the parameters, checks for sufficient funds, and
-    /// updates the balances of the sender and receiver accounts in the mocked state.
-    ///
-    /// # Expected JSON Parameters:
-    /// ```json
-    /// {
-    ///   "from_pubkey": "SENDER_PUBKEY_STRING",
-    ///   "to_pubkey": "RECEIVER_PUBKEY_STRING",
-    ///   "lamports": 100000000
-    /// }
-    /// ```
-    fn execute(&self, state: &mut MockedState, params: &Value) -> Result<()> {
-        let transfer_params: SolTransferParams = serde_json::from_value(params.clone())
-            .context("Failed to deserialize SOL transfer parameters")?;
+/// Builds a native SOL transfer transaction.
+///
+/// This function is responsible for creating the transaction object, but not for
+/// signing or sending it. That responsibility lies with the `SolanaEnv`.
+///
+/// # Arguments
+/// * `params`: The parameters for the action, taken from the `AgentAction`.
+/// * `pubkey_map`: The map of placeholder strings to real `Pubkey`s.
+///
+/// # Returns
+/// A `Transaction` object ready to be signed and sent.
+pub fn build_transaction(
+    params: &HashMap<String, Value>,
+    pubkey_map: &HashMap<String, Pubkey>,
+) -> Result<Transaction> {
+    let transfer_params: SolTransferParams = serde_json::from_value(serde_json::to_value(params)?)
+        .context("Failed to deserialize SOL transfer parameters")?;
 
-        // --- Validation Step 1: Check if sender account exists and has enough funds ---
-        let sender = state
-            .get_mut(&transfer_params.from_pubkey)
-            .ok_or_else(|| anyhow!("Source account {} not found.", transfer_params.from_pubkey))?;
+    let from_pubkey = pubkey_map
+        .get(&transfer_params.from_pubkey)
+        .context(format!(
+            "Placeholder '{}' not found in pubkey map",
+            transfer_params.from_pubkey
+        ))?;
+    let to_pubkey = pubkey_map.get(&transfer_params.to_pubkey).context(format!(
+        "Placeholder '{}' not found in pubkey map",
+        transfer_params.to_pubkey
+    ))?;
 
-        if sender.lamports < transfer_params.lamports {
-            return Err(anyhow!(
-                "Insufficient funds in account {}. Required: {}, Available: {}.",
-                transfer_params.from_pubkey,
-                transfer_params.lamports,
-                sender.lamports
-            ));
-        }
+    let ix = system_instruction::transfer(from_pubkey, to_pubkey, transfer_params.lamports);
 
-        // --- Validation Step 2: Check if receiver account exists ---
-        if !state.contains_key(&transfer_params.to_pubkey) {
-            return Err(anyhow!(
-                "Destination account {} not found.",
-                transfer_params.to_pubkey
-            ));
-        }
-
-        // --- Mutation Step: Perform the transfer ---
-        // This is done atomically after all checks have passed.
-        let sender = state.get_mut(&transfer_params.from_pubkey).unwrap();
-        sender.lamports -= transfer_params.lamports;
-
-        let receiver = state.get_mut(&transfer_params.to_pubkey).unwrap();
-        receiver.lamports += transfer_params.lamports;
-
-        println!(
-            "[SolTransferAction] Transferred {} lamports from {} to {}.",
-            transfer_params.lamports, transfer_params.from_pubkey, transfer_params.to_pubkey
-        );
-
-        Ok(())
-    }
+    // For a simple transfer, the `from_pubkey` is also the fee payer.
+    Ok(Transaction::new_with_payer(&[ix], Some(from_pubkey)))
 }

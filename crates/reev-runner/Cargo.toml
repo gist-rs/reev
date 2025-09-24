@@ -8,3 +8,4 @@ reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
 serde_yaml = "0.9"
 serde_json = "1.0"
+clap = { version = "4.5.4", features = ["derive"] }

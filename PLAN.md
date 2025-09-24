@@ -7,6 +7,7 @@ This document outlines the high-level, phased development plan for the `reev` pr
 -   **Iterative Development**: Build the framework in layers, starting with the core environment and progressively adding the agent interface, metrics, and advanced features. Each phase should result in a testable, partially functional system.
 -   **Test-Driven**: Each component, especially the `SolanaEnv`, should be accompanied by unit and integration tests to ensure its behavior is correct and reproducible.
 -   **Clear Interfaces**: Define clean `trait`-based interfaces between major components (Environment, Agent, Runner) to ensure modularity and separation of concerns.
+-   **Service-Oriented Environment**: The Solana test environment (`surfpool`) will be treated as an external, ephemeral service managed by the evaluation runner. Interaction will occur exclusively through its public JSON-RPC API, ensuring a clean architectural boundary.
 
 ---
 
@@ -20,7 +21,7 @@ This phase focuses on setting up the project structure and defining the fundamen
 
 2.  **Define Core Traits and Structs (`reev-lib`)**:
     -   Create a `src/env.rs` module.
-    -   Define the central `GymEnv` trait, which will be the Rust equivalent of the Gymnasium `Env` class.
+    -   Define the central `GymEnv` trait, which will be the Rust equivalent of the Gymnasium `Env` class. This trait will use standard synchronous functions.
     -   Define the primary data structures:
         -   `Step<Observation>`: The standard return type for the `step` method.
         -   `AgentAction`: A struct representing a tool call from the agent (e.g., tool name and parameters).
@@ -31,25 +32,30 @@ This phase focuses on setting up the project structure and defining the fundamen
     -   Define the Rust structs that represent a `SolanaBench` test case (`TestCase`, `InitialState`, `GroundTruth`, etc.).
     -   Use `serde` to enable deserialization from YAML, which will be the format for benchmark files.
 
-## Phase 2: Hermetic `SolanaEnv` Implementation
+## Phase 2: Hermetic `SolanaEnv` with External Process Management
 
-This phase is dedicated to building the heart of the framework: the reproducible Solana environment. The focus is on correctly managing the `solana-test-validator` process and simulating the on-chain world.
+This phase is dedicated to building the heart of the framework: the reproducible Solana environment. The focus is on correctly managing an external `surfpool` process and interacting with it exclusively via its JSON-RPC API.
 
 1.  **Implement `SolanaEnv` Struct (`reev-lib`)**:
-    -   Create the `SolanaEnv` struct, which will hold the state for the environment (e.g., validator process handle, RPC client).
-    -   Implement the `GymEnv` trait for `SolanaEnv`.
+    -   Create the `SolanaEnv` struct, which will hold the state for the environment, including the `std::process::Child` handle for the `surfpool` validator and an `RpcClient`.
+    -   Implement the synchronous `GymEnv` trait for `SolanaEnv`.
 
 2.  **Implement `reset` Logic**:
-    -   Write the logic to programmatically start and stop `solana-test-validator` using `std::process::Command`.
-    -   Implement functionality to load a specific on-chain state based on the `initial_state` definition from a `TestCase`. This involves programmatically creating accounts, deploying programs, and setting balances.
+    -   The `reset` function will first ensure any previously running `surfpool` process is terminated.
+    -   It will then spawn a new `surfpool start` process using `std::process::Command`.
+    -   It will poll the `surfpool` RPC endpoint (e.g., by calling `get_latest_blockhash`) until it becomes responsive.
+    -   It will generate new, random `Keypair`s for each account defined in the `TestCase`'s `initial_state` and store them in its internal `keypair_map`.
+    -   For each account, it will make a JSON-RPC call to the `surfnet_setAccount` "cheatcode" endpoint provided by `surfpool`. This call will create the account on-chain with the specified lamports and owner, using the public key from the newly generated keypair.
+    -   Finally, it will query the initial state of all accounts and return the first `AgentObservation`.
 
 3.  **Implement `step` Logic**:
-    -   Write the logic to receive an `AgentAction`, translate it into a Solana transaction, sign it, and send it to the test validator.
+    -   Write the logic to receive an `AgentAction`, translate it into a Solana transaction using the `solana-sdk`, sign it with the appropriate `Keypair` from the `keypair_map`, and send it to the test validator using the `RpcClient`.
     -   Wait for transaction confirmation and query the result (success/failure, logs, etc.).
     -   Format the result into the `Step<AgentObservation>` return type.
+    -   Check the `ground_truth` assertions to determine if the `terminated` flag should be set.
 
 4.  **Implement `close` Logic**:
-    -   Ensure the `solana-test-validator` process is cleanly terminated when the environment is closed.
+    -   Ensure the `surfpool` child process is cleanly terminated using its `.kill()` method when the environment is closed.
 
 ## Phase 3: The Evaluation Runner & Agent Interface
 
@@ -60,13 +66,14 @@ This phase focuses on the orchestrator application that runs the benchmarks and 
     -   Parse the YAML files into the `TestCase` structs defined in Phase 1.
 
 2.  **Create the Main Evaluation Loop (`reev-runner`)**:
+    -   The `main` function will be a standard, synchronous entry point.
     -   Loop through each loaded `TestCase`.
     -   For each case, instantiate and `reset` the `SolanaEnv`.
     -   Run the agent-environment interaction loop until the `terminated` or `truncated` flag is set.
     -   `close` the environment after each test case.
 
 3.  **Define the `Agent` Trait (`reev-lib`)**:
-    -   Define a simple `trait Agent` with a single method: `get_action(observation: &AgentObservation) -> AgentAction`.
+    -   Define a simple `trait Agent` with a single method: `get_action(observation: &AgentObservation) -> Result<AgentAction>`.
 
 4.  **Create a Dummy Agent**:
     -   Create a simple struct `DummyAgent` that implements the `Agent` trait.

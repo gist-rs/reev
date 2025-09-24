@@ -4,7 +4,7 @@ use serde_json::Value;
 
 /// Represents the output of a single step in the environment.
 /// It is generic over the observation type `Obs`.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Step<Obs> {
     /// The observation of the environment's state.
     pub observation: Obs,
@@ -64,5 +64,5 @@ pub trait GymEnv {
     ///
     /// This should be called when the environment is no longer needed to release resources
     /// (e.g., terminate child processes, close network connections).
-    fn close(&mut self);
+    fn close(&mut self) -> anyhow::Result<()>;
 }

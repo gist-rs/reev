@@ -47,26 +47,23 @@ impl DummyAgent {
 impl Agent for DummyAgent {
     fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
         if !self.has_acted {
-            // If the agent hasn't acted yet, perform the NFT transfer.
+            // If the agent hasn't acted yet, perform the SOL transfer.
             self.has_acted = true;
-            println!("[DummyAgent] Deciding to perform the NFT transfer.");
+            println!("[DummyAgent] Deciding to perform the SOL transfer.");
             let mut parameters = HashMap::new();
             parameters.insert(
-                "source_pubkey".to_string(),
-                serde_json::json!("USER_NFT_ATA"),
-            );
-            parameters.insert(
-                "destination_pubkey".to_string(),
-                serde_json::json!("RECIPIENT_NFT_ATA"),
-            );
-            parameters.insert(
-                "owner_pubkey".to_string(),
+                "from_pubkey".to_string(),
                 serde_json::json!("USER_WALLET_PUBKEY"),
             );
-            parameters.insert("amount".to_string(), serde_json::json!(1));
+            parameters.insert(
+                "to_pubkey".to_string(),
+                serde_json::json!("RECIPIENT_WALLET_PUBKEY"),
+            );
+            // This amount should match the amount needed to satisfy the sol-transfer-001.yml assertions.
+            parameters.insert("lamports".to_string(), serde_json::json!(100_000_000));
 
             Ok(AgentAction {
-                tool_name: "nft_transfer".to_string(),
+                tool_name: "sol_transfer".to_string(),
                 parameters,
             })
         } else {

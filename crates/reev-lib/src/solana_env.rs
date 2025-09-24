@@ -1,55 +1,88 @@
 use crate::{
-    actions::{
-        Action, sol_transfer::SolTransferAction, spl_token_transfer::SplTokenTransferAction,
-        token_2022_transfer::Token2022TransferAction,
-    },
+    actions,
     agent::{AgentAction, AgentObservation},
     benchmark::{GroundTruth, InitialAccountState},
     env::{GymEnv, Step},
-    metrics::calculate_task_success_rate,
+    metrics,
 };
-use anyhow::{Context, Result, anyhow};
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use solana_client::{rpc_client::RpcClient, rpc_request::RpcRequest};
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::{Keypair, Signer},
+};
+use std::{
+    collections::HashMap,
+    process::{Child, Command, Stdio},
+    thread,
+    time::Duration,
+};
 
-const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpLQtRect";
+/// The default RPC URL for a locally running `surfpool` instance.
+const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
 
-/// Represents the specific data for a mocked SPL-Token account.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SplTokenState {
-    pub mint: String,
-    pub owner: String,
-    pub amount: u64,
+/// A struct used for serializing the parameters for the `surfnet_setAccount` RPC call.
+#[derive(Serialize)]
+struct SetAccountParams {
+    lamports: u64,
+    owner: String,
+    executable: bool,
+    data: String, // Hex encoded data
 }
 
-/// An enum representing the different types of account data in the mock state.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "PascalCase")]
-pub enum MockAccountData {
-    System,
-    SplToken(SplTokenState),
-}
-
-/// Represents the full state of a single account in the mocked, in-memory environment.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct MockAccountState {
-    pub lamports: u64,
-    pub owner: String, // The program that owns this account
-    pub data: MockAccountData,
-}
-
-/// A mocked Solana environment that simulates on-chain state in memory.
+/// A Solana environment that manages an external `surfpool` process as a self-contained, black-box service.
 pub struct SolanaEnv {
-    /// The in-memory key/value store representing the Solana ledger.
-    pub state: HashMap<String, MockAccountState>,
+    /// The handle to the running `surfpool start` child process.
+    surfpool_process: Option<Child>,
+    /// The RPC client for communicating with the `surfpool` testnet.
+    rpc_client: RpcClient,
+    /// Maps placeholder strings from benchmarks (e.g., "USER_WALLET_PUBKEY") to their
+    /// real, randomly generated Keypairs for the current test case.
+    keypair_map: HashMap<String, Keypair>,
+}
+
+impl Default for SolanaEnv {
+    fn default() -> Self {
+        Self::new().expect("Failed to create SolanaEnv")
+    }
 }
 
 impl SolanaEnv {
+    /// Creates a new, uninitialized `SolanaEnv`.
     pub fn new() -> Result<Self> {
         Ok(Self {
-            state: HashMap::new(),
+            surfpool_process: None,
+            rpc_client: RpcClient::new(LOCAL_SURFPOOL_RPC_URL.to_string()),
+            keypair_map: HashMap::new(),
+        })
+    }
+
+    /// A helper function to construct the `AgentObservation` from the current on-chain state.
+    fn get_observation(
+        &self,
+        status: &str,
+        error: Option<String>,
+        logs: Vec<String>,
+    ) -> Result<AgentObservation> {
+        let mut account_states = HashMap::new();
+        for (placeholder, keypair) in &self.keypair_map {
+            let account = self
+                .rpc_client
+                .get_account(&keypair.pubkey())
+                .context(format!(
+                    "Failed to get account for placeholder '{placeholder}'"
+                ))?;
+            let value = serde_json::to_value(account)?;
+            account_states.insert(placeholder.clone(), value);
+        }
+        Ok(AgentObservation {
+            last_transaction_status: status.to_string(),
+            last_transaction_error: error,
+            last_transaction_logs: logs,
+            account_states,
         })
     }
 }
@@ -58,160 +91,254 @@ impl GymEnv for SolanaEnv {
     type Action = AgentAction;
     type Observation = AgentObservation;
 
+    /// Resets the environment by:
+    /// 1. Terminating any existing `surfpool` process.
+    /// 2. Spawning a new, clean `surfpool start` process.
+    /// 3. Waiting for the process to become responsive.
+    /// 4. Generating local keypairs for all accounts in the benchmark's `initial_state`.
+    /// 5. Using the `surfnet_setAccount` RPC "cheatcode" to create and fund these accounts on the new validator.
     fn reset(&mut self, _seed: Option<u64>, options: Option<Value>) -> Result<Self::Observation> {
-        self.state.clear();
-        let initial_states: Vec<InitialAccountState> = if let Some(options_value) = options {
-            serde_json::from_value(options_value)?
-        } else {
-            vec![]
-        };
+        self.close()?;
+        self.keypair_map.clear();
 
-        println!(
-            "[MockSolanaEnv] Resetting environment with {} initial accounts...",
-            initial_states.len()
-        );
+        let initial_states: Vec<InitialAccountState> =
+            serde_json::from_value(options.context("Missing options for reset")?)?;
 
-        for spec in initial_states {
-            let data = if (spec.owner == SPL_TOKEN_PROGRAM_ID
-                || spec.owner == TOKEN_2022_PROGRAM_ID)
-                && spec.data.is_some()
-            {
-                let token_data_str = spec.data.as_deref().unwrap(); // Safe due to is_some() check
-                // We expect the `data` field in the benchmark YAML to be a JSON string
-                // representing the SplTokenState.
-                let token_state: SplTokenState = serde_json::from_str(token_data_str).context(
-                    format!("Failed to parse SPL Token data for {}", spec.pubkey),
-                )?;
-                MockAccountData::SplToken(token_state)
-            } else {
-                // Treat as a system account if not owned by token program or if it has no data (like a mint)
-                MockAccountData::System
-            };
+        // 1. Start the surfpool process
+        println!("[SolanaEnv] Spawning `surfpool start` process...");
+        let child = Command::new("surfpool")
+            .arg("start")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null()) // Suppress output to keep the runner clean
+            .stderr(Stdio::null())
+            .spawn()
+            .context("Failed to start `surfpool`. Is it installed and in your PATH?")?;
+        self.surfpool_process = Some(child);
 
-            let account_state = MockAccountState {
+        // 2. Wait for it to be responsive
+        println!("[SolanaEnv] Waiting for surfpool to be responsive...");
+        for i in 0..30 {
+            if self.rpc_client.get_health().is_ok() {
+                println!("[SolanaEnv] Surfpool is online.");
+                break;
+            }
+            if i == 29 {
+                anyhow::bail!("Surfpool RPC endpoint did not become responsive in time.");
+            }
+            thread::sleep(Duration::from_secs(1));
+        }
+
+        // 3. Generate local keypairs for all accounts defined in the benchmark
+        for spec in &initial_states {
+            self.keypair_map
+                .entry(spec.pubkey.clone())
+                .or_insert_with(Keypair::new);
+        }
+
+        // 4. Use the `surfnet_setAccount` cheatcode to configure the initial on-chain state.
+        println!("[SolanaEnv] Configuring initial on-chain state via RPC...");
+        for spec in &initial_states {
+            let keypair = self.keypair_map.get(&spec.pubkey).unwrap();
+            // The `surfpool` server expects the data to be hex-encoded, but the benchmark
+            // file provides it as base64. We must decode from base64 and re-encode as hex.
+            let b64_data = spec.data.clone().unwrap_or_default();
+            let data_bytes = STANDARD
+                .decode(b64_data)
+                .context("Failed to decode base64 account data from benchmark spec")?;
+            let hex_data = hex::encode(data_bytes);
+
+            let params = SetAccountParams {
                 lamports: spec.lamports,
-                owner: spec.owner,
-                data,
+                owner: spec.owner.clone(),
+                executable: spec.is_executable.unwrap_or(false),
+                data: hex_data,
             };
-            self.state.insert(spec.pubkey.clone(), account_state);
-        }
 
-        let mut account_states = HashMap::new();
-        for (pubkey, account) in &self.state {
-            account_states.insert(pubkey.clone(), serde_json::to_value(account)?);
-        }
+            let rpc_params = vec![
+                serde_json::to_value(keypair.pubkey().to_string())?,
+                serde_json::to_value(params)?,
+            ];
 
-        Ok(AgentObservation {
-            last_transaction_status: "Success".to_string(),
-            last_transaction_error: None,
-            last_transaction_logs: vec!["Environment reset.".to_string()],
-            account_states,
-        })
+            // Use the generic `send` method for custom RPC calls.
+            self.rpc_client
+                .send::<serde_json::Value>(
+                    RpcRequest::Custom {
+                        method: "surfnet_setAccount",
+                    },
+                    serde_json::Value::Array(rpc_params),
+                )
+                .context(format!("Failed to set account state for '{}'", spec.pubkey))?;
+        }
+        println!("[SolanaEnv] Initial state configured.");
+
+        // 5. Return the initial observation of the fully set up state
+        self.get_observation("Success", None, vec!["Environment reset.".to_string()])
     }
 
+    /// Executes a single step in the environment based on the agent's action.
     fn step(
         &mut self,
         action: Self::Action,
         ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
-        println!("[MockSolanaEnv] Dispatching action: {}", action.tool_name);
+        let observation;
+        let mut terminated = false;
+        let mut error: Option<String> = None;
+        let mut logs: Vec<String> = vec![];
 
-        if action.tool_name == "no_op" {
-            let mut account_states = HashMap::new();
-            for (pubkey, account) in &self.state {
-                account_states.insert(pubkey.clone(), serde_json::to_value(account)?);
+        match action.tool_name.as_str() {
+            "sol_transfer" => {
+                println!("[SolanaEnv] Executing 'sol_transfer' action...");
+                let pubkey_map: HashMap<String, Pubkey> = self
+                    .keypair_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.pubkey()))
+                    .collect();
+                let mut transaction =
+                    actions::sol_transfer::build_transaction(&action.parameters, &pubkey_map)?;
+
+                let from_pubkey_placeholder = action
+                    .parameters
+                    .get("from_pubkey")
+                    .and_then(|v| v.as_str())
+                    .context("Missing 'from_pubkey' in parameters")?;
+                let from_keypair = self
+                    .keypair_map
+                    .get(from_pubkey_placeholder)
+                    .context("Signer keypair not found")?;
+
+                let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
+                transaction.sign(&[from_keypair], recent_blockhash);
+
+                match self.rpc_client.send_and_confirm_transaction(&transaction) {
+                    Ok(sig) => {
+                        let sig_str = sig.to_string();
+                        println!("[SolanaEnv] Transaction successful: {sig_str}");
+                        logs.push(format!("Transaction confirmed: {sig_str}"));
+                    }
+                    Err(e) => {
+                        println!("[SolanaEnv] Transaction failed: {e}");
+                        error = Some(e.to_string());
+                        terminated = true; // Fail fast on transaction error
+                    }
+                }
             }
-            let observation = AgentObservation {
-                last_transaction_status: "Success".to_string(),
-                last_transaction_error: None,
-                last_transaction_logs: vec!["Agent chose to perform no action.".to_string()],
-                account_states,
-            };
-            return Ok(Step {
-                observation,
-                reward: 0.0,
-                terminated: true,
-                truncated: false,
-                info: serde_json::json!({}),
-            });
+            "spl_transfer" => {
+                println!("[SolanaEnv] Executing 'spl_transfer' action...");
+                let pubkey_map: HashMap<String, Pubkey> = self
+                    .keypair_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.pubkey()))
+                    .collect();
+                let mut transaction =
+                    actions::spl_transfer::build_transaction(&action.parameters, &pubkey_map)?;
+
+                // For SPL transfers, the signing authority is the "owner" of the token account.
+                let authority_pubkey_placeholder = action
+                    .parameters
+                    .get("authority_pubkey")
+                    .and_then(|v| v.as_str())
+                    .context("Missing 'authority_pubkey' in parameters")?;
+                let authority_keypair = self
+                    .keypair_map
+                    .get(authority_pubkey_placeholder)
+                    .context("Signer keypair not found")?;
+
+                let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
+                transaction.sign(&[authority_keypair], recent_blockhash);
+
+                match self.rpc_client.send_and_confirm_transaction(&transaction) {
+                    Ok(sig) => {
+                        let sig_str = sig.to_string();
+                        println!("[SolanaEnv] Transaction successful: {sig_str}");
+                        logs.push(format!("Transaction confirmed: {sig_str}"));
+                    }
+                    Err(e) => {
+                        println!("[SolanaEnv] Transaction failed: {e}");
+                        error = Some(e.to_string());
+                        terminated = true; // Fail fast on transaction error
+                    }
+                }
+            }
+            "no_op" => {
+                println!("[SolanaEnv] Executing 'no_op' action. Agent considers task finished.");
+                logs.push("No operation performed.".to_string());
+                terminated = true; // The agent has decided it's done.
+            }
+            _ => {
+                let error_msg = format!("Unknown tool name: '{}'", action.tool_name);
+                println!("[SolanaEnv] {error_msg}");
+                error = Some(error_msg);
+                terminated = true;
+            }
         }
 
-        let handler: Box<dyn Action> = match action.tool_name.as_str() {
-            "sol_transfer" => Box::new(SolTransferAction),
-            "spl_token_transfer" | "nft_transfer" => Box::new(SplTokenTransferAction),
-            "token_2022_transfer" => Box::new(Token2022TransferAction),
-            _ => return Err(anyhow!("Unknown tool name: '{}'", action.tool_name)),
+        let status = if error.is_some() {
+            "Failure"
+        } else {
+            "Success"
         };
+        observation = self.get_observation(status, error.clone(), logs)?;
 
-        let params_as_value = serde_json::to_value(&action.parameters)?;
-        let result = handler.execute(&mut self.state, &params_as_value);
-
-        let mut account_states = HashMap::new();
-        for (pubkey, account) in &self.state {
-            account_states.insert(pubkey.clone(), serde_json::to_value(account)?);
-        }
-
-        let (status, error, logs, mut reward, mut terminated) = match result {
-            Ok(_) => (
-                "Success".to_string(),
-                None,
-                vec![format!(
-                    "Action '{}' executed successfully.",
-                    action.tool_name
-                )],
-                0.0,
-                false,
-            ),
-            Err(ref e) => (
-                "Failure".to_string(),
-                Some(e.to_string()),
-                vec![format!("Action '{}' failed: {}", action.tool_name, e)],
-                -1.0,
-                true,
-            ),
-        };
-
-        let observation = AgentObservation {
-            last_transaction_status: status,
-            last_transaction_error: error,
-            last_transaction_logs: logs,
-            account_states,
-        };
-
-        if result.is_ok() && calculate_task_success_rate(&observation, ground_truth)? == 1.0 {
-            println!("[MockSolanaEnv] Task success conditions met. Terminating episode.");
-            terminated = true;
-            reward = 1.0;
+        // Check if the task is finished after the step, if not already terminated.
+        if !terminated {
+            let scores = metrics::calculate_quantitative_metrics(&observation, ground_truth)?;
+            if scores.task_success_rate == 1.0 {
+                println!("[SolanaEnv] All ground truth assertions passed. Terminating episode.");
+                terminated = true;
+            }
         }
 
         Ok(Step {
-            observation,
-            reward,
+            reward: if terminated && error.is_none() {
+                1.0
+            } else {
+                0.0
+            },
             terminated,
             truncated: false,
-            info: serde_json::json!({}),
+            info: serde_json::json!({ "error": error }),
+            observation,
         })
     }
 
+    /// Renders the current on-chain state of all managed accounts to the console.
     fn render(&self) {
-        println!("\n--- MockSolanaEnv State ---");
-        if self.state.is_empty() {
-            println!("  (empty)");
-        } else {
-            for (pubkey, account) in &self.state {
-                println!("  - Pubkey: {pubkey}");
-                println!("    Lamports: {}", account.lamports);
-                println!("    Owner: {}", account.owner);
-                println!(
-                    "    Data: {}",
-                    serde_json::to_string(&account.data).unwrap_or_default()
-                );
+        println!("\n--- SolanaEnv State (On-Chain via RPC) ---");
+        if self.keypair_map.is_empty() {
+            println!("  No accounts loaded.");
+        }
+        for (placeholder, keypair) in &self.keypair_map {
+            match self.rpc_client.get_balance(&keypair.pubkey()) {
+                Ok(balance) => println!(
+                    "  - {placeholder} ({}): {} SOL",
+                    keypair.pubkey(),
+                    (balance as f64) / 1_000_000_000.0
+                ),
+                Err(e) => println!(
+                    "  - {placeholder} ({}): Error fetching balance: {e}",
+                    keypair.pubkey()
+                ),
             }
         }
-        println!("---------------------------\n");
+        println!("------------------------------------------\n");
     }
 
-    fn close(&mut self) {
-        // No-op for the in-memory environment.
+    /// Terminates the managed `surfpool` process.
+    fn close(&mut self) -> Result<()> {
+        if let Some(mut child) = self.surfpool_process.take() {
+            println!(
+                "[SolanaEnv] Stopping surfpool process (PID: {})...",
+                child.id()
+            );
+            if let Err(e) = child.kill() {
+                eprintln!("[SolanaEnv] Warning: Failed to kill surfpool process: {e}");
+            }
+            if let Err(e) = child.wait() {
+                eprintln!("[SolanaEnv] Warning: Failed to wait on surfpool process: {e}");
+            }
+            println!("[SolanaEnv] Surfpool process stopped.");
+        }
+        Ok(())
     }
 }

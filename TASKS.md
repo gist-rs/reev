@@ -1,76 +1,88 @@
-# TASKS.md: Development Roadmap
+# TASKS.md: Development Roadmap (Service-Oriented)
 
-This document outlines the development plan for `reev`, focusing on a mock-first, modular approach to building the evaluation framework.
-
----
-
-## Phase 1: Foundational Scaffolding & Core Types (Complete)
-
--   [x] Initialize Cargo Workspace (`reev-lib`, `reev-runner`).
--   [x] Define Core Traits and Structs (`GymEnv`, `AgentAction`, `AgentObservation`, `Step`).
--   [x] Define Benchmark Specification (`TestCase` and related structs).
--   [x] Implement a unit test to load and parse a benchmark YAML file.
+This document outlines the development plan based on the service-oriented architecture defined in `PLAN.md`. The `SolanaEnv` manages `surfpool` as an external process, communicating exclusively via its JSON-RPC API.
 
 ---
 
-## Phase 2: Mocked Solana Environment & Core Action
+## Phase 1: Foundational Scaffolding (Complete)
 
-**Goal:** Create a fully functional, in-memory simulation of the Solana environment that can execute a basic SOL transfer.
-
--   [ ] **Task 2.1: Refactor `SolanaEnv` to be In-Memory**
-    -   [ ] Remove `solana-sdk`, `solana-client`, and `solana-program` dependencies from `reev-lib/Cargo.toml`.
-    -   [ ] Remove all `solana-test-validator` process management code from `solana_env.rs`.
-    -   [ ] Add an in-memory `HashMap` to `SolanaEnv` to store the mocked state of on-chain accounts (e.g., `HashMap<String, AccountState>`).
-    -   [ ] Update the `reset` function to populate this in-memory store directly from the `initial_state` of a `TestCase`.
-
--   [ ] **Task 2.2: Create the Actions Module**
-    -   [ ] Create a new module `reev-lib/src/actions/mod.rs`.
-    -   [ ] Define a common `Action` trait that all specific transaction handlers will implement (e.g., `trait Action { fn execute(&self, state: &mut MockedState, params: &Value) -> Result<()>; }`).
-
--   [ ] **Task 2.3: Implement Mocked SOL Transfer**
-    -   [ ] Create a new file `reev-lib/src/actions/sol_transfer.rs`.
-    -   [ ] Implement the `sol_transfer` action logic. It should take parameters (from, to, amount), validate them, and update the balances in the in-memory state map.
-    -   [ ] The function should return appropriate errors for failures (e.g., insufficient funds).
-
--   [ ] **Task 2.4: Implement the `step` Function as a Dispatcher**
-    -   [ ] Modify `SolanaEnv::step` to read the `tool_name` from the incoming `AgentAction`.
-    -   [ ] Based on the `tool_name` (e.g., "sol_transfer"), call the corresponding action handler from the `actions` module.
-    -   [ ] Update the `AgentObservation` with the new state from the in-memory map and return it.
+-   [x] **Task 1.1**: Initialize Cargo Workspace (`reev-lib`, `reev-runner`).
+-   [x] **Task 1.2**: Define Core Traits (`GymEnv`, `Agent`).
+-   [x] **Task 1.3**: Define Core Structs (`AgentAction`, `AgentObservation`, `TestCase`, `Step`).
+-   [x] **Task 1.4**: Implement YAML parsing for `TestCase` benchmarks.
 
 ---
 
-## Phase 3: End-to-End Evaluation & Metrics
+## Phase 2: `SolanaEnv` as a Service (Complete)
 
-**Goal:** Achieve a complete, end-to-end run of the evaluation harness using the mocked environment and calculate a meaningful result.
+**Goal:** Implement the `SolanaEnv` to manage the `surfpool` validator as a black-box service, configured entirely via RPC calls.
 
--   [ ] **Task 3.1: Update `DummyAgent` for SOL Transfer**
-    -   [ ] Modify `DummyAgent` to return a hardcoded `sol_transfer` `AgentAction` with correct parameters when it sees the initial observation from the `transfer-simple-001` benchmark.
-
--   [ ] **Task 3.2: Verify Metrics Calculation**
-    -   [ ] Run the `reev-runner`.
-    -   [ ] Confirm that the `sol_transfer` is executed by the mock environment.
-    -   [ ] Confirm that the final `AgentObservation` reflects the new balances.
-    -   [ ] Confirm that the `calculate_task_success_rate` function now passes, yielding a TSR of 1.0.
-
----
-
-## Phase 4: Expanding Mocked Actions (Future Work)
-
-**Goal:** Increase the capability of the mocked environment to support a wide range of Solana interactions.
-
--   [ ] **Task 4.1: Implement Mocked SPL-Token Transfer**
--   [ ] **Task 4.2: Implement Mocked Token2022 Transfer**
--   [ ] **Task 4.3: Implement Mocked NFT Transfer**
--   [ ] **Task 4.4: Implement Mocked Swap**
--   [ ] **Task 4.5: Implement Mocked Deposit (e.g., to a lending protocol)**
--   [ ] **Task 4.6: Implement Mocked Withdraw**
+-   [x] **Task 2.1: Implement `SolanaEnv` Structure**
+    -   [x] The `SolanaEnv` struct holds `Option<Child>` for the process, an `RpcClient`, and a `HashMap` for `Keypair`s.
+-   [x] **Task 2.2: Implement `SolanaEnv::reset`**
+    -   [x] The function terminates any previous `surfpool` process.
+    -   [x] It spawns `surfpool start` using `std::process::Command`.
+    -   [x] It polls the RPC endpoint until the validator is responsive.
+    -   [x] It generates `Keypair`s for all accounts in the `initial_state` and populates the `keypair_map`.
+    -   [x] It uses the `surfnet_setAccount` JSON-RPC cheatcode to create and fund each account on the validator according to the benchmark specification.
+-   [x] **Task 2.3: Implement `SolanaEnv::step`**
+    -   [x] The function dispatches `AgentAction`s to the appropriate action-building logic (e.g., `actions::sol_transfer`).
+    -   [x] It signs the transaction with the correct `Keypair` from the `keypair_map`.
+    -   [x] It sends the transaction using the `RpcClient` and waits for confirmation.
+    -   [x] It checks ground truth assertions to determine if the episode should terminate.
+-   [x] **Task 2.4: Implement `SolanaEnv::close`**
+    -   [x] The function ensures the `surfpool` child process is terminated cleanly.
+-   [x] **Task 2.5: Full End-to-End Test**
+    -   [x] Run and verify the `transfer-simple-001.yml` benchmark to confirm the entire flow works correctly.
 
 ---
 
-## Phase 5: Real Environment Implementation (Deferred)
+## Phase 3: Expanding Action Space & Agent Capabilities
 
-**Goal:** Re-implement the environment actions to interact with a real `solana-test-validator` using the `solana-sdk`.
+**Goal:** Implement handlers for more complex Solana interactions (SPL Tokens, NFTs) and make the agent more capable.
 
--   [ ] **Task 5.1: Resolve Solana SDK Dependencies and Imports**
--   [ ] **Task 5.2: Re-implement `sol_transfer` with Real Transactions**
--   [ ] **Task 5.3: Re-implement `reset` to Create Real On-Chain Accounts**
+-   [ ] **Task 3.1: Implement SPL-Token Transfer Action**
+    -   [ ] Create a new module `reev-lib/src/actions/spl_transfer.rs`.
+    -   [ ] Implement a `build_transaction` function that creates an `spl_token::instruction::transfer` transaction.
+    -   [ ] Update `SolanaEnv::step` to dispatch to this new action handler when `tool_name` is `spl_transfer`.
+    -   [ ] Update `check_assertion` in `metrics.rs` to handle `TokenAccountBalance` assertions by fetching and parsing SPL token account data.
+
+-   [ ] **Task 3.2: Verify with `spl-transfer-001.yml`**
+    -   [ ] Update `DummyAgent` to be able to execute the `spl_transfer` action from the benchmark file.
+    -   [ ] Run the `spl-transfer-001.yml` benchmark and ensure it passes.
+
+-   [ ] **Task 3.3: Abstract Agent Action Logic**
+    -   [ ] Modify `DummyAgent` to parse the `expected_tool_calls` from the `GroundTruth` of a `TestCase` instead of having hardcoded actions. This makes the agent generic enough to run any benchmark without code changes.
+
+-   [ ] **Task 3.4: Implement NFT Transfer**
+    -   [ ] An NFT transfer is just an SPL token transfer where the amount is 1 and the mint has 0 decimals. Verify the existing `spl_transfer` action works for the `nft-transfer-001.yml` benchmark.
+
+---
+
+## Phase 4: Metrics, Tracing, and Reporting
+
+**Goal:** Build out the framework's ability to measure and report on agent performance in detail.
+
+-   [ ] **Task 4.1**: Implement Full Trace Capture.
+    -   [ ] Ensure every `thought`, `action`, and `observation` is recorded in the `ExecutionTrace`.
+-   [ ] **Task 4.2**: Implement Advanced Quantitative Metrics.
+    -   [ ] **Tool Selection Accuracy (TSA)**: Compare the agent's tool calls against the `expected_tool_calls` in the ground truth.
+    -   [ ] **Parameterization Accuracy (PA)**: For correctly selected tools, check if the parameters match the ground truth.
+-   [ ] **Task 4.3**: Implement ASCII Trace Visualization.
+    -   [ ] Write a renderer that outputs a human-readable summary of the `ExecutionTrace`.
+-   [ ] **Task 4.4**: Generate a Summary Report.
+    -   [ ] Add logic to the runner to aggregate metrics from multiple benchmark runs and output a final report in Markdown or JSON.
+
+---
+
+## Phase 5: LLM Integration
+
+**Goal:** Replace the `DummyAgent` with a real LLM-powered agent and evaluate its performance.
+
+-   [ ] **Task 5.1**: Implement `LlmAgent`.
+    -   [ ] Create a new `LlmAgent` struct that implements the `Agent` trait.
+    -   [ ] Use `reqwest` to call an LLM API (e.g., OpenAI).
+    -   [ ] Implement prompt engineering logic to serialize the observation and conversation history into a prompt.
+    -   [ ] Implement response parsing logic to convert the LLM's output into an `AgentAction`.
+-   [ ] **Task 5.2**: Expand the `SolanaBench` Suite.
+    -   [ ] Create a wider variety of benchmarks covering more complex scenarios and edge cases.
