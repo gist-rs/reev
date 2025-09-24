@@ -1,18 +1,21 @@
-# NOW: Foundational Reporting & Visualization
+# NOW: Advanced Observability (OpenTelemetry)
 
-**Main Goal:** Implement the foundational layer for reporting and visualization as defined in Phase 4 of `PLAN.md`. The focus is on transforming the captured `ExecutionTrace` into structured, human-readable artifacts.
+**Main Goal:** Implement Phase 5 of the master plan. The focus is on instrumenting the framework with OpenTelemetry to enable deep performance analysis and standardized observability.
 
 **Immediate Tasks:**
 
-1.  **Define the Canonical `TestResult` Struct**:
-    *   Create a new module `reev-lib/src/results.rs`.
-    *   Define the top-level `TestResult` struct that will serve as the data model for all evaluation outputs. It will aggregate the test case definition, the final metrics (`QuantitativeScores`), and the full `ExecutionTrace`.
+1.  **Add Dependencies (`reev-runner`):**
+    *   Integrate `tracing`, `opentelemetry`, `opentelemetry_sdk`, and a console exporter like `opentelemetry-stdout` into `Cargo.toml`.
 
-2.  **Implement Structured YAML Output**:
-    *   In `reev-runner`, modify the main loop to construct the `TestResult` struct upon completion of a benchmark.
-    *   Serialize this struct into a well-formatted YAML string and print it to the console. This creates the foundational machine-readable artifact for all future UI work.
+2.  **Initialize Tracing Pipeline (`reev-runner`):**
+    *   In `main.rs`, create a new function responsible for setting up the global OTel tracer and `tracing` subscriber.
+    *   This pipeline will be configured to export traces directly to the console for immediate verification.
+    *   Ensure the pipeline is shut down gracefully on application exit.
 
-3.  **Implement ASCII Tree Renderer**:
-    *   Create a new "renderer" module within `reev-runner`.
-    *   Implement the logic to traverse the `ExecutionTrace` within the `TestResult` struct.
-    *   Render the trace as a human-readable ASCII tree to the console, providing immediate, intuitive feedback on the agent's performance.
+3.  **Instrument Codebase (`reev-lib`, `reev-runner`):**
+    *   Add `#[tracing::instrument]` macros to key functions (`run_evaluation_loop`, `SolanaEnv::reset`, `SolanaEnv::step`).
+    *   Add contextual attributes to the spans (e.g., `benchmark.id`, `step_number`, `tool_name`).
+    *   Record important outcomes like errors or transaction signatures as `events` on the spans.
+
+4.  **Verify OTel Output:**
+    *   Run a benchmark and confirm that structured, machine-readable trace data is printed to the console, showing the hierarchy and duration of operations.
