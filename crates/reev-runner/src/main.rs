@@ -71,6 +71,7 @@ fn main() -> Result<()> {
     println!("\n[5/6] Calculating metrics...");
     let scores = reev_lib::metrics::calculate_quantitative_metrics(
         &final_observation,
+        &trace,
         &test_case.ground_truth,
     )?;
     let final_status = if scores.task_success_rate == 1.0 {
@@ -80,6 +81,14 @@ fn main() -> Result<()> {
     };
     println!("      --- Final Scores ---");
     println!("      Task Success Rate: {}", scores.task_success_rate);
+    println!(
+        "      Tool Selection Accuracy: {}",
+        scores.tool_selection_accuracy
+    );
+    println!(
+        "      Parameterization Accuracy: {}",
+        scores.parameterization_accuracy
+    );
     match final_status {
         FinalStatus::Succeeded => println!("      ✅ TASK SUCCEEDED"),
         FinalStatus::Failed => println!("      ❌ TASK FAILED"),

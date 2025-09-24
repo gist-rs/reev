@@ -68,9 +68,9 @@ This document outlines the development plan based on the service-oriented archit
     -   [x] This struct aggregates `TestCase` info, `ExecutionTrace`, and `QuantitativeScores`.
 -   [x] **Task 4.2: Implement Structured YAML Output**
     -   [x] The `reev-runner` now serializes the `TestResult` struct into a YAML string and prints it to the console.
--   [ ] **Task 4.3: Implement Advanced Quantitative Metrics**
-    -   [ ] Implement **Tool Selection Accuracy (TSA)**.
-    -   [ ] Implement **Parameterization Accuracy (PA)**.
+-   [x] **Task 4.3: Implement Advanced Quantitative Metrics**
+    -   [x] Implemented **Tool Selection Accuracy (TSA)**.
+    -   [x] Implemented **Parameterization Accuracy (PA)**.
 -   [x] **Task 4.4: Implement ASCII Tree Rendering**
     -   [x] Created a `renderer` module that transforms the `ExecutionTrace` into a human-readable ASCII tree.
 
