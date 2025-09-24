@@ -161,9 +161,13 @@ fn run_evaluation_loop(
     let mut final_observation = observation.clone();
 
     for i in 0..10 {
+        let step_span = tracing::span!(tracing::Level::INFO, "eval_step", step = i);
+        let _enter = step_span.enter();
+
         // Max 10 steps
         println!("\n--- Step {} ---", i + 1);
         let action = agent.get_action(&observation)?;
+        tracing::info!(tool_name = %action.tool_name, "Agent requested action");
         let step_result = env.step(action.clone(), &test_case.ground_truth)?;
         env.render();
 
@@ -179,6 +183,11 @@ fn run_evaluation_loop(
 
         if step_result.terminated || step_result.truncated {
             final_observation = observation.clone();
+            tracing::info!(
+                terminated = step_result.terminated,
+                truncated = step_result.truncated,
+                "Episode finished"
+            );
             println!(
                 "\n--- Episode Finished (Terminated: {}, Truncated: {}) ---",
                 step_result.terminated, step_result.truncated

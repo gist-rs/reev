@@ -37,15 +37,15 @@ The foundational framework and the initial reporting layer are complete.
     -   [x] Configure a simple "stdout" exporter that prints traces to the console in a machine-readable format for initial verification.
     -   [x] Ensure the pipeline is properly shut down at the end of the `main` function.
 
--   [ ] **Task 5.3: Instrument Code with Spans**
-    -   [ ] Add `#[tracing::instrument]` macros to key functions to create spans.
-    -   [ ] Target functions:
+-   [x] **Task 5.3: Instrument Code with Spans**
+    -   [x] Add `#[tracing::instrument]` macros to key functions to create spans.
+    -   [x] Target functions:
         -   `run_evaluation_loop` (the root span for a test case).
         -   `SolanaEnv::reset`.
         -   `SolanaEnv::step`.
         -   `DummyAgent::get_action`.
-    -   [ ] Add relevant context (e.g., `benchmark.id`, `step_number`, `tool_name`) to spans as attributes.
-    -   [ ] Record errors and important logs as `events` on the appropriate spans.
+    -   [x] Add relevant context (e.g., `benchmark.id`, `step_number`, `tool_name`) to spans as attributes.
+    -   [x] Record errors and important logs as `events` on the appropriate spans.
 
 ---
 
