@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_sdk::trace as sdktrace;
 use reev_lib::{
     agent::{Agent, DummyAgent},
     benchmark::TestCase,
@@ -10,6 +13,8 @@ use reev_lib::{
 };
 use std::fs::File;
 use std::path::PathBuf;
+use tracing::subscriber;
+use tracing_subscriber::{EnvFilter, Registry, prelude::*};
 
 mod renderer;
 
@@ -22,7 +27,33 @@ struct Cli {
     benchmark: PathBuf,
 }
 
+/// Initializes the OpenTelemetry pipeline for tracing.
+///
+/// Sets up a pipeline that exports traces to stdout in a machine-readable
+/// JSON format. It integrates `tracing` with `opentelemetry`.
+fn init_tracing() -> Result<()> {
+    let exporter = opentelemetry_stdout::SpanExporter::default();
+    let provider = sdktrace::TracerProvider::builder()
+        .with_simple_exporter(exporter)
+        .build();
+    let tracer = provider.tracer("reev-runner");
+    global::set_tracer_provider(provider);
+
+    let subscriber = Registry::default()
+        // Filter logs based on the RUST_LOG env var, or a default.
+        .with(EnvFilter::new("info,reev_lib=debug,reev_runner=debug"))
+        .with(tracing_opentelemetry::layer().with_tracer(tracer));
+
+    subscriber::set_global_default(subscriber)
+        .context("Failed to set global default tracing subscriber")?;
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
+    // This must be the first call in main.
+    init_tracing()?;
+
     // When running with `cargo run -p`, the CWD is the crate root.
     // We change it to the workspace root to resolve benchmark paths correctly.
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
@@ -38,17 +69,10 @@ fn main() -> Result<()> {
     println!("--- Reev Evaluation Runner ---");
 
     // 1. Load the benchmark file.
-    // Construct an absolute path to the benchmark file from the workspace root.
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")?;
-    let workspace_root = std::path::Path::new(&manifest_dir)
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    let benchmark_path = workspace_root.join(&cli.benchmark);
+    let benchmark_path = &cli.benchmark;
 
     println!("[1/6] Loading benchmark from: {benchmark_path:?}");
-    let f = File::open(&benchmark_path)
+    let f = File::open(benchmark_path)
         .with_context(|| format!("Failed to open benchmark file at: {benchmark_path:?}"))?;
     let test_case: TestCase = serde_yaml::from_reader(f)
         .with_context(|| format!("Failed to parse benchmark file: {benchmark_path:?}"))?;
@@ -100,7 +124,6 @@ fn main() -> Result<()> {
     let result = TestResult::new(&test_case, final_status, scores, trace);
 
     // The YAML output is generated but not printed by default in this step.
-    // It will be saved to a file as part of the reporting phase.
     let _yaml_output = serde_yaml::to_string(&result)?;
 
     // Render the result as a tree for immediate, human-readable feedback.
@@ -111,9 +134,14 @@ fn main() -> Result<()> {
     println!("      Environment closed.");
 
     println!("\n--- Evaluation Runner Finished ---");
+
+    // Shutdown the tracer provider. This must be the last call.
+    global::shutdown_tracer_provider();
+
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(benchmark_id = %test_case.id))]
 fn run_evaluation_loop(
     env: &mut SolanaEnv,
     agent: &mut dyn Agent,

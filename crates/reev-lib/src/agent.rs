@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
+use tracing::instrument;
 
 /// Represents an action taken by the agent, typically a tool call.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -45,6 +46,7 @@ impl DummyAgent {
 }
 
 impl Agent for DummyAgent {
+    #[instrument(skip_all, fields(action_in_queue = !self.action_queue.is_empty()))]
     fn get_action(&mut self, _observation: &AgentObservation) -> Result<AgentAction> {
         if let Some(action) = self.action_queue.pop_front() {
             // If there's an action in the queue, perform it.

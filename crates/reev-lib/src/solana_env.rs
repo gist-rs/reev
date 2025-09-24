@@ -21,6 +21,7 @@ use std::{
     thread,
     time::Duration,
 };
+use tracing::instrument;
 
 /// The default RPC URL for a locally running `surfpool` instance.
 const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
@@ -98,6 +99,7 @@ impl GymEnv for SolanaEnv {
     /// 3. Waiting for the process to become responsive.
     /// 4. Generating local keypairs for all accounts in the benchmark's `initial_state`.
     /// 5. Using the `surfnet_setAccount` RPC "cheatcode" to create and fund these accounts on the new validator.
+    #[instrument(skip_all)]
     fn reset(&mut self, _seed: Option<u64>, options: Option<Value>) -> Result<Self::Observation> {
         self.close()?;
         self.keypair_map.clear();
@@ -249,6 +251,7 @@ impl GymEnv for SolanaEnv {
     }
 
     /// Executes a single step in the environment based on the agent's action.
+    #[instrument(skip(self, _ground_truth), fields(tool_name = %action.tool_name))]
     fn step(
         &mut self,
         action: Self::Action,

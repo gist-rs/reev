@@ -13,5 +13,5 @@ categories.workspace = true
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
-ratatui = "0.26.2"
+ratatui = "0.26.3"
 crossterm = "0.27.0"
