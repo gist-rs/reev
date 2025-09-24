@@ -1,4 +1,4 @@
-id: TRANSFER-SIMPLE-001
+id: 001-SOL-TRANSFER
 description: A simple SOL transfer from one wallet to another to test basic tool selection and parameterization.
 tags: ["system-program", "transfer", "t2"]
 

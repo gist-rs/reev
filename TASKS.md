@@ -59,19 +59,20 @@ This document outlines the development plan based on the service-oriented archit
 
 ---
 
-## Phase 4: Metrics, Tracing, and Reporting
+## Phase 4: Foundational Reporting & Visualization
 
-**Goal:** Build out the framework's ability to measure and report on agent performance in detail.
+**Goal:** Establish the data structures and initial UI for reporting and analyzing results. This phase transforms raw execution data into structured, human-readable formats.
 
--   [ ] **Task 4.1**: Implement Full Trace Capture.
-    -   [ ] Ensure every `thought`, `action`, and `observation` is recorded in the `ExecutionTrace`.
--   [ ] **Task 4.2**: Implement Advanced Quantitative Metrics.
-    -   [ ] **Tool Selection Accuracy (TSA)**: Compare the agent's tool calls against the `expected_tool_calls` in the ground truth.
-    -   [ ] **Parameterization Accuracy (PA)**: For correctly selected tools, check if the parameters match the ground truth.
--   [ ] **Task 4.3**: Implement ASCII Trace Visualization.
-    -   [ ] Write a renderer that outputs a human-readable summary of the `ExecutionTrace`.
--   [ ] **Task 4.4**: Generate a Summary Report.
-    -   [ ] Add logic to the runner to aggregate metrics from multiple benchmark runs and output a final report in Markdown or JSON.
+-   [x] **Task 4.1: Define `TestResult` Struct**
+    -   [x] Create the canonical `TestResult` struct in `reev-lib/src/results.rs`.
+    -   [x] This struct aggregates `TestCase` info, `ExecutionTrace`, and `QuantitativeScores`.
+-   [ ] **Task 4.2: Implement Structured YAML Output**
+    -   [ ] The `reev-runner` will generate a structured YAML file for each test run, serializing the `TestResult` struct.
+-   [ ] **Task 4.3: Implement Advanced Quantitative Metrics**
+    -   [ ] Implement **Tool Selection Accuracy (TSA)**.
+    -   [ ] Implement **Parameterization Accuracy (PA)**.
+-   [ ] **Task 4.4: Implement ASCII Tree Rendering**
+    -   [ ] Create a renderer that transforms the `ExecutionTrace` into a human-readable ASCII tree.
 
 ---
 

@@ -3,6 +3,7 @@ pub mod agent;
 pub mod benchmark;
 pub mod env;
 pub mod metrics;
+pub mod results;
 pub mod solana_env;
 pub mod trace;
 

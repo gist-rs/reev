@@ -5,7 +5,10 @@ use solana_program::program_pack::Pack;
 use solana_sdk::account::Account;
 
 /// Contains the calculated scores for a single test case evaluation.
-#[derive(Debug, Default)]
+use serde::{Deserialize, Serialize};
+
+/// Contains the calculated scores for a single test case evaluation.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct QuantitativeScores {
     pub task_success_rate: f32,
 }

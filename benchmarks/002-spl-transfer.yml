@@ -1,4 +1,4 @@
-id: SPL-TRANSFER-SIMPLE-001
+id: 002-SPL-TRANSFER
 description: A simple SPL-Token transfer using the real USDC mint to test functionality and assertions.
 tags: ["spl-token", "transfer", "usdc"]
 

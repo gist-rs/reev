@@ -4,6 +4,7 @@ use reev_lib::{
     agent::{Agent, DummyAgent},
     benchmark::TestCase,
     env::GymEnv,
+    results::{FinalStatus, TestResult},
     solana_env::SolanaEnv,
     trace::{ExecutionTrace, TraceStep},
 };
@@ -20,13 +21,32 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    // When running with `cargo run -p`, the CWD is the crate root.
+    // We change it to the workspace root to resolve benchmark paths correctly.
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        if let Some(workspace_root) = std::path::Path::new(&manifest_dir)
+            .parent()
+            .and_then(|p| p.parent())
+        {
+            std::env::set_current_dir(workspace_root)?;
+        }
+    }
+
     let cli = Cli::parse();
     println!("--- Reev Evaluation Runner ---");
 
     // 1. Load the benchmark file.
-    let benchmark_path = &cli.benchmark;
+    // Construct an absolute path to the benchmark file from the workspace root.
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")?;
+    let workspace_root = std::path::Path::new(&manifest_dir)
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let benchmark_path = workspace_root.join(&cli.benchmark);
+
     println!("[1/6] Loading benchmark from: {benchmark_path:?}");
-    let f = File::open(benchmark_path)
+    let f = File::open(&benchmark_path)
         .with_context(|| format!("Failed to open benchmark file at: {benchmark_path:?}"))?;
     let test_case: TestCase = serde_yaml::from_reader(f)
         .with_context(|| format!("Failed to parse benchmark file: {benchmark_path:?}"))?;
@@ -45,32 +65,34 @@ fn main() -> Result<()> {
     // 4. Run the evaluation loop and get the final state.
     let (final_observation, trace) = run_evaluation_loop(&mut env, &mut agent, &test_case)?;
 
-    // 5. Calculate metrics from the final state.
+    // 5. Calculate metrics and determine final status.
     println!("\n[5/6] Calculating metrics...");
-    match reev_lib::metrics::calculate_quantitative_metrics(
+    let scores = reev_lib::metrics::calculate_quantitative_metrics(
         &final_observation,
         &test_case.ground_truth,
-    ) {
-        Ok(scores) => {
-            println!("      --- Final Scores ---");
-            println!("      Task Success Rate: {}", scores.task_success_rate);
-            if scores.task_success_rate == 1.0 {
-                println!("      ✅ TASK SUCCEEDED");
-            } else {
-                println!("      ❌ TASK FAILED");
-            }
-            println!("      --------------------");
-        }
-        Err(e) => println!("      Error calculating metrics: {e}"),
+    )?;
+    let final_status = if scores.task_success_rate == 1.0 {
+        FinalStatus::Succeeded
+    } else {
+        FinalStatus::Failed
+    };
+    println!("      --- Final Scores ---");
+    println!("      Task Success Rate: {}", scores.task_success_rate);
+    match final_status {
+        FinalStatus::Succeeded => println!("      ✅ TASK SUCCEEDED"),
+        FinalStatus::Failed => println!("      ❌ TASK FAILED"),
     }
+    println!("      --------------------");
 
-    // 6. Finalize and report.
+    // 6. Construct and serialize the final result.
     println!("\n[6/6] Finalizing run...");
-    println!("      --- Execution Trace ---");
-    let trace_json = serde_json::to_string_pretty(&trace)?;
-    println!("{trace_json}");
+    let result = TestResult::new(&test_case, final_status, scores, trace);
+    let yaml_output = serde_yaml::to_string(&result)?;
 
-    let _ = env.close();
+    println!("      --- Final Result (YAML) ---");
+    println!("{yaml_output}");
+
+    env.close()?;
     println!("      Environment closed.");
 
     println!("\n--- Evaluation Runner Finished ---");
