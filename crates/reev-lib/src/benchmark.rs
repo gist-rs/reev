@@ -27,6 +27,16 @@ pub enum StateAssertion {
     },
 }
 
+/// Optional data for initializing a new SPL token mint account.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MintData {
+    /// The authority that can mint new tokens. Defaults to `USER_WALLET_PUBKEY`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mint_authority: Option<String>,
+    /// The number of decimal places for the token.
+    pub decimals: u8,
+}
+
 /// Defines the initial state of a single on-chain account for a test case.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct InitialAccountState {
@@ -46,6 +56,9 @@ pub struct InitialAccountState {
     /// Path to a file containing the account data (e.g., a compiled program `.so` file).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_from_file: Option<String>,
+    /// If present, initializes this account as an SPL token mint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mint_data: Option<MintData>,
 }
 
 /// Contains the objective criteria for judging the agent's performance on a test case.

@@ -14,7 +14,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
 };
-use spl_token::state::{Account as SplTokenAccount, AccountState};
+use spl_token::state::{Account as SplTokenAccount, AccountState, Mint};
 use std::{
     collections::HashMap,
     process::{Child, Command, Stdio},
@@ -140,10 +140,37 @@ impl GymEnv for SolanaEnv {
         println!("[SolanaEnv] Configuring initial on-chain state via RPC...");
         for spec in &initial_states {
             let keypair = self.keypair_map.get(&spec.pubkey).unwrap();
-            // Handle account data. The benchmark spec can provide data in two ways:
-            // 1. As a JSON string, for structured accounts like SPL token accounts.
-            // 2. As a base64 string, for arbitrary binary data.
-            let hex_data = if let Some(data_str) = &spec.data {
+            // Handle account data. The benchmark can provide data in several ways.
+            let hex_data = if let Some(mint_data) = &spec.mint_data {
+                // This account should be initialized as an SPL Token Mint.
+                let mint_authority_placeholder = mint_data
+                    .mint_authority
+                    .as_deref()
+                    .unwrap_or("USER_WALLET_PUBKEY");
+
+                let mint_authority_pubkey = self
+                    .keypair_map
+                    .get(mint_authority_placeholder)
+                    .with_context(|| {
+                        format!(
+                            "Mint authority placeholder '{mint_authority_placeholder}' not found"
+                        )
+                    })?
+                    .pubkey();
+
+                let spl_mint = Mint {
+                    mint_authority: Some(mint_authority_pubkey).into(),
+                    supply: 0, // Mints start with 0 supply
+                    decimals: mint_data.decimals,
+                    is_initialized: true,
+                    freeze_authority: None.into(),
+                };
+
+                let mut mint_data_bytes = vec![0; Mint::LEN];
+                spl_mint.pack_into_slice(&mut mint_data_bytes);
+                hex::encode(mint_data_bytes)
+            } else if let Some(data_str) = &spec.data {
+                // Handle token accounts or raw base64 data.
                 if let Ok(json_val) = serde_json::from_str::<Value>(data_str) {
                     // It's a JSON string, assume it's an SPL Token Account.
                     #[derive(serde::Deserialize)]
@@ -227,7 +254,6 @@ impl GymEnv for SolanaEnv {
         action: Self::Action,
         _ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
-        let observation;
         let mut terminated = false;
         let mut error: Option<String> = None;
         let mut logs: Vec<String> = vec![];
@@ -324,7 +350,7 @@ impl GymEnv for SolanaEnv {
         } else {
             "Success"
         };
-        observation = self.get_observation(status, error.clone(), logs)?;
+        let observation = self.get_observation(status, error.clone(), logs)?;
 
         Ok(Step {
             reward: if terminated && error.is_none() {

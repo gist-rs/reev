@@ -24,6 +24,15 @@ pub fn calculate_task_success_rate(
     final_observation: &AgentObservation,
     ground_truth: &GroundTruth,
 ) -> Result<f32> {
+    // An unsuccessful transaction is an automatic failure, regardless of assertions.
+    if final_observation.last_transaction_status != "Success" {
+        println!(
+            "[Metrics] Task FAILED: Last transaction status was '{}'",
+            final_observation.last_transaction_status
+        );
+        return Ok(0.0);
+    }
+
     if ground_truth.final_state_assertions.is_empty() {
         return Ok(1.0);
     }

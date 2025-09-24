@@ -1,6 +1,6 @@
 id: SPL-TRANSFER-SIMPLE-001
-description: A simple SPL-Token transfer to test mocked token functionality and assertions.
-tags: ["spl-token", "transfer", "mock"]
+description: A simple SPL-Token transfer using the real USDC mint to test functionality and assertions.
+tags: ["spl-token", "transfer", "usdc"]
 
 initial_state:
   # User's main wallet (System Account)
@@ -13,23 +13,25 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 1000000000 # 1 SOL
 
-  # Mock USDC Mint Account. For the mock, this is just a placeholder.
-  - pubkey: "USDC_MINT_PUBKEY"
+  # Real USDC Mint Account (as a placeholder for a newly created account).
+  - pubkey: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 1000000 # Rent
+    mint_data:
+      decimals: 6
 
   # User's Associated Token Account (ATA) for USDC, owned by the Token Program.
   - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 2039280 # Rent
     # The 'data' field is a JSON string representing the `SplTokenState` struct.
-    data: '{"mint": "USDC_MINT_PUBKEY", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC (6 decimals)
+    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC (6 decimals)
 
   # Recipient's Associated Token Account (ATA) for USDC, owned by the Token Program.
   - pubkey: "RECIPIENT_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 2039280 # Rent
-    data: '{"mint": "USDC_MINT_PUBKEY", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
+    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
 
 prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
 
