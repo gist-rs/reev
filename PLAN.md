@@ -1,90 +1,85 @@
 # PLAN.md: Master Development Plan for `reev`
 
-This document outlines the high-level, phased development plan for the `reev` project. The goal is to build the comprehensive LLM agent evaluation framework as specified in `IDEA.md`.
+This document outlines the high-level, phased development plan for the `reev` project. It serves as the single source of truth for the project's roadmap, ensuring each development phase builds logically on the last.
 
 ## Guiding Principles
 
--   **Iterative Development**: Build the framework in layers, starting with the core environment and progressively adding the agent interface, metrics, and advanced features. Each phase should result in a testable, partially functional system.
--   **Test-Driven**: Each component, especially the `SolanaEnv`, should be accompanied by unit and integration tests to ensure its behavior is correct and reproducible.
--   **Clear Interfaces**: Define clean `trait`-based interfaces between major components (Environment, Agent, Runner) to ensure modularity and separation of concerns.
--   **Service-Oriented Environment**: The Solana test environment (`surfpool`) will be treated as an external, ephemeral service managed by the evaluation runner. Interaction will occur exclusively through its public JSON-RPC API, ensuring a clean architectural boundary.
+-   **Iterative Development**: Build the framework in layers, starting with a solid foundation and progressively adding features. Each phase results in a testable, functional system.
+-   **Hermetic & Reproducible**: The core environment must be completely isolated and deterministic, a non-negotiable principle for verifiable evaluations.
+-   **Clear Interfaces**: Define clean `trait`-based interfaces between components (Environment, Agent, Runner) to ensure modularity and separation of concerns.
+-   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is an external, ephemeral service managed by the framework, not a linked library.
 
 ---
 
-## Phase 1: Foundational Scaffolding (Completed)
+## Completed Work (Phases 1-3)
 
-This phase focused on setting up the project structure and defining the fundamental data types that will be used throughout the framework.
+The foundational work for the `reev` framework is complete. This includes:
 
--   **Cargo Workspace**: Established a workspace with two primary crates: `reev-lib` for the core framework logic and `reev-runner` for the command-line orchestrator.
--   **Core Traits and Structs**: Defined the central `GymEnv` and `Agent` traits, along with the primary data structures (`Step`, `AgentAction`, `AgentObservation`).
--   **Benchmark Specification**: Created the Rust structs (`TestCase`, `InitialAccountState`, `GroundTruth`, etc.) to represent `reev-benchmarks` test cases, with `serde` support for YAML deserialization.
+-   **Workspace Scaffolding**: The `reev-lib` and `reev-runner` crates are set up with a clear separation of concerns.
+-   **Hermetic `SolanaEnv`**: The core `SolanaEnv` is implemented, successfully managing the `surfpool` lifecycle and configuring on-chain state via RPC "cheatcodes".
+-   **Core Action Handlers**: Handlers for `sol_transfer` and `spl_transfer` (including mint initialization) are fully functional.
+-   **Benchmark Specification**: The Rust structs representing the `reev-benchmarks` format are defined and integrated with `serde` for YAML parsing.
+-   **Generic `DummyAgent`**: A generic test agent that executes the `expected_tool_calls` from any benchmark file is implemented.
 
-## Phase 2: Hermetic `SolanaEnv` with External Process Management (Completed)
+---
 
-This phase was dedicated to building the reproducible `SolanaEnv`. The implementation treats the `surfpool` validator as a managed, black-box service, ensuring hermetic test execution.
+## Phase 4: Metrics, Tracing, and Reporting (Next Up)
 
--   **`SolanaEnv` Implementation**: Implemented the `GymEnv` trait for `SolanaEnv`, which manages the `surfpool` child process and communicates via an `RpcClient`.
--   **`reset` Logic**: The `reset` function successfully spawns a new `surfpool` instance, waits for it to become responsive, generates ephemeral keypairs for the test case, and uses the `surfnet_setAccount` RPC to configure the initial on-chain state.
--   **`step` Logic**: The `step` function correctly translates an `AgentAction` into a signed Solana transaction, sends it to the validator, and returns the result. Initial implementation covered basic system program instructions.
--   **`close` Logic**: The `close` function ensures the `surfpool` child process is cleanly terminated after each test run.
+**Goal:** Build the essential infrastructure for capturing and reporting detailed evaluation results. This phase transforms the runner from a simple executor into a powerful analysis tool.
 
-## Phase 3: Expanding Action Space & Agent Capabilities (Completed)
+1.  **Define `TestResult` Struct**:
+    -   In a new `reev-lib/src/results.rs` module, create the canonical `TestResult` struct. This will aggregate the `TestCase` info, the final `QuantitativeScores`, and the complete `ExecutionTrace`.
 
-This phase expanded the environment's capabilities to handle more complex on-chain interactions and made the `DummyAgent` more generic.
+2.  **Implement YAML Trace Serialization**:
+    -   Modify the `reev-runner` to construct the `TestResult` struct at the end of an evaluation.
+    -   Serialize this struct into a structured YAML file (e.g., `results/spl-transfer-001.yml`). This file becomes the foundational artifact for all subsequent UI work.
 
--   **SPL-Token Transfer Action**: Implemented a robust action handler for `spl_token::instruction::transfer`.
--   **Mint Account Initialization**: Enhanced the `SolanaEnv::reset` logic and benchmark specification to support the on-the-fly creation and initialization of SPL Token mint accounts, enabling tests with custom tokens like the real USDC.
--   **Generic Dummy Agent**: Refactored the `DummyAgent` to dynamically execute the `expected_tool_calls` from the loaded benchmark's `ground_truth`. This allows the agent to run any benchmark without requiring code changes.
--   **NFT Transfer Capability**: Verified that the existing `spl_transfer` logic correctly handles NFT transfers (as they are a subset of SPL token transfers).
+3.  **Implement Advanced Quantitative Metrics**:
+    -   In `reev-lib/src/metrics.rs`, add the logic to calculate **Tool Selection Accuracy (TSA)** and **Parameterization Accuracy (PA)** by comparing the `ExecutionTrace` against the `ground_truth.expected_tool_calls`.
 
-## Phase 4: Metrics, Tracing, and Reporting (In Progress)
+4.  **Implement ASCII Tree Visualization**:
+    -   Create a "renderer" in `reev-runner` that parses the final `TestResult` struct.
+    -   This renderer will print a human-readable ASCII tree of the execution flow to the console, providing an immediate summary of the agent's performance.
 
-With the core interaction loop functional, this phase adds the ability to measure performance and understand what the agent did.
+## Phase 5: Interactive TUI Cockpit
 
-1.  **Implement Trace Capture**:
-    -   Create a `Trace` or `ExecutionLog` struct.
-    -   Modify the evaluation loop to record every `thought`, `action`, `observation`, and `info` dictionary into a hierarchical trace.
+**Goal:** Create a rich, interactive Terminal User Interface for running benchmarks and analyzing results, as detailed in `UI.md`.
 
-2.  **Implement Quantitative Metrics**:
-    -   Implement the logic to calculate the core metrics based on the captured trace and the test case's `ground_truth`.
-    -   Start with **Task Success Rate (TSR)** by evaluating the `final_state_assertions`.
-    -   Follow with **Tool Selection Accuracy (TSA)** and **Gas Consumption Efficiency (GCE)**.
+1.  **Create `reev-tui` Crate**:
+    -   Initialize a new binary crate and add `ratatui` as a dependency.
+    -   This crate will be the main entry point for interactive sessions.
 
-3.  **Implement ASCII Trace Visualization**:
-    -   Write a renderer that traverses the captured `Trace` and generates a human-readable ASCII tree, as specified in `IDEA.md`.
+2.  **Build the TUI Layout**:
+    -   Implement the three-panel layout (Benchmark Navigator, Trace View, Details Pane) and the top-level control bar (`[RUN]`, `[SETTINGS]`) as specified in `UI.md`.
 
-4.  **Generate a Summary Report**:
-    -   At the end of a benchmark run, aggregate all metrics and generate a summary report (e.g., in Markdown or JSON format) that provides a high-level overview of the agent's performance.
+3.  **Implement Interactive Functionality**:
+    -   The TUI will manage the full evaluation lifecycle:
+        -   Scan and display available benchmarks in Panel A.
+        -   Allow the user to select tests and a model.
+        -   Trigger the evaluation run via the `[RUN]` button, calling `reev-lib` functions in a non-blocking way.
+        -   Load the resulting YAML trace files to populate the result views dynamically.
 
-## Phase 5: UI/UX for Visualization and Reporting (Next Up)
+## Phase 6: Advanced Observability (OpenTelemetry)
 
-This phase focuses on building a rich user interface for visualizing and analyzing test results, as detailed in `UI.md`.
+**Goal:** Instrument the framework to emit standardized OpenTelemetry (OTel) traces for advanced performance analysis, as detailed in `UI.md`.
 
-1.  **Implement Structured YAML Output**:
-    -   The `reev-runner` will serialize the `ExecutionTrace` for each test case into a structured YAML file. This serves as the data foundation for all UI layers.
+1.  **Instrument Core Logic**:
+    -   Integrate the `tracing` and `opentelemetry` crates into the `reev-lib` and `reev-runner`.
+    -   Add `spans` to key operations (`reset`, `step`, `agent.get_action`, RPC calls) to measure latency and capture contextual attributes.
 
-2.  **Implement ASCII Tree Rendering**:
-    -   Create a renderer that parses the YAML trace and prints a human-readable ASCII tree to the console, providing an immediate summary of the agent's execution flow.
+2.  **Configure OTel Exporter**:
+    -   In `reev-runner`, implement the logic to initialize an OTel pipeline.
+    -   Provide a default exporter that prints traces to the console or a file, with clear instructions on how to swap it for an exporter that sends data to Jaeger, Honeycomb, etc.
 
-3.  **Develop Interactive TUI with `Ratatui`**:
-    -   Create a new crate, `reev-tui`, to house a full-featured Terminal User Interface.
-    -   The TUI will feature a multi-panel layout allowing users to navigate a list of test cases, view the corresponding execution tree, and drill down into the details of any specific action or observation.
+## Phase 7: LLM Integration
 
-## Phase 6: LLM Integration and Advanced Evaluation
+**Goal:** Replace the `DummyAgent` with a true LLM-powered agent and evaluate its performance on the `reev-benchmarks` suite.
 
-This final phase will integrate a real LLM and add more nuanced qualitative evaluation.
-
-1.  **Implement an LLM-Powered Agent**:
+1.  **Implement `LlmAgent`**:
     -   Create a new `LlmAgent` struct that implements the `Agent` trait.
-    -   Use `reqwest` to communicate with an external LLM API (e.g., OpenAI, Anthropic).
-    -   Implement the logic for prompt engineering: serialize the observation and conversation history into a prompt for the LLM.
-    -   Parse the LLM's response (likely JSON for function calling) back into an `AgentAction`.
+    -   It will use `reqwest` to communicate with an external LLM API.
+    -   Implement robust prompt engineering to serialize the `AgentObservation` into the LLM's context.
+    -   Implement response parsing to safely convert the LLM's tool-call output into an `AgentAction`.
 
-2.  **Implement LLM-as-a-Judge**:
-    -   Write the functionality to take a completed execution trace and submit it to a powerful "judge" LLM.
-    -   Develop the rubric and prompt templates for the judge to score aspects like reasoning, efficiency, and robustness.
-    -   Integrate these qualitative scores into the final report.
-
-3.  **Expand `reev-benchmarks`**:
-    -   Curate a comprehensive suite of test cases covering all the capability areas (T1-T5) defined in `IDEA.md`.
-    -   Include simple "unit tests," multi-step "integration tests," and "adversarial" edge cases.
+2.  **Expand `reev-benchmarks` Suite**:
+    -   Curate a comprehensive suite of test cases covering all capability areas (T1-T5) defined in `IDEA.md`. Include multi-step reasoning, error handling, and optimization challenges.
