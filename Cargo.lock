@@ -3440,10 +3440,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "bs58",
  "reev-lib",
  "regex",
  "serde",
  "serde_json",
+ "solana-sdk",
  "tokio",
 ]
 

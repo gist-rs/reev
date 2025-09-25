@@ -5,7 +5,9 @@ use axum::{
 };
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use serde::{Deserialize, Serialize};
+use solana_sdk::{pubkey::Pubkey, system_instruction};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
@@ -86,37 +88,52 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
         .get("RECIPIENT_WALLET_PUBKEY")
         .expect("RECIPIENT_WALLET_PUBKEY not found in key_map");
 
-    // Based on the prompt, decide whether to send a correct or incorrect instruction.
-    // This allows us to test both the pass and fail scoring paths.
-    let data = if payload.prompt.starts_with("E2E TEST") {
-        println!("[reev-agent] Detected E2E pass benchmark. Using correct instruction data.");
-        // Correct data for a 0.1 SOL transfer.
-        "2Z4dY1Wp2j".to_string()
+    // Based on the prompt, decide whether to generate a correct instruction in code
+    // or return an incorrect one.
+    let raw_instruction = if payload.prompt == "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)." {
+        println!("[reev-agent] Detected '001-sol-transfer' prompt. Generating instruction with code.");
+
+        // 1. Parse pubkeys
+        let from = Pubkey::from_str(from_pubkey).expect("Failed to parse from_pubkey");
+        let to = Pubkey::from_str(to_pubkey).expect("Failed to parse to_pubkey");
+        let lamports = 100_000_000; // 0.1 SOL
+
+        // 2. Generate instruction using solana_sdk
+        let instruction = system_instruction::transfer(&from, &to, lamports);
+        println!("[reev-agent] Generated instruction: {:?}", instruction);
+
+        // 3. Convert back to RawInstruction for the response
+        RawInstruction {
+            program_id: instruction.program_id.to_string(),
+            accounts: instruction.accounts.iter().map(|acc| RawAccountMeta {
+                pubkey: acc.pubkey.to_string(),
+                is_signer: acc.is_signer,
+                is_writable: acc.is_writable,
+            }).collect(),
+            data: bs58::encode(instruction.data).into_string(),
+        }
     } else {
-        println!("[reev-agent] Detected original benchmark. Using incorrect instruction data.");
-        // Intentionally incorrect data to test the failure case.
-        "3Bv62F7i".to_string()
+        println!("[reev-agent] Prompt did not match. Sending intentionally invalid instruction.");
+        // Return an invalid instruction for any other case to test failures.
+        RawInstruction {
+            program_id: "11111111111111111111111111111111".to_string(),
+            accounts: vec![
+                RawAccountMeta {
+                    pubkey: from_pubkey.to_string(),
+                    is_signer: true,
+                    is_writable: true,
+                },
+                RawAccountMeta {
+                    pubkey: to_pubkey.to_string(),
+                    is_signer: false,
+                    is_writable: true,
+                },
+            ],
+            data: "invalid".to_string(),
+        }
     };
 
-    // Construct the mock RawInstruction for a 0.1 SOL transfer.
-    let raw_instruction = RawInstruction {
-        program_id: "11111111111111111111111111111111".to_string(),
-        accounts: vec![
-            RawAccountMeta {
-                pubkey: from_pubkey.to_string(),
-                is_signer: true,
-                is_writable: true,
-            },
-            RawAccountMeta {
-                pubkey: to_pubkey.to_string(),
-                is_signer: false,
-                is_writable: true,
-            },
-        ],
-        data,
-    };
-
-    println!("[reev-agent] Responding with hardcoded SOL transfer instruction.");
+    println!("[reev-agent] Responding with instruction.");
 
     // Wrap the instruction in the nested JSON structure the LlmAgent expects.
     let response = LlmResponse {

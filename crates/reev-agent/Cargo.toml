@@ -16,5 +16,7 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 regex = "1"
+solana-sdk.workspace = true
+bs58 = "0.5.1"
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
