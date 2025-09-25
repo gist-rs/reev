@@ -215,7 +215,10 @@ async fn run_evaluation_loop(
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     // In this model, we expect one action leading to one transaction.
-    let action = agent.get_action(&test_case.prompt, &observation).await?;
+    let fee_payer = env.fee_payer_placeholder();
+    let action = agent
+        .get_action(&test_case.prompt, &observation, fee_payer)
+        .await?;
     let step_result = env.step(action.clone(), &test_case.ground_truth)?;
     env.render();
 

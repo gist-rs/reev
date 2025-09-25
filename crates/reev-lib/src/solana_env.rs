@@ -22,6 +22,8 @@ pub struct SolanaEnv {
     rpc_client: RpcClient,
     /// A map of placeholder names (e.g., "USER_WALLET_PUBKEY") to their actual `Keypair`.
     keypair_map: HashMap<String, Keypair>,
+    /// The placeholder name of the account designated to pay transaction fees.
+    fee_payer: Option<String>,
 }
 
 impl SolanaEnv {
@@ -34,7 +36,13 @@ impl SolanaEnv {
                 CommitmentConfig::confirmed(),
             ),
             keypair_map: HashMap::new(),
+            fee_payer: None,
         })
+    }
+
+    /// Returns the placeholder name of the designated fee payer, if one has been set.
+    pub fn fee_payer_placeholder(&self) -> Option<&String> {
+        self.fee_payer.as_ref()
     }
 
     /// Gathers the current state of relevant accounts to form an observation.
@@ -96,6 +104,7 @@ impl GymEnv for SolanaEnv {
         println!("[SolanaEnv] Validator is healthy.");
 
         self.keypair_map.clear();
+        self.fee_payer = None; // Reset fee payer
         let initial_state_val = options
             .and_then(|v| v.get("initial_state").cloned())
             .context("Benchmark options must include 'initial_state'")?;
@@ -106,6 +115,12 @@ impl GymEnv for SolanaEnv {
             let pubkey_placeholder = account_config["pubkey"]
                 .as_str()
                 .context("Missing 'pubkey' placeholder in account config")?;
+
+            // Designate the user's main wallet as the default fee payer.
+            if pubkey_placeholder == "USER_WALLET_PUBKEY" {
+                self.fee_payer = Some(pubkey_placeholder.to_string());
+            }
+
             let keypair = Keypair::new();
             self.keypair_map
                 .insert(pubkey_placeholder.to_string(), keypair);
@@ -134,9 +149,7 @@ impl GymEnv for SolanaEnv {
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "[SolanaEnv] WARNING: Airdrop request failed: {e}. Continuing..."
-                        );
+                        println!("[SolanaEnv] WARNING: Airdrop request failed: {e}. Continuing...");
                     }
                 }
             }
@@ -212,9 +225,7 @@ impl GymEnv for SolanaEnv {
                     );
                 }
                 Err(_) => {
-                    println!(
-                        "  Pubkey: {pubkey} (Name: {name})\n    Account not found on-chain."
-                    );
+                    println!("  Pubkey: {pubkey} (Name: {name})\n    Account not found on-chain.");
                 }
             }
         }

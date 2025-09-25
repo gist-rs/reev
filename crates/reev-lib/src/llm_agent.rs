@@ -11,7 +11,7 @@ use tracing::instrument;
 pub struct LlmAgent {
     client: Client,
     api_url: String,
-    api_key: String,
+    api_key: Option<String>,
 }
 
 impl LlmAgent {
@@ -35,15 +35,17 @@ impl LlmAgent {
             }
         };
 
-        // Load API key from environment variables
+        // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {
-            Ok(key) => {
+            Ok(key) if !key.is_empty() => {
                 println!("[LlmAgent] Using LLM_API_KEY from environment.");
-                key
+                Some(key)
             }
-            Err(_) => {
-                println!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set.");
-                "NONE".to_string()
+            _ => {
+                println!(
+                    "[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty."
+                );
+                None
             }
         };
 
@@ -62,9 +64,10 @@ impl Agent for LlmAgent {
         &mut self,
         prompt: &str,
         observation: &AgentObservation,
+        fee_payer: Option<&String>,
     ) -> Result<AgentAction> {
         // 1. Define the generation prompt, which provides static instructions to the LLM.
-        const GENERATION_PROMPT: &str = "Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys.";
+        const GENERATION_PROMPT: &str = "Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.";
 
         // 2. Extract account placeholders from the user prompt to identify relevant accounts.
         let re = Regex::new(r"\(([A-Z_0-9]+)\)")
@@ -105,6 +108,7 @@ impl Agent for LlmAgent {
 
         // 4. Serialize the minimal context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
+            "fee_payer_placeholder": fee_payer,
             "account_states": filtered_account_states,
             "key_map": filtered_key_map,
         }))
@@ -125,17 +129,18 @@ impl Agent for LlmAgent {
             serde_json::to_string_pretty(&request_payload)?
         );
 
-        // 4. Send the request to the LLM API.
-        let response = self
-            .client
-            .post(&self.api_url)
-            .bearer_auth(&self.api_key)
+        // 7. Send the request to the LLM API.
+        let mut request_builder = self.client.post(&self.api_url);
+        if let Some(api_key) = &self.api_key {
+            request_builder = request_builder.header("X-API-Key", api_key);
+        }
+        let response = request_builder
             .json(&request_payload)
             .send()
             .await
             .context("Failed to send request to LLM API")?;
 
-        // 5. Handle API errors.
+        // 8. Handle API errors.
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
@@ -144,13 +149,13 @@ impl Agent for LlmAgent {
 
         println!("[LlmAgent] Received successful response from LLM.");
 
-        // 6. Deserialize the response and extract the raw instruction.
+        // 9. Deserialize the response and extract the raw instruction.
         let llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 7. Convert the raw instruction into a native `AgentAction` and return it.
+        // 10. Convert the raw instruction into a native `AgentAction` and return it.
         let action: AgentAction = llm_response.result.text.try_into()?;
 
         println!(

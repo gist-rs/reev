@@ -87,6 +87,7 @@ pub trait Agent {
         &mut self,
         prompt: &str,
         observation: &AgentObservation,
+        fee_payer: Option<&String>,
     ) -> Result<AgentAction>;
 }
 
