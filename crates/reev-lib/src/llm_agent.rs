@@ -67,7 +67,23 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
     ) -> Result<AgentAction> {
         // 1. Define the generation prompt, which provides static instructions to the LLM.
-        const GENERATION_PROMPT: &str = "Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.";
+        const GENERATION_PROMPT: &str = r#"Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.
+
+---
+
+**SPECIAL INSTRUCTIONS FOR NATIVE SOL TRANSFERS**
+
+If the user requests a native SOL transfer, you MUST use the Solana System Program (`11111111111111111111111111111111`). The instruction `data` for a System Program transfer has a very specific format:
+
+1.  **Instruction Index (4 bytes):** The value `2` as a little-endian `u32`. This is always `[2, 0, 0, 0]`.
+2.  **Lamports (8 bytes):** The amount of lamports to transfer as a little-endian `u64`.
+
+**Example:** To send 0.1 SOL (which is 100,000,000 lamports):
+- The lamports value `100000000` as a little-endian `u64` is `[0, 225, 245, 5, 0, 0, 0, 0]`.
+- The full data byte array is `[2, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0]`.
+- You must base58 encode this byte array to create the `data` string. For this specific example, the result is `2Z4dY1Wp2j`.
+
+Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
         // 2. Extract account placeholders from the user prompt to identify relevant accounts.
         let re = Regex::new(r"\(([A-Z_0-9]+)\)")

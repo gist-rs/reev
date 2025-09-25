@@ -34,18 +34,36 @@ The foundational framework, agent integration, and UI are complete. The next pha
 
 ---
 
-## Phase 8: Scoring and Persistence (Current)
+## Phase 8: Scoring and Persistence (Completed)
 
 **Goal:** Implement a robust system for scoring evaluation runs and persisting the results in a local database.
 
--   [ ] **Task 8.1: Add Database Dependency**
+-   [x] **Task 8.1: Add Database Dependency**
     -   [x] Add the `turso` crate to the `reev-runner`'s `Cargo.toml`.
--   [ ] **Task 8.2: Implement Database Manager**
+-   [x] **Task 8.2: Implement Database Manager**
     -   [x] Create a new module in `reev-runner` (`db.rs`) to handle all database interactions.
-    -   [ ] Implement a function to initialize the database connection and create the necessary tables if they don't exist.
--   [ ] **Task 8.3: Implement Scoring Logic**
-    -   [ ] Create a function that takes the `final_observation` and the `ground_truth.final_state_assertions` from the benchmark.
-    -   [ ] This function iterates through the assertions, compares them against the actual on-chain state, and returns a final score (1.0 for pass, 0.0 for fail).
--   [ ] **Task 8.4: Persist Results**
-    -   [ ] In `reev-runner/src/main.rs`, after a run completes, call the scoring function.
-    -   [ ] Call the database manager to insert a new record containing the benchmark ID, timestamp, prompt, the generated instruction (serialized to JSON), the final state, and the score.
+    -   [x] Implement a function to initialize the database connection and create the necessary tables if they don't exist.
+-   [x] **Task 8.3: Implement Scoring Logic**
+    -   [x] Create a function that takes the `final_observation` and the `ground_truth.final_state_assertions` from the benchmark.
+    -   [x] This function iterates through the assertions, compares them against the actual on-chain state, and returns a final score (1.0 for pass, 0.0 for fail).
+-   [x] **Task 8.4: Persist Results**
+    -   [x] In `reev-runner/src/main.rs`, after a run completes, call the scoring function.
+    -   [x] Call the database manager to insert a new record containing the benchmark ID, timestamp, prompt, the generated instruction (serialized to JSON), the final state, and the score.
+
+---
+
+## Phase 9: Integration Testing and Environment Fixes (Current)
+
+**Goal:** Build a robust integration test suite to validate the scoring logic and fix environment setup issues.
+
+-   [ ] **Task 9.1: Fix `SolanaEnv` Account Initialization**
+    -   [ ] Modify the `SolanaEnv::reset` function in `reev-lib` to correctly parse and apply the `data` field from a benchmark's `initial_state` for SPL Token accounts.
+-   [ ] **Task 9.2: Stabilize SPL-Token Scoring Tests**
+    -   [ ] Confirm that `test_scoring_pass_case` passes with a score of `1.0`.
+    -   [ ] Confirm that `test_scoring_fail_case` passes with a score of `0.0`.
+-   [ ] **Task 9.3: Create SOL Transfer Scoring Tests**
+    -   [ ] Create `crates/reev-runner/tests/benchmarks/001-sol-transfer-pass.yml`.
+    -   [ ] Create `crates/reev-runner/tests/benchmarks/002-sol-transfer-fail.yml`.
+-   [ ] **Task 9.4: Implement SOL Transfer Scoring Test Logic**
+    -   [ ] Add `test_sol_transfer_pass_case` and `test_sol_transfer_fail_case` to `scoring_test.rs`.
+    -   [ ] Validate `SolBalance` assertion logic by asserting correct scores.

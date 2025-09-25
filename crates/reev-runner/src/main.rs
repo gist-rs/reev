@@ -14,13 +14,31 @@ use reev_lib::{
     solana_env::SolanaEnv,
     trace::ExecutionTrace,
 };
-use std::fs;
-use std::path::PathBuf;
+use std::{
+    fs,
+    path::PathBuf,
+    process::{Child, Command},
+};
+use tokio::time::{Duration, sleep};
 use tracing::subscriber;
 use tracing_subscriber::{EnvFilter, Registry, prelude::*};
 
 mod db;
 mod renderer;
+
+/// A simple RAII guard to ensure the `reev-agent` process is killed.
+struct AgentProcessGuard {
+    process: Child,
+}
+
+impl Drop for AgentProcessGuard {
+    fn drop(&mut self) {
+        println!("[reev-runner] Shutting down reev-agent...");
+        if let Err(e) = self.process.kill() {
+            eprintln!("[reev-runner] Failed to kill reev-agent process: {e}");
+        }
+    }
+}
 
 /// A command-line runner for the Reev evaluation framework.
 #[derive(Parser, Debug)]
@@ -94,8 +112,45 @@ fn calculate_score(test_case: &TestCase, final_observation: &AgentObservation) -
                     return 0.0;
                 }
             }
-            StateAssertion::TokenAccountBalance { .. } => {
-                unimplemented!("TokenAccountBalance assertion not yet implemented.")
+            StateAssertion::TokenAccountBalance { pubkey, expected } => {
+                // Resolve the placeholder to the actual pubkey from the observation's key_map for logging.
+                let target_pubkey_str = final_observation
+                    .key_map
+                    .get(pubkey)
+                    .cloned()
+                    .unwrap_or_else(|| pubkey.clone());
+
+                if let Some(account_state) = final_observation.account_states.get(pubkey) {
+                    if let Some(actual_amount) =
+                        account_state.get("amount").and_then(|v| v.as_u64())
+                    {
+                        if actual_amount == *expected {
+                            println!(
+                                "      ✅ Assertion PASSED: Token balance for '{pubkey}' ({target_pubkey_str}) is {expected}."
+                            );
+                        } else {
+                            println!(
+                                "      ❌ Assertion FAILED: Token balance for '{pubkey}' ({target_pubkey_str}). Expected: {expected}, Actual: {actual_amount}"
+                            );
+                            return 0.0;
+                        }
+                    } else {
+                        println!(
+                            "      ❌ Assertion FAILED: Could not read token amount for '{pubkey}' ({target_pubkey_str})."
+                        );
+                        return 0.0;
+                    }
+                } else if *expected == 0 {
+                    // If the account doesn't exist and the expected balance is 0, it's a pass.
+                    println!(
+                        "      ✅ Assertion PASSED: Account '{pubkey}' ({target_pubkey_str}) does not exist, matching expected balance of 0."
+                    );
+                } else {
+                    println!(
+                        "      ❌ Assertion FAILED: Account '{pubkey}' ({target_pubkey_str}) not found in final state."
+                    );
+                    return 0.0;
+                }
             }
             StateAssertion::SolBalanceChange { .. } => {
                 unimplemented!("SolBalanceChange assertion not yet implemented.")
@@ -124,6 +179,40 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     println!("--- Reev Evaluation Runner ---");
+
+    // --- Start Mock Agent ---
+    println!("[reev-runner] Starting mock reev-agent...");
+    let agent_process = Command::new("cargo")
+        .args(["run", "-p", "reev-agent"])
+        .spawn()
+        .context("Failed to spawn reev-agent process. Is `cargo` in your PATH?")?;
+
+    let _agent_guard = AgentProcessGuard {
+        process: agent_process,
+    };
+
+    // --- Health Check ---
+    println!("[reev-runner] Waiting for mock agent to be healthy...");
+    let client = reqwest::Client::new();
+    let health_check_url = "http://127.0.0.1:9090/health";
+    let mut attempts = 0;
+    loop {
+        if attempts >= 20 {
+            // Timeout after 10 seconds
+            anyhow::bail!("Timed out waiting for reev-agent to become healthy.");
+        }
+        match client.get(health_check_url).send().await {
+            Ok(response) if response.status().is_success() => {
+                println!("[reev-runner] Mock agent is healthy.");
+                break;
+            }
+            _ => {
+                attempts += 1;
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+    // --- Mock Agent Started ---
 
     // Discover benchmark files.
     let benchmark_paths = if cli.path.is_dir() {
