@@ -171,22 +171,44 @@ impl GymEnv for SolanaEnv {
             instruction.program_id
         );
 
-        let signer_keypair = instruction
+        // The fee payer is always the primary signer and pays for the transaction.
+        let fee_payer_keypair = self
+            .fee_payer
+            .as_ref()
+            .and_then(|name| self.keypair_map.get(name))
+            .context("Fee payer is not set or not found in the environment's keypair map.")?;
+
+        // Collect all keypairs for accounts marked as signers in the instruction.
+        let mut signers: Vec<&Keypair> = instruction
             .accounts
             .iter()
-            .find(|acc| acc.is_signer)
-            .and_then(|signer_acc| {
+            .filter(|acc| acc.is_signer)
+            .map(|signer_acc| {
                 self.keypair_map
                     .values()
                     .find(|kp| kp.pubkey() == signer_acc.pubkey)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Instruction requires a signer ({}) that the environment does not control.",
+                            signer_acc.pubkey
+                        )
+                    })
             })
-            .context("Agent-generated instruction requires a signer that the environment does not control.")?;
+            .collect::<Result<Vec<_>>>()?;
+
+        // Ensure the fee payer is included in the list of signers, without duplicates.
+        if !signers
+            .iter()
+            .any(|s| s.pubkey() == fee_payer_keypair.pubkey())
+        {
+            signers.push(fee_payer_keypair);
+        }
 
         let mut transaction =
-            Transaction::new_with_payer(&[instruction], Some(&signer_keypair.pubkey()));
+            Transaction::new_with_payer(&[instruction], Some(&fee_payer_keypair.pubkey()));
 
         let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
-        transaction.sign(&[signer_keypair], recent_blockhash);
+        transaction.sign(&signers, recent_blockhash);
 
         let mut logs = Vec::new();
         let (status, error, terminated) =
