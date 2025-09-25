@@ -11,9 +11,9 @@ This document outlines the high-level, phased development plan for the `reev` pr
 
 ---
 
-## Completed Work (Phases 1-8)
+## Completed Work (Phases 1-9)
 
-The foundational work for the framework, reporting, interactive TUI, and result persistence is complete.
+The foundational work for the framework, reporting, interactive TUI, result persistence, and integration testing is complete.
 
 -   **Workspace Scaffolding**: `reev-lib`, `reev-runner`, and `reev-tui` crates are set up.
 -   **Hermetic `SolanaEnv`**: Manages the `surfpool` lifecycle and on-chain state.
@@ -23,6 +23,7 @@ The foundational work for the framework, reporting, interactive TUI, and result 
 -   **Observability**: The framework is instrumented with OpenTelemetry for tracing.
 -   **LLM Integration**: The `LlmAgent` is implemented to generate raw Solana instructions from natural language prompts, and the `SolanaEnv` is equipped to execute them.
 -   **Scoring and Persistence**: The `reev-runner` now calculates a final score based on on-chain state assertions and persists the complete evaluation record to a local SQLite database.
+-   **Integration Testing**: A full integration test suite validates the scoring and persistence logic, ensuring reliable evaluations.
 
 ---
 
