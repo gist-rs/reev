@@ -84,7 +84,6 @@ impl GymEnv for SolanaEnv {
 
         println!("[SolanaEnv] Spawning new `surfpool`...");
         let process = Command::new("surfpool")
-            .current_dir("surfpool")
             .args(["start"])
             .spawn()
             .context("Failed to spawn `surfpool`. Is it installed in the workspace?")?;
