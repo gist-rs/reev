@@ -55,10 +55,7 @@ You must have the `surfpool` local validator installed and running.
     - infer: `qwen3-coder-30b-a3b-instruct-mlx`
     - embedding: `text-embedding-qwen3-embedding-8b`
 
-4. **Run `anyrag-server`
-    - https://github.com/gist-rs/anyrag/blob/main/crates/server/README.md#1-running-the-server
-
-5. **Setup `.env`**
+4. **Setup `.env`**
 
     Create a `.env` file in the root of the project with the following variables:
 

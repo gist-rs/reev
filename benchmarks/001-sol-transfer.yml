@@ -45,4 +45,4 @@ ground_truth:
     # - 4 bytes: instruction index (2 for transfer)
     # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)
     # This is base58 encoded.
-    data: "2E4pS263t"
+    data: "2Z4dY1Wp2j"

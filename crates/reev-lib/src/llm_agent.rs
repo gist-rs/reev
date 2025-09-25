@@ -1,10 +1,8 @@
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use regex::Regex;
 use reqwest::Client;
-use serde_json::{json, Value};
-use std::collections::HashMap;
+use serde_json::json;
 use tracing::instrument;
 
 /// An agent that uses a large language model to generate raw Solana instructions.
@@ -67,52 +65,31 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
     ) -> Result<AgentAction> {
         // 1. Define the generation prompt, which provides static instructions to the LLM.
-        const GENERATION_PROMPT: &str = "Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.";
+        const GENERATION_PROMPT: &str = r#"Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.
 
-        // 2. Extract account placeholders from the user prompt to identify relevant accounts.
-        let re = Regex::new(r"\(([A-Z_0-9]+)\)")
-            .context("Failed to compile regex for placeholder extraction")?;
-        let relevant_placeholders: Vec<String> = re
-            .captures_iter(prompt)
-            .map(|cap| cap[1].to_string())
-            .collect();
+---
 
-        // 3. Filter the full on-chain state to create a minimal context for the LLM.
-        //    This includes only the accounts mentioned in the prompt and only the fields
-        //    necessary for generating the instruction.
-        let mut filtered_account_states = HashMap::new();
-        let mut filtered_key_map = HashMap::new();
+**SPECIAL INSTRUCTIONS FOR NATIVE SOL TRANSFERS**
 
-        for placeholder in &relevant_placeholders {
-            if let Some(pubkey) = observation.key_map.get(placeholder) {
-                filtered_key_map.insert(placeholder.clone(), pubkey.clone());
-            }
+If the user requests a native SOL transfer, you MUST use the Solana System Program (`11111111111111111111111111111111`). The instruction `data` for a System Program transfer has a very specific format:
 
-            if let Some(state) = observation.account_states.get(placeholder) {
-                let mut minimal_state = serde_json::Map::new();
-                // Include lamports for any account.
-                if let Some(lamports) = state.get("lamports") {
-                    minimal_state.insert("lamports".to_string(), lamports.clone());
-                }
-                // For token accounts, parse and include the token data.
-                if let Some(data) = state.get("data") {
-                    if let Some(data_str) = data.as_str() {
-                        if let Ok(token_data) = serde_json::from_str::<Value>(data_str) {
-                            minimal_state.insert("token_data".to_string(), token_data);
-                        }
-                    }
-                }
-                filtered_account_states.insert(placeholder.clone(), Value::Object(minimal_state));
-            }
-        }
+1.  **Instruction Index (4 bytes):** The value `2` as a little-endian `u32`. This is always `[2, 0, 0, 0]`.
+2.  **Lamports (8 bytes):** The amount of lamports to transfer as a little-endian `u64`.
 
-        // 4. Serialize the minimal context to YAML to create the context prompt.
+**Example:** To send 0.1 SOL (which is 100,000,000 lamports):
+- The lamports value `100000000` as a little-endian `u64` is `[0, 225, 245, 5, 0, 0, 0, 0]`.
+- The full data byte array is `[2, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0]`.
+- You must base58 encode this byte array to create the `data` string. For this specific example, the result is `2Z4dY1Wp2j`.
+
+Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
+
+        // 2. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
-            "account_states": filtered_account_states,
-            "key_map": filtered_key_map,
+            "account_states": observation.account_states,
+            "key_map": observation.key_map,
         }))
-        .context("Failed to serialize minimal context to YAML")?;
+        .context("Failed to serialize full context to YAML")?;
 
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 

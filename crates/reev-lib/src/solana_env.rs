@@ -6,11 +6,14 @@ use crate::{
 use anyhow::{Context, Result};
 use serde_json::Value;
 use solana_client::rpc_client::RpcClient;
+use solana_program::program_pack::Pack;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
+use solana_system_interface::instruction as system_instruction;
+use spl_token::{instruction as spl_instruction, state::Account as SplTokenAccount, state::Mint};
 use std::{collections::HashMap, thread, time::Duration};
 
 const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
@@ -45,6 +48,28 @@ impl SolanaEnv {
         self.fee_payer.as_ref()
     }
 
+    /// Gets the keypair for the designated fee payer.
+    fn get_fee_payer_keypair(&self) -> Result<&Keypair> {
+        self.fee_payer
+            .as_ref()
+            .and_then(|name| self.keypair_map.get(name))
+            .context("Fee payer is not set or not found in the environment's keypair map.")
+    }
+
+    /// Signs and sends a transaction, confirming it afterward.
+    fn sign_and_send_transaction(
+        &self,
+        mut transaction: Transaction,
+        signers: &[&Keypair],
+    ) -> Result<()> {
+        let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
+        transaction.sign(signers, recent_blockhash);
+        self.rpc_client
+            .send_and_confirm_transaction(&transaction)
+            .context("Failed to send and confirm transaction")?;
+        Ok(())
+    }
+
     /// Gathers the current state of relevant accounts to form an observation.
     fn get_observation(
         &self,
@@ -62,13 +87,26 @@ impl SolanaEnv {
 
             // Only include the state if the account actually exists on-chain.
             if let Ok(account) = self.rpc_client.get_account(&pubkey) {
-                let account_json = serde_json::json!({
-                    "lamports": account.lamports,
-                    "owner": account.owner.to_string(),
-                    "executable": account.executable,
-                    "data_len": account.data.len(),
-                });
-                account_states.insert(name.clone(), account_json);
+                let mut account_map: serde_json::Map<String, Value> = serde_json::Map::new();
+                account_map.insert("lamports".to_string(), account.lamports.into());
+                account_map.insert("owner".to_string(), account.owner.to_string().into());
+                account_map.insert("executable".to_string(), account.executable.into());
+                account_map.insert("data_len".to_string(), account.data.len().into());
+
+                // If this is a token account, unpack its data and add to the observation.
+                if account.owner == spl_token::ID && account.data.len() == SplTokenAccount::LEN {
+                    if let Ok(token_account) = SplTokenAccount::unpack(&account.data) {
+                        account_map
+                            .insert("mint".to_string(), token_account.mint.to_string().into());
+                        account_map.insert(
+                            "token_account_owner".to_string(),
+                            token_account.owner.to_string().into(),
+                        );
+                        account_map.insert("amount".to_string(), token_account.amount.into());
+                    }
+                }
+
+                account_states.insert(name.clone(), Value::Object(account_map));
             }
         }
 
@@ -126,33 +164,207 @@ impl GymEnv for SolanaEnv {
                 .insert(pubkey_placeholder.to_string(), keypair);
         }
 
-        // Second pass: airdrop funds where necessary.
-        for account_config in accounts {
-            let pubkey_placeholder = account_config["pubkey"].as_str().unwrap();
-            let keypair = self.keypair_map.get(pubkey_placeholder).unwrap();
-            let pubkey = keypair.pubkey();
+        // Fund the fee payer with the amount specified in the benchmark file.
+        let fee_payer_placeholder = self.fee_payer.as_ref().context("Fee payer not set")?;
+        let fee_payer_config = accounts
+            .iter()
+            .find(|acc| acc["pubkey"].as_str() == Some(fee_payer_placeholder))
+            .context("Fee payer config not found in initial state")?;
 
-            let lamports = account_config["lamports"]
-                .as_u64()
-                .context("Missing 'lamports' in account config")?;
+        let fee_payer_keypair = self.get_fee_payer_keypair()?;
+        let initial_lamports = fee_payer_config["lamports"]
+            .as_u64()
+            .context("Fee payer 'lamports' not found or invalid in initial state")?;
 
-            if lamports > 0 {
-                println!(
-                    "[SolanaEnv] Attempting to airdrop {lamports} lamports to {pubkey_placeholder} ({pubkey})..."
-                );
-                match self.rpc_client.request_airdrop(&pubkey, lamports) {
-                    Ok(sig) => {
-                        if let Err(e) = self.rpc_client.confirm_transaction(&sig) {
-                            println!("[SolanaEnv] WARNING: Failed to confirm airdrop transaction: {e}. Continuing...");
-                        } else {
-                            println!("[SolanaEnv] Airdrop successful.");
-                        }
-                    }
-                    Err(e) => {
-                        println!("[SolanaEnv] WARNING: Airdrop request failed: {e}. Continuing...");
-                    }
+        if initial_lamports > 0 {
+            println!(
+                "[SolanaEnv] Funding fee payer ({}) with {} lamports...",
+                fee_payer_keypair.pubkey(),
+                initial_lamports
+            );
+            let sig = self
+                .rpc_client
+                .request_airdrop(&fee_payer_keypair.pubkey(), initial_lamports)?;
+            self.rpc_client
+                .confirm_transaction(&sig)
+                .context("Failed to confirm fee payer airdrop")?;
+            println!("[SolanaEnv] Fee payer funded.");
+        }
+
+        // Process accounts in stages: system, then mints, then token accounts.
+        let mut mint_configs = Vec::new();
+        let mut token_configs = Vec::new();
+
+        // Stage 1: Handle System Accounts (simple airdrops)
+        for account_config in &accounts {
+            let owner = account_config["owner"]
+                .as_str()
+                .context("Missing 'owner'")?;
+            if owner == "11111111111111111111111111111111" {
+                let placeholder = account_config["pubkey"].as_str().unwrap();
+                // Don't re-fund the fee payer.
+                if self.fee_payer.as_deref() == Some(placeholder) {
+                    continue;
+                }
+
+                let keypair = self.keypair_map.get(placeholder).unwrap();
+                let lamports = account_config["lamports"].as_u64().unwrap_or(0);
+                if lamports > 0 {
+                    println!(
+                        "[SolanaEnv] Airdropping {lamports} lamports to {placeholder} ({})...",
+                        keypair.pubkey()
+                    );
+                    let sig = self
+                        .rpc_client
+                        .request_airdrop(&keypair.pubkey(), lamports)?;
+                    self.rpc_client
+                        .confirm_transaction(&sig)
+                        .context("Failed to confirm airdrop")?;
+                }
+            } else if owner == spl_token::ID.to_string() {
+                if account_config.get("mint_data").is_some() {
+                    mint_configs.push(account_config.clone());
+                } else if account_config.get("data").is_some() {
+                    token_configs.push(account_config.clone());
                 }
             }
+        }
+
+        // Stage 2: Create SPL Mint Accounts
+        for config in &mint_configs {
+            let placeholder = config["pubkey"].as_str().unwrap();
+            let keypair = self.keypair_map.get(placeholder).unwrap();
+            println!(
+                "[SolanaEnv] Creating SPL Mint: {placeholder} ({})",
+                keypair.pubkey()
+            );
+            let mint_data = config.get("mint_data").unwrap();
+            let decimals = mint_data["decimals"].as_u64().unwrap() as u8;
+            let auth_placeholder = mint_data["mint_authority"]
+                .as_str()
+                .unwrap_or("USER_WALLET_PUBKEY");
+            let authority = self
+                .keypair_map
+                .get(auth_placeholder)
+                .context("Mint authority not found")?;
+
+            let rent = self
+                .rpc_client
+                .get_minimum_balance_for_rent_exemption(Mint::LEN)?;
+            let instructions = [
+                system_instruction::create_account(
+                    &fee_payer_keypair.pubkey(),
+                    &keypair.pubkey(),
+                    rent,
+                    Mint::LEN as u64,
+                    &spl_token::ID,
+                ),
+                spl_instruction::initialize_mint(
+                    &spl_token::ID,
+                    &keypair.pubkey(),
+                    &authority.pubkey(),
+                    None,
+                    decimals,
+                )?,
+            ];
+            let transaction =
+                Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
+            self.sign_and_send_transaction(transaction, &[fee_payer_keypair, keypair])?;
+        }
+
+        // Stage 3: Create SPL Token Accounts and mint initial supply
+        for config in token_configs {
+            let placeholder = config["pubkey"].as_str().unwrap();
+            let keypair = self.keypair_map.get(placeholder).unwrap();
+            println!(
+                "[SolanaEnv] Creating SPL Token Account: {placeholder} ({})",
+                keypair.pubkey()
+            );
+            let data_str = config["data"]
+                .as_str()
+                .context("'data' must be a JSON string")?;
+            let token_state: HashMap<String, Value> =
+                serde_json::from_str(data_str).context("Failed to parse 'data' JSON")?;
+
+            let mint_placeholder = token_state["mint"]
+                .as_str()
+                .context("Missing 'mint' in data")?;
+            let owner_placeholder = token_state["owner"]
+                .as_str()
+                .context("Missing 'owner' in data")?;
+            let amount = token_state
+                .get("amount")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+            let mint_pubkey = self
+                .keypair_map
+                .get(mint_placeholder)
+                .context("Mint keypair not found")?
+                .pubkey();
+            let owner_pubkey = self
+                .keypair_map
+                .get(owner_placeholder)
+                .context("Owner keypair not found")?
+                .pubkey();
+
+            let rent = self
+                .rpc_client
+                .get_minimum_balance_for_rent_exemption(SplTokenAccount::LEN)?;
+            let mut instructions = vec![
+                system_instruction::create_account(
+                    &fee_payer_keypair.pubkey(),
+                    &keypair.pubkey(),
+                    rent,
+                    SplTokenAccount::LEN as u64,
+                    &spl_token::ID,
+                ),
+                spl_instruction::initialize_account(
+                    &spl_token::ID,
+                    &keypair.pubkey(),
+                    &mint_pubkey,
+                    &owner_pubkey,
+                )?,
+            ];
+
+            let mut signers = vec![fee_payer_keypair, keypair];
+            if amount > 0 {
+                // Find the config for the mint this token account belongs to.
+                let mint_config = mint_configs
+                    .iter()
+                    .find(|mc| mc["pubkey"].as_str() == Some(mint_placeholder))
+                    .context("Could not find mint config for token account")?;
+
+                // Get the authority placeholder from that mint's config.
+                let mint_authority_placeholder = mint_config["mint_data"]
+                    .get("mint_authority")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("USER_WALLET_PUBKEY");
+
+                // Get the authority's keypair.
+                let mint_authority = self
+                    .keypair_map
+                    .get(mint_authority_placeholder)
+                    .context("Mint authority keypair not found")?;
+
+                signers.push(mint_authority);
+                instructions.push(spl_instruction::mint_to(
+                    &spl_token::ID,
+                    &mint_pubkey,
+                    &keypair.pubkey(),
+                    &mint_authority.pubkey(),
+                    &[],
+                    amount,
+                )?);
+            }
+
+            // Deduplicate signers
+            signers.sort_by_key(|k| k.pubkey());
+            signers.dedup_by_key(|k| k.pubkey());
+
+            let transaction =
+                Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
+            self.sign_and_send_transaction(transaction, &signers)?;
         }
 
         println!("[SolanaEnv] Environment reset complete.");
@@ -178,31 +390,27 @@ impl GymEnv for SolanaEnv {
             .and_then(|name| self.keypair_map.get(name))
             .context("Fee payer is not set or not found in the environment's keypair map.")?;
 
-        // Collect all keypairs for accounts marked as signers in the instruction.
-        let mut signers: Vec<&Keypair> = instruction
-            .accounts
-            .iter()
-            .filter(|acc| acc.is_signer)
-            .map(|signer_acc| {
-                self.keypair_map
-                    .values()
-                    .find(|kp| kp.pubkey() == signer_acc.pubkey)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "Instruction requires a signer ({}) that the environment does not control.",
-                            signer_acc.pubkey
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>>>()?;
+        // Start with the fee payer, as it must always sign.
+        let mut signers: Vec<&Keypair> = vec![fee_payer_keypair];
 
-        // Ensure the fee payer is included in the list of signers, without duplicates.
-        if !signers
-            .iter()
-            .any(|s| s.pubkey() == fee_payer_keypair.pubkey())
-        {
-            signers.push(fee_payer_keypair);
+        // Add any other keypairs required by the instruction.
+        for signer_acc in instruction.accounts.iter().filter(|acc| acc.is_signer) {
+            let signer_keypair = self
+                .keypair_map
+                .values()
+                .find(|kp| kp.pubkey() == signer_acc.pubkey)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Instruction requires a signer ({}) that the environment does not control.",
+                        signer_acc.pubkey
+                    )
+                })?;
+            signers.push(signer_keypair);
         }
+
+        // Deduplicate the signers list to handle cases where the fee payer is also an authority.
+        signers.sort_by_key(|k| k.pubkey());
+        signers.dedup_by_key(|k| k.pubkey());
 
         let mut transaction =
             Transaction::new_with_payer(&[instruction], Some(&fee_payer_keypair.pubkey()));

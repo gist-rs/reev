@@ -82,7 +82,6 @@ impl Db {
                     &generated_instruction,
                     &final_on_chain_state,
                     &final_status_str,
-                    &final_status_str,
                     &score.to_string(),
                 ],
             )
