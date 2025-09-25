@@ -33,9 +33,7 @@ struct Cli {
 
 /// Initializes the OpenTelemetry pipeline for tracing.
 fn init_tracing() -> Result<sdktrace::SdkTracerProvider> {
-    // let exporter = opentelemetry_stdout::SpanExporter::default();
     let provider = sdktrace::SdkTracerProvider::builder()
-        // .with_simple_exporter(exporter)
         .with_resource(Resource::builder().with_service_name("reev-runner").build())
         .build();
     let tracer = provider.tracer("reev-runner");
@@ -57,29 +55,41 @@ fn calculate_score(test_case: &TestCase, final_observation: &AgentObservation) -
     for assertion in &test_case.ground_truth.final_state_assertions {
         match assertion {
             StateAssertion::SolBalance { pubkey, expected } => {
+                // Resolve the placeholder to the actual pubkey from the observation's key_map for logging.
+                let target_pubkey_str = final_observation
+                    .key_map
+                    .get(pubkey)
+                    .cloned()
+                    .unwrap_or_else(|| pubkey.clone());
+
                 if let Some(account_state) = final_observation.account_states.get(pubkey) {
                     if let Some(actual_lamports) =
                         account_state.get("lamports").and_then(|v| v.as_u64())
                     {
                         if actual_lamports == *expected {
                             println!(
-                                "      ✅ Assertion PASSED: SOL balance for '{pubkey}' is {expected}."
+                                "      ✅ Assertion PASSED: SOL balance for '{pubkey}' ({target_pubkey_str}) is {expected}."
                             );
                         } else {
                             println!(
-                                "      ❌ Assertion FAILED: SOL balance for '{pubkey}'. Expected: {expected}, Actual: {actual_lamports}."
+                                "      ❌ Assertion FAILED: SOL balance for '{pubkey}' ({target_pubkey_str}). Expected: {expected}, Actual: {actual_lamports}"
                             );
                             return 0.0;
                         }
                     } else {
                         println!(
-                            "      ❌ Assertion FAILED: Could not read lamports for '{pubkey}'."
+                            "      ❌ Assertion FAILED: Could not read lamports for '{pubkey}' ({target_pubkey_str})."
                         );
                         return 0.0;
                     }
+                } else if *expected == 0 {
+                    // If the account doesn't exist and the expected balance is 0, it's a pass.
+                    println!(
+                        "      ✅ Assertion PASSED: Account '{pubkey}' ({target_pubkey_str}) does not exist, matching expected balance of 0."
+                    );
                 } else {
                     println!(
-                        "      ❌ Assertion FAILED: Account '{pubkey}' not found in final state."
+                        "      ❌ Assertion FAILED: Account '{pubkey}' ({target_pubkey_str}) not found in final state."
                     );
                     return 0.0;
                 }
@@ -183,7 +193,6 @@ async fn main() -> Result<()> {
         let tree_output = renderer::render_result_as_tree(&result);
         println!("{tree_output}");
 
-        // Close the environment, killing the validator process for this run.
         env.close()?;
     }
 
@@ -206,7 +215,7 @@ async fn run_evaluation_loop(
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     // In this model, we expect one action leading to one transaction.
-    let action = agent.get_action(&observation).await?;
+    let action = agent.get_action(&test_case.prompt, &observation).await?;
     let step_result = env.step(action.clone(), &test_case.ground_truth)?;
     env.render();
 

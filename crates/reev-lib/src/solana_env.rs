@@ -45,16 +45,23 @@ impl SolanaEnv {
         logs: Vec<String>,
     ) -> Result<AgentObservation> {
         let mut account_states = HashMap::new();
+        let mut key_map = HashMap::new();
+
         for (name, keypair) in &self.keypair_map {
             let pubkey = keypair.pubkey();
-            let account = self.rpc_client.get_account(&pubkey)?;
-            let account_json = serde_json::json!({
-                "lamports": account.lamports,
-                "owner": account.owner.to_string(),
-                "executable": account.executable,
-                "data_len": account.data.len(),
-            });
-            account_states.insert(name.clone(), account_json);
+            // Always include the key in the key_map for full context.
+            key_map.insert(name.clone(), pubkey.to_string());
+
+            // Only include the state if the account actually exists on-chain.
+            if let Ok(account) = self.rpc_client.get_account(&pubkey) {
+                let account_json = serde_json::json!({
+                    "lamports": account.lamports,
+                    "owner": account.owner.to_string(),
+                    "executable": account.executable,
+                    "data_len": account.data.len(),
+                });
+                account_states.insert(name.clone(), account_json);
+            }
         }
 
         Ok(AgentObservation {
@@ -62,6 +69,7 @@ impl SolanaEnv {
             last_transaction_error: error,
             last_transaction_logs: logs,
             account_states,
+            key_map,
         })
     }
 }
@@ -87,42 +95,51 @@ impl GymEnv for SolanaEnv {
         }
         println!("[SolanaEnv] Validator is healthy.");
 
-        // Poll the RPC endpoint to ensure it's fully ready for requests.
-        let mut ready = false;
-        for _ in 0..15 {
-            // Try for up to 15 seconds
-            let test_keypair = Keypair::new();
-            if self.rpc_client.get_balance(&test_keypair.pubkey()).is_ok() {
-                println!("[SolanaEnv] RPC endpoint is responsive.");
-                ready = true;
-                break;
-            }
-            thread::sleep(Duration::from_secs(1));
-        }
-        if !ready {
-            anyhow::bail!("Validator RPC did not become responsive in time.");
-        }
-
         self.keypair_map.clear();
         let initial_state_val = options
             .and_then(|v| v.get("initial_state").cloned())
             .context("Benchmark options must include 'initial_state'")?;
         let accounts: Vec<Value> = serde_json::from_value(initial_state_val)?;
 
-        for account_config in accounts {
+        // First pass: create all keypairs so the key_map is complete from the start.
+        for account_config in &accounts {
             let pubkey_placeholder = account_config["pubkey"]
                 .as_str()
                 .context("Missing 'pubkey' placeholder in account config")?;
             let keypair = Keypair::new();
-            let pubkey = keypair.pubkey();
             self.keypair_map
                 .insert(pubkey_placeholder.to_string(), keypair);
+        }
+
+        // Second pass: airdrop funds where necessary.
+        for account_config in accounts {
+            let pubkey_placeholder = account_config["pubkey"].as_str().unwrap();
+            let keypair = self.keypair_map.get(pubkey_placeholder).unwrap();
+            let pubkey = keypair.pubkey();
 
             let lamports = account_config["lamports"]
                 .as_u64()
                 .context("Missing 'lamports' in account config")?;
-            let sig = self.rpc_client.request_airdrop(&pubkey, lamports)?;
-            self.rpc_client.confirm_transaction(&sig)?;
+
+            if lamports > 0 {
+                println!(
+                    "[SolanaEnv] Attempting to airdrop {lamports} lamports to {pubkey_placeholder} ({pubkey})..."
+                );
+                match self.rpc_client.request_airdrop(&pubkey, lamports) {
+                    Ok(sig) => {
+                        if let Err(e) = self.rpc_client.confirm_transaction(&sig) {
+                            println!("[SolanaEnv] WARNING: Failed to confirm airdrop transaction: {e}. Continuing...");
+                        } else {
+                            println!("[SolanaEnv] Airdrop successful.");
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "[SolanaEnv] WARNING: Airdrop request failed: {e}. Continuing..."
+                        );
+                    }
+                }
+            }
         }
 
         println!("[SolanaEnv] Environment reset complete.");
@@ -194,8 +211,10 @@ impl GymEnv for SolanaEnv {
                         pubkey, name, account.owner, account.lamports
                     );
                 }
-                Err(e) => {
-                    println!("  Could not fetch state for {name}: {e}");
+                Err(_) => {
+                    println!(
+                        "  Pubkey: {pubkey} (Name: {name})\n    Account not found on-chain."
+                    );
                 }
             }
         }
@@ -203,8 +222,6 @@ impl GymEnv for SolanaEnv {
     }
 
     fn close(&mut self) -> Result<()> {
-        // Since we no longer manage the surfpool process, this is a no-op.
-        // The validator is expected to be managed by the user.
         println!("[SolanaEnv] Environment closed. Validator process is left running.");
         Ok(())
     }

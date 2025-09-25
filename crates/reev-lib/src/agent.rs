@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -8,101 +9,128 @@ use solana_sdk::{
 use std::collections::HashMap;
 use std::str::FromStr;
 
-// --- Structs for Deserializing the Third-Party API Response ---
-// These structs are designed to perfectly match the nested structure of the API's JSON response.
-
-/// Matches the innermost JSON object: the instruction itself.
-/// The `text` field of the API response is expected to contain this structure.
-#[derive(Debug, Deserialize)]
-pub struct LlmInstruction {
+/// Represents a raw, JSON-formatted instruction, suitable for serialization
+/// and for being the target format for an LLM agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawInstruction {
     pub program_id: String,
-    pub accounts: Vec<LlmAccountMeta>,
-    pub data: String, // Expected to be a Base58 encoded string
+    pub accounts: Vec<RawAccountMeta>,
+    pub data: String, // Base58 encoded
 }
 
-/// Matches the structure of an account within the `accounts` array of the API response.
-#[derive(Debug, Deserialize)]
-pub struct LlmAccountMeta {
+/// A simplified, string-based version of `AccountMeta` for easy JSON serialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RawAccountMeta {
     pub pubkey: String,
     pub is_signer: bool,
     pub is_writable: bool,
 }
 
-/// Matches the `{"text": ...}` object in the API response.
-/// This is the key change to align with the provided server code.
-#[derive(Debug, Deserialize)]
-pub struct LlmResult {
-    pub text: LlmInstruction,
+/// A wrapper around a native Solana `Instruction` to represent a single, executable action by an agent.
+#[derive(Debug, Clone)]
+pub struct AgentAction(pub Instruction);
+
+/// Manual Serialize implementation for AgentAction to produce a human-readable JSON format.
+impl Serialize for AgentAction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let raw_instruction = RawInstruction {
+            program_id: self.0.program_id.to_string(),
+            accounts: self
+                .0
+                .accounts
+                .iter()
+                .map(|acc| RawAccountMeta {
+                    pubkey: acc.pubkey.to_string(),
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+                .collect(),
+            data: bs58::encode(&self.0.data).into_string(),
+        };
+        raw_instruction.serialize(serializer)
+    }
 }
 
-/// Matches the top-level `{"result": ...}` object in the API response.
+/// Manual Deserialize implementation for AgentAction from a human-readable JSON format.
+impl<'de> Deserialize<'de> for AgentAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawInstruction::deserialize(deserializer)?;
+        raw.try_into().map_err(serde::de::Error::custom)
+    }
+}
+
+/// Represents the state of the environment that the agent can perceive.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentObservation {
+    /// The status of the last transaction (e.g., "Success", "Failure").
+    pub last_transaction_status: String,
+    /// An optional error message from the last transaction.
+    pub last_transaction_error: Option<String>,
+    /// Logs from the last transaction.
+    pub last_transaction_logs: Vec<String>,
+    /// A map of account placeholder names to their on-chain state.
+    pub account_states: HashMap<String, Value>,
+    /// A map of account placeholder names to their actual public keys.
+    pub key_map: HashMap<String, String>,
+}
+
+#[async_trait]
+pub trait Agent {
+    /// Given a prompt and an observation of the environment, returns the next action to take.
+    async fn get_action(
+        &mut self,
+        prompt: &str,
+        observation: &AgentObservation,
+    ) -> Result<AgentAction>;
+}
+
+/// Structs for deserializing the third-party LLM's JSON response.
 #[derive(Debug, Deserialize)]
 pub struct LlmResponse {
     pub result: LlmResult,
 }
 
-// --- Core Agent Definitions ---
+#[derive(Debug, Deserialize)]
+pub struct LlmResult {
+    pub text: RawInstruction,
+}
 
-/// The action an agent decides to take.
-///
-/// This is a wrapper around the native `solana_sdk::instruction::Instruction`.
-/// This design makes it easy for the `SolanaEnv` to directly use the action
-/// without further parsing, and it allows the execution trace to be serializable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AgentAction(pub Instruction);
-
-/// Provides a direct conversion from the API's instruction format to the native `AgentAction`.
-/// This is the bridge between the external LLM world and the internal `reev` framework.
-impl TryFrom<LlmInstruction> for AgentAction {
+/// Conversion from the raw format to our action wrapper.
+impl TryFrom<RawInstruction> for AgentAction {
     type Error = anyhow::Error;
 
-    fn try_from(llm_instruction: LlmInstruction) -> Result<Self, Self::Error> {
-        // Parse the program_id string into a native Pubkey.
-        let program_id = Pubkey::from_str(&llm_instruction.program_id)
-            .context("Failed to parse 'program_id' string into a Pubkey")?;
+    fn try_from(raw: RawInstruction) -> Result<Self, Self::Error> {
+        let program_id = Pubkey::from_str(&raw.program_id)
+            .with_context(|| format!("Invalid program_id: {}", raw.program_id))?;
 
-        // Map the API's account format to the native `solana_sdk::instruction::AccountMeta`.
-        let accounts = llm_instruction
+        let accounts = raw
             .accounts
             .into_iter()
             .map(|acc| {
                 let pubkey = Pubkey::from_str(&acc.pubkey)
-                    .context(format!("Failed to parse account pubkey: '{}'", acc.pubkey))?;
+                    .with_context(|| format!("Invalid pubkey in accounts: {}", acc.pubkey))?;
                 Ok(AccountMeta {
                     pubkey,
                     is_signer: acc.is_signer,
                     is_writable: acc.is_writable,
                 })
             })
-            .collect::<Result<Vec<AccountMeta>>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
-        // Decode the base58 `data` string into a raw byte vector.
-        let data = bs58::decode(&llm_instruction.data)
+        let data = bs58::decode(&raw.data)
             .into_vec()
-            .context("Failed to decode base58 'data' string")?;
+            .with_context(|| format!("Invalid base58 data: {}", raw.data))?;
 
-        // Construct the native `Instruction` and wrap it in our `AgentAction`.
         Ok(AgentAction(Instruction {
             program_id,
             accounts,
             data,
         }))
     }
-}
-
-/// Represents the observation of the environment state provided back to the agent.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct AgentObservation {
-    pub last_transaction_status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_transaction_error: Option<String>,
-    pub last_transaction_logs: Vec<String>,
-    pub account_states: HashMap<String, serde_json::Value>,
-}
-
-/// The trait that all agents must implement.
-#[async_trait]
-pub trait Agent {
-    /// Takes an observation from the environment and returns the next action (a raw instruction) to take.
-    async fn get_action(&mut self, observation: &AgentObservation) -> Result<AgentAction>;
 }

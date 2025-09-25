@@ -123,10 +123,10 @@ impl TryFrom<BenchmarkInstruction> for AgentAction {
 pub struct GroundTruth {
     /// A list of conditions that must be true on the blockchain after the agent has finished.
     pub final_state_assertions: Vec<StateAssertion>,
-    /// An optional, ordered list of the ideal tool calls the agent should make.
-    /// This is used for calculating metrics like Tool Selection Accuracy.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub expected_tool_calls: Vec<BenchmarkInstruction>,
+    /// The ideal instruction the agent is expected to generate to solve the task.
+    /// This is used for calculating instruction accuracy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_instruction: Option<BenchmarkInstruction>,
 }
 
 /// Represents a single, self-contained test case for evaluating an agent.

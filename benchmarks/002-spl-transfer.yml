@@ -1,5 +1,5 @@
 id: 002-SPL-TRANSFER
-description: A simple SPL-Token transfer using the real USDC mint to test functionality and assertions.
+description: A simple SPL-Token transfer using a mock USDC mint to test functionality and assertions.
 tags: ["spl-token", "transfer", "usdc"]
 
 initial_state:
@@ -13,27 +13,28 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 1000000000 # 1 SOL
 
-  # Real USDC Mint Account (as a placeholder for a newly created account).
-  - pubkey: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  # A placeholder for a newly created mock USDC mint account.
+  - pubkey: "MOCK_USDC_MINT"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 1000000 # Rent
     mint_data:
+      mint_authority: "USER_WALLET_PUBKEY"
       decimals: 6
 
-  # User's Associated Token Account (ATA) for USDC, owned by the Token Program.
+  # User's Associated Token Account (ATA) for the mock USDC, owned by the Token Program.
   - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 2039280 # Rent
     # The 'data' field is a JSON string representing the `SplTokenState` struct.
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC (6 decimals)
+    data: '{"mint": "MOCK_USDC_MINT", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC (6 decimals)
 
-  # Recipient's Associated Token Account (ATA) for USDC, owned by the Token Program.
+  # Recipient's Associated Token Account (ATA) for the mock USDC, owned by the Token Program.
   - pubkey: "RECIPIENT_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 2039280 # Rent
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
+    data: '{"mint": "MOCK_USDC_MINT", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
 
-prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
+prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). The mint is MOCK_USDC_MINT, and I am the authority (USER_WALLET_PUBKEY)."
 
 ground_truth:
   final_state_assertions:
@@ -47,10 +48,21 @@ ground_truth:
       pubkey: "RECIPIENT_USDC_ATA"
       expected: 15000000 # 15 USDC received
 
-  expected_tool_calls:
-    - tool_name: "spl_transfer"
-      parameters:
-        from_pubkey: "USER_USDC_ATA"
-        to_pubkey: "RECIPIENT_USDC_ATA"
-        authority_pubkey: "USER_WALLET_PUBKEY"
-        amount: 15000000
+  # The ideal raw Solana instruction the agent should generate for an SPL Token transfer.
+  expected_instruction:
+    program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    accounts:
+      - pubkey: "USER_USDC_ATA"
+        is_signer: false
+        is_writable: true
+      - pubkey: "RECIPIENT_USDC_ATA"
+        is_signer: false
+        is_writable: true
+      - pubkey: "USER_WALLET_PUBKEY"
+        is_signer: true
+        is_writable: false # The authority's account is not written to by the token program itself
+    # Instruction data for a Token Program "Transfer" instruction:
+    # - 1 byte: instruction index (3 for transfer)
+    # - 8 bytes: amount (15 USDC with 6 decimals = 15,000,000)
+    # This is base58 encoded.
+    data: "3kVA21YASy2b"
