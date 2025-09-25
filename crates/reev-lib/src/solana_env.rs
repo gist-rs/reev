@@ -11,19 +11,13 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
-use std::{
-    collections::HashMap,
-    process::{Child, Command},
-    thread,
-    time::Duration,
-};
+use std::{collections::HashMap, thread, time::Duration};
 
 const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
 
 /// The main environment for interacting with a hermetic Solana test validator.
+/// It connects to an externally managed `surfpool` instance.
 pub struct SolanaEnv {
-    /// The handle to the running `surfpool` process.
-    surfpool_process: Option<Child>,
     /// The RPC client for communicating with the `surfpool` instance.
     rpc_client: RpcClient,
     /// A map of placeholder names (e.g., "USER_WALLET_PUBKEY") to their actual `Keypair`.
@@ -32,10 +26,9 @@ pub struct SolanaEnv {
 
 impl SolanaEnv {
     /// Creates a new `SolanaEnv`.
-    /// The validator process is not started until `reset` is called.
+    /// This assumes a `surfpool` validator is already running and accessible.
     pub fn new() -> Result<Self> {
         Ok(Self {
-            surfpool_process: None,
             rpc_client: RpcClient::new_with_commitment(
                 LOCAL_SURFPOOL_RPC_URL.to_string(),
                 CommitmentConfig::confirmed(),
@@ -80,26 +73,19 @@ impl GymEnv for SolanaEnv {
     #[tracing::instrument(skip_all, name = "env.reset")]
     fn reset(&mut self, _seed: Option<u64>, options: Option<Value>) -> Result<Self::Observation> {
         println!("[SolanaEnv] Resetting environment...");
-        self.close()?; // Ensure any previous surfpool process is terminated.
 
-        println!("[SolanaEnv] Spawning new `surfpool`...");
-        let process = Command::new("surfpool")
-            .args(["start"])
-            .spawn()
-            .context("Failed to spawn `surfpool`. Is it installed in the workspace?")?;
-        self.surfpool_process = Some(process);
-
-        // Wait for the RPC server to be ready.
-        for _ in 0..30 {
+        // Check for the RPC server to be ready.
+        println!("[SolanaEnv] Checking for running `surfpool` validator...");
+        for i in 0..10 {
             if self.rpc_client.get_health().is_ok() {
-                println!("[SolanaEnv] Validator is healthy.");
                 break;
+            }
+            if i == 9 {
+                anyhow::bail!("Could not connect to `surfpool` validator. Is it running at {LOCAL_SURFPOOL_RPC_URL}?");
             }
             thread::sleep(Duration::from_secs(1));
         }
-        if self.rpc_client.get_health().is_err() {
-            anyhow::bail!("Surfpool did not become healthy in time.");
-        }
+        println!("[SolanaEnv] Validator is healthy.");
 
         // Poll the RPC endpoint to ensure it's fully ready for requests.
         let mut ready = false;
@@ -217,13 +203,9 @@ impl GymEnv for SolanaEnv {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut child) = self.surfpool_process.take() {
-            println!("[SolanaEnv] Terminating validator process...");
-            child.kill().context("Failed to kill validator process")?;
-            child
-                .wait()
-                .context("Failed to wait for validator process to exit")?;
-        }
+        // Since we no longer manage the surfpool process, this is a no-op.
+        // The validator is expected to be managed by the user.
+        println!("[SolanaEnv] Environment closed. Validator process is left running.");
         Ok(())
     }
 }
