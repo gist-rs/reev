@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
     }
 
     // Initialize database
-    let db = db::Db::new("reev_results.db").await?;
+    let db = db::Db::new("db/reev_results.db").await?;
 
     // Loop through and run each benchmark
     for path in benchmark_paths {
