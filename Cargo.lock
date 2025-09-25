@@ -3445,7 +3445,10 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_yaml",
  "solana-sdk",
+ "solana-system-interface 1.0.0",
+ "spl-token",
  "tokio",
 ]
 

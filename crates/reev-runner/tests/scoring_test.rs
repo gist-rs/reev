@@ -106,7 +106,7 @@ fn instruction_from_ground_truth(
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_pass_case() -> Result<()> {
     // 1. Load the benchmark file.
-    let f = fs::File::open("tests/benchmarks/003-spl-transfer-pass.yml")?;
+    let f = fs::File::open("tests/benchmarks/002-spl-transfer.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
     println!(
@@ -140,7 +140,7 @@ async fn test_scoring_pass_case() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_fail_case() -> Result<()> {
     // 1. Load the benchmark file.
-    let f = fs::File::open("tests/benchmarks/004-spl-transfer-fail.yml")?;
+    let f = fs::File::open("tests/benchmarks/002-spl-transfer-fail.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
     // 2. Set up the environment.

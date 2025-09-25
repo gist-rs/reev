@@ -164,19 +164,32 @@ impl GymEnv for SolanaEnv {
                 .insert(pubkey_placeholder.to_string(), keypair);
         }
 
-        // Fund the fee payer first so it can pay for account creation.
+        // Fund the fee payer with the amount specified in the benchmark file.
+        let fee_payer_placeholder = self.fee_payer.as_ref().context("Fee payer not set")?;
+        let fee_payer_config = accounts
+            .iter()
+            .find(|acc| acc["pubkey"].as_str() == Some(fee_payer_placeholder))
+            .context("Fee payer config not found in initial state")?;
+
         let fee_payer_keypair = self.get_fee_payer_keypair()?;
-        println!(
-            "[SolanaEnv] Funding fee payer ({}) with 10 SOL...",
-            fee_payer_keypair.pubkey()
-        );
-        let sig = self
-            .rpc_client
-            .request_airdrop(&fee_payer_keypair.pubkey(), 10_000_000_000)?;
-        self.rpc_client
-            .confirm_transaction(&sig)
-            .context("Failed to confirm fee payer airdrop")?;
-        println!("[SolanaEnv] Fee payer funded.");
+        let initial_lamports = fee_payer_config["lamports"]
+            .as_u64()
+            .context("Fee payer 'lamports' not found or invalid in initial state")?;
+
+        if initial_lamports > 0 {
+            println!(
+                "[SolanaEnv] Funding fee payer ({}) with {} lamports...",
+                fee_payer_keypair.pubkey(),
+                initial_lamports
+            );
+            let sig = self
+                .rpc_client
+                .request_airdrop(&fee_payer_keypair.pubkey(), initial_lamports)?;
+            self.rpc_client
+                .confirm_transaction(&sig)
+                .context("Failed to confirm fee payer airdrop")?;
+            println!("[SolanaEnv] Fee payer funded.");
+        }
 
         // Process accounts in stages: system, then mints, then token accounts.
         let mut mint_configs = Vec::new();

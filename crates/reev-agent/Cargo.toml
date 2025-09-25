@@ -12,11 +12,14 @@ categories.workspace = true
 
 [dependencies]
 axum = "0.8.4"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-regex = "1"
-solana-sdk.workspace = true
-bs58 = "0.5.1"
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+regex = { workspace = true }
+solana-sdk = { workspace = true }
+bs58 = { workspace = true }
 reev-lib = { path = "../reev-lib" }
-anyhow = "1.0"
+anyhow = { workspace = true }
+solana-system-interface = { workspace = true }
+spl-token = { workspace = true }
+serde_yaml = { workspace = true }

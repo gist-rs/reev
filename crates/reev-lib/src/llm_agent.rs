@@ -1,10 +1,8 @@
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use regex::Regex;
 use reqwest::Client;
-use serde_json::{json, Value};
-use std::collections::HashMap;
+use serde_json::json;
 use tracing::instrument;
 
 /// An agent that uses a large language model to generate raw Solana instructions.
@@ -85,50 +83,13 @@ If the user requests a native SOL transfer, you MUST use the Solana System Progr
 
 Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
-        // 2. Extract account placeholders from the user prompt to identify relevant accounts.
-        let re = Regex::new(r"\(([A-Z_0-9]+)\)")
-            .context("Failed to compile regex for placeholder extraction")?;
-        let relevant_placeholders: Vec<String> = re
-            .captures_iter(prompt)
-            .map(|cap| cap[1].to_string())
-            .collect();
-
-        // 3. Filter the full on-chain state to create a minimal context for the LLM.
-        //    This includes only the accounts mentioned in the prompt and only the fields
-        //    necessary for generating the instruction.
-        let mut filtered_account_states = HashMap::new();
-        let mut filtered_key_map = HashMap::new();
-
-        for placeholder in &relevant_placeholders {
-            if let Some(pubkey) = observation.key_map.get(placeholder) {
-                filtered_key_map.insert(placeholder.clone(), pubkey.clone());
-            }
-
-            if let Some(state) = observation.account_states.get(placeholder) {
-                let mut minimal_state = serde_json::Map::new();
-                // Include lamports for any account.
-                if let Some(lamports) = state.get("lamports") {
-                    minimal_state.insert("lamports".to_string(), lamports.clone());
-                }
-                // For token accounts, parse and include the token data.
-                if let Some(data) = state.get("data") {
-                    if let Some(data_str) = data.as_str() {
-                        if let Ok(token_data) = serde_json::from_str::<Value>(data_str) {
-                            minimal_state.insert("token_data".to_string(), token_data);
-                        }
-                    }
-                }
-                filtered_account_states.insert(placeholder.clone(), Value::Object(minimal_state));
-            }
-        }
-
-        // 4. Serialize the minimal context to YAML to create the context prompt.
+        // 2. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
-            "account_states": filtered_account_states,
-            "key_map": filtered_key_map,
+            "account_states": observation.account_states,
+            "key_map": observation.key_map,
         }))
-        .context("Failed to serialize minimal context to YAML")?;
+        .context("Failed to serialize full context to YAML")?;
 
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 

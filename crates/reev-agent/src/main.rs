@@ -5,7 +5,8 @@ use axum::{
 };
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use serde::{Deserialize, Serialize};
-use solana_sdk::{pubkey::Pubkey, system_instruction};
+use solana_sdk::pubkey::Pubkey;
+use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -28,35 +29,11 @@ struct LlmResponse {
     result: LlmResult,
 }
 
-/// A simple parser to extract the `key_map` from the YAML-like context string.
-fn extract_key_map_from_context(context: &str) -> HashMap<String, String> {
-    let mut key_map = HashMap::new();
-    let mut in_key_map_section = false;
-
-    for line in context.lines() {
-        if line.trim() == "key_map:" {
-            in_key_map_section = true;
-            continue;
-        }
-
-        if in_key_map_section {
-            // Stop if we hit a non-indented line.
-            if !line.starts_with("  ") && !line.trim().is_empty() {
-                break;
-            }
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            let parts: Vec<&str> = line.trim().splitn(2, ':').collect();
-            if parts.len() == 2 {
-                let key = parts[0].trim().to_string();
-                let value = parts[1].trim().to_string();
-                key_map.insert(key, value);
-            }
-        }
-    }
-    key_map
+/// Structs for deserializing the `context_prompt` YAML.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct AgentContext {
+    key_map: HashMap<String, String>,
 }
 
 /// Axum handler for the `POST /gen/tx` endpoint.
@@ -77,54 +54,122 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
         payload.prompt
     );
 
-    // Extract the actual pubkeys from the context_prompt.
-    let key_map = extract_key_map_from_context(&payload.context_prompt);
-
-    // The runner's `LlmAgent` expects real pubkeys in the response, not placeholders.
-    let from_pubkey = key_map
-        .get("USER_WALLET_PUBKEY")
-        .expect("USER_WALLET_PUBKEY not found in key_map");
-    let to_pubkey = key_map
-        .get("RECIPIENT_WALLET_PUBKEY")
-        .expect("RECIPIENT_WALLET_PUBKEY not found in key_map");
+    // Parse the context_prompt YAML to safely extract the key_map.
+    let yaml_str = payload
+        .context_prompt
+        .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
+        .trim_end_matches("\n\n\n---")
+        .trim();
+    let context: AgentContext =
+        serde_yaml::from_str(yaml_str).expect("Failed to parse context_prompt YAML");
+    let key_map = context.key_map;
 
     // Based on the prompt, decide whether to generate a correct instruction in code
     // or return an incorrect one.
-    let raw_instruction = if payload.prompt == "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)." {
-        println!("[reev-agent] Detected '001-sol-transfer' prompt. Generating instruction with code.");
+    let raw_instruction = if payload.prompt.contains("0.1 SOL") {
+        println!("[reev-agent] Detected 'sol-transfer' prompt. Generating instruction with code.");
 
         // 1. Parse pubkeys
+        let from_pubkey = key_map
+            .get("USER_WALLET_PUBKEY")
+            .expect("USER_WALLET_PUBKEY not found in key_map");
+        let to_pubkey = key_map
+            .get("RECIPIENT_WALLET_PUBKEY")
+            .expect("RECIPIENT_WALLET_PUBKEY not found in key_map");
         let from = Pubkey::from_str(from_pubkey).expect("Failed to parse from_pubkey");
         let to = Pubkey::from_str(to_pubkey).expect("Failed to parse to_pubkey");
         let lamports = 100_000_000; // 0.1 SOL
 
         // 2. Generate instruction using solana_sdk
         let instruction = system_instruction::transfer(&from, &to, lamports);
-        println!("[reev-agent] Generated instruction: {:?}", instruction);
+        println!("[reev-agent] Generated instruction: {instruction:?}");
 
         // 3. Convert back to RawInstruction for the response
         RawInstruction {
             program_id: instruction.program_id.to_string(),
-            accounts: instruction.accounts.iter().map(|acc| RawAccountMeta {
-                pubkey: acc.pubkey.to_string(),
-                is_signer: acc.is_signer,
-                is_writable: acc.is_writable,
-            }).collect(),
+            accounts: instruction
+                .accounts
+                .iter()
+                .map(|acc| RawAccountMeta {
+                    pubkey: acc.pubkey.to_string(),
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+                .collect(),
+            data: bs58::encode(instruction.data).into_string(),
+        }
+    } else if payload.prompt.contains("15 USDC") {
+        println!(
+            "[reev-agent] Detected 'spl-token-transfer' prompt. Generating instruction with code."
+        );
+
+        // 1. Parse pubkeys from context
+        let source_ata_str = key_map
+            .get("USER_USDC_ATA")
+            .expect("USER_USDC_ATA not found in key_map");
+        let dest_ata_str = key_map
+            .get("RECIPIENT_USDC_ATA")
+            .expect("RECIPIENT_USDC_ATA not found in key_map");
+        let authority_str = key_map
+            .get("USER_WALLET_PUBKEY")
+            .expect("USER_WALLET_PUBKEY not found in key_map");
+
+        let source_pubkey =
+            Pubkey::from_str(source_ata_str).expect("Failed to parse source ATA pubkey");
+        let destination_pubkey =
+            Pubkey::from_str(dest_ata_str).expect("Failed to parse destination ATA pubkey");
+        let authority_pubkey =
+            Pubkey::from_str(authority_str).expect("Failed to parse authority pubkey");
+
+        let amount = 15_000_000; // 15 USDC with 6 decimals
+
+        // 2. Generate instruction using spl_token sdk
+        let instruction = spl_token::instruction::transfer(
+            &spl_token::id(),
+            &source_pubkey,
+            &destination_pubkey,
+            &authority_pubkey,
+            &[&authority_pubkey],
+            amount,
+        )
+        .expect("Failed to create SPL transfer instruction");
+        println!("[reev-agent] Generated instruction: {instruction:?}");
+
+        // 3. Convert back to RawInstruction for the response
+        RawInstruction {
+            program_id: instruction.program_id.to_string(),
+            accounts: instruction
+                .accounts
+                .iter()
+                .map(|acc| RawAccountMeta {
+                    pubkey: acc.pubkey.to_string(),
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+                .collect(),
             data: bs58::encode(instruction.data).into_string(),
         }
     } else {
         println!("[reev-agent] Prompt did not match. Sending intentionally invalid instruction.");
         // Return an invalid instruction for any other case to test failures.
+        let from_pubkey = key_map
+            .get("USER_WALLET_PUBKEY")
+            .cloned()
+            .unwrap_or_else(|| "USER_WALLET_PUBKEY_NOT_FOUND".to_string());
+        let to_pubkey = key_map
+            .get("RECIPIENT_WALLET_PUBKEY")
+            .cloned()
+            .unwrap_or_else(|| "RECIPIENT_WALLET_PUBKEY_NOT_FOUND".to_string());
         RawInstruction {
             program_id: "11111111111111111111111111111111".to_string(),
             accounts: vec![
                 RawAccountMeta {
-                    pubkey: from_pubkey.to_string(),
+                    pubkey: from_pubkey,
                     is_signer: true,
                     is_writable: true,
                 },
                 RawAccountMeta {
-                    pubkey: to_pubkey.to_string(),
+                    pubkey: to_pubkey,
                     is_signer: false,
                     is_writable: true,
                 },
