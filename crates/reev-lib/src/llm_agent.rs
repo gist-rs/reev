@@ -18,16 +18,32 @@ impl LlmAgent {
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
     pub fn new() -> Result<Self> {
-        // In a real application, the API key should be loaded securely,
-        // for example, from environment variables or a secrets management service.
-        let api_key =
-            std::env::var("LLM_API_KEY").unwrap_or_else(|_| "YOUR_API_KEY_HERE".to_string());
-        let api_url = std::env::var("LLM_API_URL")
-            .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
+        println!("[LlmAgent] Initializing...");
 
-        if api_key == "YOUR_API_KEY_HERE" {
-            println!("[LlmAgent] WARNING: Using a placeholder API key. Please set the LLM_API_KEY environment variable.");
-        }
+        // Load API URL from environment variables
+        let api_url = match std::env::var("LLM_API_URL") {
+            Ok(url) => {
+                println!("[LlmAgent] Using LLM_API_URL from environment.");
+                url
+            }
+            Err(_) => {
+                let default_url = "http://localhost:9090/gen/tx".to_string();
+                println!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
+                default_url
+            }
+        };
+
+        // Load API key from environment variables
+        let api_key = match std::env::var("LLM_API_KEY") {
+            Ok(key) => {
+                println!("[LlmAgent] Using LLM_API_KEY from environment.");
+                key
+            }
+            Err(_) => {
+                println!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set.");
+                "NONE".to_string()
+            }
+        };
 
         Ok(Self {
             client: Client::new(),

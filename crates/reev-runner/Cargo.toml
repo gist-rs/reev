@@ -11,6 +11,7 @@ serde_json = "1.0"
 clap = { version = "4.5.48", features = ["derive"] }
 turso = "0.1.5"
 tokio = { version = "1", features = ["full"] }
+dotenvy = "0.15"
 
 # Observability
 tracing = "0.1"

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
+use dotenvy::dotenv;
 use opentelemetry::global::{self};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
@@ -97,6 +98,9 @@ fn calculate_score(test_case: &TestCase, final_observation: &AgentObservation) -
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment variables from a .env file in the current directory.
+    dotenv().ok();
+
     let tracer_provider = init_tracing()?;
 
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
