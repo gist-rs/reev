@@ -50,6 +50,19 @@ You must have the `surfpool` local validator installed and running.
     surfpool
     ```
 
+3.  **Install `lmstudio`:**
+    - https://lmstudio.ai/
+    - infer: `qwen3-coder-30b-a3b-instruct-mlx`
+    - embedding: `text-embedding-qwen3-embedding-8b`
+
+4. **Run `anyrag-server`
+    - https://github.com/gist-rs/anyrag/blob/main/crates/server/README.md#1-running-the-server
+
+5. **Setup `.env`
+    ```bash
+    LLM_API_URL="http://localhost:9090/gen/tx
+    ```
+
 ### Example: Running a SOL Transfer Benchmark
 
 1.  **Navigate to the project root.**
