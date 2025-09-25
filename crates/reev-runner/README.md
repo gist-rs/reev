@@ -17,13 +17,20 @@ It contains no core evaluation logic itself; all of that resides in the `reev-li
 
 ## Usage
 
-To run a specific benchmark, use the `--benchmark` flag followed by the path to the benchmark file. The runner will handle spawning and terminating the `surfpool` validator automatically.
+To run a specific benchmark, provide the path to the benchmark YAML file as a positional argument.
+
+**Note:** For now, you must manually start the `surfpool` validator in a separate terminal before running the runner. Automatic spawning is temporarily disabled to address a stability issue.
 
 ### Example
 
+First, start the validator in a separate terminal:
 ```bash
-# From the root of the workspace, run the simple SOL transfer benchmark
-cargo run -p reev-runner -- --benchmark benchmarks/transfer-simple-001.yml
+surfpool start
+```
+
+Then, from the root of the workspace, run the simple SOL transfer benchmark:
+```bash
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
 ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

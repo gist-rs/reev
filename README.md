@@ -13,14 +13,14 @@ The architecture is grounded in the principles of the Gymnasium API but implemen
 ### Core Principles
 
 -   **Reproducibility**: The primary goal. Every test run is hermetic, guaranteeing that a given benchmark will produce the exact same result every time.
--   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is treated as a managed, external service that the environment spawns, configures via RPC, and terminates for each test. This ensures a clean architectural boundary and prevents dependency conflicts.
+-   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is treated as a managed, external service that the environment connects to and configures via RPC. This ensures a clean architectural boundary and prevents dependency conflicts.
 -   **Gymnasium-Inspired API**: The agent-environment interaction is modeled via a standard Rust `trait` (`GymEnv`) inspired by the Gymnasium API, promoting a clear separation of concerns.
 
 ### Key Components
 
 1.  **`reev-lib` (Core Library)**:
-    *   **`SolanaEnv`**: A custom, hermetic evaluation environment that manages an external `surfpool` process. It handles state setup, transaction execution, and observation generation.
-    *   **Agent Interface**: Defines a simple `Agent` trait and provides a `DummyAgent` that executes a pre-defined sequence of actions from a benchmark file.
+    *   **`SolanaEnv`**: A custom, hermetic evaluation environment that connects to an external `surfpool` process. It handles state setup, transaction execution, and observation generation.
+    *   **Agent Interface**: Defines a simple `Agent` trait and provides an `LlmAgent` that can reason about prompts.
     *   **Action Handlers**: A modular system for building different types of Solana transactions (e.g., `sol_transfer`, `spl_transfer`).
     *   **Benchmark Structs**: Rust types that define the structure of a `SolanaBench` YAML file, enabling strongly-typed parsing.
 
@@ -34,33 +34,40 @@ The architecture is grounded in the principles of the Gymnasium API but implemen
 
 ## Usage
 
-To run a specific benchmark, use the `reev-runner` crate with the `--benchmark` flag.
+To run a specific benchmark, use the `reev-runner` crate and provide the path to the benchmark YAML file.
 
 ### Prerequisites
 
-You must have the `surfpool` local validator installed.
+You must have the `surfpool` local validator installed and running.
 
-```bash
-brew install txtx/taps/surfpool
-```
+1.  **Install `surfpool`:**
+    ```bash
+    brew install txtx/taps/surfpool
+    ```
 
-### Example: Running the SPL-Token Transfer Benchmark
+2.  **Run `surfpool` in a separate terminal:**
+    ```bash
+    surfpool
+    ```
+
+### Example: Running a SOL Transfer Benchmark
 
 1.  **Navigate to the project root.**
 2.  **Run the command:**
 
     ```bash
-    cargo run -p reev-runner -- --benchmark benchmarks/001-sol-transfer.yml
-    cargo run -p reev-runner -- --benchmark benchmarks/002-spl-transfer.yml
+    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+    ```
+    You can also run other benchmarks, like the SPL-Token transfer:
+    ```bash
+    cargo run -p reev-runner -- benchmarks/002-spl-transfer.yml
     ```
 
 3.  The runner will execute the following steps:
-    *   Load and parse the `001-sol-transfer.yml` file.
-    *   Instantiate the `DummyAgent` and `SolanaEnv`.
-    *   Spawn a new, clean `surfpool start` process in the background.
-    *   Wait for the validator to become responsive.
-    *   Use RPC "cheatcodes" to set up the initial on-chain state (wallets, USDC mint, token accounts) as defined in the benchmark.
-    *   Execute the agent-environment loop, where the `DummyAgent` performs the `spl_transfer` action.
+    *   Load and parse the benchmark YAML file.
+    *   Instantiate the `LlmAgent` and `SolanaEnv`.
+    *   Connect to the running `surfpool` instance.
+    *   Use RPC "cheatcodes" to set up the initial on-chain state (wallets, mints, token accounts) as defined in the benchmark.
+    *   Execute the agent-environment loop, where the agent performs the required action.
     *   Calculate and display the final performance metrics (e.g., Task Success Rate).
-    *   Print a detailed JSON execution trace for analysis.
-    *   Cleanly shut down the `surfpool` process.
+    *   Print a detailed execution trace for analysis.
