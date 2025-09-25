@@ -11,7 +11,7 @@ This document outlines the high-level, phased development plan for the `reev` pr
 
 ---
 
-## Completed Work (Phases 1-6)
+## Completed Work (Phases 1-7)
 
 The foundational work for the framework, reporting, and the interactive TUI is complete.
 
@@ -21,28 +21,11 @@ The foundational work for the framework, reporting, and the interactive TUI is c
 -   **Reporting Primitives**: Structured YAML output and console tree rendering.
 -   **Interactive TUI Cockpit**: A `ratatui`-based TUI for running benchmarks and analyzing results.
 -   **Observability**: The framework is instrumented with OpenTelemetry for tracing.
+-   **LLM Integration**: The `LlmAgent` is implemented to generate raw Solana instructions from natural language prompts, and the `SolanaEnv` is equipped to execute them.
 
 ---
 
-## Phase 7: LLM Integration - Instruction Generation Model (Current)
-
-**Goal:** Evaluate an LLM's ability to act as a raw **instruction generator**, testing its low-level knowledge of the Solana transaction format.
-
-1.  **Redefine `AgentAction` to Represent a Raw Instruction**:
-    -   The `AgentAction` struct in `reev-lib` is designed to hold the components of a raw Solana instruction (`program_id`, `accounts`, `data`).
-
-2.  **Implement `LlmAgent` for Instruction Generation**:
-    -   The `LlmAgent` communicates with an external LLM API (e.g., `localhost:9090/gen/tx`).
-    -   It expects the API to return a JSON object representing a single, complete Solana instruction.
-    -   The agent's primary task is to correctly parse this JSON and deserialize it into the native `AgentAction` struct, including decoding the `data` field from Base58.
-
-3.  **Adapt `SolanaEnv` to Process Raw Instructions**:
-    -   The `SolanaEnv::step` function receives the raw `AgentAction` from the agent.
-    -   Its responsibility is to build a `Transaction`, sign it using its securely managed internal keypairs, and send it to the `surfpool` validator.
-
----
-
-## Phase 8: Scoring and Persistence (Next Up)
+## Phase 8: Scoring and Persistence (Current)
 
 **Goal:** Record evaluation results in a persistent database for analysis and comparison.
 

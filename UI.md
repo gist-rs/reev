@@ -23,8 +23,12 @@ trace:
   prompt: "Please send 15 USDC from my token account..."
   steps:
     - action:
-        tool_name: spl_transfer
-        parameters: { from_pubkey: "...", to_pubkey: "...", amount: 15000000 }
+        program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        accounts:
+          - { pubkey: "...", is_signer: false, is_writable: true }
+          - { pubkey: "...", is_signer: false, is_writable: true }
+          - { pubkey: "...", is_signer: true, is_writable: false }
+        data: "3kVA21YASy2b"
       info: { error: null }
       observation:
         last_transaction_status: Success

@@ -20,8 +20,8 @@ For the overall project architecture and goals, please see the [main project `RE
 
 -   **`SolanaEnv` Struct**: The primary implementation of the `GymEnv` trait. It manages the entire lifecycle of an external `surfpool` validator process, ensuring a hermetic and reproducible testing environment by interacting with it exclusively via its JSON-RPC API.
 
--   **`Agent` Trait**: Defines the standard interface for an agent, centered around the `get_action` method. It also includes a `DummyAgent` implementation that is used for testing the framework itself by executing a predefined script from a benchmark file.
+-   **`Agent` Trait**: Defines the standard interface for an agent, centered around the `get_action` method.
 
 -   **Benchmark Definitions (`benchmark.rs`)**: Contains all the Rust structs (e.g., `TestCase`, `InitialAccountState`) that map directly to the `reev-benchmarks` YAML format, enabling strongly-typed parsing via `serde`.
 
--   **Action Handlers (`actions/`)**: A modular directory where each file is responsible for building a specific Solana transaction (e.g., `sol_transfer`, `spl_transfer`). This makes it easy to extend the agent's capabilities with new on-chain actions.
+-   **Instruction Processing**: The `SolanaEnv` is designed to receive a complete, raw instruction from an agent. It is responsible for safely constructing, signing, and executing a transaction from this instruction, removing the need for a predefined, tool-based action system.

@@ -4,9 +4,9 @@ This document provides a detailed, actionable checklist for the development of t
 
 ---
 
-## Completed Work (Phases 1-8)
+## Completed Work (Phases 1-7)
 
-The foundational framework and all planned features are now complete.
+The foundational framework, agent integration, and UI are complete. The next phase focuses on implementing scoring and persisting results.
 
 -   [x] **Workspace and Core Primitives**: Initialized `reev-lib`, `reev-runner`, and `reev-tui` crates.
 -   [x] **Hermetic Solana Environment**: Implemented `SolanaEnv` to manage the `surfpool` lifecycle.
@@ -14,7 +14,6 @@ The foundational framework and all planned features are now complete.
 -   [x] **Reporting & UI**: Implemented YAML/ASCII output and a full `ratatui` TUI cockpit.
 -   [x] **Observability**: Added OpenTelemetry tracing for performance analysis.
 -   [x] **LLM Integration**: Reworked the agent model to support raw instruction generation from a third-party API.
--   [x] **Scoring and Persistence**: Implemented a local database using Turso/libSQL to record and score evaluation results based on on-chain state assertions.
 
 ---
 
@@ -35,18 +34,18 @@ The foundational framework and all planned features are now complete.
 
 ---
 
-## Phase 8: Scoring and Persistence (Completed)
+## Phase 8: Scoring and Persistence (Current)
 
 **Goal:** Implement a robust system for scoring evaluation runs and persisting the results in a local database.
 
--   [x] **Task 8.1: Add Database Dependency**
-    -   [x] Add the `tursodb-turso` crate to the `reev-runner`'s `Cargo.toml`.
--   [x] **Task 8.2: Implement Database Manager**
+-   [ ] **Task 8.1: Add Database Dependency**
+    -   [x] Add the `turso` crate to the `reev-runner`'s `Cargo.toml`.
+-   [ ] **Task 8.2: Implement Database Manager**
     -   [x] Create a new module in `reev-runner` (`db.rs`) to handle all database interactions.
-    -   [x] Implement a function to initialize the database connection and create the necessary tables if they don't exist.
--   [x] **Task 8.3: Implement Scoring Logic**
-    -   [x] Create a function that takes the `final_observation` and the `ground_truth.final_state_assertions` from the benchmark.
-    -   [x] This function iterates through the assertions, compares them against the actual on-chain state, and returns a final score (1.0 for pass, 0.0 for fail).
--   [x] **Task 8.4: Persist Results**
-    -   [x] In `reev-runner/src/main.rs`, after a run completes, call the scoring function.
-    -   [x] Call the database manager to insert a new record containing the benchmark ID, timestamp, prompt, the generated instruction (serialized to JSON), the final state, and the score.
+    -   [ ] Implement a function to initialize the database connection and create the necessary tables if they don't exist.
+-   [ ] **Task 8.3: Implement Scoring Logic**
+    -   [ ] Create a function that takes the `final_observation` and the `ground_truth.final_state_assertions` from the benchmark.
+    -   [ ] This function iterates through the assertions, compares them against the actual on-chain state, and returns a final score (1.0 for pass, 0.0 for fail).
+-   [ ] **Task 8.4: Persist Results**
+    -   [ ] In `reev-runner/src/main.rs`, after a run completes, call the scoring function.
+    -   [ ] Call the database manager to insert a new record containing the benchmark ID, timestamp, prompt, the generated instruction (serialized to JSON), the final state, and the score.

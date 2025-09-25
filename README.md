@@ -58,9 +58,17 @@ You must have the `surfpool` local validator installed and running.
 4. **Run `anyrag-server`
     - https://github.com/gist-rs/anyrag/blob/main/crates/server/README.md#1-running-the-server
 
-5. **Setup `.env`
+5. **Setup `.env`**
+
+    Create a `.env` file in the root of the project with the following variables:
+
     ```bash
-    LLM_API_URL="http://localhost:9090/gen/tx
+    # The endpoint for the anyrag-server
+    LLM_API_URL="http://localhost:9090/gen/tx"
+
+    # Optional: The API key for the LLM service.
+    # If set, it will be sent in the X-API-Key header.
+    # LLM_API_KEY="your-api-key-here"
     ```
 
 ### Example: Running a SOL Transfer Benchmark

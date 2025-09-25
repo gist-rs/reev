@@ -42,7 +42,7 @@ The framework is organized into a Cargo workspace with a clear division of respo
 This library contains all the core logic, including:
 
 -   **`SolanaEnv`**: The concrete implementation of the `GymEnv` trait. It manages the `surfpool` lifecycle and all RPC communication.
--   **`Agent` Trait**: A simple trait defining the agent interface. It includes a `DummyAgent` implementation that follows a predefined script from a benchmark file, serving as a baseline for testing.
+-   **`Agent` Trait**: A simple trait defining the agent interface.
 -   **Benchmark Structs**: Rust types that define the structure of a `reev-benchmarks` YAML file, enabling strongly-typed parsing with `serde`.
 -   **Instruction Processing**: The framework is designed to receive a complete, raw instruction from the agent. The `SolanaEnv` is then responsible for safely constructing, signing, and executing a transaction from this instruction.
 
@@ -70,31 +70,41 @@ Each `.yml` file is a self-contained test case with a standardized structure:
 -   **`prompt`**: The natural language instruction for the agent.
 -   **`ground_truth`**: The objective criteria for success.
     -   `final_state_assertions`: A list of on-chain conditions (e.g., `SolBalance`) that must be true.
-    -   `expected_tool_calls`: The ideal sequence of actions, used by the `DummyAgent` and for metrics calculations.
+    -   `expected_instruction`: The ideal raw Solana instruction the agent should generate, used for validation and scoring.
 
 ### 3.2. Example Benchmark (`spl-transfer-001.yml`)
 
 ```yaml
-id: 001-SPL-TRANSFER-SIMPLE
-description: A simple SPL-Token transfer using the real USDC mint.
+id: 002-SPL-TRANSFER
+description: A simple SPL-Token transfer using a mock USDC mint.
 tags: ["spl-token", "transfer", "usdc"]
 
 initial_state:
   - pubkey: "USER_WALLET_PUBKEY"
-    owner: "11111111111111111111111111111111"
     lamports: 1000000000 # 1 SOL
 
-  # Real USDC Mint, initialized on the fly by the environment
-  - pubkey: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  - pubkey: "MOCK_USDC_MINT"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    lamports: 1461600 # Rent for mint
     mint_data:
       decimals: 6
 
-prompt: "Please send 15 USDC to the recipient."
+  - pubkey: "USER_USDC_ATA"
+    data: '{"mint": "MOCK_USDC_MINT", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC
+
+prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
 
 ground_truth:
-  # ... assertions and expected_tool_calls
+  final_state_assertions:
+    - type: TokenAccountBalance
+      pubkey: "RECIPIENT_USDC_ATA"
+      expected: 15000000 # 15 USDC
+  expected_instruction:
+    program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    accounts:
+      - { pubkey: "USER_USDC_ATA", is_signer: false, is_writable: true }
+      - { pubkey: "RECIPIENT_USDC_ATA", is_signer: false, is_writable: true }
+      - { pubkey: "USER_WALLET_PUBKEY", is_signer: true, is_writable: false }
+    data: "3kVA21YASy2b"
 ```
 
 ---
