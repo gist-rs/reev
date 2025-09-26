@@ -7,14 +7,14 @@ use rig::{
 use tracing::info;
 
 use crate::{
-    tools::{SolTransferTool, SplTransferTool},
+    tools::{JupiterSwapTool, SolTransferTool, SplTransferTool},
     LlmRequest,
 };
 
 const SYSTEM_PREAMBLE: &str = "You are a helpful Solana assistant. Your goal is to generate a single, valid Solana transaction instruction in JSON format.
 - Analyze the user's request and on-chain context.
 - You MUST call a tool, and you MUST only call it ONCE.
-- Select the correct tool (`sol_transfer` or `spl_transfer`) and provide its parameters.
+- Select the correct tool (`sol_transfer`, `spl_transfer`, or `jupiter_swap`) and provide its parameters.
 - The tool will return a JSON object.
 - Your final output MUST be ONLY the raw JSON from the tool, starting with `{` and ending with `}`. Do not include `json` block quotes or any other text.";
 
@@ -46,6 +46,7 @@ async fn run_gemini_agent(model_name: &str, payload: LlmRequest) -> Result<Strin
         .additional_params(serde_json::to_value(cfg)?)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
+        .tool(JupiterSwapTool)
         .build();
 
     let full_prompt = format!(
@@ -70,6 +71,7 @@ async fn run_openai_compatible_agent(model_name: &str, payload: LlmRequest) -> R
         .preamble(SYSTEM_PREAMBLE)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
+        .tool(JupiterSwapTool)
         .build();
 
     let full_prompt = format!(
