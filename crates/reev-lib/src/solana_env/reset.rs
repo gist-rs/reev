@@ -2,7 +2,7 @@ use crate::{
     agent::AgentObservation,
     solana_env::{observation, SolanaEnv},
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use serde_json::Value;
 use solana_program::program_pack::Pack;
 use solana_sdk::{
