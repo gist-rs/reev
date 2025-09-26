@@ -131,6 +131,20 @@ The `reev` framework provides a robust, reproducible, and extensible foundation 
 
 ---
 
-## TUI and Mocking Strategy
+## Part V: The Comparative Agent Framework
 
-The interactive TUI for running and viewing benchmarks is now complete. This provides a rich, interactive way to engage with the `reev` framework. Additionally, we have implemented a mocking strategy for the `reev-agent`. All calls to the transaction generation endpoint (`/gen/tx`) are now routed to a `mock_generate_transaction` function by default. This is controlled by a `?mock=true` query parameter, which is now the default. This allows us to develop the frontend and runner without relying on a live LLM, while providing a clear path for future integration.
+The `reev` framework is built around a comparative evaluation model. It uses a dual-agent architecture within a single `reev-agent` service to test AI performance against a perfect baseline.
+
+### 5.1. The Dual-Agent Architecture
+
+The `reev-agent` crate exposes a single HTTP endpoint (`/gen/tx`) that internally routes requests to one of two agents based on a query parameter:
+
+1.  **The Deterministic Agent (The Oracle):** Activated by the `?mock=true` query parameter. This agent uses hardcoded Rust logic to deterministically generate the *correct* raw Solana instruction for a given benchmark prompt. It serves as the ground truth, representing a perfect performance score.
+
+2.  **The AI Agent (The Subject):** This is the default agent. It uses the `rig` crate to interface with a configured LLM (e.g., Gemini, a local model via OpenAI-compatible API). It presents the on-chain context and a set of available "tools" (`sol_transfer`, `spl_transfer`) to the model, which must then choose the correct tool and parameters to fulfill the user's prompt.
+
+This dual-mode system allows the `reev-runner` and `reev-tui` to seamlessly switch between running a benchmark against the perfect "oracle" and running it against a real AI model, enabling direct, reproducible performance comparisons.
+
+### 5.2. Interactive TUI Cockpit
+
+The `reev-tui` provides a fully interactive `ratatui`-based cockpit for running and analyzing benchmarks. It automatically discovers all benchmarks, runs them asynchronously to keep the UI responsive, and displays live status updates (`RUNNING`, `SUCCEEDED`, `FAILED`). Upon completion, it renders a detailed execution trace for immediate analysis, making it a powerful tool for iterative agent development.

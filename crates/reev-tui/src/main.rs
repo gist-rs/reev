@@ -11,7 +11,7 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{
         Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Wrap,
+        ScrollbarState, Tabs, Wrap,
     },
     Frame, Terminal,
 };
@@ -24,6 +24,7 @@ use std::{
     thread,
     time::Duration,
 };
+use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 
 #[derive(Clone, PartialEq, Debug)]
 enum BenchmarkStatus {
@@ -31,6 +32,39 @@ enum BenchmarkStatus {
     Running,
     Succeeded,
     Failed,
+}
+
+#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq, Eq)]
+enum SelectedAgent {
+    #[default]
+    #[strum(to_string = " Deterministic ")]
+    Deterministic,
+    #[strum(to_string = " Gemini ")]
+    Gemini,
+    #[strum(to_string = " Local ")]
+    Local,
+}
+
+impl SelectedAgent {
+    fn to_agent_name(self) -> &'static str {
+        match self {
+            SelectedAgent::Deterministic => "deterministic",
+            SelectedAgent::Gemini => "gemini",
+            SelectedAgent::Local => "ai",
+        }
+    }
+
+    fn previous(self) -> Self {
+        let current_index: usize = self as usize;
+        let previous_index = current_index.saturating_sub(1);
+        Self::from_repr(previous_index).unwrap_or(self)
+    }
+
+    fn next(self) -> Self {
+        let current_index = self as usize;
+        let next_index = current_index.saturating_add(1);
+        Self::from_repr(next_index).unwrap_or(self)
+    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -54,7 +88,9 @@ enum TuiEvent {
 struct App<'a> {
     should_quit: bool,
     is_running_all: bool,
+    is_running_benchmark: bool,
     active_panel: ActivePanel,
+    selected_agent: SelectedAgent,
     benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
     event_sender: Sender<TuiEvent>,
@@ -76,7 +112,9 @@ impl<'a> App<'a> {
         Self {
             should_quit: false,
             is_running_all: false,
+            is_running_benchmark: false,
             active_panel: ActivePanel::BenchmarkNavigator,
+            selected_agent: SelectedAgent::default(),
             benchmarks,
             benchmark_state,
             event_sender,
@@ -115,6 +153,7 @@ impl<'a> App<'a> {
     fn handle_tui_event(&mut self, event: TuiEvent) {
         match event {
             TuiEvent::BenchmarkStarted(index) => {
+                self.is_running_benchmark = true;
                 if let Some(benchmark) = self.benchmarks.get_mut(index) {
                     benchmark.status = BenchmarkStatus::Running;
                     benchmark.details = Text::from("Benchmark is running...");
@@ -122,6 +161,7 @@ impl<'a> App<'a> {
                 }
             }
             TuiEvent::BenchmarkCompleted(index, result) => {
+                self.is_running_benchmark = false;
                 if let Some(benchmark) = self.benchmarks.get_mut(index) {
                     match result {
                         Ok(test_result) => {
@@ -156,13 +196,14 @@ impl<'a> App<'a> {
     }
 
     fn on_run(&mut self) {
-        if let Some(selected_index) = self.benchmark_state.selected() {
-            if self.benchmarks[selected_index].status == BenchmarkStatus::Running {
-                return;
-            }
+        if self.is_running_benchmark {
+            return;
+        }
 
+        if let Some(selected_index) = self.benchmark_state.selected() {
             let path = self.benchmarks[selected_index].path.clone();
             let sender = self.event_sender.clone();
+            let agent_name = self.selected_agent.to_agent_name();
 
             thread::spawn(move || {
                 sender
@@ -170,7 +211,7 @@ impl<'a> App<'a> {
                     .unwrap();
 
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let result = rt.block_on(reev_runner::run_benchmarks(path, "ai"));
+                let result = rt.block_on(reev_runner::run_benchmarks(path, agent_name));
 
                 let final_result = match result {
                     Ok(mut results) => results
@@ -187,11 +228,12 @@ impl<'a> App<'a> {
     }
 
     fn on_run_all(&mut self) {
-        if !self.benchmarks.is_empty() {
-            self.is_running_all = true;
-            self.benchmark_state.select(Some(0));
-            self.on_run();
+        if self.is_running_benchmark || self.benchmarks.is_empty() {
+            return;
         }
+        self.is_running_all = true;
+        self.benchmark_state.select(Some(0));
+        self.on_run();
     }
 
     fn on_up(&mut self) {
@@ -207,6 +249,18 @@ impl<'a> App<'a> {
         });
         self.benchmark_state.select(Some(i));
         self.reset_scroll();
+    }
+
+    fn on_left(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = self.selected_agent.previous();
+        }
+    }
+
+    fn on_right(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = self.selected_agent.next();
+        }
     }
 
     fn on_down(&mut self) {
@@ -304,6 +358,8 @@ fn handle_events(app: &mut App) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
+                    KeyCode::Char('h') | KeyCode::Left => app.on_left(),
+                    KeyCode::Char('l') | KeyCode::Right => app.on_right(),
                     KeyCode::Char('r') => app.on_run(),
                     KeyCode::Char('a') => app.on_run_all(),
                     _ => match app.active_panel {
@@ -329,13 +385,13 @@ fn ui(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
+            Constraint::Length(3),
             Constraint::Min(0),
             Constraint::Length(1),
         ])
         .split(f.area());
 
-    render_header(f, main_layout[0]);
+    render_header(f, app, main_layout[0]);
 
     let content_layout = Layout::default()
         .direction(Direction::Horizontal)
@@ -347,8 +403,34 @@ fn ui(f: &mut Frame, app: &mut App) {
     render_footer(f, main_layout[2]);
 }
 
-fn render_header(f: &mut Frame, area: Rect) {
-    f.render_widget(Paragraph::new(" Reev TUI "), area);
+fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
+    let titles = SelectedAgent::iter().map(|t| t.to_string());
+
+    let normal_style = Style::default().fg(Color::White);
+    let highlight_style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    let disabled_style = Style::default().fg(Color::DarkGray);
+
+    let tabs = Tabs::new(titles)
+        .block(
+            Block::default()
+                .title(" Reev TUI - Agent Selection ")
+                .borders(Borders::ALL),
+        )
+        .select(app.selected_agent as usize)
+        .style(if app.is_running_benchmark {
+            disabled_style
+        } else {
+            normal_style
+        })
+        .highlight_style(if app.is_running_benchmark {
+            disabled_style
+        } else {
+            highlight_style
+        });
+
+    f.render_widget(tabs, area);
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
@@ -452,12 +534,14 @@ fn render_trace_view(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
+        Span::styled("◄ ► / (h/l)", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" Select Agent | "),
         Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UN "),
+        Span::raw("un | "),
         Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("LL "),
+        Span::raw("ll | "),
         Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UIT "),
+        Span::raw("uit"),
     ])
     .alignment(ratatui::layout::Alignment::Center);
     f.render_widget(Paragraph::new(controls), area);

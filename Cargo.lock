@@ -3624,6 +3624,8 @@ dependencies = [
  "reev-lib",
  "reev-runner",
  "solana-system-interface 2.0.0",
+ "strum",
+ "strum_macros",
  "tokio",
 ]
 
