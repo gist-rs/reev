@@ -1,69 +1,31 @@
-# TASKS.md: Development Roadmap
+# TASKS.md: TUI Development Roadmap
 
-This document provides a detailed, actionable checklist for the development of the `reev` framework, based on the high-level phases outlined in `PLAN.md`.
-
----
-
-## Completed Work (Phases 1-7)
-
-The foundational framework, agent integration, and UI are complete. The next phase focuses on implementing scoring and persisting results.
-
--   [x] **Workspace and Core Primitives**: Initialized `reev-lib`, `reev-runner`, and `reev-tui` crates.
--   [x] **Hermetic Solana Environment**: Implemented `SolanaEnv` to manage the `surfpool` lifecycle.
--   [x] **Benchmark Specification**: Defined the `reev-benchmarks` YAML format for test cases.
--   [x] **Reporting & UI**: Implemented YAML/ASCII output and a full `ratatui` TUI cockpit.
--   [x] **Observability**: Added OpenTelemetry tracing for performance analysis.
--   [x] **LLM Integration**: Reworked the agent model to support raw instruction generation from a third-party API.
+This document provides a detailed, actionable checklist for the development of the interactive `reev-tui` cockpit.
 
 ---
 
-## Phase 7: LLM Integration - Instruction Generation Model (Completed)
+## Phase 10: TUI Interaction and `reev-runner` Integration
 
-**Goal:** Evaluate an LLM's ability to act as a raw instruction generator.
+**Goal:** Transform the TUI from a static prototype into a fully interactive tool that can discover, run, and display the results of benchmarks.
 
--   [x] **Task 7.1: Redefine `AgentAction`**
-    -   [x] Refactor the `AgentAction` struct to wrap a native `solana_sdk::instruction::Instruction`.
-    -   [x] Create helper structs to deserialize the specific JSON response from the third-party API.
--   [x] **Task 7.2: Implement `LlmAgent` for Instruction Generation**
-    -   [x] The agent now sends a prompt and receives a JSON object containing a raw instruction.
-    -   [x] Implemented logic to parse the nested JSON (`{"result": {"text": {...}}}`) and decode the Base58 data string.
--   [x] **Task 7.3: Adapt `SolanaEnv` to Process Raw Instructions**
-    -   [x] Refactor the `SolanaEnv::step` function to accept the new `AgentAction`.
-    -   [x] The environment now dynamically finds the required signer from its keymap and signs the agent-generated transaction before submission.
-    -   [x] The old, tool-based `actions` module has been removed.
+-   [ ] **Task 10.1: Dynamic Benchmark Discovery**
+    -   [ ] Implement logic in `reev-tui/src/main.rs` to scan the `benchmarks/` directory at startup.
+    -   [ ] Populate the "Benchmark Navigator" list with the discovered `.yml` files.
+    -   [ ] The initial state for all discovered benchmarks should be "[ ] PENDING".
 
----
+-   [ ] **Task 10.2: `reev-runner` as a Library**
+    -   [ ] Refactor `reev-runner/src/main.rs` to move the core benchmark execution loop into a public function (e.g., `pub fn run_benchmark(path: &str) -> Result<ExecutionTrace>`).
+    -   [ ] This will allow the `reev-tui` to call the runner's logic directly, capturing the structured output.
+    -   [ ] **Note:** This is a significant refactoring. `main` should become a thin wrapper around this new library function.
 
-## Phase 8: Scoring and Persistence (Completed)
+-   [ ] **Task 10.3: Execute Benchmarks from TUI**
+    -   [ ] In the `on_run` function in `reev-tui`, get the file path of the currently selected benchmark.
+    -   [ ] Spawn a new thread to call the `reev_runner::run_benchmark` function.
+    -   [ ] **Crucially**, use a channel (e.g., `std::sync::mpsc`) to send updates from the execution thread back to the TUI's main event loop to avoid blocking the UI.
+    -   [ ] While a benchmark is running, its status in the navigator should change to `[...] RUNNING`.
 
-**Goal:** Implement a robust system for scoring evaluation runs and persisting the results in a local database.
-
--   [x] **Task 8.1: Add Database Dependency**
-    -   [x] Add the `turso` crate to the `reev-runner`'s `Cargo.toml`.
--   [x] **Task 8.2: Implement Database Manager**
-    -   [x] Create a new module in `reev-runner` (`db.rs`) to handle all database interactions.
-    -   [x] Implement a function to initialize the database connection and create the necessary tables if they don't exist.
--   [x] **Task 8.3: Implement Scoring Logic**
-    -   [x] Create a function that takes the `final_observation` and the `ground_truth.final_state_assertions` from the benchmark.
-    -   [x] This function iterates through the assertions, compares them against the actual on-chain state, and returns a final score (1.0 for pass, 0.0 for fail).
--   [x] **Task 8.4: Persist Results**
-    -   [x] In `reev-runner/src/main.rs`, after a run completes, call the scoring function.
-    -   [x] Call the database manager to insert a new record containing the benchmark ID, timestamp, prompt, the generated instruction (serialized to JSON), the final state, and the score.
-
----
-
-## Phase 9: Integration Testing and Environment Fixes (Completed)
-
-**Goal:** Build a robust integration test suite to validate the scoring logic and fix environment setup issues.
-
--   [x] **Task 9.1: Fix `SolanaEnv` Account Initialization**
-    -   [x] Modify the `SolanaEnv::reset` function in `reev-lib` to correctly parse and apply the `data` field from a benchmark's `initial_state` for SPL Token accounts.
--   [x] **Task 9.2: Stabilize SPL-Token Scoring Tests**
-    -   [x] Confirm that `test_scoring_pass_case` passes with a score of `1.0`.
-    -   [x] Confirm that `test_scoring_fail_case` passes with a score of `0.0`.
--   [x] **Task 9.3: Create SOL Transfer Scoring Tests**
-    -   [x] Create `crates/reev-runner/tests/benchmarks/001-sol-transfer-pass.yml`.
-    -   [x] Create `crates/reev-runner/tests/benchmarks/002-sol-transfer-fail.yml`.
--   [x] **Task 9.4: Implement SOL Transfer Scoring Test Logic**
-    -   [x] Add `test_sol_transfer_pass_case` and `test_sol_transfer_fail_case` to `scoring_test.rs`.
-    -   [x] Validate `SolBalance` assertion logic by asserting correct scores.
+-   [ ] **Task 10.4: Display Live Results**
+    -   [ ] When the `run_benchmark` function completes, it will send the final `ExecutionTrace` back to the TUI.
+    -   [ ] The TUI will receive this trace and update the application state for the completed benchmark.
+    -   [ ] The benchmark's status in the navigator will update to `[✔] SUCCEEDED` or `[✗] FAILED`.
+    -   [ ] The "Execution Trace View" and "Details Pane" will be populated with the data from the received trace.
