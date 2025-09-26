@@ -2,7 +2,7 @@ use crate::{
     agent::AgentObservation,
     solana_env::{observation, SolanaEnv},
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde_json::Value;
 use solana_program::program_pack::Pack;
 use solana_sdk::{
@@ -11,14 +11,15 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_system_interface::instruction as system_instruction;
-use spl_associated_token_account::instruction as ata_instruction;
+use spl_associated_token_account::{get_associated_token_address, instruction as ata_instruction};
 use spl_token::{
     instruction as spl_instruction, native_mint,
     state::{Account as SplTokenAccount, Mint},
 };
 use std::{collections::HashMap, str::FromStr, thread, time::Duration};
-use tracing::info;
+use tracing::{info, instrument};
 
+#[instrument(skip_all, name = "env.reset")]
 pub(crate) fn handle_reset(
     env: &mut SolanaEnv,
     options: Option<Value>,
@@ -94,35 +95,58 @@ pub(crate) fn handle_reset(
     }
 
     // --- SPECIAL LOGIC FOR JUPITER SWAP ---
-    // The mainnet Jupiter transaction requires the user's ATAs for both WSOL
-    // and the *real* USDC to exist. We create them here to prepare the sandbox.
+    // Pre-create and fund all necessary accounts to satisfy the mainnet transaction.
     if benchmark_id.contains("JUP-SWAP") {
-        info!("[JUP-SWAP] Pre-creating required ATAs for test...");
+        info!("[JUP-SWAP] Pre-creating and funding required ATAs for test...");
         let user_pubkey = fee_payer_keypair.pubkey();
         let mainnet_usdc_mint =
             Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
+        // Fund with 1 SOL to provide a large buffer for the 0.1 SOL swap and fees.
+        let wsol_funding_amount = 1_000_000_000;
+        let wsol_ata = get_associated_token_address(&user_pubkey, &native_mint::ID);
 
         let setup_instructions = vec![
-            // 1. Create the user's ATA for Wrapped SOL (WSOL)
-            ata_instruction::create_associated_token_account(
-                &user_pubkey,     // Funder
-                &user_pubkey,     // Wallet address (owner)
-                &native_mint::ID, // WSOL Mint
-                &spl_token::id(), // Token Program ID
+            // 1. Create the user's ATA for WSOL (idempotent)
+            ata_instruction::create_associated_token_account_idempotent(
+                &user_pubkey,
+                &user_pubkey,
+                &native_mint::ID,
+                &spl_token::id(),
             ),
-            // 2. Create the user's ATA for the mainnet USDC mint
-            ata_instruction::create_associated_token_account(
-                &user_pubkey,       // Funder
-                &user_pubkey,       // Wallet address (owner)
-                &mainnet_usdc_mint, // Mainnet USDC Mint
-                &spl_token::id(),   // Token Program ID
+            // 2. Create the user's ATA for mainnet USDC (idempotent)
+            ata_instruction::create_associated_token_account_idempotent(
+                &user_pubkey,
+                &user_pubkey,
+                &mainnet_usdc_mint,
+                &spl_token::id(),
             ),
+            // 3. Fund the WSOL ATA by transferring native SOL to it.
+            system_instruction::transfer(&user_pubkey, &wsol_ata, wsol_funding_amount),
+            // 4. Sync the native mint to update the WSOL ATA's balance.
+            spl_token::instruction::sync_native(&spl_token::id(), &wsol_ata)?,
         ];
 
         let transaction = Transaction::new_with_payer(&setup_instructions, Some(&user_pubkey));
         env.sign_and_send_transaction(transaction, &[fee_payer_keypair])
-            .context("Failed to pre-create ATAs for Jupiter swap test")?;
-        info!("[JUP-SWAP] Required ATAs (WSOL, mainnet USDC) created successfully.");
+            .context("Failed to pre-create/fund ATAs for Jupiter swap test")?;
+        info!("[JUP-SWAP] Setup transaction sent successfully.");
+
+        // --- VERIFICATION AND ASSERTION ---
+        info!("[JUP-SWAP] Verifying on-chain state after setup...");
+        let wsol_balance = env.rpc_client.get_token_account_balance(&wsol_ata)?;
+        let user_sol_balance = env.rpc_client.get_balance(&user_pubkey)?;
+        info!("[JUP-SWAP] User SOL balance: {}", user_sol_balance);
+        info!(
+            "[JUP-SWAP] User WSOL balance: {}",
+            wsol_balance.ui_amount_string
+        );
+
+        assert_eq!(
+            wsol_balance.amount.parse::<u64>()?,
+            wsol_funding_amount,
+            "WSOL ATA was not funded correctly!"
+        );
+        info!("[JUP-SWAP] On-chain state verified. WSOL account is correctly funded.");
     }
     // --- END SPECIAL LOGIC ---
 
