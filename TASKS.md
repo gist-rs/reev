@@ -31,9 +31,15 @@ This document provides a detailed, actionable checklist for the development of t
 
 **Goal:** Enhance the TUI to provide granular control over agent selection and execution.
 
--   [ ] **Task 12.1: Agent Selection Tabs**:
-    -   [ ] Implement a tabbed interface in the TUI header for selecting the agent (`Deterministic`, `Gemini`, `Local`).
-    -   [ ] The selected tab should determine which agent configuration is passed to the runner.
--   [ ] **Task 12.2: Concurrency Management**:
-    -   [ ] Disable the agent selection tabs and run controls while a benchmark is executing.
-    -   [ ] Prevent new benchmark runs from being started if one is already in progress.
+-   [x] **Task 12.1: Agent Selection Tabs**:
+    -   [x] Implemented a tabbed interface in the TUI header for selecting the agent (`Deterministic`, `Gemini`, `Local`).
+    -   [x] The selected tab now determines which agent configuration is passed to the runner.
+-   [x] **Task 12.2: Concurrency Management**:
+    -   [x] Disabled the agent selection tabs and run controls while a benchmark is executing.
+    -   [x] Prevented new benchmark runs from being started if one is already in progress.
+-   [x] **Task 12.3: Agent Log Viewer**:
+    -   [x] Added a new panel to the TUI to display the live output from the `reev-agent.log` file.
+    -   [x] Added a keybinding (`l`) to toggle the visibility of the log panel.
+-   [x] **Task 12.4: Enhanced Keybindings**:
+    -   [x] Added `Enter` as a key to run benchmarks.
+    -   [x] Resolved all keybinding conflicts.

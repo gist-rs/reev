@@ -42,6 +42,9 @@ The foundational work for the `reev` framework is complete and has been validate
 
 ## Future Work
 
-### Advanced Observability
+## Future Work
 
-As outlined in `OTEL.md`, the framework will be instrumented with OpenTelemetry to provide deep insights into performance and agent behavior, enabling analysis in professional observability platforms.
+With the core framework and TUI now complete, future work will focus on expanding the benchmark suite and exploring more advanced agent capabilities.
+
+### Advanced Observability
+As outlined in `OTEL.md`, the framework can be instrumented with OpenTelemetry to provide deep insights into performance and agent behavior, enabling analysis in professional observability platforms.
