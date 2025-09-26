@@ -2,4 +2,6 @@ target
 .env
 test-ledger
 .surfpool
-db
+*.db*
+logs
+.log

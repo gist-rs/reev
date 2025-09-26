@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -6,180 +6,285 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    text::{Line, Span, Text},
+    widgets::{
+        Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Wrap,
+    },
     Frame, Terminal,
 };
-use std::io::{self, Stdout};
+use reev_lib::results::{FinalStatus, TestResult};
+use std::{
+    fs,
+    io::{self, Stdout},
+    path::PathBuf,
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+    time::Duration,
+};
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
+enum BenchmarkStatus {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+}
+
+#[derive(PartialEq, Clone, Copy)]
 enum ActivePanel {
     BenchmarkNavigator,
     ExecutionTrace,
-    Details,
 }
 
-/// Represents a single benchmark test case.
 struct Benchmark<'a> {
-    name: String,
-    trace: Vec<Line<'a>>,
-    details: String,
+    path: PathBuf,
+    status: BenchmarkStatus,
+    result: Option<TestResult>,
+    details: Text<'a>,
 }
 
-/// Application state.
+enum TuiEvent {
+    BenchmarkStarted(usize),
+    BenchmarkCompleted(usize, Result<TestResult>),
+}
+
 struct App<'a> {
     should_quit: bool,
+    is_running_all: bool,
     active_panel: ActivePanel,
     benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
+    event_sender: Sender<TuiEvent>,
+    event_receiver: Receiver<TuiEvent>,
+    // Scroll state for the details/trace panels
+    details_scroll: u16,
+    details_scroll_state: ScrollbarState,
 }
 
 impl<'a> App<'a> {
-    /// Constructs a new instance of `App`.
     fn new() -> Self {
+        let (event_sender, event_receiver) = mpsc::channel();
         let mut benchmark_state = ListState::default();
-        benchmark_state.select(Some(0)); // Select the first item by default.
-
-        let benchmarks = vec![
-            Benchmark {
-                name: "[✔] SPL-TRANSFER-001".to_string(),
-                trace: vec![
-                    Line::from("✔ SPL-TRANSFER-001: SUCCEEDED"),
-                    Line::from("│"),
-                    Line::from("└─ Step 1:"),
-                    Line::from("   ├─ ACTION: spl_transfer(...)"),
-                    Line::from("   └─ OBSERVATION: Success"),
-                ],
-                details: "> Transaction confirmed: 3fLx...".to_string(),
-            },
-            Benchmark {
-                name: "[✗] 001-SPL-TRANSFER".to_string(),
-                trace: vec![
-                    Line::from("✗ 001-SPL-TRANSFER: FAILED"),
-                    Line::from("│"),
-                    Line::from("└─ Step 1:"),
-                    Line::from("   ├─ ACTION: nft_transfer(...)"),
-                    Line::from("   └─ OBSERVATION: Failure"),
-                ],
-                details: "> Error: Transaction failed: RPC response error -32002".to_string(),
-            },
-            Benchmark {
-                name: "[ ] TRANSFER-SIMPLE-001".to_string(),
-                trace: vec![Line::from("… PENDING EXECUTION")],
-                details: "> This benchmark has not been run yet.".to_string(),
-            },
-        ];
+        let benchmarks = Self::discover_benchmarks().unwrap_or_else(|_| vec![]);
+        if !benchmarks.is_empty() {
+            benchmark_state.select(Some(0));
+        }
 
         Self {
             should_quit: false,
+            is_running_all: false,
             active_panel: ActivePanel::BenchmarkNavigator,
             benchmarks,
             benchmark_state,
+            event_sender,
+            event_receiver,
+            details_scroll: 0,
+            details_scroll_state: ScrollbarState::default(),
         }
     }
 
-    /// Handles the `Up` key press event.
+    fn discover_benchmarks() -> Result<Vec<Benchmark<'a>>> {
+        let mut benchmarks = vec![];
+        let root = project_root::get_project_root()?;
+        let benchmarks_dir = root.join("benchmarks");
+
+        if benchmarks_dir.is_dir() {
+            for entry in fs::read_dir(benchmarks_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file()
+                    && (path.extension() == Some("yml".as_ref())
+                        || path.extension() == Some("yaml".as_ref()))
+                {
+                    benchmarks.push(Benchmark {
+                        path,
+                        status: BenchmarkStatus::Pending,
+                        result: None,
+                        details: Text::from("> This benchmark has not been run yet."),
+                    });
+                }
+            }
+        }
+        benchmarks.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(benchmarks)
+    }
+
+    fn handle_tui_event(&mut self, event: TuiEvent) {
+        match event {
+            TuiEvent::BenchmarkStarted(index) => {
+                if let Some(benchmark) = self.benchmarks.get_mut(index) {
+                    benchmark.status = BenchmarkStatus::Running;
+                    benchmark.details = Text::from("Benchmark is running...");
+                    benchmark.result = None;
+                }
+            }
+            TuiEvent::BenchmarkCompleted(index, result) => {
+                if let Some(benchmark) = self.benchmarks.get_mut(index) {
+                    match result {
+                        Ok(test_result) => {
+                            benchmark.status = match test_result.final_status {
+                                FinalStatus::Succeeded => BenchmarkStatus::Succeeded,
+                                FinalStatus::Failed => BenchmarkStatus::Failed,
+                            };
+                            let rendered_tree =
+                                reev_runner::renderer::render_result_as_tree(&test_result);
+                            benchmark.details = Text::from(rendered_tree);
+                            benchmark.result = Some(test_result);
+                        }
+                        Err(e) => {
+                            benchmark.status = BenchmarkStatus::Failed;
+                            benchmark.details = Text::from(format!("Error: {e}"));
+                            benchmark.result = None;
+                        }
+                    }
+                }
+
+                if self.is_running_all {
+                    let next_index = index + 1;
+                    if next_index < self.benchmarks.len() {
+                        self.benchmark_state.select(Some(next_index));
+                        self.on_run();
+                    } else {
+                        self.is_running_all = false;
+                    }
+                }
+            }
+        }
+    }
+
+    fn on_run(&mut self) {
+        if let Some(selected_index) = self.benchmark_state.selected() {
+            if self.benchmarks[selected_index].status == BenchmarkStatus::Running {
+                return;
+            }
+
+            let path = self.benchmarks[selected_index].path.clone();
+            let sender = self.event_sender.clone();
+
+            thread::spawn(move || {
+                sender
+                    .send(TuiEvent::BenchmarkStarted(selected_index))
+                    .unwrap();
+
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let result = rt.block_on(reev_runner::run_benchmarks(path));
+
+                let final_result = match result {
+                    Ok(mut results) => results
+                        .pop()
+                        .ok_or_else(|| anyhow!("Benchmark runner returned no results.")),
+                    Err(e) => Err(e),
+                };
+
+                sender
+                    .send(TuiEvent::BenchmarkCompleted(selected_index, final_result))
+                    .unwrap();
+            });
+        }
+    }
+
+    fn on_run_all(&mut self) {
+        if !self.benchmarks.is_empty() {
+            self.is_running_all = true;
+            self.benchmark_state.select(Some(0));
+            self.on_run();
+        }
+    }
+
     fn on_up(&mut self) {
-        let i = match self.benchmark_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.benchmarks.len() - 1
-                } else {
-                    i - 1
-                }
+        if self.benchmarks.is_empty() {
+            return;
+        }
+        let i = self.benchmark_state.selected().map_or(0, |i| {
+            if i == 0 {
+                self.benchmarks.len() - 1
+            } else {
+                i - 1
             }
-            None => 0,
-        };
+        });
         self.benchmark_state.select(Some(i));
+        self.reset_scroll();
     }
 
-    /// Handles the `Down` key press event.
     fn on_down(&mut self) {
-        let i = match self.benchmark_state.selected() {
-            Some(i) => {
-                if i >= self.benchmarks.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
+        if self.benchmarks.is_empty() {
+            return;
+        }
+        let i = self.benchmark_state.selected().map_or(0, |i| {
+            if i >= self.benchmarks.len() - 1 {
+                0
+            } else {
+                i + 1
             }
-            None => 0,
-        };
+        });
         self.benchmark_state.select(Some(i));
+        self.reset_scroll();
     }
 
-    /// Handles the `Tab` key press event to cycle through panels.
     fn on_tab(&mut self) {
         self.active_panel = match self.active_panel {
             ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
-            ActivePanel::ExecutionTrace => ActivePanel::Details,
-            ActivePanel::Details => ActivePanel::BenchmarkNavigator,
+            ActivePanel::ExecutionTrace => ActivePanel::BenchmarkNavigator,
         };
+        self.reset_scroll();
     }
 
-    /// Simulates running the selected benchmark.
-    fn on_run(&mut self) {
-        if let Some(i) = self.benchmark_state.selected() {
-            let benchmark = &mut self.benchmarks[i];
-            let base_name = benchmark.name.clone();
-            let base_name = base_name.split_at(4).1;
-            benchmark.name = format!("[✔] {base_name}");
-            benchmark.trace = vec![
-                Line::from(format!("✔ {base_name}: SUCCEEDED (Simulated)")),
-                Line::from("│"),
-                Line::from("└─ Step 1:"),
-                Line::from("   ├─ ACTION: simulated_action(...)"),
-                Line::from("   └─ OBSERVATION: Success"),
-            ];
-            benchmark.details = "> Simulated run successful.".to_string();
-        }
-    }
-
-    /// Returns the currently selected benchmark, if any.
     fn get_selected_benchmark(&self) -> Option<&Benchmark> {
         self.benchmark_state
             .selected()
             .and_then(|i| self.benchmarks.get(i))
     }
+
+    fn reset_scroll(&mut self) {
+        self.details_scroll = 0;
+    }
+
+    fn scroll_down(&mut self) {
+        let content_height = self
+            .get_selected_benchmark()
+            .map_or(0, |b| b.details.height());
+        self.details_scroll = self.details_scroll.saturating_add(1);
+        if self.details_scroll > content_height as u16 {
+            self.details_scroll = content_height as u16;
+        }
+    }
+
+    fn scroll_up(&mut self) {
+        self.details_scroll = self.details_scroll.saturating_sub(1);
+    }
 }
 
 fn main() -> Result<()> {
-    // Set up a custom panic hook to restore the terminal on panic.
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = restore_terminal();
         original_hook(panic_info);
     }));
 
-    // Set up the terminal.
     let mut terminal = setup_terminal()?;
     let mut app = App::new();
     run_app(&mut terminal, &mut app)?;
 
-    // Restore the terminal.
     restore_terminal()?;
     Ok(())
 }
 
-/// Sets up the terminal for TUI rendering.
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
     let mut stdout = io::stdout();
     enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    Terminal::new(backend).map_err(Into::into)
+    Terminal::new(CrosstermBackend::new(stdout)).map_err(Into::into)
 }
 
-/// Restores the terminal to its original state.
 fn restore_terminal() -> Result<()> {
     disable_raw_mode()?;
     execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
     Ok(())
 }
 
-/// The main application loop.
 fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     while !app.should_quit {
         terminal.draw(|f| ui(f, app))?;
@@ -188,30 +293,31 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
     Ok(())
 }
 
-/// Handles user input events.
 fn handle_events(app: &mut App) -> Result<()> {
-    if event::poll(std::time::Duration::from_millis(50))? {
+    if let Ok(event) = app.event_receiver.try_recv() {
+        app.handle_tui_event(event);
+    }
+
+    if event::poll(Duration::from_millis(50))? {
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
-                // Panel-specific keybindings
-                match app.active_panel {
-                    ActivePanel::BenchmarkNavigator => match key.code {
-                        KeyCode::Up | KeyCode::Char('k') => app.on_up(),
-                        KeyCode::Down | KeyCode::Char('j') => app.on_down(),
-                        _ => {}
-                    },
-                    ActivePanel::ExecutionTrace => { // Add keybindings for trace view later
-                    }
-                    ActivePanel::Details => { // Add keybindings for details view later
-                    }
-                }
-
-                // Global keybindings
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
                     KeyCode::Char('r') => app.on_run(),
-                    _ => {}
+                    KeyCode::Char('a') => app.on_run_all(),
+                    _ => match app.active_panel {
+                        ActivePanel::BenchmarkNavigator => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.on_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                            _ => {}
+                        },
+                        ActivePanel::ExecutionTrace => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+                            _ => {}
+                        },
+                    },
                 }
             }
         }
@@ -219,13 +325,13 @@ fn handle_events(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-/// Renders the user interface.
 fn ui(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(vec![
-            Constraint::Length(1), // Header
-            Constraint::Min(0),    // Content
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
         ])
         .split(f.area());
 
@@ -233,60 +339,16 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let content_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(vec![
-            Constraint::Percentage(30), // Panel A
-            Constraint::Percentage(70), // Panels B & C
-        ])
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
         .split(main_layout[1]);
 
     render_benchmark_navigator(f, app, content_layout[0]);
-
-    let right_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(vec![
-            Constraint::Percentage(70), // Panel B
-            Constraint::Percentage(30), // Panel C
-        ])
-        .split(content_layout[1]);
-
-    render_trace_view(f, app, right_layout[0]);
-    render_details_pane(f, app, right_layout[1]);
+    render_trace_view(f, app, content_layout[1]);
+    render_footer(f, main_layout[2]);
 }
 
 fn render_header(f: &mut Frame, area: Rect) {
-    let header_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-
-    let title = Line::from(vec![" Gemini 1.5 Pro ".into()]);
-    f.render_widget(Paragraph::new(title), header_layout[0]);
-
-    let controls = Line::from(vec![
-        Span::styled(
-            "[R]",
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        "UN ".into(),
-        Span::styled(
-            "[S]",
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        "ETTINGS ".into(),
-        Span::styled(
-            "[Q]",
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        "UIT".into(),
-    ])
-    .right_aligned();
-    f.render_widget(Paragraph::new(controls), header_layout[1]);
+    f.render_widget(Paragraph::new(" Reev TUI "), area);
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
@@ -295,7 +357,6 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
     } else {
         Style::default()
     };
-
     let block = Block::default()
         .title("A: Benchmark Navigator")
         .borders(Borders::ALL)
@@ -304,63 +365,100 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<ListItem> = app
         .benchmarks
         .iter()
-        .map(|b| ListItem::new(b.name.as_str()))
+        .map(|b| {
+            let status_symbol = match b.status {
+                BenchmarkStatus::Pending => Span::styled("[ ]", Style::default()),
+                BenchmarkStatus::Running => Span::styled("[…]", Style::default().fg(Color::Yellow)),
+                BenchmarkStatus::Succeeded => {
+                    Span::styled("[✔]", Style::default().fg(Color::Green))
+                }
+                BenchmarkStatus::Failed => Span::styled("[✗]", Style::default().fg(Color::Red)),
+            };
+            let file_name = b.path.file_name().unwrap_or_default().to_string_lossy();
+            ListItem::new(Line::from(vec![
+                status_symbol,
+                Span::raw(format!(" {file_name}")),
+            ]))
+        })
         .collect();
 
     let list = List::new(items)
         .block(block)
-        .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
-                .bg(Color::LightGreen)
-                .fg(Color::Black)
+                .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol(">> ");
-
     f.render_stateful_widget(list, area, &mut app.benchmark_state);
 }
 
-fn render_trace_view(f: &mut Frame, app: &App, area: Rect) {
-    let border_style = if app.active_panel == ActivePanel::ExecutionTrace {
+fn render_scrollable_text_panel(
+    f: &mut Frame,
+    app: &mut App,
+    area: Rect,
+    title: &str,
+    is_active: bool,
+) {
+    let border_style = if is_active {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default()
     };
-
     let block = Block::default()
-        .title("B: Execution Trace View")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let text = if let Some(benchmark) = app.get_selected_benchmark() {
-        benchmark.trace.clone()
-    } else {
-        vec![Line::from("No benchmark selected")]
-    };
+    let text = app.get_selected_benchmark().map_or_else(
+        || Text::from("No benchmark selected"),
+        |b| b.details.clone(),
+    );
 
-    let paragraph = Paragraph::new(text).block(block);
+    let content_height = text.height();
+
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .wrap(Wrap { trim: true })
+        .scroll((app.details_scroll, 0));
+
     f.render_widget(paragraph, area);
+
+    // Update the scroll state after the paragraph is rendered and its borrow on `app` is released.
+    app.details_scroll_state = app
+        .details_scroll_state
+        .content_length(content_height)
+        .position(app.details_scroll as usize);
+
+    f.render_stateful_widget(
+        Scrollbar::new(ScrollbarOrientation::VerticalRight),
+        area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut app.details_scroll_state,
+    );
 }
 
-fn render_details_pane(f: &mut Frame, app: &App, area: Rect) {
-    let border_style = if app.active_panel == ActivePanel::Details {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
+fn render_trace_view(f: &mut Frame, app: &mut App, area: Rect) {
+    render_scrollable_text_panel(
+        f,
+        app,
+        area,
+        "B: Execution Trace View",
+        app.active_panel == ActivePanel::ExecutionTrace,
+    );
+}
 
-    let block = Block::default()
-        .title("C: Details Pane")
-        .borders(Borders::ALL)
-        .border_style(border_style);
-
-    let text = if let Some(benchmark) = app.get_selected_benchmark() {
-        benchmark.details.as_str()
-    } else {
-        "No benchmark selected"
-    };
-
-    let paragraph = Paragraph::new(text).block(block);
-    f.render_widget(paragraph, area);
+fn render_footer(f: &mut Frame, area: Rect) {
+    let controls = Line::from(vec![
+        Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("UN "),
+        Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("LL "),
+        Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("UIT "),
+    ])
+    .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(Paragraph::new(controls), area);
 }

@@ -1,15 +1,16 @@
-# NOW: Project Complete
+# NOW: TUI Interactivity
 
-This document outlines the immediate development focus for the `reev` framework.
+This document outlines the immediate development focus for the `reev` framework. The current goal is to transform the `reev-tui` from a static proof-of-concept into a fully interactive evaluation cockpit.
 
-## Current Objective: Maintenance and Future Planning
+## Current Objective
 
-All planned development phases for the `reev` framework are now complete. The core features, including the hermetic evaluation environment, benchmark runner, TUI, and results persistence, are implemented and have been validated through integration testing.
+The primary objective is to enable the TUI to discover and execute benchmarks using the `reev-runner`'s core logic, and then display the results in real-time. This involves a significant refactoring of the `reev-runner` to expose its functionality as a library.
 
-The current focus is on:
+## Action Plan
 
-1.  **Maintenance**: Addressing any bugs or issues that arise during usage.
-2.  **Documentation**: Improving documentation and examples to make the framework easier to use.
-3.  **Future Planning**: Scoping out the next major set of features or enhancements for `reev`. New work will be defined in updated planning documents (`PLAN.md`, `TASKS.md`) as it is decided.
+The detailed plan for this phase is broken down in `TASKS.md` and covers the following key areas:
 
-The project is considered stable and ready for use.
+1.  **Dynamic Benchmark Discovery**: The TUI must find all available benchmark files at startup.
+2.  **`reev-runner` as a Library**: The runner's execution logic needs to be callable from other crates.
+3.  **Asynchronous Execution**: Benchmarks must be run in a separate thread to keep the TUI responsive.
+4.  **Live Result Display**: The TUI must update dynamically as benchmarks complete, showing the final status and detailed trace information.

@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 /// An agent that uses a large language model to generate raw Solana instructions.
 pub struct LlmAgent {
@@ -18,17 +18,17 @@ impl LlmAgent {
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
     pub fn new() -> Result<Self> {
-        println!("[LlmAgent] Initializing...");
+        info!("[LlmAgent] Initializing...");
 
         // Load API URL from environment variables
         let api_url = match std::env::var("LLM_API_URL") {
             Ok(url) => {
-                println!("[LlmAgent] Using LLM_API_URL from environment.");
+                info!("[LlmAgent] Using LLM_API_URL from environment.");
                 url
             }
             Err(_) => {
                 let default_url = "http://localhost:9090/gen/tx".to_string();
-                println!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
+                info!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
                 default_url
             }
         };
@@ -36,13 +36,11 @@ impl LlmAgent {
         // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {
             Ok(key) if !key.is_empty() => {
-                println!("[LlmAgent] Using LLM_API_KEY from environment.");
+                info!("[LlmAgent] Using LLM_API_KEY from environment.");
                 Some(key)
             }
             _ => {
-                println!(
-                    "[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty."
-                );
+                info!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty.");
                 None
             }
         };
@@ -101,7 +99,7 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
         });
 
         // 6. Log the raw request for debugging.
-        println!(
+        info!(
             "[LlmAgent] Sending raw request to LLM:\n{}",
             serde_json::to_string_pretty(&request_payload)?
         );
@@ -124,7 +122,7 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
             anyhow::bail!("LLM API request failed with status {status}: {error_body}");
         }
 
-        println!("[LlmAgent] Received successful response from LLM.");
+        info!("[LlmAgent] Received successful response from LLM.");
 
         // 9. Deserialize the response and extract the raw instruction.
         let llm_response: LlmResponse = response
@@ -135,7 +133,7 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
         // 10. Convert the raw instruction into a native `AgentAction` and return it.
         let action: AgentAction = llm_response.result.text.try_into()?;
 
-        println!(
+        info!(
             "[LlmAgent] Successfully parsed instruction for program: {}",
             action.0.program_id
         );

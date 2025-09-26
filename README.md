@@ -74,11 +74,11 @@ You must have the `surfpool` local validator installed and running.
 2.  **Run the command:**
 
     ```bash
-    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
     ```
     You can also run other benchmarks, like the SPL-Token transfer:
     ```bash
-    cargo run -p reev-runner -- benchmarks/002-spl-transfer.yml
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/002-spl-transfer.yml
     ```
 
 3.  The runner will execute the following steps:

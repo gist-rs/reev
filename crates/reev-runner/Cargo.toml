@@ -3,6 +3,14 @@ name = "reev-runner"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "reev_runner"
+path = "src/lib.rs"
+
+[[bin]]
+name = "reev-runner"
+path = "src/main.rs"
+
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
@@ -15,7 +23,7 @@ dotenvy = "0.15"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Observability
-tracing = "0.1"
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 tracing-opentelemetry = { version = "0.31.0", default-features = false }
 opentelemetry = "0.30.0"

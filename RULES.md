@@ -60,3 +60,7 @@ This document establishes the official coding conventions and architectural rule
     -   **TUI**: `ratatui` for the `reev-tui`.
     -   **Solana**: `solana-client`, `solana-sdk`, `spl-token` for blockchain interaction.
     -   **Observability**: `tracing` and `opentelemetry` for performance analysis.
+
+### Rule 4.3: Environment Configuration
+-   Local development configuration and secrets (e.g., API keys) SHOULD be managed using a `.env` file.
+-   The `dotenvy` crate is the standard tool for loading these variables into the application environment.

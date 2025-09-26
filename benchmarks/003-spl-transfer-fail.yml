@@ -1,4 +1,4 @@
-id: 002-SPL-TRANSFER-FAIL
+id: 003-SPL-TRANSFER-FAIL
 description: A test case for a failed SPL-Token transfer, expecting a score of 0.0.
 tags: ["spl-token", "transfer", "usdc"]
 
