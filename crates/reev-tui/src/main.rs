@@ -49,7 +49,7 @@ impl SelectedAgent {
     fn to_agent_name(self) -> &'static str {
         match self {
             SelectedAgent::Deterministic => "deterministic",
-            SelectedAgent::Gemini => "gemini-pro",
+            SelectedAgent::Gemini => "gemini-2.5-pro",
             SelectedAgent::Local => "local-model",
         }
     }
@@ -212,6 +212,11 @@ impl<'a> App<'a> {
         } else {
             self.agent_log_content = Text::from("Log file not found at logs/reev-agent.log");
         }
+
+        // Auto-scroll to the bottom of the logs.
+        let log_height = self.agent_log_content.height().saturating_sub(1) as u16;
+        self.log_scroll = log_height;
+
         Ok(())
     }
 

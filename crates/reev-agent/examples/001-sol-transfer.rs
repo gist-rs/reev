@@ -3,7 +3,7 @@ use reev_agent::run_server;
 use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
-use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
+use std::{collections::HashMap, env, fs::File, path::PathBuf, time::Duration};
 use tracing::info;
 
 /// A minimal representation of the benchmark file for deserialization.
@@ -27,8 +27,13 @@ struct TestCase {
 /// - A `.env` file with `GOOGLE_API_KEY` must be present in the workspace root.
 ///
 /// # How to run
+/// To run with the default local agent:
 /// ```sh
 /// cargo run -p reev-agent --example 001-sol-transfer
+/// ```
+/// To specify an agent (e.g., Gemini):
+/// ```sh
+/// cargo run -p reev-agent --example 001-sol-transfer -- gemini-2.5-pro
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,7 +41,14 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
-    info!("--- Running SOL Transfer Example ---");
+    // Get agent name from command-line arguments, default to "local-model".
+    let args: Vec<String> = env::args().collect();
+    let model_name = args.get(1).map(|s| s.as_str()).unwrap_or("local-model");
+
+    info!(
+        "--- Running SOL Transfer Example with Agent: {} ---",
+        model_name
+    );
 
     // 1. Spawn the server in a background task.
     tokio::spawn(async {
@@ -90,6 +102,7 @@ async fn main() -> Result<()> {
     let request_payload = json!({
         "prompt": test_case.prompt,
         "context_prompt": context_prompt,
+        "model_name": model_name,
     });
     info!(
         "Request payload:\n{}",
