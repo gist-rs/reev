@@ -195,7 +195,31 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
     } else if payload.prompt
         == "Using Jupiter, swap 0.1 SOL for USDC. My wallet is USER_WALLET_PUBKEY and my USDC token account is USER_USDC_ATA."
     {
-        jupiter::swap::handle_deterministic_swap(&key_map).await?
+        info!("[reev-agent] Matched deterministic 'jupiter-swap' prompt.");
+        let user_pubkey_str = key_map
+            .get("USER_WALLET_PUBKEY")
+            .context("USER_WALLET_PUBKEY not found in key_map")?;
+        let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+        // For the deterministic case, the prompt hardcodes the swap details.
+        // We provide the known mock mint from the context, and `handle_jupiter_swap` will do the replacement.
+        let input_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
+        let output_mint_str = key_map
+            .get("MOCK_USDC_MINT")
+            .context("MOCK_USDC_MINT not found in key_map")?;
+        let output_mint = Pubkey::from_str(output_mint_str)?;
+        let amount = 100_000_000; // 0.1 SOL specified in the prompt
+        let slippage_bps = 50; // Default slippage
+
+        jupiter::swap::handle_jupiter_swap(
+            user_pubkey,
+            input_mint,
+            output_mint,
+            amount,
+            slippage_bps,
+            &key_map,
+        )
+        .await?
     } else {
         anyhow::bail!(
             "Deterministic agent does not support this prompt: '{}'",

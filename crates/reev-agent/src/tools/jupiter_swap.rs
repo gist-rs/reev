@@ -1,13 +1,10 @@
-use jupiter_swap_api_client::{
-    quote::QuoteRequest, swap::SwapRequest, transaction_config::TransactionConfig,
-    JupiterSwapApiClient,
-};
-use reev_lib::agent::RawInstruction;
+use crate::jupiter::swap::handle_jupiter_swap;
+use anyhow::Result;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
@@ -26,14 +23,17 @@ pub enum JupiterSwapError {
     #[error("Failed to parse pubkey: {0}")]
     PubkeyParse(String),
     #[error("Jupiter API call failed: {0}")]
-    Api(String),
+    ApiCall(#[from] anyhow::Error),
     #[error("Failed to serialize instruction: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
 /// A `rig` tool for performing swaps using the Jupiter API.
-#[derive(Deserialize, Serialize, Default)]
-pub struct JupiterSwapTool;
+/// This tool requires the on-chain context (`key_map`) to be provided during its construction.
+#[derive(Deserialize, Serialize)]
+pub struct JupiterSwapTool {
+    pub key_map: HashMap<String, String>,
+}
 
 impl Tool for JupiterSwapTool {
     const NAME: &'static str = "jupiter_swap";
@@ -59,7 +59,7 @@ impl Tool for JupiterSwapTool {
                     },
                     "output_mint": {
                         "type": "string",
-                        "description": "The mint address of the token to be swapped TO. For native SOL, use 'So11111111111111111111111111111111111111112'."
+                        "description": "The mint address of the token to be swapped TO. For USDC, use 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'."
                     },
                     "amount": {
                         "type": "number",
@@ -75,7 +75,8 @@ impl Tool for JupiterSwapTool {
         }
     }
 
-    /// Executes the tool's logic: calls the Jupiter API and serializes the resulting instruction.
+    /// Executes the tool's logic: calls the centralized `handle_jupiter_swap` function,
+    /// which transparently handles mock vs. mainnet mints.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let user_pubkey = Pubkey::from_str(&args.user_pubkey)
             .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
@@ -84,32 +85,19 @@ impl Tool for JupiterSwapTool {
         let output_mint = Pubkey::from_str(&args.output_mint)
             .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
 
-        let jupiter_client = JupiterSwapApiClient::new("https://quote-api.jup.ag/v6".to_string());
-
-        let quote_request = QuoteRequest {
-            amount: args.amount,
+        // Call the centralized handler, passing the key_map from the struct.
+        // This ensures mock mints are correctly replaced before the API call.
+        let raw_instruction = handle_jupiter_swap(
+            user_pubkey,
             input_mint,
             output_mint,
-            slippage_bps: args.slippage_bps,
-            ..Default::default()
-        };
+            args.amount,
+            args.slippage_bps,
+            &self.key_map,
+        )
+        .await?;
 
-        let quote_response = jupiter_client
-            .quote(&quote_request)
-            .await
-            .map_err(|e| JupiterSwapError::Api(e.to_string()))?;
-
-        let swap_instructions = jupiter_client
-            .swap_instructions(&SwapRequest {
-                user_public_key: user_pubkey,
-                quote_response,
-                config: TransactionConfig::default(),
-            })
-            .await
-            .map_err(|e| JupiterSwapError::Api(e.to_string()))?;
-
-        let raw_instruction: RawInstruction = swap_instructions.swap_instruction.into();
-
+        // Serialize the RawInstruction to a JSON string. This is the final output of the tool.
         let output = serde_json::to_string(&raw_instruction)?;
 
         Ok(output)

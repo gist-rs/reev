@@ -4,12 +4,21 @@ use rig::{
     prelude::*,
     providers::{gemini, openai::Client},
 };
+use serde::Deserialize;
+use std::collections::HashMap;
 use tracing::info;
 
 use crate::{
     tools::{JupiterSwapTool, SolTransferTool, SplTransferTool},
     LlmRequest,
 };
+
+/// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct AgentContext {
+    key_map: HashMap<String, String>,
+}
 
 const SYSTEM_PREAMBLE: &str = "You are a helpful Solana assistant. Your goal is to generate a single, valid Solana transaction instruction in JSON format.
 - Analyze the user's request and on-chain context.
@@ -19,18 +28,38 @@ const SYSTEM_PREAMBLE: &str = "You are a helpful Solana assistant. Your goal is 
 - Your final output MUST be ONLY the raw JSON from the tool, starting with `{` and ending with `}`. Do not include `json` block quotes or any other text.";
 
 /// Dispatches the request to the appropriate agent based on the model name.
+/// It first parses the on-chain context to provide it to the tools that need it.
 pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
+    // Parse the context_prompt to extract the key_map, which is needed by the JupiterSwapTool
+    // to correctly identify mock mints.
+    let yaml_str = payload
+        .context_prompt
+        .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
+        .trim_end_matches("\n\n\n---")
+        .trim();
+
+    // If parsing fails, default to an empty map. This allows the agent to function
+    // even with a malformed or missing context, though tools needing it may fail.
+    let context: AgentContext = serde_yaml::from_str(yaml_str).unwrap_or(AgentContext {
+        key_map: HashMap::new(),
+    });
+    let key_map = context.key_map;
+
     if model_name.starts_with("gemini") {
         info!("[reev-agent] Using Gemini agent for model: {model_name}");
-        run_gemini_agent(model_name, payload).await
+        run_gemini_agent(model_name, payload, key_map).await
     } else {
         info!("[reev-agent] Using OpenAI compat agent for model: {model_name}");
-        run_openai_compatible_agent(model_name, payload).await
+        run_openai_compatible_agent(model_name, payload, key_map).await
     }
 }
 
 /// Runs the AI agent logic using a Google Gemini model.
-async fn run_gemini_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
+async fn run_gemini_agent(
+    model_name: &str,
+    payload: LlmRequest,
+    key_map: HashMap<String, String>,
+) -> Result<String> {
     let client = gemini::Client::from_env();
 
     let gen_cfg = gemini::completion::gemini_api_types::GenerationConfig {
@@ -40,13 +69,16 @@ async fn run_gemini_agent(model_name: &str, payload: LlmRequest) -> Result<Strin
     let cfg =
         gemini::completion::gemini_api_types::AdditionalParameters::default().with_config(gen_cfg);
 
+    // Instantiate the JupiterSwapTool with the context-aware key_map.
+    let jupiter_tool = JupiterSwapTool { key_map };
+
     let agent = client
         .agent(model_name)
         .preamble(SYSTEM_PREAMBLE)
         .additional_params(serde_json::to_value(cfg)?)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
-        .tool(JupiterSwapTool)
+        .tool(jupiter_tool)
         .build();
 
     let full_prompt = format!(
@@ -59,10 +91,17 @@ async fn run_gemini_agent(model_name: &str, payload: LlmRequest) -> Result<Strin
 }
 
 /// Runs the AI agent logic using a local lmstudio model locally.
-async fn run_openai_compatible_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
+async fn run_openai_compatible_agent(
+    model_name: &str,
+    payload: LlmRequest,
+    key_map: HashMap<String, String>,
+) -> Result<String> {
     let client = Client::builder("")
         .base_url("http://localhost:1234/v1")
         .build()?;
+
+    // Instantiate the JupiterSwapTool with the context-aware key_map.
+    let jupiter_tool = JupiterSwapTool { key_map };
 
     let agent = client
         .completion_model(model_name)
@@ -71,7 +110,7 @@ async fn run_openai_compatible_agent(model_name: &str, payload: LlmRequest) -> R
         .preamble(SYSTEM_PREAMBLE)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
-        .tool(JupiterSwapTool)
+        .tool(jupiter_tool)
         .build();
 
     let full_prompt = format!(

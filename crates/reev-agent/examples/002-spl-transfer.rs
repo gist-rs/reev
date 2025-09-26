@@ -28,7 +28,11 @@ struct TestCase {
 ///
 /// # How to run
 /// ```sh
-/// cargo run -p reev-agent --example 002-spl-transfer
+/// RUST_LOG=info cargo run -p reev-agent --example 002-spl-transfer
+/// ```
+/// To specify an agent (e.g., Gemini):
+/// ```sh
+/// RUST_LOG=info cargo run -p reev-agent --example 002-spl-transfer -- gemini-2.5-pro
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -29,11 +29,11 @@ struct TestCase {
 /// # How to run
 /// To run with the default local agent:
 /// ```sh
-/// cargo run -p reev-agent --example 100-jup-swap-sol-usdc
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc
 /// ```
 /// To specify an agent (e.g., Gemini):
 /// ```sh
-/// cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- gemini-2.5-pro
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- gemini-2.5-pro
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
