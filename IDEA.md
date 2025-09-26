@@ -128,3 +128,9 @@ A key goal of `reev` is to provide rich, multi-layered feedback. This is detaile
 ### Conclusion
 
 The `reev` framework provides a robust, reproducible, and extensible foundation for evaluating Solana-native LLM agents. By combining a standardized `GymEnv` interface with a hermetic, service-oriented testing environment, it ensures that evaluation results are both rigorous and verifiable, paving the way for the development of capable and trustworthy on-chain autonomous agents.
+
+---
+
+## TUI and Mocking Strategy
+
+The interactive TUI for running and viewing benchmarks is now complete. This provides a rich, interactive way to engage with the `reev` framework. Additionally, we have implemented a mocking strategy for the `reev-agent`. All calls to the transaction generation endpoint (`/gen/tx`) are now routed to a `mock_generate_transaction` function by default. This is controlled by a `?mock=true` query parameter, which is now the default. This allows us to develop the frontend and runner without relying on a live LLM, while providing a clear path for future integration.

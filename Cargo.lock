@@ -3529,6 +3529,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "solana-sdk",
+ "spl-token",
  "tokio",
  "tracing",
  "tracing-opentelemetry",

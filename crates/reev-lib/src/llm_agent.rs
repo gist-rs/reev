@@ -27,7 +27,7 @@ impl LlmAgent {
                 url
             }
             Err(_) => {
-                let default_url = "http://localhost:9090/gen/tx".to_string();
+                let default_url = "http://localhost:9090/gen/tx?mock=true".to_string();
                 info!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
                 default_url
             }

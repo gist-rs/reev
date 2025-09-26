@@ -58,3 +58,9 @@ The current `reev-agent` uses a direct mapping from prompt intent to a specific 
 | Create Token Account         | (Not implemented)         | `[call_tool('create_token_account', owner, mint)]` |
 
 This will decouple the agent's intent recognition from the execution logic, allowing it to dynamically select from a list of available "tools" (functions) and their parameters. This is a crucial step towards building more general-purpose and extensible on-chain agents.
+
+---
+
+## TUI and Mocking Strategy
+
+The interactive TUI for running and viewing benchmarks is now complete. This provides a rich, interactive way to engage with the `reev` framework. Additionally, we have implemented a mocking strategy for the `reev-agent`. All calls to the transaction generation endpoint (`/gen/tx`) are now routed to a `mock_generate_transaction` function by default. This is controlled by a `?mock=true` query parameter, which is now the default. This allows us to develop the frontend and runner without relying on a live LLM, while providing a clear path for future integration.
