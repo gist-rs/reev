@@ -91,6 +91,7 @@ struct App<'a> {
     is_running_all: bool,
     is_running_benchmark: bool,
     active_panel: ActivePanel,
+    show_log_panel: bool,
     selected_agent: SelectedAgent,
     benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
@@ -119,6 +120,7 @@ impl<'a> App<'a> {
             is_running_all: false,
             is_running_benchmark: false,
             active_panel: ActivePanel::BenchmarkNavigator,
+            show_log_panel: true,
             selected_agent: SelectedAgent::default(),
             benchmarks,
             benchmark_state,
@@ -317,7 +319,13 @@ impl<'a> App<'a> {
     fn on_tab(&mut self) {
         self.active_panel = match self.active_panel {
             ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
-            ActivePanel::ExecutionTrace => ActivePanel::AgentLog,
+            ActivePanel::ExecutionTrace => {
+                if self.show_log_panel {
+                    ActivePanel::AgentLog
+                } else {
+                    ActivePanel::BenchmarkNavigator
+                }
+            }
             ActivePanel::AgentLog => ActivePanel::BenchmarkNavigator,
         };
         self.reset_scroll();
@@ -355,6 +363,14 @@ impl<'a> App<'a> {
     fn scroll_log_down(&mut self) {
         let content_height = self.agent_log_content.height().saturating_sub(1) as u16;
         self.log_scroll = self.log_scroll.saturating_add(1).min(content_height);
+    }
+
+    fn on_toggle_log_panel(&mut self) {
+        self.show_log_panel = !self.show_log_panel;
+        // If the log panel was active and is now hidden, move focus
+        if !self.show_log_panel && self.active_panel == ActivePanel::AgentLog {
+            self.active_panel = ActivePanel::ExecutionTrace;
+        }
     }
 }
 
@@ -406,10 +422,13 @@ fn handle_events(app: &mut App) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
-                    KeyCode::Char('h') | KeyCode::Left => app.on_left(),
-                    KeyCode::Char('l') | KeyCode::Right => app.on_right(),
-                    KeyCode::Char('r') => app.on_run(),
-                    KeyCode::Char('a') => app.on_run_all(),
+                    KeyCode::Left => app.on_left(),
+                    KeyCode::Right => app.on_right(),
+                    KeyCode::Char('l') => app.on_toggle_log_panel(),
+                    KeyCode::Char('r') | KeyCode::Enter if !app.is_running_benchmark => {
+                        app.on_run()
+                    }
+                    KeyCode::Char('a') if !app.is_running_benchmark => app.on_run_all(),
                     _ => match app.active_panel {
                         ActivePanel::BenchmarkNavigator => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.on_up(),
@@ -453,13 +472,17 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     render_benchmark_navigator(f, app, content_layout[0]);
 
-    let right_panels_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(content_layout[1]);
+    if app.show_log_panel {
+        let right_panels_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(content_layout[1]);
 
-    render_trace_view(f, app, right_panels_layout[0]);
-    render_agent_log_view(f, app, right_panels_layout[1]);
+        render_trace_view(f, app, right_panels_layout[0]);
+        render_agent_log_view(f, app, right_panels_layout[1]);
+    } else {
+        render_trace_view(f, app, content_layout[1]);
+    }
 
     render_footer(f, main_layout[2]);
 }
@@ -631,9 +654,11 @@ fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
-        Span::styled("◄ ► / (h/l)", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" Select Agent | "),
-        Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled("◄ ►", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" Agent | "),
+        Span::styled("[L]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("og | "),
+        Span::styled("[Enter/R]", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw("un | "),
         Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw("ll | "),
