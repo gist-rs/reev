@@ -176,7 +176,10 @@ async fn run_evaluation_loop(
     test_case: &TestCase,
 ) -> Result<(AgentObservation, ExecutionTrace)> {
     let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
-    let options = serde_json::json!({ "initial_state": initial_state_json });
+    let options = serde_json::json!({
+        "id": test_case.id,
+        "initial_state": initial_state_json
+    });
     let observation = env.reset(None, Some(options))?;
 
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());

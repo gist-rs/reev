@@ -6,15 +6,17 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use solana_program::program_pack::Pack;
 use solana_sdk::{
+    pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
 use solana_system_interface::instruction as system_instruction;
+use spl_associated_token_account::instruction as ata_instruction;
 use spl_token::{
-    instruction as spl_instruction,
+    instruction as spl_instruction, native_mint,
     state::{Account as SplTokenAccount, Mint},
 };
-use std::{collections::HashMap, thread, time::Duration};
+use std::{collections::HashMap, str::FromStr, thread, time::Duration};
 use tracing::info;
 
 pub(crate) fn handle_reset(
@@ -39,9 +41,17 @@ pub(crate) fn handle_reset(
 
     env.keypair_map.clear();
     env.fee_payer = None;
+
+    let options = options.context("Benchmark options are required")?;
     let initial_state_val = options
-        .and_then(|v| v.get("initial_state").cloned())
+        .get("initial_state")
+        .cloned()
         .context("Benchmark options must include 'initial_state'")?;
+    let benchmark_id = options
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
     let accounts: Vec<Value> = serde_json::from_value(initial_state_val)?;
 
     for account_config in &accounts {
@@ -83,6 +93,39 @@ pub(crate) fn handle_reset(
         info!("Fee payer funded.");
     }
 
+    // --- SPECIAL LOGIC FOR JUPITER SWAP ---
+    // The mainnet Jupiter transaction requires the user's ATAs for both WSOL
+    // and the *real* USDC to exist. We create them here to prepare the sandbox.
+    if benchmark_id.contains("JUP-SWAP") {
+        info!("[JUP-SWAP] Pre-creating required ATAs for test...");
+        let user_pubkey = fee_payer_keypair.pubkey();
+        let mainnet_usdc_mint =
+            Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
+
+        let setup_instructions = vec![
+            // 1. Create the user's ATA for Wrapped SOL (WSOL)
+            ata_instruction::create_associated_token_account(
+                &user_pubkey,     // Funder
+                &user_pubkey,     // Wallet address (owner)
+                &native_mint::ID, // WSOL Mint
+                &spl_token::id(), // Token Program ID
+            ),
+            // 2. Create the user's ATA for the mainnet USDC mint
+            ata_instruction::create_associated_token_account(
+                &user_pubkey,       // Funder
+                &user_pubkey,       // Wallet address (owner)
+                &mainnet_usdc_mint, // Mainnet USDC Mint
+                &spl_token::id(),   // Token Program ID
+            ),
+        ];
+
+        let transaction = Transaction::new_with_payer(&setup_instructions, Some(&user_pubkey));
+        env.sign_and_send_transaction(transaction, &[fee_payer_keypair])
+            .context("Failed to pre-create ATAs for Jupiter swap test")?;
+        info!("[JUP-SWAP] Required ATAs (WSOL, mainnet USDC) created successfully.");
+    }
+    // --- END SPECIAL LOGIC ---
+
     let mut mint_configs = Vec::new();
     let mut token_configs = Vec::new();
 
@@ -108,7 +151,7 @@ pub(crate) fn handle_reset(
                         .confirm_transaction(&sig)
                         .context("Failed to confirm airdrop")?;
                 }
-            } else if owner == spl_token::ID.to_string() {
+            } else if owner == spl_token::id().to_string() {
                 if account_config.get("mint_data").is_some() {
                     mint_configs.push(account_config.clone());
                 } else if account_config.get("data").is_some() {
@@ -141,10 +184,10 @@ pub(crate) fn handle_reset(
                 &keypair.pubkey(),
                 rent,
                 Mint::LEN as u64,
-                &spl_token::ID,
+                &spl_token::id(),
             ),
             spl_instruction::initialize_mint(
-                &spl_token::ID,
+                &spl_token::id(),
                 &keypair.pubkey(),
                 &authority.pubkey(),
                 None,
@@ -200,10 +243,10 @@ pub(crate) fn handle_reset(
                 &keypair.pubkey(),
                 rent,
                 SplTokenAccount::LEN as u64,
-                &spl_token::ID,
+                &spl_token::id(),
             ),
             spl_instruction::initialize_account(
-                &spl_token::ID,
+                &spl_token::id(),
                 &keypair.pubkey(),
                 &mint_pubkey,
                 &owner_pubkey,
@@ -229,7 +272,7 @@ pub(crate) fn handle_reset(
 
             signers.push(mint_authority);
             instructions.push(spl_instruction::mint_to(
-                &spl_token::ID,
+                &spl_token::id(),
                 &mint_pubkey,
                 &keypair.pubkey(),
                 &mint_authority.pubkey(),

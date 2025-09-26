@@ -28,9 +28,10 @@ pub fn render_result_as_tree(result: &TestResult) -> String {
 fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
     let step_label = format!("Step {step_number}");
 
-    // Since the new AgentAction is a raw instruction, serializing it to JSON
-    // is the most effective way to display its complex structure in the tree.
-    let action_str = match serde_json::to_string_pretty(&step.action.0) {
+    // Serialize the `AgentAction` wrapper directly. Its custom `Serialize` implementation
+    // is designed to produce a human-readable format with Base58 strings for
+    // the program_id, all account pubkeys, and the instruction data.
+    let action_str = match serde_json::to_string_pretty(&step.action) {
         Ok(json_str) => {
             // Indent the JSON for better readability within the tree
             json_str
@@ -48,8 +49,10 @@ fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
     if let Some(error) = &step.observation.last_transaction_error {
         observation_children.push(Tree::Leaf(vec![format!("Error: {}", error)]));
     }
-    if let Some(log) = step.observation.last_transaction_logs.first() {
-        observation_children.push(Tree::Leaf(vec![format!("Log: {}", log)]));
+    // Display all logs for better debugging
+    if !step.observation.last_transaction_logs.is_empty() {
+        let logs_str = step.observation.last_transaction_logs.join("\n     ");
+        observation_children.push(Tree::Leaf(vec![format!("Logs:\n     {}", logs_str)]));
     }
 
     let observation_node = Tree::Node(observation_label, observation_children);
