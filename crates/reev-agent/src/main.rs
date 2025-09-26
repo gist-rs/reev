@@ -1,4 +1,5 @@
 use axum::{
+    extract::Query,
     http::StatusCode,
     routing::{get, post},
     Json, Router,
@@ -37,6 +38,13 @@ struct AgentContext {
     key_map: HashMap<String, String>,
 }
 
+/// Parameters for enabling mock transaction generation.
+#[derive(Debug, Deserialize)]
+struct MockParams {
+    #[serde(default)]
+    mock: bool,
+}
+
 /// Axum handler for the `POST /gen/tx` endpoint.
 ///
 /// This function simulates the LLM's behavior by returning a hardcoded,
@@ -49,7 +57,23 @@ async fn health_check() -> StatusCode {
 ///
 /// This function simulates the LLM's behavior by returning a hardcoded,
 /// valid instruction for a native SOL transfer of 0.1 SOL.
-async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmResponse> {
+async fn generate_transaction(
+    Query(params): Query<MockParams>,
+    Json(payload): Json<LlmRequest>,
+) -> Json<LlmResponse> {
+    if params.mock {
+        return mock_generate_transaction(payload).await;
+    }
+
+    // For now, default to mock as well.
+    mock_generate_transaction(payload).await
+}
+
+/// Axum handler for the `POST /gen/tx` endpoint.
+///
+/// This function simulates the LLM's behavior by returning a hardcoded,
+/// valid instruction for a native SOL transfer of 0.1 SOL.
+async fn mock_generate_transaction(payload: LlmRequest) -> Json<LlmResponse> {
     info!(
         "[reev-agent] Received request for prompt: \"{}\"",
         payload.prompt

@@ -36,3 +36,4 @@ ascii_tree = "0.1.1"
 [dev-dependencies]
 solana-sdk = { workspace = true }
 bs58 = "0.5.1"
+spl-token = { workspace = true }

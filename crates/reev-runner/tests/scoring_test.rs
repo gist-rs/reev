@@ -1,19 +1,16 @@
 use anyhow::Result;
 use reev_lib::{
+    actions::spl_transfer,
     agent::AgentAction,
-    benchmark::{BenchmarkAccountMeta, TestCase},
+    benchmark::TestCase,
     env::GymEnv,
     // This function will need to be moved from `reev-runner/src/main.rs` to a new
     // module in `reev-lib` (e.g., `reev-lib/src/score.rs`) to be accessible here.
     // score::calculate_score,
     solana_env::SolanaEnv,
 };
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use std::{collections::HashMap, fs, str::FromStr};
-use tracing::info;
 
 // NOTE: The following two functions are duplicates of logic in `main.rs` and `db.rs`.
 // This is a temporary measure. The ideal solution is to refactor `calculate_score`
@@ -62,58 +59,41 @@ fn calculate_score(
     1.0 // PASSED
 }
 
-/// Helper to convert the benchmark's `ExpectedInstruction` into a native `Instruction`.
+/// Helper to generate a correct SPL transfer `Instruction` for testing.
 fn instruction_from_ground_truth(
-    test_case: &TestCase,
+    _test_case: &TestCase,
     key_map: &HashMap<String, String>,
 ) -> Result<Instruction> {
-    let gt_instruction = test_case
-        .ground_truth
-        .expected_instruction
-        .as_ref()
-        .expect("Test case must have an expected_instruction for this test.");
+    let source_pubkey_str = key_map.get("USER_USDC_ATA").ok_or_else(|| {
+        anyhow::anyhow!("Pubkey placeholder 'USER_USDC_ATA' not found in key_map")
+    })?;
+    let destination_pubkey_str = key_map.get("RECIPIENT_USDC_ATA").ok_or_else(|| {
+        anyhow::anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map")
+    })?;
+    let authority_pubkey_str = key_map.get("USER_WALLET_PUBKEY").ok_or_else(|| {
+        anyhow::anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map")
+    })?;
 
-    let program_id = Pubkey::from_str(&gt_instruction.program_id)?;
+    let source_pubkey = Pubkey::from_str(source_pubkey_str)?;
+    let destination_pubkey = Pubkey::from_str(destination_pubkey_str)?;
+    let authority_pubkey = Pubkey::from_str(authority_pubkey_str)?;
 
-    let accounts = gt_instruction
-        .accounts
-        .iter()
-        .map(
-            |acc: &BenchmarkAccountMeta| -> Result<AccountMeta, anyhow::Error> {
-                let pubkey_str = key_map.get(&acc.pubkey).ok_or_else(|| {
-                    anyhow::anyhow!("Pubkey placeholder '{}' not found in key_map", acc.pubkey)
-                })?;
-                let pubkey = Pubkey::from_str(pubkey_str)?;
+    // Both test cases `002` and `003` use a 15 USDC transfer amount.
+    let amount = 15_000_000;
 
-                Ok(if acc.is_writable {
-                    AccountMeta::new(pubkey, acc.is_signer)
-                } else {
-                    AccountMeta::new_readonly(pubkey, acc.is_signer)
-                })
-            },
-        )
-        .collect::<Result<Vec<_>>>()?;
-
-    let data = bs58::decode(&gt_instruction.data).into_vec()?;
-
-    let instruction = Instruction {
-        program_id,
-        accounts,
-        data,
-    };
-    Ok(instruction)
+    spl_transfer::create_instruction(
+        &source_pubkey,
+        &destination_pubkey,
+        &authority_pubkey,
+        amount,
+    )
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_pass_case() -> Result<()> {
     // 1. Load the benchmark file.
-    let f = fs::File::open("tests/benchmarks/002-spl-transfer.yml")?;
+    let f = fs::File::open("../../benchmarks/002-spl-transfer.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
-
-    info!(
-        "[DEBUG] Ground truth instruction: {:#?}",
-        test_case.ground_truth.expected_instruction
-    );
 
     // 2. Set up the environment.
     let mut env = SolanaEnv::new()?;
@@ -141,7 +121,7 @@ async fn test_scoring_pass_case() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_fail_case() -> Result<()> {
     // 1. Load the benchmark file.
-    let f = fs::File::open("tests/benchmarks/003-spl-transfer-fail.yml")?;
+    let f = fs::File::open("../../benchmarks/003-spl-transfer-fail.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
     // 2. Set up the environment.
