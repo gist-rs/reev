@@ -7,11 +7,7 @@ use axum::{
     Json, Router,
 };
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
-use rig::prelude::*;
-use rig::{
-    completion::Prompt,
-    providers::gemini::{self, completion::gemini_api_types::*},
-};
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
@@ -21,13 +17,20 @@ use std::str::FromStr;
 use tracing::{error, info};
 
 pub mod tools;
-use tools::{SolTransferTool, SplTransferTool};
+
+mod agents;
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
-struct LlmRequest {
-    prompt: String,
-    context_prompt: String,
+pub struct LlmRequest {
+    pub prompt: String,
+    pub context_prompt: String,
+    #[serde(default = "default_model")]
+    pub model_name: String,
+}
+
+fn default_model() -> String {
+    "qwen3-coder-30b-a3b-instruct-mlx".to_string()
 }
 
 /// The `text` field of the response, containing the raw instruction.
@@ -94,43 +97,16 @@ async fn generate_transaction(
     }
 }
 
-/// Executes the AI agent logic using the `rig` crate and Google's Gemini model.
+/// Executes the AI agent logic using the dynamically selected model.
 async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
-    println!("🔥 [reev-agent] Running AI agent with Gemini...");
+    let model_name = payload.model_name.clone();
 
-    let client = gemini::Client::from_env();
-
-    let gen_cfg = GenerationConfig {
-        temperature: Some(0.0),
-        ..Default::default()
-    };
-    let cfg = AdditionalParameters::default().with_config(gen_cfg);
-
-    let agent = client
-        .agent("gemini-2.5-pro")
-        .preamble("You are a helpful Solana assistant. Your goal is to generate a single, valid Solana transaction instruction in JSON format to fulfill the user's request.
-- Analyze the user's request and the provided on-chain context.
-- Select the appropriate tool (`sol_transfer` for native SOL, `spl_transfer` for tokens).
-- Provide all required parameters to the tool from the context.
-- The tool will return a JSON object representing the transaction instruction.
-- Your final output should be ONLY the JSON object returned by the tool. Do not add any other text, explanations, or formatting.")
-        .additional_params(serde_json::to_value(cfg)?)
-        .tool(SolTransferTool)
-        .tool(SplTransferTool)
-        .build();
-
-    let full_prompt = format!(
-        "{}\n\nUSER REQUEST: {}",
-        payload.context_prompt, payload.prompt
-    );
-    info!("[reev-agent] Full prompt sent to Gemini:\n{full_prompt}");
-
-    let response = agent.prompt(&full_prompt).await.map_err(|e| {
-        error!("[reev-agent] Gemini agent failed. Detailed Error: {e:?}");
+    let response_str = agents::run_agent(&model_name, payload).await.map_err(|e| {
+        error!("[reev-agent] Agent failed. Detailed Error: {e:?}");
         e
     })?;
-    let response_str = response.to_string();
-    info!("[reev-agent] Raw response from Gemini tool call: {response_str}");
+
+    info!("[reev-agent] Raw response from agent tool call: {response_str}");
 
     let raw_instruction: RawInstruction = serde_json::from_str(&response_str)
         .context("Failed to deserialize RawInstruction from AI agent tool response")?;
