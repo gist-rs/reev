@@ -17,21 +17,21 @@ impl LlmAgent {
     ///
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
-    pub fn new() -> Result<Self> {
-        info!("[LlmAgent] Initializing...");
+    pub fn new(agent_name: &str) -> Result<Self> {
+        info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
-        // Load API URL from environment variables
-        let api_url = match std::env::var("LLM_API_URL") {
-            Ok(url) => {
-                info!("[LlmAgent] Using LLM_API_URL from environment.");
-                url
-            }
-            Err(_) => {
-                let default_url = "http://localhost:9090/gen/tx?mock=true".to_string();
-                info!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
-                default_url
-            }
+        // Load base API URL from environment variables, falling back to a default.
+        let base_url = std::env::var("LLM_API_URL")
+            .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
+        info!("[LlmAgent] Using base URL: {base_url}");
+
+        // Append `?mock=true` if the deterministic agent is selected.
+        let api_url = if agent_name == "deterministic" {
+            format!("{base_url}?mock=true")
+        } else {
+            base_url
         };
+        info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
 
         // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {

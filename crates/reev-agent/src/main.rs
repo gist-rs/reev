@@ -1,16 +1,24 @@
 use axum::{
     extract::Query,
     http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::info;
+
+mod tools;
+use anyhow::{Context, Result};
+use rig::prelude::*;
+use rig::{completion::Prompt, providers};
+use tools::{SolTransferTool, SplTransferTool};
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
@@ -60,20 +68,71 @@ async fn health_check() -> StatusCode {
 async fn generate_transaction(
     Query(params): Query<MockParams>,
     Json(payload): Json<LlmRequest>,
-) -> Json<LlmResponse> {
-    if params.mock {
-        return mock_generate_transaction(payload).await;
-    }
+) -> Response {
+    let result = if params.mock {
+        // Route A: The Deterministic Agent (Ground Truth)
+        run_deterministic_agent(payload).await
+    } else {
+        // Route B: The AI Agent (Subject)
+        run_ai_agent(payload).await
+    };
 
-    // For now, default to mock as well.
-    mock_generate_transaction(payload).await
+    match result {
+        Ok(json_response) => (StatusCode::OK, json_response).into_response(),
+        Err(e) => {
+            let error_msg = e.to_string();
+            info!("[reev-agent] Agent error: {}", error_msg);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": error_msg })),
+            )
+                .into_response()
+        }
+    }
 }
 
-/// Axum handler for the `POST /gen/tx` endpoint.
-///
-/// This function simulates the LLM's behavior by returning a hardcoded,
-/// valid instruction for a native SOL transfer of 0.1 SOL.
-async fn mock_generate_transaction(payload: LlmRequest) -> Json<LlmResponse> {
+/// Executes the AI agent logic using the `rig` crate.
+async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
+    info!("[reev-agent] Running AI agent...");
+
+    // 1. Initialize rig client for a local LLM provider.
+    let client = providers::ollama::Client::new();
+
+    // 2. Build the rig agent with a system preamble and our custom tools.
+    let agent = client
+        .agent("qwen2:7b-instruct-q8_0") // This model name can be configured via environment variables later.
+        .preamble("You are a helpful Solana assistant. Your goal is to generate the correct transaction to fulfill the user's request by using the provided tools. You must select the appropriate tool and provide all required parameters based on the on-chain context provided. Do not ask for clarification.")
+        .tool(SolTransferTool)
+        .tool(SplTransferTool)
+        .build();
+
+    // 3. Combine the on-chain context and the user's prompt.
+    let full_prompt = format!(
+        "{}\n\nUSER REQUEST: {}",
+        payload.context_prompt, payload.prompt
+    );
+
+    // 4. Run the agent. `rig` handles the tool-calling loop with the LLM.
+    // The final output of the selected tool is returned as a string.
+    let response = agent.prompt(&full_prompt).await?;
+    let response_str = response.to_string();
+
+    // 5. Our tools return a JSON string of a `RawInstruction`. Deserialize it.
+    let raw_instruction: RawInstruction = serde_json::from_str(&response_str)
+        .context("Failed to deserialize RawInstruction from AI agent tool response")?;
+
+    // 6. Format the response into the expected `LlmResponse` structure.
+    let response = LlmResponse {
+        result: LlmResult {
+            text: raw_instruction,
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// Executes the deterministic, code-based agent logic (the ground truth).
+async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     info!(
         "[reev-agent] Received request for prompt: \"{}\"",
         payload.prompt
@@ -212,7 +271,7 @@ async fn mock_generate_transaction(payload: LlmRequest) -> Json<LlmResponse> {
         },
     };
 
-    Json(response)
+    Ok(Json(response))
 }
 
 /// The main entry point for the mock agent server.

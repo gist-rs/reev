@@ -36,21 +36,23 @@ The foundational work for the `reev` framework is complete and has been validate
 
 ---
 
-## Future Work: The Dual-Agent Evaluation Strategy
+## Future Work: The Comparative Agent Framework
 
-The next major phase of the project is to build a true, LLM-based agent and evaluate its performance against our existing `MockAgent`. This comparative approach is the core of the `reev` framework's evaluation philosophy.
+The next major phase is to integrate a true AI-powered agent into the framework and evaluate it against our existing deterministic agent.
 
-### Phase 11: Building a Tool-Calling LLM Agent
+### Phase 11: Implementing a Comparative AI Agent
 
-**Goal:** Implement a new `LlmAgent` that uses a tool-calling architecture to interact with a real LLM. This agent will be the "subject" of our evaluations.
+**Goal:** Integrate a new, `rig`-based **AI Agent** directly into the existing `reev-agent` crate. This will allow for direct, comparative evaluation against the **Deterministic Agent** using a simple query parameter for routing.
 
-1.  **The Dual-Agent Strategy:** We will maintain two distinct agents:
-    *   **`MockAgent` (The Oracle):** The existing code-based agent. It serves as our ground truth, deterministically generating the perfect instruction for a given prompt. Its performance is the baseline for a perfect score.
-    *   **`LlmAgent` (The Subject):** A new agent built with the `rig` crate. It will query a real LLM, asking it to choose the correct on-chain action ("tool") and parameters to fulfill a user's prompt.
+1.  **The Comparative Agent Framework:** We will use a single agent service (`reev-agent`) that can operate in two modes:
+    *   **The Deterministic Agent (Ground Truth):** Triggered by a `?mock=true` query parameter, this mode uses the existing, code-based logic to produce the perfect instruction. It is our baseline for correctness.
+    *   **The AI Agent (Subject):** Triggered by the absence of the `mock` parameter, this mode will use the `rig` crate to query a real AI model (LLM, VLM, etc.), asking it to choose the correct tool and parameters to solve the user's request.
 
-2.  **Define On-Chain Actions as `rig` Tools:** The core on-chain actions (`sol_transfer`, `spl_transfer`) will be defined as structs that implement the `rig::Tool` trait. This will allow the `LlmAgent` to present them to the LLM as callable functions, securely separating the LLM's reasoning from the instruction's execution.
+2.  **Define On-Chain Actions as `rig` Tools:** The core on-chain actions (`sol_transfer`, `spl_transfer`) will be defined as structs within `reev-agent` that implement the `rig::Tool` trait. This will allow the AI Agent to present them to the model as callable functions, securely separating the model's reasoning from the secure execution of our Rust code.
 
-3.  **Implement Agent Selection:** The `reev-runner` and `reev-tui` will be updated to allow the user to select which agent to run a benchmark against (e.g., `--agent mock` vs. `--agent llm`). This enables direct, side-by-side comparison of the LLM's performance against the perfect oracle.
+3.  **Implement Agent Selection in Runner:** The `reev-runner` CLI will be updated so the `--agent` flag controls the URL used to call the `reev-agent` service:
+    *   `--agent deterministic`: The runner calls `.../gen/tx?mock=true`.
+    *   `--agent ai`: The runner calls `.../gen/tx`.
 
 ### Advanced Observability
 

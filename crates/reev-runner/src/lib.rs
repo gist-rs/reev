@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{StateAssertion, TestCase},
@@ -8,6 +9,7 @@ use reev_lib::{
     solana_env::SolanaEnv,
     trace::ExecutionTrace,
 };
+
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -82,13 +84,16 @@ async fn start_agent() -> Result<AgentProcessGuard> {
 }
 
 /// Runs all benchmarks found at the given path and returns the results.
-pub async fn run_benchmarks(path: PathBuf) -> Result<Vec<TestResult>> {
+pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestResult>> {
     let benchmark_paths = discover_benchmarks(&path)?;
     if benchmark_paths.is_empty() {
         return Ok(vec![]);
     }
 
-    let _agent_guard = start_agent().await?;
+    // Only start the reev-agent service if we're using the deterministic agent.
+    if agent_name == "deterministic" {
+        let _agent_guard = start_agent().await?;
+    }
 
     let db = db::Db::new("db/reev_results.db").await?;
     let mut results = vec![];
@@ -99,7 +104,7 @@ pub async fn run_benchmarks(path: PathBuf) -> Result<Vec<TestResult>> {
         let test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
 
-        let mut agent = LlmAgent::new()?;
+        let mut agent = LlmAgent::new(agent_name)?;
         let mut env = SolanaEnv::new()?;
 
         let (final_observation, trace) =

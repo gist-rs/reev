@@ -24,3 +24,8 @@ solana-system-interface = { workspace = true }
 spl-token = { workspace = true }
 serde_yaml = { workspace = true }
 tracing = { workspace = true }
+
+# Correct rig dependencies
+rig-core = { version = "0.20.0" }
+async-trait = "0.1"
+thiserror = "1.0"

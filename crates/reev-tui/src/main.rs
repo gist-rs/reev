@@ -170,7 +170,7 @@ impl<'a> App<'a> {
                     .unwrap();
 
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let result = rt.block_on(reev_runner::run_benchmarks(path));
+                let result = rt.block_on(reev_runner::run_benchmarks(path, "ai"));
 
                 let final_result = match result {
                     Ok(mut results) => results
