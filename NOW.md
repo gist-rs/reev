@@ -1,16 +1,66 @@
-# NOW: TUI Interactivity
+# NOW.md: Current Development Phase - Building a Comparative LLM Agent
 
-This document outlines the immediate development focus for the `reev` framework. The current goal is to transform the `reev-tui` from a static proof-of-concept into a fully interactive evaluation cockpit.
+This document outlines the immediate, actionable plan for the current development phase of the `reev` project.
 
-## Current Objective
+---
 
-The primary objective is to enable the TUI to discover and execute benchmarks using the `reev-runner`'s core logic, and then display the results in real-time. This involves a significant refactoring of the `reev-runner` to expose its functionality as a library.
+## Phase 11: Building a Tool-Calling LLM Agent for Comparative Evaluation
 
-## Action Plan
+**Goal:** Implement a new, true LLM-based agent using a tool-calling architecture. This new `LlmAgent` will be evaluated *against* our existing mock agent, which will serve as the "ground truth" or "oracle" for perfect performance.
 
-The detailed plan for this phase is broken down in `TASKS.md` and covers the following key areas:
+### Key Concept: The Dual-Agent Strategy
 
-1.  **Dynamic Benchmark Discovery**: The TUI must find all available benchmark files at startup.
-2.  **`reev-runner` as a Library**: The runner's execution logic needs to be callable from other crates.
-3.  **Asynchronous Execution**: Benchmarks must be run in a separate thread to keep the TUI responsive.
-4.  **Live Result Display**: The TUI must update dynamically as benchmarks complete, showing the final status and detailed trace information.
+We are **not** replacing the mock agent. Instead, we are creating a system that can run benchmarks using two different agents to allow for direct comparison:
+
+1.  **`MockAgent` (The Oracle):** The existing code-based agent is our ground truth. It deterministically generates the *correct* instruction for a given prompt. Its performance represents a perfect score of 1.0.
+
+2.  **`LlmAgent` (The Subject):** This is the new agent we will build. It will use the `rig` crate to interact with a real LLM, asking it to choose the correct "tool" (on-chain action) and provide the right parameters based on the prompt. Its performance will be measured against the `MockAgent`.
+
+### 1. Define On-Chain Actions as `rig` "Tools"
+
+The core on-chain actions will be defined as structs that implement the `rig::Tool` trait. This allows `rig` to present them to the LLM as callable functions.
+
+-   **`SolTransferTool`**: Will describe the native SOL transfer action to the LLM and will call our centralized `reev_lib::actions::sol_transfer::create_instruction` function.
+-   **`SplTransferTool`**: Will describe the SPL Token transfer action to the LLM and will call `reev_lib::actions::spl_transfer::create_instruction`.
+
+### 2. Implement the `LlmAgent` using `rig`
+
+A new agent implementation will be created that orchestrates the LLM interaction.
+
+-   It will initialize a `rig` agent, providing it with a system preamble and registering the available tools (`SolTransferTool`, `SplTransferTool`).
+-   When a prompt is received, the `LlmAgent` will use `rig` to query the LLM.
+-   `rig` will send the prompt and the tool definitions to the LLM.
+-   The LLM is expected to respond with a request to call one of the tools with specific arguments.
+-   The `LlmAgent` will execute the tool call (which generates the raw instruction) and return the result.
+
+### 3. LLM Interaction Example
+
+The `LlmAgent` will make a `POST` request to an LLM service, structured like this:
+
+```bash
+curl http://localhost:1234/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-local-model",
+    "messages": [
+      { "role": "system", "content": "You are a helpful Solana assistant. Your goal is to generate the correct transaction to fulfill the user''s request by using the provided tools." },
+      { "role": "user", "content": "Please send 15 USDC from USER_USDC_ATA to RECIPIENT_USDC_ATA." }
+    ],
+    "tools": [ /* Rig will inject the tool definitions here */ ],
+    "tool_choice": "auto"
+}'
+```
+
+### 4. Implement Agent Selection in the Runner
+
+The `reev-runner` will be modified to accept a parameter that selects which agent to use for the evaluation run, enabling our comparative analysis.
+
+**Example Usage:**
+
+```bash
+# Run the benchmark against the perfect "oracle" agent
+cargo run -p reev-runner -- --agent mock benchmarks/002-spl-transfer.yml
+
+# Run the same benchmark against the new LLM-based agent
+cargo run -p reev-runner -- --agent llm benchmarks/002-spl-transfer.yml
+```

@@ -36,31 +36,22 @@ The foundational work for the `reev` framework is complete and has been validate
 
 ---
 
-## Future Work
+## Future Work: The Dual-Agent Evaluation Strategy
 
-The following are planned features to be implemented after the completion of the interactive TUI.
+The next major phase of the project is to build a true, LLM-based agent and evaluate its performance against our existing `MockAgent`. This comparative approach is the core of the `reev` framework's evaluation philosophy.
+
+### Phase 11: Building a Tool-Calling LLM Agent
+
+**Goal:** Implement a new `LlmAgent` that uses a tool-calling architecture to interact with a real LLM. This agent will be the "subject" of our evaluations.
+
+1.  **The Dual-Agent Strategy:** We will maintain two distinct agents:
+    *   **`MockAgent` (The Oracle):** The existing code-based agent. It serves as our ground truth, deterministically generating the perfect instruction for a given prompt. Its performance is the baseline for a perfect score.
+    *   **`LlmAgent` (The Subject):** A new agent built with the `rig` crate. It will query a real LLM, asking it to choose the correct on-chain action ("tool") and parameters to fulfill a user's prompt.
+
+2.  **Define On-Chain Actions as `rig` Tools:** The core on-chain actions (`sol_transfer`, `spl_transfer`) will be defined as structs that implement the `rig::Tool` trait. This will allow the `LlmAgent` to present them to the LLM as callable functions, securely separating the LLM's reasoning from the instruction's execution.
+
+3.  **Implement Agent Selection:** The `reev-runner` and `reev-tui` will be updated to allow the user to select which agent to run a benchmark against (e.g., `--agent mock` vs. `--agent llm`). This enables direct, side-by-side comparison of the LLM's performance against the perfect oracle.
 
 ### Advanced Observability
 
 As outlined in `OTEL.md`, the framework will be instrumented with OpenTelemetry to provide deep insights into performance and agent behavior, enabling analysis in professional observability platforms.
-
-### Advanced Agent Logic: Tool Calling
-
-The current `reev-agent` uses a direct mapping from prompt intent to a specific code function (e.g., "send sol" maps to a `create_sol_transfer` function). The next evolution of the agent will implement a more flexible **tool-calling** architecture.
-
-**Agent Decision Mapping Table:**
-
-| Prompt Intent                | Current Implementation    | Future "Tool Calling" Model                |
-| ---------------------------- | ------------------------- | ------------------------------------------ |
-| Native SOL Transfer          | `handle_sol_transfer()`   | `[call_tool('sol_transfer', amount, to)]`  |
-| SPL Token Transfer           | `handle_spl_transfer()`   | `[call_tool('spl_transfer', amount, to)]`  |
-| Swap on Orca                 | (Not implemented)         | `[call_tool('orca_swap', token_in, token_out)]` |
-| Create Token Account         | (Not implemented)         | `[call_tool('create_token_account', owner, mint)]` |
-
-This will decouple the agent's intent recognition from the execution logic, allowing it to dynamically select from a list of available "tools" (functions) and their parameters. This is a crucial step towards building more general-purpose and extensible on-chain agents.
-
----
-
-## TUI and Mocking Strategy
-
-The interactive TUI for running and viewing benchmarks is now complete. This provides a rich, interactive way to engage with the `reev` framework. Additionally, we have implemented a mocking strategy for the `reev-agent`. All calls to the transaction generation endpoint (`/gen/tx`) are now routed to a `mock_generate_transaction` function by default. This is controlled by a `?mock=true` query parameter, which is now the default. This allows us to develop the frontend and runner without relying on a live LLM, while providing a clear path for future integration.
