@@ -23,7 +23,7 @@ To run a specific benchmark, provide the path to the benchmark file.
 
 ```bash
 # From the root of the workspace, run the simple SOL transfer benchmark
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
 ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

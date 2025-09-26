@@ -3,3 +3,5 @@ target
 test-ledger
 .surfpool
 *.db*
+logs
+.log

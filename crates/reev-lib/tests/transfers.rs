@@ -6,6 +6,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 use std::str::FromStr;
+use tracing::info;
 
 /// A helper function to pretty-print instruction details as JSON.
 /// This is useful for debugging and creating test cases.
@@ -23,9 +24,9 @@ fn print_instruction_as_json(name: &str, ix: &Instruction) {
         // Encode binary data as Base58 for readability
         "data": bs58::encode(&ix.data).into_string(),
     });
-    println!("\n--- {name} Instruction ---");
-    println!("{}", serde_json::to_string_pretty(&ix_json).unwrap());
-    println!("-------------------------\n");
+    info!("\n--- {name} Instruction ---");
+    info!("{}", serde_json::to_string_pretty(&ix_json).unwrap());
+    info!("-------------------------\n");
 }
 
 #[test]
@@ -42,7 +43,7 @@ fn test_print_instructions() {
     let lamports = 1_000_000; // 0.001 SOL
     let sol_transfer_ix = sol_transfer::create_instruction(&sender.pubkey(), &recipient, lamports);
 
-    println!("✅ Generated Native SOL Transfer Instruction:");
+    info!("✅ Generated Native SOL Transfer Instruction:");
     print_instruction_as_json("Native SOL Transfer", &sol_transfer_ix);
 
     // --- 2. SPL Token Transfer ---
@@ -58,6 +59,6 @@ fn test_print_instructions() {
         spl_transfer::create_instruction(&sender_ata, &recipient_ata, &sender.pubkey(), amount)
             .unwrap();
 
-    println!("✅ Generated SPL Token Transfer Instruction:");
+    info!("✅ Generated SPL Token Transfer Instruction:");
     print_instruction_as_json("SPL Token Transfer", &spl_transfer_ix);
 }

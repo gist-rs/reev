@@ -13,6 +13,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 use std::{collections::HashMap, fs, str::FromStr};
+use tracing::info;
 
 // NOTE: The following two functions are duplicates of logic in `main.rs` and `db.rs`.
 // This is a temporary measure. The ideal solution is to refactor `calculate_score`
@@ -109,7 +110,7 @@ async fn test_scoring_pass_case() -> Result<()> {
     let f = fs::File::open("tests/benchmarks/002-spl-transfer.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
-    println!(
+    info!(
         "[DEBUG] Ground truth instruction: {:#?}",
         test_case.ground_truth.expected_instruction
     );
@@ -140,7 +141,7 @@ async fn test_scoring_pass_case() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_fail_case() -> Result<()> {
     // 1. Load the benchmark file.
-    let f = fs::File::open("tests/benchmarks/002-spl-transfer-fail.yml")?;
+    let f = fs::File::open("tests/benchmarks/003-spl-transfer-fail.yml")?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
     // 2. Set up the environment.

@@ -3,6 +3,7 @@ use reev_lib::{
     agent::{AgentAction, AgentObservation},
     results::FinalStatus,
 };
+use tracing::info;
 use turso::{Builder, Connection};
 
 /// Manages the connection and operations for the results database.
@@ -19,7 +20,7 @@ impl Db {
             .context("Failed to build local database")?;
         let conn = db.connect().context("Failed to connect to database")?;
 
-        // println!("[DB] Connected to database at: {path}");
+        info!("[DB] Connected to database at: {path}");
 
         // Define and execute the schema creation query.
         let schema_query = "
@@ -38,7 +39,7 @@ impl Db {
             .await
             .context("Failed to create results table")?;
 
-        // println!("[DB] Database schema initialized.");
+        info!("[DB] Database schema initialized.");
 
         Ok(Self { conn })
     }
@@ -88,7 +89,7 @@ impl Db {
             .await
             .context("Failed to insert result into database")?;
 
-        println!("[DB] Saved result for benchmark '{benchmark_id}' to database.");
+        info!("[DB] Saved result for benchmark '{benchmark_id}' to database.");
         Ok(())
     }
 }

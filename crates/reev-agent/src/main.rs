@@ -9,6 +9,7 @@ use solana_sdk::pubkey::Pubkey;
 use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
 use std::str::FromStr;
+use tracing::info;
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
@@ -49,7 +50,7 @@ async fn health_check() -> StatusCode {
 /// This function simulates the LLM's behavior by returning a hardcoded,
 /// valid instruction for a native SOL transfer of 0.1 SOL.
 async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmResponse> {
-    println!(
+    info!(
         "[reev-agent] Received request for prompt: \"{}\"",
         payload.prompt
     );
@@ -67,7 +68,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
     // Based on the prompt, decide whether to generate a correct instruction in code
     // or return an incorrect one.
     let raw_instruction = if payload.prompt.contains("0.1 SOL") {
-        println!("[reev-agent] Detected 'sol-transfer' prompt. Generating instruction with code.");
+        info!("[reev-agent] Detected 'sol-transfer' prompt. Generating instruction with code.");
 
         // 1. Parse pubkeys
         let from_pubkey = key_map
@@ -82,7 +83,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
 
         // 2. Generate instruction using solana_sdk
         let instruction = system_instruction::transfer(&from, &to, lamports);
-        println!("[reev-agent] Generated instruction: {instruction:?}");
+        info!("[reev-agent] Generated instruction: {instruction:?}");
 
         // 3. Convert back to RawInstruction for the response
         RawInstruction {
@@ -99,7 +100,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
             data: bs58::encode(instruction.data).into_string(),
         }
     } else if payload.prompt.contains("15 USDC") {
-        println!(
+        info!(
             "[reev-agent] Detected 'spl-token-transfer' prompt. Generating instruction with code."
         );
 
@@ -133,7 +134,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
             amount,
         )
         .expect("Failed to create SPL transfer instruction");
-        println!("[reev-agent] Generated instruction: {instruction:?}");
+        info!("[reev-agent] Generated instruction: {instruction:?}");
 
         // 3. Convert back to RawInstruction for the response
         RawInstruction {
@@ -150,7 +151,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
             data: bs58::encode(instruction.data).into_string(),
         }
     } else {
-        println!("[reev-agent] Prompt did not match. Sending intentionally invalid instruction.");
+        info!("[reev-agent] Prompt did not match. Sending intentionally invalid instruction.");
         // Return an invalid instruction for any other case to test failures.
         let from_pubkey = key_map
             .get("USER_WALLET_PUBKEY")
@@ -178,7 +179,7 @@ async fn generate_transaction(Json(payload): Json<LlmRequest>) -> Json<LlmRespon
         }
     };
 
-    println!("[reev-agent] Responding with instruction.");
+    info!("[reev-agent] Responding with instruction.");
 
     // Wrap the instruction in the nested JSON structure the LlmAgent expects.
     let response = LlmResponse {
@@ -200,8 +201,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Start the server.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:9090").await?;
-    println!("[reev-agent] Mock LLM server listening on http://127.0.0.1:9090");
-    println!("[reev-agent] POST /gen/tx is ready to accept requests.");
+    info!("[reev-agent] Mock LLM server listening on http://127.0.0.1:9090");
+    info!("[reev-agent] POST /gen/tx is ready to accept requests.");
 
     axum::serve(listener, app).await?;
 
