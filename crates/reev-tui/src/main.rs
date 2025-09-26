@@ -37,7 +37,6 @@ enum BenchmarkStatus {
 enum ActivePanel {
     BenchmarkNavigator,
     ExecutionTrace,
-    Details,
 }
 
 struct Benchmark<'a> {
@@ -54,6 +53,7 @@ enum TuiEvent {
 
 struct App<'a> {
     should_quit: bool,
+    is_running_all: bool,
     active_panel: ActivePanel,
     benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
@@ -75,6 +75,7 @@ impl<'a> App<'a> {
 
         Self {
             should_quit: false,
+            is_running_all: false,
             active_panel: ActivePanel::BenchmarkNavigator,
             benchmarks,
             benchmark_state,
@@ -140,6 +141,16 @@ impl<'a> App<'a> {
                         }
                     }
                 }
+
+                if self.is_running_all {
+                    let next_index = index + 1;
+                    if next_index < self.benchmarks.len() {
+                        self.benchmark_state.select(Some(next_index));
+                        self.on_run();
+                    } else {
+                        self.is_running_all = false;
+                    }
+                }
             }
         }
     }
@@ -172,6 +183,14 @@ impl<'a> App<'a> {
                     .send(TuiEvent::BenchmarkCompleted(selected_index, final_result))
                     .unwrap();
             });
+        }
+    }
+
+    fn on_run_all(&mut self) {
+        if !self.benchmarks.is_empty() {
+            self.is_running_all = true;
+            self.benchmark_state.select(Some(0));
+            self.on_run();
         }
     }
 
@@ -208,8 +227,7 @@ impl<'a> App<'a> {
     fn on_tab(&mut self) {
         self.active_panel = match self.active_panel {
             ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
-            ActivePanel::ExecutionTrace => ActivePanel::Details,
-            ActivePanel::Details => ActivePanel::BenchmarkNavigator,
+            ActivePanel::ExecutionTrace => ActivePanel::BenchmarkNavigator,
         };
         self.reset_scroll();
     }
@@ -283,24 +301,23 @@ fn handle_events(app: &mut App) -> Result<()> {
     if event::poll(Duration::from_millis(50))? {
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
-                match app.active_panel {
-                    ActivePanel::BenchmarkNavigator => match key.code {
-                        KeyCode::Up | KeyCode::Char('k') => app.on_up(),
-                        KeyCode::Down | KeyCode::Char('j') => app.on_down(),
-                        _ => {}
-                    },
-                    ActivePanel::ExecutionTrace | ActivePanel::Details => match key.code {
-                        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-                        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
-                        _ => {}
-                    },
-                }
-
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
                     KeyCode::Char('r') => app.on_run(),
-                    _ => {}
+                    KeyCode::Char('a') => app.on_run_all(),
+                    _ => match app.active_panel {
+                        ActivePanel::BenchmarkNavigator => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.on_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                            _ => {}
+                        },
+                        ActivePanel::ExecutionTrace => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+                            _ => {}
+                        },
+                    },
                 }
             }
         }
@@ -311,7 +328,11 @@ fn handle_events(app: &mut App) -> Result<()> {
 fn ui(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ])
         .split(f.area());
 
     render_header(f, main_layout[0]);
@@ -322,31 +343,12 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(main_layout[1]);
 
     render_benchmark_navigator(f, app, content_layout[0]);
-
-    let right_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
-        .split(content_layout[1]);
-
-    render_trace_view(f, app, right_layout[0]);
-    render_details_pane(f, app, right_layout[1]);
+    render_trace_view(f, app, content_layout[1]);
+    render_footer(f, main_layout[2]);
 }
 
 fn render_header(f: &mut Frame, area: Rect) {
-    let header_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-
-    f.render_widget(Paragraph::new(" Reev TUI "), header_layout[0]);
-    let controls = Line::from(vec![
-        Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UN "),
-        Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UIT"),
-    ])
-    .right_aligned();
-    f.render_widget(Paragraph::new(controls), header_layout[1]);
+    f.render_widget(Paragraph::new(" Reev TUI "), area);
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
@@ -448,12 +450,15 @@ fn render_trace_view(f: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
-fn render_details_pane(f: &mut Frame, app: &mut App, area: Rect) {
-    render_scrollable_text_panel(
-        f,
-        app,
-        area,
-        "C: Details Pane",
-        app.active_panel == ActivePanel::Details,
-    );
+fn render_footer(f: &mut Frame, area: Rect) {
+    let controls = Line::from(vec![
+        Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("UN "),
+        Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("LL "),
+        Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("UIT "),
+    ])
+    .alignment(ratatui::layout::Alignment::Center);
+    f.render_widget(Paragraph::new(controls), area);
 }
