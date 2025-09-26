@@ -32,6 +32,8 @@ rig-core = { version = "0.20.0" }
 async-trait = "0.1"
 thiserror = "1.0"
 
+jupiter-swap-api-client = { git = "https://github.com/jup-ag/jupiter-swap-api-client.git", package = "jupiter-swap-api-client"}
+
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }
 serde_yaml = "0.9"

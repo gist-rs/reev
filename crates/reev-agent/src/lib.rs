@@ -6,16 +6,18 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use reev_lib::agent::{RawAccountMeta, RawInstruction};
 
+use reev_lib::agent::RawInstruction;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+
 use solana_sdk::pubkey::Pubkey;
 use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::{error, info};
 
+pub mod jupiter;
 pub mod tools;
 
 mod agents;
@@ -145,8 +147,8 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
     let key_map = context.key_map;
 
-    let raw_instruction = if payload.prompt.contains("0.1 SOL") {
-        info!("[reev-agent] Detected 'sol-transfer' prompt. Generating instruction with code.");
+    let raw_instruction = if payload.prompt == "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient's wallet (RECIPIENT_WALLET_PUBKEY)." {
+        info!("[reev-agent] Matched exact 'sol-transfer' prompt. Generating instruction with code.");
         let from_pubkey = key_map
             .get("USER_WALLET_PUBKEY")
             .context("USER_WALLET_PUBKEY not found in key_map")?;
@@ -159,9 +161,9 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         let instruction = system_instruction::transfer(&from, &to, lamports);
         info!("[reev-agent] Generated instruction: {instruction:?}");
         instruction.into()
-    } else if payload.prompt.contains("15 USDC") {
+    } else if payload.prompt == "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). The mint is MOCK_USDC_MINT, and I am the authority (USER_WALLET_PUBKEY)." {
         info!(
-            "[reev-agent] Detected 'spl-token-transfer' prompt. Generating instruction with code."
+            "[reev-agent] Matched exact 'spl-token-transfer' prompt. Generating instruction with code."
         );
         let source_ata_str = key_map
             .get("USER_USDC_ATA")
@@ -190,32 +192,15 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         .context("Failed to create SPL transfer instruction")?;
         info!("[reev-agent] Generated instruction: {instruction:?}");
         instruction.into()
+    } else if payload.prompt
+        == "Using Jupiter, swap 0.1 SOL for USDC. My wallet is USER_WALLET_PUBKEY and my USDC token account is USER_USDC_ATA."
+    {
+        jupiter::swap::handle_deterministic_swap(&key_map).await?
     } else {
-        info!("[reev-agent] Prompt did not match. Sending intentionally invalid instruction.");
-        let from_pubkey = key_map
-            .get("USER_WALLET_PUBKEY")
-            .cloned()
-            .unwrap_or_else(|| "USER_WALLET_PUBKEY_NOT_FOUND".to_string());
-        let to_pubkey = key_map
-            .get("RECIPIENT_WALLET_PUBKEY")
-            .cloned()
-            .unwrap_or_else(|| "RECIPIENT_WALLET_PUBKEY_NOT_FOUND".to_string());
-        RawInstruction {
-            program_id: "11111111111111111111111111111111".to_string(),
-            accounts: vec![
-                RawAccountMeta {
-                    pubkey: from_pubkey,
-                    is_signer: true,
-                    is_writable: true,
-                },
-                RawAccountMeta {
-                    pubkey: to_pubkey,
-                    is_signer: false,
-                    is_writable: true,
-                },
-            ],
-            data: "invalid".to_string(),
-        }
+        anyhow::bail!(
+            "Deterministic agent does not support this prompt: '{}'",
+            payload.prompt
+        );
     };
 
     info!("[reev-agent] Responding with instruction.");
