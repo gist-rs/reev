@@ -10,6 +10,7 @@ pub struct LlmAgent {
     client: Client,
     api_url: String,
     api_key: Option<String>,
+    model_name: String,
 }
 
 impl LlmAgent {
@@ -17,21 +18,23 @@ impl LlmAgent {
     ///
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
-    pub fn new() -> Result<Self> {
-        info!("[LlmAgent] Initializing...");
+    pub fn new(agent_name: &str) -> Result<Self> {
+        info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
-        // Load API URL from environment variables
-        let api_url = match std::env::var("LLM_API_URL") {
-            Ok(url) => {
-                info!("[LlmAgent] Using LLM_API_URL from environment.");
-                url
-            }
-            Err(_) => {
-                let default_url = "http://localhost:9090/gen/tx?mock=true".to_string();
-                info!("[LlmAgent] LLM_API_URL not set, using default: {default_url}");
-                default_url
-            }
+        // Load base API URL from environment variables, falling back to a default.
+        let base_url = std::env::var("LLM_API_URL")
+            .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
+        info!("[LlmAgent] Using base URL: {base_url}");
+        info!("[LlmAgent] Received agent_name: '{agent_name}'");
+
+        // Append `?mock=true` if the deterministic agent is selected.
+        let api_url = if agent_name == "deterministic" {
+            format!("{base_url}?mock=true")
+        } else {
+            base_url
         };
+        info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
+        info!("[LlmAgent] Model name being sent in payload: '{agent_name}'");
 
         // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {
@@ -49,6 +52,7 @@ impl LlmAgent {
             client: Client::new(),
             api_url,
             api_key,
+            model_name: agent_name.to_string(),
         })
     }
 }
@@ -62,26 +66,7 @@ impl Agent for LlmAgent {
         observation: &AgentObservation,
         fee_payer: Option<&String>,
     ) -> Result<AgentAction> {
-        // 1. Define the generation prompt, which provides static instructions to the LLM.
-        const GENERATION_PROMPT: &str = r#"Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.
-
----
-
-**SPECIAL INSTRUCTIONS FOR NATIVE SOL TRANSFERS**
-
-If the user requests a native SOL transfer, you MUST use the Solana System Program (`11111111111111111111111111111111`). The instruction `data` for a System Program transfer has a very specific format:
-
-1.  **Instruction Index (4 bytes):** The value `2` as a little-endian `u32`. This is always `[2, 0, 0, 0]`.
-2.  **Lamports (8 bytes):** The amount of lamports to transfer as a little-endian `u64`.
-
-**Example:** To send 0.1 SOL (which is 100,000,000 lamports):
-- The lamports value `100000000` as a little-endian `u64` is `[0, 225, 245, 5, 0, 0, 0, 0]`.
-- The full data byte array is `[2, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0]`.
-- You must base58 encode this byte array to create the `data` string. For this specific example, the result is `2Z4dY1Wp2j`.
-
-Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
-
-        // 2. Serialize the full context to YAML to create the context prompt.
+        // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
             "account_states": observation.account_states,
@@ -91,20 +76,20 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 
-        // 5. Create the final JSON payload for the API.
+        // 2. Create the final JSON payload for the API.
         let request_payload = json!({
-            "generation_prompt": GENERATION_PROMPT,
             "context_prompt": context_prompt,
             "prompt": prompt,
+            "model_name": self.model_name,
         });
 
-        // 6. Log the raw request for debugging.
+        // 3. Log the raw request for debugging.
         info!(
             "[LlmAgent] Sending raw request to LLM:\n{}",
             serde_json::to_string_pretty(&request_payload)?
         );
 
-        // 7. Send the request to the LLM API.
+        // 4. Send the request to the LLM API.
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
             request_builder = request_builder.header("X-API-Key", api_key);
@@ -115,7 +100,7 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
             .await
             .context("Failed to send request to LLM API")?;
 
-        // 8. Handle API errors.
+        // 5. Handle API errors.
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
@@ -124,13 +109,13 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
         info!("[LlmAgent] Received successful response from LLM.");
 
-        // 9. Deserialize the response and extract the raw instruction.
+        // 6. Deserialize the response and extract the raw instruction.
         let llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 10. Convert the raw instruction into a native `AgentAction` and return it.
+        // 7. Convert the raw instruction into a native `AgentAction` and return it.
         let action: AgentAction = llm_response.result.text.try_into()?;
 
         info!(

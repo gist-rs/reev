@@ -22,8 +22,27 @@ To run a specific benchmark, provide the path to the benchmark file.
 ### Example
 
 ```bash
-# From the root of the workspace, run the simple SOL transfer benchmark
+# Run the benchmark using the default deterministic agent (ground truth)
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+
+# Run the benchmark using the AI agent (e.g., Gemini)
+RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/001-sol-transfer.yml
+RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/002-spl-transfer.yml
 ```
+
+### Verifying Agent Execution
+
+The `reev-runner` automatically starts the `reev-agent` service in the background and directs its logs to `logs/reev-agent.log`. You can verify which agent logic was executed by checking this file.
+
+-   When running with `--agent ai`, the log will contain:
+    ```
+    INFO reev_agent::main: [reev-agent] Routing to AI Agent.
+    INFO reev_agent::main: [reev-agent] Running AI agent with Gemini...
+    ```
+
+-   When running with the default `deterministic` agent, the log will contain:
+    ```
+    INFO reev_agent::main: [reev-agent] Routing to Deterministic Agent (mock=true).
+    ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

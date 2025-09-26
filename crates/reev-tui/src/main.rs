@@ -11,7 +11,7 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{
         Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Wrap,
+        ScrollbarState, Tabs, Wrap,
     },
     Frame, Terminal,
 };
@@ -24,6 +24,7 @@ use std::{
     thread,
     time::Duration,
 };
+use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 
 #[derive(Clone, PartialEq, Debug)]
 enum BenchmarkStatus {
@@ -33,10 +34,44 @@ enum BenchmarkStatus {
     Failed,
 }
 
+#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq, Eq)]
+enum SelectedAgent {
+    #[default]
+    #[strum(to_string = " Deterministic ")]
+    Deterministic,
+    #[strum(to_string = " Gemini ")]
+    Gemini,
+    #[strum(to_string = " Local ")]
+    Local,
+}
+
+impl SelectedAgent {
+    fn to_agent_name(self) -> &'static str {
+        match self {
+            SelectedAgent::Deterministic => "deterministic",
+            SelectedAgent::Gemini => "gemini-2.5-pro",
+            SelectedAgent::Local => "local-model",
+        }
+    }
+
+    fn previous(self) -> Self {
+        let current_index: usize = self as usize;
+        let previous_index = current_index.saturating_sub(1);
+        Self::from_repr(previous_index).unwrap_or(self)
+    }
+
+    fn next(self) -> Self {
+        let current_index = self as usize;
+        let next_index = current_index.saturating_add(1);
+        Self::from_repr(next_index).unwrap_or(self)
+    }
+}
+
 #[derive(PartialEq, Clone, Copy)]
 enum ActivePanel {
     BenchmarkNavigator,
     ExecutionTrace,
+    AgentLog,
 }
 
 struct Benchmark<'a> {
@@ -54,7 +89,10 @@ enum TuiEvent {
 struct App<'a> {
     should_quit: bool,
     is_running_all: bool,
+    is_running_benchmark: bool,
     active_panel: ActivePanel,
+    show_log_panel: bool,
+    selected_agent: SelectedAgent,
     benchmarks: Vec<Benchmark<'a>>,
     benchmark_state: ListState,
     event_sender: Sender<TuiEvent>,
@@ -62,6 +100,10 @@ struct App<'a> {
     // Scroll state for the details/trace panels
     details_scroll: u16,
     details_scroll_state: ScrollbarState,
+    // Agent log viewer state
+    agent_log_content: Text<'a>,
+    log_scroll: u16,
+    log_scroll_state: ScrollbarState,
 }
 
 impl<'a> App<'a> {
@@ -76,13 +118,19 @@ impl<'a> App<'a> {
         Self {
             should_quit: false,
             is_running_all: false,
+            is_running_benchmark: false,
             active_panel: ActivePanel::BenchmarkNavigator,
+            show_log_panel: true,
+            selected_agent: SelectedAgent::default(),
             benchmarks,
             benchmark_state,
             event_sender,
             event_receiver,
             details_scroll: 0,
             details_scroll_state: ScrollbarState::default(),
+            agent_log_content: Text::from(""),
+            log_scroll: 0,
+            log_scroll_state: ScrollbarState::default(),
         }
     }
 
@@ -115,6 +163,7 @@ impl<'a> App<'a> {
     fn handle_tui_event(&mut self, event: TuiEvent) {
         match event {
             TuiEvent::BenchmarkStarted(index) => {
+                self.is_running_benchmark = true;
                 if let Some(benchmark) = self.benchmarks.get_mut(index) {
                     benchmark.status = BenchmarkStatus::Running;
                     benchmark.details = Text::from("Benchmark is running...");
@@ -122,6 +171,7 @@ impl<'a> App<'a> {
                 }
             }
             TuiEvent::BenchmarkCompleted(index, result) => {
+                self.is_running_benchmark = false;
                 if let Some(benchmark) = self.benchmarks.get_mut(index) {
                     match result {
                         Ok(test_result) => {
@@ -155,14 +205,32 @@ impl<'a> App<'a> {
         }
     }
 
-    fn on_run(&mut self) {
-        if let Some(selected_index) = self.benchmark_state.selected() {
-            if self.benchmarks[selected_index].status == BenchmarkStatus::Running {
-                return;
-            }
+    fn update_logs(&mut self) -> Result<()> {
+        let root = project_root::get_project_root()?;
+        let log_path = root.join("logs").join("reev-agent.log");
+        if log_path.exists() {
+            let content = fs::read_to_string(log_path)?;
+            self.agent_log_content = Text::from(content);
+        } else {
+            self.agent_log_content = Text::from("Log file not found at logs/reev-agent.log");
+        }
 
+        // Auto-scroll to the bottom of the logs.
+        let log_height = self.agent_log_content.height().saturating_sub(1) as u16;
+        self.log_scroll = log_height;
+
+        Ok(())
+    }
+
+    fn on_run(&mut self) {
+        if self.is_running_benchmark {
+            return;
+        }
+
+        if let Some(selected_index) = self.benchmark_state.selected() {
             let path = self.benchmarks[selected_index].path.clone();
             let sender = self.event_sender.clone();
+            let agent_name = self.selected_agent.to_agent_name();
 
             thread::spawn(move || {
                 sender
@@ -170,7 +238,7 @@ impl<'a> App<'a> {
                     .unwrap();
 
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let result = rt.block_on(reev_runner::run_benchmarks(path));
+                let result = rt.block_on(reev_runner::run_benchmarks(path, agent_name));
 
                 let final_result = match result {
                     Ok(mut results) => results
@@ -187,11 +255,21 @@ impl<'a> App<'a> {
     }
 
     fn on_run_all(&mut self) {
-        if !self.benchmarks.is_empty() {
-            self.is_running_all = true;
-            self.benchmark_state.select(Some(0));
-            self.on_run();
+        if self.is_running_benchmark || self.benchmarks.is_empty() {
+            return;
         }
+        self.is_running_all = true;
+        self.benchmark_state.select(Some(0));
+        self.on_run();
+    }
+
+    fn reset_benchmarks(&mut self) {
+        for benchmark in &mut self.benchmarks {
+            benchmark.status = BenchmarkStatus::Pending;
+            benchmark.result = None;
+            benchmark.details = Text::from("> This benchmark has not been run yet.");
+        }
+        self.reset_scroll();
     }
 
     fn on_up(&mut self) {
@@ -207,6 +285,20 @@ impl<'a> App<'a> {
         });
         self.benchmark_state.select(Some(i));
         self.reset_scroll();
+    }
+
+    fn on_left(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = self.selected_agent.previous();
+            self.reset_benchmarks();
+        }
+    }
+
+    fn on_right(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = self.selected_agent.next();
+            self.reset_benchmarks();
+        }
     }
 
     fn on_down(&mut self) {
@@ -227,7 +319,14 @@ impl<'a> App<'a> {
     fn on_tab(&mut self) {
         self.active_panel = match self.active_panel {
             ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
-            ActivePanel::ExecutionTrace => ActivePanel::BenchmarkNavigator,
+            ActivePanel::ExecutionTrace => {
+                if self.show_log_panel {
+                    ActivePanel::AgentLog
+                } else {
+                    ActivePanel::BenchmarkNavigator
+                }
+            }
+            ActivePanel::AgentLog => ActivePanel::BenchmarkNavigator,
         };
         self.reset_scroll();
     }
@@ -240,6 +339,7 @@ impl<'a> App<'a> {
 
     fn reset_scroll(&mut self) {
         self.details_scroll = 0;
+        self.log_scroll = 0;
     }
 
     fn scroll_down(&mut self) {
@@ -254,6 +354,23 @@ impl<'a> App<'a> {
 
     fn scroll_up(&mut self) {
         self.details_scroll = self.details_scroll.saturating_sub(1);
+    }
+
+    fn scroll_log_up(&mut self) {
+        self.log_scroll = self.log_scroll.saturating_sub(1);
+    }
+
+    fn scroll_log_down(&mut self) {
+        let content_height = self.agent_log_content.height().saturating_sub(1) as u16;
+        self.log_scroll = self.log_scroll.saturating_add(1).min(content_height);
+    }
+
+    fn on_toggle_log_panel(&mut self) {
+        self.show_log_panel = !self.show_log_panel;
+        // If the log panel was active and is now hidden, move focus
+        if !self.show_log_panel && self.active_panel == ActivePanel::AgentLog {
+            self.active_panel = ActivePanel::ExecutionTrace;
+        }
     }
 }
 
@@ -287,6 +404,7 @@ fn restore_terminal() -> Result<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     while !app.should_quit {
+        app.update_logs()?;
         terminal.draw(|f| ui(f, app))?;
         handle_events(app)?;
     }
@@ -304,8 +422,13 @@ fn handle_events(app: &mut App) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
-                    KeyCode::Char('r') => app.on_run(),
-                    KeyCode::Char('a') => app.on_run_all(),
+                    KeyCode::Left => app.on_left(),
+                    KeyCode::Right => app.on_right(),
+                    KeyCode::Char('l') => app.on_toggle_log_panel(),
+                    KeyCode::Char('r') | KeyCode::Enter if !app.is_running_benchmark => {
+                        app.on_run()
+                    }
+                    KeyCode::Char('a') if !app.is_running_benchmark => app.on_run_all(),
                     _ => match app.active_panel {
                         ActivePanel::BenchmarkNavigator => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.on_up(),
@@ -315,6 +438,11 @@ fn handle_events(app: &mut App) -> Result<()> {
                         ActivePanel::ExecutionTrace => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
                             KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+                            _ => {}
+                        },
+                        ActivePanel::AgentLog => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.scroll_log_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.scroll_log_down(),
                             _ => {}
                         },
                     },
@@ -329,13 +457,13 @@ fn ui(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
+            Constraint::Length(3),
             Constraint::Min(0),
             Constraint::Length(1),
         ])
         .split(f.area());
 
-    render_header(f, main_layout[0]);
+    render_header(f, app, main_layout[0]);
 
     let content_layout = Layout::default()
         .direction(Direction::Horizontal)
@@ -343,12 +471,50 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(main_layout[1]);
 
     render_benchmark_navigator(f, app, content_layout[0]);
-    render_trace_view(f, app, content_layout[1]);
+
+    if app.show_log_panel {
+        let right_panels_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(content_layout[1]);
+
+        render_trace_view(f, app, right_panels_layout[0]);
+        render_agent_log_view(f, app, right_panels_layout[1]);
+    } else {
+        render_trace_view(f, app, content_layout[1]);
+    }
+
     render_footer(f, main_layout[2]);
 }
 
-fn render_header(f: &mut Frame, area: Rect) {
-    f.render_widget(Paragraph::new(" Reev TUI "), area);
+fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
+    let titles = SelectedAgent::iter().map(|t| t.to_string());
+
+    let normal_style = Style::default().fg(Color::White);
+    let highlight_style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    let disabled_style = Style::default().fg(Color::DarkGray);
+
+    let tabs = Tabs::new(titles)
+        .block(
+            Block::default()
+                .title(" Reev TUI - Agent Selection ")
+                .borders(Borders::ALL),
+        )
+        .select(app.selected_agent as usize)
+        .style(if app.is_running_benchmark {
+            disabled_style
+        } else {
+            normal_style
+        })
+        .highlight_style(if app.is_running_benchmark {
+            disabled_style
+        } else {
+            highlight_style
+        });
+
+    f.render_widget(tabs, area);
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
@@ -450,14 +616,54 @@ fn render_trace_view(f: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
+fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
+    let border_style = if app.active_panel == ActivePanel::AgentLog {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+    let block = Block::default()
+        .title("C: Agent Log")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    let text = app.agent_log_content.clone();
+    let content_height = text.height();
+
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .scroll((app.log_scroll, 0));
+
+    f.render_widget(paragraph, area);
+
+    app.log_scroll_state = app
+        .log_scroll_state
+        .content_length(content_height)
+        .position(app.log_scroll as usize);
+
+    f.render_stateful_widget(
+        Scrollbar::new(ScrollbarOrientation::VerticalRight),
+        area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut app.log_scroll_state,
+    );
+}
+
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
-        Span::styled("[R]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UN "),
+        Span::styled("◄ ►", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" Agent | "),
+        Span::styled("[L]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("og | "),
+        Span::styled("[Enter/R]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("un | "),
         Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("LL "),
+        Span::raw("ll | "),
         Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("UIT "),
+        Span::raw("uit"),
     ])
     .alignment(ratatui::layout::Alignment::Center);
     f.render_widget(Paragraph::new(controls), area);

@@ -17,6 +17,10 @@ struct Cli {
     /// Path to a specific benchmark YAML file or a directory containing multiple benchmarks.
     #[arg(default_value = "benchmarks/")]
     path: PathBuf,
+
+    /// The agent to run the benchmarks with ('deterministic' for ground truth, 'ai' for the model).
+    #[arg(long, default_value = "deterministic")]
+    agent: String,
 }
 
 /// Initializes the OpenTelemetry pipeline for tracing.
@@ -63,7 +67,7 @@ async fn main() -> Result<()> {
     info!("--- Reev Evaluation Runner ---");
 
     // Run the benchmarks using the library function.
-    let results = reev_runner::run_benchmarks(cli.path).await?;
+    let results = reev_runner::run_benchmarks(cli.path, &cli.agent).await?;
 
     // Render the results.
     for result in &results {

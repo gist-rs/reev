@@ -26,6 +26,24 @@ pub struct RawAccountMeta {
     pub is_writable: bool,
 }
 
+impl From<Instruction> for RawInstruction {
+    fn from(instruction: Instruction) -> Self {
+        Self {
+            program_id: instruction.program_id.to_string(),
+            accounts: instruction
+                .accounts
+                .iter()
+                .map(|acc| RawAccountMeta {
+                    pubkey: acc.pubkey.to_string(),
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+                .collect(),
+            data: bs58::encode(instruction.data).into_string(),
+        }
+    }
+}
+
 /// A wrapper around a native Solana `Instruction` to represent a single, executable action by an agent.
 #[derive(Debug, Clone)]
 pub struct AgentAction(pub Instruction);
