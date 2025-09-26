@@ -17,7 +17,10 @@ use tracing::info;
 mod tools;
 use anyhow::{Context, Result};
 use rig::prelude::*;
-use rig::{completion::Prompt, providers};
+use rig::{
+    completion::Prompt,
+    providers::gemini::{self, completion::gemini_api_types::*},
+};
 use tools::{SolTransferTool, SplTransferTool};
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
@@ -25,10 +28,6 @@ use tools::{SolTransferTool, SplTransferTool};
 struct LlmRequest {
     prompt: String,
     context_prompt: String,
-    // The runner sends a `generation_prompt`, but it's ignored here.
-    // This field is accepted to prevent deserialization errors.
-    #[serde(default)]
-    generation_prompt: String,
 }
 
 /// The `text` field of the response, containing the raw instruction.
@@ -74,9 +73,11 @@ async fn generate_transaction(
     Json(payload): Json<LlmRequest>,
 ) -> Response {
     let result = if params.mock {
+        info!("[reev-agent] Routing to Deterministic Agent (mock=true).");
         // Route A: The Deterministic Agent (Ground Truth)
         run_deterministic_agent(payload).await
     } else {
+        info!("[reev-agent] Routing to AI Agent.");
         // Route B: The AI Agent (Subject)
         run_ai_agent(payload).await
     };
@@ -97,15 +98,23 @@ async fn generate_transaction(
 
 /// Executes the AI agent logic using the `rig` crate.
 async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
-    info!("[reev-agent] Running AI agent...");
+    info!("[reev-agent] Running AI agent with Gemini...");
 
-    // 1. Initialize rig client for a local LLM provider.
-    let client = providers::ollama::Client::new();
+    // 1. Initialize the Google Gemini client from environment variables.
+    let client = gemini::Client::from_env();
+
+    // Configure generation parameters for reproducibility and deterministic tool selection.
+    let gen_cfg = GenerationConfig {
+        temperature: Some(0.0),
+        ..Default::default()
+    };
+    let cfg = AdditionalParameters::default().with_config(gen_cfg);
 
     // 2. Build the rig agent with a system preamble and our custom tools.
     let agent = client
-        .agent("qwen2:7b-instruct-q8_0") // This model name can be configured via environment variables later.
+        .agent("gemini-2.5-flash-lite") // Use a Gemini model that supports tool calling.
         .preamble("You are a helpful Solana assistant. Your goal is to generate the correct transaction to fulfill the user's request by using the provided tools. You must select the appropriate tool and provide all required parameters based on the on-chain context provided. Do not ask for clarification.")
+        .additional_params(serde_json::to_value(cfg)?)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
         .build();

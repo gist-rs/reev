@@ -29,3 +29,9 @@ tracing = { workspace = true }
 rig-core = { version = "0.20.0" }
 async-trait = "0.1"
 thiserror = "1.0"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde_yaml = "0.9"
+dotenvy = "0.15"
+tracing-subscriber = "0.3"

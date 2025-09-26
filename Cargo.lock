@@ -3543,8 +3543,10 @@ dependencies = [
  "async-trait",
  "axum",
  "bs58",
+ "dotenvy",
  "reev-lib",
  "regex",
+ "reqwest",
  "rig-core",
  "serde",
  "serde_json",
@@ -3555,6 +3557,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

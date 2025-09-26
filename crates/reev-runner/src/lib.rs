@@ -90,10 +90,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         return Ok(vec![]);
     }
 
-    // Only start the reev-agent service if we're using the deterministic agent.
-    if agent_name == "deterministic" {
-        let _agent_guard = start_agent().await?;
-    }
+    // Start the reev-agent service. The `_agent_guard` will ensure it's
+    // shut down when this function returns, keeping the service alive for all benchmarks.
+    let _agent_guard = start_agent().await?;
 
     let db = db::Db::new("db/reev_results.db").await?;
     let mut results = vec![];
