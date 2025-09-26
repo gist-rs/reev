@@ -25,6 +25,10 @@ use tools::{SolTransferTool, SplTransferTool};
 struct LlmRequest {
     prompt: String,
     context_prompt: String,
+    // The runner sends a `generation_prompt`, but it's ignored here.
+    // This field is accepted to prevent deserialization errors.
+    #[serde(default)]
+    generation_prompt: String,
 }
 
 /// The `text` field of the response, containing the raw instruction.

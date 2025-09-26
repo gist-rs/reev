@@ -62,26 +62,7 @@ impl Agent for LlmAgent {
         observation: &AgentObservation,
         fee_payer: Option<&String>,
     ) -> Result<AgentAction> {
-        // 1. Define the generation prompt, which provides static instructions to the LLM.
-        const GENERATION_PROMPT: &str = r#"Your task is to generate a raw Solana instruction in JSON format based on the user's request and the provided on-chain context. Your response must be a JSON object with `program_id`, `accounts`, and `data` keys. Each account in the `accounts` array must have `pubkey`, `is_signer`, and `is_writable` fields. The `data` field must be a valid base58 encoded string.
-
----
-
-**SPECIAL INSTRUCTIONS FOR NATIVE SOL TRANSFERS**
-
-If the user requests a native SOL transfer, you MUST use the Solana System Program (`11111111111111111111111111111111`). The instruction `data` for a System Program transfer has a very specific format:
-
-1.  **Instruction Index (4 bytes):** The value `2` as a little-endian `u32`. This is always `[2, 0, 0, 0]`.
-2.  **Lamports (8 bytes):** The amount of lamports to transfer as a little-endian `u64`.
-
-**Example:** To send 0.1 SOL (which is 100,000,000 lamports):
-- The lamports value `100000000` as a little-endian `u64` is `[0, 225, 245, 5, 0, 0, 0, 0]`.
-- The full data byte array is `[2, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0]`.
-- You must base58 encode this byte array to create the `data` string. For this specific example, the result is `2Z4dY1Wp2j`.
-
-Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
-
-        // 2. Serialize the full context to YAML to create the context prompt.
+        // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
             "account_states": observation.account_states,
@@ -91,20 +72,19 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 
-        // 5. Create the final JSON payload for the API.
+        // 2. Create the final JSON payload for the API.
         let request_payload = json!({
-            "generation_prompt": GENERATION_PROMPT,
             "context_prompt": context_prompt,
             "prompt": prompt,
         });
 
-        // 6. Log the raw request for debugging.
+        // 3. Log the raw request for debugging.
         info!(
             "[LlmAgent] Sending raw request to LLM:\n{}",
             serde_json::to_string_pretty(&request_payload)?
         );
 
-        // 7. Send the request to the LLM API.
+        // 4. Send the request to the LLM API.
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
             request_builder = request_builder.header("X-API-Key", api_key);
@@ -115,7 +95,7 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
             .await
             .context("Failed to send request to LLM API")?;
 
-        // 8. Handle API errors.
+        // 5. Handle API errors.
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
@@ -124,13 +104,13 @@ Your `data` field for a 0.1 SOL transfer must be exactly "2Z4dY1Wp2j"."#;
 
         info!("[LlmAgent] Received successful response from LLM.");
 
-        // 9. Deserialize the response and extract the raw instruction.
+        // 6. Deserialize the response and extract the raw instruction.
         let llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 10. Convert the raw instruction into a native `AgentAction` and return it.
+        // 7. Convert the raw instruction into a native `AgentAction` and return it.
         let action: AgentAction = llm_response.result.text.try_into()?;
 
         info!(
