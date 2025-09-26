@@ -25,6 +25,7 @@ impl LlmAgent {
         let base_url = std::env::var("LLM_API_URL")
             .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
         info!("[LlmAgent] Using base URL: {base_url}");
+        info!("[LlmAgent] Received agent_name: '{agent_name}'");
 
         // Append `?mock=true` if the deterministic agent is selected.
         let api_url = if agent_name == "deterministic" {
@@ -33,6 +34,7 @@ impl LlmAgent {
             base_url
         };
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
+        info!("[LlmAgent] Model name being sent in payload: '{agent_name}'");
 
         // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {

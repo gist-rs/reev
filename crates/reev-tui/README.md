@@ -15,7 +15,7 @@
 To run the TUI, execute the following command from the **root of the `reev` workspace**:
 
 ```sh
-cargo run -p reev-tui
+RUST_LOG=info cargo run -p reev-tui
 ```
 
 It is important to run this from the workspace root so that the TUI can correctly locate the `benchmarks/` directory.

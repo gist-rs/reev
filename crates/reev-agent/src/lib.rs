@@ -108,7 +108,16 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 
     info!("[reev-agent] Raw response from agent tool call: {response_str}");
 
-    let raw_instruction: RawInstruction = serde_json::from_str(&response_str)
+    // Clean the response: trim whitespace and remove markdown code blocks.
+    let cleaned_response = response_str
+        .trim()
+        .strip_prefix("```json")
+        .unwrap_or(&response_str)
+        .strip_suffix("```")
+        .unwrap_or(&response_str)
+        .trim();
+
+    let raw_instruction: RawInstruction = serde_json::from_str(cleaned_response)
         .context("Failed to deserialize RawInstruction from AI agent tool response")?;
 
     let response = LlmResponse {

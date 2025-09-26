@@ -27,6 +27,7 @@ RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
 
 # Run the benchmark using the AI agent (e.g., Gemini)
 RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/001-sol-transfer.yml
+RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/002-spl-transfer.yml
 ```
 
 ### Verifying Agent Execution

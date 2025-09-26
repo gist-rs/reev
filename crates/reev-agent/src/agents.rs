@@ -11,13 +11,12 @@ use crate::{
     LlmRequest,
 };
 
-const SYSTEM_PREAMBLE: &str = "You are a helpful Solana assistant. Your goal is to generate a single, valid Solana transaction instruction in JSON format to fulfill the user's request.
-- Analyze the user's request and the provided on-chain context.
-- Select the appropriate tool (`sol_transfer` for native SOL, `spl_transfer` for tokens).
-- Provide all required parameters to the tool from the context.
-- The tool will return a JSON object representing the transaction instruction.
-- Your final output should be ONLY the JSON object returned by the tool. Do not add any other text, explanations, or formatting.
-- After the tool returns the JSON, your task is complete. Do not call any other tools or attempt any further actions.";
+const SYSTEM_PREAMBLE: &str = "You are a helpful Solana assistant. Your goal is to generate a single, valid Solana transaction instruction in JSON format.
+- Analyze the user's request and on-chain context.
+- You MUST call a tool, and you MUST only call it ONCE.
+- Select the correct tool (`sol_transfer` or `spl_transfer`) and provide its parameters.
+- The tool will return a JSON object.
+- Your final output MUST be ONLY the raw JSON from the tool, starting with `{` and ending with `}`. Do not include `json` block quotes or any other text.";
 
 /// Dispatches the request to the appropriate agent based on the model name.
 pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
