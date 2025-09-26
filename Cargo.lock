@@ -3600,6 +3600,7 @@ dependencies = [
  "opentelemetry-appender-tracing",
  "opentelemetry-stdout",
  "opentelemetry_sdk",
+ "project-root",
  "reev-lib",
  "reqwest",
  "serde_json",

@@ -10,6 +10,7 @@ pub struct LlmAgent {
     client: Client,
     api_url: String,
     api_key: Option<String>,
+    model_name: String,
 }
 
 impl LlmAgent {
@@ -49,6 +50,7 @@ impl LlmAgent {
             client: Client::new(),
             api_url,
             api_key,
+            model_name: agent_name.to_string(),
         })
     }
 }
@@ -76,6 +78,7 @@ impl Agent for LlmAgent {
         let request_payload = json!({
             "context_prompt": context_prompt,
             "prompt": prompt,
+            "model_name": self.model_name,
         });
 
         // 3. Log the raw request for debugging.

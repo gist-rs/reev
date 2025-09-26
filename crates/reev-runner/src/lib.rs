@@ -47,8 +47,13 @@ async fn start_agent() -> Result<AgentProcessGuard> {
 
     info!(log_path = %log_file_path.display(), "Starting reev-agent...");
 
+    let workspace_root =
+        project_root::get_project_root().context("Failed to find workspace root")?;
+    info!("Spawning agent from workspace root: {:?}", workspace_root);
+
     let agent_process = Command::new("cargo")
         .args(["run", "-p", "reev-agent"])
+        .current_dir(&workspace_root)
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(stderr_log))
         .spawn()

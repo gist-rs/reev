@@ -49,8 +49,8 @@ impl SelectedAgent {
     fn to_agent_name(self) -> &'static str {
         match self {
             SelectedAgent::Deterministic => "deterministic",
-            SelectedAgent::Gemini => "gemini",
-            SelectedAgent::Local => "ai",
+            SelectedAgent::Gemini => "gemini-pro",
+            SelectedAgent::Local => "local-model",
         }
     }
 
@@ -71,6 +71,7 @@ impl SelectedAgent {
 enum ActivePanel {
     BenchmarkNavigator,
     ExecutionTrace,
+    AgentLog,
 }
 
 struct Benchmark<'a> {
@@ -98,6 +99,10 @@ struct App<'a> {
     // Scroll state for the details/trace panels
     details_scroll: u16,
     details_scroll_state: ScrollbarState,
+    // Agent log viewer state
+    agent_log_content: Text<'a>,
+    log_scroll: u16,
+    log_scroll_state: ScrollbarState,
 }
 
 impl<'a> App<'a> {
@@ -121,6 +126,9 @@ impl<'a> App<'a> {
             event_receiver,
             details_scroll: 0,
             details_scroll_state: ScrollbarState::default(),
+            agent_log_content: Text::from(""),
+            log_scroll: 0,
+            log_scroll_state: ScrollbarState::default(),
         }
     }
 
@@ -195,6 +203,18 @@ impl<'a> App<'a> {
         }
     }
 
+    fn update_logs(&mut self) -> Result<()> {
+        let root = project_root::get_project_root()?;
+        let log_path = root.join("logs").join("reev-agent.log");
+        if log_path.exists() {
+            let content = fs::read_to_string(log_path)?;
+            self.agent_log_content = Text::from(content);
+        } else {
+            self.agent_log_content = Text::from("Log file not found at logs/reev-agent.log");
+        }
+        Ok(())
+    }
+
     fn on_run(&mut self) {
         if self.is_running_benchmark {
             return;
@@ -236,6 +256,15 @@ impl<'a> App<'a> {
         self.on_run();
     }
 
+    fn reset_benchmarks(&mut self) {
+        for benchmark in &mut self.benchmarks {
+            benchmark.status = BenchmarkStatus::Pending;
+            benchmark.result = None;
+            benchmark.details = Text::from("> This benchmark has not been run yet.");
+        }
+        self.reset_scroll();
+    }
+
     fn on_up(&mut self) {
         if self.benchmarks.is_empty() {
             return;
@@ -254,12 +283,14 @@ impl<'a> App<'a> {
     fn on_left(&mut self) {
         if !self.is_running_benchmark {
             self.selected_agent = self.selected_agent.previous();
+            self.reset_benchmarks();
         }
     }
 
     fn on_right(&mut self) {
         if !self.is_running_benchmark {
             self.selected_agent = self.selected_agent.next();
+            self.reset_benchmarks();
         }
     }
 
@@ -281,7 +312,8 @@ impl<'a> App<'a> {
     fn on_tab(&mut self) {
         self.active_panel = match self.active_panel {
             ActivePanel::BenchmarkNavigator => ActivePanel::ExecutionTrace,
-            ActivePanel::ExecutionTrace => ActivePanel::BenchmarkNavigator,
+            ActivePanel::ExecutionTrace => ActivePanel::AgentLog,
+            ActivePanel::AgentLog => ActivePanel::BenchmarkNavigator,
         };
         self.reset_scroll();
     }
@@ -294,6 +326,7 @@ impl<'a> App<'a> {
 
     fn reset_scroll(&mut self) {
         self.details_scroll = 0;
+        self.log_scroll = 0;
     }
 
     fn scroll_down(&mut self) {
@@ -308,6 +341,15 @@ impl<'a> App<'a> {
 
     fn scroll_up(&mut self) {
         self.details_scroll = self.details_scroll.saturating_sub(1);
+    }
+
+    fn scroll_log_up(&mut self) {
+        self.log_scroll = self.log_scroll.saturating_sub(1);
+    }
+
+    fn scroll_log_down(&mut self) {
+        let content_height = self.agent_log_content.height().saturating_sub(1) as u16;
+        self.log_scroll = self.log_scroll.saturating_add(1).min(content_height);
     }
 }
 
@@ -341,6 +383,7 @@ fn restore_terminal() -> Result<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     while !app.should_quit {
+        app.update_logs()?;
         terminal.draw(|f| ui(f, app))?;
         handle_events(app)?;
     }
@@ -373,6 +416,11 @@ fn handle_events(app: &mut App) -> Result<()> {
                             KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
                             _ => {}
                         },
+                        ActivePanel::AgentLog => match key.code {
+                            KeyCode::Up | KeyCode::Char('k') => app.scroll_log_up(),
+                            KeyCode::Down | KeyCode::Char('j') => app.scroll_log_down(),
+                            _ => {}
+                        },
                     },
                 }
             }
@@ -399,7 +447,15 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(main_layout[1]);
 
     render_benchmark_navigator(f, app, content_layout[0]);
-    render_trace_view(f, app, content_layout[1]);
+
+    let right_panels_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(content_layout[1]);
+
+    render_trace_view(f, app, right_panels_layout[0]);
+    render_agent_log_view(f, app, right_panels_layout[1]);
+
     render_footer(f, main_layout[2]);
 }
 
@@ -529,6 +585,42 @@ fn render_trace_view(f: &mut Frame, app: &mut App, area: Rect) {
         area,
         "B: Execution Trace View",
         app.active_panel == ActivePanel::ExecutionTrace,
+    );
+}
+
+fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
+    let border_style = if app.active_panel == ActivePanel::AgentLog {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default()
+    };
+    let block = Block::default()
+        .title("C: Agent Log")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    let text = app.agent_log_content.clone();
+    let content_height = text.height();
+
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .scroll((app.log_scroll, 0));
+
+    f.render_widget(paragraph, area);
+
+    app.log_scroll_state = app
+        .log_scroll_state
+        .content_length(content_height)
+        .position(app.log_scroll as usize);
+
+    f.render_stateful_widget(
+        Scrollbar::new(ScrollbarOrientation::VerticalRight),
+        area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut app.log_scroll_state,
     );
 }
 
