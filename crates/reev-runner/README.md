@@ -57,6 +57,12 @@ To execute all tests within the `reev-runner` package, use the following command
 cargo test -p reev-runner
 ```
 
+To see detailed log output for each test case as it runs, add the `--nocapture` flag (note the extra `--`):
+
+```sh
+cargo test -p reev-runner -- --nocapture
+```
+
 ### Scoring Logic Unit Test (`scoring_test.rs`)
 
 This is a focused unit test to verify that the `calculate_score` function works as expected. It uses a small, fixed set of benchmarks to check for clear pass (`1.0`) and fail (`0.0`) scenarios.
@@ -68,13 +74,18 @@ cargo test -p reev-runner --test scoring_test
 
 ### Benchmark Integration Test (`benchmarks_test.rs`)
 
-This is a sanity-check test that dynamically discovers and runs **every benchmark file** in the `benchmarks/` directory. For each benchmark, it simulates a "perfect agent" and asserts that the final score is `1.0`.
+This is a sanity-check test that dynamically discovers and runs **every solvable benchmark file** in the `benchmarks/` directory. For each benchmark, it simulates a "perfect agent" and asserts that the final score is `1.0`.
 
 This test is crucial for ensuring that all benchmarks are correctly configured and are "winnable." If this test fails, it indicates a problem with the benchmark's definition, not an agent's performance.
 
 To run only this test:
 ```sh
 cargo test -p reev-runner --test benchmarks_test
+```
+
+To see the detailed log output for each benchmark case, which is very useful for debugging, add the `--nocapture` flag:
+```sh
+cargo test -p reev-runner --test benchmarks_test -- --nocapture
 ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

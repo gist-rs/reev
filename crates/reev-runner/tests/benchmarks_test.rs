@@ -23,6 +23,7 @@ use project_root::get_project_root;
 use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
 use rstest::rstest;
 use std::path::PathBuf;
+use tracing::info;
 
 use common::{mock_perfect_instruction, setup_env_for_benchmark};
 
@@ -57,20 +58,51 @@ async fn test_all_benchmarks_are_solvable(
     #[values(find_benchmark_files())] benchmark_paths: Vec<PathBuf>,
 ) -> Result<()> {
     for benchmark_path in benchmark_paths {
+        // Initialize tracing for this test to ensure logs are captured when using `--nocapture`.
+        let _ = tracing_subscriber::fmt::try_init();
+
+        info!(
+            "--- Starting test for benchmark: {} ---",
+            benchmark_path.display()
+        );
+
         // 1. Set up the environment from the benchmark file.
         let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
+        info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Create the "perfect" action for this benchmark.
         let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
         let action = AgentAction(instruction);
+        info!("✅ Mock instruction created for {}", test_case.id);
 
         // 3. Execute the transaction in the environment.
         let step_result = env.step(action, &test_case.ground_truth)?;
+        info!(
+            "✅ Transaction executed for {}. Status: {}",
+            test_case.id, step_result.observation.last_transaction_status
+        );
 
         // 4. Calculate the score.
         let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
+        info!(
+            "📊 Calculated score for '{}': {}",
+            benchmark_path.display(),
+            score
+        );
 
         // 5. Assert that the benchmark is solvable with a perfect score.
+        if score == 1.0 {
+            info!(
+                "✅ PASS: Benchmark '{}' is solvable.",
+                benchmark_path.display()
+            );
+        } else {
+            info!(
+                "❌ FAIL: Benchmark '{}' is not solvable.",
+                benchmark_path.display()
+            );
+        }
+
         assert_eq!(
             score,
             1.0,
@@ -78,8 +110,8 @@ async fn test_all_benchmarks_are_solvable(
             benchmark_path.display(),
             score
         );
-
         env.close()?;
     }
+
     Ok(())
 }
