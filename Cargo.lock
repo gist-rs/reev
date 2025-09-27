@@ -3730,6 +3730,7 @@ dependencies = [
  "bs58",
  "clap",
  "dotenvy",
+ "jupiter-lend",
  "jupiter-swap-api-client",
  "reev-lib",
  "regex",

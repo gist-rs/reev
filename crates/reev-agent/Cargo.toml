@@ -25,6 +25,7 @@ spl-token = { workspace = true }
 serde_yaml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+jupiter-lend = { path = "../../protocols/jupiter/jupiter-lend" }
 dotenvy = "0.15"
 
 # Correct rig dependencies
