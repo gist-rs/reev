@@ -17,7 +17,9 @@ pub mod lend;
 mod serde_helpers;
 mod transaction_config;
 
-use lend::{JupiterLendApiClient, LendQuoteRequest, LendRequest};
+// Re-exporting the client for easier use in examples.
+pub use lend::JupiterLendApiClient;
+use lend::{LendQuoteRequest, LendRequest};
 use transaction_config::TransactionConfig;
 
 /// The shared state for our application, primarily holding the API client.
@@ -26,13 +28,15 @@ struct AppState {
     jupiter_client: Arc<JupiterLendApiClient>,
 }
 
-/// Defines the structure of the JSON payload for a lend request.
+/// Defines the structure of the JSON payload for a lend request from the client.
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct LendApiRequest {
     user_public_key: String,
     input_mint: String,
+    output_mint: String,
     amount: u64,
+    slippage_bps: u16,
 }
 
 /// Defines the structure of a successful JSON response, containing the transaction.
@@ -64,7 +68,7 @@ async fn build_lend_transaction(
             error!("Invalid user_public_key format: {}", e);
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Invalid user_public_key" })),
+                Json(serde_json::json!({ "error": format!("Invalid user_public_key: {}", e) })),
             )
                 .into_response();
         }
@@ -75,7 +79,18 @@ async fn build_lend_transaction(
             error!("Invalid input_mint format: {}", e);
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Invalid input_mint" })),
+                Json(serde_json::json!({ "error": format!("Invalid input_mint: {}", e) })),
+            )
+                .into_response();
+        }
+    };
+    let output_mint = match payload.output_mint.parse::<Pubkey>() {
+        Ok(key) => key,
+        Err(e) => {
+            error!("Invalid output_mint format: {}", e);
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": format!("Invalid output_mint: {}", e) })),
             )
                 .into_response();
         }
@@ -85,6 +100,8 @@ async fn build_lend_transaction(
     let quote_request = LendQuoteRequest {
         amount: payload.amount,
         input_mint,
+        output_mint,
+        slippage_bps: payload.slippage_bps,
     };
 
     let quote_response = match state.jupiter_client.quote(&quote_request).await {
@@ -132,8 +149,10 @@ async fn build_lend_transaction(
 /// and starts listening for incoming HTTP requests.
 pub async fn run_server() -> Result<()> {
     // The base URL for the Jupiter API.
-    // TODO: Make this configurable via environment variables.
-    let api_base_url = "https://quote-api.jup.ag/v6".to_string();
+    // NOTE: This is the swap API, as lending is treated as a swap to a deposit receipt token.
+    let api_base_url =
+        std::env::var("API_BASE_URL").unwrap_or_else(|_| "https://quote-api.jup.ag/v6".to_string());
+    info!("Using Jupiter API base URL: {}", api_base_url);
 
     // Create a shared instance of the Jupiter Lend API client.
     let jupiter_client = Arc::new(JupiterLendApiClient::new(api_base_url));

@@ -2,10 +2,14 @@ use anyhow::{Context, Result};
 use jupiter_lend::run_server;
 use serde::Deserialize;
 use serde_json::json;
+use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint::ID as NATIVE_MINT;
 use std::{fs::File, path::PathBuf, time::Duration};
 use tracing::info;
+
+/// The mainnet JitoSOL mint address. Lending SOL is treated as swapping SOL for a receipt token, like an LST.
+const JITOSOL_MINT: Pubkey = pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn");
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -21,7 +25,8 @@ struct TestCase {
 /// 2. Waits for the server to become healthy.
 /// 3. Loads the `110-jup-lend-sol.yml` benchmark file.
 /// 4. Creates a mock `user_public_key`.
-/// 5. Sends a POST request to the `jupiter-lend` server to build the transaction.
+/// 5. Sends a POST request to the `jupiter-lend` server to build the transaction,
+///    treating the "lend" as a swap from native SOL to JitoSOL.
 /// 6. Prints the server's JSON response to the console.
 ///
 /// # How to Run
@@ -38,8 +43,6 @@ async fn main() -> Result<()> {
     info!("--- Running Jupiter Lend SOL Example ---");
 
     // 1. Spawn the server in a background task.
-    // This assumes `jupiter-lend` crate is refactored to expose `run_server`
-    // and is included as a dependency in `reev-agent`.
     tokio::spawn(async {
         if let Err(e) = run_server().await {
             eprintln!("[reev-agent-example] Jupiter Lend server failed: {e}");
@@ -48,7 +51,6 @@ async fn main() -> Result<()> {
 
     // 2. Wait for the server to be healthy before proceeding.
     let client = reqwest::Client::new();
-    // This assumes the server will be at port 3000 and have a health endpoint.
     let health_url = "http://127.0.0.1:3000/health";
     info!("Waiting for Jupiter Lend server to start...");
     loop {
@@ -80,10 +82,13 @@ async fn main() -> Result<()> {
 
     // 5. Construct the JSON payload for the jupiter-lend server.
     // The prompt is "Lend 1 SOL..." which is 1,000,000,000 lamports.
+    // We treat this as a swap to an LST like JitoSOL.
     let request_payload = json!({
         "userPublicKey": user_wallet_pubkey.to_string(),
         "inputMint": NATIVE_MINT.to_string(),
+        "outputMint": JITOSOL_MINT.to_string(),
         "amount": 1_000_000_000u64,
+        "slippageBps": 50, // 0.5% slippage
     });
     info!(
         "Request payload:\n{}",

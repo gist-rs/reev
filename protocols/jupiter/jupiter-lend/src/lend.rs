@@ -1,3 +1,4 @@
+
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -14,9 +15,13 @@ use crate::transaction_config::TransactionConfig;
 pub struct LendQuoteRequest {
     #[serde(with = "serde_helpers::field_as_string")]
     pub input_mint: Pubkey,
+    #[serde(with = "serde_helpers::field_as_string")]
+    pub output_mint: Pubkey,
     /// The amount to lend, in the smallest unit of the token.
     #[serde(with = "serde_helpers::field_as_string")]
     pub amount: u64,
+    /// Slippage tolerance in basis points.
+    pub slippage_bps: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -27,13 +32,22 @@ pub struct QuoteResponse {
     #[serde(with = "serde_helpers::field_as_string")]
     pub in_amount: u64,
     #[serde(with = "serde_helpers::field_as_string")]
-    pub output_mint: Pubkey, // This would be the "receipt" or "lending" token
+    pub output_mint: Pubkey,
     #[serde(with = "serde_helpers::field_as_string")]
     pub out_amount: u64,
     #[serde(default)]
     pub context_slot: u64,
     #[serde(default)]
     pub time_taken: f64,
+    // Note: A real QuoteResponse from Jupiter has many more fields.
+    // This is a simplified version for this example.
+    // We need to add `routePlan` for the swap call to work.
+    pub route_plan: serde_json::Value,
+    #[serde(with = "serde_helpers::field_as_string")]
+    pub other_amount_threshold: u64,
+    pub swap_mode: String,
+    pub slippage_bps: u16,
+    pub price_impact_pct: String,
 }
 
 // --- Structs for Lend Transaction ---
@@ -118,7 +132,7 @@ impl JupiterLendApiClient {
         Self { base_path }
     }
 
-    /// Gets a quote for a lending operation
+    /// Gets a quote for a lending operation by treating it as a swap.
     pub async fn quote(
         &self,
         quote_request: &LendQuoteRequest,
@@ -128,13 +142,29 @@ impl JupiterLendApiClient {
         check_status_code_and_deserialize(response).await
     }
 
-    /// Gets a transaction for a lending operation
+    /// Gets a transaction for a lending operation.
+    /// This is effectively a swap transaction from the input mint to the deposit receipt mint.
     pub async fn lend(&self, lend_request: &LendRequest) -> Result<LendResponse, ClientError> {
         let response = Client::new()
-            .post(format!("{}/lend-transaction", self.base_path))
+            .post(format!("{}/swap", self.base_path)) // Using the /swap endpoint
             .json(lend_request)
             .send()
             .await?;
-        check_status_code_and_deserialize(response).await
+
+        // The /swap endpoint returns a SwapResponse, so we deserialize that
+        // and convert it to our LendResponse.
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SwapResponse {
+            #[serde(with = "base64_serialize_deserialize")]
+            swap_transaction: Vec<u8>,
+            last_valid_block_height: u64,
+        }
+
+        let swap_response: SwapResponse = check_status_code_and_deserialize(response).await?;
+        Ok(LendResponse {
+            lend_transaction: swap_response.swap_transaction,
+            last_valid_block_height: swap_response.last_valid_block_height,
+        })
     }
 }

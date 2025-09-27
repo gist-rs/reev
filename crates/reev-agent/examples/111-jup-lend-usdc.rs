@@ -10,6 +10,11 @@ use tracing::info;
 /// The mainnet USDC mint address.
 const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
+/// A representative deposit receipt token for USDC.
+/// For this example, we'll use USDT, as swapping one stablecoin for another
+/// follows the same API pattern as swapping for a lending receipt token.
+const USDT_MINT: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
+
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
 struct TestCase {
@@ -20,7 +25,7 @@ struct TestCase {
 /// A standalone example to make a direct API call for the '111-jup-lend-usdc' scenario.
 ///
 /// This example does the following:
-/// 1. Spawns the `jupiter-lend` server in a background task.
+/// 1. Spowns the `jupiter-lend` server in a background task.
 /// 2. Waits for the server to become healthy.
 /// 3. Loads the `111-jup-lend-usdc.yml` benchmark file.
 /// 4. Creates a mock `user_public_key`.
@@ -80,10 +85,13 @@ async fn main() -> Result<()> {
 
     // 5. Construct the JSON payload for the jupiter-lend server.
     // The prompt is "Lend 100 USDC..." which is 100,000,000 in the smallest unit (6 decimals).
+    // We treat this as a swap from USDC to another token (like USDT or a deposit receipt token).
     let request_payload = json!({
         "userPublicKey": user_wallet_pubkey.to_string(),
         "inputMint": USDC_MINT.to_string(),
+        "outputMint": USDT_MINT.to_string(),
         "amount": 100_000_000u64,
+        "slippageBps": 50, // 0.5% slippage
     });
     info!(
         "Request payload:\n{}",
