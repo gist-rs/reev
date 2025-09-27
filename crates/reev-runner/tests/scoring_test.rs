@@ -22,7 +22,7 @@ use project_root::get_project_root;
 use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
 use rstest::rstest;
 
-use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
+use common::helpers::{mock_perfect_instruction, setup_spl_benchmark};
 
 /// A focused unit test for the `calculate_score` function.
 ///
@@ -50,9 +50,11 @@ async fn test_scoring_logic(
     #[case] description: &str,
 ) -> Result<()> {
     // 1. Set up the environment from the benchmark file.
+    // NOTE: We use the specialized `setup_spl_benchmark` because both test cases
+    // in this suite are SPL token benchmarks and require correct ATA derivation.
     let project_root = get_project_root()?;
     let benchmark_path = project_root.join(file_path);
-    let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
+    let (mut env, test_case, initial_observation) = setup_spl_benchmark(&benchmark_path).await?;
 
     // 2. Create the "perfect" action for this benchmark.
     let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;

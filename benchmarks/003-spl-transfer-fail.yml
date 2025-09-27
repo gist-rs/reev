@@ -17,13 +17,19 @@ initial_state:
   - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
     lamports: 2039280 # Rent
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "USER_WALLET_PUBKEY", "amount": 10000000}' # 10 USDC
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "10000000" # 10 USDC
 
   # Recipient's Associated Token Account (ATA) for REAL USDC.
   - pubkey: "RECIPIENT_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
     lamports: 2039280 # Rent
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "RECIPIENT_WALLET_PUBKEY"
+      amount: "0"
 
 prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
 
