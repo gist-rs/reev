@@ -23,7 +23,11 @@ pub enum StateAssertion {
     TokenAccountBalance {
         pubkey: String,
         /// The exact expected token balance (in the smallest unit, e.g., token atoms).
-        expected: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected: Option<u64>,
+        /// Asserts the balance is greater than or equal to this value.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_gte: Option<u64>,
     },
     /// Asserts that the SOL balance of an account has changed by at least a certain amount.
     /// This is useful for tasks where the exact final balance is unknown due to fees.

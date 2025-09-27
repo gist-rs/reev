@@ -58,43 +58,63 @@ pub fn calculate_score(
                     false
                 }
             }
-            StateAssertion::TokenAccountBalance { pubkey, expected } => {
-                if let Some(account_state) = final_observation.account_states.get(pubkey) {
-                    if let Some(actual) = account_state.get("amount").and_then(|v| v.as_u64()) {
-                        if actual == *expected {
-                            debug!(
-                                pubkey,
-                                expected, actual, "TokenAccountBalance assertion PASSED"
-                            );
-                            true
-                        } else {
-                            debug!(
-                                pubkey,
-                                expected, actual, "TokenAccountBalance assertion FAILED"
-                            );
-                            false
-                        }
+            StateAssertion::TokenAccountBalance {
+                pubkey,
+                expected,
+                expected_gte,
+            } => {
+                let actual = final_observation
+                    .account_states
+                    .get(pubkey)
+                    .and_then(|account_state| {
+                        account_state.get("amount").and_then(|v| {
+                            v.as_u64()
+                                .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+                        })
+                    })
+                    .unwrap_or(0);
+
+                let mut all_passed = true;
+
+                if let Some(expected_val) = expected {
+                    if actual != *expected_val {
+                        debug!(
+                            pubkey,
+                            expected = expected_val,
+                            actual,
+                            "TokenAccountBalance `expected` assertion FAILED"
+                        );
+                        all_passed = false;
                     } else {
                         debug!(
                             pubkey,
-                            expected, "TokenAccountBalance assertion FAILED: amount not found"
+                            expected = expected_val,
+                            actual,
+                            "TokenAccountBalance `expected` assertion PASSED"
                         );
-                        false
                     }
-                } else if *expected == 0 {
-                    // If the token account doesn't exist, its balance is implicitly 0.
-                    debug!(
-                        pubkey,
-                        expected, "TokenAccountBalance assertion PASSED: account not found"
-                    );
-                    true
-                } else {
-                    debug!(
-                        pubkey,
-                        expected, "TokenAccountBalance assertion FAILED: account not found"
-                    );
-                    false
                 }
+
+                if let Some(expected_gte_val) = expected_gte {
+                    if actual < *expected_gte_val {
+                        debug!(
+                            pubkey,
+                            expected_gte = expected_gte_val,
+                            actual,
+                            "TokenAccountBalance `expected_gte` assertion FAILED"
+                        );
+                        all_passed = false;
+                    } else {
+                        debug!(
+                            pubkey,
+                            expected_gte = expected_gte_val,
+                            actual,
+                            "TokenAccountBalance `expected_gte` assertion PASSED"
+                        );
+                    }
+                }
+
+                all_passed
             }
             StateAssertion::SolBalanceChange {
                 pubkey,

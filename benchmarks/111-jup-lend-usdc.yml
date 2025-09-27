@@ -14,7 +14,10 @@ initial_state:
   - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
     lamports: 2039280 # Rent
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "USER_WALLET_PUBKEY", "amount": 100000000}' # 100 USDC
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "100000000" # 100 USDC
 
 prompt: "Lend 100 USDC on Kamino via Jupiter."
 

@@ -8,13 +8,21 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 2000000000 # 2 SOL
 
+  # A dummy recipient, required by the test setup but not used in the swap.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
   # User's Associated Token Account (ATA) for the REAL USDC, starting with a zero balance.
   # This account will be created by the test runner.
   # surfpool will fetch the mint account data from mainnet automatically.
   - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
     lamports: 2039280 # Rent
-    data: '{"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "USER_WALLET_PUBKEY", "amount": 0}'
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "0"
 
 prompt: "Using Jupiter, swap 0.1 SOL for USDC. My wallet is USER_WALLET_PUBKEY and my USDC token account is USER_USDC_ATA."
 
