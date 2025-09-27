@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, anyhow};
-
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{StateAssertion, TestCase},
@@ -9,7 +8,6 @@ use reev_lib::{
     solana_env::SolanaEnv,
     trace::ExecutionTrace,
 };
-
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -111,9 +109,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let mut agent = LlmAgent::new(agent_name)?;
         let mut env = SolanaEnv::new()?;
 
-        let (final_observation, trace) =
+        let (initial_observation, final_observation, trace) =
             run_evaluation_loop(&mut env, &mut agent, &test_case).await?;
-        let score = calculate_score(&test_case, &final_observation);
+        let score = calculate_score(&test_case, &initial_observation, &final_observation);
         let final_status = if score == 1.0 {
             FinalStatus::Succeeded
         } else {
@@ -174,19 +172,23 @@ async fn run_evaluation_loop(
     env: &mut SolanaEnv,
     agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
-) -> Result<(AgentObservation, ExecutionTrace)> {
+) -> Result<(AgentObservation, AgentObservation, ExecutionTrace)> {
     let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
     let options = serde_json::json!({
         "id": test_case.id,
         "initial_state": initial_state_json
     });
-    let observation = env.reset(None, Some(options))?;
+    let initial_observation = env.reset(None, Some(options))?;
 
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     let fee_payer = env.fee_payer_placeholder();
     let action = agent
-        .get_action(&test_case.prompt, &observation, Some(&fee_payer.to_owned()))
+        .get_action(
+            &test_case.prompt,
+            &initial_observation,
+            Some(&fee_payer.to_owned()),
+        )
         .await?;
     let step_result = env.step(action.clone(), &test_case.ground_truth)?;
 
@@ -198,11 +200,15 @@ async fn run_evaluation_loop(
     };
     trace.add_step(trace_step);
     info!("Episode finished.");
-    Ok((step_result.observation, trace))
+    Ok((initial_observation, step_result.observation, trace))
 }
 
 /// Calculates the final score based on the ground truth assertions.
-fn calculate_score(test_case: &TestCase, final_observation: &AgentObservation) -> f64 {
+fn calculate_score(
+    test_case: &TestCase,
+    initial_observation: &AgentObservation,
+    final_observation: &AgentObservation,
+) -> f64 {
     debug!("Calculating score based on on-chain state assertions...");
     for assertion in &test_case.ground_truth.final_state_assertions {
         let pass = match assertion {
@@ -274,9 +280,39 @@ fn calculate_score(test_case: &TestCase, final_observation: &AgentObservation) -
                     false
                 }
             }
-            StateAssertion::SolBalanceChange { .. } => {
-                debug!("SolBalanceChange assertion not implemented");
-                false
+            StateAssertion::SolBalanceChange {
+                pubkey,
+                expected_change_gte,
+            } => {
+                let initial_balance = initial_observation
+                    .account_states
+                    .get(pubkey)
+                    .and_then(|v| v.get("lamports"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+
+                let final_balance = final_observation
+                    .account_states
+                    .get(pubkey)
+                    .and_then(|v| v.get("lamports"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+
+                let actual_change = final_balance as i64 - initial_balance as i64;
+
+                if actual_change >= *expected_change_gte {
+                    debug!(
+                        pubkey,
+                        expected_change_gte, actual_change, "SolBalanceChange assertion PASSED"
+                    );
+                    true
+                } else {
+                    debug!(
+                        pubkey,
+                        expected_change_gte, actual_change, "SolBalanceChange assertion FAILED"
+                    );
+                    false
+                }
             }
         };
 
