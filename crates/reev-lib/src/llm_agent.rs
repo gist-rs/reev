@@ -25,7 +25,6 @@ impl LlmAgent {
         let base_url = std::env::var("LLM_API_URL")
             .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
         info!("[LlmAgent] Using base URL: {base_url}");
-        info!("[LlmAgent] Received agent_name: '{agent_name}'");
 
         // Append `?mock=true` if the deterministic agent is selected.
         let api_url = if agent_name == "deterministic" {
@@ -33,8 +32,17 @@ impl LlmAgent {
         } else {
             base_url
         };
+
+        // Map the public-facing agent name 'local' to the internal model name 'local-model'
+        // that the reev-agent expects for locally-served models. Other names are passed through.
+        let model_name = if agent_name == "local" {
+            "local-model".to_string()
+        } else {
+            agent_name.to_string()
+        };
+
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
-        info!("[LlmAgent] Model name being sent in payload: '{agent_name}'");
+        info!("[LlmAgent] Model name being sent in payload: '{model_name}'");
 
         // Load API key from environment variables if it exists.
         let api_key = match std::env::var("LLM_API_KEY") {
@@ -52,7 +60,7 @@ impl LlmAgent {
             client: Client::new(),
             api_url,
             api_key,
-            model_name: agent_name.to_string(),
+            model_name,
         })
     }
 }

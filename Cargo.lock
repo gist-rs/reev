@@ -3646,6 +3646,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bs58",
+ "clap",
  "dotenvy",
  "jupiter-swap-api-client",
  "reev-lib",

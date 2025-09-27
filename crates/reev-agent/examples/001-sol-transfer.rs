@@ -3,37 +3,45 @@ use reev_agent::run_server;
 use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
-use std::{collections::HashMap, env, fs::File, path::PathBuf, time::Duration};
+use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
 use tracing::info;
+
+// Include the common CLI parsing module.
+mod common;
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
 struct TestCase {
+    id: String,
     prompt: String,
 }
 
-/// The main function to run the example.
+/// A standalone example to make a direct API call for the '001-sol-transfer' scenario.
 ///
 /// This example does the following:
 /// 1. Spawns the `reev-agent` server in a background task.
 /// 2. Waits for the server to become healthy.
-/// 3. Loads the `001-sol-transfer.yml` benchmark file from the `benchmarks` directory.
-/// 4. Creates a mock `context_prompt` with hardcoded public keys.
-/// 5. Constructs the JSON payload that the `reev-agent` expects.
-/// 6. Sends a POST request to the now-running `reev-agent` instance.
+/// 3. Parses the `--agent` command-line argument to select an agent.
+/// 4. Loads the `001-sol-transfer.yml` benchmark file.
+/// 5. Creates a mock `context_prompt` with placeholder public keys.
+/// 6. Sends a POST request to the `reev-agent` with the benchmark `id` and `prompt`.
 /// 7. Prints the agent's JSON response to the console.
 ///
-/// # Pre-requisites
-/// - A `.env` file with `GOOGLE_API_KEY` must be present in the workspace root.
+/// # How to Run
 ///
-/// # How to run
-/// To run with the default local agent:
+/// **Deterministic Agent (Default):**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example 001-sol-transfer
+/// cargo run -p reev-agent --example 001-sol-transfer
 /// ```
-/// To specify an agent (e.g., Gemini):
+///
+/// **Gemini Agent:**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example 001-sol-transfer -- gemini-2.5-pro
+/// cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-pro
+/// ```
+///
+/// **Local Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 001-sol-transfer -- --agent local
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,13 +49,12 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
-    // Get agent name from command-line arguments, default to "local-model".
-    let args: Vec<String> = env::args().collect();
-    let model_name = args.get(1).map(|s| s.as_str()).unwrap_or("local-model");
+    // 3. Parse the `--agent` command-line argument. Defaults to "deterministic".
+    let agent_name = common::get_agent_name();
 
     info!(
-        "--- Running SOL Transfer Example with Agent: {} ---",
-        model_name
+        "--- Running SOL Transfer Example with Agent: '{}' ---",
+        agent_name
     );
 
     // 1. Spawn the server in a background task.
@@ -73,16 +80,15 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 3. Load the benchmark file.
+    // 4. Load the benchmark file.
     let benchmark_path = PathBuf::from("benchmarks/001-sol-transfer.yml");
     let f = File::open(&benchmark_path)
         .with_context(|| format!("Failed to open benchmark file at: {benchmark_path:?}"))?;
     let test_case: TestCase =
         serde_yaml::from_reader(f).context("Failed to parse benchmark YAML")?;
-    info!("Loaded prompt: '{}'", test_case.prompt);
+    info!("Loaded prompt for benchmark '{}'", test_case.id);
 
-    // 4. Create a mock context, simulating the runner's environment setup.
-    // In a real run, these pubkeys would be dynamically generated.
+    // 5. Create a mock context, simulating the runner's environment setup.
     let user_wallet_pubkey = Pubkey::new_unique();
     let recipient_wallet_pubkey = Pubkey::new_unique();
 
@@ -96,20 +102,20 @@ async fn main() -> Result<()> {
     let context_yaml =
         serde_yaml::to_string(&json!({ "key_map": key_map })).context("Failed to create YAML")?;
     let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
-    info!("Constructed mock context prompt.");
 
-    // 5. Construct the JSON payload for the agent.
+    // 6. Construct the JSON payload for the agent.
     let request_payload = json!({
+        "id": test_case.id,
         "prompt": test_case.prompt,
         "context_prompt": context_prompt,
-        "model_name": model_name,
+        "model_name": agent_name,
     });
     info!(
         "Request payload:\n{}",
         serde_json::to_string_pretty(&request_payload)?
     );
 
-    // 6. Send the request to the running reev-agent.
+    // 7. Send the request to the running reev-agent.
     let agent_url = "http://127.0.0.1:9090/gen/tx";
     info!("Sending request to agent at {}...", agent_url);
 
@@ -120,7 +126,7 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to send request to the agent")?;
 
-    // 7. Process and print the response.
+    // 8. Process and print the response.
     if response.status().is_success() {
         let response_json: serde_json::Value = response
             .json()

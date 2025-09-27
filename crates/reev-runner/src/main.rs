@@ -5,6 +5,7 @@ use opentelemetry::global::{self};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace as sdktrace;
+use project_root::get_project_root;
 use reev_runner::renderer;
 use std::path::PathBuf;
 use tracing::{info, subscriber};
@@ -15,10 +16,10 @@ use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to a specific benchmark YAML file or a directory containing multiple benchmarks.
-    #[arg(default_value = "benchmarks/")]
     path: PathBuf,
 
-    /// The agent to run the benchmarks with ('deterministic' for ground truth, 'ai' for the model).
+    /// The agent to run the benchmarks with.
+    /// Can be 'deterministic', 'local', or a specific model name like 'gemini-2.5-pro'.
     #[arg(long, default_value = "deterministic")]
     agent: String,
 }
@@ -54,17 +55,17 @@ async fn main() -> Result<()> {
     let tracer_provider = init_tracing()?;
 
     // Set the current directory to the workspace root for consistent path resolution.
-    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        if let Some(workspace_root) = std::path::Path::new(&manifest_dir)
-            .parent()
-            .and_then(|p| p.parent())
-        {
-            std::env::set_current_dir(workspace_root)?;
-        }
-    }
+    let workspace_root = get_project_root().context("Failed to find workspace root")?;
+    std::env::set_current_dir(&workspace_root)
+        .with_context(|| format!("Failed to set current directory to {workspace_root:?}"))?;
 
     let cli = Cli::parse();
     info!("--- Reev Evaluation Runner ---");
+    info!(
+        "Running benchmarks at: '{}' with agent: '{}'",
+        cli.path.display(),
+        cli.agent
+    );
 
     // Run the benchmarks using the library function.
     let results = reev_runner::run_benchmarks(cli.path, &cli.agent).await?;
@@ -72,7 +73,7 @@ async fn main() -> Result<()> {
     // Render the results.
     for result in &results {
         let tree_output = renderer::render_result_as_tree(result);
-        info!("{tree_output}");
+        info!("\n{tree_output}");
     }
 
     // Shutdown tracing.

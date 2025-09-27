@@ -6,33 +6,34 @@ use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
 use tracing::info;
 
+mod common;
+
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
 struct TestCase {
+    id: String,
     prompt: String,
 }
 
 /// The main function to run the example.
 ///
-/// This example does the following:
-/// 1. Spawns the `reev-agent` server in a background task.
-/// 2. Waits for the server to become healthy.
-/// 3. Loads the `002-spl-transfer.yml` benchmark file from the `benchmarks` directory.
-/// 4. Creates a mock `context_prompt` with hardcoded public keys.
-/// 5. Constructs the JSON payload that the `reev-agent` expects.
-/// 6. Sends a POST request to the now-running `reev-agent` instance.
-/// 7. Prints the agent's JSON response to the console.
-///
-/// # Pre-requisites
-/// - A `.env` file with `GOOGLE_API_KEY` must be present in the workspace root.
+/// This example demonstrates a direct API call to the `reev-agent` for a specific scenario.
 ///
 /// # How to run
+///
+/// **Deterministic Agent (Default):**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example 002-spl-transfer
+/// cargo run -p reev-agent --example 002-spl-transfer
 /// ```
-/// To specify an agent (e.g., Gemini):
+///
+/// **Gemini Agent:**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example 002-spl-transfer -- gemini-2.5-pro
+/// cargo run -p reev-agent --example 002-spl-transfer -- --agent gemini-2.5-pro
+/// ```
+///
+/// **Local Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 002-spl-transfer -- --agent local
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,7 +41,12 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
-    info!("--- Running SPL Transfer Example ---");
+    let agent_name = common::get_agent_name();
+
+    info!(
+        "--- Running SPL Transfer Example with Agent: {} ---",
+        agent_name
+    );
 
     // 1. Spawn the server in a background task.
     tokio::spawn(async {
@@ -74,7 +80,6 @@ async fn main() -> Result<()> {
     info!("Loaded prompt: '{}'", test_case.prompt);
 
     // 4. Create a mock context, simulating the runner's environment setup.
-    // In a real run, these pubkeys would be dynamically generated.
     let user_wallet_pubkey = Pubkey::new_unique();
     let recipient_wallet_pubkey = Pubkey::new_unique();
     let mock_usdc_mint = Pubkey::new_unique();
@@ -98,8 +103,10 @@ async fn main() -> Result<()> {
 
     // 5. Construct the JSON payload for the agent.
     let request_payload = json!({
+        "id": test_case.id,
         "prompt": test_case.prompt,
         "context_prompt": context_prompt,
+        "model_name": agent_name,
     });
     info!(
         "Request payload:\n{}",
@@ -107,7 +114,12 @@ async fn main() -> Result<()> {
     );
 
     // 6. Send the request to the running reev-agent.
-    let agent_url = "http://127.0.0.1:9090/gen/tx";
+    let agent_url = if agent_name == "deterministic" {
+        "http://127.0.0.1:9090/gen/tx?mock=true"
+    } else {
+        "http://127.0.0.1:9090/gen/tx"
+    };
+
     info!("Sending request to agent at {}...", agent_url);
 
     let response = client
