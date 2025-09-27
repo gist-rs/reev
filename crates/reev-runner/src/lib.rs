@@ -181,6 +181,7 @@ async fn run_evaluation_loop(
     let fee_payer = env.fee_payer_placeholder();
     let action = agent
         .get_action(
+            &test_case.id,
             &test_case.prompt,
             &initial_observation,
             Some(&fee_payer.to_owned()),

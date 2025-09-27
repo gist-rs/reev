@@ -62,6 +62,7 @@ impl Agent for LlmAgent {
     #[instrument(skip(self, prompt, observation), name = "agent.get_action")]
     async fn get_action(
         &mut self,
+        id: &str,
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
@@ -78,6 +79,7 @@ impl Agent for LlmAgent {
 
         // 2. Create the final JSON payload for the API.
         let request_payload = json!({
+            "id": id,
             "context_prompt": context_prompt,
             "prompt": prompt,
             "model_name": self.model_name,

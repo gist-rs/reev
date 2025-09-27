@@ -103,6 +103,7 @@ pub trait Agent {
     /// Given a prompt and an observation of the environment, returns the next action to take.
     async fn get_action(
         &mut self,
+        id: &str,
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
