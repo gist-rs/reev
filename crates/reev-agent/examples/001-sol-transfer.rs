@@ -140,5 +140,6 @@ async fn main() -> Result<()> {
         anyhow::bail!("❌ Agent request failed with status {status}: {error_body}");
     }
 
-    Ok(())
+    // The server is running in a background thread. Exit explicitly.
+    std::process::exit(0);
 }

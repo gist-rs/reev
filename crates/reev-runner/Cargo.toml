@@ -23,6 +23,8 @@ tokio = { version = "1", features = ["full"] }
 dotenvy = "0.15"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 project-root = "0.2.2"
+spl-token = { workspace = true }
+spl-associated-token-account = { workspace = true }
 
 # Observability
 tracing = { workspace = true }

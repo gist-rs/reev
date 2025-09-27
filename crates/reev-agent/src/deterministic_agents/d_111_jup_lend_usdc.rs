@@ -14,10 +14,7 @@ pub(crate) async fn handle_jup_lend_usdc(
         .context("USER_WALLET_PUBKEY not found in key_map")?;
     let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-    let input_mint_str = key_map
-        .get("MOCK_USDC_MINT")
-        .context("MOCK_USDC_MINT not found in key_map")?;
-    let input_mint = Pubkey::from_str(input_mint_str)?;
+    let input_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?; // Mainnet USDC
     let output_mint = Pubkey::from_str("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")?;
     let amount = 100_000_000;
     let slippage_bps = 50;

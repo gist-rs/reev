@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 mod common;
 
@@ -29,22 +29,22 @@ struct TestCase {
 ///
 /// **Deterministic Agent (Default):**
 /// ```sh
-/// cargo run -p reev-agent --example 111-jup-lend-usdc
+/// RUST_LOG=info cargo run -p reev-agent --example 111-jup-lend-usdc
 /// ```
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
+/// RUST_LOG=info cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
 /// ```
 ///
 /// **Local Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent local
+/// RUST_LOG=info cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent local
 /// ```
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
+/// RUST_LOG=info cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
 /// ```
 ///
 /// **Local Agent:**
@@ -146,13 +146,15 @@ async fn main() -> Result<()> {
             .await
             .context("Failed to deserialize agent response")?;
         info!("✅ Agent responded successfully!");
-        info!("✅ Agent responded successfully!");
         debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
+        info!("[reev-agent-example] Example finished successfully.");
     } else {
         let status = response.status();
         let error_body = response.text().await.unwrap_or_default();
+        error!("[reev-agent-example] Agent request failed with status {status}: {error_body}");
         anyhow::bail!("❌ Agent request failed with status {status}: {error_body}");
     }
 
-    Ok(())
+    // The server is running in a background thread. Exit explicitly.
+    std::process::exit(0);
 }

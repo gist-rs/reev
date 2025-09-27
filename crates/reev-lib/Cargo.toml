@@ -21,7 +21,7 @@ regex = { workspace = true }
 # Solana Dependencies
 solana-client = { workspace = true }
 solana-sdk = { workspace = true }
-spl-associated-token-account = "7.0.0"
+spl-associated-token-account = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"] }
 solana-program = "2.3.0"
 solana-transaction-status = "2.3.10"
