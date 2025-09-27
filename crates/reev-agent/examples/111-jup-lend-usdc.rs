@@ -5,7 +5,7 @@ use serde_json::json;
 use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
 use std::{fs::File, path::PathBuf, time::Duration};
-use tracing::info;
+use tracing::{debug, info};
 
 /// The mainnet USDC mint address.
 const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
             .await
             .context("Failed to deserialize lend server response")?;
         info!("✅ Jupiter Lend server responded successfully!");
-        println!("{}", serde_json::to_string_pretty(&response_json).unwrap());
+        debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
         let error_body = response.text().await.unwrap_or_default();

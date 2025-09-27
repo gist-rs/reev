@@ -6,7 +6,7 @@ use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint::ID as NATIVE_MINT;
 use std::{fs::File, path::PathBuf, time::Duration};
-use tracing::info;
+use tracing::{debug, info};
 
 /// The mainnet JitoSOL mint address. Lending SOL is treated as swapping SOL for a receipt token, like an LST.
 const JITOSOL_MINT: Pubkey = pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn");
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
             .await
             .context("Failed to deserialize lend server response")?;
         info!("✅ Jupiter Lend server responded successfully!");
-        println!("{}", serde_json::to_string_pretty(&response_json).unwrap());
+        debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
         let error_body = response.text().await.unwrap_or_default();

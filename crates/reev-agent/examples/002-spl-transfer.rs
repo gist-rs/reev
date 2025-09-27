@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
-use tracing::info;
+use tracing::{debug, info};
 
 mod common;
 
@@ -136,7 +136,7 @@ async fn main() -> Result<()> {
             .await
             .context("Failed to deserialize agent response")?;
         info!("✅ Agent responded successfully!");
-        println!("{}", serde_json::to_string_pretty(&response_json).unwrap());
+        debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
         let error_body = response.text().await.unwrap_or_default();
