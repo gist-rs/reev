@@ -21,6 +21,7 @@ pub mod jupiter;
 pub mod tools;
 
 mod agents;
+mod prompt;
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
