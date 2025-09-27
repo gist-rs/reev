@@ -64,3 +64,12 @@ This document establishes the official coding conventions and architectural rule
 ### Rule 4.3: Environment Configuration
 -   Local development configuration and secrets (e.g., API keys) SHOULD be managed using a `.env` file.
 -   The `dotenvy` crate is the standard tool for loading these variables into the application environment.
+
+### Rule 4.4: Inter-Crate Binary Execution
+-   When one crate (e.g., `reev-runner`) needs to execute a binary from another crate in the same workspace (e.g., `reev-agent`), it MUST NOT use `cargo run -p <crate>`. This causes persistent recompilation.
+-   Instead, the following build-time optimization MUST be used:
+    1.  The executed crate (`reev-agent`) is added as a direct dependency to the calling crate (`reev-runner`).
+    2.  A `build.rs` script is created in the calling crate.
+    3.  This script locates the compiled binary path of the dependency within the workspace's `target` directory.
+    4.  The path is passed to the calling crate as a compile-time environment variable (e.g., `cargo:rustc-env=REEV_AGENT_PATH=...`).
+    5.  The calling crate uses `env!("REEV_AGENT_PATH")` to get the path and executes the binary directly, ensuring Cargo's change-tracking mechanism works correctly.
