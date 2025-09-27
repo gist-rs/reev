@@ -8,7 +8,7 @@ use solana_sdk::instruction::AccountMeta;
 /// directly in the terminal.
 pub fn render_result_as_tree(result: &TestResult) -> String {
     let status_icon = if result.final_status == reev_lib::results::FinalStatus::Succeeded {
-        "⭕️"
+        "✅"
     } else {
         "❌"
     };
