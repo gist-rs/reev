@@ -22,7 +22,7 @@ To run a specific benchmark, provide the path to the benchmark file. You can sel
 ### Command Structure
 
 ```sh
-cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
+RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
 ```
 
 ### Examples
@@ -30,19 +30,19 @@ cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
 *   **Deterministic Agent (Default):**
     If the `--agent` flag is omitted, the runner defaults to the `deterministic` agent, which provides the ground truth.
     ```sh
-    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
     ```
 
 *   **Gemini Agent:**
     To run the benchmark using a specific model like Gemini, provide its name.
     ```sh
-    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
     ```
 
 *   **Local Agent:**
     To run against a locally-served model, use the `local` agent name.
     ```sh
-    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
     ```
 
 ## Testing
@@ -54,13 +54,13 @@ The tests for this crate are split into two main categories to ensure both the c
 To execute all tests within the `reev-runner` package, use the following command from the workspace root:
 
 ```sh
-cargo test -p reev-runner
+RUST_LOG=info cargo test -p reev-runner
 ```
 
 To see detailed log output for each test case as it runs, add the `--nocapture` flag (note the extra `--`):
 
 ```sh
-cargo test -p reev-runner -- --nocapture
+RUST_LOG=info cargo test -p reev-runner -- --nocapture
 ```
 
 ### Scoring Logic Unit Test (`scoring_test.rs`)
@@ -69,7 +69,7 @@ This is a focused unit test to verify that the `calculate_score` function works 
 
 To run only this test:
 ```sh
-cargo test -p reev-runner --test scoring_test
+RUST_LOG=info cargo test -p reev-runner --test scoring_test
 ```
 
 ### Benchmark Integration Test (`benchmarks_test.rs`)
@@ -80,12 +80,12 @@ This test is crucial for ensuring that all benchmarks are correctly configured a
 
 To run only this test:
 ```sh
-cargo test -p reev-runner --test benchmarks_test
+RUST_LOG=info cargo test -p reev-runner --test benchmarks_test
 ```
 
 To see the detailed log output for each benchmark case, which is very useful for debugging, add the `--nocapture` flag:
 ```sh
-cargo test -p reev-runner --test benchmarks_test -- --nocapture
+RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
 ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
