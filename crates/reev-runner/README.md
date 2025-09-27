@@ -7,7 +7,7 @@ This crate is the command-line interface (CLI) and orchestrator for the `reev` e
 `reev-runner` is a "thin binary" that acts as the entrypoint for non-interactive evaluation runs. It is designed for simplicity and is ideal for use in automated environments like CI/CD pipelines.
 
 Its responsibilities are:
-1.  Parsing command-line arguments using the `clap` crate to identify which benchmark file to run.
+1.  Parsing command-line arguments using the `clap` crate to identify the benchmark path and the selected agent.
 2.  Instantiating the `SolanaEnv` and `LlmAgent` from the `reev-lib` crate.
 3.  Orchestrating the main evaluation loop by calling the core library functions.
 4.  Capturing the `ExecutionTrace` and calculating the final metrics.
@@ -17,33 +17,32 @@ It contains no core evaluation logic itself; all of that resides in the `reev-li
 
 ## Usage
 
-To run a specific benchmark, provide the path to the benchmark file.
+To run a specific benchmark, provide the path to the benchmark file. You can select the agent to use with the `--agent` flag.
 
-### Example
+### Command Structure
 
-```bash
-# Run the benchmark using the default deterministic agent (ground truth)
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
-
-# Run the benchmark using the AI agent (e.g., Gemini)
-RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/001-sol-transfer.yml
-RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/002-spl-transfer.yml
-RUST_LOG=info cargo run -p reev-runner -- --agent ai benchmarks/100-jup-swap-sol-usdc.yml
+```sh
+cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
 ```
 
-### Verifying Agent Execution
+### Examples
 
-The `reev-runner` automatically starts the `reev-agent` service in the background and directs its logs to `logs/reev-agent.log`. You can verify which agent logic was executed by checking this file.
-
--   When running with `--agent ai`, the log will contain:
-    ```
-    INFO reev_agent::main: [reev-agent] Routing to AI Agent.
-    INFO reev_agent::main: [reev-agent] Running AI agent with Gemini...
+*   **Deterministic Agent (Default):**
+    If the `--agent` flag is omitted, the runner defaults to the `deterministic` agent, which provides the ground truth.
+    ```sh
+    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
     ```
 
--   When running with the default `deterministic` agent, the log will contain:
+*   **Gemini Agent:**
+    To run the benchmark using a specific model like Gemini, provide its name.
+    ```sh
+    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
     ```
-    INFO reev_agent::main: [reev-agent] Routing to Deterministic Agent (mock=true).
+
+*   **Local Agent:**
+    To run against a locally-served model, use the `local` agent name.
+    ```sh
+    cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
     ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
