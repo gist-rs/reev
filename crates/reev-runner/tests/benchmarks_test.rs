@@ -67,14 +67,15 @@ async fn test_all_benchmarks_are_solvable(
         );
 
         // 1. Set up the environment from the benchmark file.
-        let (mut env, test_case, initial_observation) = {
-            let file_name = benchmark_path.to_str().unwrap();
-            if file_name.contains("spl-transfer") || file_name.contains("usdc") {
+        // We determine whether to use the specialized SPL setup by checking if the
+        // benchmark file mentions the SPL Token Program ID.
+        let benchmark_content = std::fs::read_to_string(&benchmark_path)?;
+        let (mut env, test_case, initial_observation) =
+            if benchmark_content.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
                 setup_spl_benchmark(&benchmark_path).await?
             } else {
                 setup_env_for_benchmark(&benchmark_path)?
-            }
-        };
+            };
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Create the "perfect" action for this benchmark.

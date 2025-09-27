@@ -16,7 +16,7 @@ use spl_token::{
     instruction as spl_instruction, native_mint,
     state::{Account as SplTokenAccount, Mint},
 };
-use std::{collections::HashMap, str::FromStr, thread, time::Duration};
+use std::{str::FromStr, thread, time::Duration};
 use tracing::{info, instrument};
 
 #[instrument(skip_all, name = "env.reset")]
@@ -41,6 +41,7 @@ pub(crate) fn handle_reset(
     info!("Validator is healthy.");
 
     env.keypair_map.clear();
+    env.pubkey_map.clear();
     env.fee_payer = None;
 
     let options = options.context("Benchmark options are required")?;
@@ -55,28 +56,36 @@ pub(crate) fn handle_reset(
 
     let accounts: Vec<Value> = serde_json::from_value(initial_state_val)?;
 
+    // First pass: Discover all placeholders and map them to Pubkeys.
+    // This allows us to handle both generated keys and real on-chain addresses.
     for account_config in &accounts {
-        let pubkey_placeholder = account_config["pubkey"]
+        let placeholder = account_config["pubkey"]
             .as_str()
             .context("Missing 'pubkey' placeholder in account config")?;
 
-        if pubkey_placeholder == "USER_WALLET_PUBKEY" {
-            env.fee_payer = Some(pubkey_placeholder.to_string());
+        // If the placeholder is a valid Pubkey string, use it directly.
+        // Otherwise, generate a new keypair and use its pubkey.
+        if let Ok(pubkey) = Pubkey::from_str(placeholder) {
+            env.pubkey_map.insert(placeholder.to_string(), pubkey);
+        } else {
+            let keypair = Keypair::new();
+            env.pubkey_map
+                .insert(placeholder.to_string(), keypair.pubkey());
+            env.keypair_map.insert(placeholder.to_string(), keypair);
         }
 
-        env.keypair_map
-            .insert(pubkey_placeholder.to_string(), Keypair::new());
+        if placeholder == "USER_WALLET_PUBKEY" {
+            env.fee_payer = Some(placeholder.to_string());
+        }
     }
 
     let fee_payer_placeholder = env.fee_payer.as_ref().context("Fee payer not set")?;
-    let fee_payer_config = accounts
+    let fee_payer_keypair = env.get_fee_payer_keypair()?;
+
+    let initial_lamports = accounts
         .iter()
         .find(|acc| acc["pubkey"].as_str() == Some(fee_payer_placeholder))
-        .context("Fee payer config not found in initial state")?;
-
-    let fee_payer_keypair = env.get_fee_payer_keypair()?;
-    let initial_lamports = fee_payer_config["lamports"]
-        .as_u64()
+        .and_then(|acc| acc["lamports"].as_u64())
         .context("Fee payer 'lamports' not found or invalid in initial state")?;
 
     if initial_lamports > 0 {
@@ -161,16 +170,11 @@ pub(crate) fn handle_reset(
                     continue;
                 }
 
-                let keypair = env.keypair_map.get(placeholder).unwrap();
+                let pubkey = env.pubkey_map.get(placeholder).unwrap();
                 let lamports = account_config["lamports"].as_u64().unwrap_or(0);
                 if lamports > 0 {
-                    info!(
-                        "Airdropping {lamports} lamports to {placeholder} ({})...",
-                        keypair.pubkey()
-                    );
-                    let sig = env
-                        .rpc_client
-                        .request_airdrop(&keypair.pubkey(), lamports)?;
+                    info!("Airdropping {lamports} lamports to {placeholder} ({pubkey})...",);
+                    let sig = env.rpc_client.request_airdrop(pubkey, lamports)?;
                     env.rpc_client
                         .confirm_transaction(&sig)
                         .context("Failed to confirm airdrop")?;
@@ -194,10 +198,10 @@ pub(crate) fn handle_reset(
         let auth_placeholder = mint_data["mint_authority"]
             .as_str()
             .unwrap_or("USER_WALLET_PUBKEY");
-        let authority = env
-            .keypair_map
+        let authority_pubkey = env
+            .pubkey_map
             .get(auth_placeholder)
-            .context("Mint authority not found")?;
+            .context("Mint authority pubkey not found")?;
 
         let rent = env
             .rpc_client
@@ -213,7 +217,7 @@ pub(crate) fn handle_reset(
             spl_instruction::initialize_mint(
                 &spl_token::id(),
                 &keypair.pubkey(),
-                &authority.pubkey(),
+                authority_pubkey,
                 None,
                 decimals,
             )?,
@@ -230,33 +234,45 @@ pub(crate) fn handle_reset(
             "Creating SPL Token Account: {placeholder} ({})",
             keypair.pubkey()
         );
-        let data_str = config["data"]
-            .as_str()
-            .context("'data' must be a JSON string")?;
-        let token_state: HashMap<String, Value> =
-            serde_json::from_str(data_str).context("Failed to parse 'data' JSON")?;
 
-        let mint_placeholder = token_state["mint"]
-            .as_str()
+        let data_val = config.get("data").context("'data' is missing")?;
+        let token_state = data_val
+            .as_object()
+            .context("'data' must be a JSON object")?;
+
+        let mint_placeholder = token_state
+            .get("mint")
+            .and_then(Value::as_str)
             .context("Missing 'mint' in data")?;
-        let owner_placeholder = token_state["owner"]
-            .as_str()
+
+        // For mainnet mints (like USDC), we don't create the token account here.
+        // We rely on surfpool's RPC cheat codes to set the account state.
+        if Pubkey::from_str(mint_placeholder).is_ok() {
+            info!(
+                "Skipping manual creation of token account for mainnet mint: {}",
+                mint_placeholder
+            );
+            continue;
+        }
+
+        let owner_placeholder = token_state
+            .get("owner")
+            .and_then(Value::as_str)
             .context("Missing 'owner' in data")?;
         let amount = token_state
             .get("amount")
-            .and_then(|v| v.as_u64())
+            .and_then(|v| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .or_else(|| token_state.get("amount").and_then(|v| v.as_u64()))
             .unwrap_or(0);
 
         let mint_pubkey = env
-            .keypair_map
+            .pubkey_map
             .get(mint_placeholder)
-            .context("Mint keypair not found")?
-            .pubkey();
+            .context("Mint pubkey not found")?;
         let owner_pubkey = env
-            .keypair_map
+            .pubkey_map
             .get(owner_placeholder)
-            .context("Owner keypair not found")?
-            .pubkey();
+            .context("Owner pubkey not found")?;
 
         let rent = env
             .rpc_client
@@ -272,8 +288,8 @@ pub(crate) fn handle_reset(
             spl_instruction::initialize_account(
                 &spl_token::id(),
                 &keypair.pubkey(),
-                &mint_pubkey,
-                &owner_pubkey,
+                mint_pubkey,
+                owner_pubkey,
             )?,
         ];
 
@@ -297,7 +313,7 @@ pub(crate) fn handle_reset(
             signers.push(mint_authority);
             instructions.push(spl_instruction::mint_to(
                 &spl_token::id(),
-                &mint_pubkey,
+                mint_pubkey,
                 &keypair.pubkey(),
                 &mint_authority.pubkey(),
                 &[],

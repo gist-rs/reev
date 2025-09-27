@@ -1,6 +1,7 @@
 use crate::agent::AgentAction;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -55,7 +56,7 @@ pub struct InitialAccountState {
     pub owner: String,
     /// Optional base64 encoded data for the account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data: Option<String>,
+    pub data: Option<Value>,
     /// Specifies if the account is an executable program.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_executable: Option<bool>,

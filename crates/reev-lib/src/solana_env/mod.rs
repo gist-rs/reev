@@ -12,6 +12,7 @@ use serde_json::Value;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
@@ -23,6 +24,7 @@ const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
 pub struct SolanaEnv {
     pub rpc_client: RpcClient,
     pub keypair_map: HashMap<String, Keypair>,
+    pub pubkey_map: HashMap<String, Pubkey>,
     pub fee_payer: Option<String>,
 }
 
@@ -36,6 +38,7 @@ impl SolanaEnv {
         Ok(Self {
             rpc_client,
             keypair_map: HashMap::new(),
+            pubkey_map: HashMap::new(),
             fee_payer: None,
         })
     }

@@ -2,7 +2,7 @@ use crate::{
     agent::AgentObservation,
     benchmark::{StateAssertion, TestCase},
 };
-use tracing::debug;
+use tracing::{debug, info};
 
 /// Calculates the final score for a test case based on its on-chain assertions.
 ///
@@ -22,6 +22,7 @@ pub fn calculate_score(
     initial_observation: &AgentObservation,
     final_observation: &AgentObservation,
 ) -> f64 {
+    info!(?final_observation, "Final observation for scoring");
     debug!("Calculating score based on on-chain state assertions...");
     for assertion in &test_case.ground_truth.final_state_assertions {
         let pass = match assertion {

@@ -2,7 +2,6 @@ use crate::{agent::AgentObservation, solana_env::SolanaEnv};
 use anyhow::Result;
 use serde_json::json;
 use solana_program::program_pack::Pack;
-use solana_sdk::signature::Signer;
 use spl_token::state::Account as SplTokenAccount;
 use std::collections::HashMap;
 
@@ -15,9 +14,12 @@ pub(crate) fn get_observation(
     let mut account_states = HashMap::new();
     let mut key_map = HashMap::new();
 
-    for (name, keypair) in &env.keypair_map {
-        key_map.insert(name.clone(), keypair.pubkey().to_string());
-        if let Ok(account) = env.rpc_client.get_account(&keypair.pubkey()) {
+    // Iterate over the pubkey_map which contains ALL relevant pubkeys for the
+    // benchmark, not just the ones with local keypairs. This is crucial for
+    // observing the state of accounts like ATAs.
+    for (name, pubkey) in &env.pubkey_map {
+        key_map.insert(name.clone(), pubkey.to_string());
+        if let Ok(account) = env.rpc_client.get_account(pubkey) {
             let mut state = json!({
                 "lamports": account.lamports,
                 "owner": account.owner.to_string(),
@@ -25,6 +27,7 @@ pub(crate) fn get_observation(
                 "data_len": account.data.len(),
             });
 
+            // If the account is an SPL token account, unpack its data and add it.
             if account.owner == spl_token::ID && account.data.len() == SplTokenAccount::LEN {
                 let token_account = SplTokenAccount::unpack(&account.data)?;
                 if let Some(obj) = state.as_object_mut() {
