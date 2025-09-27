@@ -14,8 +14,6 @@ pub fn handle_events(app: &mut App) -> Result<()> {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
                     KeyCode::Tab => app.on_tab(),
-                    KeyCode::Left => app.on_left(),
-                    KeyCode::Right => app.on_right(),
                     KeyCode::Char('l') => app.on_toggle_log_panel(),
                     KeyCode::Char('r') | KeyCode::Enter if !app.is_running_benchmark => {
                         app.on_run()
@@ -25,16 +23,22 @@ pub fn handle_events(app: &mut App) -> Result<()> {
                         ActivePanel::BenchmarkNavigator => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.on_up(),
                             KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                            KeyCode::Left => app.on_left(),
+                            KeyCode::Right => app.on_right(),
                             _ => {}
                         },
                         ActivePanel::ExecutionTrace => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
                             KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+                            KeyCode::Left => app.scroll_left(),
+                            KeyCode::Right => app.scroll_right(),
                             _ => {}
                         },
                         ActivePanel::AgentLog => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.scroll_log_up(),
                             KeyCode::Down | KeyCode::Char('j') => app.scroll_log_down(),
+                            KeyCode::Left => app.scroll_log_left(),
+                            KeyCode::Right => app.scroll_log_right(),
                             _ => {}
                         },
                     },

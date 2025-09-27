@@ -71,11 +71,6 @@ fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
     if let Some(error) = &step.observation.last_transaction_error {
         observation_children.push(Tree::Leaf(vec![format!("Error: {}", error)]));
     }
-    // Display all logs for better debugging
-    if !step.observation.last_transaction_logs.is_empty() {
-        let logs_str = step.observation.last_transaction_logs.join("\n     ");
-        observation_children.push(Tree::Leaf(vec![format!("Logs:\n     {}", logs_str)]));
-    }
 
     let observation_node = Tree::Node(observation_label, observation_children);
 

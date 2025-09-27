@@ -3,9 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, Tabs, Wrap,
-    },
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, Tabs},
     Frame,
 };
 use strum::IntoEnumIterator;
@@ -142,8 +140,7 @@ fn render_scrollable_text_panel(
 
     let paragraph = Paragraph::new(text)
         .block(block)
-        .wrap(Wrap { trim: true })
-        .scroll((app.details_scroll, 0));
+        .scroll((app.details_scroll, app.details_horizontal_scroll));
 
     f.render_widget(paragraph, area);
 
@@ -179,17 +176,16 @@ fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
         Style::default()
     };
     let block = Block::default()
-        .title("C: Agent Log")
+        .title("C: Transaction Logs")
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    let text = app.agent_log_content.clone();
+    let text = app.transaction_log_content.clone();
     let content_height = text.height();
 
     let paragraph = Paragraph::new(text)
         .block(block)
-        .wrap(Wrap { trim: false })
-        .scroll((app.log_scroll, 0));
+        .scroll((app.log_scroll, app.log_horizontal_scroll));
 
     f.render_widget(paragraph, area);
 
@@ -210,8 +206,9 @@ fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
-        Span::styled("◄ ►", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" Agent | "),
+        Span::raw("◄ ► Agent | "),
+        Span::styled("h l", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" Scroll | "),
         Span::styled("[L]", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw("og | "),
         Span::styled("[Enter/R]", Style::default().add_modifier(Modifier::BOLD)),

@@ -23,9 +23,6 @@ fn main() -> Result<()> {
 
     // Main application loop
     while !app.should_quit {
-        // Update app state before drawing
-        app.update_logs()?;
-
         // Draw the UI
         tui.terminal().draw(|f| ui(f, &mut app))?;
 

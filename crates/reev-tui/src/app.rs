@@ -84,9 +84,11 @@ pub struct App<'a> {
     pub event_sender: Sender<TuiEvent>,
     pub event_receiver: Receiver<TuiEvent>,
     pub details_scroll: u16,
+    pub details_horizontal_scroll: u16,
     pub details_scroll_state: ScrollbarState,
-    pub agent_log_content: Text<'a>,
+    pub transaction_log_content: Text<'a>,
     pub log_scroll: u16,
+    pub log_horizontal_scroll: u16,
     pub log_scroll_state: ScrollbarState,
 }
 
@@ -111,9 +113,11 @@ impl<'a> App<'a> {
             event_sender,
             event_receiver,
             details_scroll: 0,
+            details_horizontal_scroll: 0,
             details_scroll_state: ScrollbarState::default(),
-            agent_log_content: Text::from(""),
+            transaction_log_content: Text::from(""),
             log_scroll: 0,
+            log_horizontal_scroll: 0,
             log_scroll_state: ScrollbarState::default(),
         }
     }
@@ -174,6 +178,7 @@ impl<'a> App<'a> {
                             benchmark.result = None;
                         }
                     }
+                    self.update_log_content_from_selection();
                 }
 
                 if self.is_running_all {
@@ -189,20 +194,23 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn update_logs(&mut self) -> Result<()> {
-        let root = project_root::get_project_root()?;
-        let log_path = root.join("logs").join("reev-agent.log");
-        if log_path.exists() {
-            let content = fs::read_to_string(log_path)?;
-            self.agent_log_content = Text::from(content);
+    /// Updates the content of the log panel based on the currently selected benchmark's result.
+    fn update_log_content_from_selection(&mut self) {
+        let new_logs = if let Some(benchmark) = self.get_selected_benchmark() {
+            if let Some(result) = &benchmark.result {
+                if let Some(step) = result.trace.steps.first() {
+                    step.observation.last_transaction_logs.join("\n")
+                } else {
+                    String::from("No transaction steps found for this result.")
+                }
+            } else {
+                // If benchmark has not been run or failed, there are no logs to show.
+                String::new()
+            }
         } else {
-            self.agent_log_content = Text::from("Log file not found at logs/reev-agent.log");
-        }
-
-        let log_height = self.agent_log_content.height().saturating_sub(1) as u16;
-        self.log_scroll = log_height;
-
-        Ok(())
+            String::new()
+        };
+        self.transaction_log_content = Text::from(new_logs);
     }
 
     pub fn on_run(&mut self) {
@@ -252,6 +260,7 @@ impl<'a> App<'a> {
             benchmark.result = None;
             benchmark.details = Text::from("> This benchmark has not been run yet.");
         }
+        self.update_log_content_from_selection();
         self.reset_scroll();
     }
 
@@ -268,6 +277,7 @@ impl<'a> App<'a> {
         });
         self.benchmark_state.select(Some(i));
         self.reset_scroll();
+        self.update_log_content_from_selection();
     }
 
     pub fn on_left(&mut self) {
@@ -297,6 +307,7 @@ impl<'a> App<'a> {
         });
         self.benchmark_state.select(Some(i));
         self.reset_scroll();
+        self.update_log_content_from_selection();
     }
 
     pub fn on_tab(&mut self) {
@@ -322,7 +333,9 @@ impl<'a> App<'a> {
 
     fn reset_scroll(&mut self) {
         self.details_scroll = 0;
+        self.details_horizontal_scroll = 0;
         self.log_scroll = 0;
+        self.log_horizontal_scroll = 0;
     }
 
     pub fn scroll_down(&mut self) {
@@ -344,7 +357,7 @@ impl<'a> App<'a> {
     }
 
     pub fn scroll_log_down(&mut self) {
-        let content_height = self.agent_log_content.height().saturating_sub(1) as u16;
+        let content_height = self.transaction_log_content.height().saturating_sub(1) as u16;
         self.log_scroll = self.log_scroll.saturating_add(1).min(content_height);
     }
 
@@ -353,5 +366,21 @@ impl<'a> App<'a> {
         if !self.show_log_panel && self.active_panel == ActivePanel::AgentLog {
             self.active_panel = ActivePanel::ExecutionTrace;
         }
+    }
+
+    pub fn scroll_left(&mut self) {
+        self.details_horizontal_scroll = self.details_horizontal_scroll.saturating_sub(4);
+    }
+
+    pub fn scroll_right(&mut self) {
+        self.details_horizontal_scroll = self.details_horizontal_scroll.saturating_add(4);
+    }
+
+    pub fn scroll_log_left(&mut self) {
+        self.log_horizontal_scroll = self.log_horizontal_scroll.saturating_sub(4);
+    }
+
+    pub fn scroll_log_right(&mut self) {
+        self.log_horizontal_scroll = self.log_horizontal_scroll.saturating_add(4);
     }
 }
