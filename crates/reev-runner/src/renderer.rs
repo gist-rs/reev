@@ -1,5 +1,6 @@
 use ascii_tree::{Tree, write_tree};
 use reev_lib::{results::TestResult, trace::TraceStep};
+use solana_sdk::instruction::AccountMeta;
 
 /// Renders a `TestResult` object into a human-readable ASCII tree format.
 ///
@@ -7,7 +8,7 @@ use reev_lib::{results::TestResult, trace::TraceStep};
 /// directly in the terminal.
 pub fn render_result_as_tree(result: &TestResult) -> String {
     let status_icon = if result.final_status == reev_lib::results::FinalStatus::Succeeded {
-        "✅"
+        "⭕️"
     } else {
         "❌"
     };
@@ -24,24 +25,45 @@ pub fn render_result_as_tree(result: &TestResult) -> String {
     buffer
 }
 
+/// Formats the accounts of a transaction into a compact, readable format.
+///
+/// - `is_signer`: `true` -> `💲`, `false` -> `✖️`
+/// - `is_writable`: `true` -> `➕`, `false` -> `➖`
+fn format_accounts(accounts: &[AccountMeta]) -> String {
+    accounts
+        .iter()
+        .enumerate()
+        .map(|(i, account)| {
+            let signer_icon = if account.is_signer {
+                "🖋️"
+            } else {
+                "🖍️"
+            };
+            let writable_icon = if account.is_writable { "➕" } else { "➖" };
+            format!(
+                "     [{:2}] {} {} {}",
+                i, signer_icon, writable_icon, account.pubkey
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Renders a single `TraceStep` into a `Tree` node for the ASCII tree.
 fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
     let step_label = format!("Step {step_number}");
 
-    // Serialize the `AgentAction` wrapper directly. Its custom `Serialize` implementation
-    // is designed to produce a human-readable format with Base58 strings for
-    // the program_id, all account pubkeys, and the instruction data.
-    let action_str = match serde_json::to_string_pretty(&step.action) {
-        Ok(json_str) => {
-            // Indent the JSON for better readability within the tree
-            json_str
-                .lines()
-                .map(|line| format!("     {line}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-        Err(_) => " [Error serializing action]".to_string(),
-    };
+    // Manually format the AgentAction for a more compact view instead of using JSON.
+    let instruction = &step.action.0;
+    let program_id = format!("Program ID: {}", instruction.program_id);
+    let accounts_str = format_accounts(&instruction.accounts);
+    let data_str = format!(
+        "Data (Base58): {}",
+        bs58::encode(&instruction.data).into_string()
+    );
+
+    let action_str = format!("     {program_id}\n     Accounts:\n{accounts_str}\n     {data_str}");
+
     let action_node = Tree::Leaf(vec![format!("ACTION:\n{}", action_str)]);
 
     let observation_label = format!("OBSERVATION: {}", step.observation.last_transaction_status);
