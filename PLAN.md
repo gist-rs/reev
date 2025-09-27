@@ -1,4 +1,4 @@
-```# PLAN.md: Master Development Plan for `reev`
+# PLAN.md: Master Development Plan for `reev`
 
 This document outlines the high-level, phased development plan for the `reev` project. It serves as the single source of truth for the project's roadmap.
 
@@ -39,8 +39,6 @@ The foundational work for the `reev` framework is complete and has been validate
     *   Ensure that only one benchmark task can be executed at a time, preventing multiple runs from being queued or started simultaneously.
 
 ---
-
-## Future Work
 
 ## Future Work
 
