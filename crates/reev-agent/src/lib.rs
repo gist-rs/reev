@@ -134,7 +134,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 /// Executes the deterministic, code-based agent logic to generate a ground truth instruction.
 async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     info!(
-        "[reev-agent] Received request for prompt: \"{}\"",
+        "[reev-agent] 🦀 Received request for prompt: \"{}\"",
         payload.prompt
     );
 
@@ -147,7 +147,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
     let key_map = context.key_map;
 
-    let raw_instruction = if payload.prompt == "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient's wallet (RECIPIENT_WALLET_PUBKEY)." {
+    let raw_instruction = if payload.prompt == "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)." {
         info!("[reev-agent] Matched exact 'sol-transfer' prompt. Generating instruction with code.");
         let from_pubkey = key_map
             .get("USER_WALLET_PUBKEY")
