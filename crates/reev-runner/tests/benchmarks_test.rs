@@ -15,6 +15,7 @@
 //! that makes it impossible to achieve a perfect score, this test will fail,
 //! alerting us to a problem with the benchmark's definition, not the agent's logic.
 
+#[path = "common/mod.rs"]
 mod common;
 
 use anyhow::Result;
@@ -25,7 +26,7 @@ use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::{mock_perfect_instruction, setup_env_for_benchmark, setup_spl_benchmark};
+use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark, setup_spl_benchmark};
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///

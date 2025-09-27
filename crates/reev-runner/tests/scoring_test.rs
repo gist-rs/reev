@@ -4,6 +4,7 @@
 //! It uses a minimal set of benchmarks to confirm that the scoring logic correctly
 //! identifies passing and failing outcomes based on on-chain state assertions.
 
+#[path = "common/mod.rs"]
 mod common;
 
 use anyhow::Result;
@@ -11,7 +12,7 @@ use project_root::get_project_root;
 use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
 use rstest::rstest;
 
-use common::{mock_perfect_instruction, setup_env_for_benchmark};
+use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
 
 /// A focused unit test for the `calculate_score` function.
 ///

@@ -11,6 +11,18 @@ path = "src/lib.rs"
 name = "reev-runner"
 path = "src/main.rs"
 
+[[test]]
+name = "benchmarks_test"
+path = "tests/benchmarks_test.rs"
+
+[[test]]
+name = "scoring_test"
+path = "tests/scoring_test.rs"
+
+[[test]]
+name = "surfpool_rpc_test"
+path = "tests/surfpool_rpc_test.rs"
+
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 reev-agent = { path = "../reev-agent" }
