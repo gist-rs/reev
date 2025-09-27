@@ -5,7 +5,10 @@ use reev_agent::run_server;
 async fn main() -> anyhow::Result<()> {
     // Initialize the logging subscriber.
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,reev_lib=info,reev_agent=info".into()),
+        )
         .init();
 
     // Run the server.
