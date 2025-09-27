@@ -1,3 +1,13 @@
+//! # Core Testing Philosophy: Surfpool + Real Mainnet Programs
+//!
+//! All integration tests in the `reev` framework operate on `surfpool`, a high-speed
+//! local Solana test validator. `surfpool` instantly forks Solana mainnet, meaning
+//! any on-chain account not explicitly mocked in the test setup is fetched live from
+//! mainnet. This allows tests to interact with real, deployed programs (like SPL Token
+//! or Jupiter) without any mocking of program logic. Test assertions are based on the
+//! real outcomes of these transactions. This approach ensures that a passing test gives
+//! a strong signal of real-world viability.
+
 use reev_lib::actions::{sol_transfer, spl_transfer};
 use solana_sdk::{
     bs58,

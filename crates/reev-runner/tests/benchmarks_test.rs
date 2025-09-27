@@ -1,3 +1,11 @@
+//! # Core Test Principle: `surfpool` + Real Mainnet Programs
+//!
+//! All tests in this suite operate on a `surfpool` instance, which is a high-speed,
+//! in-memory fork of the Solana mainnet. This allows tests to interact with real,
+//! deployed programs (like the SPL Token program or Jupiter) without any mocking.
+//! The `surfnet_*` RPC cheat codes are used only for setting up the initial state
+//! (e.g., funding accounts) to create a controlled test environment.
+
 //! # Benchmark Sanity Check Test
 //!
 //! This test file ensures that all defined benchmarks in the `benchmarks/`

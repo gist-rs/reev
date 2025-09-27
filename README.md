@@ -10,6 +10,12 @@
 
 The architecture is grounded in the principles of the Gymnasium API but implemented as a native Rust framework to ensure performance, type safety, and seamless integration with the Solana ecosystem.
 
+### Core Methodology: Real Programs, Controlled State
+
+The entire framework is built on **`surfpool`**, a high-speed, in-memory fork of the Solana mainnet. This provides the best of both worlds:
+- **Real-World Logic**: Agents interact with the actual, deployed mainnet versions of programs like Jupiter, Kamino, or the SPL Token Program. There is no program mocking, so a successful action is a strong indicator of real-world viability.
+- **Controlled Environment**: While program logic is real, the *state* (e.g., account balances, token ownership) is precisely controlled. Tests use RPC "cheat codes" to set up a specific initial on-chain state, ensuring every evaluation run is hermetic and reproducible.
+
 ### Core Principles
 
 -   **Reproducibility**: The primary goal. Every test run is hermetic, guaranteeing that a given benchmark will produce the exact same result every time.

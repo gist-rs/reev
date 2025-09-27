@@ -47,6 +47,8 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 
 ## Testing
 
+**Core Principle:** All tests in this crate run against a `surfpool` instance, which is a high-speed, in-memory fork of the Solana mainnet. This allows tests to interact with the *real, deployed* versions of on-chain programs (like the SPL Token program or Jupiter) without any program logic mocking. This ensures that a passing test is a strong signal of real-world viability.
+
 The tests for this crate are split into two main categories to ensure both the correctness of the scoring logic and the validity of the benchmark files themselves.
 
 ### Running All Tests
