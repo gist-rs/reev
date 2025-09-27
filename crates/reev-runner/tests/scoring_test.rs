@@ -1,50 +1,26 @@
-use anyhow::{Result, anyhow};
+//! # Scoring Logic Unit Test
+//!
+//! This test file is dedicated to verifying the correctness of the `calculate_score` function.
+//! It uses a minimal set of benchmarks to confirm that the scoring logic correctly
+//! identifies passing and failing outcomes based on on-chain state assertions.
+
+mod common;
+
+use anyhow::Result;
 use project_root::get_project_root;
-use reev_lib::{
-    actions::spl_transfer, agent::AgentAction, benchmark::TestCase, env::GymEnv,
-    score::calculate_score, solana_env::SolanaEnv,
-};
+use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
 use rstest::rstest;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
-use std::{collections::HashMap, fs, str::FromStr};
 
-/// Helper to generate a correct SPL transfer `Instruction` for testing.
-/// This mocks the behavior of a perfect agent.
-fn instruction_from_ground_truth(key_map: &HashMap<String, String>) -> Result<Instruction> {
-    let source_pubkey_str = key_map
-        .get("USER_USDC_ATA")
-        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_USDC_ATA' not found in key_map"))?;
-    let destination_pubkey_str = key_map
-        .get("RECIPIENT_USDC_ATA")
-        .ok_or_else(|| anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map"))?;
-    let authority_pubkey_str = key_map
-        .get("USER_WALLET_PUBKEY")
-        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map"))?;
+use common::{mock_perfect_instruction, setup_env_for_benchmark};
 
-    let source_pubkey = Pubkey::from_str(source_pubkey_str)?;
-    let destination_pubkey = Pubkey::from_str(destination_pubkey_str)?;
-    let authority_pubkey = Pubkey::from_str(authority_pubkey_str)?;
-
-    // Both test cases `002` and `003` use a 15 USDC transfer amount.
-    let amount = 15_000_000;
-
-    // Use the helper from `reev-lib` to create the instruction.
-    spl_transfer::create_instruction(
-        &source_pubkey,
-        &destination_pubkey,
-        &authority_pubkey,
-        amount,
-    )
-}
-
-/// Parameterized test for the scoring logic.
+/// A focused unit test for the `calculate_score` function.
 ///
-/// This single test function covers both passing and failing scenarios by using `rstest`.
-/// Each `#[case]` defines a distinct test run with a specific benchmark file and an expected score.
+/// This test verifies the two most important scenarios:
+/// 1. A benchmark where the final state **matches** the assertions should receive a score of 1.0.
+/// 2. A benchmark where the final state **does not match** the assertions should receive a score of 0.0.
 ///
-/// # Arguments
-/// * `file_path` - The path to the benchmark YAML file, relative to the workspace root.
-/// * `expected_score` - The expected final score (1.0 for pass, 0.0 for fail).
+/// It uses the SPL transfer benchmarks as they provide a clear and direct way to test the assertion logic,
+/// as the transaction itself is valid in both cases, but the ground truth differs.
 #[rstest]
 #[case(
     "benchmarks/002-spl-transfer.yml",
@@ -62,32 +38,22 @@ async fn test_scoring_logic(
     #[case] expected_score: f64,
     #[case] description: &str,
 ) -> Result<()> {
-    // 1. Construct an absolute path to the benchmark file from the project root.
-    // This ensures the test can find the file regardless of the working directory.
+    // 1. Set up the environment from the benchmark file.
     let project_root = get_project_root()?;
     let benchmark_path = project_root.join(file_path);
+    let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
 
-    // 2. Load the benchmark file.
-    let f = fs::File::open(&benchmark_path)?;
-    let test_case: TestCase = serde_yaml::from_reader(f)?;
-
-    // 3. Set up the environment.
-    let mut env = SolanaEnv::new()?;
-    let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
-    let options = serde_json::json!({ "initial_state": initial_state_json });
-    let initial_observation = env.reset(None, Some(options))?;
-
-    // 4. Mock the agent's action.
-    let instruction = instruction_from_ground_truth(&initial_observation.key_map)?;
+    // 2. Create the "perfect" action for this benchmark.
+    let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
     let action = AgentAction(instruction);
 
-    // 5. Execute the transaction.
+    // 3. Execute the transaction in the environment.
     let step_result = env.step(action, &test_case.ground_truth)?;
 
-    // 6. Calculate the score using the centralized function from `reev-lib`.
+    // 4. Calculate the score using the centralized function from `reev-lib`.
     let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
 
-    // 7. Assert the score matches the expected outcome for this case.
+    // 5. Assert the score matches the expected outcome for this case.
     assert_eq!(
         score, expected_score,
         "Test case '{description}' failed: expected score of {expected_score}, but got {score}"

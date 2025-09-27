@@ -47,22 +47,34 @@ cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
 
 ## Testing
 
-The tests for this crate, particularly for the scoring logic, can be run from the workspace root.
+The tests for this crate are split into two main categories to ensure both the correctness of the scoring logic and the validity of the benchmark files themselves.
 
-### Run All Tests
+### Running All Tests
 
-To execute all tests within the `reev-runner` package, use the following command:
+To execute all tests within the `reev-runner` package, use the following command from the workspace root:
 
 ```sh
 cargo test -p reev-runner
 ```
 
-### Run a Specific Test File
+### Scoring Logic Unit Test (`scoring_test.rs`)
 
-If you want to run a specific test file (e.g., to verify the scoring logic), you can target it by its filename:
+This is a focused unit test to verify that the `calculate_score` function works as expected. It uses a small, fixed set of benchmarks to check for clear pass (`1.0`) and fail (`0.0`) scenarios.
 
+To run only this test:
 ```sh
 cargo test -p reev-runner --test scoring_test
+```
+
+### Benchmark Integration Test (`benchmarks_test.rs`)
+
+This is a sanity-check test that dynamically discovers and runs **every benchmark file** in the `benchmarks/` directory. For each benchmark, it simulates a "perfect agent" and asserts that the final score is `1.0`.
+
+This test is crucial for ensuring that all benchmarks are correctly configured and are "winnable." If this test fails, it indicates a problem with the benchmark's definition, not an agent's performance.
+
+To run only this test:
+```sh
+cargo test -p reev-runner --test benchmarks_test
 ```
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

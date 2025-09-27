@@ -8,6 +8,11 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 1000000000 # 1 SOL
 
+  # Add a recipient wallet to own the destination ATA.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
   # A mock USDC mint.
   - pubkey: "MOCK_USDC_MINT"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
@@ -21,6 +26,12 @@ initial_state:
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
     lamports: 2039280 # Rent
     data: '{"mint": "MOCK_USDC_MINT", "owner": "USER_WALLET_PUBKEY", "amount": 100000000}' # 100 USDC
+
+  # Add a recipient ATA to act as a valid destination for the transfer.
+  - pubkey: "RECIPIENT_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data: '{"mint": "MOCK_USDC_MINT", "owner": "RECIPIENT_WALLET_PUBKEY", "amount": 0}'
 
 prompt: "Lend 100 USDC on Kamino via Jupiter."
 
