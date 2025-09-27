@@ -1,78 +1,25 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use project_root::get_project_root;
 use reev_lib::{
-    actions::spl_transfer,
-    agent::AgentAction,
-    benchmark::TestCase,
-    env::GymEnv,
-    // This function will need to be moved from `reev-runner/src/main.rs` to a new
-    // module in `reev-lib` (e.g., `reev-lib/src/score.rs`) to be accessible here.
-    // score::calculate_score,
-    solana_env::SolanaEnv,
+    actions::spl_transfer, agent::AgentAction, benchmark::TestCase, env::GymEnv,
+    score::calculate_score, solana_env::SolanaEnv,
 };
+use rstest::rstest;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use std::{collections::HashMap, fs, str::FromStr};
 
-// NOTE: The following two functions are duplicates of logic in `main.rs` and `db.rs`.
-// This is a temporary measure. The ideal solution is to refactor `calculate_score`
-// into `reev-lib` so it can be called directly from both the runner and this test.
-
-/// Calculates the final score based on the ground truth assertions.
-fn calculate_score(
-    test_case: &TestCase,
-    final_observation: &reev_lib::agent::AgentObservation,
-) -> f64 {
-    for assertion in &test_case.ground_truth.final_state_assertions {
-        match assertion {
-            reev_lib::benchmark::StateAssertion::SolBalance { pubkey, expected } => {
-                if let Some(account_state) = final_observation.account_states.get(pubkey) {
-                    if let Some(actual_lamports) =
-                        account_state.get("lamports").and_then(|v| v.as_u64())
-                    {
-                        if actual_lamports != *expected {
-                            return 0.0; // FAILED
-                        }
-                    } else {
-                        return 0.0; // FAILED
-                    }
-                } else if *expected != 0 {
-                    return 0.0; // FAILED
-                }
-            }
-            reev_lib::benchmark::StateAssertion::TokenAccountBalance { pubkey, expected } => {
-                if let Some(account_state) = final_observation.account_states.get(pubkey) {
-                    if let Some(actual_amount) =
-                        account_state.get("amount").and_then(|v| v.as_u64())
-                    {
-                        if actual_amount != *expected {
-                            return 0.0; // FAILED
-                        }
-                    } else {
-                        return 0.0; // FAILED
-                    }
-                } else if *expected != 0 {
-                    return 0.0; // FAILED
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-    1.0 // PASSED
-}
-
 /// Helper to generate a correct SPL transfer `Instruction` for testing.
-fn instruction_from_ground_truth(
-    _test_case: &TestCase,
-    key_map: &HashMap<String, String>,
-) -> Result<Instruction> {
-    let source_pubkey_str = key_map.get("USER_USDC_ATA").ok_or_else(|| {
-        anyhow::anyhow!("Pubkey placeholder 'USER_USDC_ATA' not found in key_map")
-    })?;
-    let destination_pubkey_str = key_map.get("RECIPIENT_USDC_ATA").ok_or_else(|| {
-        anyhow::anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map")
-    })?;
-    let authority_pubkey_str = key_map.get("USER_WALLET_PUBKEY").ok_or_else(|| {
-        anyhow::anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map")
-    })?;
+/// This mocks the behavior of a perfect agent.
+fn instruction_from_ground_truth(key_map: &HashMap<String, String>) -> Result<Instruction> {
+    let source_pubkey_str = key_map
+        .get("USER_USDC_ATA")
+        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_USDC_ATA' not found in key_map"))?;
+    let destination_pubkey_str = key_map
+        .get("RECIPIENT_USDC_ATA")
+        .ok_or_else(|| anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map"))?;
+    let authority_pubkey_str = key_map
+        .get("USER_WALLET_PUBKEY")
+        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map"))?;
 
     let source_pubkey = Pubkey::from_str(source_pubkey_str)?;
     let destination_pubkey = Pubkey::from_str(destination_pubkey_str)?;
@@ -81,6 +28,7 @@ fn instruction_from_ground_truth(
     // Both test cases `002` and `003` use a 15 USDC transfer amount.
     let amount = 15_000_000;
 
+    // Use the helper from `reev-lib` to create the instruction.
     spl_transfer::create_instruction(
         &source_pubkey,
         &destination_pubkey,
@@ -89,59 +37,61 @@ fn instruction_from_ground_truth(
     )
 }
 
+/// Parameterized test for the scoring logic.
+///
+/// This single test function covers both passing and failing scenarios by using `rstest`.
+/// Each `#[case]` defines a distinct test run with a specific benchmark file and an expected score.
+///
+/// # Arguments
+/// * `file_path` - The path to the benchmark YAML file, relative to the workspace root.
+/// * `expected_score` - The expected final score (1.0 for pass, 0.0 for fail).
+#[rstest]
+#[case(
+    "benchmarks/002-spl-transfer.yml",
+    1.0,
+    "Correct assertion should pass"
+)]
+#[case(
+    "benchmarks/003-spl-transfer-fail.yml",
+    0.0,
+    "Incorrect assertion should fail"
+)]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_scoring_pass_case() -> Result<()> {
-    // 1. Load the benchmark file.
-    let f = fs::File::open("../../benchmarks/002-spl-transfer.yml")?;
+async fn test_scoring_logic(
+    #[case] file_path: &str,
+    #[case] expected_score: f64,
+    #[case] description: &str,
+) -> Result<()> {
+    // 1. Construct an absolute path to the benchmark file from the project root.
+    // This ensures the test can find the file regardless of the working directory.
+    let project_root = get_project_root()?;
+    let benchmark_path = project_root.join(file_path);
+
+    // 2. Load the benchmark file.
+    let f = fs::File::open(&benchmark_path)?;
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
-    // 2. Set up the environment.
+    // 3. Set up the environment.
     let mut env = SolanaEnv::new()?;
     let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
     let options = serde_json::json!({ "initial_state": initial_state_json });
-    let observation = env.reset(None, Some(options))?;
+    let initial_observation = env.reset(None, Some(options))?;
 
-    // 3. Mock the agent's action by using the ground truth instruction.
-    let instruction = instruction_from_ground_truth(&test_case, &observation.key_map)?;
+    // 4. Mock the agent's action.
+    let instruction = instruction_from_ground_truth(&initial_observation.key_map)?;
     let action = AgentAction(instruction);
 
-    // 4. Execute the transaction.
+    // 5. Execute the transaction.
     let step_result = env.step(action, &test_case.ground_truth)?;
 
-    // 5. Calculate the score using the local, duplicated logic.
-    let score = calculate_score(&test_case, &step_result.observation);
+    // 6. Calculate the score using the centralized function from `reev-lib`.
+    let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
 
-    // 6. Assert the score is 1.0.
-    assert_eq!(score, 1.0, "Score for the pass case should be 1.0");
-
-    env.close()?;
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_scoring_fail_case() -> Result<()> {
-    // 1. Load the benchmark file.
-    let f = fs::File::open("../../benchmarks/003-spl-transfer-fail.yml")?;
-    let test_case: TestCase = serde_yaml::from_reader(f)?;
-
-    // 2. Set up the environment.
-    let mut env = SolanaEnv::new()?;
-    let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
-    let options = serde_json::json!({ "initial_state": initial_state_json });
-    let observation = env.reset(None, Some(options))?;
-
-    // 3. Mock the agent's action. The transaction itself is valid.
-    let instruction = instruction_from_ground_truth(&test_case, &observation.key_map)?;
-    let action = AgentAction(instruction);
-
-    // 4. Execute the transaction.
-    let step_result = env.step(action, &test_case.ground_truth)?;
-
-    // 5. Calculate the score. The logic should find a mismatch with the assertion.
-    let score = calculate_score(&test_case, &step_result.observation);
-
-    // 6. Assert the score is 0.0.
-    assert_eq!(score, 0.0, "Score for the fail case should be 0.0");
+    // 7. Assert the score matches the expected outcome for this case.
+    assert_eq!(
+        score, expected_score,
+        "Test case '{description}' failed: expected score of {expected_score}, but got {score}"
+    );
 
     env.close()?;
     Ok(())

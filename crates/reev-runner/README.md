@@ -45,4 +45,24 @@ cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
     cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
     ```
 
+## Testing
+
+The tests for this crate, particularly for the scoring logic, can be run from the workspace root.
+
+### Run All Tests
+
+To execute all tests within the `reev-runner` package, use the following command:
+
+```sh
+cargo test -p reev-runner
+```
+
+### Run a Specific Test File
+
+If you want to run a specific test file (e.g., to verify the scoring logic), you can target it by its filename:
+
+```sh
+cargo test -p reev-runner --test scoring_test
+```
+
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

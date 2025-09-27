@@ -1,10 +1,11 @@
 use anyhow::{Context, Result, anyhow};
 use reev_lib::{
     agent::{Agent, AgentObservation},
-    benchmark::{StateAssertion, TestCase},
+    benchmark::TestCase,
     env::GymEnv,
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
+    score::calculate_score,
     solana_env::SolanaEnv,
     trace::ExecutionTrace,
 };
@@ -14,7 +15,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use tokio::time::{Duration, sleep};
-use tracing::{debug, error, info, instrument};
+use tracing::{error, info, instrument};
 
 pub mod db;
 pub mod renderer;
@@ -107,6 +108,8 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
 
         let (initial_observation, final_observation, trace) =
             run_evaluation_loop(&mut env, &mut agent, &test_case).await?;
+
+        // Use the centralized scoring function from reev-lib.
         let score = calculate_score(&test_case, &initial_observation, &final_observation);
         let final_status = if score == 1.0 {
             FinalStatus::Succeeded
@@ -198,125 +201,4 @@ async fn run_evaluation_loop(
     trace.add_step(trace_step);
     info!("Episode finished.");
     Ok((initial_observation, step_result.observation, trace))
-}
-
-/// Calculates the final score based on the ground truth assertions.
-fn calculate_score(
-    test_case: &TestCase,
-    initial_observation: &AgentObservation,
-    final_observation: &AgentObservation,
-) -> f64 {
-    debug!("Calculating score based on on-chain state assertions...");
-    for assertion in &test_case.ground_truth.final_state_assertions {
-        let pass = match assertion {
-            StateAssertion::SolBalance { pubkey, expected } => {
-                if let Some(account_state) = final_observation.account_states.get(pubkey) {
-                    if let Some(actual) = account_state.get("lamports").and_then(|v| v.as_u64()) {
-                        if actual == *expected {
-                            debug!(pubkey, expected, actual, "SolBalance assertion PASSED");
-                            true
-                        } else {
-                            debug!(pubkey, expected, actual, "SolBalance assertion FAILED");
-                            false
-                        }
-                    } else {
-                        debug!(
-                            pubkey,
-                            expected, "SolBalance assertion FAILED: lamports not found"
-                        );
-                        false
-                    }
-                } else if *expected == 0 {
-                    debug!(
-                        pubkey,
-                        expected, "SolBalance assertion PASSED: account not found"
-                    );
-                    true
-                } else {
-                    debug!(
-                        pubkey,
-                        expected, "SolBalance assertion FAILED: account not found"
-                    );
-                    false
-                }
-            }
-            StateAssertion::TokenAccountBalance { pubkey, expected } => {
-                if let Some(account_state) = final_observation.account_states.get(pubkey) {
-                    if let Some(actual) = account_state.get("amount").and_then(|v| v.as_u64()) {
-                        if actual == *expected {
-                            debug!(
-                                pubkey,
-                                expected, actual, "TokenAccountBalance assertion PASSED"
-                            );
-                            true
-                        } else {
-                            debug!(
-                                pubkey,
-                                expected, actual, "TokenAccountBalance assertion FAILED"
-                            );
-                            false
-                        }
-                    } else {
-                        debug!(
-                            pubkey,
-                            expected, "TokenAccountBalance assertion FAILED: amount not found"
-                        );
-                        false
-                    }
-                } else if *expected == 0 {
-                    debug!(
-                        pubkey,
-                        expected, "TokenAccountBalance assertion PASSED: account not found"
-                    );
-                    true
-                } else {
-                    debug!(
-                        pubkey,
-                        expected, "TokenAccountBalance assertion FAILED: account not found"
-                    );
-                    false
-                }
-            }
-            StateAssertion::SolBalanceChange {
-                pubkey,
-                expected_change_gte,
-            } => {
-                let initial_balance = initial_observation
-                    .account_states
-                    .get(pubkey)
-                    .and_then(|v| v.get("lamports"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-
-                let final_balance = final_observation
-                    .account_states
-                    .get(pubkey)
-                    .and_then(|v| v.get("lamports"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-
-                let actual_change = final_balance as i64 - initial_balance as i64;
-
-                if actual_change >= *expected_change_gte {
-                    debug!(
-                        pubkey,
-                        expected_change_gte, actual_change, "SolBalanceChange assertion PASSED"
-                    );
-                    true
-                } else {
-                    debug!(
-                        pubkey,
-                        expected_change_gte, actual_change, "SolBalanceChange assertion FAILED"
-                    );
-                    false
-                }
-            }
-        };
-
-        if !pass {
-            return 0.0;
-        }
-    }
-    debug!("All on-chain assertions passed");
-    1.0
 }

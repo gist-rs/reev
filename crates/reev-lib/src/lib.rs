@@ -5,5 +5,6 @@ pub mod env;
 pub mod llm_agent;
 
 pub mod results;
+pub mod score;
 pub mod solana_env;
 pub mod trace;
