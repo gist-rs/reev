@@ -3705,6 +3705,7 @@ dependencies = [
  "opentelemetry-stdout",
  "opentelemetry_sdk",
  "project-root",
+ "reev-agent",
  "reev-lib",
  "reqwest",
  "serde_json",

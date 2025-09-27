@@ -45,17 +45,19 @@ async fn start_agent() -> Result<AgentProcessGuard> {
 
     info!(log_path = %log_file_path.display(), "Starting reev-agent...");
 
+    // The path to the `reev-agent` executable is provided at compile-time by the build script.
+    let agent_binary_path = env!("REEV_AGENT_PATH");
+    info!(path = %agent_binary_path, "Found pre-built reev-agent binary");
+
     let workspace_root =
         project_root::get_project_root().context("Failed to find workspace root")?;
-    info!("Spawning agent from workspace root: {:?}", workspace_root);
 
-    let agent_process = Command::new("cargo")
-        .args(["run", "-p", "reev-agent"])
+    let agent_process = Command::new(agent_binary_path)
         .current_dir(&workspace_root)
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(stderr_log))
         .spawn()
-        .context("Failed to spawn reev-agent process. Is `cargo` in your PATH?")?;
+        .context("Failed to spawn reev-agent process from pre-built binary")?;
 
     let guard = AgentProcessGuard {
         process: agent_process,
