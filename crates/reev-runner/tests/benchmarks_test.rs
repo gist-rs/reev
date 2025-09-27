@@ -18,18 +18,15 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use anyhow::{Context, Result};
-use common::{
-    helpers::{mock_perfect_instruction, setup_env_for_benchmark, setup_spl_benchmark},
-    http_client::SurfpoolClient,
-};
+use anyhow::Result;
 use glob::glob;
 use project_root::get_project_root;
 use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
 use rstest::rstest;
-use solana_sdk::pubkey::Pubkey;
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 use tracing::info;
+
+use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark, setup_spl_benchmark};
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
@@ -71,6 +68,8 @@ async fn test_all_benchmarks_are_solvable(
         );
 
         // 1. Set up the environment from the benchmark file.
+        // We determine whether to use the specialized SPL setup by checking if the
+        // benchmark file mentions the SPL Token Program ID.
         let benchmark_content = std::fs::read_to_string(&benchmark_path)?;
         let (mut env, test_case, initial_observation) =
             if benchmark_content.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
@@ -86,41 +85,13 @@ async fn test_all_benchmarks_are_solvable(
         info!("✅ Mock instruction created for {}", test_case.id);
 
         // 3. Execute the transaction in the environment.
-        let mut step_result = env.step(action, &test_case.ground_truth)?;
+        let step_result = env.step(action, &test_case.ground_truth)?;
         info!(
             "✅ Transaction executed for {}. Status: {}",
             test_case.id, step_result.observation.last_transaction_status
         );
 
-        // 4. Handle special case for lending benchmark.
-        // The mock instruction is a no-op (memo). To satisfy the benchmark's assertion
-        // that the token balance becomes zero, we manually set the balance using an RPC
-        // cheat code and then perform another no-op step to re-fetch the updated state.
-        if test_case.id == "111-JUP-LEND-USDC" {
-            info!("[post-step] Applying RPC cheat code for lending benchmark...");
-            let client = SurfpoolClient::new();
-            let user_wallet_pubkey_str = initial_observation
-                .key_map
-                .get("USER_WALLET_PUBKEY")
-                .context("USER_WALLET_PUBKEY not found")?;
-            let usdc_mint_pubkey = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-
-            // Set the user's token balance to 0.
-            client
-                .set_token_account(user_wallet_pubkey_str, usdc_mint_pubkey, 0)
-                .await?;
-
-            // Perform a second no-op action to get the updated observation.
-            let user_wallet_pubkey = Pubkey::from_str(user_wallet_pubkey_str)?;
-            let refetch_action = AgentAction(spl_memo::build_memo(
-                b"re-fetch state",
-                &[&user_wallet_pubkey],
-            ));
-            step_result = env.step(refetch_action, &test_case.ground_truth)?;
-            info!("✅ State updated and re-fetched via RPC for lending benchmark.");
-        }
-
-        // 5. Calculate the score.
+        // 4. Calculate the score.
         let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
         info!(
             "📊 Calculated score for '{}': {}",
@@ -128,7 +99,7 @@ async fn test_all_benchmarks_are_solvable(
             score
         );
 
-        // 6. Assert that the benchmark is solvable with a perfect score.
+        // 5. Assert that the benchmark is solvable with a perfect score.
         if score == 1.0 {
             info!(
                 "✅ PASS: Benchmark '{}' is solvable.",

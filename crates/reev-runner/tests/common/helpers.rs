@@ -48,14 +48,11 @@ pub fn setup_env_for_benchmark(
 /// A specialized helper for SPL token benchmarks.
 ///
 /// This function is the key to correctly setting up SPL benchmarks. It:
-/// 1.  Performs an initial `reset` which creates keypairs for wallets but assigns
-///     *temporary, incorrect* pubkeys for the ATA placeholders.
+/// 1.  Performs an initial `reset` which creates keypairs for wallets.
 /// 2.  It then *derives* the correct ATA addresses based on the wallet and mint pubkeys.
-/// 3.  It **replaces** the incorrect ATA pubkeys in the environment's `pubkey_map`
-///     with the correct, derived ones.
-/// 4.  If the benchmark doesn't define a recipient, it creates a "dummy" recipient ATA
+/// 3.  If the benchmark doesn't define a recipient, it creates a "dummy" recipient ATA
 ///     to act as a valid sink for tokens in lending/swapping tests.
-/// 5.  It uses the `surfpool` cheat code to fund the user's token account at the correct ATA.
+/// 4.  It uses the `surfpool` cheat code to fund the user's token account at the correct ATA.
 pub async fn setup_spl_benchmark(
     benchmark_path: &Path,
 ) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
