@@ -4,6 +4,7 @@ use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
+use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
@@ -43,6 +44,10 @@ impl Tool for JupiterSwapTool {
 
     /// Defines the tool's schema and description for the AI model.
     async fn definition(&self, _prompt: String) -> ToolDefinition {
+        let input_mint_description = format!(
+            "The mint address of the token to be swapped FROM. For native SOL, use '{}'.",
+            native_mint::ID
+        );
         ToolDefinition {
             name: Self::NAME.to_string(),
             description: "Swap one token for another using the Jupiter aggregator. This finds the best price across many decentralized exchanges.".to_string(),
@@ -55,7 +60,7 @@ impl Tool for JupiterSwapTool {
                     },
                     "input_mint": {
                         "type": "string",
-                        "description": "The mint address of the token to be swapped FROM. For native SOL, use 'So11111111111111111111111111111111111111112'."
+                        "description": input_mint_description
                     },
                     "output_mint": {
                         "type": "string",

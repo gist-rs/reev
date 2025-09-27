@@ -1,19 +1,12 @@
 use anyhow::{Context, Result};
-use jupiter_lend::run_server;
+use reev_agent::run_server;
 use serde::Deserialize;
 use serde_json::json;
-use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
-use std::{fs::File, path::PathBuf, time::Duration};
+use std::{collections::HashMap, fs::File, path::PathBuf, time::Duration};
 use tracing::{debug, info};
 
-/// The mainnet USDC mint address.
-const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-
-/// A representative deposit receipt token for USDC.
-/// For this example, we'll use USDT, as swapping one stablecoin for another
-/// follows the same API pattern as swapping for a lending receipt token.
-const USDT_MINT: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
+mod common;
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -22,20 +15,41 @@ struct TestCase {
     prompt: String,
 }
 
-/// A standalone example to make a direct API call for the '111-jup-lend-usdc' scenario.
+/// A standalone example to make a direct API call to the `reev-agent` for the '111-jup-lend-usdc' scenario.
 ///
 /// This example does the following:
-/// 1. Spowns the `jupiter-lend` server in a background task.
+/// 1. Spawns the `reev-agent` server in a background task.
 /// 2. Waits for the server to become healthy.
 /// 3. Loads the `111-jup-lend-usdc.yml` benchmark file.
-/// 4. Creates a mock `user_public_key`.
-/// 5. Sends a POST request to the `jupiter-lend` server to build the transaction.
-/// 6. Prints the server's JSON response to the console.
+/// 4. Creates a mock context including a `user_public_key` and mock USDC mint.
+/// 5. Sends a POST request to the `reev-agent` with the benchmark prompt and context.
+/// 6. Prints the agent's JSON response to the console.
 ///
 /// # How to Run
 ///
+/// **Deterministic Agent (Default):**
 /// ```sh
 /// cargo run -p reev-agent --example 111-jup-lend-usdc
+/// ```
+///
+/// **Gemini Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
+/// ```
+///
+/// **Local Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent local
+/// ```
+///
+/// **Gemini Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent gemini-2.5-pro
+/// ```
+///
+/// **Local Agent:**
+/// ```sh
+/// cargo run -p reev-agent --example 111-jup-lend-usdc -- --agent local
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,23 +57,28 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
-    info!("--- Running Jupiter Lend USDC Example ---");
+    let agent_name = common::get_agent_name();
+
+    info!(
+        "--- Running Jupiter Lend USDC Example with Agent: {} ---",
+        agent_name
+    );
 
     // 1. Spawn the server in a background task.
     tokio::spawn(async {
         if let Err(e) = run_server().await {
-            eprintln!("[reev-agent-example] Jupiter Lend server failed: {e}");
+            eprintln!("[reev-agent-example] Server failed: {e}");
         }
     });
 
     // 2. Wait for the server to be healthy before proceeding.
     let client = reqwest::Client::new();
-    let health_url = "http://127.0.0.1:3000/health";
-    info!("Waiting for Jupiter Lend server to start...");
+    let health_url = "http://127.0.0.1:9090/health";
+    info!("Waiting for agent server to start...");
     loop {
         match client.get(health_url).send().await {
             Ok(response) if response.status().is_success() => {
-                info!("Jupiter Lend server is running.");
+                info!("Agent server is running.");
                 break;
             }
             _ => {
@@ -79,51 +98,60 @@ async fn main() -> Result<()> {
         test_case.id, test_case.prompt
     );
 
-    // 4. Create a mock user public key.
+    // 4. Create a mock context, simulating the runner's environment setup.
     let user_wallet_pubkey = Pubkey::new_unique();
-    info!("Using mock user wallet: {}", user_wallet_pubkey);
+    let mock_usdc_mint = Pubkey::new_unique();
+    let user_usdc_ata = Pubkey::new_unique();
 
-    // 5. Construct the JSON payload for the jupiter-lend server.
-    // The prompt is "Lend 100 USDC..." which is 100,000,000 in the smallest unit (6 decimals).
-    // We treat this as a swap from USDC to another token (like USDT or a deposit receipt token).
+    let mut key_map = HashMap::new();
+    key_map.insert("USER_WALLET_PUBKEY", user_wallet_pubkey.to_string());
+    key_map.insert("MOCK_USDC_MINT", mock_usdc_mint.to_string());
+    key_map.insert("USER_USDC_ATA", user_usdc_ata.to_string());
+
+    let context_yaml =
+        serde_yaml::to_string(&json!({ "key_map": key_map })).context("Failed to create YAML")?;
+    let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
+
+    // 5. Construct the JSON payload for the agent.
     let request_payload = json!({
-        "userPublicKey": user_wallet_pubkey.to_string(),
-        "inputMint": USDC_MINT.to_string(),
-        "outputMint": USDT_MINT.to_string(),
-        "amount": 100_000_000u64,
-        "slippageBps": 50, // 0.5% slippage
+        "id": test_case.id,
+        "prompt": test_case.prompt,
+        "context_prompt": context_prompt,
+        "model_name": agent_name,
     });
     info!(
         "Request payload:\n{}",
         serde_json::to_string_pretty(&request_payload)?
     );
 
-    // 6. Send the request to the running jupiter-lend server.
-    let lend_server_url = "http://127.0.0.1:3000/build-lend-transaction";
-    info!(
-        "Sending request to Jupiter Lend server at {}...",
-        lend_server_url
-    );
+    // 6. Send the request to the running reev-agent.
+    let agent_url = if agent_name == "deterministic" {
+        "http://127.0.0.1:9090/gen/tx?mock=true"
+    } else {
+        "http://127.0.0.1:9090/gen/tx"
+    };
+    info!("Sending request to agent at {}...", agent_url);
 
     let response = client
-        .post(lend_server_url)
+        .post(agent_url)
         .json(&request_payload)
         .send()
         .await
-        .context("Failed to send request to the lend server")?;
+        .context("Failed to send request to the agent")?;
 
     // 7. Process and print the response.
     if response.status().is_success() {
         let response_json: serde_json::Value = response
             .json()
             .await
-            .context("Failed to deserialize lend server response")?;
-        info!("✅ Jupiter Lend server responded successfully!");
+            .context("Failed to deserialize agent response")?;
+        info!("✅ Agent responded successfully!");
+        info!("✅ Agent responded successfully!");
         debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
         let error_body = response.text().await.unwrap_or_default();
-        anyhow::bail!("❌ Lend server request failed with status {status}: {error_body}");
+        anyhow::bail!("❌ Agent request failed with status {status}: {error_body}");
     }
 
     Ok(())

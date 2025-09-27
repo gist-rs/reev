@@ -6,21 +6,17 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
 use reev_lib::agent::RawInstruction;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-
-use solana_sdk::pubkey::Pubkey;
-use solana_system_interface::instruction as system_instruction;
 use std::collections::HashMap;
-use std::str::FromStr;
 use tracing::{error, info};
 
 pub mod jupiter;
 pub mod tools;
 
 mod agents;
+mod deterministic_agents;
 mod prompt;
 
 /// Represents the structure of the incoming request from the `LlmAgent`.
@@ -149,80 +145,27 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
     let key_map = context.key_map;
 
-    let raw_instruction = if payload.id == "001-SOL-TRANSFER" {
-        info!("[reev-agent] Matched '001-SOL-TRANSFER' id. Generating instruction with code.");
-        let from_pubkey = key_map
-            .get("USER_WALLET_PUBKEY")
-            .context("USER_WALLET_PUBKEY not found in key_map")?;
-        let to_pubkey = key_map
-            .get("RECIPIENT_WALLET_PUBKEY")
-            .context("RECIPIENT_WALLET_PUBKEY not found in key_map")?;
-        let from = Pubkey::from_str(from_pubkey).context("Failed to parse from_pubkey")?;
-        let to = Pubkey::from_str(to_pubkey).context("Failed to parse to_pubkey")?;
-        let lamports = 100_000_000;
-        let instruction = system_instruction::transfer(&from, &to, lamports);
-        info!("[reev-agent] Generated instruction: {instruction:?}");
-        instruction.into()
-    } else if payload.id == "002-SPL-TRANSFER" {
-        info!("[reev-agent] Matched '002-SPL-TRANSFER' id. Generating instruction with code.");
-        let source_ata_str = key_map
-            .get("USER_USDC_ATA")
-            .context("USER_USDC_ATA not found in key_map")?;
-        let dest_ata_str = key_map
-            .get("RECIPIENT_USDC_ATA")
-            .context("RECIPIENT_USDC_ATA not found in key_map")?;
-        let authority_str = key_map
-            .get("USER_WALLET_PUBKEY")
-            .context("USER_WALLET_PUBKEY not found in key_map")?;
-        let source_pubkey =
-            Pubkey::from_str(source_ata_str).context("Failed to parse source ATA pubkey")?;
-        let destination_pubkey =
-            Pubkey::from_str(dest_ata_str).context("Failed to parse destination ATA pubkey")?;
-        let authority_pubkey =
-            Pubkey::from_str(authority_str).context("Failed to parse authority pubkey")?;
-        let amount = 15_000_000;
-        let instruction = spl_token::instruction::transfer(
-            &spl_token::id(),
-            &source_pubkey,
-            &destination_pubkey,
-            &authority_pubkey,
-            &[&authority_pubkey],
-            amount,
-        )
-        .context("Failed to create SPL transfer instruction")?;
-        info!("[reev-agent] Generated instruction: {instruction:?}");
-        instruction.into()
-    } else if payload.id == "100-JUP-SWAP-SOL-USDC" {
-        info!("[reev-agent] Matched '100-JUP-SWAP-SOL-USDC' id. Generating instruction with code.");
-        let user_pubkey_str = key_map
-            .get("USER_WALLET_PUBKEY")
-            .context("USER_WALLET_PUBKEY not found in key_map")?;
-        let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
-
-        // For the deterministic case, the prompt hardcodes the swap details.
-        // We provide the known mock mint from the context, and `handle_jupiter_swap` will do the replacement.
-        let input_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
-        let output_mint_str = key_map
-            .get("MOCK_USDC_MINT")
-            .context("MOCK_USDC_MINT not found in key_map")?;
-        let output_mint = Pubkey::from_str(output_mint_str)?;
-        let amount = 100_000_000; // 0.1 SOL specified in the prompt
-        let slippage_bps = 50; // Default slippage
-
-        jupiter::swap::handle_jupiter_swap(
-            user_pubkey,
-            input_mint,
-            output_mint,
-            amount,
-            slippage_bps,
-            &key_map,
-        )
-        .await?
-    } else {
-        anyhow::bail!(
+    let raw_instruction = match payload.id.as_str() {
+        "001-SOL-TRANSFER" => {
+            deterministic_agents::d_001_sol_transfer::handle_sol_transfer(&key_map)?
+        }
+        "002-SPL-TRANSFER" => {
+            deterministic_agents::d_002_spl_transfer::handle_spl_transfer(&key_map)?
+        }
+        "100-JUP-SWAP-SOL-USDC" => {
+            deterministic_agents::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map)
+                .await?
+        }
+        "110-JUP-LEND-SOL" => {
+            deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map).await?
+        }
+        "111-JUP-LEND-USDC" => {
+            deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map).await?
+        }
+        _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",
             payload.id
-        );
+        ),
     };
 
     info!("[reev-agent] Responding with instruction.");
