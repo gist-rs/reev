@@ -3803,6 +3803,7 @@ dependencies = [
  "rstest_macros",
  "serde_json",
  "serde_yaml",
+ "solana-client",
  "solana-sdk",
  "solana-system-interface 1.0.0",
  "spl-associated-token-account",

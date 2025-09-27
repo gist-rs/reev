@@ -100,12 +100,12 @@ async fn main() -> Result<()> {
 
     // 4. Create a mock context, simulating the runner's environment setup.
     let user_wallet_pubkey = Pubkey::new_unique();
-    let mock_usdc_mint = Pubkey::new_unique();
+    let usdc_mint = Pubkey::new_unique();
     let user_usdc_ata = Pubkey::new_unique();
 
     let mut key_map = HashMap::new();
     key_map.insert("USER_WALLET_PUBKEY", user_wallet_pubkey.to_string());
-    key_map.insert("MOCK_USDC_MINT", mock_usdc_mint.to_string());
+    key_map.insert("USDC_MINT", usdc_mint.to_string());
     key_map.insert("USER_USDC_ATA", user_usdc_ata.to_string());
 
     let context_yaml =

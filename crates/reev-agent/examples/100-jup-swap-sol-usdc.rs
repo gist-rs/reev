@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
 
     let mut key_map = HashMap::new();
     key_map.insert("USER_WALLET_PUBKEY", user_wallet_pubkey.to_string());
-    key_map.insert("MOCK_USDC_MINT", usdc_mint.to_string());
+    key_map.insert("USDC_MINT", usdc_mint.to_string());
     key_map.insert("USER_USDC_ATA", user_usdc_ata.to_string());
 
     let context_yaml =

@@ -1,3 +1,7 @@
+pub mod http_client;
+
+use self::http_client::SurfpoolClient;
+
 use anyhow::{Result, anyhow};
 use reev_lib::{
     actions::spl_transfer, agent::AgentObservation, benchmark::TestCase, env::GymEnv,
@@ -6,6 +10,7 @@ use reev_lib::{
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use solana_system_interface::instruction as system_instruction;
 use std::{collections::HashMap, fs, path::Path, str::FromStr};
+use tracing::info;
 
 /// A helper to set up the `SolanaEnv` for a given benchmark file.
 pub fn setup_env_for_benchmark(
@@ -20,6 +25,49 @@ pub fn setup_env_for_benchmark(
     let initial_observation = env.reset(None, Some(options))?;
 
     Ok((env, test_case, initial_observation))
+}
+
+/// A specialized helper for SPL token benchmarks that require setting up token accounts.
+///
+/// This function performs two `reset` calls:
+/// 1. The first reset gets the dynamically generated wallet keys from the environment.
+/// 2. It then uses an RPC client to call the `surfpool` cheat code, setting the token balance.
+/// 3. The second reset ensures the environment re-syncs with the newly created on-chain state.
+pub async fn setup_spl_benchmark(
+    benchmark_path: &Path,
+) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
+    // First reset to get the key map.
+    let (mut env, test_case, initial_observation) = setup_env_for_benchmark(benchmark_path)?;
+    let key_map = initial_observation.key_map;
+
+    // Use the key map to set up the token account via RPC.
+    let client = SurfpoolClient::new();
+    let user_wallet = key_map
+        .get("USER_WALLET_PUBKEY")
+        .ok_or_else(|| anyhow!("USER_WALLET_PUBKEY not found in key_map"))?;
+    let usdc_mint = key_map
+        .get("USDC_MINT_PUBKEY")
+        .ok_or_else(|| anyhow!("USDC_MINT_PUBKEY not found in key_map"))?;
+
+    info!(
+        user_wallet = %user_wallet,
+        usdc_mint = %usdc_mint,
+        "Setting up USDC token account for user via RPC."
+    );
+
+    // Fund the user's USDC account with 100 USDC (assuming 6 decimals).
+    client
+        .set_token_account(user_wallet, usdc_mint, 100_000_000)
+        .await?;
+    info!("✅ User USDC account funded.");
+
+    // Second reset to capture the state *after* the RPC call.
+    let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
+    let options = serde_json::json!({ "initial_state": initial_state_json });
+    let final_observation = env.reset(None, Some(options))?;
+    info!("✅ Environment reset with updated token account state.");
+
+    Ok((env, test_case, final_observation))
 }
 
 /// Creates a "mock perfect" instruction based on the benchmark ID.

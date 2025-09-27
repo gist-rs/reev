@@ -72,39 +72,57 @@ Each `.yml` file is a self-contained test case with a standardized structure:
     -   `final_state_assertions`: A list of on-chain conditions (e.g., `SolBalance`) that must be true.
     -   `expected_instruction`: The ideal raw Solana instruction the agent should generate, used for validation and scoring.
 
-### 3.2. Example Benchmark (`spl-transfer-001.yml`)
+### 3.2. Example Benchmark (`001-sol-transfer.yml`)
 
 ```yaml
-id: 002-SPL-TRANSFER
-description: A simple SPL-Token transfer using a mock USDC mint.
-tags: ["spl-token", "transfer", "usdc"]
+id: 001-SOL-TRANSFER
+description: A simple SOL transfer from one wallet to another to test basic tool selection and parameterization.
+tags: ["system-program", "transfer", "t2"]
 
+# Defines the on-chain state at the beginning of the test.
+# Placeholders like USER_WALLET_PUBKEY will be replaced by the test runner.
 initial_state:
   - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
     lamports: 1000000000 # 1 SOL
 
-  - pubkey: "MOCK_USDC_MINT"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    mint_data:
-      decimals: 6
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 0
 
-  - pubkey: "USER_USDC_ATA"
-    data: '{"mint": "MOCK_USDC_MINT", "owner": "USER_WALLET_PUBKEY", "amount": 50000000}' # 50 USDC
+# The natural language prompt given to the agent.
+prompt: "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)."
 
-prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
-
+# The objective criteria for judging the agent's performance.
 ground_truth:
+  # A list of on-chain conditions that must be true after the agent has finished.
   final_state_assertions:
-    - type: TokenAccountBalance
-      pubkey: "RECIPIENT_USDC_ATA"
-      expected: 15000000 # 15 USDC
+    - type: SolBalance
+      pubkey: "RECIPIENT_WALLET_PUBKEY"
+      expected: 100000000 # 0.1 SOL
+
+    # Note: Checking the sender's balance is tricky due to variable fees.
+    # A more robust check would be 'balance_less_than' or 'balance_change_approx'.
+    # For this simple case, we'll assume a fixed fee of 5000 lamports.
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected: 899995000 # 1 SOL - 0.1 SOL - 0.000005 SOL fee
+
+  # The ideal raw Solana instruction the agent should generate.
   expected_instruction:
-    program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    program_id: "11111111111111111111111111111111" # System Program
     accounts:
-      - { pubkey: "USER_USDC_ATA", is_signer: false, is_writable: true }
-      - { pubkey: "RECIPIENT_USDC_ATA", is_signer: false, is_writable: true }
-      - { pubkey: "USER_WALLET_PUBKEY", is_signer: true, is_writable: false }
-    data: "3kVA21YASy2b"
+      - pubkey: "USER_WALLET_PUBKEY"
+        is_signer: true
+        is_writable: true
+      - pubkey: "RECIPIENT_WALLET_PUBKEY"
+        is_signer: false
+        is_writable: true
+    # Instruction data for a System Program transfer:
+    # - 4 bytes: instruction index (2 for transfer)
+    # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)
+    # This is base58 encoded.
+    data: "2Z4dY1Wp2j"
 ```
 
 ---

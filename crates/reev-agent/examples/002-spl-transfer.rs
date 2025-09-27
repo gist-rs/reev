@@ -17,7 +17,8 @@ struct TestCase {
 
 /// The main function to run the example.
 ///
-/// This example demonstrates a direct API call to the `reev-agent` for a specific scenario.
+/// This example demonstrates a direct API call to the `reev-agent` for a standard
+/// SPL Transfer scenario using the real USDC mint address.
 ///
 /// # How to run
 ///
@@ -79,10 +80,10 @@ async fn main() -> Result<()> {
         serde_yaml::from_reader(f).context("Failed to parse benchmark YAML")?;
     info!("Loaded prompt: '{}'", test_case.prompt);
 
-    // 4. Create a mock context, simulating the runner's environment setup.
+    // 4. Create a context, simulating the runner's environment setup.
+    // The benchmark file now uses the real USDC mint, so we don't need a mock one.
     let user_wallet_pubkey = Pubkey::new_unique();
     let recipient_wallet_pubkey = Pubkey::new_unique();
-    let mock_usdc_mint = Pubkey::new_unique();
     let user_usdc_ata = Pubkey::new_unique();
     let recipient_usdc_ata = Pubkey::new_unique();
 
@@ -92,14 +93,13 @@ async fn main() -> Result<()> {
         "RECIPIENT_WALLET_PUBKEY",
         recipient_wallet_pubkey.to_string(),
     );
-    key_map.insert("MOCK_USDC_MINT", mock_usdc_mint.to_string());
     key_map.insert("USER_USDC_ATA", user_usdc_ata.to_string());
     key_map.insert("RECIPIENT_USDC_ATA", recipient_usdc_ata.to_string());
 
     let context_yaml =
         serde_yaml::to_string(&json!({ "key_map": key_map })).context("Failed to create YAML")?;
     let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
-    info!("Constructed mock context prompt.");
+    info!("Constructed context prompt.");
 
     // 5. Construct the JSON payload for the agent.
     let request_payload = json!({
