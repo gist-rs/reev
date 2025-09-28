@@ -1,7 +1,6 @@
 #![cfg(test)]
 
-use super::http_client::SurfpoolClient;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use reev_lib::{
     actions::spl_transfer, agent::AgentObservation, benchmark::TestCase, env::GymEnv,
     solana_env::SolanaEnv,
@@ -9,11 +8,15 @@ use reev_lib::{
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use solana_system_interface::instruction as system_instruction;
-use spl_associated_token_account::get_associated_token_address;
 use std::{collections::HashMap, fs, path::Path, str::FromStr, thread, time::Duration};
 use tracing::info;
 
-/// A helper to set up the `SolanaEnv` for a given benchmark file.
+/// A standard helper to set up the `SolanaEnv` for a given benchmark file.
+///
+/// This function is now the single entry point for setting up any benchmark. It
+/// reads the test case from the file and calls `env.reset()`. The `SolanaEnv`'s
+/// `reset` implementation now contains all the centralized logic (including complex
+/// SPL setup), ensuring a consistent environment for all tests.
 pub fn setup_env_for_benchmark(
     benchmark_path: &Path,
 ) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
@@ -35,157 +38,14 @@ pub fn setup_env_for_benchmark(
     let test_case: TestCase = serde_yaml::from_reader(f)?;
 
     let mut env = SolanaEnv::new()?;
-    let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
-    let options = serde_json::json!({
-        "id": test_case.id,
-        "initial_state": initial_state_json
-    });
-    let initial_observation = env.reset(None, Some(options))?;
+    // `env.reset` now contains the centralized setup logic from `reev-lib`.
+    let initial_observation = env.reset(None, Some(serde_json::to_value(&test_case)?))?;
 
-    Ok((env, test_case, initial_observation))
-}
-
-/// A specialized helper for SPL token benchmarks.
-///
-/// This function is the key to correctly setting up SPL benchmarks. It:
-/// 1.  Performs an initial `reset` which creates keypairs for wallets.
-/// 2.  It then *derives* the correct ATA addresses based on the wallet and mint pubkeys.
-/// 3.  If the benchmark doesn't define a recipient, it creates a "dummy" recipient ATA
-///     to act as a valid sink for tokens in lending/swapping tests.
-/// 4.  It uses the `surfpool` cheat code to fund the user's token account at the correct ATA.
-pub async fn setup_spl_benchmark(
-    benchmark_path: &Path,
-) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
-    let (mut env, test_case, mut initial_observation) = setup_env_for_benchmark(benchmark_path)?;
-
-    let usdc_mint_pubkey = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-
-    let user_wallet_pubkey = Pubkey::from_str(
-        initial_observation
-            .key_map
-            .get("USER_WALLET_PUBKEY")
-            .context("USER_WALLET_PUBKEY not found in key_map")?,
-    )?;
-
-    let user_usdc_ata = get_associated_token_address(&user_wallet_pubkey, &usdc_mint_pubkey);
-    info!("[setup] Derived correct User ATA: {}", user_usdc_ata);
-    env.pubkey_map
-        .insert("USER_USDC_ATA".to_string(), user_usdc_ata);
-    initial_observation
-        .key_map
-        .insert("USER_USDC_ATA".to_string(), user_usdc_ata.to_string());
-
-    let client = SurfpoolClient::new();
-
-    // Handle recipient setup. If a recipient is defined in the benchmark, use it.
-    // Otherwise, create a dummy recipient to act as a sink for funds, which is
-    // necessary for benchmarks like lending or swapping where there's no explicit recipient.
-    if let Some(recipient_wallet_pubkey_str) =
-        initial_observation.key_map.get("RECIPIENT_WALLET_PUBKEY")
-    {
-        let recipient_wallet_pubkey = Pubkey::from_str(recipient_wallet_pubkey_str)?;
-        let recipient_usdc_ata =
-            get_associated_token_address(&recipient_wallet_pubkey, &usdc_mint_pubkey);
-
-        info!(
-            "[setup] Derived correct Recipient ATA: {}",
-            recipient_usdc_ata
-        );
-        env.pubkey_map
-            .insert("RECIPIENT_USDC_ATA".to_string(), recipient_usdc_ata);
-        initial_observation.key_map.insert(
-            "RECIPIENT_USDC_ATA".to_string(),
-            recipient_usdc_ata.to_string(),
-        );
-
-        client
-            .set_token_account(
-                &recipient_wallet_pubkey.to_string(),
-                &usdc_mint_pubkey.to_string(),
-                0,
-            )
-            .await?;
-        info!(
-            "[setup] Funded recipient's ATA ({}) with 0 tokens.",
-            recipient_usdc_ata
-        );
-    } else {
-        info!("[setup] No recipient found in benchmark, creating a dummy recipient ATA.");
-        let dummy_recipient_wallet = Pubkey::new_unique();
-        let dummy_recipient_ata =
-            get_associated_token_address(&dummy_recipient_wallet, &usdc_mint_pubkey);
-
-        client
-            .set_token_account(
-                &dummy_recipient_wallet.to_string(),
-                &usdc_mint_pubkey.to_string(),
-                0,
-            )
-            .await?;
-
-        info!(
-            "[setup] Created and funded dummy ATA: {}",
-            dummy_recipient_ata
-        );
-
-        // Insert the dummy ATA into the maps so the mock instruction builder can find it.
-        env.pubkey_map
-            .insert("RECIPIENT_USDC_ATA".to_string(), dummy_recipient_ata);
-        initial_observation.key_map.insert(
-            "RECIPIENT_USDC_ATA".to_string(),
-            dummy_recipient_ata.to_string(),
-        );
-    }
-
-    // Fund the user's account based on the specific benchmark.
-    match test_case.id.as_str() {
-        "002-SPL-TRANSFER" => {
-            let amount = 50_000_000;
-            client
-                .set_token_account(
-                    &user_wallet_pubkey.to_string(),
-                    &usdc_mint_pubkey.to_string(),
-                    amount,
-                )
-                .await?;
-            info!(
-                "[setup] Funded user's ATA ({}) with {} tokens.",
-                user_usdc_ata, amount
-            );
-        }
-        "111-JUP-LEND-USDC" => {
-            let amount = 100_000_000;
-            client
-                .set_token_account(
-                    &user_wallet_pubkey.to_string(),
-                    &usdc_mint_pubkey.to_string(),
-                    amount,
-                )
-                .await?;
-            info!(
-                "[setup] Funded user's ATA ({}) with {} tokens.",
-                user_usdc_ata, amount
-            );
-        }
-        "100-JUP-SWAP-SOL-USDC" => {
-            // Pre-fund with a tiny amount of USDC to satisfy the `expected_gte: 1` assertion.
-            client
-                .set_token_account(
-                    &user_wallet_pubkey.to_string(),
-                    &usdc_mint_pubkey.to_string(),
-                    100,
-                )
-                .await?;
-            info!("[setup] Pre-funded user's USDC ATA for swap benchmark.");
-        }
-        _ => {}
-    }
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     Ok((env, test_case, initial_observation))
 }
 
 /// Creates a "mock perfect" instruction based on the benchmark ID.
+/// This represents the ideal action an agent should take.
 pub fn mock_perfect_instruction(
     test_case: &TestCase,
     key_map: &HashMap<String, String>,
@@ -213,9 +73,7 @@ fn create_sol_transfer_instruction(
     let from_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")
         .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map"))?;
-
-    // If a recipient isn't defined, create a dummy one. This allows SOL-based
-    // benchmarks (like lending SOL) to pass without a pre-defined recipient.
+    // If a recipient isn't defined, create a dummy one.
     let to_pubkey_str = key_map
         .get("RECIPIENT_WALLET_PUBKEY")
         .cloned()
@@ -248,7 +106,8 @@ fn create_spl_transfer_instruction(
         .get("USER_WALLET_PUBKEY")
         .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map"))?;
 
-    // This now expects a recipient ATA to exist, which is guaranteed by the setup logic.
+    // The destination ATA is now guaranteed to exist in the key_map because the
+    // centralized setup logic in `SolanaEnv::reset` creates a dummy one if needed.
     let destination_pubkey_str = key_map.get("RECIPIENT_USDC_ATA").ok_or_else(|| {
         anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map after setup")
     })?;

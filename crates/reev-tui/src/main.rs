@@ -3,7 +3,7 @@ mod event;
 mod tui;
 mod ui;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use app::App;
 use event::handle_events;
 use tui::Tui;
@@ -17,6 +17,12 @@ fn main() -> Result<()> {
         // We just let the original hook print the panic information.
         original_hook(panic_info);
     }));
+
+    // Set the current directory to the workspace root for consistent path resolution.
+    let workspace_root = project_root::get_project_root()
+        .context("Failed to find workspace root. Please run from within the reev workspace.")?;
+    std::env::set_current_dir(&workspace_root)
+        .with_context(|| format!("Failed to set current directory to {workspace_root:?}"))?;
 
     let mut app = App::new();
     let mut tui = Tui::new()?;

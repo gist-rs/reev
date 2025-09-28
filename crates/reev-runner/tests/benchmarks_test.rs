@@ -1,10 +1,12 @@
-//! # Core Test Principle: `surfpool` + Real Mainnet Programs
+//! # Core Testing Philosophy: Surfpool + Real Mainnet Programs
 //!
-//! All tests in this suite operate on a `surfpool` instance, which is a high-speed,
-//! in-memory fork of the Solana mainnet. This allows tests to interact with real,
-//! deployed programs (like the SPL Token program or Jupiter) without any mocking.
-//! The `surfnet_*` RPC cheat codes are used only for setting up the initial state
-//! (e.g., funding accounts) to create a controlled test environment.
+//! All integration tests in the `reev` framework operate on `surfpool`, a high-speed
+//! local Solana test validator. `surfpool` instantly forks Solana mainnet, meaning
+//! any on-chain account not explicitly mocked in the test setup is fetched live from
+//! mainnet. This allows tests to interact with real, deployed programs (like SPL Token
+//! or Jupiter) without any mocking of program logic. Test assertions are based on the
+//! real outcomes of these transactions. This approach ensures that a passing test gives
+//! a strong signal of real-world viability.
 
 //! # Benchmark Sanity Check Test
 //!
@@ -12,16 +14,8 @@
 //! directory are valid and "solvable" by a perfect agent.
 //!
 //! It dynamically discovers every `.yml` file and runs a test for each one.
-//! For each benchmark, it:
-//! 1. Sets up the initial on-chain state.
-//! 2. Generates the "perfect" instruction required to solve the task.
-//! 3. Executes the instruction in the simulated environment.
-//! 4. Calculates the score based on the benchmark's ground truth assertions.
-//! 5. Asserts that the final score is 1.0.
-//!
-//! This acts as a critical integration test. If any benchmark file has a configuration
-//! that makes it impossible to achieve a perfect score, this test will fail,
-//! alerting us to a problem with the benchmark's definition, not the agent's logic.
+//! All complex setup logic is now centralized in `reev-lib`, so this test uses a
+//! single, unified setup function (`setup_env_for_benchmark`) for all cases.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -34,7 +28,7 @@ use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark, setup_spl_benchmark};
+use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
@@ -48,10 +42,8 @@ fn find_benchmark_files() -> Vec<PathBuf> {
         .expect("Failed to read glob pattern")
         .filter_map(Result::ok)
         .filter(|path| {
-            !path
-                .to_str()
-                .unwrap()
-                .ends_with("003-spl-transfer-fail.yml")
+            let path_str = path.to_str().unwrap();
+            !path_str.ends_with("003-spl-transfer-fail.yml")
         })
         .collect()
 }
@@ -75,16 +67,9 @@ async fn test_all_benchmarks_are_solvable(
             benchmark_path.display()
         );
 
-        // 1. Set up the environment from the benchmark file.
-        // We determine whether to use the specialized SPL setup by checking if the
-        // benchmark file mentions the SPL Token Program ID.
-        let benchmark_content = std::fs::read_to_string(&benchmark_path)?;
-        let (mut env, test_case, initial_observation) =
-            if benchmark_content.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
-                setup_spl_benchmark(&benchmark_path).await?
-            } else {
-                setup_env_for_benchmark(&benchmark_path)?
-            };
+        // 1. Set up the environment using the unified setup function.
+        // All complex logic is now handled within `SolanaEnv::reset`.
+        let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Create the "perfect" action for this benchmark.
@@ -108,18 +93,6 @@ async fn test_all_benchmarks_are_solvable(
         );
 
         // 5. Assert that the benchmark is solvable with a perfect score.
-        if score == 1.0 {
-            info!(
-                "✅ PASS: Benchmark '{}' is solvable.",
-                benchmark_path.display()
-            );
-        } else {
-            info!(
-                "❌ FAIL: Benchmark '{}' is not solvable.",
-                benchmark_path.display()
-            );
-        }
-
         assert_eq!(
             score,
             1.0,

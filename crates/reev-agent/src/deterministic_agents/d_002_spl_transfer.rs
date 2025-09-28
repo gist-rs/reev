@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;
+use spl_token;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
@@ -27,7 +28,7 @@ pub(crate) fn handle_spl_transfer(key_map: &HashMap<String, String>) -> Result<R
         &source_pubkey,
         &destination_pubkey,
         &authority_pubkey,
-        &[&authority_pubkey],
+        &[],
         amount,
     )
     .context("Failed to create SPL transfer instruction")?;

@@ -1,20 +1,13 @@
 use crate::{
     agent::AgentObservation,
     solana_env::{observation, SolanaEnv},
+    test_scenarios, // Import the new centralized module
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
-use solana_program::program_pack::Pack;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    transaction::Transaction,
-};
-use solana_system_interface::instruction as system_instruction;
-use spl_associated_token_account::{get_associated_token_address, instruction as ata_instruction};
-use spl_token::{
-    instruction as spl_instruction, native_mint,
-    state::{Account as SplTokenAccount, Mint},
 };
 use std::{str::FromStr, thread, time::Duration};
 use tracing::{info, instrument};
@@ -25,7 +18,8 @@ pub(crate) fn handle_reset(
     options: Option<Value>,
 ) -> Result<AgentObservation> {
     info!("Resetting Solana environment...");
-    info!("Checking for running `surfpool` validator...");
+
+    // 1. Health check for the surfpool validator.
     for i in 0..10 {
         if env.rpc_client.get_health().is_ok() {
             break;
@@ -40,31 +34,28 @@ pub(crate) fn handle_reset(
     }
     info!("Validator is healthy.");
 
+    // 2. Clear any state from previous runs.
     env.keypair_map.clear();
     env.pubkey_map.clear();
     env.fee_payer = None;
 
+    // 3. Parse options and the full TestCase from the benchmark file.
     let options = options.context("Benchmark options are required")?;
+    let test_case: crate::benchmark::TestCase = serde_json::from_value(options.clone())
+        .context("Failed to deserialize options into TestCase")?;
     let initial_state_val = options
         .get("initial_state")
         .cloned()
         .context("Benchmark options must include 'initial_state'")?;
-    let benchmark_id = options
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-
     let accounts: Vec<Value> = serde_json::from_value(initial_state_val)?;
 
-    // First pass: Discover all placeholders and map them to Pubkeys.
-    // This allows us to handle both generated keys and real on-chain addresses.
+    // 4. First pass: Discover all placeholders, create keypairs for them,
+    //    and set up the fee payer.
     for account_config in &accounts {
         let placeholder = account_config["pubkey"]
             .as_str()
             .context("Missing 'pubkey' placeholder in account config")?;
 
-        // If the placeholder is a valid Pubkey string, use it directly.
-        // Otherwise, generate a new keypair and use its pubkey.
         if let Ok(pubkey) = Pubkey::from_str(placeholder) {
             env.pubkey_map.insert(placeholder.to_string(), pubkey);
         } else {
@@ -79,9 +70,9 @@ pub(crate) fn handle_reset(
         }
     }
 
+    // 5. Fund the fee payer from the validator airdrop.
     let fee_payer_placeholder = env.fee_payer.as_ref().context("Fee payer not set")?;
     let fee_payer_keypair = env.get_fee_payer_keypair()?;
-
     let initial_lamports = accounts
         .iter()
         .find(|acc| acc["pubkey"].as_str() == Some(fee_payer_placeholder))
@@ -103,232 +94,25 @@ pub(crate) fn handle_reset(
         info!("Fee payer funded.");
     }
 
-    // --- SPECIAL LOGIC FOR JUPITER SWAP ---
-    // Pre-create and fund all necessary accounts to satisfy the mainnet transaction.
-    if benchmark_id.contains("JUP-SWAP") {
-        info!("[JUP-SWAP] Pre-creating and funding required ATAs for test...");
-        let user_pubkey = fee_payer_keypair.pubkey();
-        let mainnet_usdc_mint =
-            Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
-        // Fund with 1 SOL to provide a large buffer for the 0.1 SOL swap and fees.
-        let wsol_funding_amount = 1_000_000_000;
-        let wsol_ata = get_associated_token_address(&user_pubkey, &native_mint::ID);
+    // --- THIS IS THE CRITICAL CHANGE ---
+    // 6. Delegate complex SPL setup to the centralized scenario handler.
+    // This function will handle ATA derivation and RPC calls to fund accounts.
+    // It needs to run inside a tokio runtime because it's async.
+    let rt =
+        tokio::runtime::Runtime::new().context("Failed to create Tokio runtime for SPL setup")?;
+    let mut initial_observation =
+        observation::get_observation(env, "Initial state before SPL setup", None, vec![])?;
 
-        let setup_instructions = vec![
-            // 1. Create the user's ATA for WSOL (idempotent)
-            ata_instruction::create_associated_token_account_idempotent(
-                &user_pubkey,
-                &user_pubkey,
-                &native_mint::ID,
-                &spl_token::id(),
-            ),
-            // 2. Create the user's ATA for mainnet USDC (idempotent)
-            ata_instruction::create_associated_token_account_idempotent(
-                &user_pubkey,
-                &user_pubkey,
-                &mainnet_usdc_mint,
-                &spl_token::id(),
-            ),
-            // 3. Fund the WSOL ATA by transferring native SOL to it.
-            system_instruction::transfer(&user_pubkey, &wsol_ata, wsol_funding_amount),
-            // 4. Sync the native mint to update the WSOL ATA's balance.
-            spl_token::instruction::sync_native(&spl_token::id(), &wsol_ata)?,
-        ];
+    // The setup function will mutate the env's pubkey_map and the observation's key_map
+    // with the real, derived ATA addresses.
+    rt.block_on(test_scenarios::setup_spl_scenario(
+        env,
+        &test_case,
+        &mut initial_observation,
+    ))?;
 
-        let transaction = Transaction::new_with_payer(&setup_instructions, Some(&user_pubkey));
-        env.sign_and_send_transaction(transaction, &[fee_payer_keypair])
-            .context("Failed to pre-create/fund ATAs for Jupiter swap test")?;
-        info!("[JUP-SWAP] Setup transaction sent successfully.");
-
-        // --- VERIFICATION AND ASSERTION ---
-        info!("[JUP-SWAP] Verifying on-chain state after setup...");
-        let wsol_balance = env.rpc_client.get_token_account_balance(&wsol_ata)?;
-        let user_sol_balance = env.rpc_client.get_balance(&user_pubkey)?;
-        info!("[JUP-SWAP] User SOL balance: {}", user_sol_balance);
-        info!(
-            "[JUP-SWAP] User WSOL balance: {}",
-            wsol_balance.ui_amount_string
-        );
-
-        assert_eq!(
-            wsol_balance.amount.parse::<u64>()?,
-            wsol_funding_amount,
-            "WSOL ATA was not funded correctly!"
-        );
-        info!("[JUP-SWAP] On-chain state verified. WSOL account is correctly funded.");
-    }
-    // --- END SPECIAL LOGIC ---
-
-    let mut mint_configs = Vec::new();
-    let mut token_configs = Vec::new();
-
-    for account_config in &accounts {
-        if let Some(owner) = account_config["owner"].as_str() {
-            if owner == "11111111111111111111111111111111" {
-                let placeholder = account_config["pubkey"].as_str().unwrap();
-                if env.fee_payer.as_deref() == Some(placeholder) {
-                    continue;
-                }
-
-                let pubkey = env.pubkey_map.get(placeholder).unwrap();
-                let lamports = account_config["lamports"].as_u64().unwrap_or(0);
-                if lamports > 0 {
-                    info!("Airdropping {lamports} lamports to {placeholder} ({pubkey})...",);
-                    let sig = env.rpc_client.request_airdrop(pubkey, lamports)?;
-                    env.rpc_client
-                        .confirm_transaction(&sig)
-                        .context("Failed to confirm airdrop")?;
-                }
-            } else if owner == spl_token::id().to_string() {
-                if account_config.get("mint_data").is_some() {
-                    mint_configs.push(account_config.clone());
-                } else if account_config.get("data").is_some() {
-                    token_configs.push(account_config.clone());
-                }
-            }
-        }
-    }
-
-    for config in &mint_configs {
-        let placeholder = config["pubkey"].as_str().unwrap();
-        let keypair = env.keypair_map.get(placeholder).unwrap();
-        info!("Creating SPL Mint: {placeholder} ({})", keypair.pubkey());
-        let mint_data = config.get("mint_data").unwrap();
-        let decimals = mint_data["decimals"].as_u64().unwrap() as u8;
-        let auth_placeholder = mint_data["mint_authority"]
-            .as_str()
-            .unwrap_or("USER_WALLET_PUBKEY");
-        let authority_pubkey = env
-            .pubkey_map
-            .get(auth_placeholder)
-            .context("Mint authority pubkey not found")?;
-
-        let rent = env
-            .rpc_client
-            .get_minimum_balance_for_rent_exemption(Mint::LEN)?;
-        let instructions = [
-            system_instruction::create_account(
-                &fee_payer_keypair.pubkey(),
-                &keypair.pubkey(),
-                rent,
-                Mint::LEN as u64,
-                &spl_token::id(),
-            ),
-            spl_instruction::initialize_mint(
-                &spl_token::id(),
-                &keypair.pubkey(),
-                authority_pubkey,
-                None,
-                decimals,
-            )?,
-        ];
-        let transaction =
-            Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
-        env.sign_and_send_transaction(transaction, &[fee_payer_keypair, keypair])?;
-    }
-
-    for config in token_configs {
-        let placeholder = config["pubkey"].as_str().unwrap();
-        let keypair = env.keypair_map.get(placeholder).unwrap();
-        info!(
-            "Creating SPL Token Account: {placeholder} ({})",
-            keypair.pubkey()
-        );
-
-        let data_val = config.get("data").context("'data' is missing")?;
-        let token_state = data_val
-            .as_object()
-            .context("'data' must be a JSON object")?;
-
-        let mint_placeholder = token_state
-            .get("mint")
-            .and_then(Value::as_str)
-            .context("Missing 'mint' in data")?;
-
-        // For mainnet mints (like USDC), we don't create the token account here.
-        // We rely on surfpool's RPC cheat codes to set the account state.
-        if Pubkey::from_str(mint_placeholder).is_ok() {
-            info!(
-                "Skipping manual creation of token account for mainnet mint: {}",
-                mint_placeholder
-            );
-            continue;
-        }
-
-        let owner_placeholder = token_state
-            .get("owner")
-            .and_then(Value::as_str)
-            .context("Missing 'owner' in data")?;
-        let amount = token_state
-            .get("amount")
-            .and_then(|v| v.as_str().and_then(|s| s.parse::<u64>().ok()))
-            .or_else(|| token_state.get("amount").and_then(|v| v.as_u64()))
-            .unwrap_or(0);
-
-        let mint_pubkey = env
-            .pubkey_map
-            .get(mint_placeholder)
-            .context("Mint pubkey not found")?;
-        let owner_pubkey = env
-            .pubkey_map
-            .get(owner_placeholder)
-            .context("Owner pubkey not found")?;
-
-        let rent = env
-            .rpc_client
-            .get_minimum_balance_for_rent_exemption(SplTokenAccount::LEN)?;
-        let mut instructions = vec![
-            system_instruction::create_account(
-                &fee_payer_keypair.pubkey(),
-                &keypair.pubkey(),
-                rent,
-                SplTokenAccount::LEN as u64,
-                &spl_token::id(),
-            ),
-            spl_instruction::initialize_account(
-                &spl_token::id(),
-                &keypair.pubkey(),
-                mint_pubkey,
-                owner_pubkey,
-            )?,
-        ];
-
-        let mut signers = vec![fee_payer_keypair, keypair];
-        if amount > 0 {
-            let mint_config = mint_configs
-                .iter()
-                .find(|mc| mc["pubkey"].as_str() == Some(mint_placeholder))
-                .context("Could not find mint config for token account")?;
-
-            let mint_authority_placeholder = mint_config["mint_data"]
-                .get("mint_authority")
-                .and_then(|v| v.as_str())
-                .unwrap_or("USER_WALLET_PUBKEY");
-
-            let mint_authority = env
-                .keypair_map
-                .get(mint_authority_placeholder)
-                .context("Mint authority keypair not found")?;
-
-            signers.push(mint_authority);
-            instructions.push(spl_instruction::mint_to(
-                &spl_token::id(),
-                mint_pubkey,
-                &keypair.pubkey(),
-                &mint_authority.pubkey(),
-                &[],
-                amount,
-            )?);
-        }
-
-        signers.sort_by_key(|k| k.pubkey());
-        signers.dedup_by_key(|k| k.pubkey());
-
-        let transaction =
-            Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
-        env.sign_and_send_transaction(transaction, &signers)?;
-    }
-
+    // The key_map in the observation might have been updated by the setup function,
+    // so we return the final, corrected observation.
     info!("Environment reset complete.");
-    observation::get_observation(env, "Success", None, vec!["Environment reset.".to_string()])
+    Ok(initial_observation)
 }

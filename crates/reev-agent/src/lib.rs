@@ -157,10 +157,10 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                 .await?
         }
         "110-JUP-LEND-SOL" => {
-            deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map).await?
+            deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map)?
         }
         "111-JUP-LEND-USDC" => {
-            deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map).await?
+            deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map)?
         }
         _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",
