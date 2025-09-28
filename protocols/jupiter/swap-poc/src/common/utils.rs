@@ -22,11 +22,7 @@ use anyhow::{anyhow, Result};
 /// assert_eq!(base58_address, "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG");
 /// ```
 pub fn hex_to_base58(hex_str: &str) -> Result<String> {
-    let hex_to_decode = if hex_str.starts_with("0x") {
-        &hex_str[2..]
-    } else {
-        hex_str
-    };
+    let hex_to_decode = hex_str.strip_prefix("0x").unwrap_or(hex_str);
 
     if hex_to_decode.len() != 64 {
         return Err(anyhow!(
