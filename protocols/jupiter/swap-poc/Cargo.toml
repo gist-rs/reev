@@ -1,0 +1,22 @@
+[package]
+name = "swap-poc"
+version = "0.1.0"
+edition = "2021"
+
+# This empty workspace declaration isolates the project from the parent workspace.
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+bincode = "2.0.1"
+serde_json = "1.0"
+solana-client = "2"
+solana-sdk = "2"
+spl-associated-token-account = "7.0.0"
+spl-token = "8.0.0"
+solana-address-lookup-table-program = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", features = ["json"] }
+jupiter-swap-api-client = "0.2.0"
