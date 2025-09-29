@@ -14,8 +14,10 @@
 //! directory are valid and "solvable" by a perfect agent.
 //!
 //! It dynamically discovers every `.yml` file and runs a test for each one.
-//! All complex setup logic is now centralized in `reev-lib`, so this test uses a
-//! single, unified setup function (`setup_env_for_benchmark`) for all cases.
+//! For simple benchmarks, it uses a "mock perfect" instruction. For complex
+//! DeFi benchmarks like Jupiter swaps, it now uses a "smart test" approach where
+//! the test itself calls the Jupiter API and pre-loads all necessary accounts
+//! into the forked environment before execution, mimicking a perfect agent's setup.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -28,7 +30,7 @@ use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
+use common::helpers::{mock_perfect_instruction, prepare_jupiter_swap, setup_env_for_benchmark};
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
@@ -68,15 +70,24 @@ async fn test_all_benchmarks_are_solvable(
         );
 
         // 1. Set up the environment using the unified setup function.
-        // All complex logic is now handled within `SolanaEnv::reset`.
         let (mut env, test_case, initial_observation) =
             setup_env_for_benchmark(&benchmark_path).await?;
         info!("✅ Environment setup complete for {}", test_case.id);
 
-        // 2. Create the "perfect" action for this benchmark.
-        let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
-        let actions = vec![AgentAction(instruction)];
-        info!("✅ Mock instruction created for {}", test_case.id);
+        // 2. Get the "perfect" action for this benchmark.
+        // For complex swaps, this involves preparing the environment and getting real instructions.
+        // For simple transfers, it's just a mock instruction.
+        let instructions = if test_case.id.starts_with("100-JUP") {
+            info!("[Test] Jupiter benchmark detected. Preparing environment...");
+            prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
+        } else {
+            info!("[Test] Simple benchmark detected. Creating mock instruction...");
+            let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
+            vec![instruction]
+        };
+
+        let actions: Vec<AgentAction> = instructions.into_iter().map(AgentAction).collect();
+        info!("✅ Perfect action created for {}.", test_case.id);
 
         // 3. Execute the transaction in the environment.
         let step_result = env.step(actions, &test_case.ground_truth)?;

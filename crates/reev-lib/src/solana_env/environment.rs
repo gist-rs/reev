@@ -81,9 +81,9 @@ impl GymEnv for SolanaEnv {
     fn step(
         &mut self,
         actions: Vec<Self::Action>,
-        _ground_truth: &GroundTruth,
+        ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
-        step::handle_step(self, actions)
+        step::handle_step(self, actions, ground_truth)
     }
 
     fn render(&self) {

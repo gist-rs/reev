@@ -1,17 +1,77 @@
-use crate::agent::AgentAction;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-};
-use std::str::FromStr;
+//! Defines the data structures for loading and representing a benchmark test case.
+//!
+//! This module contains the structs that correspond to the YAML format of a benchmark
+//! file. `serde_yaml` is used to deserialize the file content directly into these
+//! strongly-typed structures.
 
-/// Defines a specific condition that must be true on the blockchain
-/// after the agent has completed its task.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(tag = "type", rename_all = "PascalCase")]
+use serde::{Deserialize, Serialize};
+
+/// Represents a complete benchmark test case, deserialized from a YAML file.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct TestCase {
+    /// A unique identifier for the benchmark (e.g., "001-SOL-TRANSFER").
+    pub id: String,
+    /// A brief description of what the benchmark tests.
+    pub description: String,
+    /// A list of tags for categorizing the benchmark.
+    pub tags: Vec<String>,
+    /// The on-chain state to be set up before the agent runs.
+    pub initial_state: Vec<InitialStateItem>,
+    /// The natural language prompt given to the agent.
+    pub prompt: String,
+    /// The ground truth assertions and expected outcomes for this benchmark.
+    pub ground_truth: GroundTruth,
+}
+
+/// Defines the initial state of a single on-chain account for a benchmark.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct InitialStateItem {
+    /// The placeholder or actual pubkey for the account.
+    pub pubkey: String,
+    /// The pubkey of the program that owns this account.
+    pub owner: String,
+    /// The initial lamport balance of the account.
+    pub lamports: u64,
+    /// Optional data for the account, typically used for SPL token accounts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<SplAccountData>,
+}
+
+/// Represents the data field for an SPL token account.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct SplAccountData {
+    /// The mint address of the token.
+    pub mint: String,
+    /// The pubkey of the wallet that owns this token account.
+    pub owner: String,
+    /// The initial token balance, as a string.
+    pub amount: String,
+}
+
+/// The set of ground truth conditions and expected outcomes for a benchmark.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct GroundTruth {
+    /// A list of conditions that must be true on the blockchain after the agent has finished.
+    pub final_state_assertions: Vec<StateAssertion>,
+
+    /// The ideal instruction(s) the agent is expected to generate to solve the task.
+    /// This is used for calculating instruction accuracy.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        rename = "expected_instructions"
+    )]
+    pub expected_instructions: Vec<BenchmarkInstruction>,
+}
+
+/// An enum representing a single assertion about the final on-chain state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type")]
+#[serde(rename_all = "PascalCase")]
 pub enum StateAssertion {
     /// Asserts the final SOL balance of a specific account.
     SolBalance {
@@ -19,136 +79,46 @@ pub enum StateAssertion {
         /// The exact expected balance in lamports.
         expected: u64,
     },
-    /// Asserts the final token balance of a SPL Token account.
-    TokenAccountBalance {
-        pubkey: String,
-        /// The exact expected token balance (in the smallest unit, e.g., token atoms).
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        expected: Option<u64>,
-        /// Asserts the balance is greater than or equal to this value.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        expected_gte: Option<u64>,
-    },
-    /// Asserts that the SOL balance of an account has changed by at least a certain amount.
-    /// This is useful for tasks where the exact final balance is unknown due to fees.
+    /// Asserts a change in the SOL balance of an account.
     SolBalanceChange {
+        /// The pubkey of the account to check.
         pubkey: String,
         /// The expected minimum change in lamports (can be negative).
         expected_change_gte: i64,
     },
+    /// Asserts the balance of an SPL token account.
+    TokenAccountBalance {
+        /// The pubkey of the token account to check.
+        pubkey: String,
+        /// The exact expected token balance (in the smallest unit).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected: Option<u64>,
+        /// The expected minimum token balance.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_gte: Option<u64>,
+    },
 }
 
-/// Optional data for initializing a new SPL token mint account.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MintData {
-    /// The authority that can mint new tokens. Defaults to `USER_WALLET_PUBKEY`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mint_authority: Option<String>,
-    /// The number of decimal places for the token.
-    pub decimals: u8,
-}
-
-/// Defines the initial state of a single on-chain account for a test case.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct InitialAccountState {
-    /// A unique identifier or the public key for the account.
-    pub pubkey: String,
-    /// The initial SOL balance in lamports. Defaults to 0.
-    #[serde(default)]
-    pub lamports: u64,
-    /// The public key of the account's owner program.
-    pub owner: String,
-    /// Optional base64 encoded data for the account.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-    /// Specifies if the account is an executable program.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_executable: Option<bool>,
-    /// Path to a file containing the account data (e.g., a compiled program `.so` file).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data_from_file: Option<String>,
-    /// If present, initializes this account as an SPL token mint.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mint_data: Option<MintData>,
-}
-
-/// A deserializable representation of a Solana instruction account,
-/// tailored for use in benchmark files.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct BenchmarkAccountMeta {
-    pub pubkey: String,
-    pub is_signer: bool,
-    pub is_writable: bool,
-}
-
-/// A deserializable representation of a Solana instruction,
-/// tailored for use in benchmark files.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+/// A serializable representation of a Solana instruction for use in benchmarks.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct BenchmarkInstruction {
+    /// The pubkey of the program to be executed.
     pub program_id: String,
+    /// The accounts required by the instruction.
     pub accounts: Vec<BenchmarkAccountMeta>,
-    pub data: String, // Expected to be a Base58 encoded string
+    /// The instruction data, typically as a Base58 string.
+    pub data: String,
 }
 
-impl TryFrom<BenchmarkInstruction> for AgentAction {
-    type Error = anyhow::Error;
-
-    fn try_from(bench_instruction: BenchmarkInstruction) -> Result<Self, Self::Error> {
-        let program_id = Pubkey::from_str(&bench_instruction.program_id)
-            .context("Failed to parse 'program_id' string into a Pubkey")?;
-
-        let accounts = bench_instruction
-            .accounts
-            .into_iter()
-            .map(|acc| {
-                let pubkey = Pubkey::from_str(&acc.pubkey)
-                    .context(format!("Failed to parse account pubkey: '{}'", acc.pubkey))?;
-                Ok(AccountMeta {
-                    pubkey,
-                    is_signer: acc.is_signer,
-                    is_writable: acc.is_writable,
-                })
-            })
-            .collect::<Result<Vec<AccountMeta>>>()?;
-
-        let data = bs58::decode(&bench_instruction.data)
-            .into_vec()
-            .context("Failed to decode base58 'data' string")?;
-
-        Ok(AgentAction(Instruction {
-            program_id,
-            accounts,
-            data,
-        }))
-    }
-}
-
-/// Contains the objective criteria for judging the agent's performance on a test case.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GroundTruth {
-    /// A list of conditions that must be true on the blockchain after the agent has finished.
-    pub final_state_assertions: Vec<StateAssertion>,
-    /// The ideal instruction the agent is expected to generate to solve the task.
-    /// This is used for calculating instruction accuracy.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expected_instruction: Option<BenchmarkInstruction>,
-}
-
-/// Represents a single, self-contained test case for evaluating an agent.
-/// This struct is designed to be deserialized from a YAML file.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct TestCase {
-    /// A unique identifier for the test case (e.g., "TRANSFER-SIMPLE-001").
-    pub id: String,
-    /// A human-readable description of the task's objective.
-    pub description: String,
-    /// A list of tags for categorization (e.g., ["token-program", "t1", "t2"]).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-    /// A declarative definition of the on-chain state required at the beginning of the test.
-    pub initial_state: Vec<InitialAccountState>,
-    /// The natural language prompt that is given to the agent as its instruction.
-    pub prompt: String,
-    /// The ground truth criteria used to evaluate the agent's success on this test case.
-    pub ground_truth: GroundTruth,
+/// A serializable representation of an `AccountMeta` for use in benchmarks.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct BenchmarkAccountMeta {
+    /// The pubkey of the account.
+    pub pubkey: String,
+    /// `true` if the transaction must be signed by this account's private key.
+    pub is_signer: bool,
+    /// `true` if the account's data may be mutated by the program.
+    pub is_writable: bool,
 }

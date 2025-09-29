@@ -62,3 +62,7 @@ reqwest = { version = "0.12", features = ["json"] }
 serde_json = "1.0"
 solana-client = { workspace = true }
 solana-program = "2.0.2"
+jupiter-swap-api-client = "0.2.0"
+chrono = "0.4.38"
+tokio = { version = "1", features = ["full"] }
+hex = "0.4.3"

@@ -1,5 +1,6 @@
 use crate::{
     agent::{AgentAction, AgentObservation},
+    benchmark::GroundTruth,
     env::Step,
     solana_env::{environment::SolanaEnv, observation},
 };
@@ -13,6 +14,7 @@ use tracing::{error, info, warn};
 pub(crate) fn handle_step(
     env: &mut SolanaEnv,
     actions: Vec<AgentAction>,
+    _ground_truth: &GroundTruth,
 ) -> Result<Step<AgentObservation>> {
     // If there are no actions, the agent has failed.
     if actions.is_empty() {
@@ -43,25 +45,22 @@ pub(crate) fn handle_step(
                     .values()
                     .find(|kp| kp.pubkey() == acc.pubkey)
                 {
-                    signers.push(keypair);
-                } else {
-                    // A signer might be the fee_payer, which is already included.
-                    // This warning helps debug cases where a signer is genuinely missing.
-                    if acc.pubkey != fee_payer_keypair.pubkey() {
-                        warn!(
-                            "Signer keypair for pubkey {} not found in keypair_map. Transaction may fail.",
-                            acc.pubkey
-                        );
+                    // Avoid adding the fee payer twice.
+                    if !signers.iter().any(|s| s.pubkey() == keypair.pubkey()) {
+                        signers.push(keypair);
                     }
+                } else if acc.pubkey != fee_payer_keypair.pubkey() {
+                    // This warning helps debug cases where a signer is genuinely missing.
+                    warn!(
+                        "Signer keypair for pubkey {} not found in keypair_map. Transaction may fail.",
+                        acc.pubkey
+                    );
                 }
             }
         }
     }
-    // 3. Deduplicate the list of signers.
-    signers.sort_by_key(|k| k.pubkey());
-    signers.dedup_by_key(|k| k.pubkey());
 
-    // 4. Create a single transaction with all instructions, paid for by the fee_payer.
+    // 3. Create a single transaction with all instructions, paid for by the fee_payer.
     let transaction = Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
 
     info!(
@@ -72,7 +71,7 @@ pub(crate) fn handle_step(
     // --- Simulation Logic ---
     info!("Simulating transaction before sending...");
     let sim_config = RpcSimulateTransactionConfig {
-        sig_verify: false,
+        sig_verify: false, // Signatures are not required for simulation.
         replace_recent_blockhash: true,
         commitment: Some(env.rpc_client.commitment()),
         ..Default::default()
@@ -100,7 +99,7 @@ pub(crate) fn handle_step(
     info!("Transaction simulation successful.");
     // --- End Simulation Logic ---
 
-    // 5. Sign with all required keypairs and send the transaction.
+    // 4. Sign with all required keypairs and send the transaction.
     match env.sign_and_send_transaction(transaction, &signers) {
         Ok(sig) => {
             let tx_info = env

@@ -23,12 +23,11 @@
 
 use crate::{
     agent::AgentObservation,
-    benchmark::{InitialAccountState, TestCase},
+    benchmark::{InitialStateItem, TestCase},
     solana_env::environment::SolanaEnv,
 };
 use anyhow::{Context, Result};
 use reqwest::Client;
-use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
@@ -80,14 +79,6 @@ impl SurfpoolClient {
     }
 }
 
-/// A struct for deserializing the `data` field of an SPL Token account state.
-#[derive(Debug, Deserialize)]
-struct TokenAccountData {
-    mint: String,
-    owner: String,
-    amount: String,
-}
-
 /// Corrects the on-chain state for SPL benchmarks after an initial `reset`.
 ///
 /// This is the core function that ensures SPL benchmarks are set up correctly. It
@@ -103,10 +94,10 @@ pub async fn setup_spl_scenario(
     let token_program_id = spl_token::id();
 
     // Collect all token account states first to avoid borrowing issues.
-    let token_account_states: Vec<&InitialAccountState> = test_case
+    let token_account_states: Vec<&InitialStateItem> = test_case
         .initial_state
         .iter()
-        .filter(|s| s.owner == token_program_id.to_string())
+        .filter(|s| s.owner == token_program_id.to_string() && s.data.is_some())
         .collect();
 
     if token_account_states.is_empty() {
@@ -116,45 +107,62 @@ pub async fn setup_spl_scenario(
     info!("[setup_spl_scenario] Found SPL accounts to configure.");
 
     for account_state in token_account_states {
-        let data: TokenAccountData = serde_json::from_value(account_state.data.clone().unwrap())
-            .context("Failed to deserialize token account data")?;
+        if let Some(data) = &account_state.data {
+            let mint_pubkey =
+                Pubkey::from_str(&data.mint).context("Failed to parse mint pubkey from data")?;
 
-        let mint_pubkey =
-            Pubkey::from_str(&data.mint).context("Failed to parse mint pubkey from data")?;
-        let owner_wallet_pubkey_str = observation
-            .key_map
-            .get(&data.owner)
-            .with_context(|| format!("Owner placeholder '{}' not found in key_map", data.owner))?;
-        let owner_wallet_pubkey = Pubkey::from_str(owner_wallet_pubkey_str)?;
+            // The owner can be a placeholder or a literal program ID.
+            // Check the key_map first. If it's not there, assume it's a literal pubkey.
+            let owner_wallet_pubkey_str = match observation.key_map.get(&data.owner) {
+                Some(pubkey_str) => {
+                    info!(
+                        "[setup_spl_scenario] Resolved owner placeholder '{}' -> '{}'",
+                        data.owner, pubkey_str
+                    );
+                    pubkey_str.clone()
+                }
+                None => {
+                    info!(
+                        "[setup_spl_scenario] Owner '{}' not in key_map, assuming literal pubkey.",
+                        data.owner
+                    );
+                    data.owner.clone()
+                }
+            };
+            let owner_wallet_pubkey =
+                Pubkey::from_str(&owner_wallet_pubkey_str).with_context(|| {
+                    format!("Failed to parse owner pubkey: {owner_wallet_pubkey_str}")
+                })?;
 
-        // Derive the *correct* ATA address.
-        let derived_ata = get_associated_token_address(&owner_wallet_pubkey, &mint_pubkey);
-        info!(
-            "[setup_spl_scenario] Placeholder '{}' -> Derived ATA: {}",
-            account_state.pubkey, derived_ata
-        );
+            // Derive the *correct* ATA address.
+            let derived_ata = get_associated_token_address(&owner_wallet_pubkey, &mint_pubkey);
+            info!(
+                "[setup_spl_scenario] Placeholder '{}' -> Derived ATA: {}",
+                account_state.pubkey, derived_ata
+            );
 
-        // Update the environment's maps to replace the placeholder with the real derived ATA.
-        let placeholder = account_state.pubkey.clone();
-        env.pubkey_map.insert(placeholder.clone(), derived_ata);
-        observation
-            .key_map
-            .insert(placeholder, derived_ata.to_string());
+            // Update the environment's maps to replace the placeholder with the real derived ATA.
+            let placeholder = account_state.pubkey.clone();
+            env.pubkey_map.insert(placeholder.clone(), derived_ata);
+            observation
+                .key_map
+                .insert(placeholder, derived_ata.to_string());
 
-        // Use the cheat code to create and fund the account at the correct address.
-        let amount = data
-            .amount
-            .parse::<u64>()
-            .context("Failed to parse token amount")?;
+            // Use the cheat code to create and fund the account at the correct address.
+            let amount = data
+                .amount
+                .parse::<u64>()
+                .context("Failed to parse token amount")?;
 
-        client
-            .set_token_account(&owner_wallet_pubkey.to_string(), &data.mint, amount)
-            .await?;
+            client
+                .set_token_account(&owner_wallet_pubkey.to_string(), &data.mint, amount)
+                .await?;
 
-        info!(
-            "[setup_spl_scenario] Set state for {} with owner {} and amount {}",
-            derived_ata, owner_wallet_pubkey, amount
-        );
+            info!(
+                "[setup_spl_scenario] Set state for {} with owner {} and amount {}",
+                derived_ata, owner_wallet_pubkey, amount
+            );
+        }
     }
 
     // Give the validator a moment to process the state changes.

@@ -1,7 +1,7 @@
 use crate::{
     agent::AgentObservation,
     solana_env::{environment::SolanaEnv, observation},
-    test_scenarios, // Import the new centralized module
+    test_scenarios,
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -39,44 +39,51 @@ pub(crate) async fn handle_reset(
     env.pubkey_map.clear();
     env.fee_payer = None;
 
-    // 3. Parse options and the full TestCase from the benchmark file.
+    // 3. Parse the full TestCase from the benchmark file options.
     let options = options.context("Benchmark options are required")?;
-    let test_case: crate::benchmark::TestCase = serde_json::from_value(options.clone())
-        .context("Failed to deserialize options into TestCase")?;
-    let initial_state_val = options
-        .get("initial_state")
-        .cloned()
-        .context("Benchmark options must include 'initial_state'")?;
-    let accounts: Vec<Value> = serde_json::from_value(initial_state_val)?;
+    let test_case: crate::benchmark::TestCase =
+        serde_json::from_value(options).context("Failed to deserialize options into TestCase")?;
 
-    // 4. First pass: Discover all placeholders, create keypairs for them,
-    //    and set up the fee payer.
-    for account_config in &accounts {
-        let placeholder = account_config["pubkey"]
-            .as_str()
-            .context("Missing 'pubkey' placeholder in account config")?;
-
-        if let Ok(pubkey) = Pubkey::from_str(placeholder) {
-            env.pubkey_map.insert(placeholder.to_string(), pubkey);
-        } else {
-            let keypair = Keypair::new();
-            env.pubkey_map
-                .insert(placeholder.to_string(), keypair.pubkey());
-            env.keypair_map.insert(placeholder.to_string(), keypair);
+    // 4. First pass: Discover all placeholders and literal pubkeys from the initial state.
+    for account_config in &test_case.initial_state {
+        // Handle the main pubkey field. If it's not a valid pubkey string, it's a placeholder.
+        let pubkey_placeholder = &account_config.pubkey;
+        if Pubkey::from_str(pubkey_placeholder).is_err() {
+            // It's a placeholder, so create a keypair for it if one doesn't exist.
+            if !env.keypair_map.contains_key(pubkey_placeholder) {
+                let keypair = Keypair::new();
+                env.pubkey_map
+                    .insert(pubkey_placeholder.clone(), keypair.pubkey());
+                env.keypair_map.insert(pubkey_placeholder.clone(), keypair);
+            }
         }
 
-        if placeholder == "USER_WALLET_PUBKEY" {
-            env.fee_payer = Some(placeholder.to_string());
+        // Handle the owner field. If it IS a valid pubkey, it's a literal program ID.
+        let owner_pubkey_str = &account_config.owner;
+        if let Ok(pubkey) = Pubkey::from_str(owner_pubkey_str) {
+            // It's a literal pubkey (like a program ID). Add it to the map
+            // so it can be resolved by name later. The key and value are the same string.
+            env.pubkey_map.insert(owner_pubkey_str.clone(), pubkey);
         }
     }
 
-    // 5. Fund the fee payer from the validator airdrop.
+    // 5. Set the fee payer, which is a requirement for all benchmarks.
+    if env.keypair_map.contains_key("USER_WALLET_PUBKEY") {
+        env.fee_payer = Some("USER_WALLET_PUBKEY".to_string());
+    } else {
+        anyhow::bail!(
+            "A placeholder 'USER_WALLET_PUBKEY' must be present in initial_state to act as fee payer."
+        );
+    }
+
+    // 6. Fund the fee payer using a validator airdrop.
     let fee_payer_placeholder = env.fee_payer.as_ref().context("Fee payer not set")?;
     let fee_payer_keypair = env.get_fee_payer_keypair()?;
-    let initial_lamports = accounts
+    let initial_lamports = test_case
+        .initial_state
         .iter()
-        .find(|acc| acc["pubkey"].as_str() == Some(fee_payer_placeholder))
-        .and_then(|acc| acc["lamports"].as_u64())
+        .find(|acc| acc.pubkey == *fee_payer_placeholder)
+        .map(|acc| acc.lamports)
         .context("Fee payer 'lamports' not found or invalid in initial state")?;
 
     if initial_lamports > 0 {
@@ -94,20 +101,17 @@ pub(crate) async fn handle_reset(
         info!("Fee payer funded.");
     }
 
-    // --- THIS IS THE CRITICAL CHANGE ---
-    // 6. Delegate complex SPL setup to the centralized scenario handler.
-    // This function will handle ATA derivation and RPC calls to fund accounts.
+    // 7. Get the initial observation before any complex scenario setup.
     let mut initial_observation =
         observation::get_observation(env, "Initial state before SPL setup", None, vec![])?;
 
-    // The setup function will mutate the env's pubkey_map and the observation's key_map
-    // with the real, derived ATA addresses.
+    // 8. Delegate complex SPL setup to the centralized scenario handler.
+    // This function handles ATA derivation and uses RPC cheat codes to fund accounts,
+    // mutating the environment and observation maps with the real derived addresses.
     test_scenarios::setup_spl_scenario(env, &test_case, &mut initial_observation)
         .await
-        .expect("Reset failed");
+        .context("Failed to set up SPL scenario")?;
 
-    // The key_map in the observation might have been updated by the setup function,
-    // so we return the final, corrected observation.
     info!("Environment reset complete.");
     Ok(initial_observation)
 }

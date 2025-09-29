@@ -3,3 +3,4 @@
 
 pub mod helpers;
 pub mod http_client;
+pub mod surfpool_client;
