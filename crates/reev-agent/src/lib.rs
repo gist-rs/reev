@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -108,14 +108,17 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 
     info!("[reev-agent] Raw response from AI agent tool call: {response_str}");
 
-    let cleaned_response = response_str
-        .trim()
-        .strip_prefix("```json")
-        .unwrap_or(&response_str)
-        .strip_suffix("```")
-        .unwrap_or(&response_str)
-        .trim()
-        .to_string();
+    // Use regex to find a JSON block. This is more robust for models that
+    // wrap their output in conversational text or markdown.
+    let re = Regex::new(r"(?s)```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```").unwrap();
+    let extracted_json = if let Some(caps) = re.captures(&response_str) {
+        caps.get(1).map_or("", |m| m.as_str()).to_string()
+    } else {
+        // If no markdown block is found, assume the whole response is the JSON string.
+        response_str
+    };
+
+    let cleaned_response = extracted_json.trim().to_string();
 
     // Validate the response is valid JSON, but pass the string through.
     let _: serde_json::Value = serde_json::from_str(&cleaned_response)
