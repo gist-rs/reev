@@ -1,7 +1,7 @@
 use crate::{
     agent::{AgentAction, AgentObservation},
     env::Step,
-    solana_env::{observation, SolanaEnv},
+    solana_env::{environment::SolanaEnv, observation},
 };
 use anyhow::Result;
 use serde_json::json;

@@ -6,7 +6,7 @@ use reev_lib::{
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_score,
-    solana_env::SolanaEnv,
+    solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
 use std::{

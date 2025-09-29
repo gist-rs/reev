@@ -24,7 +24,7 @@
 use crate::{
     agent::AgentObservation,
     benchmark::{InitialAccountState, TestCase},
-    solana_env::SolanaEnv,
+    solana_env::environment::SolanaEnv,
 };
 use anyhow::{Context, Result};
 use reqwest::Client;

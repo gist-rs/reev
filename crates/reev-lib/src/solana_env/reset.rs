@@ -1,6 +1,6 @@
 use crate::{
     agent::AgentObservation,
-    solana_env::{observation, SolanaEnv},
+    solana_env::{environment::SolanaEnv, observation},
     test_scenarios, // Import the new centralized module
 };
 use anyhow::{Context, Result};

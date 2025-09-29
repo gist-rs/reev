@@ -2,12 +2,14 @@ use crate::{
     agent::{AgentAction, AgentObservation},
     benchmark::GroundTruth,
     env::{GymEnv, Step},
+    solana_env::{reset, step},
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
@@ -19,6 +21,7 @@ const LOCAL_SURFPOOL_RPC_URL: &str = "http://127.0.0.1:8899";
 pub struct SolanaEnv {
     pub rpc_client: RpcClient,
     pub keypair_map: HashMap<String, Keypair>,
+    pub pubkey_map: HashMap<String, Pubkey>,
     pub fee_payer: Option<String>,
 }
 
@@ -32,6 +35,7 @@ impl SolanaEnv {
         Ok(Self {
             rpc_client,
             keypair_map: HashMap::new(),
+            pubkey_map: HashMap::new(),
             fee_payer: None,
         })
     }
@@ -65,17 +69,21 @@ impl GymEnv for SolanaEnv {
     type Observation = AgentObservation;
 
     #[tracing::instrument(skip_all, name = "env.reset")]
-    fn reset(&mut self, _seed: Option<u64>, options: Option<Value>) -> Result<Self::Observation> {
-        super::reset::handle_reset(self, options)
+    async fn reset(
+        &mut self,
+        _seed: Option<u64>,
+        options: Option<Value>,
+    ) -> Result<Self::Observation> {
+        reset::handle_reset(self, options).await
     }
 
     #[tracing::instrument(skip_all, name = "env.step")]
     fn step(
         &mut self,
-        action: Self::Action,
+        actions: Vec<Self::Action>,
         _ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
-        super::step::handle_step(self, action)
+        step::handle_step(self, actions)
     }
 
     fn render(&self) {

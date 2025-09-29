@@ -1,4 +1,4 @@
-use crate::{agent::AgentObservation, solana_env::SolanaEnv};
+use crate::{agent::AgentObservation, solana_env::environment::SolanaEnv};
 use anyhow::Result;
 use serde_json::json;
 use solana_program::program_pack::Pack;

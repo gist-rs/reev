@@ -3,7 +3,7 @@
 use anyhow::{Result, anyhow};
 use reev_lib::{
     actions::spl_transfer, agent::AgentObservation, benchmark::TestCase, env::GymEnv,
-    solana_env::SolanaEnv,
+    solana_env::environment::SolanaEnv,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
