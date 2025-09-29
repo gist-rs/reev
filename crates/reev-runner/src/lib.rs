@@ -172,11 +172,7 @@ async fn run_evaluation_loop(
     agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
 ) -> Result<(AgentObservation, AgentObservation, ExecutionTrace)> {
-    let initial_state_json = serde_json::to_value(&test_case.initial_state)?;
-    let options = serde_json::json!({
-        "id": test_case.id,
-        "initial_state": initial_state_json
-    });
+    let options = serde_json::to_value(test_case)?;
     let initial_observation = env.reset(None, Some(options))?;
 
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
