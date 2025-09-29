@@ -118,10 +118,13 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         };
 
         if let Some(step) = trace.steps.first() {
+            // Serialize the Vec<AgentAction> to a JSON string for database storage.
+            let action_json = serde_json::to_string(&step.action)
+                .context("Failed to serialize action vector to JSON for DB insertion")?;
             db.insert_result(
                 &test_case.id,
                 &test_case.prompt,
-                &step.action,
+                &action_json,
                 &final_observation,
                 final_status,
                 score,
@@ -172,13 +175,16 @@ async fn run_evaluation_loop(
     agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
 ) -> Result<(AgentObservation, AgentObservation, ExecutionTrace)> {
-    let options = serde_json::to_value(test_case)?;
+    // The options for env.reset need to be a serde_json::Value
+    let options =
+        serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
     let initial_observation = env.reset(None, Some(options)).await?;
 
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     let fee_payer = env.fee_payer_placeholder();
-    let action = agent
+    // The agent now returns a vector of actions.
+    let actions = agent
         .get_action(
             &test_case.id,
             &test_case.prompt,
@@ -186,11 +192,14 @@ async fn run_evaluation_loop(
             Some(&fee_payer.to_owned()),
         )
         .await?;
-    let step_result = env.step(action.clone(), &test_case.ground_truth)?;
+
+    // The environment's step function now takes a vector of actions to be bundled
+    // into a single transaction.
+    let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
 
     let trace_step = reev_lib::trace::TraceStep {
         thought: None,
-        action,
+        action: actions,
         observation: step_result.observation.clone(),
         info: step_result.info,
     };

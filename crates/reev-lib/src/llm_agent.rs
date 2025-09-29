@@ -1,5 +1,5 @@
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
@@ -74,7 +74,7 @@ impl Agent for LlmAgent {
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
-    ) -> Result<AgentAction> {
+    ) -> Result<Vec<AgentAction>> {
         // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
@@ -120,29 +120,28 @@ impl Agent for LlmAgent {
         info!("[LlmAgent] Received successful response from LLM.");
 
         // 6. Deserialize the response and extract the raw instructions.
-        let mut llm_response: LlmResponse = response
+        let llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 7. The runner can only handle one instruction for now.
-        // If multiple are returned (e.g., from Jupiter), take the first one.
-        if llm_response.result.text.is_empty() {
-            bail!("LLM API returned an empty list of instructions");
-        }
-
-        // Take the first instruction from the vector.
-        let raw_instruction = llm_response.result.text.remove(0);
-
-        // Convert the single raw instruction into a native `AgentAction` and return it.
-        let action: AgentAction = raw_instruction.try_into()?;
+        // 7. Convert the raw instructions into a vector of native `AgentAction` and return it.
+        let actions: Vec<AgentAction> = llm_response
+            .result
+            .text
+            .into_iter()
+            .map(|raw_ix| raw_ix.try_into())
+            .collect::<Result<Vec<AgentAction>>>()?;
 
         info!(
-            "[LlmAgent] Successfully parsed instruction for program: {}",
-            action.0.program_id
+            "[LlmAgent] Successfully parsed {} instruction(s).",
+            actions.len()
         );
-        tracing::info!(program_id = %action.0.program_id, "LLM generated a raw instruction");
+        tracing::info!(
+            instruction_count = actions.len(),
+            "LLM generated raw instruction(s)"
+        );
 
-        Ok(action)
+        Ok(actions)
     }
 }

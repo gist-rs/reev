@@ -34,7 +34,7 @@ pub struct TraceStep {
     /// The agent's reasoning or thought process before taking the action. (Optional)
     pub thought: Option<String>,
     /// The action the agent decided to take.
-    pub action: AgentAction,
+    pub action: Vec<AgentAction>,
     /// The observation the environment returned after the action was executed.
     pub observation: AgentObservation,
     /// Any additional information returned by the environment's `step` function.

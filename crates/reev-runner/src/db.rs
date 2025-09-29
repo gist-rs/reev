@@ -1,8 +1,5 @@
 use anyhow::{Context, Result};
-use reev_lib::{
-    agent::{AgentAction, AgentObservation},
-    results::FinalStatus,
-};
+use reev_lib::{agent::AgentObservation, results::FinalStatus};
 use tracing::info;
 use turso::{Builder, Connection};
 
@@ -49,15 +46,12 @@ impl Db {
         &self,
         benchmark_id: &str,
         prompt: &str,
-        action: &AgentAction,
+        generated_instruction: &str,
         final_observation: &AgentObservation,
         final_status: FinalStatus,
         score: f64,
     ) -> Result<()> {
         let timestamp = chrono::Utc::now().to_rfc3339();
-        // Serialize the `AgentAction` wrapper directly to get the human-readable format.
-        let generated_instruction =
-            serde_json::to_string(&action).context("Failed to serialize instruction to JSON")?;
         let final_on_chain_state = serde_json::to_string(&final_observation.account_states)
             .context("Failed to serialize final state to JSON")?;
         let final_status_str = format!("{final_status:?}");
@@ -81,7 +75,7 @@ impl Db {
                     benchmark_id,
                     &timestamp,
                     prompt,
-                    &generated_instruction,
+                    generated_instruction,
                     &final_on_chain_state,
                     &final_status_str,
                     &score.to_string(),

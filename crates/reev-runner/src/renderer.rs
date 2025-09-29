@@ -27,7 +27,7 @@ pub fn render_result_as_tree(result: &TestResult) -> String {
 
 /// Formats the accounts of a transaction into a compact, readable format.
 ///
-/// - `is_signer`: `true` -> `💲`, `false` -> `✖️`
+/// - `is_signer`: `true` -> `🖋️`, `false` -> `🖍️`
 /// - `is_writable`: `true` -> `➕`, `false` -> `➖`
 fn format_accounts(accounts: &[AccountMeta]) -> String {
     accounts
@@ -53,16 +53,30 @@ fn format_accounts(accounts: &[AccountMeta]) -> String {
 fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
     let step_label = format!("Step {step_number}");
 
-    // Manually format the AgentAction for a more compact view instead of using JSON.
-    let instruction = &step.action.0;
-    let program_id = format!("Program ID: {}", instruction.program_id);
-    let accounts_str = format_accounts(&instruction.accounts);
-    let data_str = format!(
-        "Data (Base58): {}",
-        bs58::encode(&instruction.data).into_string()
-    );
+    // The `action` is now a Vec<AgentAction>. We handle all cases gracefully.
+    let action_str = if let Some(first_action) = step.action.first() {
+        let instruction = &first_action.0;
+        let program_id = format!("Program ID: {}", instruction.program_id);
+        let accounts_str = format_accounts(&instruction.accounts);
+        let data_str = format!(
+            "Data (Base58): {}",
+            bs58::encode(&instruction.data).into_string()
+        );
 
-    let action_str = format!("     {program_id}\n     Accounts:\n{accounts_str}\n     {data_str}");
+        let mut output =
+            format!("     {program_id}\n     Accounts:\n{accounts_str}\n     {data_str}");
+
+        // If there are more instructions, add a note to indicate a multi-instruction transaction.
+        if step.action.len() > 1 {
+            output.push_str(&format!(
+                "\n     (+ {} more instructions in this transaction)",
+                step.action.len() - 1
+            ));
+        }
+        output
+    } else {
+        "     No action was taken.".to_string()
+    };
 
     let action_node = Tree::Leaf(vec![format!("ACTION:\n{}", action_str)]);
 

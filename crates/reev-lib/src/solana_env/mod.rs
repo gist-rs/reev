@@ -83,10 +83,10 @@ impl GymEnv for SolanaEnv {
     #[tracing::instrument(skip_all, name = "env.step")]
     fn step(
         &mut self,
-        action: Self::Action,
+        actions: Vec<Self::Action>,
         _ground_truth: &GroundTruth,
     ) -> Result<Step<Self::Observation>> {
-        step::handle_step(self, action)
+        step::handle_step(self, actions)
     }
 
     fn render(&self) {

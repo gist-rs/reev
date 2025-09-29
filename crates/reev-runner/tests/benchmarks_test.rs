@@ -75,11 +75,11 @@ async fn test_all_benchmarks_are_solvable(
 
         // 2. Create the "perfect" action for this benchmark.
         let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
-        let action = AgentAction(instruction);
+        let actions = vec![AgentAction(instruction)];
         info!("✅ Mock instruction created for {}", test_case.id);
 
         // 3. Execute the transaction in the environment.
-        let step_result = env.step(action, &test_case.ground_truth)?;
+        let step_result = env.step(actions, &test_case.ground_truth)?;
         info!(
             "✅ Transaction executed for {}. Status: {}",
             test_case.id, step_result.observation.last_transaction_status

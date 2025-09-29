@@ -51,7 +51,7 @@ pub trait GymEnv {
     /// A `Step` struct containing the outcome of the action.
     fn step(
         &mut self,
-        action: Self::Action,
+        actions: Vec<Self::Action>,
         ground_truth: &GroundTruth,
     ) -> anyhow::Result<Step<Self::Observation>>;
 

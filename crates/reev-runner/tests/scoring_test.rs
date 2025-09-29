@@ -58,10 +58,10 @@ async fn test_scoring_logic(
 
     // 2. Create the "perfect" action for this benchmark.
     let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
-    let action = AgentAction(instruction);
+    let actions = vec![AgentAction(instruction)];
 
     // 3. Execute the transaction in the environment.
-    let step_result = env.step(action, &test_case.ground_truth)?;
+    let step_result = env.step(actions, &test_case.ground_truth)?;
 
     // 4. Calculate the score using the centralized function from `reev-lib`.
     let score = calculate_score(&test_case, &initial_observation, &step_result.observation);

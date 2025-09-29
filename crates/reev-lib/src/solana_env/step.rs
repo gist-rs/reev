@@ -6,43 +6,67 @@ use crate::{
 use anyhow::Result;
 use serde_json::json;
 use solana_client::rpc_config::RpcSimulateTransactionConfig;
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::{instruction::Instruction, signature::Signer, transaction::Transaction};
 use solana_transaction_status::UiTransactionEncoding;
 use tracing::{error, info, warn};
 
 pub(crate) fn handle_step(
     env: &mut SolanaEnv,
-    action: AgentAction,
+    actions: Vec<AgentAction>,
 ) -> Result<Step<AgentObservation>> {
-    let instruction = action.0;
+    // If there are no actions, the agent has failed.
+    if actions.is_empty() {
+        let error_string = "Agent returned no actions to execute.".to_string();
+        error!("{}", error_string);
+        let obs = observation::get_observation(env, "Failure", Some(error_string.clone()), vec![])?;
+        return Ok(Step {
+            observation: obs,
+            reward: 0.0,
+            terminated: true,
+            truncated: false,
+            info: json!({ "error": error_string }),
+        });
+    }
+
+    // 1. Collect all instructions from the Vec<AgentAction>.
+    let instructions: Vec<Instruction> = actions.into_iter().map(|a| a.0).collect();
+
+    // 2. Aggregate all required signers from all instructions.
     let fee_payer_keypair = env.get_fee_payer_keypair()?;
     let mut signers = vec![fee_payer_keypair];
 
-    for acc in &instruction.accounts {
-        if acc.is_signer {
-            if let Some(keypair) = env
-                .keypair_map
-                .values()
-                .find(|kp| kp.pubkey() == acc.pubkey)
-            {
-                signers.push(keypair);
-            } else {
-                warn!(
-                    "Signer keypair for pubkey {} not found in keypair_map. Transaction may fail.",
-                    acc.pubkey
-                );
+    for instruction in &instructions {
+        for acc in &instruction.accounts {
+            if acc.is_signer {
+                if let Some(keypair) = env
+                    .keypair_map
+                    .values()
+                    .find(|kp| kp.pubkey() == acc.pubkey)
+                {
+                    signers.push(keypair);
+                } else {
+                    // A signer might be the fee_payer, which is already included.
+                    // This warning helps debug cases where a signer is genuinely missing.
+                    if acc.pubkey != fee_payer_keypair.pubkey() {
+                        warn!(
+                            "Signer keypair for pubkey {} not found in keypair_map. Transaction may fail.",
+                            acc.pubkey
+                        );
+                    }
+                }
             }
         }
     }
+    // 3. Deduplicate the list of signers.
     signers.sort_by_key(|k| k.pubkey());
     signers.dedup_by_key(|k| k.pubkey());
 
-    let transaction =
-        Transaction::new_with_payer(&[instruction.clone()], Some(&fee_payer_keypair.pubkey()));
+    // 4. Create a single transaction with all instructions, paid for by the fee_payer.
+    let transaction = Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
 
     info!(
-        "Executing instruction for program: {}",
-        instruction.program_id
+        "Executing transaction with {} instruction(s).",
+        instructions.len()
     );
 
     // --- Simulation Logic ---
@@ -76,6 +100,7 @@ pub(crate) fn handle_step(
     info!("Transaction simulation successful.");
     // --- End Simulation Logic ---
 
+    // 5. Sign with all required keypairs and send the transaction.
     match env.sign_and_send_transaction(transaction, &signers) {
         Ok(sig) => {
             let tx_info = env

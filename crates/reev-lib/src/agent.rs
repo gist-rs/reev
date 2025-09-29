@@ -107,7 +107,7 @@ pub trait Agent {
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
-    ) -> Result<AgentAction>;
+    ) -> Result<Vec<AgentAction>>;
 }
 
 /// Structs for deserializing the third-party LLM's JSON response.
