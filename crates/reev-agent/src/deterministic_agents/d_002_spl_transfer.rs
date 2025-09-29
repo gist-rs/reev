@@ -5,7 +5,9 @@ use spl_token;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-pub(crate) fn handle_spl_transfer(key_map: &HashMap<String, String>) -> Result<RawInstruction> {
+pub(crate) fn handle_spl_transfer(
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
     info!("[reev-agent] Matched '002-SPL-TRANSFER' id. Generating instruction with code.");
     let source_ata_str = key_map
         .get("USER_USDC_ATA")
@@ -33,5 +35,5 @@ pub(crate) fn handle_spl_transfer(key_map: &HashMap<String, String>) -> Result<R
     )
     .context("Failed to create SPL transfer instruction")?;
     info!("[reev-agent] Generated instruction: {instruction:?}");
-    Ok(instruction.into())
+    Ok(vec![instruction.into()])
 }

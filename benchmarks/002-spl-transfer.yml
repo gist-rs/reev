@@ -43,16 +43,16 @@ ground_truth:
       pubkey: "RECIPIENT_USDC_ATA"
       expected: 15000000 # 15 USDC received
 
-  expected_instruction:
-    program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    accounts:
-      - pubkey: "USER_USDC_ATA"
-        is_signer: false
-        is_writable: true
-      - pubkey: "RECIPIENT_USDC_ATA"
-        is_signer: false
-        is_writable: true
-      - pubkey: "USER_WALLET_PUBKEY"
-        is_signer: true
-        is_writable: false
-    data: "base58_encoded_spl_transfer_instruction_data_for_15_usdc"
+  expected_instructions:
+    - program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      accounts:
+        - pubkey: "USER_USDC_ATA"
+          is_signer: false
+          is_writable: true
+        - pubkey: "RECIPIENT_USDC_ATA"
+          is_signer: false
+          is_writable: true
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: false
+      data: "base58_encoded_spl_transfer_instruction_data_for_15_usdc"

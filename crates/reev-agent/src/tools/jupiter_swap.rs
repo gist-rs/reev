@@ -40,7 +40,7 @@ impl Tool for JupiterSwapTool {
     const NAME: &'static str = "jupiter_swap";
     type Error = JupiterSwapError;
     type Args = JupiterSwapArgs;
-    type Output = String; // The tool will return the raw instruction as a JSON string.
+    type Output = String; // The tool will return a JSON string of `Vec<RawInstruction>`.
 
     /// Defines the tool's schema and description for the AI model.
     async fn definition(&self, _prompt: String) -> ToolDefinition {
@@ -50,7 +50,7 @@ impl Tool for JupiterSwapTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Swap one token for another using the Jupiter aggregator. This finds the best price across many decentralized exchanges.".to_string(),
+            description: "Swap one token for another using the Jupiter aggregator. This finds the best price across many decentralized exchanges and prepares the local forked environment for the transaction.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -81,7 +81,7 @@ impl Tool for JupiterSwapTool {
     }
 
     /// Executes the tool's logic: calls the centralized `handle_jupiter_swap` function,
-    /// which transparently handles mock vs. mainnet mints.
+    /// which transparently handles account pre-loading for the `surfpool` environment.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let user_pubkey = Pubkey::from_str(&args.user_pubkey)
             .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
@@ -91,8 +91,8 @@ impl Tool for JupiterSwapTool {
             .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
 
         // Call the centralized handler, passing the key_map from the struct.
-        // This ensures mock mints are correctly replaced before the API call.
-        let raw_instruction = handle_jupiter_swap(
+        // This ensures the local surfpool environment is correctly prepared.
+        let raw_instructions = handle_jupiter_swap(
             user_pubkey,
             input_mint,
             output_mint,
@@ -102,8 +102,8 @@ impl Tool for JupiterSwapTool {
         )
         .await?;
 
-        // Serialize the RawInstruction to a JSON string. This is the final output of the tool.
-        let output = serde_json::to_string(&raw_instruction)?;
+        // Serialize the Vec<RawInstruction> to a JSON string. This is the final output of the tool.
+        let output = serde_json::to_string(&raw_instructions)?;
 
         Ok(output)
     }

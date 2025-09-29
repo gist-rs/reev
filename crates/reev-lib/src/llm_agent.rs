@@ -1,5 +1,5 @@
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
@@ -119,14 +119,23 @@ impl Agent for LlmAgent {
 
         info!("[LlmAgent] Received successful response from LLM.");
 
-        // 6. Deserialize the response and extract the raw instruction.
-        let llm_response: LlmResponse = response
+        // 6. Deserialize the response and extract the raw instructions.
+        let mut llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 7. Convert the raw instruction into a native `AgentAction` and return it.
-        let action: AgentAction = llm_response.result.text.try_into()?;
+        // 7. The runner can only handle one instruction for now.
+        // If multiple are returned (e.g., from Jupiter), take the first one.
+        if llm_response.result.text.is_empty() {
+            bail!("LLM API returned an empty list of instructions");
+        }
+
+        // Take the first instruction from the vector.
+        let raw_instruction = llm_response.result.text.remove(0);
+
+        // Convert the single raw instruction into a native `AgentAction` and return it.
+        let action: AgentAction = raw_instruction.try_into()?;
 
         info!(
             "[LlmAgent] Successfully parsed instruction for program: {}",

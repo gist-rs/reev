@@ -118,7 +118,29 @@ pub struct LlmResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct LlmResult {
-    pub text: RawInstruction,
+    #[serde(deserialize_with = "deserialize_string_to_instructions")]
+    pub text: Vec<RawInstruction>,
+}
+
+fn deserialize_string_to_instructions<'de, D>(
+    deserializer: D,
+) -> Result<Vec<RawInstruction>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // The `text` field is a string containing JSON. First, deserialize it into a string.
+    let s: String = Deserialize::deserialize(deserializer)?;
+
+    // Now, parse that string into a `serde_json::Value`.
+    let v: Value = serde_json::from_str(&s).map_err(serde::de::Error::custom)?;
+
+    // Check if it's an array of instructions or a single instruction object.
+    if v.is_array() {
+        serde_json::from_value(v).map_err(serde::de::Error::custom)
+    } else {
+        let ix: RawInstruction = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
+        Ok(vec![ix])
+    }
 }
 
 /// Conversion from the raw format to our action wrapper.

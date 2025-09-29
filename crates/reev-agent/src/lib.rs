@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use reev_lib::agent::RawInstruction;
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -16,10 +16,10 @@ pub mod jupiter;
 pub mod tools;
 
 mod agents;
-mod deterministic_agents;
+pub mod common;
+pub mod deterministic_agents;
 mod prompt;
 
-/// Represents the structure of the incoming request from the `LlmAgent`.
 #[derive(Debug, Deserialize)]
 pub struct LlmRequest {
     pub id: String,
@@ -30,13 +30,13 @@ pub struct LlmRequest {
 }
 
 fn default_model() -> String {
-    "qwen3-coder-30b-a3b-instruct-mlx".to_string()
+    "default-model".to_string()
 }
 
-/// The `text` field of the response, containing the raw instruction.
+/// The `text` field of the response, containing the JSON string of the instruction(s).
 #[derive(Debug, Serialize)]
 struct LlmResult {
-    text: RawInstruction,
+    text: String,
 }
 
 /// The top-level response structure, mirroring what the real LLM service would send.
@@ -82,12 +82,12 @@ async fn generate_transaction(
 
     match result {
         Ok(json_response) => (StatusCode::OK, json_response).into_response(),
-        Err(_e) => {
-            // The error from `rig` can cause a stack overflow when formatted.
-            // The detailed error is logged inside `run_ai_agent`.
-            // This handler just returns a generic, safe response to prevent a crash.
-            let error_msg = "Internal agent error. See agent logs for details.".to_string();
-            info!("[reev-agent] Agent returned an error. Sending 500 response.");
+        Err(e) => {
+            let error_msg = format!("Internal agent error: {e}");
+            error!(
+                "[reev-agent] Agent returned an error: {}. Sending 500 response.",
+                error_msg
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": error_msg })),
@@ -102,27 +102,28 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     let model_name = payload.model_name.clone();
 
     let response_str = agents::run_agent(&model_name, payload).await.map_err(|e| {
-        error!("[reev-agent] Agent failed. Detailed Error: {e:?}");
+        error!("[reev-agent] AI Agent failed. Detailed Error: {e:?}");
         e
     })?;
 
-    info!("[reev-agent] Raw response from agent tool call: {response_str}");
+    info!("[reev-agent] Raw response from AI agent tool call: {response_str}");
 
-    // Clean the response: trim whitespace and remove markdown code blocks.
     let cleaned_response = response_str
         .trim()
         .strip_prefix("```json")
         .unwrap_or(&response_str)
         .strip_suffix("```")
         .unwrap_or(&response_str)
-        .trim();
+        .trim()
+        .to_string();
 
-    let raw_instruction: RawInstruction = serde_json::from_str(cleaned_response)
-        .context("Failed to deserialize RawInstruction from AI agent tool response")?;
+    // Validate the response is valid JSON, but pass the string through.
+    let _: serde_json::Value = serde_json::from_str(&cleaned_response)
+        .context("Failed to validate AI agent response as parseable JSON")?;
 
     let response = LlmResponse {
         result: LlmResult {
-            text: raw_instruction,
+            text: cleaned_response,
         },
     };
 
@@ -145,22 +146,30 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
     let key_map = context.key_map;
 
-    let raw_instruction = match payload.id.as_str() {
+    // The deterministic agents return one or more instructions. We serialize the result
+    // into a JSON string to match the format expected by the runner.
+    let instructions_json = match payload.id.as_str() {
         "001-SOL-TRANSFER" => {
-            deterministic_agents::d_001_sol_transfer::handle_sol_transfer(&key_map)?
+            let ixs = deterministic_agents::d_001_sol_transfer::handle_sol_transfer(&key_map)?;
+            serde_json::to_string(&ixs)?
         }
         "002-SPL-TRANSFER" => {
-            deterministic_agents::d_002_spl_transfer::handle_spl_transfer(&key_map)?
+            let ixs = deterministic_agents::d_002_spl_transfer::handle_spl_transfer(&key_map)?;
+            serde_json::to_string(&ixs)?
         }
         "100-JUP-SWAP-SOL-USDC" => {
-            deterministic_agents::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map)
-                .await?
+            let ixs =
+                deterministic_agents::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map)
+                    .await?;
+            serde_json::to_string(&ixs)?
         }
         "110-JUP-LEND-SOL" => {
-            deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map)?
+            let ixs = deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map)?;
+            serde_json::to_string(&ixs)?
         }
         "111-JUP-LEND-USDC" => {
-            deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map)?
+            let ixs = deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map)?;
+            serde_json::to_string(&ixs)?
         }
         _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",
@@ -168,10 +177,13 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         ),
     };
 
-    info!("[reev-agent] Responding with instruction.");
+    info!(
+        "[reev-agent] Responding with instructions: {}",
+        instructions_json
+    );
     let response = LlmResponse {
         result: LlmResult {
-            text: raw_instruction,
+            text: instructions_json,
         },
     };
 
@@ -180,7 +192,6 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
 
 /// The main entry point for the mock agent server.
 pub async fn run_server() -> anyhow::Result<()> {
-    // Load environment variables from a .env file, if present.
     dotenvy::dotenv().ok();
 
     let app = Router::new()

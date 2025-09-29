@@ -10,7 +10,9 @@ use tracing::info;
 /// to a new, unique public key. This correctly simulates the main effect of lending—the
 /// USDC leaving the user's wallet—which is sufficient to satisfy the benchmark's
 /// `TokenAccountBalance` assertion.
-pub(crate) fn handle_jup_lend_usdc(key_map: &HashMap<String, String>) -> Result<RawInstruction> {
+pub(crate) fn handle_jup_lend_usdc(
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
     info!("[reev-agent] Matched '111-JUP-LEND-USDC' id. Generating a simplified SPL transfer.");
     let source_ata_str = key_map
         .get("USER_USDC_ATA")
@@ -40,5 +42,5 @@ pub(crate) fn handle_jup_lend_usdc(key_map: &HashMap<String, String>) -> Result<
     .context("Failed to create SPL transfer instruction")?;
 
     info!("[reev-agent] Generated instruction: {instruction:?}");
-    Ok(instruction.into())
+    Ok(vec![instruction.into()])
 }

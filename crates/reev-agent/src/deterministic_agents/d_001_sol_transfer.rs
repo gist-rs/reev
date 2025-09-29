@@ -5,7 +5,9 @@ use solana_system_interface::instruction as system_instruction;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-pub(crate) fn handle_sol_transfer(key_map: &HashMap<String, String>) -> Result<RawInstruction> {
+pub(crate) fn handle_sol_transfer(
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
     info!("[reev-agent] Matched '001-SOL-TRANSFER' id. Generating instruction with code.");
     let from_pubkey = key_map
         .get("USER_WALLET_PUBKEY")
@@ -18,5 +20,5 @@ pub(crate) fn handle_sol_transfer(key_map: &HashMap<String, String>) -> Result<R
     let lamports = 100_000_000;
     let instruction = system_instruction::transfer(&from, &to, lamports);
     info!("[reev-agent] Generated instruction: {instruction:?}");
-    Ok(instruction.into())
+    Ok(vec![instruction.into()])
 }

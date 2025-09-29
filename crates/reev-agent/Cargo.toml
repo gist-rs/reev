@@ -14,7 +14,7 @@ categories.workspace = true
 axum = "0.8.4"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
+serde_json.workspace = true
 regex = { workspace = true }
 solana-sdk = { workspace = true }
 bs58 = { workspace = true }
@@ -34,6 +34,11 @@ async-trait = "0.1"
 thiserror = "1.0"
 
 jupiter-swap-api-client = { git = "https://github.com/jup-ag/jupiter-swap-api-client.git", package = "jupiter-swap-api-client"}
+solana-client.workspace = true
+reqwest = "0.12"
+hex = "0.4.3"
+chrono = "0.4.42"
+spl-associated-token-account.workspace = true
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }

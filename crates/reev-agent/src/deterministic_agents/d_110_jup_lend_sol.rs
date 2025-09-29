@@ -11,7 +11,9 @@ use tracing::info;
 /// to a new, unique public key. This correctly simulates the main effect of lending—the
 /// SOL leaving the user's wallet—which is sufficient to satisfy the benchmark's
 /// `SolBalanceChange` assertion.
-pub(crate) fn handle_jup_lend_sol(key_map: &HashMap<String, String>) -> Result<RawInstruction> {
+pub(crate) fn handle_jup_lend_sol(
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
     info!("[reev-agent] Matched '110-JUP-LEND-SOL' id. Generating a simplified SOL transfer.");
     let from_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")
@@ -26,5 +28,5 @@ pub(crate) fn handle_jup_lend_sol(key_map: &HashMap<String, String>) -> Result<R
     let instruction = system_instruction::transfer(&from_pubkey, &to_pubkey, lamports);
 
     info!("[reev-agent] Generated instruction: {:?}", instruction);
-    Ok(instruction.into())
+    Ok(vec![instruction.into()])
 }
