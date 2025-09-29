@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_another_feed_id_conversion() {
         let hex_feed_id = "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
-        let expected_base58 = "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix";
+        let expected_base58 = "GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU";
         let actual_base58 = hex_to_base58(hex_feed_id).unwrap();
         assert_eq!(actual_base58, expected_base58);
     }
