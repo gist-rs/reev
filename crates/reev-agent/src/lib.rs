@@ -164,12 +164,10 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             serde_json::to_string(&ixs)?
         }
         "110-JUP-LEND-SOL" => {
-            let ixs = deterministic_agents::d_110_jup_lend_sol::handle_jup_lend_sol(&key_map)?;
-            serde_json::to_string(&ixs)?
+            todo!()
         }
         "111-JUP-LEND-USDC" => {
-            let ixs = deterministic_agents::d_111_jup_lend_usdc::handle_jup_lend_usdc(&key_map)?;
-            serde_json::to_string(&ixs)?
+            todo!()
         }
         _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",
