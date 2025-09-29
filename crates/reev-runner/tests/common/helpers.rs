@@ -17,7 +17,7 @@ use tracing::info;
 /// reads the test case from the file and calls `env.reset()`. The `SolanaEnv`'s
 /// `reset` implementation now contains all the centralized logic (including complex
 /// SPL setup), ensuring a consistent environment for all tests.
-pub fn setup_env_for_benchmark(
+pub async fn setup_env_for_benchmark(
     benchmark_path: &Path,
 ) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
     // HACK: Add a small delay and health check to mitigate race conditions
@@ -39,7 +39,9 @@ pub fn setup_env_for_benchmark(
 
     let mut env = SolanaEnv::new()?;
     // `env.reset` now contains the centralized setup logic from `reev-lib`.
-    let initial_observation = env.reset(None, Some(serde_json::to_value(&test_case)?))?;
+    let initial_observation = env
+        .reset(None, Some(serde_json::to_value(&test_case)?))
+        .await?;
 
     Ok((env, test_case, initial_observation))
 }

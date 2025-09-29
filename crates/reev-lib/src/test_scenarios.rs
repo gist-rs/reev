@@ -74,9 +74,7 @@ impl SurfpoolClient {
         let status = response.status();
         if !status.is_success() {
             let error_body = response.text().await?;
-            anyhow::bail!(
-                "Failed to set token account. Status: {status}, Body: {error_body}"
-            );
+            anyhow::bail!("Failed to set token account. Status: {status}, Body: {error_body}");
         }
         Ok(())
     }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "protocols/jupiter/jupiter-lend", "protocols/jupiter/swap-poc"]
+members = ["crates/*", "protocols/jupiter/jupiter-lend"]
 resolver = "2"
 
 [workspace.package]

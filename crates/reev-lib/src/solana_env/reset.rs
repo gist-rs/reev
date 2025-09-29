@@ -13,7 +13,7 @@ use std::{str::FromStr, thread, time::Duration};
 use tracing::{info, instrument};
 
 #[instrument(skip_all, name = "env.reset")]
-pub(crate) fn handle_reset(
+pub(crate) async fn handle_reset(
     env: &mut SolanaEnv,
     options: Option<Value>,
 ) -> Result<AgentObservation> {
@@ -97,19 +97,14 @@ pub(crate) fn handle_reset(
     // --- THIS IS THE CRITICAL CHANGE ---
     // 6. Delegate complex SPL setup to the centralized scenario handler.
     // This function will handle ATA derivation and RPC calls to fund accounts.
-    // It needs to run inside a tokio runtime because it's async.
-    let rt =
-        tokio::runtime::Runtime::new().context("Failed to create Tokio runtime for SPL setup")?;
     let mut initial_observation =
         observation::get_observation(env, "Initial state before SPL setup", None, vec![])?;
 
     // The setup function will mutate the env's pubkey_map and the observation's key_map
     // with the real, derived ATA addresses.
-    rt.block_on(test_scenarios::setup_spl_scenario(
-        env,
-        &test_case,
-        &mut initial_observation,
-    ))?;
+    test_scenarios::setup_spl_scenario(env, &test_case, &mut initial_observation)
+        .await
+        .expect("Reset failed");
 
     // The key_map in the observation might have been updated by the setup function,
     // so we return the final, corrected observation.

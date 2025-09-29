@@ -40,7 +40,7 @@ pub trait GymEnv {
         &mut self,
         seed: Option<u64>,
         options: Option<Value>,
-    ) -> anyhow::Result<Self::Observation>;
+    ) -> impl std::future::Future<Output = anyhow::Result<Self::Observation>> + Send;
 
     /// Executes a single step in the environment based on the agent's action.
     ///

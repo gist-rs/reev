@@ -72,8 +72,12 @@ impl GymEnv for SolanaEnv {
     type Observation = AgentObservation;
 
     #[tracing::instrument(skip_all, name = "env.reset")]
-    fn reset(&mut self, _seed: Option<u64>, options: Option<Value>) -> Result<Self::Observation> {
-        reset::handle_reset(self, options)
+    async fn reset(
+        &mut self,
+        _seed: Option<u64>,
+        options: Option<Value>,
+    ) -> Result<Self::Observation> {
+        reset::handle_reset(self, options).await
     }
 
     #[tracing::instrument(skip_all, name = "env.step")]

@@ -69,7 +69,8 @@ async fn test_all_benchmarks_are_solvable(
 
         // 1. Set up the environment using the unified setup function.
         // All complex logic is now handled within `SolanaEnv::reset`.
-        let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
+        let (mut env, test_case, initial_observation) =
+            setup_env_for_benchmark(&benchmark_path).await?;
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Create the "perfect" action for this benchmark.

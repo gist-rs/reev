@@ -53,7 +53,8 @@ async fn test_scoring_logic(
     // All complex setup logic is now handled within `SolanaEnv::reset`.
     let project_root = get_project_root()?;
     let benchmark_path = project_root.join(file_path);
-    let (mut env, test_case, initial_observation) = setup_env_for_benchmark(&benchmark_path)?;
+    let (mut env, test_case, initial_observation) =
+        setup_env_for_benchmark(&benchmark_path).await?;
 
     // 2. Create the "perfect" action for this benchmark.
     let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
