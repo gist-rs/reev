@@ -51,6 +51,10 @@ impl SelectedAgent {
         let next_index = current_index.saturating_add(1);
         Self::from_repr(next_index).unwrap_or(self)
     }
+
+    pub fn is_disabled(&self, is_running: bool) -> bool {
+        is_running
+    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -281,14 +285,16 @@ impl<'a> App<'a> {
     }
 
     pub fn on_left(&mut self) {
-        if !self.is_running_benchmark {
+        if !self.is_running_benchmark && !self.selected_agent.is_disabled(self.is_running_benchmark)
+        {
             self.selected_agent = self.selected_agent.previous();
             self.reset_benchmarks();
         }
     }
 
     pub fn on_right(&mut self) {
-        if !self.is_running_benchmark {
+        if !self.is_running_benchmark && !self.selected_agent.is_disabled(self.is_running_benchmark)
+        {
             self.selected_agent = self.selected_agent.next();
             self.reset_benchmarks();
         }
