@@ -14,6 +14,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use reqwest::header::HeaderMap;
 use serde_json::{json, Value};
 use solana_client::{nonblocking::rpc_client::RpcClient as AsyncRpcClient, rpc_client::RpcClient};
 use solana_sdk::{
@@ -95,6 +96,7 @@ pub async fn swap(
     );
     let quote_resp: Value = client
         .get(&quote_url)
+        .headers(http::json_headers())
         .send()
         .await?
         .error_for_status()?
@@ -102,18 +104,24 @@ pub async fn swap(
         .await?;
     info!("✅ Got quote from Jupiter API.");
 
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "application/json".parse().unwrap());
+    headers.insert("Accept", "application/json".parse().unwrap());
+
     let swap_req = json!({
         "userPublicKey": user_wallet.pubkey().to_string(),
         "quoteResponse": quote_resp,
-        "config": {
-            "computeUnitLimit": 600000,
-            "computeUnitPriceMicroLamports": "auto",
-            "asLegacyTransaction": false
-        }
+        "prioritizationFeeLamports": {
+            "priorityLevelWithMaxLamports": {
+                "maxLamports": 10000000,
+                "priorityLevel": "veryHigh"
+            }
+        },
+        "dynamicComputeUnitLimit": true
     });
     let instructions_resp: Value = client
         .post("https://lite-api.jup.ag/swap/v1/swap-instructions")
-        .headers(http::json_headers())
+        .headers(headers)
         .json(&swap_req)
         .send()
         .await?
