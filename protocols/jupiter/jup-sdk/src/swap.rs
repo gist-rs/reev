@@ -30,10 +30,8 @@ use std::{str::FromStr, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
-const BASE_URL: &str = "https://lite-api.jup.ag";
-
 use crate::common::{
-    api_client as http, surfpool_client::SurfpoolClient, types::InstructionData,
+    api_client as http, config, surfpool_client::SurfpoolClient, types::InstructionData,
     utils::hex_to_base58,
 };
 
@@ -43,8 +41,6 @@ pub async fn swap(
     amount: u64,
     slippage_bps: u16,
 ) -> Result<()> {
-    const PUBLIC_RPC_URL: &str = "https://api.mainnet-beta.solana.com";
-
     // 1. Create a new wallet and fund it.
     let user_wallet = Keypair::new();
     info!("✅ Created user wallet: {}", user_wallet.pubkey());
@@ -94,8 +90,9 @@ pub async fn swap(
 
     let client = http::api_client();
     let quote_url = format!(
-        "{BASE_URL}/swap/v1/quote?inputMint={input_mint}&outputMint={output_mint}&amount={amount}&slippageBps={slippage_bps}&onlyDirectRoutes=true"
-    );
+            "{}/swap/v1/quote?inputMint={input_mint}&outputMint={output_mint}&amount={amount}&slippageBps={slippage_bps}&onlyDirectRoutes=true",
+            config::base_url()
+        );
     let quote_resp: Value = client
         .get(&quote_url)
         .headers(http::json_headers())
@@ -122,7 +119,7 @@ pub async fn swap(
         "dynamicComputeUnitLimit": true
     });
     let instructions_resp: Value = client
-        .post(format!("{BASE_URL}/swap/v1/swap-instructions"))
+        .post(format!("{}/swap/v1/swap-instructions", config::base_url()))
         .headers(headers)
         .json(&swap_req)
         .send()
@@ -321,8 +318,7 @@ pub async fn swap(
         );
 
         // Fetch the full account data for all missing accounts from a public RPC.
-        let public_rpc_client = RpcClient::new(PUBLIC_RPC_URL.to_string());
-        let accounts_to_load = public_rpc_client
+        let accounts_to_load = RpcClient::new(config::public_rpc_url())
             .get_multiple_accounts(&missing_accounts)
             .context("Failed to fetch missing accounts from mainnet RPC")?;
 
@@ -365,10 +361,10 @@ pub async fn swap(
     let final_balance = rpc_client.get_token_account_balance(&user_usdc_ata)?;
     assert!(
         final_balance.amount.parse::<u64>()? < amount_to_set,
-        "Final input balance should be less than initial balance."
+        "Final balance should be less than initial balance."
     );
     info!(
-        "✅ Final input balance verified: {}. Swap successful!",
+        "✅ Final USDC balance verified: {}. Swap successful!",
         final_balance.ui_amount_string
     );
 

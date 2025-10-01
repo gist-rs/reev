@@ -6,6 +6,8 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
     // Setup logging
     tracing_subscriber::fmt()
         .with_env_filter("info,jup_sdk=info")

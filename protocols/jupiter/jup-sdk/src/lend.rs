@@ -3,10 +3,9 @@
 //! This demonstrates a full end-to-end Jupiter lend deposit
 //! against a local surfpool (mainnet fork) validator.
 
-const BASE_URL: &str = "https://lite-api.jup.ag";
-
 use crate::common::{
     api_client::{api_client, json_headers},
+    config,
     surfpool_client::SurfpoolClient,
 };
 use anyhow::{anyhow, Context, Result};
@@ -28,8 +27,6 @@ use tracing::info;
 use crate::common::types::{ApiResponse, InstructionData};
 
 pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> {
-    const PUBLIC_RPC_URL: &str = "https://api.mainnet-beta.solana.com";
-
     // 1. Use provided signer and fund it.
     let user_wallet = signer;
     info!("✅ Using wallet: {}", user_wallet.pubkey());
@@ -75,7 +72,10 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
         "cluster": "mainnet"
     });
     let response = client
-        .post(format!("{BASE_URL}/lend/v1/earn/deposit-instructions"))
+        .post(format!(
+            "{}/lend/v1/earn/deposit-instructions",
+            config::base_url()
+        ))
         .headers(json_headers())
         .json(&data)
         .send()
@@ -110,7 +110,6 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
                 })
             })
             .collect::<Result<Vec<_>>>()?,
-
         data: STANDARD.decode(&data)?,
     };
 
@@ -160,7 +159,8 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
             "🚨 Found {} missing accounts. Pre-loading them into surfpool...",
             missing_accounts.len()
         );
-        let public_rpc_client = RpcClient::new(PUBLIC_RPC_URL.to_string());
+        // Fetch the full account data for all missing accounts from a public RPC.
+        let public_rpc_client = RpcClient::new(config::public_rpc_url());
         let accounts_to_load = public_rpc_client
             .get_multiple_accounts(&missing_accounts)
             .context("Failed to fetch missing accounts from mainnet RPC")?;
@@ -212,8 +212,6 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
     Ok(())
 }
 pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> {
-    const PUBLIC_RPC_URL: &str = "https://api.mainnet-beta.solana.com";
-
     // 1. Use provided signer and fund it.
     let user_wallet = signer;
     info!("✅ Using wallet: {}", user_wallet.pubkey());
@@ -259,7 +257,10 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
         "cluster": "mainnet"
     });
     let deposit_response = client
-        .post(format!("{BASE_URL}/lend/v1/earn/deposit-instructions"))
+        .post(format!(
+            "{}/lend/v1/earn/deposit-instructions",
+            config::base_url()
+        ))
         .headers(json_headers())
         .json(&deposit_data)
         .send()
@@ -344,7 +345,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
             "🚨 Found {} missing accounts. Pre-loading them into surfpool...",
             missing_accounts.len()
         );
-        let public_rpc_client = RpcClient::new(PUBLIC_RPC_URL.to_string());
+        let public_rpc_client = RpcClient::new(config::public_rpc_url());
         let accounts_to_load = public_rpc_client
             .get_multiple_accounts(&missing_accounts)
             .context("Failed to fetch missing accounts from mainnet RPC")?;
@@ -402,7 +403,10 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
         "cluster": "mainnet"
     });
     let withdraw_response = client
-        .post(format!("{BASE_URL}/lend/v1/earn/withdraw-instructions"))
+        .post(format!(
+            "{}/lend/v1/earn/withdraw-instructions",
+            config::base_url()
+        ))
         .headers(json_headers())
         .json(&withdraw_data)
         .send()
@@ -484,7 +488,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
             "🚨 Found {} missing accounts for withdraw. Pre-loading them into surfpool...",
             missing_accounts2.len()
         );
-        let public_rpc_client = RpcClient::new(PUBLIC_RPC_URL.to_string());
+        let public_rpc_client = RpcClient::new(config::public_rpc_url());
         let accounts_to_load2 = public_rpc_client
             .get_multiple_accounts(&missing_accounts2)
             .context("Failed to fetch missing accounts from mainnet RPC for withdraw")?;
@@ -526,7 +530,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
 
     // Verify final balance
     let final_balance = rpc_client.get_token_account_balance(&user_asset_ata)?;
-    if final_balance.amount.parse::<u64>()? >= amount_to_set - 2000000 {
+    if final_balance.amount.parse::<u64>()? >= amount_to_set.saturating_sub(2000000) {
         info!(
             "✅ Final balance verified: {}. Withdraw successful!",
             final_balance.ui_amount_string
