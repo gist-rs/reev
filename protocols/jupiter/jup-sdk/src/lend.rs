@@ -3,6 +3,8 @@
 //! This demonstrates a full end-to-end Jupiter lend deposit
 //! against a local surfpool (mainnet fork) validator.
 
+const BASE_URL: &str = "https://lite-api.jup.ag";
+
 use crate::common::{
     api_client::{api_client, json_headers},
     surfpool_client::SurfpoolClient,
@@ -73,7 +75,7 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
         "cluster": "mainnet"
     });
     let response = client
-        .post("https://lite-api.jup.ag/lend/v1/earn/deposit-instructions")
+        .post(format!("{BASE_URL}/lend/v1/earn/deposit-instructions"))
         .headers(json_headers())
         .json(&data)
         .send()
@@ -257,7 +259,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
         "cluster": "mainnet"
     });
     let deposit_response = client
-        .post("https://lite-api.jup.ag/lend/v1/earn/deposit-instructions")
+        .post(format!("{BASE_URL}/lend/v1/earn/deposit-instructions"))
         .headers(json_headers())
         .json(&deposit_data)
         .send()
@@ -400,7 +402,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
         "cluster": "mainnet"
     });
     let withdraw_response = client
-        .post("https://lite-api.jup.ag/lend/v1/earn/withdraw-instructions")
+        .post(format!("{BASE_URL}/lend/v1/earn/withdraw-instructions"))
         .headers(json_headers())
         .json(&withdraw_data)
         .send()

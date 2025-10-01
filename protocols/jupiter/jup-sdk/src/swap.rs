@@ -30,6 +30,8 @@ use std::{str::FromStr, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
+const BASE_URL: &str = "https://lite-api.jup.ag";
+
 use crate::common::{
     api_client as http, surfpool_client::SurfpoolClient, types::InstructionData,
     utils::hex_to_base58,
@@ -92,7 +94,7 @@ pub async fn swap(
 
     let client = http::api_client();
     let quote_url = format!(
-        "https://lite-api.jup.ag/swap/v1/quote?inputMint={input_mint}&outputMint={output_mint}&amount={amount}&slippageBps={slippage_bps}&onlyDirectRoutes=true"
+        "{BASE_URL}/swap/v1/quote?inputMint={input_mint}&outputMint={output_mint}&amount={amount}&slippageBps={slippage_bps}&onlyDirectRoutes=true"
     );
     let quote_resp: Value = client
         .get(&quote_url)
@@ -120,7 +122,7 @@ pub async fn swap(
         "dynamicComputeUnitLimit": true
     });
     let instructions_resp: Value = client
-        .post("https://lite-api.jup.ag/swap/v1/swap-instructions")
+        .post(format!("{BASE_URL}/swap/v1/swap-instructions"))
         .headers(headers)
         .json(&swap_req)
         .send()
