@@ -129,4 +129,34 @@ impl SurfpoolClient {
         }
         Ok(())
     }
+
+    pub async fn reset_account(&self, pubkey: &str) -> Result<()> {
+        let request_body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "surfnet_resetAccount",
+            "params": [pubkey]
+        });
+
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&request_body)
+            .send()
+            .await
+            .context("Failed to send RPC request to reset account")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await?;
+            anyhow::bail!("Failed to reset account. Status: {status}, Body: {error_body}");
+        }
+        Ok(())
+    }
+}
+
+impl Default for SurfpoolClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
