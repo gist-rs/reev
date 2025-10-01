@@ -12,7 +12,7 @@
 //! 1. Make sure `reev-agent` is buildable in the parent workspace (`cargo build --package reev-agent`).
 //! 2. Run this binary from its own directory: `cd protocols/jupiter/swap-poc && cargo run`.
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use solana_client::{nonblocking::rpc_client::RpcClient as AsyncRpcClient, rpc_client::RpcClient};
@@ -29,8 +29,10 @@ use std::{str::FromStr, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::common::types::ApiResponse;
-use crate::common::{surfpool_client::SurfpoolClient, utils::hex_to_base58};
+use crate::common::{
+    api_client as http, surfpool_client::SurfpoolClient, types::InstructionData,
+    utils::hex_to_base58,
+};
 
 pub async fn swap(
     input_mint: Pubkey,
@@ -87,11 +89,17 @@ pub async fn swap(
         sol_usdc_pyth_oracle
     );
 
-    let client = reqwest::Client::new();
+    let client = http::api_client();
     let quote_url = format!(
         "https://lite-api.jup.ag/swap/v1/quote?inputMint={input_mint}&outputMint={output_mint}&amount={amount}&slippageBps={slippage_bps}&onlyDirectRoutes=true"
     );
-    let quote_resp: Value = client.get(&quote_url).send().await?.json().await?;
+    let quote_resp: Value = client
+        .get(&quote_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
     info!("✅ Got quote from Jupiter API.");
 
     let swap_req = json!({
@@ -103,26 +111,34 @@ pub async fn swap(
             "asLegacyTransaction": false
         }
     });
-    let instructions_resp: ApiResponse = client
+    let instructions_resp: Value = client
         .post("https://lite-api.jup.ag/swap/v1/swap-instructions")
+        .headers(http::json_headers())
         .json(&swap_req)
         .send()
         .await?
+        .error_for_status()?
         .json()
         .await?;
     info!("✅ Got swap instructions from Jupiter API.");
 
     // 4. Build the transaction locally using a fresh blockhash and ALTs.
-    let lookup_table_keys: Vec<Pubkey> = instructions_resp
-        .address_lookup_table_addresses
-        .iter()
-        .map(|s| Pubkey::from_str(s).map_err(anyhow::Error::from))
-        .collect::<Result<Vec<_>>>()?;
+    let mut lookup_table_keys: Vec<Pubkey> = Vec::new();
+    if let Some(addrs) = instructions_resp
+        .get("addressLookupTableAddresses")
+        .and_then(|v| v.as_array())
+    {
+        for addr in addrs {
+            if let Some(s) = addr.as_str() {
+                lookup_table_keys.push(Pubkey::from_str(s).map_err(anyhow::Error::from)?);
+            }
+        }
+    }
 
     let alt_accounts = rpc_client
         .get_multiple_accounts(&lookup_table_keys)?
         .into_iter()
-        .zip(lookup_table_keys)
+        .zip(lookup_table_keys.clone())
         .filter_map(|(acc, key)| acc.map(|a| (key, a)))
         .map(|(key, acc)| {
             let table = AddressLookupTable::deserialize(&acc.data)?;
@@ -135,7 +151,36 @@ pub async fn swap(
     info!("✅ Fetched {} address lookup tables.", alt_accounts.len());
 
     let mut instructions: Vec<Instruction> = Vec::new();
-    for ix_data in &instructions_resp.instructions {
+
+    // Add setup instructions
+    if let Some(setup_arr) = instructions_resp
+        .get("setupInstructions")
+        .and_then(|v| v.as_array())
+    {
+        for instr in setup_arr {
+            let ix_data: InstructionData = serde_json::from_value(instr.clone())?;
+            let ix = Instruction {
+                program_id: Pubkey::from_str(&ix_data.program_id)?,
+                accounts: ix_data
+                    .accounts
+                    .iter()
+                    .map(|k| -> Result<AccountMeta> {
+                        Ok(AccountMeta {
+                            pubkey: Pubkey::from_str(&k.pubkey).map_err(anyhow::Error::from)?,
+                            is_signer: k.is_signer,
+                            is_writable: k.is_writable,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+                data: STANDARD.decode(&ix_data.data)?,
+            };
+            instructions.push(ix);
+        }
+    }
+
+    // Add swap instruction
+    if let Some(swap_obj) = instructions_resp.get("swapInstruction") {
+        let ix_data: InstructionData = serde_json::from_value(swap_obj.clone())?;
         let ix = Instruction {
             program_id: Pubkey::from_str(&ix_data.program_id)?,
             accounts: ix_data
@@ -152,6 +197,47 @@ pub async fn swap(
             data: STANDARD.decode(&ix_data.data)?,
         };
         instructions.push(ix);
+    }
+
+    // Add cleanup instruction
+    if let Some(cleanup_obj) = instructions_resp.get("cleanupInstruction") {
+        let ix_data: InstructionData = serde_json::from_value(cleanup_obj.clone())?;
+        let ix = Instruction {
+            program_id: Pubkey::from_str(&ix_data.program_id)?,
+            accounts: ix_data
+                .accounts
+                .iter()
+                .map(|k| -> Result<AccountMeta> {
+                    Ok(AccountMeta {
+                        pubkey: Pubkey::from_str(&k.pubkey).map_err(anyhow::Error::from)?,
+                        is_signer: k.is_signer,
+                        is_writable: k.is_writable,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
+            data: STANDARD.decode(&ix_data.data)?,
+        };
+        instructions.push(ix);
+    }
+
+    // Add compute budget instructions
+    if let Some(compute_arr) = instructions_resp
+        .get("computeBudgetInstructions")
+        .and_then(|v| v.as_array())
+    {
+        for instr in compute_arr {
+            let ix_data: InstructionData = serde_json::from_value(instr.clone())?;
+            let ix = Instruction {
+                program_id: Pubkey::from_str(&ix_data.program_id)?,
+                accounts: vec![], // Assuming empty for compute budget
+                data: STANDARD.decode(&ix_data.data)?,
+            };
+            instructions.push(ix);
+        }
+    }
+
+    if instructions.is_empty() {
+        return Err(anyhow!("No instructions in swap response"));
     }
 
     // Align the fork's time with the oracle and get a fresh blockhash.

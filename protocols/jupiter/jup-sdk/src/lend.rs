@@ -3,7 +3,10 @@
 //! This demonstrates a full end-to-end Jupiter lend deposit
 //! against a local surfpool (mainnet fork) validator.
 
-use crate::common::surfpool_client::SurfpoolClient;
+use crate::common::{
+    api_client::{api_client, json_headers},
+    surfpool_client::SurfpoolClient,
+};
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 
@@ -62,7 +65,7 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
     }
 
     // Get deposit instruction
-    let client = reqwest::Client::new();
+    let client = api_client();
     let data = serde_json::json!({
         "asset": asset.to_string(),
         "signer": user_wallet.pubkey().to_string(),
@@ -71,8 +74,7 @@ pub async fn deposit(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()> 
     });
     let response = client
         .post("https://lite-api.jup.ag/lend/v1/earn/deposit-instructions")
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
+        .headers(json_headers())
         .json(&data)
         .send()
         .await?
@@ -247,7 +249,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
     }
 
     // Deposit
-    let client = reqwest::Client::new();
+    let client = api_client();
     let deposit_data = serde_json::json!({
         "asset": asset.to_string(),
         "signer": user_wallet.pubkey().to_string(),
@@ -256,8 +258,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
     });
     let deposit_response = client
         .post("https://lite-api.jup.ag/lend/v1/earn/deposit-instructions")
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
+        .headers(json_headers())
         .json(&deposit_data)
         .send()
         .await?
@@ -400,8 +401,7 @@ pub async fn withdraw(signer: Keypair, asset: Pubkey, amount: u64) -> Result<()>
     });
     let withdraw_response = client
         .post("https://lite-api.jup.ag/lend/v1/earn/withdraw-instructions")
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
+        .headers(json_headers())
         .json(&withdraw_data)
         .send()
         .await?

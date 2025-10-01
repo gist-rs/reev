@@ -20,5 +20,5 @@ pub struct Key {
 pub struct ApiResponse {
     pub instructions: Vec<InstructionData>,
     #[serde(rename = "addressLookupTableAddresses")]
-    pub address_lookup_table_addresses: Vec<String>,
+    pub address_lookup_table_addresses: Option<Vec<String>>,
 }
