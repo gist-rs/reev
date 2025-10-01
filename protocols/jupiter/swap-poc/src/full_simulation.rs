@@ -84,7 +84,7 @@ pub async fn execute_jupiter_swap() -> Result<()> {
         sol_usdc_pyth_oracle
     );
 
-    let jupiter_client = JupiterSwapApiClient::new("https://quote-api.jup.ag/v6".into());
+    let jupiter_client = JupiterSwapApiClient::new("https://lite-api.jup.ag/swap/v1".into());
     let quote_request = QuoteRequest {
         amount: 50_000_000, // 50 USDC
         input_mint: usdc_mint,

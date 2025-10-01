@@ -16,7 +16,7 @@ const NATIVE_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112
 pub const TEST_WALLET: Pubkey = pubkey!("2AQdpHJ2JpcEgPiATUXjQxA8QmafFegfQwSLWSprPicm"); // Coinbase 2 wallet
 
 pub async fn run_fast_check() -> Result<()> {
-    let api_base_url = env::var("API_BASE_URL").unwrap_or("https://quote-api.jup.ag/v6".into());
+    let api_base_url = env::var("API_BASE_URL").unwrap_or("https://lite-api.jup.ag/swap/v1".into());
     info!("Using base url: {api_base_url}");
 
     let jupiter_swap_api_client = JupiterSwapApiClient::new(api_base_url);
