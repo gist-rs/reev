@@ -3,5 +3,6 @@ pub fn base_url() -> String {
 }
 
 pub fn public_rpc_url() -> String {
-    dotenvy::var("SOLANA_PUBLIC_RPC").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string())
+    dotenvy::var("SOLANA_PUBLIC_RPC")
+        .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string())
 }
