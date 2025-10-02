@@ -6,24 +6,12 @@ initial_state:
   # User's main wallet with 2 SOL.
   - pubkey: "USER_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111" # System Program
-    lamports: 2000000000 # 2 SOL
+    lamports: 5000000000 # 5 SOL
 
   # A dummy recipient, required by the test setup but not used in the lend.
   - pubkey: "RECIPIENT_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111"
     lamports: 0
-
-  # User's Associated Token Account (ATA) for the SOL L-Token, starting with a zero balance.
-  # This account will be created by the test runner.
-  # The mint address for the SOL L-Token will be determined by the Jupiter API.
-  # We will use a placeholder here and the test runner will need to resolve it.
-  - pubkey: "USER_JSOL_ATA"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
-    lamports: 2039280 # Rent
-    data:
-      mint: "JSo11111111111111111111111111111111111111111" # Placeholder for Jupiter SOL L-Token
-      owner: "USER_WALLET_PUBKEY"
-      amount: "0"
 
 prompt: "Using Jupiter, lend 0.1 SOL. My wallet is USER_WALLET_PUBKEY."
 
@@ -39,18 +27,22 @@ ground_truth:
     # The exact output amount of the L-Token is non-deterministic.
     # We assert that the balance is greater than 0, confirming a successful lend.
     - type: TokenAccountBalance
-      pubkey: "USER_JSOL_ATA"
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner_placeholder: "USER_WALLET_PUBKEY"
+        mint: "26S22fMLdbf1S5vHBDg3G422bQ6b12aGgrs5iE54K5sU" # Jupiter Lend L-Token mint
+      pubkey: "DERIVED_USER_L_TOKEN_ATA" # Placeholder for the derived address
       expected_gte: 1
 
   # The agent is expected to return a transaction for the lend operation.
   # The actual program and accounts are determined by the Jupiter API.
   expected_instructions:
-    - program_id: "JUPENDy1xcS4346g2pPpcDciLpMSpYkiv2BfWSaC9Gv" # Placeholder for Jupiter Lend Program
+    - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9" # Jupiter Lend Program
       accounts:
         - pubkey: "USER_WALLET_PUBKEY" # User's wallet, the authority
           is_signer: true
           is_writable: true
-        - pubkey: "USER_JSOL_ATA" # User's destination L-Token ATA
+        - pubkey: "DERIVED_USER_L_TOKEN_ATA" # User's destination L-Token ATA
           is_signer: false
           is_writable: true
       data: "..." # Placeholder

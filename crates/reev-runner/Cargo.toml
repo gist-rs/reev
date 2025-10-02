@@ -53,6 +53,7 @@ solana-system-interface = { workspace = true }
 rstest = { workspace = true }
 project-root = "0.2.2"
 glob = "0.3.1"
+spl-associated-token-account = "4.0.0"
 reqwest = { version = "0.12", features = ["json"] }
 serde_json = "1.0"
 solana-client = { workspace = true }

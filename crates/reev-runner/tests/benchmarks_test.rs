@@ -30,7 +30,10 @@ use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::helpers::{mock_perfect_instruction, prepare_jupiter_swap, setup_env_for_benchmark};
+use common::helpers::{
+    mock_perfect_instruction, prepare_jupiter_lend_deposit, prepare_jupiter_swap,
+    setup_env_for_benchmark,
+};
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
@@ -78,8 +81,11 @@ async fn test_all_benchmarks_are_solvable(
         // For complex swaps, this involves preparing the environment and getting real instructions.
         // For simple transfers, it's just a mock instruction.
         let instructions = if test_case.id.starts_with("100-JUP") {
-            info!("[Test] Jupiter benchmark detected. Preparing environment...");
+            info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
             prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
+        } else if test_case.id.starts_with("110-JUP") {
+            info!("[Test] Jupiter lend benchmark detected. Preparing environment...");
+            prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map).await?
         } else {
             info!("[Test] Simple benchmark detected. Creating mock instruction...");
             let instruction = mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
