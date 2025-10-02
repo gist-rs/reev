@@ -16,10 +16,10 @@ use anyhow::{anyhow, Result};
 /// # Example
 ///
 /// ```
-/// use crate::utils::hex_to_base58;
+/// use reev_agent::common::utils::hex_to_base58;
 /// let hex_feed_id = "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
 /// let base58_address = hex_to_base58(hex_feed_id).unwrap();
-/// assert_eq!(base58_address, "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG");
+/// assert_eq!(base58_address, "GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU");
 /// ```
 pub fn hex_to_base58(hex_str: &str) -> Result<String> {
     let hex_to_decode = hex_str.strip_prefix("0x").unwrap_or(hex_str);
