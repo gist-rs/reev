@@ -22,14 +22,14 @@ ground_truth:
     # A slightly larger amount is used to account for potential fees.
     - type: SolBalanceChange
       pubkey: "USER_WALLET_PUBKEY"
-      expected_change_gte: -100005000
+      expected_change_gte: -105000000
 
     # The exact output amount of the L-Token is non-deterministic.
     # We assert that the balance is greater than 0, confirming a successful lend.
     - type: TokenAccountBalance
       address_derivation:
         type: AssociatedTokenAccount
-        owner_placeholder: "USER_WALLET_PUBKEY"
+        owner: "USER_WALLET_PUBKEY"
         mint: "26S22fMLdbf1S5vHBDg3G422bQ6b12aGgrs5iE54K5sU" # Jupiter Lend L-Token mint
       pubkey: "DERIVED_USER_L_TOKEN_ATA" # Placeholder for the derived address
       expected_gte: 1

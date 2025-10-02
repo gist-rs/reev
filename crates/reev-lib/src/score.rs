@@ -76,6 +76,7 @@ pub fn calculate_score(
                 pubkey,
                 expected,
                 expected_gte,
+                address_derivation,
             } => {
                 let actual = final_observation
                     .account_states
@@ -166,9 +167,12 @@ pub fn calculate_score(
             }
         };
 
-        // If any assertion fails, the score is immediately 0.
+        // If any assertion fails, panic to show the reason.
         if !pass {
-            return 0.0;
+            panic!(
+                "Scoring assertion failed on test case '{}': {:?}",
+                test_case.id, assertion
+            );
         }
     }
 

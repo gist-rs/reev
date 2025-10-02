@@ -14,13 +14,19 @@ use tracing::{error, info, warn};
 pub(crate) fn handle_step(
     env: &mut SolanaEnv,
     actions: Vec<AgentAction>,
-    _ground_truth: &GroundTruth,
+    ground_truth: &GroundTruth,
 ) -> Result<Step<AgentObservation>> {
     // If there are no actions, the agent has failed.
     if actions.is_empty() {
         let error_string = "Agent returned no actions to execute.".to_string();
         error!("{}", error_string);
-        let obs = observation::get_observation(env, "Failure", Some(error_string.clone()), vec![])?;
+        let obs = observation::get_observation(
+            env,
+            ground_truth,
+            "Failure",
+            Some(error_string.clone()),
+            vec![],
+        )?;
         return Ok(Step {
             observation: obs,
             reward: 0.0,
@@ -91,8 +97,13 @@ pub(crate) fn handle_step(
         // If simulation fails, the state has not changed.
         let error_string = format!("Transaction simulation failed: {err}");
         error!("{}", error_string);
-        let obs =
-            observation::get_observation(env, "Failure", Some(error_string.clone()), sim_logs)?;
+        let obs = observation::get_observation(
+            env,
+            ground_truth,
+            "Failure",
+            Some(error_string.clone()),
+            sim_logs,
+        )?;
         Ok(Step {
             observation: obs,
             reward: 0.0,
@@ -117,7 +128,7 @@ pub(crate) fn handle_step(
                     .and_then(|meta| meta.log_messages.into())
                     .unwrap_or_default();
                 let info = json!({ "signature": sig.to_string() });
-                let obs = observation::get_observation(env, "Success", None, logs)?;
+                let obs = observation::get_observation(env, ground_truth, "Success", None, logs)?;
                 Ok(Step {
                     observation: obs,
                     reward: 1.0,
@@ -132,6 +143,7 @@ pub(crate) fn handle_step(
                 error!("{}", error_string);
                 let obs = observation::get_observation(
                     env,
+                    ground_truth,
                     "Failure",
                     Some(error_string.clone()),
                     sim_logs,

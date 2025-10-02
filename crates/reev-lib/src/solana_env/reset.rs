@@ -102,8 +102,13 @@ pub(crate) async fn handle_reset(
     }
 
     // 7. Get the initial observation before any complex scenario setup.
-    let mut initial_observation =
-        observation::get_observation(env, "Initial state before SPL setup", None, vec![])?;
+    let mut initial_observation = observation::get_observation(
+        env,
+        &test_case.ground_truth,
+        "Initial state before SPL setup",
+        None,
+        vec![],
+    )?;
 
     // 8. Delegate complex SPL setup to the centralized scenario handler.
     // This function handles ATA derivation and uses RPC cheat codes to fund accounts,

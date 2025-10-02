@@ -105,6 +105,42 @@ pub enum StateAssertion {
         /// The expected minimum token balance.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         expected_gte: Option<u64>,
+        /// Optional field to derive the token account address dynamically.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        address_derivation: Option<AddressDerivation>,
+    },
+}
+
+impl StateAssertion {
+    pub fn pubkey(&self) -> &str {
+        match self {
+            StateAssertion::SolBalance { pubkey, .. } => pubkey,
+            StateAssertion::SolBalanceChange { pubkey, .. } => pubkey,
+            StateAssertion::TokenAccountBalance { pubkey, .. } => pubkey,
+        }
+    }
+
+    pub fn address_derivation(&self) -> Option<&AddressDerivation> {
+        match self {
+            StateAssertion::TokenAccountBalance {
+                address_derivation, ..
+            } => address_derivation.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+/// Defines how to derive an on-chain address from other known accounts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type")]
+#[serde(rename_all = "PascalCase")]
+pub enum AddressDerivation {
+    /// Derives an Associated Token Account (ATA) address.
+    AssociatedTokenAccount {
+        /// The placeholder for the owner's wallet address.
+        owner: String,
+        /// The mint address of the token.
+        mint: String,
     },
 }
 
