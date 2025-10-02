@@ -3,7 +3,11 @@
 
 use anyhow::Result;
 use jup_sdk::{Jupiter, models::SwapParams};
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::{Keypair, Signature},
+    signer::Signer,
+};
 use std::str::FromStr;
 use tracing::info;
 
@@ -53,7 +57,33 @@ async fn test_swap_transaction_building() -> Result<()> {
     );
 
     // Verify the transaction is properly formatted for wallet signing
-    assert!(!unsigned_tx.transaction.signatures.is_empty());
+    // Log transaction details for inspection
+    info!("   Transaction details: {:#?}", unsigned_tx);
+
+    // Additional assertions
+    assert_eq!(unsigned_tx.transaction.signatures.len(), 1);
+    assert_eq!(unsigned_tx.transaction.signatures[0], Signature::default());
+    assert!(unsigned_tx.last_valid_block_height > 0);
+    assert_eq!(unsigned_tx.transaction.message.instructions().len(), 3);
+    assert_eq!(
+        unsigned_tx
+            .transaction
+            .message
+            .header()
+            .num_required_signatures,
+        1
+    );
+    assert!(
+        !unsigned_tx
+            .transaction
+            .message
+            .static_account_keys()
+            .is_empty()
+    );
+    assert_eq!(
+        unsigned_tx.transaction.message.static_account_keys()[0],
+        signer.pubkey()
+    );
 
     info!("✅ Transaction ready for wallet signing");
     info!("   - Send this to a wallet provider (e.g., Phantom, Solflare)");

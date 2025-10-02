@@ -3,7 +3,11 @@
 
 use anyhow::Result;
 use jup_sdk::{Jupiter, models::WithdrawParams};
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::{Keypair, Signature},
+    signer::Signer,
+};
 use std::str::FromStr;
 use tracing::info;
 
@@ -48,7 +52,34 @@ async fn withdraw_test() -> Result<()> {
         unsigned_tx.last_valid_block_height
     );
 
-    // In a real scenario, you would now send this transaction to a wallet for signing
+    // Log transaction details for inspection
+    info!("   Transaction details: {:#?}", unsigned_tx);
+
+    // Additional assertions
+    assert_eq!(unsigned_tx.transaction.signatures.len(), 1);
+    assert_eq!(unsigned_tx.transaction.signatures[0], Signature::default());
+    assert!(unsigned_tx.last_valid_block_height > 0);
+    assert_eq!(unsigned_tx.transaction.message.instructions().len(), 1);
+    assert_eq!(
+        unsigned_tx
+            .transaction
+            .message
+            .header()
+            .num_required_signatures,
+        1
+    );
+    assert!(
+        !unsigned_tx
+            .transaction
+            .message
+            .static_account_keys()
+            .is_empty()
+    );
+    assert_eq!(
+        unsigned_tx.transaction.message.static_account_keys()[0],
+        signer.pubkey()
+    );
+
     info!("✅ Transaction ready for wallet signing");
     info!("   - Send this to a wallet provider (e.g., Phantom, Solflare)");
     info!("   - Wallet should sign and submit to mainnet");
