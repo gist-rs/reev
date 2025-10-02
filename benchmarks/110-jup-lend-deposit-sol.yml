@@ -1,0 +1,56 @@
+id: 110-JUP-LEND-DEPOSIT-SOL
+description: A benchmark to test depositing native SOL using Jupiter's unified lend feature.
+tags: ["jupiter", "lend", "deposit", "sol", "surfpool"]
+
+initial_state:
+  # User's main wallet with 2 SOL.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 2000000000 # 2 SOL
+
+  # A dummy recipient, required by the test setup but not used in the lend.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
+  # User's Associated Token Account (ATA) for the SOL L-Token, starting with a zero balance.
+  # This account will be created by the test runner.
+  # The mint address for the SOL L-Token will be determined by the Jupiter API.
+  # We will use a placeholder here and the test runner will need to resolve it.
+  - pubkey: "USER_JSOL_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "JSo11111111111111111111111111111111111111111" # Placeholder for Jupiter SOL L-Token
+      owner: "USER_WALLET_PUBKEY"
+      amount: "0"
+
+prompt: "Using Jupiter, lend 0.1 SOL. My wallet is USER_WALLET_PUBKEY."
+
+ground_truth:
+  final_state_assertions:
+    # The exact final SOL balance is non-deterministic due to transaction fees.
+    # We assert that the balance has decreased by at least 0.1 SOL (100,000,000 lamports).
+    # A slightly larger amount is used to account for potential fees.
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_gte: -100005000
+
+    # The exact output amount of the L-Token is non-deterministic.
+    # We assert that the balance is greater than 0, confirming a successful lend.
+    - type: TokenAccountBalance
+      pubkey: "USER_JSOL_ATA"
+      expected_gte: 1
+
+  # The agent is expected to return a transaction for the lend operation.
+  # The actual program and accounts are determined by the Jupiter API.
+  expected_instructions:
+    - program_id: "JUPENDy1xcS4346g2pPpcDciLpMSpYkiv2BfWSaC9Gv" # Placeholder for Jupiter Lend Program
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY" # User's wallet, the authority
+          is_signer: true
+          is_writable: true
+        - pubkey: "USER_JSOL_ATA" # User's destination L-Token ATA
+          is_signer: false
+          is_writable: true
+      data: "..." # Placeholder

@@ -206,7 +206,7 @@ pub struct DepositBuilder<'a> {
 
 impl<'a> DepositBuilder<'a> {
     /// Private helper to fetch and prepare deposit transaction components.
-    async fn prepare_transaction_components(
+    pub async fn prepare_transaction_components(
         &self,
     ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
         let user_pubkey = self.client.get_user_pubkey()?;
@@ -269,7 +269,7 @@ pub struct WithdrawBuilder<'a> {
 
 impl<'a> WithdrawBuilder<'a> {
     /// Private helper to fetch and prepare withdraw transaction components.
-    async fn prepare_transaction_components(
+    pub async fn prepare_transaction_components(
         &self,
     ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
         let user_pubkey = self.client.get_user_pubkey()?;

@@ -10,7 +10,10 @@ use tracing::info;
 
 use crate::{
     prompt::SYSTEM_PREAMBLE,
-    tools::{JupiterSwapTool, SolTransferTool, SplTransferTool},
+    tools::{
+        JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool, SolTransferTool,
+        SplTransferTool,
+    },
     LlmRequest,
 };
 
@@ -64,7 +67,13 @@ async fn run_gemini_agent(
         gemini::completion::gemini_api_types::AdditionalParameters::default().with_config(gen_cfg);
 
     // Instantiate the JupiterSwapTool with the context-aware key_map.
-    let jupiter_tool = JupiterSwapTool { key_map };
+    let jupiter_swap_tool = JupiterSwapTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_lend_deposit_tool = JupiterLendDepositTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool { key_map };
 
     let agent = client
         .agent(model_name)
@@ -72,7 +81,9 @@ async fn run_gemini_agent(
         .additional_params(serde_json::to_value(cfg)?)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
-        .tool(jupiter_tool)
+        .tool(jupiter_swap_tool)
+        .tool(jupiter_lend_deposit_tool)
+        .tool(jupiter_lend_withdraw_tool)
         .build();
 
     let full_prompt = format!(
@@ -95,7 +106,13 @@ async fn run_openai_compatible_agent(
         .build()?;
 
     // Instantiate the JupiterSwapTool with the context-aware key_map.
-    let jupiter_tool = JupiterSwapTool { key_map };
+    let jupiter_swap_tool = JupiterSwapTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_lend_deposit_tool = JupiterLendDepositTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool { key_map };
 
     let agent = client
         .completion_model(model_name)
@@ -104,7 +121,9 @@ async fn run_openai_compatible_agent(
         .preamble(SYSTEM_PREAMBLE)
         .tool(SolTransferTool)
         .tool(SplTransferTool)
-        .tool(jupiter_tool)
+        .tool(jupiter_swap_tool)
+        .tool(jupiter_lend_deposit_tool)
+        .tool(jupiter_lend_withdraw_tool)
         .build();
 
     let full_prompt = format!(

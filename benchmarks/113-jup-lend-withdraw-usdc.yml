@@ -1,0 +1,58 @@
+id: 113-JUP-LEND-WITHDRAW-USDC
+description: A benchmark to test withdrawing USDC from Jupiter's unified lend feature.
+tags: ["jupiter", "lend", "withdraw", "usdc", "surfpool"]
+
+initial_state:
+  # User's main wallet with 1 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  # User's Associated Token Account (ATA) for REAL USDC, where withdrawn funds will go.
+  # Starting with 50 USDC.
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000" # 50 USDC
+
+  # User's Associated Token Account (ATA) for the Jupiter USDC L-Token.
+  # This account must be pre-funded to simulate a prior deposit of 10 USDC.
+  - pubkey: "USER_JUSDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "Jusdc111111111111111111111111111111111111111" # Placeholder for Jupiter USDC L-Token
+      owner: "USER_WALLET_PUBKEY"
+      amount: "10000000" # Represents ~10 USDC worth of L-tokens
+
+prompt: "Using Jupiter, withdraw my 10 USDC. My wallet is USER_WALLET_PUBKEY, my USDC account is USER_USDC_ATA and my jUSDC account is USER_JUSDC_ATA."
+
+ground_truth:
+  final_state_assertions:
+    # Assert that the destination USDC balance has increased by 10 USDC.
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected: 60000000 # 50 + 10 = 60 USDC
+
+    # Assert that the L-Token balance is now zero.
+    - type: TokenAccountBalance
+      pubkey: "USER_JUSDC_ATA"
+      expected: 0
+
+  # The agent is expected to return a transaction for the lend withdrawal operation.
+  expected_instructions:
+    - program_id: "JUPENDy1xcS4346g2pPpcDciLpMSpYkiv2BfWSaC9Gv" # Placeholder for Jupiter Lend Program
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY" # User's wallet, the authority
+          is_signer: true
+          is_writable: true
+        - pubkey: "USER_JUSDC_ATA" # User's source L-Token ATA
+          is_signer: false
+          is_writable: true
+        - pubkey: "USER_USDC_ATA" # User's destination USDC ATA
+          is_signer: false
+          is_writable: true
+      data: "..." # Placeholder

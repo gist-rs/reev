@@ -166,11 +166,37 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                     .await?;
             serde_json::to_string(&ixs)?
         }
-        "110-JUP-LEND-SOL" => {
-            todo!()
+        "110-JUP-LEND-DEPOSIT-SOL" => {
+            let ixs =
+                deterministic_agents::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(
+                    &key_map,
+                )
+                .await?;
+            serde_json::to_string(&ixs)?
         }
-        "111-JUP-LEND-USDC" => {
-            todo!()
+        "111-JUP-LEND-DEPOSIT-USDC" => {
+            let ixs =
+                deterministic_agents::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(
+                    &key_map,
+                )
+                .await?;
+            serde_json::to_string(&ixs)?
+        }
+        "112-JUP-LEND-WITHDRAW-SOL" => {
+            let ixs =
+                deterministic_agents::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(
+                    &key_map,
+                )
+                .await?;
+            serde_json::to_string(&ixs)?
+        }
+        "113-JUP-LEND-WITHDRAW-USDC" => {
+            let ixs =
+                deterministic_agents::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
+                    &key_map,
+                )
+                .await?;
+            serde_json::to_string(&ixs)?
         }
         _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",

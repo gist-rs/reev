@@ -1,0 +1,64 @@
+id: 111-JUP-LEND-DEPOSIT-USDC
+description: A benchmark to test depositing real USDC using Jupiter's unified lend feature.
+tags: ["jupiter", "lend", "deposit", "usdc", "surfpool"]
+
+initial_state:
+  # User's main wallet with 1 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  # A dummy recipient, required by the test setup but not used in the lend.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
+  # User's Associated Token Account (ATA) for the REAL USDC, starting with 50 USDC.
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000" # 50 USDC
+
+  # User's Associated Token Account (ATA) for the Jupiter USDC L-Token, starting with a zero balance.
+  # The mint address for the L-Token will be determined by the Jupiter API.
+  - pubkey: "USER_JUSDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "Jusdc111111111111111111111111111111111111111" # Placeholder for Jupiter USDC L-Token
+      owner: "USER_WALLET_PUBKEY"
+      amount: "0"
+
+prompt: "Using Jupiter, lend 10 USDC from my USDC account (USER_USDC_ATA). My wallet is USER_WALLET_PUBKEY."
+
+ground_truth:
+  final_state_assertions:
+    # Assert that the source USDC balance has decreased by 10 USDC.
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected: 40000000 # 50 - 10 = 40 USDC
+
+    # The exact output amount of the L-Token is non-deterministic.
+    # We assert that the balance is greater than 0, confirming a successful lend.
+    - type: TokenAccountBalance
+      pubkey: "USER_JUSDC_ATA"
+      expected_gte: 1
+
+  # The agent is expected to return a transaction for the lend operation.
+  # The actual program and accounts are determined by the Jupiter API.
+  expected_instructions:
+    - program_id: "JUPENDy1xcS4346g2pPpcDciLpMSpYkiv2BfWSaC9Gv" # Placeholder for Jupiter Lend Program
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY" # User's wallet, the authority
+          is_signer: true
+          is_writable: true
+        - pubkey: "USER_USDC_ATA" # User's source ATA
+          is_signer: false
+          is_writable: true
+        - pubkey: "USER_JUSDC_ATA" # User's destination L-Token ATA
+          is_signer: false
+          is_writable: true
+      data: "..." # Placeholder
