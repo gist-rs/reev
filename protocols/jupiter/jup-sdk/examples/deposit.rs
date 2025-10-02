@@ -1,6 +1,5 @@
 use anyhow::Result;
 use jup_sdk::{Jupiter, models::DepositParams};
-use solana_client::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use std::str::FromStr;
@@ -18,9 +17,8 @@ async fn main() -> Result<()> {
     // Create a temporary signer for the simulation
     let signer = Keypair::new();
 
-    // Initialize the Jupiter client for surfpool simulation
-    let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
-    let jupiter_client = Jupiter::surfpool(rpc_client).with_signer(&signer);
+    // Initialize the Jupiter client for surfpool simulation using the default URL.
+    let jupiter_client = Jupiter::surfpool().with_signer(&signer);
 
     let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
 

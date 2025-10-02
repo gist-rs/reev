@@ -30,8 +30,14 @@ impl<'a> Jupiter<'a> {
         }
     }
 
-    /// Creates a new Jupiter client configured for `surfpool` simulations.
-    pub fn surfpool(rpc_client: RpcClient) -> Self {
+    /// Creates a new Jupiter client configured for `surfpool` simulations using the default URL (`http://127.0.0.1:8899`).
+    pub fn surfpool() -> Self {
+        let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
+        Self::surfpool_with_rpc(rpc_client)
+    }
+
+    /// Creates a new Jupiter client configured for `surfpool` simulations with a custom RPC endpoint.
+    pub fn surfpool_with_rpc(rpc_client: RpcClient) -> Self {
         Self {
             rpc_client,
             signer: None,
