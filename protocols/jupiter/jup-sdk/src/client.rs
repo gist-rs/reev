@@ -156,7 +156,11 @@ impl<'a> SwapBuilder<'a> {
             .ok_or_else(|| anyhow!("A signer is required for `.commit()`."))?;
         let surfpool_client = SurfpoolClient::new(&self.client.rpc_client.url());
 
-        // 1. Setup the simulation environment
+        // 1. Sync the surfpool clock before making any API calls
+        surfpool_client.time_travel_to_now().await?;
+        info!("[SIM] Synced surfpool clock to current time.");
+
+        // 2. Setup the simulation environment
         surfpool::setup_wallet(
             &self.client.rpc_client,
             &surfpool_client,
