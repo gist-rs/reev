@@ -3,7 +3,7 @@ use jup_sdk::lend::deposit;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use std::str::FromStr;
-use tracing::info;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +19,10 @@ async fn main() -> Result<()> {
     let amount = 100000; // 0.1 USDC
 
     info!("--- Running Jupiter Lend Deposit ---");
-    deposit(signer, asset, amount).await?;
+    if let Err(e) = deposit(&signer, asset, amount).await {
+        warn!("Deposit failed: {}", e);
+        return Err(e);
+    }
     info!("--- Deposit Complete ---");
 
     Ok(())

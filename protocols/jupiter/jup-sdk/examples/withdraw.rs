@@ -1,9 +1,9 @@
 use anyhow::Result;
-use jup_sdk::lend::withdraw;
+use jup_sdk::lend::{deposit, withdraw};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use std::str::FromStr;
-use tracing::info;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,9 +18,16 @@ async fn main() -> Result<()> {
     let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
     let amount = 100000; // 0.1 USDC
 
-    info!("--- Running Jupiter Lend Withdraw ---");
-    withdraw(signer, asset, amount).await?;
-    info!("--- Withdraw Complete ---");
+    info!("--- Running Jupiter Lend Deposit & Withdraw ---");
+    if let Err(e) = deposit(&signer, asset, amount).await {
+        warn!("Deposit failed: {}", e);
+        return Err(e);
+    }
+    if let Err(e) = withdraw(&signer, asset, amount).await {
+        warn!("Withdraw failed: {}", e);
+        return Err(e);
+    }
+    info!("--- Deposit & Withdraw Complete ---");
 
     Ok(())
 }

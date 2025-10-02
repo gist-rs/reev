@@ -2,17 +2,40 @@ use anyhow::{Context, Result};
 use solana_sdk::{account::Account, pubkey::Pubkey};
 
 // A simple client for making RPC "cheat code" calls to surfpool.
+#[derive(Clone)]
+pub enum RpcProvider {
+    Surfpool { url: String },
+    Mainnet { url: String },
+}
+
 pub struct SurfpoolClient {
     client: reqwest::Client,
-    url: String,
+    provider: RpcProvider,
 }
 
 impl SurfpoolClient {
     pub fn new() -> Self {
+        Self::with_provider(RpcProvider::Surfpool {
+            url: "http://127.0.0.1:8899".to_string(),
+        })
+    }
+
+    pub fn with_provider(provider: RpcProvider) -> Self {
         Self {
             client: reqwest::Client::new(),
-            url: "http://127.0.0.1:8899".to_string(),
+            provider,
         }
+    }
+
+    fn rpc_url(&self) -> &str {
+        match &self.provider {
+            RpcProvider::Surfpool { url } => url,
+            RpcProvider::Mainnet { url } => url,
+        }
+    }
+
+    fn is_surfpool(&self) -> bool {
+        matches!(self.provider, RpcProvider::Surfpool { .. })
     }
 
     pub async fn set_token_account(&self, owner: &str, mint: &str, amount: u64) -> Result<()> {
@@ -28,9 +51,14 @@ impl SurfpoolClient {
             ]
         });
 
+        if !self.is_surfpool() {
+            // For mainnet, skip cheat codes
+            return Ok(());
+        }
+
         let response = self
             .client
-            .post(&self.url)
+            .post(self.rpc_url())
             .json(&request_body)
             .send()
             .await
@@ -55,9 +83,13 @@ impl SurfpoolClient {
             ]
         });
 
+        if !self.is_surfpool() {
+            return Ok(());
+        }
+
         let response = self
             .client
-            .post(&self.url)
+            .post(self.rpc_url())
             .json(&request_body)
             .send()
             .await
@@ -88,9 +120,13 @@ impl SurfpoolClient {
             ]
         });
 
+        if !self.is_surfpool() {
+            return Ok(());
+        }
+
         let response = self
             .client
-            .post(&self.url)
+            .post(self.rpc_url())
             .json(&request_body)
             .send()
             .await
@@ -114,9 +150,13 @@ impl SurfpoolClient {
             "params": [{ "unix_timestamp": chrono::Utc::now().timestamp() }]
         });
 
+        if !self.is_surfpool() {
+            return Ok(());
+        }
+
         let response = self
             .client
-            .post(&self.url)
+            .post(self.rpc_url())
             .json(&request_body)
             .send()
             .await
@@ -138,9 +178,13 @@ impl SurfpoolClient {
             "params": [pubkey]
         });
 
+        if !self.is_surfpool() {
+            return Ok(());
+        }
+
         let response = self
             .client
-            .post(&self.url)
+            .post(self.rpc_url())
             .json(&request_body)
             .send()
             .await
@@ -158,5 +202,67 @@ impl SurfpoolClient {
 impl Default for SurfpoolClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub trait RpcOperations {
+    fn set_account(
+        &self,
+        pubkey: &str,
+        lamports: u64,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn set_token_account(
+        &self,
+        owner: &str,
+        mint: &str,
+        amount: u64,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn set_account_from_account(
+        &self,
+        pubkey: &Pubkey,
+        account: Account,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn time_travel_to_now(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn reset_account(&self, pubkey: &str) -> impl std::future::Future<Output = Result<()>> + Send;
+}
+
+impl RpcOperations for SurfpoolClient {
+    async fn set_account(&self, pubkey: &str, lamports: u64) -> Result<()> {
+        self.set_account(pubkey, lamports).await
+    }
+
+    async fn set_token_account(&self, owner: &str, mint: &str, amount: u64) -> Result<()> {
+        self.set_token_account(owner, mint, amount).await
+    }
+
+    async fn set_account_from_account(&self, pubkey: &Pubkey, account: Account) -> Result<()> {
+        self.set_account_from_account(pubkey, account).await
+    }
+
+    async fn time_travel_to_now(&self) -> Result<()> {
+        self.time_travel_to_now().await
+    }
+
+    async fn reset_account(&self, pubkey: &str) -> Result<()> {
+        self.reset_account(pubkey).await
+    }
+}
+
+// Dummy impl for real RPC (no-op cheat codes)
+impl RpcOperations for () {
+    async fn set_account(&self, _pubkey: &str, _lamports: u64) -> Result<()> {
+        Ok(())
+    }
+    async fn set_token_account(&self, _owner: &str, _mint: &str, _amount: u64) -> Result<()> {
+        Ok(())
+    }
+    async fn set_account_from_account(&self, _pubkey: &Pubkey, _account: Account) -> Result<()> {
+        Ok(())
+    }
+    async fn time_travel_to_now(&self) -> Result<()> {
+        Ok(())
+    }
+    async fn reset_account(&self, _pubkey: &str) -> Result<()> {
+        Ok(())
     }
 }
