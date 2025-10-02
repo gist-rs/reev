@@ -4,11 +4,14 @@ use crate::{
 };
 use tracing::{debug, info};
 
-/// Calculates the final score for a test case based on its on-chain assertions.
+/// Calculates the final score for a test case based on transaction success and on-chain assertions.
 ///
-/// This function iterates through all `final_state_assertions` defined in the
-/// benchmark's ground truth. It compares the expected state with the actual
-/// final state observed in the environment.
+/// This function implements a "Transaction Quality" scoring model:
+/// 1. It first checks if the transaction was successful. If the transaction failed for any
+///    reason, the score is immediately `0.0`.
+/// 2. If the transaction was successful, it then proceeds to validate all `final_state_assertions`
+///    defined in the benchmark's ground truth.
+/// 3. If all assertions pass, the score is `1.0`. If any assertion fails, the score is `0.0`.
 ///
 /// # Arguments
 /// * `test_case` - The benchmark test case, containing the ground truth assertions.
@@ -16,14 +19,25 @@ use tracing::{debug, info};
 /// * `final_observation` - The state of the accounts *after* the transaction was executed.
 ///
 /// # Returns
-/// A score of `1.0` if all assertions pass, and `0.0` if any assertion fails.
+/// A score of `1.0` if the transaction succeeded and all assertions pass. Otherwise, returns `0.0`.
 pub fn calculate_score(
     test_case: &TestCase,
     initial_observation: &AgentObservation,
     final_observation: &AgentObservation,
 ) -> f64 {
     info!(?final_observation, "Final observation for scoring");
-    debug!("Calculating score based on on-chain state assertions...");
+
+    // 1. Primary check: Was the transaction successful?
+    if final_observation.last_transaction_status != "Success" {
+        debug!(
+            "Scoring FAILED: Transaction status was '{}', not 'Success'.",
+            final_observation.last_transaction_status
+        );
+        return 0.0;
+    }
+    debug!("Transaction status was 'Success'. Proceeding to state assertions.");
+
+    // 2. If successful, check all on-chain state assertions.
     for assertion in &test_case.ground_truth.final_state_assertions {
         let pass = match assertion {
             StateAssertion::SolBalance { pubkey, expected } => {
@@ -157,6 +171,8 @@ pub fn calculate_score(
             return 0.0;
         }
     }
-    debug!("All on-chain assertions passed");
+
+    // If we get here, the transaction was successful AND all assertions passed.
+    debug!("All on-chain assertions passed for successful transaction.");
     1.0
 }

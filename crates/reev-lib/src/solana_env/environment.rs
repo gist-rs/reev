@@ -11,7 +11,6 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    transaction::Transaction,
 };
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -49,18 +48,6 @@ impl SolanaEnv {
             .as_ref()
             .and_then(|p| self.keypair_map.get(p))
             .context("Fee payer keypair not found")
-    }
-
-    pub(crate) fn sign_and_send_transaction(
-        &self,
-        mut transaction: Transaction,
-        signers: &[&Keypair],
-    ) -> Result<solana_sdk::signature::Signature> {
-        let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
-        transaction.sign(signers, recent_blockhash);
-        self.rpc_client
-            .send_and_confirm_transaction_with_spinner(&transaction)
-            .context("Failed to send and confirm transaction")
     }
 }
 

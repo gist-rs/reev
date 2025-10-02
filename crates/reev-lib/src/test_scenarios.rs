@@ -27,57 +27,11 @@ use crate::{
     solana_env::environment::SolanaEnv,
 };
 use anyhow::{Context, Result};
-use reqwest::Client;
-use serde_json::json;
+use jup_sdk::surfpool::SurfpoolClient;
 use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
 use std::str::FromStr;
 use tracing::info;
-
-/// A simplified client for interacting with the `surfpool` RPC "cheat codes".
-struct SurfpoolClient {
-    client: Client,
-    url: String,
-}
-
-impl SurfpoolClient {
-    fn new() -> Self {
-        Self {
-            client: Client::new(),
-            url: "http://127.0.0.1:8899".to_string(),
-        }
-    }
-
-    /// Calls the `surfnet_setTokenAccount` cheat code to create or update an SPL token account.
-    async fn set_token_account(&self, owner: &str, mint: &str, amount: u64) -> Result<()> {
-        let request_body = json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "surfnet_setTokenAccount",
-            "params": [
-                owner,
-                mint,
-                { "amount": amount },
-                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-            ]
-        });
-
-        let response = self
-            .client
-            .post(&self.url)
-            .json(&request_body)
-            .send()
-            .await
-            .context("Failed to send RPC request to set token account")?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let error_body = response.text().await?;
-            anyhow::bail!("Failed to set token account. Status: {status}, Body: {error_body}");
-        }
-        Ok(())
-    }
-}
 
 /// Corrects the on-chain state for SPL benchmarks after an initial `reset`.
 ///
@@ -90,7 +44,8 @@ pub async fn setup_spl_scenario(
     test_case: &TestCase,
     observation: &mut AgentObservation,
 ) -> Result<()> {
-    let client = SurfpoolClient::new();
+    // Use the consolidated SurfpoolClient from the jup-sdk.
+    let client = SurfpoolClient::new(&env.rpc_client.url());
     let token_program_id = spl_token::id();
 
     // Collect all token account states first to avoid borrowing issues.

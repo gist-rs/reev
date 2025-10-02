@@ -34,6 +34,7 @@ initial_state:
 prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
 
 ground_truth:
+  transaction_status: "Failure"
   final_state_assertions:
     # Transaction should fail, so balances should be unchanged.
     - type: TokenAccountBalance

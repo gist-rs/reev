@@ -18,7 +18,7 @@
 mod common;
 
 use anyhow::{Context, Result, anyhow};
-use common::http_client::SurfpoolClient;
+use jup_sdk::surfpool::SurfpoolClient;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
@@ -102,7 +102,7 @@ async fn test_set_usdc_balance_via_rpc() -> Result<()> {
     let amount_to_set = 100_000_000; // 100 USDC with 6 decimals.
 
     // 3. Use the cheat code to set the token balance.
-    let surfpool_client = SurfpoolClient::new();
+    let surfpool_client = SurfpoolClient::new("http://127.0.0.1:8899");
     surfpool_client
         .set_token_account(
             &user_wallet.to_string(),

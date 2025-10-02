@@ -55,6 +55,10 @@ pub struct SplAccountData {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct GroundTruth {
+    /// The expected final status of the transaction (e.g., "Success" or "Failure").
+    #[serde(default = "default_transaction_status")]
+    pub transaction_status: String,
+
     /// A list of conditions that must be true on the blockchain after the agent has finished.
     pub final_state_assertions: Vec<StateAssertion>,
 
@@ -66,6 +70,11 @@ pub struct GroundTruth {
         rename = "expected_instructions"
     )]
     pub expected_instructions: Vec<BenchmarkInstruction>,
+}
+
+/// Provides a default value for `transaction_status` for backward compatibility.
+fn default_transaction_status() -> String {
+    "Success".to_string()
 }
 
 /// An enum representing a single assertion about the final on-chain state.
