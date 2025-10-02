@@ -19,6 +19,10 @@ path = "examples/deposit.rs"
 name = "withdraw"
 path = "examples/withdraw.rs"
 
+[[example]]
+name = "deposit_sol"
+path = "examples/deposit_sol.rs"
+
 [[test]]
 name = "swap_test"
 path = "tests/swap_test.rs"
