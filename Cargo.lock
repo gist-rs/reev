@@ -2505,27 +2505,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "jupiter-swap-api-client"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7799223e0e7547b0be0b4c2afa9ab478ffbdc5eeedd06bf1d73429dda779c129"
+name = "jup-sdk"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "chrono",
+ "dotenvy",
+ "hex",
  "reqwest",
- "rust_decimal",
  "serde",
  "serde_json",
- "serde_qs",
- "solana-account-decoder",
+ "solana-client",
  "solana-sdk",
- "thiserror 2.0.16",
+ "spl-associated-token-account",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "jupiter-swap-api-client"
 version = "0.2.0"
-source = "git+https://github.com/jup-ag/jupiter-swap-api-client.git#70aaffd957d59c19588df86e92ce3b94f24f7d0b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7799223e0e7547b0be0b4c2afa9ab478ffbdc5eeedd06bf1d73429dda779c129"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3644,7 +3647,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "hex",
- "jupiter-swap-api-client 0.2.0 (git+https://github.com/jup-ag/jupiter-swap-api-client.git)",
+ "jup-sdk",
  "reev-lib",
  "regex",
  "reqwest",
@@ -3695,7 +3698,7 @@ dependencies = [
  "dotenvy",
  "glob",
  "hex",
- "jupiter-swap-api-client 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jupiter-swap-api-client",
  "opentelemetry",
  "opentelemetry_sdk",
  "project-root",

@@ -205,7 +205,7 @@ pub async fn setup_wallet(
 }
 
 /// Pre-loads all accounts required for a transaction from mainnet into the local surfpool fork.
-async fn preload_accounts(
+pub async fn preload_accounts(
     local_rpc_client: &RpcClient,
     surfpool_client: &SurfpoolClient,
     user_pubkey: &Pubkey,

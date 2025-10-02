@@ -3,9 +3,6 @@ name = "jup-sdk"
 version = "0.1.0"
 edition = "2024"
 
-# This empty workspace declaration isolates the project from the parent workspace.
-[workspace]
-
 [lib]
 name = "jup_sdk"
 path = "src/lib.rs"

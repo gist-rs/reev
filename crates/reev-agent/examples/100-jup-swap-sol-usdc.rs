@@ -23,17 +23,17 @@ struct TestCase {
 ///
 /// **Deterministic Agent (Default):**
 /// ```sh
-/// cargo run -p reev-agent --example 100-jup-swap-sol-usdc
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc
 /// ```
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent gemini-2.5-pro
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent gemini-2.5-pro
 /// ```
 ///
 /// **Local Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent local
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent local
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {

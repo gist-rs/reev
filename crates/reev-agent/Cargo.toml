@@ -31,7 +31,7 @@ dotenvy = "0.15"
 rig-core = { version = "0.20.0" }
 thiserror = "1.0"
 
-jupiter-swap-api-client = { git = "https://github.com/jup-ag/jupiter-swap-api-client.git", package = "jupiter-swap-api-client"}
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 solana-client.workspace = true
 reqwest = "0.12"
 hex = "0.4.3"

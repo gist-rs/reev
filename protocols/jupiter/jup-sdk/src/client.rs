@@ -8,15 +8,16 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::from_value;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount, instruction::Instruction, signature::Keypair,
-    signer::Signer,
+    address_lookup_table::AddressLookupTableAccount, instruction::Instruction, pubkey::Pubkey,
+    signature::Keypair, signer::Signer,
 };
 use tracing::info;
 
 /// The main Jupiter client, acting as a builder for swap and lend operations.
 pub struct Jupiter<'a> {
     rpc_client: RpcClient,
-    signer: Option<&'a Keypair>,
+    user_pubkey: Option<Pubkey>,
+    signer: Option<&'a Keypair>, // For simulations
     is_surfpool: bool,
 }
 
@@ -25,6 +26,7 @@ impl<'a> Jupiter<'a> {
     pub fn new(rpc_client: RpcClient) -> Self {
         Self {
             rpc_client,
+            user_pubkey: None,
             signer: None,
             is_surfpool: false,
         }
@@ -40,14 +42,23 @@ impl<'a> Jupiter<'a> {
     pub fn surfpool_with_rpc(rpc_client: RpcClient) -> Self {
         Self {
             rpc_client,
+            user_pubkey: None,
             signer: None,
             is_surfpool: true,
         }
     }
 
-    /// (For simulations and instruction fetching) Sets the keypair whose public key will be used as the user account.
-    /// This is required for all builder methods.
+    /// (For building unsigned transactions) Sets the public key of the user account.
+    /// This is required for all builder methods if a signer is not provided.
+    pub fn with_user_pubkey(mut self, user_pubkey: Pubkey) -> Self {
+        self.user_pubkey = Some(user_pubkey);
+        self
+    }
+
+    /// (For simulations) Sets the keypair to be used for signing and sets the user public key.
+    /// This is required for all `.commit()` calls.
     pub fn with_signer(mut self, signer: &'a Keypair) -> Self {
+        self.user_pubkey = Some(signer.pubkey());
         self.signer = Some(signer);
         self
     }
@@ -75,6 +86,12 @@ impl<'a> Jupiter<'a> {
             params,
         }
     }
+
+    fn get_user_pubkey(&self) -> Result<Pubkey> {
+        self.user_pubkey.ok_or_else(|| {
+            anyhow!("A user pubkey must be provided via .with_user_pubkey() or .with_signer()")
+        })
+    }
 }
 
 // --- Swap Builder ---
@@ -85,20 +102,15 @@ pub struct SwapBuilder<'a> {
 }
 
 impl<'a> SwapBuilder<'a> {
-    /// Private helper to fetch and prepare all components needed for a swap transaction.
-    async fn prepare_transaction_components(
+    /// Fetches and prepares all components needed for a swap transaction.
+    pub async fn prepare_transaction_components(
         &self,
     ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
-        let signer_pubkey = self
-            .client
-            .signer
-            .ok_or_else(|| anyhow!("A signer must be provided via .with_signer()"))?
-            .pubkey();
+        let user_pubkey = self.client.get_user_pubkey()?;
 
         // 1. Fetch quote and instructions from API
         let quote = api::swap::get_quote(&self.params).await?;
-        let instructions_response =
-            api::swap::get_swap_instructions(&signer_pubkey, &quote).await?;
+        let instructions_response = api::swap::get_swap_instructions(&user_pubkey, &quote).await?;
 
         // 2. Parse all instructions from the API response
         let setup_instructions: Vec<crate::models::InstructionData> = instructions_response
@@ -135,11 +147,11 @@ impl<'a> SwapBuilder<'a> {
     /// Builds an unsigned transaction for the swap, ready to be signed by a wallet.
     pub async fn build_unsigned_transaction(&self) -> Result<UnsignedTransaction> {
         let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
-        let signer_pubkey = self.client.signer.unwrap().pubkey();
+        let user_pubkey = self.client.get_user_pubkey()?;
 
         transaction::compile_transaction(
             &self.client.rpc_client,
-            &signer_pubkey,
+            &user_pubkey,
             instructions,
             alt_accounts,
         )
@@ -197,13 +209,8 @@ impl<'a> DepositBuilder<'a> {
     async fn prepare_transaction_components(
         &self,
     ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
-        let signer_pubkey = self
-            .client
-            .signer
-            .ok_or_else(|| anyhow!("A signer must be provided via .with_signer()"))?
-            .pubkey();
-        let api_response =
-            api::lend::get_deposit_instructions(&signer_pubkey, &self.params).await?;
+        let user_pubkey = self.client.get_user_pubkey()?;
+        let api_response = api::lend::get_deposit_instructions(&user_pubkey, &self.params).await?;
         let instructions = transaction::convert_instructions(api_response.instructions)?;
         Ok((instructions, vec![])) // Lend API does not use ALTs
     }
@@ -211,10 +218,10 @@ impl<'a> DepositBuilder<'a> {
     /// Builds an unsigned transaction for the deposit.
     pub async fn build_unsigned_transaction(&self) -> Result<UnsignedTransaction> {
         let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
-        let signer_pubkey = self.client.signer.unwrap().pubkey();
+        let user_pubkey = self.client.get_user_pubkey()?;
         transaction::compile_transaction(
             &self.client.rpc_client,
-            &signer_pubkey,
+            &user_pubkey,
             instructions,
             alt_accounts,
         )
@@ -265,13 +272,8 @@ impl<'a> WithdrawBuilder<'a> {
     async fn prepare_transaction_components(
         &self,
     ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
-        let signer_pubkey = self
-            .client
-            .signer
-            .ok_or_else(|| anyhow!("A signer must be provided via .with_signer()"))?
-            .pubkey();
-        let api_response =
-            api::lend::get_withdraw_instructions(&signer_pubkey, &self.params).await?;
+        let user_pubkey = self.client.get_user_pubkey()?;
+        let api_response = api::lend::get_withdraw_instructions(&user_pubkey, &self.params).await?;
         let instructions = transaction::convert_instructions(api_response.instructions)?;
         Ok((instructions, vec![])) // Lend API does not use ALTs
     }
@@ -279,10 +281,10 @@ impl<'a> WithdrawBuilder<'a> {
     /// Builds an unsigned transaction for the withdrawal.
     pub async fn build_unsigned_transaction(&self) -> Result<UnsignedTransaction> {
         let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
-        let signer_pubkey = self.client.signer.unwrap().pubkey();
+        let user_pubkey = self.client.get_user_pubkey()?;
         transaction::compile_transaction(
             &self.client.rpc_client,
-            &signer_pubkey,
+            &user_pubkey,
             instructions,
             alt_accounts,
         )
