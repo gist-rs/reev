@@ -22,6 +22,22 @@ path = "examples/deposit.rs"
 name = "withdraw"
 path = "examples/withdraw.rs"
 
+[[test]]
+name = "swap_test"
+path = "tests/swap_test.rs"
+
+[[test]]
+name = "deposit_test"
+path = "tests/deposit_test.rs"
+
+[[test]]
+name = "withdraw_test"
+path = "tests/withdraw_test.rs"
+
+# [[test]]
+# name = "integration_test"
+# path = "tests/integration_test.rs"
+
 [dependencies]
 anyhow = "1.0"
 serde_json = "1.0"

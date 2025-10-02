@@ -10,7 +10,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::{VersionedMessage, v0},
     pubkey::Pubkey,
-    signature::Keypair,
+    signature::Signature,
     transaction::VersionedTransaction,
 };
 use std::str::FromStr;
@@ -95,9 +95,12 @@ pub fn compile_transaction(
         latest_blockhash,
     )?;
 
-    // We create a transaction with no signers, as it will be signed later by a wallet.
-    let transaction =
-        VersionedTransaction::try_new(VersionedMessage::V0(message), &[] as &[&Keypair; 0])?;
+    let versioned_message = VersionedMessage::V0(message);
+    let num_signers = versioned_message.header().num_required_signatures as usize;
+    let transaction = VersionedTransaction {
+        signatures: vec![Signature::default(); num_signers],
+        message: versioned_message,
+    };
 
     Ok(UnsignedTransaction {
         transaction,
