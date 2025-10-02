@@ -8,14 +8,11 @@ anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-hex = "0.4"
-base64 = "0.21"
 bs58 = { workspace = true }
 tracing = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 tokio = { workspace = true, features = ["full"] }
 async-trait = { workspace = true }
-regex = { workspace = true }
 
 
 # Solana Dependencies
@@ -25,5 +22,4 @@ spl-associated-token-account = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"] }
 solana-program = "2.3.0"
 solana-transaction-status = "2.3.10"
-solana-system-transaction = { workspace = true }
 solana-system-interface = { workspace = true }

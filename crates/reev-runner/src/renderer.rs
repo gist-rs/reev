@@ -1,6 +1,6 @@
 use ascii_tree::{Tree, write_tree};
 use reev_lib::{results::TestResult, trace::TraceStep};
-use solana_sdk::instruction::AccountMeta;
+use solana_sdk::{bs58, instruction::AccountMeta};
 
 /// Renders a `TestResult` object into a human-readable ASCII tree format.
 ///

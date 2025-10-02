@@ -28,8 +28,6 @@ regex = "1"
 tokio = "1"
 async-trait = "0.1"
 reqwest = { version = "0.12", features = ["json"] }
-solana-system-transaction = "2.2"
 solana-system-interface = "1.0"
 tracing = "0.1"
 rstest = "0.21"
-rstest_macros = "0.21"
