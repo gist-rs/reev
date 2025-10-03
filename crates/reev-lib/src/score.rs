@@ -2,7 +2,7 @@ use crate::{
     agent::AgentObservation,
     benchmark::{StateAssertion, TestCase},
 };
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Calculates the final score for a test case based on transaction success and on-chain assertions.
 ///
@@ -167,12 +167,13 @@ pub fn calculate_score(
             }
         };
 
-        // If any assertion fails, panic to show the reason.
+        // If any assertion fails, return 0.0 immediately.
         if !pass {
-            panic!(
-                "Scoring assertion failed on test case '{}': {:?}",
+            warn!(
+                "\n------------------------\nScoring assertion failed on test case '{}': {:?}\n------------------------",
                 test_case.id, assertion
             );
+            return 0.0;
         }
     }
 
