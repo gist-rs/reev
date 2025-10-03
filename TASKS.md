@@ -1,40 +1,59 @@
-# TASKS.md: Granular To-Do List
+# TASKS.md: Actionable To-Do List
 
 This file breaks down high-level goals from `PLAN.md` into specific, actionable tasks.
 
 ---
 
-## Phase 13: Granular Scoring Model
+## Completed: Phase 13 - Composite Scoring Model
 
-**Goal:** Refactor the scoring system from a binary 0/1 to a cumulative score based on weighted assertions.
+**Goal:** Refactor the scoring system to a composite model that separately evaluates instruction quality and on-chain state correctness.
 
-### 1. Update Benchmark Data Model (`reev-lib`)
--   [x] In `reev-lib/src/benchmark.rs`, modify the `StateAssertion` enum or its container struct.
--   [x] Add an optional `weight` field (e.g., `f64` or `u32`) to each assertion variant.
--   [x] Ensure `serde` can still correctly parse benchmarks that *don't* have the `weight` field, defaulting it to `1.0`.
--   [x] Update the `110-jup-lend-deposit-sol.yml` benchmark to include weights for its assertions as a test case.
+-   [x] **Refactor Scoring Logic (`reev-lib`):**
+    -   [x] The main function `calculate_final_score` was created in `score.rs`.
+    -   [x] It combines two scores with a 75/25 weighting: `instruction_score` and `onchain_score`.
+    -   [x] The `onchain_score` is a simple binary check for transaction `Success` or `Failure`.
+    -   [x] `final_state_assertions` are no longer used for scoring and are for diagnostics only.
 
-### 2. Refactor Scoring Logic (`reev-lib`)
--   [x] In `reev-lib/src/score.rs`, update the `calculate_score` function.
--   [x] The function should first calculate the `total_possible_score` by summing the weights of all `final_state_assertions` in the benchmark.
--   [x] Initialize an `achieved_score` to `0.0`.
--   [x] The check for transaction success must remain. If it fails, return `0.0` immediately.
--   [x] Iterate through each assertion. If an assertion passes, add its `weight` to the `achieved_score`.
--   [x] After checking all assertions, calculate the final score: `achieved_score / total_possible_score`. Handle the case where `total_possible_score` is zero to avoid division by zero.
--   [x] Update the function's documentation to reflect the new cumulative logic.
+-   [x] **Implement Instruction Scoring (`reev-lib`):**
+    -   [x] A new module, `instruction_score.rs`, was created.
+    -   [x] The `calculate_instruction_score` function provides granular, partial credit by comparing the generated instruction against the benchmark's `expected_instructions`.
+    -   [x] The logic correctly resolves placeholder pubkeys (e.g., "USER_WALLET_PUBKEY") against the test's `key_map`.
 
-### 3. Update Database Schema (`reev-runner`)
--   [x] In `reev-runner/src/db.rs`, locate the `CREATE TABLE` statement for the results table.
--   [x] Change the data type of the `score` column from `INTEGER` to `REAL` to accommodate floating-point values. (Verified it was already `REAL`).
--   [x] Ensure the insertion logic correctly handles the new `f64` score.
+-   [x] **Update Benchmark Format (`reev-lib`):**
+    -   [x] The `BenchmarkInstruction` and `BenchmarkAccountMeta` structs were updated to include `weight` fields.
+    -   [x] The `data` and `data_weight` fields were made optional to handle cases where data scoring is not applicable.
 
-### 4. Update UI and Reporting (`reev-runner` & `reev-tui`)
--   [x] In `reev-runner/src/renderer.rs` (or wherever the console output is generated), format the score to be displayed as a percentage (e.g., `84.5%`).
--   [ ] In `reev-tui`, update the relevant view to format and display the float score correctly, likely as a percentage.
--   [x] In `reev-lib/src/results.rs`, ensure the `score` field in `TestResult` is changed to `f64`.
+-   [x] **Update All Benchmarks (`benchmarks/`):**
+    -   [x] All existing benchmarks (`001`, `002`, `003`, `100`, `110`) were reviewed and updated to the new format.
+    -   [x] Incorrect or non-deterministic `expected_instructions` were removed from complex DeFi benchmarks (`100`, `110`).
+    -   [x] Descriptions were updated to reflect the new scoring reality.
 
-### 5. Validation and Testing
--   [ ] Create a new benchmark file specifically designed to test the weighted scoring. It should have multiple assertions with different weights.
--   [ ] Create a test scenario that fails one assertion but passes others.
--   [ ] Run the test and verify that the calculated score is correct (e.g., if a weight `1` assertion passes and a weight `1` assertion fails, the score should be `0.5`).
--   [ ] Run an existing test (like the SOL transfer) and verify its score is `1.0` (or `100%`) since the default weight is `1`.
+-   [x] **Fix and Validate All Tests (`reev-runner`):**
+    -   [x] `scoring_test.rs` and `benchmarks_test.rs` were updated to use the new `calculate_final_score` function.
+    -   [x] All test helpers and mock instruction generators were fixed to produce truly "perfect" instructions.
+    -   [x] All tests are now passing.
+
+---
+
+## Next Up: Phase 15 - Expand Jupiter Lend Benchmarks
+
+**Goal:** Add benchmarks for lending and withdrawing USDC to increase test coverage of Jupiter's Lend functionality.
+
+-   [ ] **1. Create `111-jup-lend-deposit-usdc.yml` Benchmark:**
+    -   [ ] Define a new benchmark file for depositing USDC into a lending market.
+    -   [ ] The `initial_state` should give the user a starting USDC balance.
+    -   [ ] The `prompt` will be "Lend 50 USDC using Jupiter."
+    -   [ ] The `final_state_assertions` will verify that the user's USDC balance has decreased and their L-Token balance has increased.
+
+-   [ ] **2. Create `112-jup-lend-withdraw-usdc.yml` Benchmark:**
+    -   [ ] Define a new benchmark file for withdrawing USDC.
+    -   [ ] The `initial_state` should give the user a starting L-Token balance (representing a previous deposit).
+    -   [ ] The `prompt` will be "Withdraw 50 USDC using Jupiter."
+    -   [ ] The `final_state_assertions` will verify that the L-Token balance has decreased and the USDC balance has increased.
+
+-   [ ] **3. Implement "Smart Test" Helpers (`reev-runner/tests/common/helpers.rs`):**
+    -   [ ] Create a `prepare_jupiter_lend_deposit_usdc` async function. This will use the `jup-sdk` to get the real deposit instructions and preload all necessary accounts, similar to the existing helpers.
+    -   [ ] Create a `prepare_jupiter_lend_withdraw_usdc` async function to do the same for the withdrawal benchmark.
+
+-   [ ] **4. Update `benchmarks_test.rs`:**
+    -   [ ] Add the new benchmark IDs to the logic that selects the correct "smart test" helper, ensuring the new benchmarks are covered by the automated test suite.

@@ -86,7 +86,7 @@ Each `.yml` file is a self-contained test case with a standardized structure:
 -   **`prompt`**: The natural language instruction for the agent.
 -   **`ground_truth`**: The objective criteria for success.
     -   `final_state_assertions`: A list of on-chain conditions (e.g., `SolBalance`) that must be true.
-    -   `expected_instruction`: The ideal raw Solana instruction the agent should generate, used for validation and scoring.
+    -   `expected_instructions`: A list of the ideal raw Solana instructions the agent should generate, used for instruction quality scoring. For complex DeFi operations, this may be omitted.
 
 ### 3.2. Example Benchmark (`001-sol-transfer.yml`)
 
@@ -124,21 +124,22 @@ ground_truth:
       pubkey: "USER_WALLET_PUBKEY"
       expected: 899995000 # 1 SOL - 0.1 SOL - 0.000005 SOL fee
 
-  # The ideal raw Solana instruction the agent should generate.
-  expected_instruction:
-    program_id: "11111111111111111111111111111111" # System Program
-    accounts:
-      - pubkey: "USER_WALLET_PUBKEY"
-        is_signer: true
-        is_writable: true
-      - pubkey: "RECIPIENT_WALLET_PUBKEY"
-        is_signer: false
-        is_writable: true
-    # Instruction data for a System Program transfer:
-    # - 4 bytes: instruction index (2 for transfer)
-    # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)
-    # This is base58 encoded.
-    data: "2Z4dY1Wp2j"
+  # The ideal raw Solana instruction(s) the agent should generate.
+  expected_instructions:
+    - program_id: "11111111111111111111111111111111" # System Program
+      program_id_weight: 1.0
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: true
+          weight: 1.0
+        - pubkey: "RECIPIENT_WALLET_PUBKEY"
+          is_signer: false
+          is_writable: true
+          weight: 1.0
+      # Instruction data is not scored for this benchmark.
+      # The on-chain state assertion is the ground truth for the amount.
+      data: "..."
 ```
 
 ---

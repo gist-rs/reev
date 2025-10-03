@@ -27,26 +27,6 @@ The foundational work for the `reev` framework is complete and has been validate
 
 ---
 
-## Next Up: Phase 13 - Granular Scoring Model
-
-**Goal:** Transition from a binary (0/1) success/failure score to a more nuanced, cumulative scoring system.
-
-**Rationale:** A simple pass/fail score doesn't capture the subtleties of an agent's performance. An agent might get most of the steps right but fail on a single assertion. A granular score provides a more accurate picture of progress and helps pinpoint specific areas for improvement.
-
-1.  **Weighted Assertions**:
-    *   Modify the benchmark YAML format to allow an optional `weight` for each `final_state_assertions`. The default weight will be `1` if not specified.
-
-2.  **Cumulative Score Calculation**:
-    *   Refactor the `reev-lib/src/score.rs` module. The new logic will sum the weights of all passed assertions.
-    *   The final score will be the ratio of the accumulated score to the total possible score (sum of all weights), represented as a float between 0.0 and 1.0.
-    *   Transaction success remains a prerequisite. If the transaction fails, the score is `0.0`, as no on-chain state change occurred to evaluate.
-
-3.  **Database and UI Updates**:
-    *   Update the database schema in `reev-runner` to store the score as a `REAL` or `FLOAT` type.
-    *   Update the `reev-tui` and console runner to display the score as a percentage (e.g., `84%`).
-
----
-
 ## Current Phase: Phase 13 - Composite Scoring Model (Final)
 
 **Goal:** Implement the definitive scoring model that evaluates instruction quality separately from on-chain execution, providing a fair and nuanced assessment of agent performance.
