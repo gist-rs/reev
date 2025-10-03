@@ -76,7 +76,7 @@ pub fn calculate_score(
                 pubkey,
                 expected,
                 expected_gte,
-                address_derivation,
+                address_derivation: _,
             } => {
                 let actual = final_observation
                     .account_states

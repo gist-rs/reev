@@ -20,6 +20,7 @@ pub(crate) fn get_observation(
     last_tx_logs: Vec<String>,
 ) -> Result<AgentObservation> {
     let mut account_states = HashMap::new();
+    let mut key_map = env.pubkey_map.clone();
 
     // --- 1. Ensure all derived addresses are in the environment's key_map ---
     for assertion in &ground_truth.final_state_assertions {
@@ -27,17 +28,17 @@ pub(crate) fn get_observation(
             let placeholder = assertion.pubkey();
             // Only derive and insert if the placeholder is not already mapped.
             if !env.pubkey_map.contains_key(placeholder) {
-                if let AddressDerivation::AssociatedTokenAccount { owner, mint } = derivation {
-                    if let Some(owner_pubkey) = env.pubkey_map.get(owner) {
-                        let mint_pubkey = Pubkey::from_str(mint)?;
-                        let derived_ata = get_associated_token_address(owner_pubkey, &mint_pubkey);
-                        info!(
-                            "Mapping derived ATA {} to placeholder '{}'",
-                            derived_ata, placeholder
-                        );
-                        // Add the derived address to the environment's persistent map
-                        env.pubkey_map.insert(placeholder.to_string(), derived_ata);
-                    }
+                let AddressDerivation::AssociatedTokenAccount { owner, mint } = derivation;
+                if let Some(owner_pubkey) = key_map.get(owner) {
+                    let mint_pubkey = Pubkey::from_str(mint)?;
+                    let derived_ata = get_associated_token_address(owner_pubkey, &mint_pubkey);
+                    let placeholder = assertion.pubkey();
+                    info!(
+                        "Mapping derived ATA {} to placeholder '{}'",
+                        derived_ata, placeholder
+                    );
+                    // Add the derived address to the list of accounts to fetch
+                    key_map.insert(placeholder.to_string(), derived_ata);
                 }
             }
         }

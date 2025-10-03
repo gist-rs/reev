@@ -20,7 +20,7 @@ pub(crate) fn handle_step(
     let mut tx_status = "Failure";
     let mut tx_error: Option<String> = None;
     let mut tx_logs: Vec<String> = Vec::new();
-    let mut info = json!({});
+    let info;
     let mut reward = 0.0;
 
     // --- 2. Handle the case of no actions ---
