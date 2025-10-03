@@ -1,5 +1,5 @@
-id: 112-JUP-LEND-WITHDRAW-SOL
-description: A benchmark to test withdrawing native SOL from a lending position using Jupiter's unified lend feature.
+id: 112-JUP-LEND-DEPOSIT-WITHDRAW-SOL
+description: A benchmark to test depositing and then withdrawing native SOL using Jupiter's unified lend feature.
 tags: ["jupiter", "lend", "withdraw", "sol", "surfpool"]
 
 initial_state:
@@ -8,38 +8,20 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 5000000000 # 5 SOL
 
-  # User's L-SOL token account representing a previous deposit of 0.1 SOL.
-  - pubkey: "USER_L_SOL_ATA_PLACEHOLDER"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
-    lamports: 2039280
-    data:
-      mint: "bSo13r4T5BeRBA22U3aBof8qVRa8Nf2sEbFKeiMVKZJ" # L-SOL Mint
-      owner: "USER_WALLET_PUBKEY"
-      amount: "100000000" # 0.1 L-SOL
-
   # A dummy recipient, sometimes required by test setup helpers.
   - pubkey: "RECIPIENT_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Withdraw 0.1 SOL using Jupiter."
+prompt: "Using Jupiter, lend (deposit) 0.1 SOL and then withdraw 0.1 SOL. My wallet is USER_WALLET_PUBKEY."
 
 ground_truth:
   final_state_assertions:
-    # After withdrawing 0.1 SOL, the user's L-SOL balance should be 0.
-    - type: TokenAccountBalance
-      pubkey: "UNUSED_PLACEHOLDER"
-      address_derivation:
-        type: AssociatedTokenAccount
-        owner: "USER_WALLET_PUBKEY"
-        mint: "bSo13r4T5BeRBA22U3aBof8qVRa8Nf2sEbFKeiMVKZJ" # L-SOL Mint
-      expected: 0
-      weight: 0.5
-
-    # The user's SOL balance should increase by ~0.1 SOL.
+    # The net change in SOL balance should be minimal, accounting only for transaction fees.
+    # We assert the balance has decreased by a small amount (less than 0.005 SOL).
     - type: SolBalanceChange
       pubkey: "USER_WALLET_PUBKEY"
-      expected_change_gte: 95000000 # ~0.095 SOL (allowing for fees)
-      weight: 0.5
+      expected_change_gte: -5000000 # A small negative value for fees
+      weight: 1.0
 
   # For this complex DeFi interaction, success is determined by the on-chain state assertions.

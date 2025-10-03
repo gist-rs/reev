@@ -79,25 +79,45 @@ async fn test_all_benchmarks_are_solvable(
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Get the "perfect" action for this benchmark and execute.
-        if test_case.id == "112-JUP-LEND-WITHDRAW-SOL" {
-            info!("[Test] Jupiter SOL lend withdraw benchmark detected (2-step).");
-            let (jupiter_instructions, unwrap_instruction) =
-                prepare_jupiter_lend_withdraw_sol(&env, &test_case, &initial_observation.key_map)
+
+        if test_case.id == "112-JUP-LEND-DEPOSIT-WITHDRAW-SOL" {
+            info!("[Test] Jupiter SOL lend deposit-withdraw benchmark detected (3-step).");
+
+            // --- Step 1: Deposit ---
+            info!("Preparing Jupiter deposit (step 1)...");
+            let deposit_instructions =
+                prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
                     .await?;
+            let deposit_actions: Vec<AgentAction> =
+                deposit_instructions.into_iter().map(AgentAction).collect();
+            info!("Executing Jupiter deposit (step 1)...");
+            let deposit_step_result = env.step(deposit_actions.clone(), &test_case.ground_truth)?;
+            info!("✅ Deposit complete.");
 
-            // Step 1: Execute Jupiter withdrawal
-            let jupiter_actions: Vec<AgentAction> =
-                jupiter_instructions.into_iter().map(AgentAction).collect();
-            info!("Executing Jupiter withdrawal (step 1)...");
-            let _ = env.step(jupiter_actions.clone(), &test_case.ground_truth)?;
+            // --- Step 2 & 3: Withdraw & Unwrap ---
+            info!("Preparing Jupiter withdrawal (step 2 & 3)...");
+            let (withdraw_instructions, unwrap_instruction) = prepare_jupiter_lend_withdraw_sol(
+                &env,
+                &test_case,
+                &deposit_step_result.observation.key_map,
+            )
+            .await?;
 
-            // Step 2: Execute unwrap
+            // Step 2: Execute Jupiter withdrawal
+            let withdraw_actions: Vec<AgentAction> =
+                withdraw_instructions.into_iter().map(AgentAction).collect();
+            info!("Executing Jupiter withdrawal (step 2)...");
+            let _ = env.step(withdraw_actions.clone(), &test_case.ground_truth)?;
+            info!("✅ Withdrawal complete.");
+
+            // Step 3: Execute unwrap
             let unwrap_actions = vec![AgentAction(unwrap_instruction)];
-            info!("Executing WSOL unwrap (step 2)...");
+            info!("Executing WSOL unwrap (step 3)...");
             let final_step_result = env.step(unwrap_actions.clone(), &test_case.ground_truth)?;
+            info!("✅ Unwrap complete.");
 
-            // Score based on the final state after both steps.
-            let all_actions = [jupiter_actions, unwrap_actions].concat();
+            // Score based on the final state after all steps.
+            let all_actions = [deposit_actions, withdraw_actions, unwrap_actions].concat();
             let score = calculate_final_score(
                 &test_case,
                 &all_actions,
