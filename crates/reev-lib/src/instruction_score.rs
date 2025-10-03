@@ -76,9 +76,10 @@ fn calculate_total_possible_instruction_score(test_case: &TestCase) -> f64 {
     let mut total = 0.0;
     for ix in &test_case.ground_truth.expected_instructions {
         total += ix.program_id_weight;
-        // Only include data_weight in the total if it's meant to be scored.
-        if ix.data != "..." {
-            total += ix.data_weight;
+        if let (Some(data), Some(data_weight)) = (ix.data.as_deref(), ix.data_weight) {
+            if data.trim() != "..." {
+                total += data_weight;
+            }
         }
         for acc in &ix.accounts {
             total += acc.weight;
@@ -114,18 +115,22 @@ fn score_single_instruction(
 
     // 2. Compare Instruction Data
     // The ground truth data can be a placeholder "..." or a base58 string.
-    if expected_ix.data != "..." {
-        match bs58::decode(&expected_ix.data).into_vec() {
-            Ok(expected_data_bytes) => {
-                if expected_data_bytes == generated_ix.data {
-                    score += expected_ix.data_weight;
-                    debug!("Instruction data matched.");
-                } else {
-                    debug!("Instruction data mismatch.");
+    if let (Some(expected_data), Some(data_weight)) =
+        (expected_ix.data.as_deref(), expected_ix.data_weight)
+    {
+        if expected_data.trim() != "..." {
+            match bs58::decode(expected_data).into_vec() {
+                Ok(expected_data_bytes) => {
+                    if expected_data_bytes == generated_ix.data {
+                        score += data_weight;
+                        debug!("Instruction data matched.");
+                    } else {
+                        debug!("Instruction data mismatch.");
+                    }
                 }
-            }
-            Err(_) => {
-                warn!(data = %expected_ix.data, "Failed to decode base58 ground truth data.");
+                Err(_) => {
+                    warn!(data = %expected_data, "Failed to decode base58 ground truth data.");
+                }
             }
         }
     }

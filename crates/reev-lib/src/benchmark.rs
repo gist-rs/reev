@@ -178,10 +178,11 @@ pub struct BenchmarkInstruction {
     /// The accounts required by the instruction.
     pub accounts: Vec<BenchmarkAccountMeta>,
     /// The instruction data, typically as a Base58 string.
-    pub data: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
     /// The weight for correct instruction data.
-    #[serde(default = "default_weight")]
-    pub data_weight: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_weight: Option<f64>,
 }
 
 /// A serializable representation of an `AccountMeta` for use in benchmarks.

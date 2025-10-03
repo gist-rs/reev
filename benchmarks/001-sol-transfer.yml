@@ -42,12 +42,11 @@ ground_truth:
           is_signer: true
           is_writable: true
           weight: 1.0
-        - pubkey: "RECIENT_WALLET_PUBKEY"
+        - pubkey: "RECIPIENT_WALLET_PUBKEY"
           is_signer: false
           is_writable: true
           weight: 1.0
       # Instruction data for a System Program transfer:
-      # - 4 bytes: instruction index (2 for transfer)
-      # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)
-      # This is base58 encoded.
-      data: "2Z4dY1Wp2j"
+      # Instruction data is not scored for this benchmark.
+      # The on-chain state assertion is the ground truth for the amount.
+      data: "..."

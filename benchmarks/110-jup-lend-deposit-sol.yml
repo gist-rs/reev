@@ -25,15 +25,5 @@ ground_truth:
       expected_change_gte: -105000000
       weight: 1.0
 
-  # The agent is expected to return a transaction for the lend operation.
-  # The actual program and accounts are determined by the Jupiter API.
-  expected_instructions:
-    - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9" # Jupiter Lend Program
-      accounts:
-        - pubkey: "USER_WALLET_PUBKEY" # User's wallet, the authority
-          is_signer: true
-          is_writable: true
-        - pubkey: "DERIVED_USER_L_TOKEN_ATA" # User's destination L-Token ATA
-          is_signer: false
-          is_writable: true
-      data: "..." # Placeholder
+  # For this complex DeFi interaction, success is determined by the on-chain state assertions,
+  # not by a deterministic instruction set.
