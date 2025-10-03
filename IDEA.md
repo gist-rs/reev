@@ -166,6 +166,36 @@ The `reev` framework provides a robust, reproducible, and extensible foundation 
 
 ---
 
+## Part IV: Advanced Benchmarking Techniques
+
+### 4.1. The Challenge of Dynamic Addresses in DeFi
+
+Simple benchmarks can often rely on static, well-known addresses (like the `System Program` or `USDC Mint`). However, complex DeFi interactions introduce a significant challenge: many crucial addresses are generated dynamically.
+
+A prime example is **L-Tokens** (liquidity provider tokens) minted during a lending deposit. The mint address of an L-token is specific to the lending pool and the deposited asset. These addresses are not static constants; they are discovered through on-chain interaction.
+
+This poses a problem for benchmark creation:
+-   **Hermeticity vs. Reality:** We need tests to be reproducible, which often implies hardcoding addresses.
+-   **Mainnet-Forking Requirement:** `surfpool` requires that all addresses used in a benchmark's `initial_state` exist on Solana Mainnet. Using placeholder or randomly generated addresses will cause the test to fail.
+
+### 4.2. Solution: The Dynamic Discovery Pattern
+
+To resolve this, `reev` employs a "dynamic discovery" pattern during test development. This two-phase process uses the framework itself to find the necessary on-chain addresses.
+
+**Phase 1: Discovery**
+1.  **Create a "Discovery" Benchmark:** A temporary benchmark is created to perform the action that reveals the dynamic address. For example, to find an L-USDC mint, we use a benchmark that *deposits* USDC into a lending pool.
+2.  **Add Introspection Logic:** The test runner (`benchmarks_test.rs`) is temporarily modified with special logic. After the deposit transaction is executed, the test runner inspects the user's wallet to find all associated token accounts.
+3.  **Isolate the New Address:** By comparing the token accounts before and after the transaction, the test can isolate the newly created L-Token account and log its mint address.
+4.  **Run and Capture:** The test is run once. It will panic by design, but its log output will contain the real, mainnet-valid L-token mint address.
+
+**Phase 2: Implementation**
+1.  **Update the "Real" Benchmark:** The captured L-token mint address is now hardcoded into the actual withdrawal benchmark (`113-jup-lend-withdraw-usdc.yml`). The `initial_state` is configured to grant the user a pre-existing balance of this L-token, perfectly simulating a real-world withdrawal scenario.
+2.  **Clean Up:** The temporary discovery logic is removed from the test runner.
+
+This pattern allows `reev` to create robust, reproducible benchmarks for complex DeFi scenarios while adhering to the strict mainnet-forking requirements of `surfpool`.
+
+---
+
 ## Part V: The Comparative Agent Framework
 
 The `reev` framework is built around a comparative evaluation model. It uses a dual-agent architecture within a single `reev-agent` service to test AI performance against a perfect baseline.

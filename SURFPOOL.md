@@ -15,6 +15,8 @@ This capability is revolutionary for testing because it allows developers to:
 -   Test against actual on-chain state (e.g., liquidity pools, user accounts) without manual setup or mocking.
 -   Ensure that tests accurately reflect how transactions will behave in a live environment.
 
+**Crucially, this means that any address (for a program, token mint, or user account) used in a test's `initial_state` must be a real, valid address that exists on Solana Mainnet.** Using placeholder or randomly generated addresses will result in errors, as `surfpool` will be unable to find them.
+
 ## RPC Cheat Codes for State Manipulation
 
 To facilitate advanced testing scenarios, `surfpool` exposes a special set of JSON-RPC methods under the `surfnet_*` namespace. These "cheat codes" allow for direct and programmatic manipulation of the blockchain's state, bypassing the normal constraints of transactions.
@@ -96,4 +98,4 @@ The `reev` testing framework leverages these cheat codes to set up the precise i
 2.  Make an RPC call to `surfnet_setTokenAccount`.
 3.  Fund the test user's wallet with a specific amount of USDC.
 
-This ensures that the environment is in a known, controlled state before the agent attempts to solve the benchmark, making the tests reliable and deterministic.
+This ensures that the environment is in a known, controlled state before the agent attempts to solve the benchmark, making the tests reliable and deterministic. For complex DeFi benchmarks that involve dynamically generated addresses (like L-Tokens), a "dynamic discovery" pattern is used during test development to find and hardcode the necessary mainnet-valid addresses.
