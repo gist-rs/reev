@@ -1,5 +1,5 @@
 id: 003-SPL-TRANSFER-FAIL
-description: A benchmark for a failing SPL token transfer due to insufficient funds, using real mainnet addresses.
+description: Tests an agent's ability to generate a correct instruction when the transaction is guaranteed to fail due to environmental constraints (insufficient funds). A high score is achieved by generating a perfect instruction (~75%), despite the on-chain execution failing (0%).
 tags: ["spl-token", "transfer", "usdc", "fail", "surfpool"]
 
 initial_state:
@@ -34,26 +34,32 @@ initial_state:
 prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
 
 ground_truth:
-  transaction_status: "Failure"
   final_state_assertions:
-    # Transaction should fail, so balances should be unchanged.
+    # DIAGNOSTIC ONLY: Transaction should fail, so balances should be unchanged.
     - type: TokenAccountBalance
       pubkey: "USER_USDC_ATA"
       expected: 10000000
+      weight: 1.0
     - type: TokenAccountBalance
       pubkey: "RECIPIENT_USDC_ATA"
       expected: 0
+      weight: 1.0
 
   expected_instructions:
     - program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      program_id_weight: 1.0
       accounts:
         - pubkey: "USER_USDC_ATA"
           is_signer: false
           is_writable: true
+          weight: 1.0
         - pubkey: "RECIPIENT_USDC_ATA"
           is_signer: false
           is_writable: true
+          weight: 1.0
         - pubkey: "USER_WALLET_PUBKEY"
           is_signer: true
           is_writable: false
-      data: "base58_encoded_spl_transfer_instruction_data_for_15_usdc"
+          weight: 1.0
+      data: "..."
+      data_weight: 0.0

@@ -17,6 +17,17 @@ The project is now architecturally sound, consistent, and ready for the next pha
 
 ---
 
+## Phase 13: Granular Scoring System
+
+The scoring model has been upgraded from a binary pass/fail (1.0 or 0.0) to a cumulative, weighted system.
+
+*   **Weighted Assertions:** Benchmarks can now assign a `weight` to each on-chain assertion, allowing for more nuanced evaluations.
+*   **Cumulative Score:** The final score is now a percentage representing the sum of weights of all passed assertions, giving a more detailed picture of an agent's performance. A transaction failure still results in a score of `0.0`.
+
+This change provides much richer feedback for iterative agent development.
+
+---
+
 ## Current Status and Expected Outcomes
 
 *   **TUI and `cargo test` are Consistent:** The behavior seen in the TUI is now perfectly mirrored by `cargo test`.
@@ -25,24 +36,16 @@ The project is now architecturally sound, consistent, and ready for the next pha
 
 ---
 
-## Next Task: End-to-End AI Agent Integration Test
+## Next Up: Phase 14 - End-to-End AI Agent Integration Test
 
-With the framework now stable and consistent, the final piece of the validation puzzle is missing: an end-to-end test that proves a **real AI agent** can solve a complex benchmark.
+With the framework now stable and consistent, the final piece of validation is to create an end-to-end integration test that proves a **real AI agent** can solve a complex benchmark that the deterministic agent cannot.
 
-### Why This is the Next Step
+This test is the ultimate proof that the `reev` framework can successfully evaluate a capable on-chain AI agent, validating the entire execution loop from runner to LLM and back.
 
-The `benchmarks_test.rs` suite validates the benchmarks themselves using a *mock* perfect instruction. The `reev-agent`'s deterministic handlers are now also consistent. However, we have not yet tested the full loop:
+### Implementation Plan
 
-`TUI/Runner -> SolanaEnv -> LlmAgent -> reev-agent (AI mode) -> LLM -> reev-agent -> LlmAgent -> SolanaEnv -> Score`
-
-The Jupiter Swap benchmark is the ideal candidate for this test because we know the deterministic agent cannot solve it. A passing grade for an AI agent would be a major validation of the entire framework.
-
-### How to Implement the Test
-
-1.  **Create a new test file:** `crates/reev-runner/tests/ai_agent_test.rs`.
-2.  **Start the `reev-agent` Server:** The test will need to spawn the `reev-agent` process in the background, similar to how `surfpool_rpc_test.rs` does. This agent will run in its default AI mode (not mock/deterministic).
-3.  **Instantiate an `LlmAgent`:** The test will create an instance of `LlmAgent` from `reev-lib`. This agent is configured via environment variables (`.env` file) to point to the `reev-agent` server we just started.
-4.  **Run the Jupiter Swap Benchmark:** The test should specifically run the `100-jup-swap-sol-usdc.yml` benchmark.
-5.  **Assert Success:** The test must assert that the final score is `1.0`. This will prove that the AI agent can successfully query the Jupiter API, generate a valid transaction, and that this transaction can be executed on our mainnet fork to satisfy the benchmark's final state assertions.
-
-This test will be slower than the others because it involves real network calls to an LLM, but it is the ultimate proof that the `reev` framework can successfully evaluate a real, capable on-chain AI agent.
+As detailed in `PLAN.md`, the test will:
+1.  Create a new test file: `crates/reev-runner/tests/ai_agent_test.rs`.
+2.  Programmatically start the `reev-agent` server in AI mode.
+3.  Run the Jupiter Swap benchmark (`100-jup-swap-sol-usdc.yml`).
+4.  Assert that the final score is `1.0`, confirming the AI agent successfully generated a valid transaction that passed all on-chain assertions.

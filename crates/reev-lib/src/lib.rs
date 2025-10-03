@@ -2,6 +2,7 @@ pub mod actions;
 pub mod agent;
 pub mod benchmark;
 pub mod env;
+pub mod instruction_score;
 pub mod llm_agent;
 
 pub mod results;

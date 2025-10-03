@@ -12,7 +12,11 @@ pub fn render_result_as_tree(result: &TestResult) -> String {
     } else {
         "❌"
     };
-    let root_label = format!("{} {}: {}", status_icon, result.id, result.final_status);
+    let score_percent = result.score * 100.0;
+    let root_label = format!(
+        "{} {} (Score: {:.1}%): {}",
+        status_icon, result.id, score_percent, result.final_status
+    );
 
     let mut step_nodes = Vec::new();
     for (i, step) in result.trace.steps.iter().enumerate() {

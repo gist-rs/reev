@@ -5,7 +5,7 @@ use reev_lib::{
     env::GymEnv,
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
-    score::calculate_score,
+    score::calculate_final_score,
     solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
@@ -106,12 +106,20 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let mut agent = LlmAgent::new(agent_name)?;
         let mut env = SolanaEnv::new()?;
 
-        let (initial_observation, final_observation, trace) =
+        let (initial_observation, final_observation, trace, actions) =
             run_evaluation_loop(&mut env, &mut agent, &test_case).await?;
 
-        // Use the centralized scoring function from reev-lib.
-        let score = calculate_score(&test_case, &initial_observation, &final_observation);
-        let final_status = if score == 1.0 {
+        // Use the new comprehensive scoring function from reev-lib.
+        // Use the new comprehensive scoring function.
+        let score = calculate_final_score(
+            &test_case,
+            &actions,
+            &initial_observation,
+            &final_observation,
+        );
+        // A score >= 0.75 means the instruction was perfect, even if it failed on-chain.
+        // This is the primary signal for agent success.
+        let final_status = if score >= 0.75 {
             FinalStatus::Succeeded
         } else {
             FinalStatus::Failed
@@ -132,7 +140,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             .await?;
         }
 
-        let result = TestResult::new(&test_case, final_status, trace);
+        let result = TestResult::new(&test_case, final_status, score, trace);
         results.push(result);
 
         env.close()?;
@@ -174,7 +182,12 @@ async fn run_evaluation_loop(
     env: &mut SolanaEnv,
     agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
-) -> Result<(AgentObservation, AgentObservation, ExecutionTrace)> {
+) -> Result<(
+    AgentObservation,
+    AgentObservation,
+    ExecutionTrace,
+    Vec<reev_lib::agent::AgentAction>,
+)> {
     // The options for env.reset need to be a serde_json::Value
     let options =
         serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
@@ -199,11 +212,11 @@ async fn run_evaluation_loop(
 
     let trace_step = reev_lib::trace::TraceStep {
         thought: None,
-        action: actions,
+        action: actions.clone(),
         observation: step_result.observation.clone(),
         info: step_result.info,
     };
     trace.add_step(trace_step);
     info!("Episode finished.");
-    Ok((initial_observation, step_result.observation, trace))
+    Ok((initial_observation, step_result.observation, trace, actions))
 }

@@ -23,6 +23,7 @@ ground_truth:
     - type: SolBalance
       pubkey: "RECIPIENT_WALLET_PUBKEY"
       expected: 100000000 # 0.1 SOL
+      weight: 1.0
 
     # Note: Checking the sender's balance is tricky due to variable fees.
     # A more robust check would be 'balance_less_than' or 'balance_change_approx'.
@@ -30,17 +31,21 @@ ground_truth:
     - type: SolBalance
       pubkey: "USER_WALLET_PUBKEY"
       expected: 899995000 # 1 SOL - 0.1 SOL - 0.000005 SOL fee
+      weight: 1.0
 
   # The ideal raw Solana instruction(s) the agent should generate.
   expected_instructions:
     - program_id: "11111111111111111111111111111111" # System Program
+      program_id_weight: 1.0
       accounts:
         - pubkey: "USER_WALLET_PUBKEY"
           is_signer: true
           is_writable: true
-        - pubkey: "RECIPIENT_WALLET_PUBKEY"
+          weight: 1.0
+        - pubkey: "RECIENT_WALLET_PUBKEY"
           is_signer: false
           is_writable: true
+          weight: 1.0
       # Instruction data for a System Program transfer:
       # - 4 bytes: instruction index (2 for transfer)
       # - 8 bytes: lamports (0.1 SOL = 100,000,000 lamports)

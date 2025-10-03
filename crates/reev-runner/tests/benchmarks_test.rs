@@ -25,7 +25,7 @@ mod common;
 use anyhow::Result;
 use glob::glob;
 use project_root::get_project_root;
-use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
+use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_final_score};
 use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
@@ -96,14 +96,19 @@ async fn test_all_benchmarks_are_solvable(
         info!("✅ Perfect action created for {}.", test_case.id);
 
         // 3. Execute the transaction in the environment.
-        let step_result = env.step(actions, &test_case.ground_truth)?;
+        let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
         info!(
             "✅ Transaction executed for {}. Status: {}",
             test_case.id, step_result.observation.last_transaction_status
         );
 
         // 4. Calculate the score.
-        let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
+        let score = calculate_final_score(
+            &test_case,
+            &actions,
+            &initial_observation,
+            &step_result.observation,
+        );
         info!(
             "📊 Calculated score for '{}': {}",
             benchmark_path.display(),

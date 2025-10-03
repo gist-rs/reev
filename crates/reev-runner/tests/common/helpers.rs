@@ -7,8 +7,7 @@ use jup_sdk::{
     surfpool::SurfpoolClient,
 };
 use reev_lib::{
-    actions::spl_transfer, agent::AgentObservation, benchmark::TestCase, env::GymEnv,
-    solana_env::environment::SolanaEnv,
+    agent::AgentObservation, benchmark::TestCase, env::GymEnv, solana_env::environment::SolanaEnv,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
@@ -113,12 +112,16 @@ fn create_spl_transfer_instruction(
     let destination_pubkey = Pubkey::from_str(destination_pubkey_str)?;
     let authority_pubkey = Pubkey::from_str(authority_pubkey_str)?;
 
-    spl_transfer::create_instruction(
+    // Use the official SPL token instruction to ensure the program ID is correct.
+    let instruction = spl_token::instruction::transfer(
+        &spl_token::ID,
         &source_pubkey,
         &destination_pubkey,
         &authority_pubkey,
+        &[], // This was the bug, it should be populated
         amount,
-    )
+    )?;
+    Ok(instruction)
 }
 
 /// Prepares the on-chain environment for a Jupiter swap using the `jup-sdk`.

@@ -23,6 +23,7 @@ ground_truth:
     - type: SolBalanceChange
       pubkey: "USER_WALLET_PUBKEY"
       expected_change_gte: -105000000
+      weight: 1.0
 
   # The agent is expected to return a transaction for the lend operation.
   # The actual program and accounts are determined by the Jupiter API.

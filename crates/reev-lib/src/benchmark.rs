@@ -77,6 +77,11 @@ fn default_transaction_status() -> String {
     "Success".to_string()
 }
 
+/// Provides a default weight of 1.0 for an assertion.
+fn default_weight() -> f64 {
+    1.0
+}
+
 /// An enum representing a single assertion about the final on-chain state.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
@@ -87,6 +92,9 @@ pub enum StateAssertion {
         pubkey: String,
         /// The exact expected balance in lamports.
         expected: u64,
+        /// The weight of this assertion for scoring. Defaults to 1.0.
+        #[serde(default = "default_weight")]
+        weight: f64,
     },
     /// Asserts a change in the SOL balance of an account.
     SolBalanceChange {
@@ -94,6 +102,9 @@ pub enum StateAssertion {
         pubkey: String,
         /// The expected minimum change in lamports (can be negative).
         expected_change_gte: i64,
+        /// The weight of this assertion for scoring. Defaults to 1.0.
+        #[serde(default = "default_weight")]
+        weight: f64,
     },
     /// Asserts the balance of an SPL token account.
     TokenAccountBalance {
@@ -108,6 +119,9 @@ pub enum StateAssertion {
         /// Optional field to derive the token account address dynamically.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         address_derivation: Option<AddressDerivation>,
+        /// The weight of this assertion for scoring. Defaults to 1.0.
+        #[serde(default = "default_weight")]
+        weight: f64,
     },
 }
 
@@ -117,6 +131,14 @@ impl StateAssertion {
             StateAssertion::SolBalance { pubkey, .. } => pubkey,
             StateAssertion::SolBalanceChange { pubkey, .. } => pubkey,
             StateAssertion::TokenAccountBalance { pubkey, .. } => pubkey,
+        }
+    }
+
+    pub fn weight(&self) -> f64 {
+        match self {
+            StateAssertion::SolBalance { weight, .. } => *weight,
+            StateAssertion::SolBalanceChange { weight, .. } => *weight,
+            StateAssertion::TokenAccountBalance { weight, .. } => *weight,
         }
     }
 
@@ -145,19 +167,25 @@ pub enum AddressDerivation {
 }
 
 /// A serializable representation of a Solana instruction for use in benchmarks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct BenchmarkInstruction {
     /// The pubkey of the program to be executed.
     pub program_id: String,
+    /// The weight for a correct program_id.
+    #[serde(default = "default_weight")]
+    pub program_id_weight: f64,
     /// The accounts required by the instruction.
     pub accounts: Vec<BenchmarkAccountMeta>,
     /// The instruction data, typically as a Base58 string.
     pub data: String,
+    /// The weight for correct instruction data.
+    #[serde(default = "default_weight")]
+    pub data_weight: f64,
 }
 
 /// A serializable representation of an `AccountMeta` for use in benchmarks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct BenchmarkAccountMeta {
     /// The pubkey of the account.
@@ -166,4 +194,7 @@ pub struct BenchmarkAccountMeta {
     pub is_signer: bool,
     /// `true` if the account's data may be mutated by the program.
     pub is_writable: bool,
+    /// The weight for a correct account in this position.
+    #[serde(default = "default_weight")]
+    pub weight: f64,
 }

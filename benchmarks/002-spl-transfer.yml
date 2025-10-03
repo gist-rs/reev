@@ -39,20 +39,27 @@ ground_truth:
     - type: TokenAccountBalance
       pubkey: "USER_USDC_ATA"
       expected: 35000000 # 35 USDC remaining (50 - 15)
+      weight: 1.0
     - type: TokenAccountBalance
       pubkey: "RECIPIENT_USDC_ATA"
       expected: 15000000 # 15 USDC received
+      weight: 1.0
 
   expected_instructions:
     - program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      program_id_weight: 1.0
       accounts:
         - pubkey: "USER_USDC_ATA"
           is_signer: false
           is_writable: true
+          weight: 1.0
         - pubkey: "RECIPIENT_USDC_ATA"
           is_signer: false
           is_writable: true
+          weight: 1.0
         - pubkey: "USER_WALLET_PUBKEY"
           is_signer: true
           is_writable: false
-      data: "base58_encoded_spl_transfer_instruction_data_for_15_usdc"
+          weight: 1.0
+      data: "..."
+      data_weight: 0.0

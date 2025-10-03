@@ -21,6 +21,22 @@ Evaluating an LLM agent is fundamentally different from evaluating a simple text
 -   **Efficiency:** How many transactions and how much in fees did the agent consume?
 -   **Robustness:** How does the agent handle errors like failed transactions?
 
+### 1.1.1. The Scoring Model: Instruction Quality vs. On-Chain Execution
+
+The `reev` scoring model is designed to evaluate an agent's reasoning (its ability to generate a correct transaction) separately from the simulated on-chain outcome. The final score is a weighted combination of two distinct components:
+
+1.  **Instruction Score (75% of total):** This is a granular, partial-credit score that measures the quality of the agent's "homework." The generated transaction is compared against the `expected_instructions` in the benchmark, and points are awarded for a correct `program_id`, correct `accounts` in the right order, and correct instruction `data`. This is the primary measure of the agent's correctness.
+
+2.  **On-Chain Execution Score (25% of total):** This is a simple, binary score that reflects the outcome of running the transaction on the `surfpool` test validator. If the transaction status is `Success`, the agent receives 100% of this score component. If the transaction status is `Failure` for any reason, it receives 0%.
+
+The `final_state_assertions` are not used for scoring. They serve as crucial **diagnostic tools** for developers to understand the consequences of the agent's action after the run.
+
+This model allows for fair and insightful evaluation. For example, in the `003-spl-transfer-fail.yml` benchmark ("send 15 USDC" with only 10 USDC available):
+
+-   A good agent generates a **perfectly formed instruction** to send 15 USDC. It earns the full **75%** for the Instruction Score.
+-   The transaction is sent to `surfpool` and **fails** due to insufficient funds. It earns **0%** for the On-Chain Execution Score.
+-   The agent's **final score is 75%**, correctly reflecting that it produced a high-quality answer that was invalid only because of the pre-set environment conditions.
+
 ### 1.2. Reproducibility Through a Hermetic Environment
 
 The central challenge is evaluating a non-deterministic LLM against a deterministic blockchain. `reev` solves this by enforcing a **hermetic** evaluation environment.

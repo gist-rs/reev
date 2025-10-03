@@ -19,7 +19,7 @@ mod common;
 
 use anyhow::Result;
 use project_root::get_project_root;
-use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_score};
+use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_final_score};
 use rstest::rstest;
 
 use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
@@ -40,8 +40,8 @@ use common::helpers::{mock_perfect_instruction, setup_env_for_benchmark};
 )]
 #[case(
     "benchmarks/003-spl-transfer-fail.yml",
-    0.0,
-    "Incorrect assertion should fail"
+    0.75,
+    "A perfect instruction that fails on-chain should get 75% of the score"
 )]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_scoring_logic(
@@ -49,6 +49,11 @@ async fn test_scoring_logic(
     #[case] expected_score: f64,
     #[case] description: &str,
 ) -> Result<()> {
+    // HACK: Initialize tracing here to get logs when running `cargo test -- --nocapture`.
+    // This is necessary because `cargo test` runs each `#[case]` as a separate test,
+    // and the global subscriber can only be set once. `try_init` handles this gracefully.
+    let _ = tracing_subscriber::fmt::try_init();
+
     // 1. Set up the environment using the single, unified helper.
     // All complex setup logic is now handled within `SolanaEnv::reset`.
     let project_root = get_project_root()?;
@@ -61,10 +66,15 @@ async fn test_scoring_logic(
     let actions = vec![AgentAction(instruction)];
 
     // 3. Execute the transaction in the environment.
-    let step_result = env.step(actions, &test_case.ground_truth)?;
+    let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
 
     // 4. Calculate the score using the centralized function from `reev-lib`.
-    let score = calculate_score(&test_case, &initial_observation, &step_result.observation);
+    let score = calculate_final_score(
+        &test_case,
+        &actions,
+        &initial_observation,
+        &step_result.observation,
+    );
 
     // 5. Assert the score matches the expected outcome for this case.
     assert_eq!(
