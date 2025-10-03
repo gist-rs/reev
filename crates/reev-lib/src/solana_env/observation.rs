@@ -9,7 +9,7 @@ use solana_program::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::state::Account as SplTokenAccount;
-use std::{collections::HashMap, str::FromStr, thread, time::Duration};
+use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
 pub(crate) fn get_observation(
@@ -44,53 +44,31 @@ pub(crate) fn get_observation(
     }
 
     // --- 2. Fetch all account states ---
-    info!(pubkeys_to_fetch = ?env.pubkey_map, "Fetching accounts for observation");
-    for i in 0..3 {
-        for (name, pubkey) in &env.pubkey_map {
-            // If we already have the account, skip it.
-            if account_states.contains_key(name) {
-                continue;
-            }
+    for (name, pubkey) in &env.pubkey_map {
+        if let Ok(account) = env.rpc_client.get_account(pubkey) {
+            let mut state = json!({
+                "lamports": account.lamports,
+                "owner": account.owner.to_string(),
+                "executable": account.executable,
+                "data_len": account.data.len(),
+            });
 
-            if let Ok(account) = env.rpc_client.get_account(pubkey) {
-                let mut state = json!({
-                    "lamports": account.lamports,
-                    "owner": account.owner.to_string(),
-                    "executable": account.executable,
-                    "data_len": account.data.len(),
-                });
-
-                if account.owner == spl_token::ID && account.data.len() == SplTokenAccount::LEN {
-                    if let Ok(token_account) = SplTokenAccount::unpack(&account.data) {
-                        if let Some(obj) = state.as_object_mut() {
-                            obj.insert("mint".to_string(), json!(token_account.mint.to_string()));
-                            obj.insert(
-                                "token_account_owner".to_string(),
-                                json!(token_account.owner.to_string()),
-                            );
-                            obj.insert(
-                                "amount".to_string(),
-                                json!(token_account.amount.to_string()),
-                            );
-                        }
+            if account.owner == spl_token::ID && account.data.len() == SplTokenAccount::LEN {
+                if let Ok(token_account) = SplTokenAccount::unpack(&account.data) {
+                    if let Some(obj) = state.as_object_mut() {
+                        obj.insert("mint".to_string(), json!(token_account.mint.to_string()));
+                        obj.insert(
+                            "token_account_owner".to_string(),
+                            json!(token_account.owner.to_string()),
+                        );
+                        obj.insert(
+                            "amount".to_string(),
+                            json!(token_account.amount.to_string()),
+                        );
                     }
                 }
-                account_states.insert(name.clone(), state);
             }
-        }
-
-        // If we have all accounts, break early.
-        if account_states.len() == env.pubkey_map.len() {
-            info!("Successfully fetched all accounts.");
-            break;
-        }
-
-        if i < 2 {
-            info!(
-                "Missing {} accounts, retrying in 500ms...",
-                env.pubkey_map.len() - account_states.len()
-            );
-            thread::sleep(Duration::from_millis(500));
+            account_states.insert(name.clone(), state);
         }
     }
 
