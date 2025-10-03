@@ -13,7 +13,7 @@ initial_state:
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
     lamports: 2039280
     data:
-      mint: "bSo13r4T5BeRBA22U3aBof8qVRa8Nf2sEbFKeiMVKZJ" # L-SOL Mint
+      mint: "2uQsyo1fXXQkDtcpXnLofWy88PxcvnfH2L8FPSE62FVU" # L-SOL Mint
       owner: "USER_WALLET_PUBKEY"
       amount: "100000000" # 0.1 L-SOL
 
@@ -32,7 +32,7 @@ ground_truth:
       address_derivation:
         type: AssociatedTokenAccount
         owner: "USER_WALLET_PUBKEY"
-        mint: "bSo13r4T5BeRBA22U3aBof8qVRa8Nf2sEbFKeiMVKZJ" # L-SOL Mint
+        mint: "2uQsyo1fXXQkDtcpXnLofWy88PxcvnfH2L8FPSE62FVU" # L-SOL Mint
       expected: 0
       weight: 0.5
 
