@@ -79,8 +79,7 @@ async fn test_all_benchmarks_are_solvable(
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Get the "perfect" action for this benchmark and execute.
-
-        if test_case.id == "112-JUP-LEND-DEPOSIT-WITHDRAW-SOL" {
+        if test_case.id == "112-JUP-LEND-WITHDRAW-SOL" {
             info!("[Test] Jupiter SOL lend deposit-withdraw benchmark detected (3-step).");
 
             // --- Step 1: Deposit ---
