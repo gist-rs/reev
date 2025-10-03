@@ -1,0 +1,57 @@
+id: 111-JUP-LEND-DEPOSIT-USDC
+description: A benchmark to test depositing USDC using Jupiter's unified lend feature.
+tags: ["jupiter", "lend", "deposit", "usdc", "spl", "surfpool"]
+
+initial_state:
+  # User's main wallet with 0.1 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 100000000
+
+  # User's USDC token account with an initial balance of 100 USDC.
+  # This format is verbose but correctly maps to the InitialStateItem struct.
+  # The test runner is expected to derive the ATA from the `data` field and use it
+  # as the `pubkey` for this account. We provide a placeholder here.
+  # The lamports are the rent-exempt minimum for a token account.
+  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      owner: "USER_WALLET_PUBKEY" # The wallet that owns the tokens
+      amount: "100000000" # 100 USDC (6 decimals)
+
+  # A dummy recipient, sometimes required by test setup helpers.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
+prompt: "Lend 50 USDC using Jupiter."
+
+ground_truth:
+  final_state_assertions:
+    # After lending 50 USDC, the user's USDC balance should be exactly 50.
+    # We use address_derivation to find the ATA, which is the robust way.
+    - type: TokenAccountBalance
+      pubkey: "UNUSED_PLACEHOLDER" # Pubkey is not used when address_derivation is present
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      expected: 50000000 # 50 USDC
+      weight: 0.5
+
+    # The user should also receive a corresponding amount of L-Tokens.
+    # We assert that they have a non-zero balance of the correct L-Token.
+    # The mint address is a placeholder for a specific lending pool's L-Token.
+    - type: TokenAccountBalance
+      pubkey: "UNUSED_PLACEHOLDER"
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "2d95G2C4jT3m4b4iSuhk2Kk8x2pJ2264V324dgvW381f" # Placeholder for USDC L-Token Mint
+      expected_gte: 1 # Should have *some* L-Tokens
+      weight: 0.5
+
+  # For this complex DeFi interaction, success is determined by the on-chain state assertions,
+  # not by a deterministic instruction set.

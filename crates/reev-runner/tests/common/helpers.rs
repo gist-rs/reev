@@ -3,7 +3,7 @@
 use anyhow::{Context, Result, anyhow};
 use jup_sdk::{
     Jupiter,
-    models::{DepositParams, SwapParams},
+    models::{DepositParams, SwapParams, WithdrawParams},
     surfpool::SurfpoolClient,
 };
 use reev_lib::{
@@ -252,4 +252,143 @@ pub async fn prepare_jupiter_lend_deposit(
     all_instructions.append(&mut jupiter_instructions);
 
     Ok(all_instructions)
+}
+
+/// Prepares for a Jupiter lend deposit of USDC.
+pub async fn prepare_jupiter_lend_deposit_usdc(
+    env: &SolanaEnv,
+    _test_case: &TestCase,
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<Instruction>> {
+    info!("[Test Helper] Preparing for Jupiter lend deposit (USDC)...");
+    let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
+    let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+    let amount = 50_000_000; // 50 USDC from benchmark prompt
+
+    // --- 1. Jupiter Lend Instruction ---
+    let rpc_client = RpcClient::new(env.rpc_client.url());
+    let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
+    let deposit_params = DepositParams {
+        asset_mint: usdc_mint,
+        amount,
+    };
+
+    info!("[Test Helper] Getting Jupiter transaction components via SDK...");
+    let (jupiter_instructions, alt_accounts) = jupiter_client
+        .deposit(deposit_params)
+        .prepare_transaction_components()
+        .await
+        .context("Failed to get Jupiter lend deposit components from jup-sdk")?;
+
+    // --- 2. Preload all accounts for Jupiter instructions ---
+    info!("[Test Helper] Starting account pre-loading process via SDK...");
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    jup_sdk::surfpool::preload_accounts(
+        &env.rpc_client,
+        &surfpool_client,
+        &user_pubkey,
+        &jupiter_instructions,
+        &alt_accounts,
+    )
+    .await
+    .context("jup-sdk failed to preload accounts")?;
+
+    Ok(jupiter_instructions)
+}
+
+/// Prepares for a Jupiter lend withdrawal of USDC.
+pub async fn prepare_jupiter_lend_withdraw_usdc(
+    env: &SolanaEnv,
+    _test_case: &TestCase,
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<Instruction>> {
+    info!("[Test Helper] Preparing for Jupiter lend withdrawal (USDC)...");
+    let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
+    let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+    let amount = 50_000_000; // 50 USDC from benchmark prompt
+
+    // --- 1. Jupiter Lend Instruction ---
+    let rpc_client = RpcClient::new(env.rpc_client.url());
+    let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
+    let withdraw_params = WithdrawParams {
+        asset_mint: usdc_mint,
+        amount,
+    };
+
+    info!("[Test Helper] Getting Jupiter transaction components via SDK...");
+    let (jupiter_instructions, alt_accounts) = jupiter_client
+        .withdraw(withdraw_params)
+        .prepare_transaction_components()
+        .await
+        .context("Failed to get Jupiter lend withdraw components from jup-sdk")?;
+
+    // --- 2. Preload all accounts for Jupiter instructions ---
+    info!("[Test Helper] Starting account pre-loading process via SDK...");
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    jup_sdk::surfpool::preload_accounts(
+        &env.rpc_client,
+        &surfpool_client,
+        &user_pubkey,
+        &jupiter_instructions,
+        &alt_accounts,
+    )
+    .await
+    .context("jup-sdk failed to preload accounts")?;
+
+    Ok(jupiter_instructions)
+}
+
+/// Prepares for a Jupiter lend withdrawal of native SOL.
+/// Returns a tuple of (jupiter_instructions, unwrap_instruction).
+pub async fn prepare_jupiter_lend_withdraw_sol(
+    env: &SolanaEnv,
+    _test_case: &TestCase,
+    key_map: &HashMap<String, String>,
+) -> Result<(Vec<Instruction>, Instruction)> {
+    info!("[Test Helper] Preparing for Jupiter lend withdrawal (SOL)...");
+    let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
+    let amount = 100_000_000; // 0.1 SOL from benchmark prompt
+
+    // --- 1. Jupiter Withdraw Instruction (for WSOL) ---
+    let rpc_client = RpcClient::new(env.rpc_client.url());
+    let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
+    let withdraw_params = WithdrawParams {
+        asset_mint: spl_token::native_mint::ID, // Withdraw returns WSOL
+        amount,
+    };
+
+    info!("[Test Helper] Getting Jupiter transaction components via SDK...");
+    let (jupiter_instructions, alt_accounts) = jupiter_client
+        .withdraw(withdraw_params)
+        .prepare_transaction_components()
+        .await
+        .context("Failed to get Jupiter lend withdraw components from jup-sdk")?;
+
+    // --- 2. Preload all accounts for Jupiter instructions ---
+    info!("[Test Helper] Starting account pre-loading process via SDK...");
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    jup_sdk::surfpool::preload_accounts(
+        &env.rpc_client,
+        &surfpool_client,
+        &user_pubkey,
+        &jupiter_instructions,
+        &alt_accounts,
+    )
+    .await
+    .context("jup-sdk failed to preload accounts")?;
+
+    // --- 3. Create the unwrap instruction ---
+    let wsol_ata = spl_associated_token_account::get_associated_token_address(
+        &user_pubkey,
+        &spl_token::native_mint::ID,
+    );
+    let unwrap_instruction = spl_token::instruction::close_account(
+        &spl_token::ID,
+        &wsol_ata,
+        &user_pubkey, // Destination for the SOL
+        &user_pubkey, // Owner of the ATA
+        &[],
+    )?;
+
+    Ok((jupiter_instructions, unwrap_instruction))
 }

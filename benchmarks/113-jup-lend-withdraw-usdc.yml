@@ -1,0 +1,60 @@
+id: 112-JUP-LEND-WITHDRAW-USDC
+description: A benchmark to test withdrawing USDC from a lending position using Jupiter's unified lend feature.
+tags: ["jupiter", "lend", "withdraw", "usdc", "spl", "surfpool"]
+
+initial_state:
+  # User's main wallet with 5 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 5000000000 # 5 SOL
+
+  # User's USDC token account with a small initial balance.
+  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
+    lamports: 2039280 # Rent-exempt minimum
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      owner: "USER_WALLET_PUBKEY"
+      amount: "10000000" # 10 USDC
+
+  # User's L-Token account representing a previous deposit of ~50 USDC.
+  - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
+    lamports: 2039280
+    data:
+      mint: "2d95G2C4jT3m4b4iSuhk2Kk8x2pJ2264V324dgvW381f" # Placeholder for USDC L-Token Mint
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000" # 50 L-Tokens
+
+  # A dummy recipient, sometimes required by test setup helpers.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
+prompt: "Withdraw 50 USDC using Jupiter."
+
+ground_truth:
+  final_state_assertions:
+    # After withdrawing 50 USDC, the user's L-Token balance should be effectively zero.
+    - type: TokenAccountBalance
+      pubkey: "UNUSED_PLACEHOLDER"
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "2d95G2C4jT3m4b4iSuhk2Kk8x2pJ2264V324dgvW381f" # Placeholder for USDC L-Token Mint
+      expected: 0
+      weight: 0.5
+
+    # The user's USDC balance should increase by ~50 USDC.
+    # The final balance should be >= 60 USDC (10 initial + 50 withdrawn).
+    - type: TokenAccountBalance
+      pubkey: "UNUSED_PLACEHOLDER"
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      expected_gte: 60000000 # 60 USDC
+      weight: 0.5
+
+  # For this complex DeFi interaction, success is determined by the on-chain state assertions,
+  # not by a deterministic instruction set.

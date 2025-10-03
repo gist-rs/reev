@@ -35,25 +35,46 @@ This file breaks down high-level goals from `PLAN.md` into specific, actionable 
 
 ---
 
-## Next Up: Phase 15 - Expand Jupiter Lend Benchmarks
+## Completed: Phase 15 - Expand Jupiter Lend Benchmarks
 
 **Goal:** Add benchmarks for lending and withdrawing USDC to increase test coverage of Jupiter's Lend functionality.
 
--   [ ] **1. Create `111-jup-lend-deposit-usdc.yml` Benchmark:**
-    -   [ ] Define a new benchmark file for depositing USDC into a lending market.
-    -   [ ] The `initial_state` should give the user a starting USDC balance.
-    -   [ ] The `prompt` will be "Lend 50 USDC using Jupiter."
-    -   [ ] The `final_state_assertions` will verify that the user's USDC balance has decreased and their L-Token balance has increased.
+-   [x] **1. Create `111-jup-lend-deposit-usdc.yml` Benchmark:**
+    -   [x] Defined a new benchmark file for depositing USDC into a lending market.
+    -   [x] The `initial_state` gives the user a starting USDC balance.
+    -   [x] The `prompt` is "Lend 50 USDC using Jupiter."
+    -   [x] The `final_state_assertions` verify the change in USDC and L-Token balances.
 
--   [ ] **2. Create `112-jup-lend-withdraw-usdc.yml` Benchmark:**
-    -   [ ] Define a new benchmark file for withdrawing USDC.
-    -   [ ] The `initial_state` should give the user a starting L-Token balance (representing a previous deposit).
-    -   [ ] The `prompt` will be "Withdraw 50 USDC using Jupiter."
-    -   [ ] The `final_state_assertions` will verify that the L-Token balance has decreased and the USDC balance has increased.
+-   [x] **2. Create `112-jup-lend-withdraw-usdc.yml` Benchmark:**
+    -   [x] Defined a new benchmark file for withdrawing USDC.
+    -   [x] The `initial_state` gives the user a starting L-Token balance.
+    -   [x] The `prompt` is "Withdraw 50 USDC using Jupiter."
+    -   [x] The `final_state_assertions` verify the change in L-Token and USDC balances.
 
--   [ ] **3. Implement "Smart Test" Helpers (`reev-runner/tests/common/helpers.rs`):**
-    -   [ ] Create a `prepare_jupiter_lend_deposit_usdc` async function. This will use the `jup-sdk` to get the real deposit instructions and preload all necessary accounts, similar to the existing helpers.
-    -   [ ] Create a `prepare_jupiter_lend_withdraw_usdc` async function to do the same for the withdrawal benchmark.
+-   [x] **3. Implement "Smart Test" Helpers (`reev-runner/tests/common/helpers.rs`):**
+    -   [x] Created the `prepare_jupiter_lend_deposit_usdc` async function.
+    -   [x] Created a placeholder `prepare_jupiter_lend_withdraw_usdc` function. The test for this benchmark currently fails as the `jup-sdk` does not yet support withdrawal operations.
 
--   [ ] **4. Update `benchmarks_test.rs`:**
-    -   [ ] Add the new benchmark IDs to the logic that selects the correct "smart test" helper, ensuring the new benchmarks are covered by the automated test suite.
+-   [x] **4. Update `benchmarks_test.rs`:**
+    -   [x] Added the new benchmark IDs to the logic that selects the correct "smart test" helper.
+
+---
+
+## Next Up: Phase 16 - Implement Jupiter Withdraw in SDK
+
+**Goal:** Add support for Jupiter Lend withdrawals to the `jup-sdk` to enable the `112-jup-lend-withdraw-usdc.yml` benchmark.
+
+-   [ ] **1. Research Jupiter Lend Withdrawal:**
+    -   [ ] Investigate the necessary on-chain instructions for withdrawing from a Jupiter lending pool.
+    -   [ ] Identify the required accounts and data.
+
+-   [ ] **2. Implement `withdraw` in `jup-sdk`:**
+    -   [ ] Add a `withdraw` method to the `Jupiter` client in the `jup-sdk` crate.
+    -   [ ] Implement the logic to fetch and construct the correct withdrawal transaction.
+
+-   [ ] **3. Update `reev-runner` Test Helper:**
+    -   [ ] Remove the placeholder logic in `prepare_jupiter_lend_withdraw_usdc`.
+    -   [ ] Integrate the new `jup-sdk::withdraw` method.
+
+-   [ ] **4. Validate and Fix Tests:**
+    -   [ ] Run the `benchmarks_test` suite and confirm that the `112-jup-lend-withdraw-usdc.yml` test now passes with a perfect score.
