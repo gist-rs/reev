@@ -92,9 +92,9 @@ async fn main() -> Result<()> {
     // Create the flow agent with real model
     println!("\n🤖 Initializing Flow Agent...");
     let model_name = if std::env::var("GEMINI_API_KEY").is_ok() {
-        "gemini-2.0-flash"
+        "gemini-2.5-flash-lite"
     } else {
-        "llama-3.2-3b-instruct" // Common LM Studio model
+        "qwen3-coder-30b-a3b-instruct-mlx" // Common LM Studio model
     };
 
     let mut flow_agent = FlowAgent::new(model_name)
