@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
 use reev_agent::run_server;
+use reev_lib::server_utils::kill_existing_reev_agent;
 use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr, time::Duration};
 use tracing::{debug, info};
 
+// Include the common CLI parsing module.
 mod common;
 
 /// A minimal representation of the benchmark file for deserialization.
@@ -40,6 +42,9 @@ async fn main() -> Result<()> {
     // Initialize tracing and load environment variables from .env file.
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
+
+    // Clean up any existing reev-agent processes on port 9090
+    kill_existing_reev_agent(9090).await?;
 
     let agent_name = common::get_agent_name();
 
@@ -83,7 +88,7 @@ async fn main() -> Result<()> {
     // Use the real USDC mint address to ensure the Jupiter API recognizes it.
     let user_wallet_pubkey = Pubkey::new_unique();
     let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-        .context("Failed to parse USDC mint pubkey")?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse USDC mint pubkey: {e}"))?;
     let user_usdc_ata = Pubkey::new_unique();
 
     let mut key_map = HashMap::new();

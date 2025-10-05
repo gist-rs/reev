@@ -10,12 +10,11 @@ use tracing::info;
 
 use crate::{
     prompt::SYSTEM_PREAMBLE,
-    tools::{
-        JupiterEarningsTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterPositionsTool,
-        JupiterSwapTool, SolTransferTool, SplTransferTool,
-    },
+    tools::{JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool},
     LlmRequest,
 };
+
+use crate::protocols::{SolTransferTool, SplTransferTool};
 
 /// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
 #[derive(Debug, Deserialize)]
@@ -27,6 +26,12 @@ struct AgentContext {
 /// Dispatches the request to the appropriate agent based on the model name.
 /// It first parses the on-chain context to provide it to the tools that need it.
 pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
+    // If mock is enabled, use deterministic agent instead
+    if payload.mock {
+        info!("[run_agent] Mock mode enabled, routing to deterministic agent");
+        let response = crate::run_deterministic_agent(payload).await?;
+        return Ok(serde_json::to_string(&response.0)?);
+    }
     // Parse the context_prompt to extract the key_map, which is needed by the JupiterSwapTool
     // to correctly identify mock mints.
     let yaml_str = payload
@@ -76,10 +81,10 @@ async fn run_gemini_agent(
     let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
         key_map: key_map.clone(),
     };
-    let jupiter_positions_tool = JupiterPositionsTool {
+    let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
-    let jupiter_earnings_tool = JupiterEarningsTool { key_map };
+    let jupiter_earnings_tool = JupiterEarnTool { key_map };
 
     let agent = client
         .agent(model_name)
@@ -123,10 +128,10 @@ async fn run_openai_compatible_agent(
     let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
         key_map: key_map.clone(),
     };
-    let jupiter_positions_tool = JupiterPositionsTool {
+    let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
-    let jupiter_earnings_tool = JupiterEarningsTool { key_map };
+    let jupiter_earnings_tool = JupiterEarnTool { key_map };
 
     let agent = client
         .completion_model(model_name)

@@ -16,6 +16,7 @@
 
 use anyhow::Result;
 use reev_agent::flow::{FlowAgent, FlowBenchmark};
+use reev_lib::server_utils::kill_existing_reev_agent;
 use reqwest::Client;
 use solana_client::rpc_client::RpcClient;
 use std::fs;
@@ -23,6 +24,9 @@ use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Clean up any existing reev-agent processes on port 9090
+    kill_existing_reev_agent(9090).await?;
+
     // Initialize logging
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)

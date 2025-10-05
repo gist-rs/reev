@@ -12,16 +12,15 @@ use std::str::FromStr;
 use tracing::{error, info, warn};
 
 use crate::{
-    agents::run_agent,
     flow::{
         benchmark::FlowBenchmark,
         state::{FlowState, SolanaInstruction, StepResult, StepStatus},
     },
+    run::run_agent,
     tools::{
-        jupiter_earnings::JupiterEarningsTool, jupiter_lend_deposit::JupiterLendDepositTool,
-        jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_positions::JupiterPositionsTool,
-        jupiter_swap::JupiterSwapTool, sol_transfer::SolTransferTool,
-        spl_transfer::SplTransferTool,
+        jupiter_earn::JupiterEarnTool, jupiter_lend::JupiterLendDepositTool,
+        jupiter_lend::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
+        native::SolTransferTool, native::SplTransferTool,
     },
     LlmRequest,
 };
@@ -79,11 +78,15 @@ impl FlowAgent {
         // Initialize each tool
         tools.insert(
             "sol_transfer".to_string(),
-            Box::new(SolTransferTool) as Box<dyn ToolDyn>,
+            Box::new(SolTransferTool {
+                key_map: key_map.clone(),
+            }) as Box<dyn ToolDyn>,
         );
         tools.insert(
             "spl_transfer".to_string(),
-            Box::new(SplTransferTool) as Box<dyn ToolDyn>,
+            Box::new(SplTransferTool {
+                key_map: key_map.clone(),
+            }) as Box<dyn ToolDyn>,
         );
         tools.insert(
             "jupiter_swap".to_string(),
@@ -99,18 +102,21 @@ impl FlowAgent {
         );
         tools.insert(
             "jupiter_lend_withdraw".to_string(),
-            Box::new(JupiterLendWithdrawTool { key_map }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
-            "jupiter_positions".to_string(),
-            Box::new(JupiterPositionsTool {
-                key_map: HashMap::new(),
+            Box::new(JupiterLendWithdrawTool {
+                key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
+        // JupiterPositionsTool consolidated into JupiterEarnTool
+        // tools.insert(
+        //     "jupiter_positions".to_string(),
+        //     Box::new(JupiterPositionsTool {
+        //         key_map: HashMap::new(),
+        //     }) as Box<dyn ToolDyn>,
+        // );
         tools.insert(
-            "jupiter_earnings".to_string(),
-            Box::new(JupiterEarningsTool {
-                key_map: HashMap::new(),
+            "jupiter_earn".to_string(),
+            Box::new(JupiterEarnTool {
+                key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
 
@@ -226,10 +232,11 @@ impl FlowAgent {
 
         // Create the LLM request using existing agent infrastructure
         let llm_request = LlmRequest {
-            id: format!("flow-{}-{}", benchmark.id, step.step),
+            id: benchmark.id.clone(), // Use benchmark ID for deterministic agent compatibility
             prompt: enriched_prompt.clone(),
             context_prompt: self.build_context_prompt(benchmark, step)?,
             model_name: self.model_name.clone(),
+            mock: true, // Use mock mode for FlowAgent examples
         };
 
         // Call the existing agent infrastructure

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use reev_agent::run_server;
+use reev_lib::server_utils::kill_existing_reev_agent;
 use serde::Deserialize;
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
@@ -40,6 +41,9 @@ async fn main() -> Result<()> {
     // Initialize tracing and load environment variables from .env file.
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
+
+    // Clean up any existing reev-agent processes on port 9090
+    kill_existing_reev_agent(9090).await?;
 
     let agent_name = common::get_agent_name();
 

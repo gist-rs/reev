@@ -1,18 +1,19 @@
-use crate::jupiter::lend::handle_jupiter_withdraw;
+use crate::protocols::jupiter::lend_deposit::handle_jupiter_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-/// Handles the deterministic logic for the `113-JUP-LEND-WITHDRAW-USDC` benchmark.
+/// Handles the deterministic logic for the `111-JUP-LEND-DEPOSIT-USDC` benchmark.
 ///
-/// This agent calls the centralized Jupiter lend withdraw handler, which fetches
-/// instructions from the Jupiter API and prepares the `surfpool` environment.
-pub(crate) async fn handle_jup_lend_withdraw_usdc(
+/// This agent acts as an oracle by calling the centralized Jupiter lend deposit handler.
+/// This handler calls the public Jupiter API to get the deposit instructions
+/// and pre-loads all required accounts into the local `surfpool` fork.
+pub(crate) async fn handle_jup_lend_deposit_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '113-JUP-LEND-WITHDRAW-USDC' id. Calling centralized Jupiter lend withdraw handler.");
+    info!("[reev-agent] Matched '111-JUP-LEND-DEPOSIT-USDC' id. Calling centralized Jupiter lend deposit handler.");
 
     let user_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")
@@ -24,7 +25,7 @@ pub(crate) async fn handle_jup_lend_withdraw_usdc(
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions needed for the transaction.
-    let instructions = handle_jupiter_withdraw(user_pubkey, asset_mint, amount, key_map).await?;
+    let instructions = handle_jupiter_deposit(user_pubkey, asset_mint, amount, key_map).await?;
 
     info!(
         "[reev-agent] Successfully received {} instructions. Responding to runner.",

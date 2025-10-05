@@ -1,4 +1,4 @@
-use crate::jupiter::swap::handle_jupiter_swap;
+use crate::protocols::jupiter::swap::handle_jupiter_swap;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;

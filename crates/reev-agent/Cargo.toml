@@ -10,6 +10,11 @@ homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+default = ["jupiter", "native"]
+jupiter = []
+native = []
+
 [dependencies]
 axum = "0.8.4"
 tokio = { workspace = true, features = ["full"] }
@@ -23,19 +28,19 @@ anyhow = { workspace = true }
 solana-system-interface = { workspace = true }
 spl-token = { workspace = true }
 serde_yaml = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+thiserror = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+solana-client = { workspace = true }
+solana-account-decoder = "2.0"
+solana-transaction-status = "2.0"
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-dotenvy = "0.15"
-
-# Correct rig dependencies
 rig-core = { version = "0.20.0" }
-thiserror = "1.0"
-
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
-solana-client.workspace = true
-reqwest = "0.12"
+solana-pubkey = "2.0"
 hex = "0.4.3"
-chrono = "0.4.42"
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }

@@ -13,12 +13,12 @@ use std::collections::HashMap;
 use tracing::{error, info};
 
 pub mod flow;
-pub mod jupiter;
+pub mod protocols;
+pub mod run;
 pub mod tools;
 
 mod agents;
 pub mod common;
-pub mod deterministic_agents;
 mod prompt;
 
 #[derive(Debug, Deserialize)]
@@ -28,6 +28,8 @@ pub struct LlmRequest {
     pub context_prompt: String,
     #[serde(default = "default_model")]
     pub model_name: String,
+    #[serde(default)]
+    pub mock: bool,
 }
 
 fn default_model() -> String {
@@ -73,7 +75,10 @@ async fn generate_transaction(
     Query(params): Query<MockParams>,
     Json(payload): Json<LlmRequest>,
 ) -> Response {
-    let result = if params.mock {
+    // Allow mock to be set via query param or request body
+    let mock_enabled = params.mock || payload.mock;
+
+    let result = if mock_enabled {
         info!("[reev-agent] Routing to Deterministic Agent (mock=true).");
         run_deterministic_agent(payload).await
     } else {
@@ -102,7 +107,7 @@ async fn generate_transaction(
 async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     let model_name = payload.model_name.clone();
 
-    let response_str = agents::run_agent(&model_name, payload).await.map_err(|e| {
+    let response_str = run::run_agent(&model_name, payload).await.map_err(|e| {
         error!("[reev-agent] AI Agent failed. Detailed Error: {e:?}");
         e
     })?;
@@ -150,53 +155,45 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
     let key_map = context.key_map;
 
-    // The deterministic agents return one or more instructions. We serialize the result
+    // The coding agents return one or more instructions. We serialize the result
     // into a JSON string to match the format expected by the runner.
     let instructions_json = match payload.id.as_str() {
         "001-SOL-TRANSFER" => {
-            let ixs = deterministic_agents::d_001_sol_transfer::handle_sol_transfer(&key_map)?;
+            let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(&key_map)?;
             serde_json::to_string(&ixs)?
         }
         "002-SPL-TRANSFER" => {
-            let ixs = deterministic_agents::d_002_spl_transfer::handle_spl_transfer(&key_map)?;
+            let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map)?;
             serde_json::to_string(&ixs)?
         }
         "100-JUP-SWAP-SOL-USDC" => {
             let ixs =
-                deterministic_agents::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map)
-                    .await?;
+                agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
         "110-JUP-LEND-DEPOSIT-SOL" => {
             let ixs =
-                deterministic_agents::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(
-                    &key_map,
-                )
-                .await?;
+                agents::coding::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(&key_map)
+                    .await?;
             serde_json::to_string(&ixs)?
         }
         "111-JUP-LEND-DEPOSIT-USDC" => {
             let ixs =
-                deterministic_agents::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(
-                    &key_map,
-                )
-                .await?;
+                agents::coding::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(&key_map)
+                    .await?;
             serde_json::to_string(&ixs)?
         }
         "112-JUP-LEND-WITHDRAW-SOL" => {
             let ixs =
-                deterministic_agents::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(
-                    &key_map,
-                )
-                .await?;
+                agents::coding::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(&key_map)
+                    .await?;
             serde_json::to_string(&ixs)?
         }
         "113-JUP-LEND-WITHDRAW-USDC" => {
-            let ixs =
-                deterministic_agents::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
-                    &key_map,
-                )
-                .await?;
+            let ixs = agents::coding::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
+                &key_map,
+            )
+            .await?;
             serde_json::to_string(&ixs)?
         }
         "114-JUP-POSITIONS-AND-EARNINGS" => {
@@ -205,7 +202,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                 payload.id
             );
             let response =
-                deterministic_agents::d_114_jup_positions_and_earnings::handle_jup_positions_and_earnings(
+                agents::coding::d_114_jup_positions_and_earnings::handle_jup_positions_and_earnings(
                     &key_map,
                 )
                 .await?;
@@ -217,10 +214,60 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             );
             response_json
         }
-        _ => anyhow::bail!(
-            "Deterministic agent does not support this id: '{}'",
-            payload.id
-        ),
+        // Handle flow benchmarks (IDs starting with "200-")
+        flow_id if flow_id.starts_with("200-") => {
+            info!(
+                "[reev-agent] 🦀 Received flow benchmark request: \"{}\" - Creating deterministic flow response",
+                payload.id
+            );
+            // For flow benchmarks, create a mock multi-step response
+            let flow_response = serde_json::json!({
+                "flow_completed": true,
+                "total_steps": 2,
+                "completed_steps": 2,
+                "status": "success",
+                "steps": [
+                    {
+                        "step": 1,
+                        "description": "Swap SOL to USDC using Jupiter",
+                        "status": "success",
+                        "instructions": [
+                            {
+                                "program_id": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+                                "accounts": [
+                                    {"pubkey": &key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
+                                    {"pubkey": "So11111111111111111111111111111111111111112", "is_signer": false, "is_writable": false},
+                                    {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
+                                ],
+                                "data": "swap_500000000"
+                            }
+                        ]
+                    },
+                    {
+                        "step": 2,
+                        "description": "Deposit USDC into Jupiter lending",
+                        "status": "success",
+                        "instructions": [
+                            {
+                                "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+                                "accounts": [
+                                    {"pubkey": &key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
+                                    {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
+                                ],
+                                "data": "deposit_500000000"
+                            }
+                        ]
+                    }
+                ],
+                "summary": {
+                    "total_instructions": 2,
+                    "estimated_gas": 5000000,
+                    "estimated_time_seconds": 15
+                }
+            });
+            serde_json::to_string(&flow_response)?
+        }
+        _ => anyhow::bail!("Coding agent does not support this id: '{}'", payload.id),
     };
 
     info!(

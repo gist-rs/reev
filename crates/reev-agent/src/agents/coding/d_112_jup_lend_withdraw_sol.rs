@@ -1,4 +1,4 @@
-use crate::jupiter::lend::handle_jupiter_withdraw;
+use crate::protocols::jupiter::lend_withdraw::handle_jupiter_withdraw;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;
