@@ -23,6 +23,10 @@ path = "tests/scoring_test.rs"
 name = "surfpool_rpc_test"
 path = "tests/surfpool_rpc_test.rs"
 
+[[test]]
+name = "ai_agent_test"
+path = "tests/ai_agent_test.rs"
+
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"

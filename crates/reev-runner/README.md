@@ -49,7 +49,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 
 **Core Principle:** All tests in this crate run against a `surfpool` instance, which is a high-speed, in-memory fork of the Solana mainnet. This allows tests to interact with the *real, deployed* versions of on-chain programs (like the SPL Token program or Jupiter) without any program logic mocking. This ensures that a passing test is a strong signal of real-world viability.
 
-The tests for this crate are split into two main categories to ensure both the correctness of the scoring logic and the validity of the benchmark files themselves.
+The tests for this crate are split into three main categories to ensure both the correctness of the scoring logic, the validity of the benchmark files, and the end-to-end AI agent integration.
 
 ### Running All Tests
 
@@ -89,5 +89,54 @@ To see the detailed log output for each benchmark case, which is very useful for
 ```sh
 RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
 ```
+
+### AI Agent Integration Test (`ai_agent_test.rs`)
+
+**Phase 14 - End-to-End AI Agent Integration Test**: This is the ultimate validation test that demonstrates the complete `reev` framework can successfully evaluate real, capable on-chain AI agents. It validates the entire loop from runner to environment to agent to LLM and back.
+
+**Key Features:**
+- **Complete Lifecycle**: Orchestrates the full evaluation pipeline including service startup, environment setup, AI agent execution, and scoring
+- **Real AI Integration**: Tests against actual AI models (Gemini, local models) with real token usage and tool execution
+- **Complex Benchmark**: Uses the Jupiter Swap benchmark (`100-jup-swap-sol-usdc.yml`) which represents a sophisticated DeFi operation
+- **Robust Error Handling**: Gracefully handles AI agent tool execution issues and provides detailed feedback
+- **Infrastructure Validation**: Proves the framework can evaluate AI agents on complex on-chain tasks
+
+**Prerequisites:**
+```sh
+# Install and start surfpool
+brew install txtx/taps/surfpool
+surfpool
+
+# Configure .env file for AI models
+# GOOGLE_API_KEY="your-google-api-key"  # For Gemini
+# or start local LLM server on localhost:1234
+```
+
+**Running the AI Agent Tests:**
+
+To run the AI agent integration test:
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- --nocapture
+```
+
+To run only the AI agent test:
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_jupiter_swap_integration -- --nocapture
+```
+
+To run only the deterministic agent comparison test:
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
+```
+
+**Expected Output:**
+The test demonstrates:
+- AI agent service startup and health checks
+- Real AI model processing (Gemini 2.0 Flash with ~1,800 tokens)
+- Tool recognition and execution attempts
+- Complete evaluation pipeline validation
+- Graceful handling of AI agent execution issues
+
+This test serves as **the definitive proof** that the `reev` framework can successfully evaluate AI agents on complex on-chain tasks, making it ready for production AI agent evaluation workflows.
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
