@@ -95,35 +95,11 @@ RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
 **Phase 14 - End-to-End Deterministic Agent Tests**: These tests validate the core framework functionality without external LLM dependencies. They use predefined instructions to ensure the system works correctly end-to-end.
 
 **Key Features:**
-- **Complete Lifecycle**: Orchestrates the full evaluation pipeline including environment setup, instruction execution, and scoring
-- **Perfect Score Validation**: All deterministic tests should achieve a perfect score of 1.0
-- **Dynamic Test Generation**: Uses `rstest` to automatically loop through all benchmark files
-- **Match-Based Logic**: Clean, idiomatic Rust code using `match` expressions instead of if-else chains
-- **Port Cleanup**: Automatically cleans up reev-agent processes before starting tests
-
-**Running Deterministic Agent Tests:**
-
-To run all deterministic tests (automatically tests all benchmarks):
-```sh
-RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
-```
-
-To run only the Jupiter integration test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
-```
-
-### LLM Agent Tests (`llm_agent_test.rs`)
-
-**Phase 14 - End-to-End LLM Agent Tests**: These tests validate the complete framework's ability to evaluate real AI agents that call external LLM services. They demonstrate the full loop from runner to environment to AI agent to LLM and back.
-
-**Key Features:**
-- **Real AI Integration**: Tests against actual AI models (local models, Gemini, etc.) with real token usage
-- **Smart Model Selection**: Automatically detects API keys and falls back to local models when unavailable
-- **Dynamic Test Generation**: Uses `rstest` to automatically loop through all benchmark files  
-- **Intelligent Scoring**: Different score thresholds based on benchmark complexity
-- **Port Cleanup**: Automatically cleans up reev-agent processes to ensure clean test environment
-- **DRY Architecture**: Single comprehensive test functions eliminate code duplication
+- **Complete Lifecycle**: Orchestrates the full evaluation pipeline including service startup, environment setup, AI agent execution, and scoring
+- **Real AI Integration**: Tests against actual AI models (Gemini, local models) with real token usage and tool execution
+- **Complex Benchmark**: Uses the Jupiter Swap benchmark (`100-jup-swap-sol-usdc.yml`) which represents a sophisticated DeFi operation
+- **Robust Error Handling**: Gracefully handles AI agent tool execution issues and provides detailed feedback
+- **Infrastructure Validation**: Proves the framework can evaluate AI agents on complex on-chain tasks
 
 **Prerequisites:**
 ```sh
@@ -133,14 +109,70 @@ surfpool
 
 # Configure .env file for AI models
 # GOOGLE_API_KEY="your-google-api-key"  # For Gemini
-# or start local LLM server on localhost:1234 (e.g., LM Studio)
+# or start local LLM server on localhost:1234
 ```
 
-**Running LLM Agent Tests:**
+**Running the AI Agent Tests:**
 
-To run all LLM tests (automatically tests all benchmarks with intelligent scoring):
+To run the AI agent integration test:
 ```sh
-RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- --nocapture
+```
+
+To run only the AI agent test:
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_jupiter_swap_integration -- --nocapture
+```
+
+To run only the deterministic agent comparison test:
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
+```
+
+### Individual Benchmark AI Agent Tests
+
+The AI agent integration test suite now includes individual test functions for each benchmark, allowing you to evaluate AI agent performance on specific tasks:
+
+#### Simple Transfer Tests
+```sh
+# Test AI agent on SOL transfer
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_001_sol_transfer -- --nocapture
+
+# Test AI agent on USDC token transfer  
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_002_spl_transfer -- --nocapture
+```
+
+#### Complex DeFi Tests (Jupiter Protocol)
+```sh
+# Jupiter SOL to USDC swap
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_100_jup_swap_sol_usdc -- --nocapture
+
+# Jupiter SOL lending deposit
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_110_jup_lend_deposit_sol -- --nocapture
+
+# Jupiter USDC lending deposit
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_111_jup_lend_deposit_usdc -- --nocapture
+
+# Jupiter SOL lending withdraw (3-step process)
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_112_jup_lend_withdraw_sol -- --nocapture
+
+# Jupiter USDC lending withdraw
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
+```
+
+#### Alternative: Run All Jupiter Tests (Complex DeFi)
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- jup -- --nocapture
+```
+
+#### Alternative: Run All Simple Transfer Tests
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- sol_transfer -- --nocapture
+```
+
+#### Alternative: Run All Individual Benchmark Tests
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- test_ai_agent_001_sol_transfer test_ai_agent_002_spl_transfer test_ai_agent_100_jup_swap_sol_usdc test_ai_agent_110_jup_lend_deposit_sol test_ai_agent_111_jup_lend_deposit_usdc test_ai_agent_112_jup_lend_withdraw_sol test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
 ```
 
 **Expected Output:**

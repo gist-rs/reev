@@ -1,0 +1,80 @@
+id: 200-jup-swap-then-lend-deposit
+description: Multi-step flow - User swaps SOL to USDC then deposits USDC into Jupiter lending
+tags: ["jupiter", "swap", "lend", "multi-step", "flow", "yield"]
+
+initial_state:
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 2000000000
+
+  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 0
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "0"
+
+flow:
+  - step: 1
+    description: "Swap 0.5 SOL to USDC using Jupiter"
+    prompt: "Swap 0.5 SOL from my wallet to USDC using Jupiter. Find the best rate and execute the swap."
+    critical: true
+    timeout: 30
+
+  - step: 2
+    description: "Deposit received USDC into Jupiter lending"
+    prompt: "Deposit all the USDC I just received from the swap into Jupiter lending to start earning yield. Use the maximum deposit amount available."
+    depends_on: ["step_1_result"]
+    critical: true
+    timeout: 30
+
+ground_truth:
+  min_score: 0.6
+
+  final_state_assertions:
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_approx: 1500000000
+      weight: 0.3
+
+    - type: TokenBalance
+      pubkey: "USER_USDC_ATA_PLACEHOLDER"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_approx: 50000000
+      weight: 0.4
+
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_approx: 50000000
+      weight: 0.3
+
+  expected_instructions:
+    - step: 1
+      program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+      instruction_count_range: [4, 8]
+      weight: 0.5
+      critical: true
+
+    - step: 2
+      program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
+      instruction_count: 1
+      weight: 0.5
+      critical: true
+
+  success_criteria:
+    - type: "steps_completed"
+      description: "All critical steps must be completed successfully"
+      required: 2
+      weight: 0.5
+
+    - type: "final_balance_positive"
+      description: "User should end with more tokens than started"
+      required: true
+      weight: 0.3
+
+    - type: "no_critical_errors"
+      description: "No errors in critical steps"
+      required: true
+      weight: 0.2

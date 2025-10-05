@@ -12,6 +12,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use tracing::{error, info};
 
+pub mod flow;
 pub mod jupiter;
 pub mod tools;
 
