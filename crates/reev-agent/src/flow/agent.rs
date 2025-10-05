@@ -236,7 +236,7 @@ impl FlowAgent {
             prompt: enriched_prompt.clone(),
             context_prompt: self.build_context_prompt(benchmark, step)?,
             model_name: self.model_name.clone(),
-            mock: true, // Use mock mode for FlowAgent examples
+            mock: false, // Use real API calls for FlowAgent examples
         };
 
         // Call the existing agent infrastructure

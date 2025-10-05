@@ -93,22 +93,22 @@ impl JupiterConfig {
 
     /// Get quote API endpoint URL
     pub fn quote_url(&self) -> String {
-        format!("{}/v6/quote", self.api_base_url)
+        format!("{}/swap/v1/quote", self.api_base_url)
     }
 
     /// Get swap API endpoint URL
     pub fn swap_url(&self) -> String {
-        format!("{}/v6/swap", self.api_base_url)
+        format!("{}/swap/v1/swap-instructions", self.api_base_url)
     }
 
     /// Get lend deposit API endpoint URL
     pub fn lend_deposit_url(&self) -> String {
-        format!("{}/lend/v1/deposit", self.api_base_url)
+        format!("{}/lend/v1/earn/deposit-instructions", self.api_base_url)
     }
 
     /// Get lend withdraw API endpoint URL
     pub fn lend_withdraw_url(&self) -> String {
-        format!("{}/lend/v1/withdraw", self.api_base_url)
+        format!("{}/lend/v1/earn/withdraw-instructions", self.api_base_url)
     }
 }
 

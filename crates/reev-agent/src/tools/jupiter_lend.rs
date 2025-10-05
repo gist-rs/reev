@@ -117,8 +117,8 @@ impl JupiterLendDepositTool {
 
         let request_body = json!({
             "userPublicKey": user_pubkey.to_string(),
-            "mint": asset_mint.to_string(),
-            "amount": amount,
+            "asset": asset_mint.to_string(),
+            "amount": amount.to_string(),
             "slippageBps": 500 // 5%
         });
 

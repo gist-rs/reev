@@ -158,15 +158,17 @@ impl JupiterSwapTool {
         let quote_response = execute_request(quote_request, config.max_retries).await?;
         let quote_json = parse_json_response(quote_response).await?;
 
-        // Then perform the swap
+        // Then perform the swap with the quote response
         let swap_request_body = json!({
             "userPublicKey": user_pubkey.to_string(),
             "quoteResponse": quote_json,
-            "wrapAndUnwrapWrap": false,
-            "useSharedAccounts": true,
-            "feeAccount": user_pubkey.to_string(),
-            "computeUnitPriceMicroLamports": 5000,
-            "prioritizationFeeLamports": 0
+            "prioritizationFeeLamports": {
+                "priorityLevelWithMaxLamports": {
+                    "maxLamports": 10000000,
+                    "priorityLevel": "veryHigh"
+                }
+            },
+            "dynamicComputeUnitLimit": true
         });
 
         let swap_request = client
