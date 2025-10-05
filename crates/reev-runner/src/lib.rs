@@ -8,6 +8,7 @@ use reev_lib::{
     score::calculate_final_score,
     server_utils::kill_existing_reev_agent,
     solana_env::environment::SolanaEnv,
+    test_scenarios,
     trace::ExecutionTrace,
 };
 use std::{
@@ -112,8 +113,15 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let mut agent = LlmAgent::new(agent_name)?;
         let mut env = SolanaEnv::new()?;
 
-        let (initial_observation, final_observation, trace, actions) =
-            run_evaluation_loop(&mut env, &mut agent, &test_case).await?;
+        let options = serde_json::to_value(&test_case)
+            .context("Failed to serialize test case for env options")?;
+        let mut initial_observation = env.reset(None, Some(options)).await?;
+        test_scenarios::setup_spl_scenario(&mut env, &test_case, &mut initial_observation)
+            .await
+            .context("Failed to set up SPL scenario")?;
+
+        let (final_observation, trace, actions) =
+            run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation).await?;
 
         // Use the new comprehensive scoring function from reev-lib.
         // Use the new comprehensive scoring function.
@@ -188,17 +196,12 @@ async fn run_evaluation_loop(
     env: &mut SolanaEnv,
     agent: &mut (dyn Agent + Send),
     test_case: &TestCase,
+    initial_observation: &AgentObservation,
 ) -> Result<(
-    AgentObservation,
     AgentObservation,
     ExecutionTrace,
     Vec<reev_lib::agent::AgentAction>,
 )> {
-    // The options for env.reset need to be a serde_json::Value
-    let options =
-        serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
-    let initial_observation = env.reset(None, Some(options)).await?;
-
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     let fee_payer = env.fee_payer_placeholder();
@@ -207,7 +210,7 @@ async fn run_evaluation_loop(
         .get_action(
             &test_case.id,
             &test_case.prompt,
-            &initial_observation,
+            initial_observation,
             Some(&fee_payer.to_owned()),
         )
         .await?;
@@ -224,5 +227,5 @@ async fn run_evaluation_loop(
     };
     trace.add_step(trace_step);
     info!("Episode finished.");
-    Ok((initial_observation, step_result.observation, trace, actions))
+    Ok((step_result.observation, trace, actions))
 }

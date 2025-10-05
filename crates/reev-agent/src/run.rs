@@ -118,12 +118,15 @@ async fn run_gemini_agent(
         response.to_string()
     );
 
-    // The `rig` agent returns a JSON string from the tool call. We need to parse
-    // this and extract just the raw `instruction` field to return to the runner.
+    // The `rig` agent returns a JSON string from the tool call. This might be a raw
+    // array of instructions, or a JSON object containing an `instruction` field. We
+    // handle both cases to support different model behaviors.
     let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
-    let instruction = tool_call_response
-        .get("instruction")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'instruction' field in tool call response"))?;
+    let instruction = if let Some(instruction_field) = tool_call_response.get("instruction") {
+        instruction_field
+    } else {
+        &tool_call_response
+    };
 
     Ok(serde_json::to_string(instruction)?)
 }
@@ -186,12 +189,15 @@ async fn run_openai_compatible_agent(
         response.to_string()
     );
 
-    // The `rig` agent returns a JSON string from the tool call. We need to parse
-    // this and extract just the raw `instruction` field to return to the runner.
+    // The `rig` agent returns a JSON string from the tool call. This might be a raw
+    // array of instructions, or a JSON object containing an `instruction` field. We
+    // handle both cases to support different model behaviors.
     let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
-    let instruction = tool_call_response
-        .get("instruction")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'instruction' field in tool call response"))?;
+    let instruction = if let Some(instruction_field) = tool_call_response.get("instruction") {
+        instruction_field
+    } else {
+        &tool_call_response
+    };
 
     Ok(serde_json::to_string(instruction)?)
 }

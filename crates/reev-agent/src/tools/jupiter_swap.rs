@@ -5,6 +5,7 @@
 
 use crate::protocols::get_jupiter_config;
 use crate::protocols::jupiter::{execute_request, parse_json_response};
+use bs58;
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -179,6 +180,12 @@ impl JupiterSwapTool {
         let swap_response = execute_request(swap_request, config.max_retries).await?;
         let swap_json = parse_json_response(swap_response).await?;
 
+        // Log the full response from Jupiter for debugging.
+        tracing::info!(
+            "[reev-agent] Jupiter swap response: {}",
+            serde_json::to_string_pretty(&swap_json)?
+        );
+
         // Parse the Jupiter API response to extract transaction instructions
         let instructions = if let Some(instructions_array) =
             swap_json.get("instructions").and_then(|v| v.as_array())
@@ -214,7 +221,20 @@ impl JupiterSwapTool {
                 })
                 .collect()
         } else {
-            // Fallback to placeholder if response format is unexpected
+            // Fallback to a placeholder instruction with more realistic accounts and data.
+            // This will likely still fail simulation but is better structured.
+            let user_usdc_ata = self
+                .key_map
+                .get("USER_USDC_ATA")
+                .cloned()
+                .unwrap_or_else(|| output_mint.to_string());
+
+            // Create placeholder instruction data (e.g., for a hypothetical route instruction).
+            // This consists of a dummy instruction discriminator and the amount.
+            let mut instruction_data = vec![4]; // Placeholder discriminator
+            instruction_data.extend_from_slice(&amount.to_le_bytes());
+            instruction_data.extend_from_slice(&0u64.to_le_bytes()); // Placeholder for min_out_amount
+
             vec![RawInstruction {
                 program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string(),
                 accounts: vec![
@@ -224,17 +244,12 @@ impl JupiterSwapTool {
                         is_writable: true,
                     },
                     RawAccountMeta {
-                        pubkey: input_mint.to_string(),
+                        pubkey: user_usdc_ata,
                         is_signer: false,
-                        is_writable: false,
-                    },
-                    RawAccountMeta {
-                        pubkey: output_mint.to_string(),
-                        is_signer: false,
-                        is_writable: false,
+                        is_writable: true,
                     },
                 ],
-                data: format!("swap_{amount}"),
+                data: bs58::encode(instruction_data).into_string(),
             }]
         };
 
