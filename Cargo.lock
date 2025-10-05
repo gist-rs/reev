@@ -3602,6 +3602,7 @@ dependencies = [
  "glob",
  "hex",
  "jup-sdk",
+ "once_cell",
  "opentelemetry",
  "opentelemetry_sdk",
  "project-root",
