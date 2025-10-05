@@ -910,7 +910,7 @@ async fn test_ai_agent_113_jup_lend_withdraw_usdc() -> Result<()> {
 // Helper function to create AI agent with multiple model options
 async fn create_ai_agent() -> Result<Option<LlmAgent>> {
     // Try gemini first (if API key is available)
-    if let Ok(gemini_agent) = LlmAgent::new("gemini-2.0-flash-exp") {
+    if let Ok(gemini_agent) = LlmAgent::new("gemini-2.5-flash-lite") {
         info!("🤖 AI agent created with Gemini model");
         Ok(Some(gemini_agent))
     } else if let Ok(local_agent) = LlmAgent::new("local") {
