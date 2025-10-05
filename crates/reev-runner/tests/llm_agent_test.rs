@@ -308,17 +308,31 @@ async fn test_llm_agent_on_all_benchmarks(
 
                 info!("📊 LLM agent score for {}: {}", test_case.id, score);
 
-                // For now, just log the score instead of asserting
-                // LLM agents may not achieve perfect scores consistently
-                if score > 0.5 {
+                // Set different score thresholds based on benchmark complexity
+                let (threshold, description) = match test_case.id.as_str() {
+                    // Simple transfers should achieve higher scores
+                    "001-SOL-TRANSFER" | "002-SPL-TRANSFER" => (0.8, "simple transfer"),
+                    // Jupiter operations are more complex, lower threshold acceptable
+                    "100-JUP-SWAP-SOL-USDC" => (0.3, "Jupiter swap"),
+                    "110-JUP-LEND-DEPOSIT-SOL" | "111-JUP-LEND-DEPOSIT-USDC" => {
+                        (0.4, "Jupiter lend deposit")
+                    }
+                    "113-JUP-LEND-WITHDRAW-USDC" => (0.4, "Jupiter lend withdraw"),
+                    // Multi-step operations are most challenging
+                    "112-JUP-LEND-WITHDRAW-SOL" => (0.2, "complex 3-step Jupiter operation"),
+                    // Default threshold for unknown benchmarks
+                    _ => (0.5, "unknown benchmark"),
+                };
+
+                if score > threshold {
                     info!(
-                        "✅ LLM agent achieved reasonable score (>0.5) for {}",
-                        test_case.id
+                        "✅ LLM agent successfully handled {} (score {} > {})",
+                        description, score, threshold
                     );
                 } else {
                     warn!(
-                        "⚠️  LLM agent achieved low score ({} <= 0.5) for {}",
-                        score, test_case.id
+                        "⚠️  LLM agent struggled with {} (score {} <= {})",
+                        description, score, threshold
                     );
                 }
             }
@@ -331,186 +345,5 @@ async fn test_llm_agent_on_all_benchmarks(
         env.close()?;
     }
 
-    Ok(())
-}
-
-/// Test LLM agent on Jupiter Swap benchmark (complex DeFi task)
-#[rstest]
-#[tokio::test(flavor = "multi_thread")]
-async fn test_llm_agent_jupiter_swap_integration() -> Result<()> {
-    let _ = fmt::try_init();
-
-    info!("🎯 Testing AI agent on Jupiter Swap benchmark (complex DeFi task)");
-
-    // Check prerequisites
-    if let Err(e) = check_surfpool_available().await {
-        warn!(
-            "⚠️  Skipping Jupiter swap LLM test - surfpool not available: {}",
-            e
-        );
-        return Ok(());
-    }
-
-    if let Err(e) = ensure_shared_agent().await {
-        warn!(
-            "⚠️  Skipping Jupiter swap LLM test - agent not available: {}",
-            e
-        );
-        return Ok(());
-    }
-
-    // Find Jupiter swap benchmark
-    let root = get_project_root()?;
-    let jupiter_swap_path = root.join("benchmarks/100-jup-swap-sol-usdc.yml");
-
-    if !jupiter_swap_path.exists() {
-        warn!("⚠️  Jupiter swap benchmark not found, skipping test");
-        return Ok(());
-    }
-
-    // Set up environment
-    let (mut env, test_case, initial_observation) =
-        setup_env_for_benchmark(&jupiter_swap_path).await?;
-    info!("✅ Environment setup complete for {}", test_case.id);
-
-    // Create AI agent
-    let mut agent = create_ai_agent().await?;
-
-    // Get action from LLM agent
-    match agent
-        .get_action(
-            &test_case.id,
-            &test_case.prompt,
-            &initial_observation,
-            Some(&"USER_WALLET_PUBKEY".to_string()),
-        )
-        .await
-    {
-        Ok(actions) => {
-            info!(
-                "✅ AI agent generated {} actions for Jupiter swap",
-                actions.len()
-            );
-
-            // Execute actions
-            let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
-
-            // Calculate score
-            let score = calculate_final_score(
-                &test_case,
-                &actions,
-                &initial_observation,
-                &step_result.observation,
-            );
-
-            info!("📊 LLM agent Jupiter swap score: {}", score);
-
-            if score > 0.3 {
-                info!("✅ LLM agent successfully handled Jupiter swap (score > 0.3)");
-            } else {
-                warn!("⚠️  LLM agent struggled with Jupiter swap (score <= 0.3)");
-            }
-        }
-        Err(e) => {
-            warn!(
-                "⚠️  AI agent failed to generate Jupiter swap actions: {}",
-                e
-            );
-        }
-    }
-
-    env.close()?;
-    info!("🎉 Jupiter swap LLM test completed!");
-    Ok(())
-}
-
-/// Test LLM agent on simple SOL transfer
-#[rstest]
-#[tokio::test(flavor = "multi_thread")]
-async fn test_llm_agent_simple_sol_transfer() -> Result<()> {
-    let _ = fmt::try_init();
-
-    info!("🧪 Testing AI agent on simple SOL transfer");
-
-    // Check prerequisites
-    if let Err(e) = check_surfpool_available().await {
-        warn!(
-            "⚠️  Skipping SOL transfer LLM test - surfpool not available: {}",
-            e
-        );
-        return Ok(());
-    }
-
-    if let Err(e) = ensure_shared_agent().await {
-        warn!(
-            "⚠️  Skipping SOL transfer LLM test - agent not available: {}",
-            e
-        );
-        return Ok(());
-    }
-
-    // Find SOL transfer benchmark
-    let root = get_project_root()?;
-    let sol_transfer_path = root.join("benchmarks/001-sol-transfer.yml");
-
-    if !sol_transfer_path.exists() {
-        warn!("⚠️  SOL transfer benchmark not found, skipping test");
-        return Ok(());
-    }
-
-    // Set up environment
-    let (mut env, test_case, initial_observation) =
-        setup_env_for_benchmark(&sol_transfer_path).await?;
-    info!("✅ Environment setup complete for {}", test_case.id);
-
-    // Create AI agent
-    let mut agent = create_ai_agent().await?;
-
-    // Get action from LLM agent
-    match agent
-        .get_action(
-            &test_case.id,
-            &test_case.prompt,
-            &initial_observation,
-            Some(&"USER_WALLET_PUBKEY".to_string()),
-        )
-        .await
-    {
-        Ok(actions) => {
-            info!(
-                "✅ AI agent generated {} actions for SOL transfer",
-                actions.len()
-            );
-
-            // Execute actions
-            let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
-
-            // Calculate score
-            let score = calculate_final_score(
-                &test_case,
-                &actions,
-                &initial_observation,
-                &step_result.observation,
-            );
-
-            info!("📊 LLM agent SOL transfer score: {}", score);
-
-            // Simple transfers should achieve higher scores
-            if score > 0.8 {
-                info!("✅ LLM agent successfully handled SOL transfer (score > 0.8)");
-            } else {
-                warn!("⚠️  LLM agent struggled with SOL transfer (score <= 0.8)");
-            }
-        }
-        Err(e) => {
-            warn!(
-                "⚠️  AI agent failed to generate SOL transfer actions: {}",
-                e
-            );
-        }
-    }
-
-    env.close()?;
-    info!("🎉 SOL transfer LLM test completed!");
     Ok(())
 }
