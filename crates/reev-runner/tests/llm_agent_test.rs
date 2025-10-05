@@ -47,6 +47,9 @@ impl Drop for AgentProcessGuard {
 
 /// Get or create the shared agent process
 async fn get_or_create_shared_agent() -> Result<()> {
+    // First, kill any existing reev-agent processes to ensure clean start
+    kill_existing_reev_agent().await?;
+
     {
         let guard = SHARED_AGENT.lock().unwrap();
         if guard.is_some() {
@@ -134,6 +137,49 @@ async fn check_agent_health() -> Result<()> {
     ))
 }
 
+/// Kill any existing reev-agent process on port 9090
+async fn kill_existing_reev_agent() -> Result<()> {
+    info!(
+        "🧹 Checking for existing reev-agent processes on port {}...",
+        AGENT_PORT
+    );
+
+    // Try to kill any process using port 9090
+    match std::process::Command::new("lsof")
+        .args(["-ti", &format!(":{AGENT_PORT}")])
+        .output()
+    {
+        Ok(output) => {
+            let pids = String::from_utf8_lossy(&output.stdout);
+            if !pids.trim().is_empty() {
+                info!("🔪 Found existing reev-agent processes: {}", pids.trim());
+                for pid in pids.trim().lines() {
+                    match std::process::Command::new("kill")
+                        .args(["-9", pid.trim()])
+                        .output()
+                    {
+                        Ok(_) => {
+                            info!("✅ Killed process {}", pid.trim());
+                        }
+                        Err(e) => {
+                            warn!("⚠️  Failed to kill process {}: {}", pid.trim(), e);
+                        }
+                    }
+                }
+                // Give processes time to terminate
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            } else {
+                info!("✅ No existing reev-agent processes found");
+            }
+        }
+        Err(e) => {
+            warn!("⚠️  Failed to check for existing processes: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
 /// Check if surfpool is available
 async fn check_surfpool_available() -> Result<()> {
     let client = reqwest::Client::new();
@@ -161,12 +207,20 @@ async fn ensure_shared_agent() -> Result<()> {
 
 /// Create an AI agent instance
 async fn create_ai_agent() -> Result<reev_lib::llm_agent::LlmAgent> {
-    let model_name =
-        std::env::var("LLM_MODEL").unwrap_or_else(|_| "gemini-2.0-flash-exp".to_string());
+    // Check if we have API keys for cloud models
+    let has_gemini_key = std::env::var("GEMINI_API_KEY").is_ok();
+    let has_openai_key = std::env::var("OPENAI_API_KEY").is_ok();
+
+    let model_name = if has_gemini_key || has_openai_key {
+        std::env::var("LLM_MODEL").unwrap_or_else(|_| "gemini-2.5-flash-lite".to_string())
+    } else {
+        // Use local model when no API keys are available
+        "local-model".to_string()
+    };
 
     info!("🤖 Creating AI agent with model: {}", model_name);
     let agent = reev_lib::llm_agent::LlmAgent::new(&model_name)?;
-    info!("🤖 AI agent created with Gemini model");
+    info!("🤖 AI agent created with model: {}", model_name);
 
     Ok(agent)
 }
