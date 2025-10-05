@@ -3,9 +3,8 @@
 //! This tool provides AI agent access to Jupiter's swap functionality,
 //! allowing token exchanges through Jupiter's aggregator.
 
-use crate::protocols::get_jupiter_config;
-use crate::protocols::jupiter::{execute_request, parse_json_response};
 use bs58;
+use jup_sdk::{models::SwapParams, Jupiter};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -142,117 +141,45 @@ impl JupiterSwapTool {
         amount: u64,
         slippage_bps: u16,
     ) -> anyhow::Result<Vec<RawInstruction>> {
-        let config = get_jupiter_config();
-        let client = config.create_client()?;
+        // The jup-sdk's client is designed to work with a local validator.
+        let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
 
-        // First get the quote
-        let quote_url = format!(
-            "{}?inputMint={}&outputMint={}&amount={}&slippageBps={}",
-            config.quote_url(),
+        let swap_params = SwapParams {
             input_mint,
             output_mint,
             amount,
-            slippage_bps
-        );
-
-        let quote_request = client.get(&quote_url).header("Accept", "application/json");
-        let quote_response = execute_request(quote_request, config.max_retries).await?;
-        let quote_json = parse_json_response(quote_response).await?;
-
-        // Then perform the swap with the quote response
-        let swap_request_body = json!({
-            "userPublicKey": user_pubkey.to_string(),
-            "quoteResponse": quote_json,
-            "prioritizationFeeLamports": {
-                "priorityLevelWithMaxLamports": {
-                    "maxLamports": 10000000,
-                    "priorityLevel": "veryHigh"
-                }
-            },
-            "dynamicComputeUnitLimit": true
-        });
-
-        let swap_request = client
-            .post(config.swap_url())
-            .header("Content-Type", "application/json")
-            .json(&swap_request_body);
-
-        let swap_response = execute_request(swap_request, config.max_retries).await?;
-        let swap_json = parse_json_response(swap_response).await?;
-
-        // Log the full response from Jupiter for debugging.
-        tracing::info!(
-            "[reev-agent] Jupiter swap response: {}",
-            serde_json::to_string_pretty(&swap_json)?
-        );
-
-        // Parse the Jupiter API response to extract transaction instructions
-        let instructions = if let Some(instructions_array) =
-            swap_json.get("instructions").and_then(|v| v.as_array())
-        {
-            // Convert Jupiter instructions to RawInstruction format
-            instructions_array
-                .iter()
-                .filter_map(|inst| {
-                    let program_id = inst.get("programId")?.as_str()?;
-                    let accounts = inst.get("accounts")?.as_array()?;
-                    let data = inst.get("data")?.as_str()?;
-
-                    let raw_accounts: Vec<RawAccountMeta> = accounts
-                        .iter()
-                        .filter_map(|acc| {
-                            let pubkey = acc.get("pubkey")?.as_str()?;
-                            let is_signer = acc.get("isSigner")?.as_bool()?;
-                            let is_writable = acc.get("isWritable")?.as_bool()?;
-
-                            Some(RawAccountMeta {
-                                pubkey: pubkey.to_string(),
-                                is_signer,
-                                is_writable,
-                            })
-                        })
-                        .collect();
-
-                    Some(RawInstruction {
-                        program_id: program_id.to_string(),
-                        accounts: raw_accounts,
-                        data: data.to_string(),
-                    })
-                })
-                .collect()
-        } else {
-            // Fallback to a placeholder instruction with more realistic accounts and data.
-            // This will likely still fail simulation but is better structured.
-            let user_usdc_ata = self
-                .key_map
-                .get("USER_USDC_ATA")
-                .cloned()
-                .unwrap_or_else(|| output_mint.to_string());
-
-            // Create placeholder instruction data (e.g., for a hypothetical route instruction).
-            // This consists of a dummy instruction discriminator and the amount.
-            let mut instruction_data = vec![4]; // Placeholder discriminator
-            instruction_data.extend_from_slice(&amount.to_le_bytes());
-            instruction_data.extend_from_slice(&0u64.to_le_bytes()); // Placeholder for min_out_amount
-
-            vec![RawInstruction {
-                program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string(),
-                accounts: vec![
-                    RawAccountMeta {
-                        pubkey: user_pubkey.to_string(),
-                        is_signer: true,
-                        is_writable: true,
-                    },
-                    RawAccountMeta {
-                        pubkey: user_usdc_ata,
-                        is_signer: false,
-                        is_writable: true,
-                    },
-                ],
-                data: bs58::encode(instruction_data).into_string(),
-            }]
+            slippage_bps,
         };
 
-        Ok(instructions)
+        // The sdk's swap builder will handle quoting and instruction generation
+        // against the local surfpool instance.
+        let (instructions, _alt_accounts) = jupiter_client
+            .swap(swap_params)
+            .prepare_transaction_components()
+            .await?;
+
+        // The sdk returns instructions in its own format, so we need to convert them.
+        let raw_instructions = instructions
+            .into_iter()
+            .map(|inst| {
+                let accounts = inst
+                    .accounts
+                    .into_iter()
+                    .map(|acc| RawAccountMeta {
+                        pubkey: acc.pubkey.to_string(),
+                        is_signer: acc.is_signer,
+                        is_writable: acc.is_writable,
+                    })
+                    .collect();
+
+                RawInstruction {
+                    program_id: inst.program_id.to_string(),
+                    accounts,
+                    data: bs58::encode(inst.data).into_string(),
+                }
+            })
+            .collect();
+
+        Ok(raw_instructions)
     }
 }
