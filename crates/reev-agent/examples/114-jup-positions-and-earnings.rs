@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
     }
 
     // 3. Load the benchmark file.
-    let benchmark_path = PathBuf::from("benchmarks/115-jup-positions-and-earnings.yml");
+    let benchmark_path = PathBuf::from("benchmarks/114-jup-positions-and-earnings.yml");
     let f = File::open(&benchmark_path)
         .with_context(|| format!("Failed to open benchmark file at: {benchmark_path:?}"))?;
     let test_case: TestCase =

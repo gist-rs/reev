@@ -199,6 +199,24 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                 .await?;
             serde_json::to_string(&ixs)?
         }
+        "114-JUP-POSITIONS-AND-EARNINGS" => {
+            info!(
+                "[reev-agent] 🦀 Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
+                payload.id
+            );
+            let response =
+                deterministic_agents::d_114_jup_positions_and_earnings::handle_jup_positions_and_earnings(
+                    &key_map,
+                )
+                .await?;
+            let response_json = serde_json::to_string(&response)?;
+            info!(
+                "[reev-agent] Successfully created deterministic response with {} total positions and ${:.2} in earnings",
+                response["step_1_result"]["total_positions"],
+                response["summary"]["total_earnings_usd"].as_f64().unwrap_or(0.0)
+            );
+            response_json
+        }
         _ => anyhow::bail!(
             "Deterministic agent does not support this id: '{}'",
             payload.id
