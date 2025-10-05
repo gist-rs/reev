@@ -140,8 +140,14 @@ impl Tool for SolTransferTool {
                 // This is a simplified version - in practice, you'd use mint_pubkey to:
                 // 1. Find user's associated token account: get_associated_token_address(user_pubkey, mint_pubkey)
                 // 2. Find recipient's associated token account: get_associated_token_address(recipient, mint_pubkey)
-                let source = Pubkey::new_unique(); // Placeholder - should be user's token account for mint_pubkey
-                let destination = Pubkey::new_unique(); // Placeholder - should be recipient's token account for mint_pubkey
+                let source = spl_associated_token_account::get_associated_token_address(
+                    &user_pubkey_parsed,
+                    &mint_pubkey,
+                );
+                let destination = spl_associated_token_account::get_associated_token_address(
+                    &recipient_pubkey_parsed,
+                    &mint_pubkey,
+                );
 
                 // Use the mint_pubkey to create proper SPL transfer instruction
                 create_spl_transfer_instruction(

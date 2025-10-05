@@ -113,6 +113,11 @@ async fn run_gemini_agent(
 
     let response = agent.prompt(&full_prompt).await?;
 
+    info!(
+        "[reev-agent] Raw response from rig: {}",
+        response.to_string()
+    );
+
     // The `rig` agent returns a JSON string from the tool call. We need to parse
     // this and extract just the raw `instruction` field to return to the runner.
     let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
@@ -175,6 +180,11 @@ async fn run_openai_compatible_agent(
     );
 
     let response = agent.prompt(&full_prompt).await?;
+
+    info!(
+        "[reev-agent] Raw response from rig: {}",
+        response.to_string()
+    );
 
     // The `rig` agent returns a JSON string from the tool call. We need to parse
     // this and extract just the raw `instruction` field to return to the runner.

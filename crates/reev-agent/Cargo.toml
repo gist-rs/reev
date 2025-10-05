@@ -27,6 +27,7 @@ reev-lib = { path = "../reev-lib" }
 anyhow = { workspace = true }
 solana-system-interface = { workspace = true }
 spl-token = { workspace = true }
+spl-associated-token-account = { workspace = true }
 serde_yaml = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
 thiserror = "2.0"

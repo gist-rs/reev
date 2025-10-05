@@ -66,7 +66,7 @@ async fn start_agent() -> Result<AgentProcessGuard> {
     let health_check_url = "http://127.0.0.1:9090/health";
     let mut attempts = 0;
     loop {
-        if attempts >= 20 {
+        if attempts >= 60 {
             return Err(anyhow!(
                 "Timed out waiting for reev-agent to become healthy."
             ));
