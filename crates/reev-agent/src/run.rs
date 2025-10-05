@@ -14,7 +14,7 @@ use crate::{
     LlmRequest,
 };
 
-use crate::protocols::{SolTransferTool, SplTransferTool};
+use crate::tools::{SolTransferTool, SplTransferTool};
 
 /// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
 #[derive(Debug, Deserialize)]
@@ -84,14 +84,21 @@ async fn run_gemini_agent(
     let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
-    let jupiter_earnings_tool = JupiterEarnTool { key_map };
+    let jupiter_earnings_tool = JupiterEarnTool {
+        key_map: key_map.clone(),
+    };
+
+    let sol_tool = SolTransferTool {
+        key_map: key_map.clone(),
+    };
+    let spl_tool = SplTransferTool { key_map };
 
     let agent = client
         .agent(model_name)
         .preamble(SYSTEM_PREAMBLE)
         .additional_params(serde_json::to_value(cfg)?)
-        .tool(SolTransferTool)
-        .tool(SplTransferTool)
+        .tool(sol_tool)
+        .tool(spl_tool)
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
@@ -105,7 +112,15 @@ async fn run_gemini_agent(
     );
 
     let response = agent.prompt(&full_prompt).await?;
-    Ok(response.to_string())
+
+    // The `rig` agent returns a JSON string from the tool call. We need to parse
+    // this and extract just the raw `instruction` field to return to the runner.
+    let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
+    let instruction = tool_call_response
+        .get("instruction")
+        .ok_or_else(|| anyhow::anyhow!("Missing 'instruction' field in tool call response"))?;
+
+    Ok(serde_json::to_string(instruction)?)
 }
 
 /// Runs the AI agent logic using a local lmstudio model locally.
@@ -131,15 +146,22 @@ async fn run_openai_compatible_agent(
     let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
-    let jupiter_earnings_tool = JupiterEarnTool { key_map };
+    let jupiter_earnings_tool = JupiterEarnTool {
+        key_map: key_map.clone(),
+    };
+
+    let sol_tool = SolTransferTool {
+        key_map: key_map.clone(),
+    };
+    let spl_tool = SplTransferTool { key_map };
 
     let agent = client
         .completion_model(model_name)
         .completions_api()
         .into_agent_builder()
         .preamble(SYSTEM_PREAMBLE)
-        .tool(SolTransferTool)
-        .tool(SplTransferTool)
+        .tool(sol_tool)
+        .tool(spl_tool)
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
@@ -153,5 +175,13 @@ async fn run_openai_compatible_agent(
     );
 
     let response = agent.prompt(&full_prompt).await?;
-    Ok(response.to_string())
+
+    // The `rig` agent returns a JSON string from the tool call. We need to parse
+    // this and extract just the raw `instruction` field to return to the runner.
+    let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
+    let instruction = tool_call_response
+        .get("instruction")
+        .ok_or_else(|| anyhow::anyhow!("Missing 'instruction' field in tool call response"))?;
+
+    Ok(serde_json::to_string(instruction)?)
 }

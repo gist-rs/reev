@@ -47,10 +47,6 @@ fn find_benchmark_files() -> Vec<PathBuf> {
     glob(pattern.to_str().unwrap())
         .expect("Failed to read glob pattern")
         .filter_map(Result::ok)
-        .filter(|path| {
-            let path_str = path.to_str().unwrap();
-            !path_str.ends_with("003-spl-transfer-fail.yml")
-        })
         .collect()
 }
 
@@ -137,29 +133,45 @@ async fn test_all_benchmarks_are_solvable(
             );
         } else {
             // Standard 1-step logic for all other benchmarks.
-            let instructions = if test_case.id == "100-JUP-SWAP-SOL-USDC" {
-                info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
-                prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
-            } else if test_case.id == "110-JUP-LEND-DEPOSIT-SOL" {
-                info!("[Test] Jupiter SOL lend benchmark detected. Preparing environment...");
-                prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map).await?
-            } else if test_case.id == "111-JUP-LEND-DEPOSIT-USDC" {
-                info!(
-                    "[Test] Jupiter USDC lend deposit benchmark detected. Preparing environment..."
-                );
-                prepare_jupiter_lend_deposit_usdc(&env, &test_case, &initial_observation.key_map)
+            let instructions = match test_case.id.as_str() {
+                "100-JUP-SWAP-SOL-USDC" => {
+                    info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
+                    prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
+                }
+                "110-JUP-LEND-DEPOSIT-SOL" => {
+                    info!("[Test] Jupiter SOL lend benchmark detected. Preparing environment...");
+                    prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
+                        .await?
+                }
+                "111-JUP-LEND-DEPOSIT-USDC" => {
+                    info!(
+                        "[Test] Jupiter USDC lend deposit benchmark detected. Preparing environment..."
+                    );
+                    prepare_jupiter_lend_deposit_usdc(
+                        &env,
+                        &test_case,
+                        &initial_observation.key_map,
+                    )
                     .await?
-            } else if test_case.id == "113-JUP-LEND-WITHDRAW-USDC" {
-                info!(
-                    "[Test] Jupiter USDC lend withdraw benchmark detected. Preparing environment..."
-                );
-                prepare_jupiter_lend_withdraw_usdc(&env, &test_case, &initial_observation.key_map)
+                }
+                "113-JUP-LEND-WITHDRAW-USDC" => {
+                    info!(
+                        "[Test] Jupiter USDC lend withdraw benchmark detected. Preparing environment..."
+                    );
+                    prepare_jupiter_lend_withdraw_usdc(
+                        &env,
+                        &test_case,
+                        &initial_observation.key_map,
+                    )
                     .await?
-            } else {
-                info!("[Test] Simple benchmark detected. Creating mock instruction...");
-                let instruction =
-                    mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
-                vec![instruction]
+                }
+                _ => {
+                    info!("[Test] Simple benchmark detected. Creating mock instruction...");
+                    vec![mock_perfect_instruction(
+                        &test_case,
+                        &initial_observation.key_map,
+                    )?]
+                }
             };
 
             let actions: Vec<AgentAction> = instructions.into_iter().map(AgentAction).collect();
@@ -175,13 +187,23 @@ async fn test_all_benchmarks_are_solvable(
                 benchmark_path.display(),
                 score
             );
-            assert_eq!(
-                score,
-                1.0,
-                "Benchmark '{}' should be solvable with a perfect score, but got {}",
-                benchmark_path.display(),
-                score
-            );
+            if test_case.id == "003-SPL-TRANSFER-FAIL" {
+                assert_eq!(
+                    score,
+                    0.75,
+                    "Benchmark '{}' should fail on-chain but have a perfect instruction score, but got {}",
+                    benchmark_path.display(),
+                    score
+                );
+            } else {
+                assert_eq!(
+                    score,
+                    1.0,
+                    "Benchmark '{}' should be solvable with a perfect score, but got {}",
+                    benchmark_path.display(),
+                    score
+                );
+            }
         }
         env.close()?;
     }

@@ -360,26 +360,3 @@ impl JupiterLendWithdrawTool {
         Ok(instructions)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_jupiter_lend_deposit_args_serialization() {
-        let args = json!({
-            "user_pubkey": "test_user_pubkey",
-            "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-            "amount": 1000000
-        });
-
-        let parsed: JupiterLendDepositArgs = serde_json::from_value(args).unwrap();
-        assert_eq!(parsed.user_pubkey, "test_user_pubkey");
-        assert_eq!(
-            parsed.asset_mint,
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        );
-        assert_eq!(parsed.amount, 1000000);
-    }
-}

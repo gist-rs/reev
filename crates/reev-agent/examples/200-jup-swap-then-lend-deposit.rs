@@ -18,7 +18,6 @@ use anyhow::Result;
 use reev_agent::flow::{FlowAgent, FlowBenchmark};
 use reev_lib::server_utils::kill_existing_reev_agent;
 use reqwest::Client;
-use solana_client::rpc_client::RpcClient;
 use std::fs;
 use tracing::{info, warn};
 
@@ -38,15 +37,6 @@ async fn main() -> Result<()> {
 
     // Check prerequisites
     println!("\n🔍 Checking prerequisites...");
-
-    // Check if surfpool is running
-    let surfpool_available = check_surfpool_available().await;
-    if !surfpool_available {
-        eprintln!("❌ surfpool is not available. Please install and start surfpool:");
-        eprintln!("   brew install txtx/taps/surfpool && surfpool");
-        return Ok(());
-    }
-    println!("✅ surfpool is available");
 
     // Check if LLM server is running
     let llm_available = check_llm_server_available().await;
@@ -70,28 +60,6 @@ async fn main() -> Result<()> {
 
     println!("✅ Flow benchmark loaded: {}", benchmark.id);
     println!("📊 Flow summary:\n{}", benchmark.get_summary());
-
-    // Check prerequisites
-    println!("\n🔍 Checking prerequisites...");
-
-    // Check if surfpool is running
-    let surfpool_available = check_surfpool_available().await;
-    if !surfpool_available {
-        eprintln!("❌ surfpool is not available. Please install and start surfpool:");
-        eprintln!("   brew install txtx/taps/surfpool && surfpool");
-        return Ok(());
-    }
-    println!("✅ surfpool is available");
-
-    // Check if LLM server is running
-    let llm_available = check_llm_server_available().await;
-    if !llm_available {
-        eprintln!("❌ LLM server is not available. Please start a local LLM server:");
-        eprintln!("   - LM Studio on localhost:1234");
-        eprintln!("   - Or set GEMINI_API_KEY in .env for Gemini");
-        return Ok(());
-    }
-    println!("✅ LLM server is available");
 
     // Create the flow agent with real model
     println!("\n🤖 Initializing Flow Agent...");
@@ -199,20 +167,6 @@ async fn main() -> Result<()> {
     println!("• Handle complex DeFi operations end-to-end");
 
     Ok(())
-}
-
-/// Checks if surfpool is running and accessible.
-async fn check_surfpool_available() -> bool {
-    let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
-    for _attempt in 0..5 {
-        if rpc_client.get_health().is_ok() {
-            info!("✅ surfpool is available at http://127.0.0.1:8899");
-            return true;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
-    warn!("❌ surfpool is not available at http://127.0.0.1:8899");
-    false
 }
 
 /// Checks if LLM server is running and accessible.

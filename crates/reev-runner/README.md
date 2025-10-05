@@ -7,17 +7,16 @@ This crate is the command-line interface (CLI) and orchestrator for the `reev` e
 `reev-runner` is a "thin binary" that acts as the entrypoint for non-interactive evaluation runs. It is designed for simplicity and is ideal for use in automated environments like CI/CD pipelines.
 
 Its responsibilities are:
-1.  Parsing command-line arguments using the `clap` crate to identify the benchmark path and the selected agent.
-2.  Instantiating the `SolanaEnv` and `LlmAgent` from the `reev-lib` crate.
-3.  Orchestrating the main evaluation loop by calling the core library functions.
-4.  Capturing the `ExecutionTrace` and calculating the final metrics.
-5.  Printing a summary report and the detailed trace to the console.
+1.  Parsing command-line arguments to identify the benchmark path and the selected agent.
+2.  Instantiating the `SolanaEnv` and the appropriate agent from `reev-lib`.
+3.  Orchestrating the main evaluation loop and capturing the results.
+4.  Printing a summary report and a detailed execution trace to the console.
 
 It contains no core evaluation logic itself; all of that resides in the `reev-lib` crate.
 
 ## Usage
 
-To run a specific benchmark, provide the path to the benchmark file. You can select the agent to use with the `--agent` flag.
+To run a specific benchmark, provide the path to the benchmark YAML file. You can select the agent to use with the `--agent` flag.
 
 ### Command Structure
 
@@ -28,167 +27,79 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 ### Examples
 
 *   **Deterministic Agent (Default):**
-    If the `--agent` flag is omitted, the runner defaults to the `deterministic` agent, which provides the ground truth.
+    If the `--agent` flag is omitted, the runner defaults to the `deterministic` agent.
     ```sh
     RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
     ```
 
-*   **Gemini Agent:**
-    To run the benchmark using a specific model like Gemini, provide its name.
+*   **Cloud LLM Agent (e.g., Gemini):**
+    To run the benchmark using a specific model, provide its name.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-flash-lite
     ```
 
-*   **Local Agent:**
-    To run against a locally-served model, use the `local` agent name.
+*   **Local LLM Agent:**
+    To run against a locally-served model, use the `local-model` agent name.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local-model
     ```
 
 ## Testing
 
-**Core Principle:** All tests in this crate run against a `surfpool` instance, which is a high-speed, in-memory fork of the Solana mainnet. This allows tests to interact with the *real, deployed* versions of on-chain programs (like the SPL Token program or Jupiter) without any program logic mocking. This ensures that a passing test is a strong signal of real-world viability.
+**Core Principle:** All tests in this crate run against a `surfpool` instance, which is a high-speed, in-memory fork of the Solana mainnet. This allows tests to interact with the *real, deployed* versions of on-chain programs.
 
-The tests for this crate are split into three main categories to ensure both the correctness of the scoring logic, the validity of the benchmark files, and the end-to-end AI agent integration.
+### Prerequisites
 
-### Running All Tests
+1.  **Install and run `surfpool`:**
+    ```sh
+    brew install txtx/taps/surfpool
+    surfpool
+    ```
+2.  **For LLM Agent Tests:**
+    *   Configure your `.env` file with the appropriate API keys (e.g., `GEMINI_API_KEY`).
+    *   Build and run the `reev-agent` service in a separate terminal:
+        ```sh
+        cargo run -p reev-agent
+        ```
 
-To execute all tests within the `reev-runner` package, use the following command from the workspace root:
+### Running the Test Suites
 
-```sh
-RUST_LOG=info cargo test -p reev-runner
-```
+To see detailed log output for any test, add the `-- --nocapture` flag.
 
-To see detailed log output for each test case as it runs, add the `--nocapture` flag (note the extra `--`):
+*   **Run All Tests:**
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner
+    ```
 
-```sh
-RUST_LOG=info cargo test -p reev-runner -- --nocapture
-```
+*   **Benchmark Sanity-Check Test (`benchmarks_test.rs`):**
+    Ensures all benchmarks are solvable by a perfect agent.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
+    ```
 
-### Scoring Logic Unit Test (`scoring_test.rs`)
+*   **Deterministic Agent Test (`deterministic_agent_test.rs`):**
+    Validates core framework functionality using predefined instructions.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
+    ```
 
-This is a focused unit test to verify that the `calculate_score` function works as expected. It uses a small, fixed set of benchmarks to check for clear pass (`1.0`) and fail (`0.0`) scenarios.
+*   **LLM Agent Test (`llm_agent_test.rs`):**
+    Validates the full AI agent pipeline by calling an external LLM service.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
+    ```
 
-To run only this test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test scoring_test
-```
+*   **Scoring Logic Unit Test (`scoring_test.rs`):**
+    A focused unit test for the `calculate_score` function.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test scoring_test
+    ```
 
-### Benchmark Integration Test (`benchmarks_test.rs`)
+*   **Surfpool RPC Test (`surfpool_rpc_test.rs`):**
+    Validates basic RPC connectivity with the `surfpool` instance.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test surfpool_rpc_test -- --nocapture
+    ```
 
-This is a sanity-check test that dynamically discovers and runs **every solvable benchmark file** in the `benchmarks/` directory. For each benchmark, it simulates a "perfect agent" and asserts that the final score is `1.0`.
-
-This test is crucial for ensuring that all benchmarks are correctly configured and are "winnable." If this test fails, it indicates a problem with the benchmark's definition, not an agent's performance.
-
-To run only this test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test benchmarks_test
-```
-
-To see the detailed log output for each benchmark case, which is very useful for debugging, add the `--nocapture` flag:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
-```
-
-### Deterministic Agent Tests (`deterministic_agent_test.rs`)
-
-**Phase 14 - End-to-End Deterministic Agent Tests**: These tests validate the core framework functionality without external LLM dependencies. They use predefined instructions to ensure the system works correctly end-to-end.
-
-**Key Features:**
-- **Complete Lifecycle**: Orchestrates the full evaluation pipeline including service startup, environment setup, AI agent execution, and scoring
-- **Real AI Integration**: Tests against actual AI models (Gemini, local models) with real token usage and tool execution
-- **Complex Benchmark**: Uses the Jupiter Swap benchmark (`100-jup-swap-sol-usdc.yml`) which represents a sophisticated DeFi operation
-- **Robust Error Handling**: Gracefully handles AI agent tool execution issues and provides detailed feedback
-- **Infrastructure Validation**: Proves the framework can evaluate AI agents on complex on-chain tasks
-
-**Prerequisites:**
-```sh
-# Install and start surfpool
-brew install txtx/taps/surfpool
-surfpool
-
-# Configure .env file for AI models
-# GOOGLE_API_KEY="your-google-api-key"  # For Gemini
-# or start local LLM server on localhost:1234
-```
-
-**Running the AI Agent Tests:**
-
-To run the AI agent integration test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- --nocapture
-```
-
-To run only the AI agent test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_jupiter_swap_integration -- --nocapture
-```
-
-To run only the deterministic agent comparison test:
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
-```
-
-### Individual Benchmark AI Agent Tests
-
-The AI agent integration test suite now includes individual test functions for each benchmark, allowing you to evaluate AI agent performance on specific tasks:
-
-#### Simple Transfer Tests
-```sh
-# Test AI agent on SOL transfer
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_001_sol_transfer -- --nocapture
-
-# Test AI agent on USDC token transfer  
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_002_spl_transfer -- --nocapture
-```
-
-#### Complex DeFi Tests (Jupiter Protocol)
-```sh
-# Jupiter SOL to USDC swap
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_100_jup_swap_sol_usdc -- --nocapture
-
-# Jupiter SOL lending deposit
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_110_jup_lend_deposit_sol -- --nocapture
-
-# Jupiter USDC lending deposit
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_111_jup_lend_deposit_usdc -- --nocapture
-
-# Jupiter SOL lending withdraw (3-step process)
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_112_jup_lend_withdraw_sol -- --nocapture
-
-# Jupiter USDC lending withdraw
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
-```
-
-#### Alternative: Run All Jupiter Tests (Complex DeFi)
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- jup -- --nocapture
-```
-
-#### Alternative: Run All Simple Transfer Tests
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- sol_transfer -- --nocapture
-```
-
-#### Alternative: Run All Individual Benchmark Tests
-```sh
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- test_ai_agent_001_sol_transfer test_ai_agent_002_spl_transfer test_ai_agent_100_jup_swap_sol_usdc test_ai_agent_110_jup_lend_deposit_sol test_ai_agent_111_jup_lend_deposit_usdc test_ai_agent_112_jup_lend_withdraw_sol test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
-```
-
-**Expected Output:**
-The tests demonstrate:
-- Automatic service startup and health checks with port cleanup
-- Smart model selection (local vs cloud based on API key availability)
-- Real AI model processing with token usage tracking
-- Tool recognition and execution (sol_transfer, spl_transfer, jupiter_swap, jupiter_lend_deposit)
-- Intelligent scoring thresholds based on benchmark complexity:
-  - Simple transfers: threshold 0.8
-  - Jupiter swap: threshold 0.3
-  - Jupiter lend operations: threshold 0.4
-  - Complex 3-step operations: threshold 0.2
-- Graceful handling of AI agent execution issues
-- Complete evaluation pipeline validation
-
-This comprehensive test suite serves as **the definitive proof** that the `reev` framework can successfully evaluate AI agents on a wide range of on-chain tasks, from simple transfers to complex DeFi operations, with automatic port management and intelligent scoring that adapts to benchmark complexity.
-
+---
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

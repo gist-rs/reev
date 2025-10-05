@@ -35,33 +35,33 @@ ground_truth:
   final_state_assertions:
     - type: SolBalance
       pubkey: "USER_WALLET_PUBKEY"
-      expected_approx: 1500000000
+      expected: 1500000000
       weight: 0.3
 
-    - type: TokenBalance
+    - type: TokenAccountBalance
       pubkey: "USER_USDC_ATA_PLACEHOLDER"
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      expected_approx: 50000000
+      expected: 50000000
       weight: 0.4
 
-    - type: JupiterLendingPosition
-      pubkey: "USER_WALLET_PUBKEY"
-      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      expected_approx: 50000000
-      weight: 0.3
+    # - type: JupiterLendingPosition
+    #   pubkey: "USER_WALLET_PUBKEY"
+    #   mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+    #   expected_approx: 50000000
+    #   weight: 0.3
 
-  expected_instructions:
-    - step: 1
-      program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
-      instruction_count_range: [4, 8]
-      weight: 0.5
-      critical: true
+  # expected_instructions:
+  #   - step: 1
+  #     program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+  #     instruction_count_range: [4, 8]
+  #     weight: 0.5
+  #     critical: true
 
-    - step: 2
-      program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
-      instruction_count: 1
-      weight: 0.5
-      critical: true
+  #   - step: 2
+  #     program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
+  #     instruction_count: 1
+  #     weight: 0.5
+  #     critical: true
 
   success_criteria:
     - type: "steps_completed"

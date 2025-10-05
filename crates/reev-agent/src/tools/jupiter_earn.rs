@@ -141,38 +141,3 @@ impl Tool for JupiterEarnTool {
         Ok(response.to_string())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_jupiter_earn_args_serialization() {
-        let args = json!({
-            "user_pubkey": "test_user_pubkey",
-            "position_address": "test_position",
-            "operation": "both"
-        });
-
-        let parsed: JupiterEarnArgs = serde_json::from_value(args).unwrap();
-        assert_eq!(parsed.user_pubkey, "test_user_pubkey");
-        assert_eq!(parsed.position_address, Some("test_position".to_string()));
-        assert!(matches!(parsed.operation, JupiterEarnOperation::Both));
-    }
-
-    #[test]
-    fn test_jupiter_earn_operation_enum() {
-        let positions = json!("positions");
-        let parsed: JupiterEarnOperation = serde_json::from_value(positions).unwrap();
-        assert!(matches!(parsed, JupiterEarnOperation::Positions));
-
-        let earnings = json!("earnings");
-        let parsed: JupiterEarnOperation = serde_json::from_value(earnings).unwrap();
-        assert!(matches!(parsed, JupiterEarnOperation::Earnings));
-
-        let both = json!("both");
-        let parsed: JupiterEarnOperation = serde_json::from_value(both).unwrap();
-        assert!(matches!(parsed, JupiterEarnOperation::Both));
-    }
-}

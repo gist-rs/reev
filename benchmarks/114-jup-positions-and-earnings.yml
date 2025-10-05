@@ -36,6 +36,13 @@ flow:
 ground_truth:
   min_score: 0.6
 
+  # Since this is an API-based benchmark, we don't check on-chain state
+  final_state_assertions:
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected: 2000000000 # Should remain unchanged for API-only benchmark
+      weight: 1.0
+
   # Expected API calls for both tools
   expected_api_calls:
     - service: "jupiter_positions"
@@ -128,9 +135,11 @@ ground_truth:
       critical: true
 
   expected_instructions:
-    - step: 1
-      description: "Jupiter positions API call should succeed"
-      weight: 0.2
-    - step: 2
-      description: "Jupiter earnings API call should succeed"
-      weight: 0.2
+    - program_id: "11111111111111111111111111111111" # Dummy System Program for API-based benchmark
+      program_id_weight: 0.2
+      accounts: []
+      data: "API_CALL_DUMMY"
+    - program_id: "11111111111111111111111111111111" # Dummy System Program for API-based benchmark
+      program_id_weight: 0.2
+      accounts: []
+      data: "API_CALL_DUMMY"

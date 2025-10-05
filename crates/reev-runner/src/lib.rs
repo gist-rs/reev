@@ -6,6 +6,7 @@ use reev_lib::{
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
+    server_utils::kill_existing_reev_agent,
     solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
@@ -19,6 +20,8 @@ use tracing::{error, info, instrument};
 
 pub mod db;
 pub mod renderer;
+
+const AGENT_PORT: u16 = 9090;
 
 /// A simple RAII guard to ensure the `reev-agent` process is killed.
 struct AgentProcessGuard {
@@ -89,6 +92,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
     if benchmark_paths.is_empty() {
         return Ok(vec![]);
     }
+
+    // Clean up any existing agent processes before starting a new one.
+    kill_existing_reev_agent(AGENT_PORT).await?;
 
     // Start the reev-agent service. The `_agent_guard` will ensure it's
     // shut down when this function returns, keeping the service alive for all benchmarks.

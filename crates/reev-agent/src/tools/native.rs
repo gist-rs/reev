@@ -13,19 +13,21 @@ use std::str::FromStr;
 use thiserror::Error;
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct NativeTransferArgs {
     pub user_pubkey: String,
     pub recipient_pubkey: String,
     pub amount: u64,
+    #[serde(default)]
     pub operation: NativeTransferOperation,
     pub mint_address: Option<String>, // Required for SPL transfers
 }
 
 /// Native transfer operations
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum NativeTransferOperation {
+    #[default]
     Sol,
     Spl,
 }
