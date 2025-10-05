@@ -57,11 +57,11 @@ The foundational work for the `reev` framework is complete and has been validate
 
 ### ✅ Implementation Complete
 
-**✅ 1. Created New Test:** `crates/reev-runner/tests/ai_agent_test.rs` with comprehensive integration test suite
+**✅ 1. Created New Tests:** Split into `deterministic_agent_test.rs` and `llm_agent_test.rs` for better organization and maintainability
 
-**✅ 2. Service Orchestration:** Test spawns and manages `reev-agent` lifecycle with proper health checks and cleanup
+**✅ 2. Service Orchestration:** Tests spawn and manage `reev-agent` lifecycle with automatic port cleanup, health checks, and shared process management
 
-**✅ 3. Complex Benchmark Execution:** Successfully runs Jupiter Swap benchmark (`100-jup-swap-sol-usdc.yml`) with sophisticated DeFi operations
+**✅ 3. Dynamic Test Generation:** Tests use `rstest` to automatically loop through all benchmark files with `match`-based logic and intelligent scoring thresholds
 
 **✅ 4. Success Validation:** Infrastructure validated with real AI agent integration (Gemini 2.0 Flash) demonstrating:
 - Complete evaluation pipeline: Runner → Environment → Agent → LLM → Scoring

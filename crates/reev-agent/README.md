@@ -56,7 +56,7 @@ cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-pro
 
 ## AI Agent Integration Testing
 
-The `reev-agent` service is now fully validated through comprehensive integration tests in `reev-runner/tests/ai_agent_test.rs`. These tests demonstrate:
+The `reev-agent` service is now fully validated through comprehensive integration tests in `reev-runner/tests/deterministic_agent_test.rs` and `reev-runner/tests/llm_agent_test.rs`. These tests demonstrate:
 
 ### Phase 14 - End-to-End AI Agent Integration Test
 
@@ -69,14 +69,14 @@ The `reev-agent` service is now fully validated through comprehensive integratio
 
 **Running AI Agent Integration Tests:**
 ```sh
-# Run all AI agent integration tests
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- --nocapture
+# Run all deterministic agent tests
+RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
 
-# Run only the AI agent test (requires Gemini API key or local LLM)
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_jupiter_swap_integration -- --nocapture
+# Run deterministic Jupiter integration test
+RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
 
-# Run deterministic agent comparison test
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
+# Run all LLM agent tests (requires API keys or local LLM)
+RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
 ```
 
 **🎯 Validation Results:**

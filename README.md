@@ -133,26 +133,37 @@ surfpool
 
 # Configure .env file for AI models
 # GOOGLE_API_KEY="your-google-api-key"  # For Gemini
-# or start local LLM server on localhost:1234
+# or start local LLM server on localhost:1234 (e.g., LM Studio)
 ```
 
 **Running AI Agent Integration Tests:**
+
+The test suite is now split into two specialized test files for better organization and maintainability:
+
+#### Deterministic Agent Tests
+Tests that validate core framework functionality without LLM dependencies:
 ```sh
-# Run all AI agent tests
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- --nocapture
+# Run all deterministic tests (loops through all benchmarks)
+RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
 
-# Run only AI agent integration test
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_jupiter_swap_integration -- --nocapture
+# Run specific deterministic test for Jupiter integration
+RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
+```
 
-# Run deterministic agent comparison test  
-RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
+#### LLM Agent Tests  
+Tests that evaluate actual AI agents with external LLM services:
+```sh
+# Run all LLM tests (automatically loops through all benchmarks)
+RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
 ```
 
 **✅ Validation Results:**
 - **Complete Pipeline**: Runner → Environment → Agent → LLM → Scoring loop working end-to-end
-- **Real AI Integration**: Successfully tested with Gemini 2.0 Flash (~1,800 tokens)
+- **Real AI Integration**: Successfully tested with local models and cloud APIs
 - **Complex DeFi Operations**: Jupiter Swap benchmark with sophisticated multi-instruction transactions
-- **Robust Infrastructure**: Service orchestration, health checks, and graceful error handling
+- **Robust Infrastructure**: Automatic port cleanup, service orchestration, and graceful error handling
 - **Production Ready**: Framework proven to evaluate AI agents on complex on-chain tasks
+- **DRY Architecture**: Single comprehensive test functions that automatically handle all benchmark files
+- **Intelligent Scoring**: Different score thresholds based on benchmark complexity
 
 This integration test serves as **the definitive proof** that the `reev` framework can successfully evaluate AI agents in production environments.
