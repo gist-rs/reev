@@ -250,15 +250,13 @@ async fn test_ai_agent_jupiter_swap_integration() -> Result<()> {
         warn!("   - Model misunderstanding of the task");
         warn!("   - API or network issues");
         info!("💡 This is valuable feedback for improving the AI agent integration");
+    } else if score >= 1.0 {
+        info!("🎉 AI agent achieved PERFECT score (1.0) on Jupiter Swap benchmark!");
     } else {
-        if score >= 1.0 {
-            info!("🎉 AI agent achieved PERFECT score (1.0) on Jupiter Swap benchmark!");
-        } else {
-            info!(
-                "✅ AI agent achieved good score ({}) on Jupiter Swap benchmark!",
-                score
-            );
-        }
+        info!(
+            "✅ AI agent achieved good score ({}) on Jupiter Swap benchmark!",
+            score
+        );
     }
 
     info!("🚀 Phase 14 integration test PASSED - The reev framework can evaluate AI agents!");
