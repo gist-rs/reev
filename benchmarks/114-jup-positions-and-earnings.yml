@@ -1,0 +1,136 @@
+id: 114-JUP-POSITIONS-AND-EARNINGS
+description: Multi-step flow to fetch Jupiter lending positions and then get detailed earnings information.
+tags:
+  [
+    "jupiter",
+    "positions",
+    "earnings",
+    "portfolio",
+    "multi-step",
+    "flow",
+    "comprehensive",
+  ]
+
+initial_state:
+  # User's main wallet with 2 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 2000000000 # 2 SOL
+
+prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings."
+
+flow:
+  - step: 1
+    description: "Fetch all Jupiter lending positions"
+    prompt: "First, show me all my Jupiter lending positions. I want to see all available positions including token details, balances, current rates, and liquidity data."
+    critical: true
+    timeout: 15
+
+  - step: 2
+    description: "Get detailed earnings for all positions"
+    prompt: "Now get the detailed earnings data for all my Jupiter lending positions. I want to see total deposits, withdrawals, current balances, and total earnings/profits for each position."
+    depends_on: ["step_1_result"]
+    critical: true
+    timeout: 15
+
+ground_truth:
+  min_score: 0.6
+
+  # Expected API calls for both tools
+  expected_api_calls:
+    - service: "jupiter_positions"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+      expected_params: ["users"]
+      weight: 0.4
+      critical: true
+    - service: "jupiter_earnings"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/earnings"
+      expected_params: ["user"]
+      weight: 0.4
+      critical: true
+
+  # Verify both responses have correct structure
+  response_validation:
+    - field: "step_1_result.total_positions"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - field: "step_1_result.summary"
+      type: "array"
+      weight: 0.2
+    - field: "step_2_result.total_positions"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - field: "step_2_result.summary"
+      type: "object"
+      weight: 0.2
+
+  # Expected data structure from positions API
+  expected_data_structure:
+    - path: "$.step_1_result.summary[*].token.symbol"
+      type: "string"
+      expected_values:
+        ["jlUSDC", "jlUSDT", "jlSOL", "jlEURC", "jlUSDS", "jlUSDG"]
+      weight: 0.1
+    - path: "$.step_1_result.summary[*].rates.supply_rate_pct"
+      type: "number"
+      min_value: 0
+      weight: 0.1
+    - path: "$.step_2_result.summary.total_earnings.decimal"
+      type: "number"
+      min_value: 0
+      weight: 0.1
+    - path: "$.step_2_result.positions[*].position_address"
+      type: "string"
+      weight: 0.1
+
+  success_criteria:
+    - type: "steps_completed"
+      description: "Both critical steps must be completed successfully"
+      required: 2
+      weight: 0.4
+
+    - type: "api_calls_success"
+      description: "Both Jupiter APIs must be called successfully"
+      required: true
+      weight: 0.3
+
+    - type: "data_completeness"
+      description: "Both positions and earnings data should be complete and properly formatted"
+      required: true
+      weight: 0.3
+
+  # Tool execution validation for both steps
+  tool_validation:
+    - step: 1
+      tool_name: "jupiter_positions"
+      required: true
+      expected_params: ["user_pubkey"]
+      success_indicators:
+        - "total_positions"
+        - "summary"
+        - "raw_positions"
+      weight: 0.4
+      critical: true
+    - step: 2
+      tool_name: "jupiter_earnings"
+      required: true
+      expected_params: ["user_pubkey"]
+      success_indicators:
+        - "total_positions"
+        - "summary"
+        - "positions"
+        - "raw_earnings"
+      weight: 0.4
+      critical: true
+
+  expected_instructions:
+    - step: 1
+      description: "Jupiter positions API call should succeed"
+      weight: 0.2
+    - step: 2
+      description: "Jupiter earnings API call should succeed"
+      weight: 0.2

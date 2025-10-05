@@ -18,7 +18,7 @@ use crate::{
         state::{FlowState, SolanaInstruction, StepResult, StepStatus},
     },
     tools::{
-        jupiter_lend_deposit::JupiterLendDepositTool,
+        jupiter_earnings::JupiterEarningsTool, jupiter_lend_deposit::JupiterLendDepositTool,
         jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_positions::JupiterPositionsTool,
         jupiter_swap::JupiterSwapTool, sol_transfer::SolTransferTool,
         spl_transfer::SplTransferTool,
@@ -104,6 +104,12 @@ impl FlowAgent {
         tools.insert(
             "jupiter_positions".to_string(),
             Box::new(JupiterPositionsTool {
+                key_map: HashMap::new(),
+            }) as Box<dyn ToolDyn>,
+        );
+        tools.insert(
+            "jupiter_earnings".to_string(),
+            Box::new(JupiterEarningsTool {
                 key_map: HashMap::new(),
             }) as Box<dyn ToolDyn>,
         );
@@ -305,12 +311,20 @@ impl FlowAgent {
         }
 
         if (prompt_lower.contains("positions")
-            || prompt_lower.contains("earn")
             || prompt_lower.contains("portfolio")
             || prompt_lower.contains("balance"))
             && self.tools.contains_key("jupiter_positions")
         {
             relevant_tools.push("jupiter_positions".to_string());
+        }
+
+        if (prompt_lower.contains("earnings")
+            || prompt_lower.contains("earn")
+            || prompt_lower.contains("profits")
+            || prompt_lower.contains("returns"))
+            && self.tools.contains_key("jupiter_earnings")
+        {
+            relevant_tools.push("jupiter_earnings".to_string());
         }
 
         if prompt_lower.contains("sol")

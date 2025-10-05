@@ -17,23 +17,23 @@ struct TestCase {
 
 /// The main function to run the example.
 ///
-/// This example demonstrates a direct API call to the `reev-agent` for the Jupiter positions scenario.
+/// This example demonstrates a direct API call to the `reev-agent` for the comprehensive Jupiter positions and earnings scenario.
 ///
 /// # How to run
 ///
 /// **Deterministic Agent (Default):**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example test_jupiter_positions
+/// RUST_LOG=info cargo run -p reev-agent --example 115-jup-positions-and-earnings
 /// ```
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example test_jupiter_positions -- --agent gemini-2.5-pro
+/// RUST_LOG=info cargo run -p reev-agent --example 115-jup-positions-and-earnings -- --agent gemini-2.5-pro
 /// ```
 ///
 /// **Local Agent:**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example test_jupiter_positions -- --agent local
+/// RUST_LOG=info cargo run -p reev-agent --example 115-jup-positions-and-earnings -- --agent local
 /// ```
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
     let agent_name = common::get_agent_name();
 
     info!(
-        "--- Running Jupiter Positions Example with Agent: {} ---",
+        "--- Running Jupiter Positions and Earnings Flow Example with Agent: {} ---",
         agent_name
     );
 
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
     }
 
     // 3. Load the benchmark file.
-    let benchmark_path = PathBuf::from("benchmarks/114-jup-positions.yml");
+    let benchmark_path = PathBuf::from("benchmarks/115-jup-positions-and-earnings.yml");
     let f = File::open(&benchmark_path)
         .with_context(|| format!("Failed to open benchmark file at: {benchmark_path:?}"))?;
     let test_case: TestCase =
