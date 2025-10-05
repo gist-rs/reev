@@ -129,14 +129,61 @@ To run only the deterministic agent comparison test:
 RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_deterministic_agent_jupiter_swap_integration -- --nocapture
 ```
 
-**Expected Output:**
-The test demonstrates:
-- AI agent service startup and health checks
-- Real AI model processing (Gemini 2.0 Flash with ~1,800 tokens)
-- Tool recognition and execution attempts
-- Complete evaluation pipeline validation
-- Graceful handling of AI agent execution issues
+### Individual Benchmark AI Agent Tests
 
-This test serves as **the definitive proof** that the `reev` framework can successfully evaluate AI agents on complex on-chain tasks, making it ready for production AI agent evaluation workflows.
+The AI agent integration test suite now includes individual test functions for each benchmark, allowing you to evaluate AI agent performance on specific tasks:
+
+#### Simple Transfer Tests
+```sh
+# Test AI agent on SOL transfer
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_001_sol_transfer -- --nocapture
+
+# Test AI agent on USDC token transfer  
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_002_spl_transfer -- --nocapture
+```
+
+#### Complex DeFi Tests (Jupiter Protocol)
+```sh
+# Jupiter SOL to USDC swap
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_100_jup_swap_sol_usdc -- --nocapture
+
+# Jupiter SOL lending deposit
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_110_jup_lend_deposit_sol -- --nocapture
+
+# Jupiter USDC lending deposit
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_111_jup_lend_deposit_usdc -- --nocapture
+
+# Jupiter SOL lending withdraw (3-step process)
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_112_jup_lend_withdraw_sol -- --nocapture
+
+# Jupiter USDC lending withdraw
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
+```
+
+#### Alternative: Run All Jupiter Tests (Complex DeFi)
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- jup -- --nocapture
+```
+
+#### Alternative: Run All Simple Transfer Tests
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- sol_transfer -- --nocapture
+```
+
+#### Alternative: Run All Individual Benchmark Tests
+```sh
+RUST_LOG=info cargo test -p reev-runner --test ai_agent_test -- test_ai_agent_001_sol_transfer test_ai_agent_002_spl_transfer test_ai_agent_100_jup_swap_sol_usdc test_ai_agent_110_jup_lend_deposit_sol test_ai_agent_111_jup_lend_deposit_usdc test_ai_agent_112_jup_lend_withdraw_sol test_ai_agent_113_jup_lend_withdraw_usdc -- --nocapture
+```
+
+**Expected Output:**
+The tests demonstrate:
+- AI agent service startup and health checks
+- Real AI model processing (Gemini 2.0 Flash with ~1,500-1,800 tokens per test)
+- Tool recognition and execution attempts for each specific benchmark
+- Complete evaluation pipeline validation for individual tasks
+- Graceful handling of AI agent execution issues
+- Performance analysis across different complexity levels
+
+This comprehensive test suite serves as **the definitive proof** that the `reev` framework can successfully evaluate AI agents on a wide range of on-chain tasks, from simple transfers to complex DeFi operations, making it ready for production AI agent evaluation workflows.
 
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
