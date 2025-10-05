@@ -30,19 +30,12 @@ pub(crate) async fn handle_jup_swap_sol_usdc(
     let input_mint = native_mint::ID;
     let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
     let amount = 100_000_000; // 0.1 SOL
-    let slippage_bps = 500; // 5%
+    let _slippage_bps = 500; // 5%
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions (setup, swap, cleanup) needed for the transaction.
-    let instructions = handle_jupiter_swap(
-        user_pubkey,
-        input_mint,
-        output_mint,
-        amount,
-        slippage_bps,
-        key_map,
-    )
-    .await?;
+    let instructions =
+        handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, key_map).await?;
 
     info!(
         "[reev-agent] Successfully received {} instructions. Responding to runner.",

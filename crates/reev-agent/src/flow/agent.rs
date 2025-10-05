@@ -19,8 +19,9 @@ use crate::{
     },
     tools::{
         jupiter_lend_deposit::JupiterLendDepositTool,
-        jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
-        sol_transfer::SolTransferTool, spl_transfer::SplTransferTool,
+        jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_positions::JupiterPositionsTool,
+        jupiter_swap::JupiterSwapTool, sol_transfer::SolTransferTool,
+        spl_transfer::SplTransferTool,
     },
     LlmRequest,
 };
@@ -99,6 +100,12 @@ impl FlowAgent {
         tools.insert(
             "jupiter_lend_withdraw".to_string(),
             Box::new(JupiterLendWithdrawTool { key_map }) as Box<dyn ToolDyn>,
+        );
+        tools.insert(
+            "jupiter_positions".to_string(),
+            Box::new(JupiterPositionsTool {
+                key_map: HashMap::new(),
+            }) as Box<dyn ToolDyn>,
         );
 
         info!(
@@ -295,6 +302,15 @@ impl FlowAgent {
             && self.tools.contains_key("jupiter_lend_withdraw")
         {
             relevant_tools.push("jupiter_lend_withdraw".to_string());
+        }
+
+        if (prompt_lower.contains("positions")
+            || prompt_lower.contains("earn")
+            || prompt_lower.contains("portfolio")
+            || prompt_lower.contains("balance"))
+            && self.tools.contains_key("jupiter_positions")
+        {
+            relevant_tools.push("jupiter_positions".to_string());
         }
 
         if prompt_lower.contains("sol")

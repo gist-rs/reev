@@ -11,8 +11,8 @@ use tracing::info;
 use crate::{
     prompt::SYSTEM_PREAMBLE,
     tools::{
-        JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool, SolTransferTool,
-        SplTransferTool,
+        JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterPositionsTool, JupiterSwapTool,
+        SolTransferTool, SplTransferTool,
     },
     LlmRequest,
 };
@@ -73,7 +73,10 @@ async fn run_gemini_agent(
     let jupiter_lend_deposit_tool = JupiterLendDepositTool {
         key_map: key_map.clone(),
     };
-    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool { key_map };
+    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_positions_tool = JupiterPositionsTool { key_map };
 
     let agent = client
         .agent(model_name)
@@ -84,6 +87,7 @@ async fn run_gemini_agent(
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
+        .tool(jupiter_positions_tool)
         .build();
 
     let full_prompt = format!(
@@ -112,7 +116,10 @@ async fn run_openai_compatible_agent(
     let jupiter_lend_deposit_tool = JupiterLendDepositTool {
         key_map: key_map.clone(),
     };
-    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool { key_map };
+    let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_positions_tool = JupiterPositionsTool { key_map };
 
     let agent = client
         .completion_model(model_name)
@@ -124,6 +131,7 @@ async fn run_openai_compatible_agent(
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
+        .tool(jupiter_positions_tool)
         .build();
 
     let full_prompt = format!(

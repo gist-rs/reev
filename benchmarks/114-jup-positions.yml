@@ -1,0 +1,94 @@
+id: 114-JUP-POSITIONS
+description: A benchmark to test fetching and displaying Jupiter lending positions for a user.
+tags: ["jupiter", "positions", "earn", "portfolio", "balance", "lending"]
+
+initial_state:
+  # User's main wallet with 2 SOL for transaction fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 2000000000 # 2 SOL
+
+prompt: "Show my Jupiter earn positions and portfolio."
+
+flow:
+  - step: 1
+    description: "Fetch Jupiter lending positions for user"
+    prompt: "Show my jupiter earn positions. I want to see all my lending positions, including token details, balances, current rates, and USD values."
+    critical: true
+    timeout: 15
+
+ground_truth:
+  min_score: 0.7
+
+  # The main success metric is that the tool successfully fetches and displays positions
+  expected_api_calls:
+    - service: "jupiter_positions"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+      expected_params: ["users"]
+      weight: 0.8
+      critical: true
+
+  # Verify the response structure and content
+  response_validation:
+    - field: "total_positions"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - field: "positions_with_balance"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - field: "summary"
+      type: "array"
+      weight: 0.3
+    - field: "raw_positions"
+      type: "array"
+      weight: 0.3
+
+  # Expected data structure in the response
+  expected_data_structure:
+    - path: "$.summary[*].token.symbol"
+      type: "string"
+      expected_values: ["jlUSDC", "jlUSDT", "jlSOL", "jlEURC", "jlUSDS", "jlUSDG"]
+      weight: 0.2
+    - path: "$.summary[*].position.underlying_balance_decimal"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - path: "$.summary[*].rates.supply_rate_pct"
+      type: "number"
+      min_value: 0
+      weight: 0.2
+    - path: "$.summary[*].asset.price"
+      type: "string"
+      pattern: "^[0-9]+\\.[0-9]+$"
+      weight: 0.2
+
+  success_criteria:
+    - type: "api_call_success"
+      description: "Successfully called Jupiter positions API"
+      required: true
+      weight: 0.4
+
+    - type: "response_structure_valid"
+      description: "Response contains all required fields and correct structure"
+      required: true
+      weight: 0.3
+
+    - type: "data_completeness"
+      description: "All position data fields are present and properly formatted"
+      required: true
+      weight: 0.3
+
+  # Tool execution validation
+  tool_validation:
+    - tool_name: "jupiter_positions"
+      required: true
+      expected_params: ["user_pubkey"]
+      success_indicators:
+        - "total_positions"
+        - "summary"
+        - "raw_positions"
+      weight: 0.8
+      critical: true

@@ -97,7 +97,6 @@ impl Tool for JupiterSwapTool {
             input_mint,
             output_mint,
             args.amount,
-            args.slippage_bps,
             &self.key_map,
         )
         .await?;
