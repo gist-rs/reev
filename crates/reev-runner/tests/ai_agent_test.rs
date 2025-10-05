@@ -53,15 +53,23 @@ impl Drop for AgentProcessGuard {
 async fn get_or_create_shared_agent() -> Result<Arc<Mutex<Option<AgentProcessGuard>>>> {
     let agent = SHARED_AGENT.get_or_init(|| Arc::new(Mutex::new(None)));
 
-    let mut guard = agent.lock().unwrap();
-    if guard.is_none() {
-        info!("🚀 Starting shared reev-agent service...");
-        let process_guard = start_agent_process().await?;
+    {
+        let guard = agent.lock().unwrap();
+        if guard.is_some() {
+            info!("♻️  Using existing shared reev-agent service");
+            return Ok(agent.clone());
+        }
+    } // guard is dropped here
+
+    info!("🚀 Starting shared reev-agent service...");
+    let process_guard = start_agent_process().await?;
+
+    {
+        let mut guard = agent.lock().unwrap();
         *guard = Some(process_guard);
-        info!("✅ Shared reev-agent service started");
-    } else {
-        info!("♻️  Using existing shared reev-agent service");
-    }
+    } // guard is dropped here
+
+    info!("✅ Shared reev-agent service started");
     Ok(agent.clone())
 }
 
