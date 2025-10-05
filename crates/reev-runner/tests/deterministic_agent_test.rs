@@ -116,109 +116,132 @@ async fn test_all_benchmarks_with_deterministic_agent(
         info!("✅ Environment setup complete for {}", test_case.id);
 
         // 2. Get the "perfect" action for this benchmark and execute.
-        if test_case.id == "112-JUP-LEND-WITHDRAW-SOL" {
-            info!("[Test] Jupiter SOL lend deposit-withdraw benchmark detected (3-step).");
+        match test_case.id.as_str() {
+            "112-JUP-LEND-WITHDRAW-SOL" => {
+                info!("[Test] Jupiter SOL lend deposit-withdraw benchmark detected (3-step).");
 
-            // --- Step 1: Deposit ---
-            info!("Preparing Jupiter deposit (step 1)...");
-            let deposit_instructions =
-                prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
+                // --- Step 1: Deposit ---
+                info!("Preparing Jupiter deposit (step 1)...");
+                let deposit_instructions =
+                    prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
+                        .await?;
+                let deposit_actions: Vec<AgentAction> =
+                    deposit_instructions.into_iter().map(AgentAction).collect();
+                info!("Executing Jupiter deposit (step 1)...");
+                let deposit_step_result =
+                    env.step(deposit_actions.clone(), &test_case.ground_truth)?;
+                info!("✅ Deposit complete.");
+
+                // --- Step 2 & 3: Withdraw & Unwrap ---
+                info!("Preparing Jupiter withdrawal (step 2 & 3)...");
+                let (withdraw_instructions, unwrap_instruction) =
+                    prepare_jupiter_lend_withdraw_sol(
+                        &env,
+                        &test_case,
+                        &deposit_step_result.observation.key_map,
+                    )
                     .await?;
-            let deposit_actions: Vec<AgentAction> =
-                deposit_instructions.into_iter().map(AgentAction).collect();
-            info!("Executing Jupiter deposit (step 1)...");
-            let deposit_step_result = env.step(deposit_actions.clone(), &test_case.ground_truth)?;
-            info!("✅ Deposit complete.");
 
-            // --- Step 2 & 3: Withdraw & Unwrap ---
-            info!("Preparing Jupiter withdrawal (step 2 & 3)...");
-            let (withdraw_instructions, unwrap_instruction) = prepare_jupiter_lend_withdraw_sol(
-                &env,
-                &test_case,
-                &deposit_step_result.observation.key_map,
-            )
-            .await?;
+                // Step 2: Execute Jupiter withdrawal
+                let withdraw_actions: Vec<AgentAction> =
+                    withdraw_instructions.into_iter().map(AgentAction).collect();
+                info!("Executing Jupiter withdrawal (step 2)...");
+                let _ = env.step(withdraw_actions.clone(), &test_case.ground_truth)?;
+                info!("✅ Withdrawal complete.");
 
-            // Step 2: Execute Jupiter withdrawal
-            let withdraw_actions: Vec<AgentAction> =
-                withdraw_instructions.into_iter().map(AgentAction).collect();
-            info!("Executing Jupiter withdrawal (step 2)...");
-            let _ = env.step(withdraw_actions.clone(), &test_case.ground_truth)?;
-            info!("✅ Withdrawal complete.");
+                // Step 3: Execute unwrap
+                let unwrap_actions = vec![AgentAction(unwrap_instruction)];
+                info!("Executing WSOL unwrap (step 3)...");
+                let final_step_result =
+                    env.step(unwrap_actions.clone(), &test_case.ground_truth)?;
+                info!("✅ Unwrap complete.");
 
-            // Step 3: Execute unwrap
-            let unwrap_actions = vec![AgentAction(unwrap_instruction)];
-            info!("Executing WSOL unwrap (step 3)...");
-            let final_step_result = env.step(unwrap_actions.clone(), &test_case.ground_truth)?;
-            info!("✅ Unwrap complete.");
-
-            // Score based on the final state after all steps.
-            let all_actions = [deposit_actions, withdraw_actions, unwrap_actions].concat();
-            let score = calculate_final_score(
-                &test_case,
-                &all_actions,
-                &initial_observation,
-                &final_step_result.observation,
-            );
-            info!(
-                "📊 Calculated score for '{}': {}",
-                benchmark_path.display(),
-                score
-            );
-            assert_eq!(
-                score,
-                1.0,
-                "Benchmark '{}' should be solvable with a perfect score, but got {}",
-                benchmark_path.display(),
-                score
-            );
-        } else {
-            // Standard 1-step logic for all other benchmarks.
-            let instructions = if test_case.id == "100-JUP-SWAP-SOL-USDC" {
-                info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
-                prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
-            } else if test_case.id == "110-JUP-LEND-DEPOSIT-SOL" {
-                info!("[Test] Jupiter SOL lend benchmark detected. Preparing environment...");
-                prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map).await?
-            } else if test_case.id == "111-JUP-LEND-DEPOSIT-USDC" {
-                info!(
-                    "[Test] Jupiter USDC lend deposit benchmark detected. Preparing environment..."
+                // Score based on the final state after all steps.
+                let all_actions = [deposit_actions, withdraw_actions, unwrap_actions].concat();
+                let score = calculate_final_score(
+                    &test_case,
+                    &all_actions,
+                    &initial_observation,
+                    &final_step_result.observation,
                 );
-                prepare_jupiter_lend_deposit_usdc(&env, &test_case, &initial_observation.key_map)
-                    .await?
-            } else if test_case.id == "113-JUP-LEND-WITHDRAW-USDC" {
                 info!(
-                    "[Test] Jupiter USDC lend withdraw benchmark detected. Preparing environment..."
+                    "📊 Calculated score for '{}': {}",
+                    benchmark_path.display(),
+                    score
                 );
-                prepare_jupiter_lend_withdraw_usdc(&env, &test_case, &initial_observation.key_map)
-                    .await?
-            } else {
-                info!("[Test] Simple benchmark detected. Creating mock instruction...");
-                let instruction =
-                    mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
-                vec![instruction]
-            };
+                assert_eq!(
+                    score,
+                    1.0,
+                    "Benchmark '{}' should be solvable with a perfect score, but got {}",
+                    benchmark_path.display(),
+                    score
+                );
+            }
+            _ => {
+                // Standard 1-step logic for all other benchmarks.
+                let instructions = match test_case.id.as_str() {
+                    "100-JUP-SWAP-SOL-USDC" => {
+                        info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
+                        prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
+                    }
+                    "110-JUP-LEND-DEPOSIT-SOL" => {
+                        info!(
+                            "[Test] Jupiter SOL lend benchmark detected. Preparing environment..."
+                        );
+                        prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
+                            .await?
+                    }
+                    "111-JUP-LEND-DEPOSIT-USDC" => {
+                        info!(
+                            "[Test] Jupiter USDC lend deposit benchmark detected. Preparing environment..."
+                        );
+                        prepare_jupiter_lend_deposit_usdc(
+                            &env,
+                            &test_case,
+                            &initial_observation.key_map,
+                        )
+                        .await?
+                    }
+                    "113-JUP-LEND-WITHDRAW-USDC" => {
+                        info!(
+                            "[Test] Jupiter USDC lend withdraw benchmark detected. Preparing environment..."
+                        );
+                        prepare_jupiter_lend_withdraw_usdc(
+                            &env,
+                            &test_case,
+                            &initial_observation.key_map,
+                        )
+                        .await?
+                    }
+                    _ => {
+                        info!("[Test] Simple benchmark detected. Creating mock instruction...");
+                        let instruction =
+                            mock_perfect_instruction(&test_case, &initial_observation.key_map)?;
+                        vec![instruction]
+                    }
+                };
 
-            let actions: Vec<AgentAction> = instructions.into_iter().map(AgentAction).collect();
-            let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
-            let score = calculate_final_score(
-                &test_case,
-                &actions,
-                &initial_observation,
-                &step_result.observation,
-            );
-            info!(
-                "📊 Calculated score for '{}': {}",
-                benchmark_path.display(),
-                score
-            );
-            assert_eq!(
-                score,
-                1.0,
-                "Benchmark '{}' should be solvable with a perfect score, but got {}",
-                benchmark_path.display(),
-                score
-            );
+                let actions: Vec<AgentAction> = instructions.into_iter().map(AgentAction).collect();
+                let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
+                let score = calculate_final_score(
+                    &test_case,
+                    &actions,
+                    &initial_observation,
+                    &step_result.observation,
+                );
+                info!(
+                    "📊 Calculated score for '{}': {}",
+                    benchmark_path.display(),
+                    score
+                );
+                assert_eq!(
+                    score,
+                    1.0,
+                    "Benchmark '{}' should be solvable with a perfect score, but got {}",
+                    benchmark_path.display(),
+                    score
+                );
+            }
         }
         env.close()?;
     }
