@@ -8,9 +8,11 @@ use regex::Regex;
 use rig::tool::ToolDyn;
 use serde_json::json;
 use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::{error, info, warn};
 
 use crate::{
+    agents::run_agent,
     flow::{
         benchmark::FlowBenchmark,
         state::{FlowState, SolanaInstruction, StepResult, StepStatus},
@@ -20,10 +22,13 @@ use crate::{
         jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
         sol_transfer::SolTransferTool, spl_transfer::SplTransferTool,
     },
+    LlmRequest,
 };
 
 /// RAG-based flow agent capable of orchestrating multi-step DeFi workflows
 pub struct FlowAgent {
+    /// Model name for the agent
+    model_name: String,
     /// Available tools for the flow agent
     tools: HashMap<String, Box<dyn ToolDyn>>,
     /// Current conversation state
@@ -32,10 +37,18 @@ pub struct FlowAgent {
 
 impl FlowAgent {
     /// Create a new FlowAgent with the specified model
-    pub async fn new(_model_name: &str) -> Result<Self> {
+    pub async fn new(model_name: &str) -> Result<Self> {
         info!(
             "[FlowAgent] Initializing flow agent with model: {}",
-            _model_name
+            model_name
+        );
+
+        // Create real pubkeys for the key_map like existing examples
+        let user_wallet_pubkey = solana_sdk::pubkey::Pubkey::new_unique();
+        let mut key_map = HashMap::new();
+        key_map.insert(
+            "USER_WALLET_PUBKEY".to_string(),
+            user_wallet_pubkey.to_string(),
         );
 
         // Create toolset with all available flow tools
@@ -43,12 +56,24 @@ impl FlowAgent {
 
         let state = FlowState::new(0); // Will be updated when benchmark is loaded
 
-        Ok(Self { tools, state })
+        Ok(Self {
+            model_name: model_name.to_string(),
+            tools,
+            state,
+        })
     }
 
     /// Create the toolset with all available flow tools
     async fn create_toolset() -> Result<HashMap<String, Box<dyn ToolDyn>>> {
         let mut tools: HashMap<String, Box<dyn ToolDyn>> = HashMap::new();
+
+        // Create real pubkeys for the key_map like existing examples
+        let user_wallet_pubkey = solana_sdk::pubkey::Pubkey::new_unique();
+        let mut key_map = HashMap::new();
+        key_map.insert(
+            "USER_WALLET_PUBKEY".to_string(),
+            user_wallet_pubkey.to_string(),
+        );
 
         // Initialize each tool
         tools.insert(
@@ -62,20 +87,18 @@ impl FlowAgent {
         tools.insert(
             "jupiter_swap".to_string(),
             Box::new(JupiterSwapTool {
-                key_map: std::collections::HashMap::new(),
+                key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
         tools.insert(
             "jupiter_lend_deposit".to_string(),
             Box::new(JupiterLendDepositTool {
-                key_map: std::collections::HashMap::new(),
+                key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
         tools.insert(
             "jupiter_lend_withdraw".to_string(),
-            Box::new(JupiterLendWithdrawTool {
-                key_map: std::collections::HashMap::new(),
-            }) as Box<dyn ToolDyn>,
+            Box::new(JupiterLendWithdrawTool { key_map }) as Box<dyn ToolDyn>,
         );
 
         info!(
@@ -136,7 +159,7 @@ impl FlowAgent {
                 .add_context("current_step".to_string(), step.step.to_string());
 
             // Execute the step with multi-turn conversation
-            let step_result = self.execute_step(step, &enriched_prompt).await?;
+            let step_result = self.execute_step(step, &enriched_prompt, benchmark).await?;
 
             // Store the result
             let step_id = format!("step_{}", step.step);
@@ -169,6 +192,7 @@ impl FlowAgent {
         &mut self,
         step: &crate::flow::benchmark::FlowStep,
         prompt: &str,
+        benchmark: &FlowBenchmark,
     ) -> Result<StepResult> {
         let start_time = chrono::Utc::now().to_rfc3339();
         let start_time_clone = start_time.clone();
@@ -184,40 +208,22 @@ impl FlowAgent {
             relevant_tools
         );
 
-        // Execute tools and collect instructions
-        let mut all_instructions = Vec::new();
-        let mut tool_results = Vec::new();
+        // Execute real LLM with multi-turn conversation using existing agent infrastructure
+        let enriched_prompt = self.enrich_prompt(prompt, benchmark);
 
-        for tool_name in &relevant_tools {
-            if let Some(_tool) = self.tools.get(tool_name) {
-                info!("[FlowAgent] Executing tool: {}", tool_name);
+        // Create the LLM request using existing agent infrastructure
+        let llm_request = LlmRequest {
+            id: format!("flow-{}-{}", benchmark.id, step.step),
+            prompt: enriched_prompt.clone(),
+            context_prompt: self.build_context_prompt(benchmark, step)?,
+            model_name: self.model_name.clone(),
+        };
 
-                // Create arguments for the tool
-                let tool_args = self.create_tool_args(tool_name, prompt)?;
+        // Call the existing agent infrastructure
+        let response = run_agent(&self.model_name, llm_request).await?;
 
-                // Execute the tool (simulate tool call for now)
-                let tool_result = self.simulate_tool_call(tool_name, &tool_args).await?;
-
-                // Parse instructions from tool result
-                let instructions = self.parse_tool_result(&tool_result)?;
-                all_instructions.extend(instructions);
-                tool_results.push(tool_result);
-
-                info!("[FlowAgent] Tool {} executed successfully", tool_name);
-            } else {
-                warn!("[FlowAgent] Tool {} not found in toolset", tool_name);
-            }
-        }
-
-        // Create combined response
-        let response = json!({
-            "tools_executed": relevant_tools,
-            "tool_results": tool_results,
-            "total_instructions": all_instructions.len()
-        })
-        .to_string();
-
-        let instructions = all_instructions;
+        // Parse instructions from LLM response
+        let instructions = self.parse_instructions(&response)?;
 
         // Create step result
         let step_result = StepResult {
@@ -441,99 +447,33 @@ impl FlowAgent {
         })
     }
 
-    /// Create tool arguments based on the prompt and tool type
-    fn create_tool_args(&self, tool_name: &str, _prompt: &str) -> Result<serde_json::Value> {
-        match tool_name {
-            "jupiter_swap" => {
-                // Extract swap parameters from prompt
-                let args = serde_json::json!({
-                    "user_pubkey": "USER_WALLET_PUBKEY",
-                    "input_mint": "So11111111111111111111111111111111111111112", // SOL
-                    "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                    "amount": 500000000, // 0.5 SOL in lamports
-                    "slippage_bps": 50 // 0.5%
-                });
-                Ok(args)
-            }
-            "jupiter_lend_deposit" => {
-                // Extract deposit parameters from prompt
-                let args = serde_json::json!({
-                    "user_pubkey": "USER_WALLET_PUBKEY",
-                    "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                    "amount": 50000000 // Expected USDC amount
-                });
-                Ok(args)
-            }
-            "jupiter_lend_withdraw" => {
-                // Extract withdraw parameters from prompt
-                let args = serde_json::json!({
-                    "user_pubkey": "USER_WALLET_PUBKEY",
-                    "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                    "amount": 50000000 // Expected USDC amount
-                });
-                Ok(args)
-            }
-            "sol_transfer" => {
-                let args = serde_json::json!({
-                    "from_pubkey": "USER_WALLET_PUBKEY",
-                    "to_pubkey": "RECIPIENT_PUBKEY",
-                    "lamports": 100000000
-                });
-                Ok(args)
-            }
-            "spl_transfer" => {
-                let args = serde_json::json!({
-                    "from_pubkey": "USER_WALLET_PUBKEY",
-                    "to_pubkey": "RECIPIENT_PUBKEY",
-                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "amount": 1000000
-                });
-                Ok(args)
-            }
-            _ => Err(anyhow::anyhow!("Unknown tool: {tool_name}")),
-        }
-    }
+    /// Build the context prompt for the agent
+    fn build_context_prompt(
+        &self,
+        _benchmark: &FlowBenchmark,
+        _step: &crate::flow::benchmark::FlowStep,
+    ) -> Result<String> {
+        // Create key_map with real pubkeys like existing examples
+        let user_wallet_pubkey = solana_sdk::pubkey::Pubkey::new_unique();
+        let usdc_mint =
+            solana_sdk::pubkey::Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map_err(|e| anyhow::anyhow!("Failed to parse USDC mint pubkey: {e}"))?;
+        let user_usdc_ata = solana_sdk::pubkey::Pubkey::new_unique();
 
-    /// Parse tool result to extract instructions
-    fn parse_tool_result(&self, result: &str) -> Result<Vec<SolanaInstruction>> {
-        // Try to parse the result as JSON instructions
-        match serde_json::from_str::<serde_json::Value>(result) {
-            Ok(value) => {
-                if let Some(instructions) = value.as_array() {
-                    let mut parsed_instructions = Vec::new();
-                    for instruction in instructions {
-                        if let Some(obj) = instruction.as_object() {
-                            let parsed = self.parse_single_instruction(obj)?;
-                            parsed_instructions.push(parsed);
-                        }
-                    }
-                    Ok(parsed_instructions)
-                } else {
-                    // If it's not an array, try to parse as single instruction
-                    if let Some(obj) = value.as_object() {
-                        let parsed = self.parse_single_instruction(obj)?;
-                        Ok(vec![parsed])
-                    } else {
-                        // Create a fallback instruction
-                        Ok(vec![SolanaInstruction {
-                            program_id: "unknown".to_string(),
-                            accounts: Vec::new(),
-                            data: result.to_string(),
-                            should_succeed: true,
-                        }])
-                    }
-                }
-            }
-            Err(_) => {
-                // If parsing fails, create a fallback instruction
-                Ok(vec![SolanaInstruction {
-                    program_id: "unknown".to_string(),
-                    accounts: Vec::new(),
-                    data: result.to_string(),
-                    should_succeed: true,
-                }])
-            }
-        }
+        let mut key_map = std::collections::HashMap::new();
+        key_map.insert(
+            "USER_WALLET_PUBKEY".to_string(),
+            user_wallet_pubkey.to_string(),
+        );
+        key_map.insert("USDC_MINT".to_string(), usdc_mint.to_string());
+        key_map.insert("USER_USDC_ATA".to_string(), user_usdc_ata.to_string());
+
+        // Create proper YAML context like existing examples
+        let context_yaml = serde_yaml::to_string(&json!({ "key_map": key_map }))
+            .map_err(|e| anyhow::anyhow!("Failed to create YAML: {e}"))?;
+        let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
+
+        Ok(context_prompt)
     }
 
     /// Get the current flow state
@@ -549,96 +489,6 @@ impl FlowAgent {
     /// Reset the flow state
     pub fn reset_state(&mut self) {
         self.state = FlowState::new(0);
-    }
-
-    /// Simulate tool execution (would be actual tool calls in production)
-    async fn simulate_tool_call(
-        &self,
-        tool_name: &str,
-        args: &serde_json::Value,
-    ) -> Result<String> {
-        match tool_name {
-            "jupiter_swap" => Ok(json!({
-                "swap_executed": true,
-                "input_mint": args["input_mint"],
-                "output_mint": args["output_mint"],
-                "amount": args["amount"],
-                "program_id": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-                "instructions": [
-                    {
-                        "program_id": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-                        "accounts": ["USER_WALLET_PUBKEY", "JUP_TOKEN_ACCOUNT"],
-                        "data": "swap_instruction_data",
-                        "should_succeed": true
-                    }
-                ]
-            })
-            .to_string()),
-            "jupiter_lend_deposit" => Ok(json!({
-                "deposit_executed": true,
-                "asset_mint": args["asset_mint"],
-                "amount": args["amount"],
-                "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
-                "instructions": [
-                    {
-                        "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
-                        "accounts": ["USER_WALLET_PUBKEY", "USDC_TOKEN_ACCOUNT"],
-                        "data": "deposit_instruction_data",
-                        "should_succeed": true
-                    }
-                ]
-            })
-            .to_string()),
-            "sol_transfer" => Ok(json!({
-                "transfer_executed": true,
-                "from": args["from_pubkey"],
-                "to": args["to_pubkey"],
-                "lamports": args["lamports"],
-                "program_id": "11111111111111111111111111111111",
-                "instructions": [
-                    {
-                        "program_id": "11111111111111111111111111111111",
-                        "accounts": [args["from_pubkey"], args["to_pubkey"]],
-                        "data": "transfer_instruction_data",
-                        "should_succeed": true
-                    }
-                ]
-            })
-            .to_string()),
-            "spl_transfer" => Ok(json!({
-                "transfer_executed": true,
-                "from": args["from_pubkey"],
-                "to": args["to_pubkey"],
-                "mint": args["mint"],
-                "amount": args["amount"],
-                "program_id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                "instructions": [
-                    {
-                        "program_id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                        "accounts": [args["from_pubkey"], args["to_pubkey"], args["mint"]],
-                        "data": "spl_transfer_instruction_data",
-                        "should_succeed": true
-                    }
-                ]
-            })
-            .to_string()),
-            "jupiter_lend_withdraw" => Ok(json!({
-                "withdraw_executed": true,
-                "asset_mint": args["asset_mint"],
-                "amount": args["amount"],
-                "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
-                "instructions": [
-                    {
-                        "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
-                        "accounts": ["USER_WALLET_PUBKEY", "USDC_TOKEN_ACCOUNT"],
-                        "data": "withdraw_instruction_data",
-                        "should_succeed": true
-                    }
-                ]
-            })
-            .to_string()),
-            _ => Err(anyhow::anyhow!("Unknown tool: {tool_name}")),
-        }
     }
 }
 

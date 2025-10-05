@@ -16,7 +16,10 @@
 
 use anyhow::Result;
 use reev_agent::flow::{FlowAgent, FlowBenchmark};
+use reqwest::Client;
+use solana_client::rpc_client::RpcClient;
 use std::fs;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,6 +31,28 @@ async fn main() -> Result<()> {
 
     println!("🚀 Multi-Step Flow Agent Example");
     println!("================================");
+
+    // Check prerequisites
+    println!("\n🔍 Checking prerequisites...");
+
+    // Check if surfpool is running
+    let surfpool_available = check_surfpool_available().await;
+    if !surfpool_available {
+        eprintln!("❌ surfpool is not available. Please install and start surfpool:");
+        eprintln!("   brew install txtx/taps/surfpool && surfpool");
+        return Ok(());
+    }
+    println!("✅ surfpool is available");
+
+    // Check if LLM server is running
+    let llm_available = check_llm_server_available().await;
+    if !llm_available {
+        eprintln!("❌ LLM server is not available. Please start a local LLM server:");
+        eprintln!("   - LM Studio: http://localhost:1234");
+        eprintln!("   - Or set GOOGLE_API_KEY in .env for Gemini");
+        return Ok(());
+    }
+    println!("✅ LLM server is available");
 
     // Load the multi-step benchmark
     println!("📋 Loading flow benchmark...");
@@ -42,11 +67,41 @@ async fn main() -> Result<()> {
     println!("✅ Flow benchmark loaded: {}", benchmark.id);
     println!("📊 Flow summary:\n{}", benchmark.get_summary());
 
-    // Create the flow agent
+    // Check prerequisites
+    println!("\n🔍 Checking prerequisites...");
+
+    // Check if surfpool is running
+    let surfpool_available = check_surfpool_available().await;
+    if !surfpool_available {
+        eprintln!("❌ surfpool is not available. Please install and start surfpool:");
+        eprintln!("   brew install txtx/taps/surfpool && surfpool");
+        return Ok(());
+    }
+    println!("✅ surfpool is available");
+
+    // Check if LLM server is running
+    let llm_available = check_llm_server_available().await;
+    if !llm_available {
+        eprintln!("❌ LLM server is not available. Please start a local LLM server:");
+        eprintln!("   - LM Studio on localhost:1234");
+        eprintln!("   - Or set GEMINI_API_KEY in .env for Gemini");
+        return Ok(());
+    }
+    println!("✅ LLM server is available");
+
+    // Create the flow agent with real model
     println!("\n🤖 Initializing Flow Agent...");
-    let mut flow_agent = FlowAgent::new("local-model")
+    let model_name = if std::env::var("GEMINI_API_KEY").is_ok() {
+        "gemini-2.0-flash"
+    } else {
+        "llama-3.2-3b-instruct" // Common LM Studio model
+    };
+
+    let mut flow_agent = FlowAgent::new(model_name)
         .await
         .expect("Failed to create flow agent");
+
+    println!("✅ FlowAgent initialized with model: {model_name}");
 
     // Load the benchmark into the agent
     println!("📥 Loading benchmark into agent...");
@@ -140,4 +195,44 @@ async fn main() -> Result<()> {
     println!("• Handle complex DeFi operations end-to-end");
 
     Ok(())
+}
+
+/// Checks if surfpool is running and accessible.
+async fn check_surfpool_available() -> bool {
+    let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
+    for _attempt in 0..5 {
+        if rpc_client.get_health().is_ok() {
+            info!("✅ surfpool is available at http://127.0.0.1:8899");
+            return true;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+    warn!("❌ surfpool is not available at http://127.0.0.1:8899");
+    false
+}
+
+/// Checks if LLM server is running and accessible.
+async fn check_llm_server_available() -> bool {
+    // Check for Gemini API key first
+    if std::env::var("GOOGLE_API_KEY").is_ok() {
+        info!("✅ Gemini API key found");
+        return true;
+    }
+
+    // Check for local LLM server
+    let client = Client::new();
+    for _attempt in 0..5 {
+        if client
+            .get("http://localhost:1234/v1/models")
+            .send()
+            .await
+            .is_ok()
+        {
+            info!("✅ LLM server is available at http://localhost:1234");
+            return true;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+    warn!("❌ LLM server is not available at http://localhost:1234");
+    false
 }
