@@ -289,6 +289,7 @@ async fn test_llm_agent_on_all_benchmarks(
                 &test_case.prompt,
                 &initial_observation,
                 Some(&"USER_WALLET_PUBKEY".to_string()),
+                Some(test_case.ground_truth.skip_instruction_validation),
             )
             .await
         {

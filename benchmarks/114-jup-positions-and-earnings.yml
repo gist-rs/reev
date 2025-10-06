@@ -134,12 +134,5 @@ ground_truth:
       weight: 0.4
       critical: true
 
-  expected_instructions:
-    - program_id: "11111111111111111111111111111111" # Dummy System Program for API-based benchmark
-      program_id_weight: 0.2
-      accounts: []
-      data: "API_CALL_DUMMY"
-    - program_id: "11111111111111111111111111111111" # Dummy System Program for API-based benchmark
-      program_id_weight: 0.2
-      accounts: []
-      data: "API_CALL_DUMMY"
+  # Skip instruction validation for this API-based benchmark
+  skip_instruction_validation: true

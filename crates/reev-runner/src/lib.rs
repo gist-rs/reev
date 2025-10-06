@@ -212,6 +212,7 @@ async fn run_evaluation_loop(
             &test_case.prompt,
             initial_observation,
             Some(&fee_payer.to_owned()),
+            Some(test_case.ground_truth.skip_instruction_validation),
         )
         .await?;
 

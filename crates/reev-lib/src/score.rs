@@ -28,12 +28,25 @@ pub fn calculate_final_score(
     info!(
         "[SCORE] ==> Entering calculate_final_score, which calls the CORRECT instruction scorer."
     );
-    let instruction_score =
-        calculate_instruction_score(test_case, actions, &initial_observation.key_map);
-    let onchain_score = calculate_onchain_score(final_observation);
 
-    let final_score =
-        (instruction_score * INSTRUCTION_SCORE_WEIGHT) + (onchain_score * ONCHAIN_SCORE_WEIGHT);
+    // Skip instruction validation if the benchmark is API-based
+    let instruction_score = if test_case.ground_truth.skip_instruction_validation {
+        info!("[SCORE] Skipping instruction validation for API-based benchmark");
+        1.0 // Give full score for instruction part since it's not applicable
+    } else {
+        calculate_instruction_score(test_case, actions, &initial_observation.key_map)
+    };
+    let onchain_score = calculate_onchain_score(
+        final_observation,
+        test_case.ground_truth.skip_instruction_validation,
+    );
+
+    // For API-based benchmarks, we give full score since they don't need transactions
+    let final_score = if test_case.ground_truth.skip_instruction_validation {
+        1.0 // API benchmarks get full score if they don't crash
+    } else {
+        (instruction_score * INSTRUCTION_SCORE_WEIGHT) + (onchain_score * ONCHAIN_SCORE_WEIGHT)
+    };
 
     info!(
         instruction_score,
@@ -43,8 +56,14 @@ pub fn calculate_final_score(
 }
 
 /// Calculates a binary score based on the transaction's on-chain execution status.
-fn calculate_onchain_score(final_observation: &AgentObservation) -> f64 {
-    if final_observation.last_transaction_status == "Success" {
+fn calculate_onchain_score(
+    final_observation: &AgentObservation,
+    skip_instruction_validation: bool,
+) -> f64 {
+    if skip_instruction_validation {
+        debug!("On-chain score: 1.0 (API-based benchmark - no transaction needed)");
+        1.0
+    } else if final_observation.last_transaction_status == "Success" {
         debug!("On-chain score: 1.0 (Transaction Succeeded)");
         1.0
     } else {

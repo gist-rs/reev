@@ -70,6 +70,11 @@ pub struct GroundTruth {
         rename = "expected_instructions"
     )]
     pub expected_instructions: Vec<BenchmarkInstruction>,
+
+    /// Whether to skip instruction validation for this benchmark.
+    /// Useful for API-based benchmarks where the agent returns data instead of instructions.
+    #[serde(default)]
+    pub skip_instruction_validation: bool,
 }
 
 /// Provides a default value for `transaction_status` for backward compatibility.

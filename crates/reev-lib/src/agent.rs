@@ -107,6 +107,7 @@ pub trait Agent {
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
+        skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>>;
 }
 

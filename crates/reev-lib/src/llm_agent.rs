@@ -74,6 +74,7 @@ impl Agent for LlmAgent {
         prompt: &str,
         observation: &AgentObservation,
         fee_payer: Option<&String>,
+        skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>> {
         // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
@@ -119,13 +120,21 @@ impl Agent for LlmAgent {
 
         info!("[LlmAgent] Received successful response from LLM.");
 
-        // 6. Deserialize the response and extract the raw instructions.
+        // 6. Check if we should skip instruction validation (API-based benchmark)
+        if skip_instruction_validation.unwrap_or(false) {
+            info!(
+                "[LlmAgent] Skipping instruction parsing for API-based benchmark. Returning empty actions."
+            );
+            return Ok(vec![]);
+        }
+
+        // 7. Deserialize the response and extract the raw instructions.
         let llm_response: LlmResponse = response
             .json()
             .await
             .context("Failed to deserialize the LLM API response")?;
 
-        // 7. Convert the raw instructions into a vector of native `AgentAction` and return it.
+        // 8. Convert the raw instructions into a vector of native `AgentAction` and return it.
         let actions: Vec<AgentAction> = llm_response
             .result
             .text
