@@ -84,8 +84,9 @@ async fn main() -> Result<()> {
     info!("Loaded prompt: '{}'", test_case.prompt);
 
     // 4. Create a mock context, simulating the runner's environment setup.
+    // Generate valid keys
     let user_wallet_pubkey = Pubkey::new_unique();
-    let user_jsol_ata = Pubkey::new_unique(); // The ATA for the Jupiter SOL L-Token
+    let user_jsol_ata = Pubkey::new_unique();
 
     let mut key_map = HashMap::new();
     key_map.insert("USER_WALLET_PUBKEY", user_wallet_pubkey.to_string());

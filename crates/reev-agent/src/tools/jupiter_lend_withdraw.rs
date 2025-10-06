@@ -60,7 +60,7 @@ impl Tool for JupiterLendWithdrawTool {
                 "properties": {
                     "user_pubkey": {
                         "type": "string",
-                        "description": "The public key of the user's wallet performing the withdrawal. This wallet must sign the transaction."
+                        "description": "The public key of the user's wallet performing the withdrawal. This should be a valid 44-character base58 encoded Solana public key. This wallet must sign the transaction."
                     },
                     "asset_mint": {
                         "type": "string",
