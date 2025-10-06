@@ -33,6 +33,7 @@ reqwest = { version = "0.12", features = ["json"] }
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
+async-trait = { workspace = true }
 solana-client = { workspace = true }
 solana-account-decoder = "2.0"
 solana-transaction-status = "2.0"

@@ -9,10 +9,16 @@ pub mod jupiter;
 #[cfg(feature = "native")]
 pub mod native;
 
+// Common protocol abstractions
+pub mod common;
+
 #[cfg(feature = "jupiter")]
 pub use jupiter::*;
 #[cfg(feature = "native")]
 pub use native::*;
+
+// Re-export common protocol utilities
+pub use common::*;
 
 /// Re-export configuration for convenience
 /// Note: Config is now inline in each protocol module

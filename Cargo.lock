@@ -3544,6 +3544,7 @@ name = "reev-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bs58",
  "chrono",
