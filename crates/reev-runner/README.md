@@ -29,7 +29,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 *   **Deterministic Agent (Default):**
     If the `--agent` flag is omitted, the runner defaults to the `deterministic` agent.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml
     ```
 
 *   **Cloud LLM Agent (e.g., Gemini):**
@@ -41,7 +41,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 *   **Local LLM Agent:**
     To run against a locally-served model, use the `local-model` agent name.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local-model
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local-model
     ```
 
 ## Testing
@@ -103,3 +103,26 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
 
 ---
 For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
+
+```
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/111-jup-lend-deposit-usdc.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/111-jup-lend-deposit-usdc.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/112-jup-lend-withdraw-sol.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/112-jup-lend-withdraw-sol.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/113-jup-lend-withdraw-usdc.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/113-jup-lend-withdraw-usdc.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agent local-model
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local-model
+```

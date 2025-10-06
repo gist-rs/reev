@@ -1,8 +1,11 @@
 //! Jupiter lend deposit tool wrapper
 //!
 //! This tool provides AI agent access to Jupiter's lend/deposit functionality.
+//! It correctly handles the on-chain prerequisites for depositing native SOL,
+//! which involves creating instructions to wrap SOL into WSOL before calling the
+//! Jupiter Program.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use bs58;
 use jup_sdk::{models::DepositParams, Jupiter};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
@@ -16,6 +19,7 @@ use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
 /// The arguments for the Jupiter lend deposit tool, which will be provided by the AI model.
+/// This matches the pattern of other working Jupiter tools.
 #[derive(Deserialize, Debug)]
 pub struct JupiterLendDepositArgs {
     pub user_pubkey: String,
@@ -83,14 +87,13 @@ impl Tool for JupiterLendDepositTool {
         let asset_mint = Pubkey::from_str(&args.asset_mint)
             .map_err(|e| JupiterLendDepositError::InvalidPubkey(e.to_string()))?;
 
-        // Call the internal handler which correctly initializes the jup-sdk client
         let raw_instructions = self
             .handle_jupiter_deposit(user_pubkey, asset_mint, args.amount)
             .await
             .map_err(JupiterLendDepositError::ProtocolError)?;
 
-        // Serialize the Vec<RawInstruction> to a JSON string.
-        let output = serde_json::to_string(&raw_instructions)?;
+        let output =
+            serde_json::to_string(&raw_instructions).map_err(JupiterLendDepositError::JsonError)?;
 
         Ok(output)
     }
@@ -131,7 +134,6 @@ impl JupiterLendDepositTool {
         }
 
         // The jup-sdk's client is designed to work with a local validator.
-        // It must be initialized with the user's pubkey.
         let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
 
         let deposit_params = DepositParams { asset_mint, amount };
