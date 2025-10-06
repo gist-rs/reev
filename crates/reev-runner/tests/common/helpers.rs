@@ -10,8 +10,7 @@ use reev_lib::{
     agent::AgentObservation, benchmark::TestCase, env::GymEnv, solana_env::environment::SolanaEnv,
 };
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
-use solana_system_interface::instruction as system_instruction;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_instruction};
 use spl_associated_token_account;
 use spl_token;
 use std::{collections::HashMap, fs, path::Path, str::FromStr, thread, time::Duration};
@@ -196,29 +195,7 @@ pub async fn prepare_jupiter_lend_deposit(
     let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
     let amount = 100_000_000; // 0.1 SOL
 
-    // --- 1. Instructions to wrap SOL ---
-    // The Jupiter program expects the user to have an initialized WSOL token account.
-    // We must create it and fund it before calling the lend instruction.
-    let wsol_ata = spl_associated_token_account::get_associated_token_address(
-        &user_pubkey,
-        &spl_token::native_mint::ID,
-    );
-
-    let mut wrap_instructions = vec![
-        // Create ATA. This is idempotent, so it's safe to call even if it exists.
-        spl_associated_token_account::instruction::create_associated_token_account(
-            &user_pubkey,
-            &user_pubkey,
-            &spl_token::native_mint::ID,
-            &spl_token::ID,
-        ),
-        // Transfer SOL to WSOL ATA to wrap it.
-        system_instruction::transfer(&user_pubkey, &wsol_ata, amount),
-        // Sync the ATA to have the correct balance for the Jupiter program.
-        spl_token::instruction::sync_native(&spl_token::ID, &wsol_ata)?,
-    ];
-
-    // --- 2. Jupiter Lend Instruction ---
+    // --- 1. Jupiter Lend Instruction ---
     let rpc_client = RpcClient::new(env.rpc_client.url());
     let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
     let deposit_params = DepositParams {
@@ -227,13 +204,13 @@ pub async fn prepare_jupiter_lend_deposit(
     };
 
     info!("[Test Helper] Getting Jupiter transaction components via SDK...");
-    let (mut jupiter_instructions, alt_accounts) = jupiter_client
+    let (jupiter_instructions, alt_accounts) = jupiter_client
         .deposit(deposit_params)
         .prepare_transaction_components()
         .await
         .context("Failed to get Jupiter lend deposit components from jup-sdk")?;
 
-    // --- 3. Preload all accounts for Jupiter instructions ---
+    // --- 2. Preload all accounts for Jupiter instructions ---
     info!("[Test Helper] Starting account pre-loading process via SDK...");
     let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
     jup_sdk::surfpool::preload_accounts(
@@ -246,12 +223,7 @@ pub async fn prepare_jupiter_lend_deposit(
     .await
     .context("jup-sdk failed to preload accounts")?;
 
-    // --- 4. Combine all instructions ---
-    let mut all_instructions = Vec::new();
-    all_instructions.append(&mut wrap_instructions);
-    all_instructions.append(&mut jupiter_instructions);
-
-    Ok(all_instructions)
+    Ok(jupiter_instructions)
 }
 
 /// Prepares for a Jupiter lend deposit of USDC.
