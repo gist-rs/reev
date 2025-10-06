@@ -1,5 +1,9 @@
-use crate::jupiter::lend::handle_jupiter_withdraw;
-use anyhow::Result;
+//! Jupiter lend withdraw tool wrapper
+//!
+//! This tool provides AI agent access to Jupiter's lend/withdraw functionality.
+//! It acts as a thin wrapper around the protocol handler.
+
+use crate::protocols::jupiter::lend_withdraw::handle_jupiter_lend_withdraw;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,13 +25,16 @@ pub struct JupiterLendWithdrawArgs {
 pub enum JupiterLendWithdrawError {
     #[error("Failed to parse pubkey: {0}")]
     PubkeyParse(String),
-    #[error("Jupiter API call failed: {0}")]
-    ApiCall(#[from] anyhow::Error),
+    #[error("Jupiter protocol call failed: {0}")]
+    ProtocolCall(#[from] anyhow::Error),
     #[error("Failed to serialize instruction: {0}")]
     Serialization(#[from] serde_json::Error),
+    #[error("Invalid amount: {0}")]
+    InvalidAmount(String),
 }
 
 /// A `rig` tool for performing lend withdrawal operations using the Jupiter API.
+/// This tool acts as a thin wrapper around the protocol handler.
 #[derive(Deserialize, Serialize)]
 pub struct JupiterLendWithdrawTool {
     pub key_map: HashMap<String, String>,
@@ -69,16 +76,27 @@ impl Tool for JupiterLendWithdrawTool {
         }
     }
 
-    /// Executes the tool's logic by calling the centralized `handle_jupiter_withdraw` function.
+    /// Executes the tool's logic: validates arguments and calls the protocol handler.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Validate and parse arguments
         let user_pubkey = Pubkey::from_str(&args.user_pubkey)
             .map_err(|e| JupiterLendWithdrawError::PubkeyParse(e.to_string()))?;
         let asset_mint = Pubkey::from_str(&args.asset_mint)
             .map_err(|e| JupiterLendWithdrawError::PubkeyParse(e.to_string()))?;
 
-        let raw_instructions =
-            handle_jupiter_withdraw(user_pubkey, asset_mint, args.amount, &self.key_map).await?;
+        // Validate business logic
+        if args.amount == 0 {
+            return Err(JupiterLendWithdrawError::InvalidAmount(
+                "Amount must be greater than 0".to_string(),
+            ));
+        }
 
+        // Call the protocol handler
+        let raw_instructions =
+            handle_jupiter_lend_withdraw(user_pubkey, asset_mint, args.amount, &self.key_map)
+                .await?;
+
+        // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;
 
         Ok(output)

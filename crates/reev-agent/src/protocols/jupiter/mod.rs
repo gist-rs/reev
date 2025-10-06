@@ -24,7 +24,6 @@ use serde_json::Value;
 use std::time::Duration;
 
 pub mod earnings;
-pub mod jupiter_swap;
 pub mod lend_deposit;
 pub mod lend_withdraw;
 pub mod positions;
@@ -32,10 +31,10 @@ pub mod swap;
 
 // Re-export all Jupiter functions
 pub use earnings::*;
-pub use jupiter_swap::*;
 pub use lend_deposit::*;
 pub use lend_withdraw::*;
 pub use positions::*;
+pub use swap::*;
 
 /// Jupiter protocol configuration
 #[derive(Debug, Clone)]

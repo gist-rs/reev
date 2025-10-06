@@ -18,8 +18,8 @@ use crate::{
     },
     run::run_agent,
     tools::{
-        jupiter_earn::JupiterEarnTool, jupiter_lend::JupiterLendDepositTool,
-        jupiter_lend::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
+        jupiter_earn::JupiterEarnTool, jupiter_lend_deposit::JupiterLendDepositTool,
+        jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
         native::SolTransferTool, native::SplTransferTool,
     },
     LlmRequest,

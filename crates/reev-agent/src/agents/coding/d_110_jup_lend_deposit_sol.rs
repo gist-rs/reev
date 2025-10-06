@@ -1,4 +1,4 @@
-use crate::protocols::jupiter::lend_deposit::handle_jupiter_deposit;
+use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
@@ -71,7 +71,7 @@ pub(crate) async fn handle_jup_lend_deposit_sol(
     // instructions needed for the transaction.
     info!("[reev-agent] Getting Jupiter lend/deposit instructions...");
     let mut jupiter_instructions =
-        handle_jupiter_deposit(user_pubkey, wsol_mint, amount, key_map).await?;
+        handle_jupiter_lend_deposit(user_pubkey, wsol_mint, amount, key_map).await?;
 
     // --- 3. Combine and convert all instructions ---
     info!("[reev-agent] Combining and converting all instructions...");

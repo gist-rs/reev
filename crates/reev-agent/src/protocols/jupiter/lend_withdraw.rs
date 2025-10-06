@@ -1,35 +1,80 @@
+//! Jupiter lend withdraw protocol handler
+//!
+//! This module provides the real Jupiter API integration for lend withdraw operations.
+
 use anyhow::Result;
+use bs58;
+use jup_sdk::{models::WithdrawParams, Jupiter};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use spl_associated_token_account;
+use spl_token;
 use std::collections::HashMap;
 
-/// Handle Jupiter lend withdraw operation
-pub async fn handle_jupiter_withdraw(
+/// Handle Jupiter lend withdraw operation using the jup-sdk.
+/// This is the real protocol handler that contains the actual Jupiter API logic.
+pub async fn handle_jupiter_lend_withdraw(
     user_pubkey: Pubkey,
     asset_mint: Pubkey,
     amount: u64,
     _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    // This is a placeholder implementation
-    // In a real implementation, this would call the Jupiter API
-    // and generate the actual instructions for lending withdraw
+    let mut post_instructions: Vec<Instruction> = Vec::new();
 
-    let instructions = vec![RawInstruction {
-        program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9".to_string(),
-        accounts: vec![
-            RawAccountMeta {
-                pubkey: user_pubkey.to_string(),
-                is_signer: true,
-                is_writable: true,
-            },
-            RawAccountMeta {
-                pubkey: asset_mint.to_string(),
-                is_signer: false,
-                is_writable: false,
-            },
-        ],
-        data: format!("withdraw_{amount:?}"),
-    }];
+    // If withdrawing native SOL, post-processing instructions to unwrap it are required.
+    if asset_mint == spl_token::native_mint::ID {
+        let wsol_ata = spl_associated_token_account::get_associated_token_address(
+            &user_pubkey,
+            &spl_token::native_mint::ID,
+        );
 
-    Ok(instructions)
+        post_instructions = vec![
+            // 1. Close the WSOL account to unwrap back to native SOL.
+            spl_token::instruction::close_account(
+                &spl_token::ID,
+                &wsol_ata,
+                &user_pubkey,
+                &user_pubkey,
+                &[],
+            )?,
+        ];
+    }
+
+    // The jup-sdk's client is designed to work with a local validator.
+    let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
+
+    let withdraw_params = WithdrawParams { asset_mint, amount };
+
+    // The sdk's withdraw builder will handle instruction generation
+    // against the local surfpool instance.
+    let (jupiter_sdk_instructions, _alt_accounts) = jupiter_client
+        .withdraw(withdraw_params)
+        .prepare_transaction_components()
+        .await?;
+
+    // Combine Jupiter instructions with post-processing instructions and convert them to the agent's format.
+    let all_sdk_instructions = [jupiter_sdk_instructions, post_instructions].concat();
+
+    let raw_instructions = all_sdk_instructions
+        .into_iter()
+        .map(|inst| {
+            let accounts = inst
+                .accounts
+                .into_iter()
+                .map(|acc| RawAccountMeta {
+                    pubkey: acc.pubkey.to_string(),
+                    is_signer: acc.is_signer,
+                    is_writable: acc.is_writable,
+                })
+                .collect();
+
+            RawInstruction {
+                program_id: inst.program_id.to_string(),
+                accounts,
+                data: bs58::encode(inst.data).into_string(),
+            }
+        })
+        .collect();
+
+    Ok(raw_instructions)
 }

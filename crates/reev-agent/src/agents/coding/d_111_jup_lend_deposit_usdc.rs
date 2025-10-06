@@ -1,4 +1,4 @@
-use crate::protocols::jupiter::lend_deposit::handle_jupiter_deposit;
+use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;
@@ -25,7 +25,8 @@ pub(crate) async fn handle_jup_lend_deposit_usdc(
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions needed for the transaction.
-    let instructions = handle_jupiter_deposit(user_pubkey, asset_mint, amount, key_map).await?;
+    let instructions =
+        handle_jupiter_lend_deposit(user_pubkey, asset_mint, amount, key_map).await?;
 
     info!(
         "[reev-agent] Successfully received {} instructions. Responding to runner.",

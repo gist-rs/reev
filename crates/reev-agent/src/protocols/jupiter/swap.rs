@@ -1,10 +1,12 @@
 use anyhow::Result;
+use bs58;
 use jup_sdk::{models::SwapParams, Jupiter};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 
 /// Handle Jupiter swap operation using the jup-sdk.
+/// This is the real protocol handler that contains the actual Jupiter API logic.
 pub async fn handle_jupiter_swap(
     user_pubkey: Pubkey,
     input_mint: Pubkey,
