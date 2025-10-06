@@ -287,6 +287,9 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
 pub async fn run_server() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
+    // Initialize protocol configurations
+    initialize_configurations()?;
+
     let app = Router::new()
         .route("/gen/tx", post(generate_transaction))
         .route("/health", get(health_check));
@@ -297,5 +300,24 @@ pub async fn run_server() -> anyhow::Result<()> {
 
     axum::serve(listener, app).await?;
 
+    Ok(())
+}
+
+/// Initialize all protocol configurations
+fn initialize_configurations() -> anyhow::Result<()> {
+    info!("[reev-agent] Initializing protocol configurations...");
+
+    // Initialize Jupiter configuration
+    let jupiter_config = protocols::jupiter::JupiterConfig::from_env();
+    jupiter_config.validate()?;
+    protocols::jupiter::init_jupiter_config(jupiter_config);
+    info!("[reev-agent] Jupiter configuration initialized");
+
+    // Initialize Native configuration
+    let native_config = protocols::native::NativeConfig::from_env();
+    protocols::native::init_native_config(native_config);
+    info!("[reev-agent] Native configuration initialized");
+
+    info!("[reev-agent] All protocol configurations initialized successfully");
     Ok(())
 }

@@ -3,7 +3,7 @@
 //! This tool provides AI agent access to Jupiter's swap functionality,
 //! acting as a thin wrapper around the protocol handler.
 
-use crate::protocols::jupiter::swap::handle_jupiter_swap;
+use crate::protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -19,7 +19,8 @@ pub struct JupiterSwapArgs {
     pub input_mint: String,
     pub output_mint: String,
     pub amount: u64,
-    pub slippage_bps: u16,
+    #[serde(default)]
+    pub slippage_bps: Option<u16>,
 }
 
 /// A custom error type for the Jupiter swap tool.
@@ -78,7 +79,7 @@ impl Tool for JupiterSwapTool {
                     },
                     "slippage_bps": {
                         "type": "number",
-                        "description": "The slippage tolerance in basis points (0.01% = 1 bps)."
+                        "description": "The slippage tolerance in basis points (0.01% = 1 bps). If not provided, uses the default from configuration."
                     }
                 },
                 "required": ["user_pubkey", "input_mint", "output_mint", "amount"],
@@ -103,11 +104,14 @@ impl Tool for JupiterSwapTool {
             ));
         }
 
-        if args.slippage_bps > 10000 {
-            return Err(JupiterSwapError::InvalidSlippage(
-                "Slippage cannot exceed 100% (10000 bps)".to_string(),
-            ));
-        }
+        // Use default slippage from configuration if not provided
+        let config = get_jupiter_config();
+        let slippage_bps = match args.slippage_bps {
+            Some(slippage) => config
+                .validate_slippage(slippage)
+                .map_err(|e| JupiterSwapError::InvalidSlippage(e.to_string()))?,
+            None => config.default_slippage(),
+        };
 
         if input_mint == output_mint {
             return Err(JupiterSwapError::SameMint);
@@ -119,7 +123,7 @@ impl Tool for JupiterSwapTool {
             input_mint,
             output_mint,
             args.amount,
-            args.slippage_bps,
+            slippage_bps,
             &self.key_map,
         )
         .await

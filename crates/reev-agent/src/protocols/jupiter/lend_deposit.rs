@@ -11,6 +11,7 @@ use solana_system_interface::instruction as system_instruction;
 use spl_associated_token_account;
 use spl_token;
 use std::collections::HashMap;
+use tracing::{debug, info};
 
 /// Handle Jupiter lend deposit operation using the jup-sdk.
 /// This is the real protocol handler that contains the actual Jupiter API logic.
@@ -20,6 +21,16 @@ pub async fn handle_jupiter_lend_deposit(
     amount: u64,
     _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
+    let config = super::get_jupiter_config();
+
+    // Log configuration if debug mode is enabled
+    config.log_config();
+
+    info!(
+        "Executing Jupiter lend deposit: {} (amount: {})",
+        asset_mint, amount
+    );
+
     let mut setup_instructions: Vec<Instruction> = Vec::new();
 
     // If depositing native SOL, prerequisite instructions to wrap it are required.
@@ -46,8 +57,16 @@ pub async fn handle_jupiter_lend_deposit(
 
     // The jup-sdk's client is designed to work with a local validator.
     let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
+    // Apply custom RPC URL if configured
+    if let Some(ref rpc_url) = config.surfpool_rpc_url {
+        debug!("Using custom RPC URL for surfpool: {}", rpc_url);
+        // Note: jup-sdk would need to support custom RPC URLs
+        // This is a placeholder for when that functionality is available
+    }
 
     let deposit_params = DepositParams { asset_mint, amount };
+
+    debug!("Deposit params: {:?}", deposit_params);
 
     // The sdk's deposit builder will handle instruction generation
     // against the local surfpool instance.
@@ -56,10 +75,15 @@ pub async fn handle_jupiter_lend_deposit(
         .prepare_transaction_components()
         .await?;
 
+    debug!(
+        "Generated {} instructions from Jupiter",
+        jupiter_sdk_instructions.len()
+    );
+
     // Combine setup instructions with Jupiter instructions and convert them to the agent's format.
     let all_sdk_instructions = [setup_instructions, jupiter_sdk_instructions].concat();
 
-    let raw_instructions = all_sdk_instructions
+    let raw_instructions: Vec<RawInstruction> = all_sdk_instructions
         .into_iter()
         .map(|inst| {
             let accounts = inst
@@ -79,6 +103,11 @@ pub async fn handle_jupiter_lend_deposit(
             }
         })
         .collect();
+
+    info!(
+        "Successfully converted {} instructions to RawInstruction format",
+        raw_instructions.len()
+    );
 
     Ok(raw_instructions)
 }

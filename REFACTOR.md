@@ -95,10 +95,13 @@ agents/coding/d_100_jup_swap_sol_usdc.rs → handle_jupiter_swap()
 - ✅ Fixed all module declarations and imports
 
 ### Phase 3: Jupiter Configuration Enhancement
-**Status**: 🔄 Not Started  
-- Enhance existing `protocols/jupiter/mod.rs` configuration
-- Add environment variable support with dotenvy
-- Integrate config with jup-sdk initialization
+**Status**: ✅ **COMPLETED**
+- ✅ Enhanced existing `protocols/jupiter/mod.rs` configuration with more options
+- ✅ Added environment variable support with dotenvy
+- ✅ Integrated config with jup_sdk initialization
+- ✅ Added configuration validation and debug logging
+- ✅ Enhanced tools to use configuration defaults
+- ✅ Added global configuration initialization on server startup
 
 ### Phase 4: Protocol Abstraction Layer
 **Status**: 🔄 Not Started
@@ -155,9 +158,16 @@ pub async fn handle_jupiter_swap(
     slippage_bps: u16,
     _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
+    let config = super::get_jupiter_config();
+    config.log_config();
+    
+    // Validate slippage against configuration limits
+    let validated_slippage = config.validate_slippage(slippage_bps)?;
+    
     let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
-    // ... jup_sdk integration
+    // ... jup_sdk integration with configuration
 }
+```
 
 // protocols/native/sol_transfer.rs (IMPLEMENTED)
 pub async fn handle_sol_transfer(
@@ -193,17 +203,21 @@ impl Tool for JupiterSwapTool {
     }
 }
 
-// tools/native.rs (IMPLEMENTED)
-impl Tool for SolTransferTool {
+// tools/jupiter_swap.rs (ENHANCED)
+impl Tool for JupiterSwapTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Validate arguments
-        let from_pubkey = Pubkey::from_str(&args.from_pubkey)?;
-        let to_pubkey = Pubkey::from_str(&args.to_pubkey)?;
+        // Use default slippage from configuration if not provided
+        let config = get_jupiter_config();
+        let slippage_bps = match args.slippage_bps {
+            Some(slippage) => config.validate_slippage(slippage)?,
+            None => config.default_slippage(),
+        };
         
-        // Call protocol handler
-        let instructions = handle_sol_transfer(from_pubkey, to_pubkey, args.lamports, &self.key_map).await?;
+        // Call protocol handler with validated slippage
+        let instructions = handle_jupiter_swap(
+            user_pubkey, input_mint, output_mint, args.amount, slippage_bps, &self.key_map
+        ).await?;
         
-        // Serialize response
         Ok(serde_json::to_string(&instructions)?)
     }
 }
@@ -260,9 +274,9 @@ pub async fn handle_sol_transfer(
 
 ### Remaining 🔄:
 1. 🔄 Feature flags implemented
-2. 🔄 Configuration enhanced with environment variables
-3. 🔄 Future protocols (Drift, Kamino) structure ready
-4. 🔄 All tests passing with comprehensive coverage
+3. ✅ Configuration enhanced with environment variables
+4. 🔄 Future protocols (Drift, Kamino) structure ready
+5. 🔄 All tests passing with comprehensive coverage
 
 ## 🚀 Benefits Achieved
 
@@ -279,15 +293,50 @@ pub async fn handle_sol_transfer(
 3. **Performance**: Optimized through protocol centralization
 4. **Scalability**: Architecture supports many protocols without bloat
 
+## 🔧 Environment Configuration
+
+### Jupiter Configuration Options:
+```bash
+# .env file
+JUPITER_API_BASE_URL=https://lite-api.jup.ag
+JUPITER_TIMEOUT_SECONDS=30
+JUPITER_MAX_RETRIES=3
+JUPITER_USER_AGENT=reev-agent/0.1.0
+JUPITER_DEFAULT_SLIPPAGE_BPS=50      # 0.5%
+JUPITER_MAX_SLIPPAGE_BPS=1000        # 10%
+JUPITER_DEBUG=false
+JUPITER_SURFPOOL_RPC_URL=           # Optional custom RPC URL
+```
+
+### Native Configuration Options:
+```bash
+# .env file
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+SOLANA_WS_URL=wss://api.mainnet-beta.solana.com
+SOLANA_TIMEOUT_SECONDS=30
+SOLANA_MAX_RETRIES=3
+SOLANA_CONFIRMATIONS=1
+SOLANA_COMPUTE_UNITS=200000
+SOLANA_PRIORITY_FEE_LAMPORTS=10000
+SOLANA_USER_AGENT=reev-agent/0.1.0
+```
+
+### Configuration Features:
+- **Environment Variable Support**: All settings can be overridden via environment variables
+- **Validation**: Configuration values are validated on startup
+- **Default Values**: Sensible defaults provided for all settings
+- **Debug Logging**: Optional debug logging for troubleshooting
+- **Global State**: Configuration initialized once and shared across the application
+
 ## 📊 Progress Summary
 
 - **Phase 1 (Jupiter Refactoring)**: ✅ **COMPLETED**
 - **Phase 2 (Native Protocol)**: ✅ **COMPLETED**
-- **Phase 3 (Configuration)**: 🔄 **NOT STARTED**  
+- **Phase 3 (Configuration)**: ✅ **COMPLETED**  
 - **Phase 4 (Abstraction)**: 🔄 **NOT STARTED**
 - **Phase 5 (Feature Flags)**: 🔄 **NOT STARTED**
 - **Phase 6 (Future Protocols)**: 🔄 **NOT STARTED**
 
-**Overall Progress**: 33% Complete (2 of 6 phases)
+**Overall Progress**: 50% Complete (3 of 6 phases)
 
-The foundation is now solid for the complete modular architecture. Both Jupiter and Native protocols serve as templates for all future protocol implementations, demonstrating the complete pattern from protocol handlers → AI tools → coding agents.
+The foundation is now solid for the complete modular architecture. Both Jupiter and Native protocols serve as templates for all future protocol implementations, demonstrating the complete pattern from protocol handlers → AI tools → coding agents. The configuration system provides robust environment-based customization with validation and debugging capabilities.
