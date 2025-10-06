@@ -5,16 +5,20 @@ use rig::{
     providers::{gemini, openai::Client},
 };
 use serde::Deserialize;
+use serde_json::json;
+use spl_associated_token_account;
+use spl_token;
 use std::collections::HashMap;
 use tracing::info;
 
 use crate::{
     prompt::SYSTEM_PREAMBLE,
-    tools::{JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool},
+    tools::{
+        JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool,
+        SolTransferTool, SplTransferTool,
+    },
     LlmRequest,
 };
-
-use crate::tools::{SolTransferTool, SplTransferTool};
 
 /// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
 #[derive(Debug, Deserialize)]
@@ -161,7 +165,9 @@ async fn run_openai_compatible_agent(
     let sol_tool = SolTransferTool {
         key_map: key_map.clone(),
     };
-    let spl_tool = SplTransferTool { key_map };
+    let spl_tool = SplTransferTool {
+        key_map: key_map.clone(),
+    };
 
     let agent = client
         .completion_model(model_name)
@@ -193,6 +199,52 @@ async fn run_openai_compatible_agent(
     // array of instructions, or a JSON object containing an `instruction` field. We
     // handle both cases to support different model behaviors.
     let tool_call_response: serde_json::Value = serde_json::from_str(&response.to_string())?;
+
+    // Check if this is a tool call response that needs to be executed
+    if let Some(method) = tool_call_response.get("method").and_then(|m| m.as_str()) {
+        info!("[reev-agent] Detected tool call: {}", method);
+
+        // Execute the appropriate tool based on the method
+        match method {
+            "sol_transfer" | "spl_transfer" => {
+                // For transfer tools, we need to execute them to get the instructions
+                if let Some(params) = tool_call_response.get("params") {
+                    let tool_result = execute_native_transfer(method, params, &key_map).await?;
+                    return Ok(tool_result);
+                }
+            }
+            "jupiter_swap" => {
+                if let Some(params) = tool_call_response.get("params") {
+                    let tool_result = execute_jupiter_swap(params, &key_map).await?;
+                    return Ok(tool_result);
+                }
+            }
+            "jupiter_lend_deposit" | "jupiter_lend_withdraw" => {
+                if let Some(params) = tool_call_response.get("params") {
+                    let tool_result = execute_jupiter_lend(method, params, &key_map).await?;
+                    return Ok(tool_result);
+                }
+            }
+            "jupiter_earn" => {
+                // For jupiter_earn, this might be an API-based benchmark
+                // Return the raw response since it doesn't contain instructions
+                return Ok(response.to_string());
+            }
+            _ => {
+                info!("[reev-agent] Unknown tool method: {}", method);
+            }
+        }
+    }
+
+    // Check if this is a tool response without method field (direct tool call result)
+    // Look for fields that indicate a transfer operation
+    if tool_call_response.get("amount").is_some() && tool_call_response.get("operation").is_some() {
+        info!("[reev-agent] Detected transfer operation in response");
+        let tool_result = execute_native_transfer("sol", &tool_call_response, &key_map).await?;
+        return Ok(tool_result);
+    }
+
+    // If not a tool call or tool execution failed, return the response as-is
     let instruction = if let Some(instruction_field) = tool_call_response.get("instruction") {
         instruction_field
     } else {
@@ -200,4 +252,165 @@ async fn run_openai_compatible_agent(
     };
 
     Ok(serde_json::to_string(instruction)?)
+}
+
+/// Helper function to execute native transfer tools
+async fn execute_native_transfer(
+    method: &str,
+    params: &serde_json::Value,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    use solana_sdk::pubkey::Pubkey;
+    use solana_system_interface::instruction as system_instruction;
+    use std::str::FromStr;
+
+    let user_pubkey = key_map.get("USER_WALLET_PUBKEY").unwrap();
+    let recipient_pubkey = params
+        .get("recipient_pubkey")
+        .and_then(|p| p.as_str())
+        .unwrap();
+    let amount = params.get("amount").and_then(|a| a.as_u64()).unwrap_or(0);
+
+    match method {
+        "sol" => {
+            // Generate real SOL transfer instruction
+            let instruction = system_instruction::transfer(
+                &Pubkey::from_str(user_pubkey)?,
+                &Pubkey::from_str(recipient_pubkey)?,
+                amount,
+            );
+
+            let raw_instruction = json!({
+                "program_id": "11111111111111111111111111111111",
+                "accounts": [
+                    {
+                        "pubkey": user_pubkey,
+                        "is_signer": true,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": recipient_pubkey,
+                        "is_signer": false,
+                        "is_writable": true
+                    }
+                ],
+                "data": bs58::encode(instruction.data).into_string()
+            });
+            Ok(serde_json::to_string(&[raw_instruction])?)
+        }
+        "spl" => {
+            // Generate real SPL transfer instruction
+            let mint_address = params
+                .get("mint_address")
+                .and_then(|m| m.as_str())
+                .unwrap_or("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"); // USDC default
+
+            let source = spl_associated_token_account::get_associated_token_address(
+                &Pubkey::from_str(user_pubkey)?,
+                &Pubkey::from_str(mint_address)?,
+            );
+            let destination = spl_associated_token_account::get_associated_token_address(
+                &Pubkey::from_str(recipient_pubkey)?,
+                &Pubkey::from_str(mint_address)?,
+            );
+
+            let instruction = spl_token::instruction::transfer(
+                &spl_token::id(),
+                &source,
+                &destination,
+                &Pubkey::from_str(user_pubkey)?,
+                &[],
+                amount,
+            )?;
+
+            let raw_instruction = json!({
+                "program_id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "accounts": [
+                    {
+                        "pubkey": source.to_string(),
+                        "is_signer": false,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": destination.to_string(),
+                        "is_signer": false,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": user_pubkey,
+                        "is_signer": true,
+                        "is_writable": false
+                    }
+                ],
+                "data": bs58::encode(instruction.data).into_string()
+            });
+            Ok(serde_json::to_string(&[raw_instruction])?)
+        }
+        _ => {
+            // Default to SOL transfer
+            let instruction = system_instruction::transfer(
+                &Pubkey::from_str(user_pubkey)?,
+                &Pubkey::from_str(recipient_pubkey)?,
+                amount,
+            );
+
+            let raw_instruction = json!({
+                "program_id": "11111111111111111111111111111111",
+                "accounts": [
+                    {
+                        "pubkey": user_pubkey,
+                        "is_signer": true,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": recipient_pubkey,
+                        "is_signer": false,
+                        "is_writable": true
+                    }
+                ],
+                "data": bs58::encode(instruction.data).into_string()
+            });
+            Ok(serde_json::to_string(&[raw_instruction])?)
+        }
+    }
+}
+
+/// Helper function to execute Jupiter swap tool
+async fn execute_jupiter_swap(
+    _params: &serde_json::Value,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    // For now, return dummy instructions
+    let instructions = json!([
+        {
+            "program_id": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+            "accounts": [
+                {"pubkey": key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
+                {"pubkey": "So11111111111111111111111111111111111111112", "is_signer": false, "is_writable": false},
+                {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
+            ],
+            "data": "11111111111111111111111111111111"
+        }
+    ]);
+    Ok(serde_json::to_string(&instructions)?)
+}
+
+/// Helper function to execute Jupiter lend tools
+async fn execute_jupiter_lend(
+    _method: &str,
+    _params: &serde_json::Value,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    // For now, return dummy instructions
+    let instructions = json!([
+        {
+            "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
+            "accounts": [
+                {"pubkey": key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
+                {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
+            ],
+            "data": "11111111111111111111111111111111"
+        }
+    ]);
+    Ok(serde_json::to_string(&instructions)?)
 }
