@@ -1,13 +1,15 @@
-//! Native Solana operations tool wrapper
+//! Native Solana operations tool wrappers
 //!
-//! This tool provides AI agent access to native Solana operations
-//! including SOL transfers and SPL token transfers.
+//! These tools provide AI agent access to native Solana operations
+//! including SOL transfers and SPL token transfers, acting as thin wrappers
+//! around the protocol handlers.
 
-use crate::protocols::native::{create_sol_transfer_instruction, create_spl_transfer_instruction};
+use crate::protocols::native::{handle_sol_transfer, handle_spl_transfer};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
+use spl_associated_token_account;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
@@ -35,16 +37,16 @@ pub enum NativeTransferOperation {
 /// A custom error type for the native transfer tool.
 #[derive(Debug, Error)]
 pub enum NativeTransferError {
-    #[error("Invalid pubkey: {0}")]
-    InvalidPubkey(String),
+    #[error("Failed to parse pubkey: {0}")]
+    PubkeyParse(String),
     #[error("Mint address required for SPL transfers")]
     MintAddressRequired,
     #[error("Invalid amount: {0}")]
     InvalidAmount(String),
-    #[error("Protocol error: {0}")]
-    ProtocolError(#[from] anyhow::Error),
-    #[error("JSON serialization failed: {0}")]
-    JsonError(#[from] serde_json::Error),
+    #[error("Native protocol call failed: {0}")]
+    ProtocolCall(#[from] anyhow::Error),
+    #[error("Failed to serialize instruction: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 /// A `rig` tool for performing native Solana transfers.
@@ -95,9 +97,9 @@ impl Tool for SolTransferTool {
         }
     }
 
-    /// Executes the tool's logic: creates transfer instructions.
+    /// Executes the tool's logic: validates arguments and calls the appropriate protocol handler.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Validate pubkeys
+        // Validate and parse arguments
         let user_pubkey = self
             .key_map
             .get("USER_WALLET_PUBKEY")
@@ -105,77 +107,63 @@ impl Tool for SolTransferTool {
             .clone();
 
         let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
-            .map_err(|e| NativeTransferError::InvalidPubkey(e.to_string()))?;
+            .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
         let recipient_pubkey_parsed = Pubkey::from_str(&args.recipient_pubkey)
-            .map_err(|e| NativeTransferError::InvalidPubkey(e.to_string()))?;
+            .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
-        // Validate amount
+        // Validate business logic
         if args.amount == 0 {
             return Err(NativeTransferError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
         }
 
-        // Create the appropriate instruction
-        let instruction = match args.operation {
-            NativeTransferOperation::Sol => create_sol_transfer_instruction(
-                &user_pubkey_parsed,
-                &recipient_pubkey_parsed,
+        // Call the appropriate protocol handler
+        let raw_instructions = match args.operation {
+            NativeTransferOperation::Sol => handle_sol_transfer(
+                user_pubkey_parsed,
+                recipient_pubkey_parsed,
                 args.amount,
-            ),
+                &self.key_map,
+            )
+            .await
+            .map_err(NativeTransferError::ProtocolCall)?,
             NativeTransferOperation::Spl => {
                 let mint_address = args
                     .mint_address
                     .clone()
                     .ok_or_else(|| NativeTransferError::MintAddressRequired)?;
-                let mint_pubkey = Pubkey::from_str(&mint_address)
-                    .map_err(|e| NativeTransferError::InvalidPubkey(e.to_string()))?;
-
-                // Use mint_pubkey to demonstrate its purpose (in real implementation would find token accounts)
-                let _mint_info = format!("SPL transfer for mint: {mint_pubkey}");
+                let _mint_pubkey = Pubkey::from_str(&mint_address)
+                    .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
                 // For SPL transfers, we need to determine the source and destination token accounts
-                // using the mint_pubkey to find associated token accounts
-                // This is a simplified version - in practice, you'd use mint_pubkey to:
-                // 1. Find user's associated token account: get_associated_token_address(user_pubkey, mint_pubkey)
-                // 2. Find recipient's associated token account: get_associated_token_address(recipient, mint_pubkey)
+                // using the mint to find associated token accounts
                 let source = spl_associated_token_account::get_associated_token_address(
                     &user_pubkey_parsed,
-                    &mint_pubkey,
+                    &_mint_pubkey,
                 );
                 let destination = spl_associated_token_account::get_associated_token_address(
                     &recipient_pubkey_parsed,
-                    &mint_pubkey,
+                    &_mint_pubkey,
                 );
 
-                // Use the mint_pubkey to create proper SPL transfer instruction
-                create_spl_transfer_instruction(
-                    &spl_token::id(),
-                    &source,
-                    &destination,
-                    &user_pubkey_parsed,
+                handle_spl_transfer(
+                    source,
+                    destination,
+                    user_pubkey_parsed,
                     args.amount,
+                    &self.key_map,
                 )
+                .await
+                .map_err(NativeTransferError::ProtocolCall)?
             }
         };
 
-        // Convert to raw instruction format
-        let raw_instruction = crate::protocols::native::instruction_to_raw(instruction);
+        // Serialize the Vec<RawInstruction> to a JSON string.
+        let output = serde_json::to_string(&raw_instructions)?;
 
-        // Create the final response
-        let response = json!({
-            "tool": "sol_transfer",
-            "operation": format!("{:?}", args.operation),
-            "user_pubkey": user_pubkey,
-            "recipient_pubkey": args.recipient_pubkey,
-            "amount": args.amount,
-            "mint_address": args.mint_address,
-            "instruction": raw_instruction,
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        });
-
-        Ok(response.to_string())
+        Ok(output)
     }
 }
 

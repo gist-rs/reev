@@ -87,10 +87,12 @@ agents/coding/d_100_jup_swap_sol_usdc.rs → handle_jupiter_swap()
 ## 🔄 Remaining Implementation Plan
 
 ### Phase 2: Native Protocol Implementation
-**Status**: 🔄 Not Started
-- Move native SOL/SPL transfer logic from `tools/native.rs` to `protocols/native/`
-- Create `protocols/native/sol_transfer.rs` and `protocols/native/spl_transfer.rs`
-- Refactor `tools/native.rs` to use protocol handlers
+**Status**: ✅ **COMPLETED**
+- ✅ Moved native SOL/SPL transfer logic from `tools/native.rs` to `protocols/native/`
+- ✅ Created `protocols/native/sol_transfer.rs` and `protocols/native/spl_transfer.rs`
+- ✅ Refactored `tools/native.rs` to use protocol handlers
+- ✅ Updated coding agents to use protocol handlers directly
+- ✅ Fixed all module declarations and imports
 
 ### Phase 3: Jupiter Configuration Enhancement
 **Status**: 🔄 Not Started  
@@ -133,13 +135,13 @@ pub mod kamino;
 **Status**: 🔄 Not Started
 - Add Drift protocol structure
 - Add Kamino protocol structure
-- Follow established pattern from Jupiter implementation
+- Follow established pattern from Jupiter + Native implementations
 
 ## 🔧 Implementation Details (Current State)
 
 ### 1. Protocol Handlers Layer ✅
 
-**Purpose**: Real API integration using jup-sdk
+**Purpose**: Real API integration using jup-sdk and Solana instructions
 **Returns**: `Vec<RawInstruction>` for instruction-based operations
 **Error Handling**: `anyhow::Result<T>` propagated to tools
 
@@ -155,6 +157,17 @@ pub async fn handle_jupiter_swap(
 ) -> Result<Vec<RawInstruction>> {
     let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
     // ... jup_sdk integration
+}
+
+// protocols/native/sol_transfer.rs (IMPLEMENTED)
+pub async fn handle_sol_transfer(
+    from_pubkey: Pubkey,
+    to_pubkey: Pubkey,
+    lamports: u64,
+    _key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
+    let instruction = solana_system_interface::instruction::transfer(&from_pubkey, &to_pubkey, lamports);
+    // Convert to RawInstruction format
 }
 ```
 
@@ -179,6 +192,21 @@ impl Tool for JupiterSwapTool {
         Ok(serde_json::to_string(&raw_instructions)?)
     }
 }
+
+// tools/native.rs (IMPLEMENTED)
+impl Tool for SolTransferTool {
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Validate arguments
+        let from_pubkey = Pubkey::from_str(&args.from_pubkey)?;
+        let to_pubkey = Pubkey::from_str(&args.to_pubkey)?;
+        
+        // Call protocol handler
+        let instructions = handle_sol_transfer(from_pubkey, to_pubkey, args.lamports, &self.key_map).await?;
+        
+        // Serialize response
+        Ok(serde_json::to_string(&instructions)?)
+    }
+}
 ```
 
 ### 3. Coding Agents Layer ✅
@@ -194,6 +222,14 @@ pub async fn handle_jup_swap_sol_usdc(
     let instructions = handle_jupiter_swap(user_pubkey, sol_mint, usdc_mint, amount, slippage, key_map).await?;
     Ok(instructions)
 }
+
+// agents/coding/d_001_sol_transfer.rs (IMPLEMENTED)
+pub async fn handle_sol_transfer(
+    key_map: &HashMap<String, String>,
+) -> Result<Vec<RawInstruction>> {
+    let instructions = protocol_handle_sol_transfer(from, to, lamports, key_map).await?;
+    Ok(instructions)
+}
 ```
 
 ## 🧪 Testing Strategy
@@ -202,6 +238,8 @@ pub async fn handle_jup_swap_sol_usdc(
 - **Compilation Tests**: All refactored code compiles successfully
 - **Import Tests**: All module imports resolve correctly
 - **Integration Tests**: Tools → Protocols → jup-sdk flow works
+- **Native Protocol Tests**: SOL/SPL transfer protocols working correctly
+- **Agent Integration**: Coding agents using protocols directly
 
 ### Remaining 🔄:
 - **Unit Tests**: Individual protocol handler testing
@@ -217,13 +255,14 @@ pub async fn handle_jup_swap_sol_usdc(
 4. ✅ Tools act as thin wrappers
 5. ✅ Coding agents use protocols directly
 6. ✅ Module structure is clean and extensible
+7. ✅ Native protocol moved to protocols layer
+8. ✅ Two complete protocol examples (Jupiter + Native)
 
 ### Remaining 🔄:
 1. 🔄 Feature flags implemented
-2. 🔄 Native protocol moved to protocols layer
-3. 🔄 Configuration enhanced with environment variables
-4. 🔄 Future protocols (Drift, Kamino) structure ready
-5. 🔄 All tests passing with comprehensive coverage
+2. 🔄 Configuration enhanced with environment variables
+3. 🔄 Future protocols (Drift, Kamino) structure ready
+4. 🔄 All tests passing with comprehensive coverage
 
 ## 🚀 Benefits Achieved
 
@@ -243,12 +282,12 @@ pub async fn handle_jup_swap_sol_usdc(
 ## 📊 Progress Summary
 
 - **Phase 1 (Jupiter Refactoring)**: ✅ **COMPLETED**
-- **Phase 2 (Native Protocol)**: 🔄 **NOT STARTED**
+- **Phase 2 (Native Protocol)**: ✅ **COMPLETED**
 - **Phase 3 (Configuration)**: 🔄 **NOT STARTED**  
 - **Phase 4 (Abstraction)**: 🔄 **NOT STARTED**
 - **Phase 5 (Feature Flags)**: 🔄 **NOT STARTED**
 - **Phase 6 (Future Protocols)**: 🔄 **NOT STARTED**
 
-**Overall Progress**: 17% Complete (1 of 6 phases)
+**Overall Progress**: 33% Complete (2 of 6 phases)
 
-The foundation is now solid for the complete modular architecture. The Jupiter protocol serves as the template for all future protocol implementations.
+The foundation is now solid for the complete modular architecture. Both Jupiter and Native protocols serve as templates for all future protocol implementations, demonstrating the complete pattern from protocol handlers → AI tools → coding agents.

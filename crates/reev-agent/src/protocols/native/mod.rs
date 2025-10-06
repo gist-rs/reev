@@ -19,7 +19,7 @@ where
         .unwrap_or(default)
 }
 use anyhow::Result;
-use reev_lib::agent::{RawAccountMeta, RawInstruction};
+
 use solana_client::rpc_config::RpcSimulateTransactionConfig;
 
 use solana_sdk::{
@@ -32,8 +32,8 @@ pub mod sol_transfer;
 pub mod spl_transfer;
 
 // Re-export all native functions
-pub use sol_transfer::*;
-pub use spl_transfer::*;
+pub use sol_transfer::{handle_sol_transfer, instruction_to_raw as sol_instruction_to_raw};
+pub use spl_transfer::{handle_spl_transfer, instruction_to_raw as spl_instruction_to_raw};
 
 /// Native Solana configuration
 #[derive(Debug, Clone)]
@@ -131,36 +131,6 @@ pub fn get_native_config() -> &'static NativeConfig {
     NATIVE_CONFIG.get_or_init(NativeConfig::from_env)
 }
 
-/// Create a Solana transfer instruction
-pub fn create_sol_transfer_instruction(
-    from_pubkey: &Pubkey,
-    to_pubkey: &Pubkey,
-    lamports: u64,
-) -> Instruction {
-    solana_sdk::system_instruction::transfer(from_pubkey, to_pubkey, lamports)
-}
-
-/// Create an SPL token transfer instruction
-pub fn create_spl_transfer_instruction(
-    token_program_id: &Pubkey,
-    source: &Pubkey,
-    destination: &Pubkey,
-    authority: &Pubkey,
-    amount: u64,
-) -> Instruction {
-    spl_token::instruction::transfer(
-        token_program_id,
-        source,
-        destination,
-        authority,
-        &[],
-        amount,
-    )
-    .unwrap_or_else(|_| {
-        panic!("Failed to create SPL transfer instruction");
-    })
-}
-
 /// Create a compute budget instruction
 pub fn create_compute_budget_instruction(compute_units: u32) -> Instruction {
     ComputeBudgetInstruction::set_compute_unit_limit(compute_units)
@@ -186,30 +156,6 @@ pub fn build_transaction(
 pub fn sign_transaction(transaction: &mut Transaction, keypairs: &[&Keypair]) -> Result<()> {
     transaction.try_sign(keypairs, transaction.message.recent_blockhash)?;
     Ok(())
-}
-
-/// Convert instruction to RawInstruction format
-pub fn instruction_to_raw(instruction: Instruction) -> RawInstruction {
-    let accounts = instruction
-        .accounts
-        .into_iter()
-        .map(|meta| RawAccountMeta {
-            pubkey: meta.pubkey.to_string(),
-            is_signer: meta.is_signer,
-            is_writable: meta.is_writable,
-        })
-        .collect();
-
-    RawInstruction {
-        program_id: instruction.program_id.to_string(),
-        accounts,
-        data: bs58::encode(instruction.data).into_string(),
-    }
-}
-
-/// Convert multiple instructions to RawInstruction format
-pub fn instructions_to_raw(instructions: Vec<Instruction>) -> Vec<RawInstruction> {
-    instructions.into_iter().map(instruction_to_raw).collect()
 }
 
 /// Estimate transaction cost in lamports

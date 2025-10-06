@@ -159,11 +159,11 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
     // into a JSON string to match the format expected by the runner.
     let instructions_json = match payload.id.as_str() {
         "001-SOL-TRANSFER" => {
-            let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(&key_map)?;
+            let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
         "002-SPL-TRANSFER" => {
-            let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map)?;
+            let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
         "100-JUP-SWAP-SOL-USDC" => {

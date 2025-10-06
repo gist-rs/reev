@@ -1,14 +1,14 @@
+use crate::protocols::native::handle_spl_transfer as protocol_handle_spl_transfer;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use solana_sdk::pubkey::Pubkey;
-use spl_token;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-pub(crate) fn handle_spl_transfer(
+pub(crate) async fn handle_spl_transfer(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '002-SPL-TRANSFER' id. Generating instruction with code.");
+    info!("[reev-agent] Matched '002-SPL-TRANSFER' id. Calling centralized SPL transfer handler.");
     let source_ata_str = key_map
         .get("USER_USDC_ATA")
         .context("USER_USDC_ATA not found in key_map")?;
@@ -24,16 +24,22 @@ pub(crate) fn handle_spl_transfer(
         Pubkey::from_str(dest_ata_str).context("Failed to parse destination ATA pubkey")?;
     let authority_pubkey =
         Pubkey::from_str(authority_str).context("Failed to parse authority pubkey")?;
-    let amount = 15_000_000;
-    let instruction = spl_token::instruction::transfer(
-        &spl_token::id(),
-        &source_pubkey,
-        &destination_pubkey,
-        &authority_pubkey,
-        &[],
+    let amount = 15_000_000; // 15 USDC
+
+    // Call the protocol handler
+    let instructions = protocol_handle_spl_transfer(
+        source_pubkey,
+        destination_pubkey,
+        authority_pubkey,
         amount,
+        key_map,
     )
-    .context("Failed to create SPL transfer instruction")?;
-    info!("[reev-agent] Generated instruction: {instruction:?}");
-    Ok(vec![instruction.into()])
+    .await?;
+
+    info!(
+        "[reev-agent] Successfully received {} instructions. Responding to runner.",
+        instructions.len()
+    );
+
+    Ok(instructions)
 }
