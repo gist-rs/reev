@@ -1,7 +1,8 @@
 use crate::protocols::jupiter::lend_deposit::handle_jupiter_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_instruction};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_system_interface::instruction as system_instruction;
 use spl_associated_token_account;
 use spl_token;
 use std::{collections::HashMap, str::FromStr};
@@ -51,7 +52,7 @@ pub(crate) async fn handle_jup_lend_deposit_sol(
     let wsol_ata =
         spl_associated_token_account::get_associated_token_address(&user_pubkey, &wsol_mint);
 
-    let mut wrap_instructions = vec![
+    let wrap_instructions = vec![
         // Create ATA. This is idempotent, so it's safe to call even if it exists.
         spl_associated_token_account::instruction::create_associated_token_account(
             &user_pubkey,

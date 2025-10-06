@@ -3,12 +3,12 @@ use rig::{completion::ToolDefinition, tool::Tool};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_pubkey::Pubkey;
+use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
-use crate::protocols::swap::handle_jupiter_swap;
+use crate::protocols::jupiter::swap::handle_jupiter_swap;
 
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -99,6 +99,7 @@ impl Tool for JupiterSwapTool {
             input_mint,
             output_mint,
             args.amount,
+            args.slippage_bps,
             &self.key_map,
         )
         .await?;

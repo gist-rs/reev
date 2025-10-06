@@ -10,7 +10,8 @@ use reev_lib::{
     agent::AgentObservation, benchmark::TestCase, env::GymEnv, solana_env::environment::SolanaEnv,
 };
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_instruction};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_system_interface::instruction as system_instruction;
 use spl_associated_token_account;
 use spl_token;
 use std::{collections::HashMap, fs, path::Path, str::FromStr, thread, time::Duration};
