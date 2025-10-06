@@ -15,6 +15,8 @@ initial_state:
       owner: "USER_WALLET_PUBKEY"
       amount: "0"
 
+prompt: "Perform a two-step DeFi operation: 1) Swap 0.5 SOL to USDC using Jupiter with the best rate, 2) Deposit all received USDC into Jupiter lending to start earning yield."
+
 flow:
   - step: 1
     description: "Swap 0.5 SOL to USDC using Jupiter"
