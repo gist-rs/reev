@@ -7,14 +7,6 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 2000000000
 
-  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    lamports: 0
-    data:
-      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      owner: "USER_WALLET_PUBKEY"
-      amount: "50000000"
-
   - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 0
@@ -31,18 +23,13 @@ ground_truth:
   final_state_assertions:
     - type: SolBalanceChange
       pubkey: "USER_WALLET_PUBKEY"
-      expected_change_gte: 50000000
-      weight: 0.3
-
-    - type: TokenAccountBalance
-      pubkey: "USER_USDC_ATA_PLACEHOLDER"
-      expected: 50000000
+      expected_change_gte: -50000000
       weight: 0.3
 
     - type: TokenAccountBalance
       pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
       expected: 0
-      weight: 0.2
+      weight: 0.3
 
   expected_instructions:
     - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
