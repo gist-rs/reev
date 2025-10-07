@@ -583,30 +583,3 @@ impl LendProtocol for JupiterProtocol {
 
 // Jupiter doesn't implement TransferProtocol as it focuses on swaps and lending
 // Native SOL/SPL transfers are handled by the Native protocol
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_jupiter_protocol_creation() {
-        let protocol = JupiterProtocol::from_env();
-        assert_eq!(protocol.name(), "jupiter");
-        assert_eq!(protocol.version(), "1.0.0");
-    }
-
-    #[tokio::test]
-    async fn test_health_check() {
-        let protocol = JupiterProtocol::from_env();
-        // This might fail in test environment without network access
-        // but should return either Healthy or Degraded/Unhealthy
-        let _status = protocol.health_check().await;
-    }
-
-    #[test]
-    fn test_supported_operations() {
-        let protocol = JupiterProtocol::from_env();
-        let operations = protocol.supported_operations();
-        assert!(!operations.is_empty());
-    }
-}

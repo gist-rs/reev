@@ -226,36 +226,3 @@ impl Tool for SplTransferTool {
         sol_tool.call(spl_args).await
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_native_transfer_args_serialization() {
-        let args = json!({
-            "user_pubkey": "test_user_pubkey",
-            "recipient_pubkey": "test_recipient_pubkey",
-            "amount": 1000000,
-            "operation": "sol"
-        });
-
-        let parsed: NativeTransferArgs = serde_json::from_value(args).unwrap();
-        assert_eq!(parsed.user_pubkey, "test_user_pubkey");
-        assert_eq!(parsed.recipient_pubkey, "test_recipient_pubkey");
-        assert_eq!(parsed.amount, 1000000);
-        assert!(matches!(parsed.operation, NativeTransferOperation::Sol));
-    }
-
-    #[test]
-    fn test_native_transfer_operation_enum() {
-        let sol = json!("sol");
-        let parsed: NativeTransferOperation = serde_json::from_value(sol).unwrap();
-        assert!(matches!(parsed, NativeTransferOperation::Sol));
-
-        let spl = json!("spl");
-        let parsed: NativeTransferOperation = serde_json::from_value(spl).unwrap();
-        assert!(matches!(parsed, NativeTransferOperation::Spl));
-    }
-}

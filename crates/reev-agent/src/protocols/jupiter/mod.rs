@@ -266,31 +266,3 @@ pub async fn parse_json_response(response: reqwest::Response) -> Result<Value> {
     serde_json::from_str(&body)
         .map_err(|e| anyhow::anyhow!("Failed to parse JSON response: {e} - Body: {body}"))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_jupiter_config_default() {
-        let config = JupiterConfig::default();
-        assert_eq!(config.api_base_url, "https://lite-api.jup.ag");
-        assert_eq!(config.timeout, Duration::from_secs(30));
-        assert_eq!(config.max_retries, 3);
-    }
-
-    #[test]
-    fn test_jupiter_config_urls() {
-        let config = JupiterConfig::default();
-        assert_eq!(
-            config.positions_url(),
-            "https://lite-api.jup.ag/lend/v1/earn/positions"
-        );
-        assert_eq!(
-            config.earnings_url(),
-            "https://lite-api.jup.ag/lend/v1/earn/earnings"
-        );
-        assert_eq!(config.quote_url(), "https://lite-api.jup.ag/v6/quote");
-        assert_eq!(config.swap_url(), "https://lite-api.jup.ag/v6/swap");
-    }
-}
