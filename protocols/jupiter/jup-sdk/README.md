@@ -126,6 +126,18 @@ cargo run --example swap
 # Simulate depositing 0.1 USDC into a lending protocol
 cargo run --example deposit
 
-# Simulate a full deposit and then withdraw cycle
+# Simulate depositing 0.1 SOL into a lending protocol
+cargo run --example deposit_sol
+
+# Simulate minting 0.1 USDC worth of jTokens
+cargo run --example mint
+
+# Simulate redeeming 0.1 USDC worth of jTokens
+cargo run --example redeem
+
+# Simulate withdrawing 0.1 USDC from a lending protocol
 cargo run --example withdraw
+
+# Simulate withdrawing 0.1 SOL from a lending protocol
+cargo run --example withdraw_sol
 ```
