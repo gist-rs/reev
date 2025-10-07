@@ -1,21 +1,30 @@
 # RULES.md: Engineering and Development Guidelines
 
-This document establishes the official coding conventions and architectural rules for the `reev` project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, and scalable.
+This document establishes the official coding conventions and architectural rules for the `reev` project. Adhering to these rules is mandatory for all new code. They are designed to ensure the codebase remains clean, maintainable, and scalable for the production-ready framework.
 
 ---
 
 ## 1. Architectural Principles
 
 ### Rule 1.1: Strict Separation of Concerns
--   **The Core Library (`reev-lib`)**: This is the brain of the application. It contains all core evaluation logic, environment implementations, agent traits, and action handlers. It MUST be completely agnostic of any user interface.
--   **Binary Crates (`reev-runner`, `reev-tui`)**: These crates are the user-facing entrypoints. Their **only** job is to handle the UI layer (CLI, TUI). They parse input, orchestrate calls to `reev-lib`, and present the results. They MUST NOT contain core evaluation logic.
+-   **Core Library (`reev-lib`)**: Contains all core evaluation logic, environment implementations, agent traits, and protocol handlers. Must remain UI-agnostic.
+-   **Binary Crates (`reev-runner`, `reev-tui`, `reev-agent`)**: User-facing entrypoints handling UI layer (CLI, TUI, API). Must not contain core evaluation logic.
+-   **Protocol Modules**: Jupiter, native, and other protocol handlers in dedicated modules with clear interfaces.
 
 ### Rule 1.2: Service-Oriented Environment
--   **External Process Management**: The Solana test environment (`surfpool`) MUST be treated as an external, ephemeral service. The `SolanaEnv` is responsible for its entire lifecycle (spawning, monitoring, terminating).
--   **RPC-Only Communication**: All interaction with the `surfpool` validator MUST occur exclusively through its public JSON-RPC API. Direct linking to `surfpool` libraries is forbidden.
+-   **Smart Service Management**: Surfpool is treated as an intelligent managed service with automatic detection, binary caching, and shared instance support.
+-   **RPC-Only Communication**: All surfpool interaction occurs through JSON-RPC API. Direct library linking is forbidden.
+-   **Lifecycle Management**: Automatic startup, health monitoring, and graceful shutdown are required.
 
-### Rule 1.3: Modular Actions
--   Each distinct on-chain action (e.g., `sol_transfer`, `spl_transfer`) MUST be encapsulated in its own module within the `reev-lib/src/actions/` directory.
+### Rule 1.3: Protocol Abstraction
+-   **Protocol Traits**: All protocols must implement standardized traits for consistency.
+-   **SDK Integration**: Use official SDKs (Jupiter SDK) instead of direct API calls when available.
+-   **Mainnet Fork Validation**: All operations must work on real mainnet-forked environments, not mock data.
+
+### Rule 1.4: Production-Ready Architecture
+-   **Comprehensive Testing**: All features must have corresponding benchmarks with 100% success rates.
+-   **Error Handling**: Robust error handling with clear logging and graceful degradation.
+-   **Performance Optimization**: Binary caching, shared instances, and efficient resource management.
 
 ---
 
@@ -45,36 +54,30 @@ This document establishes the official coding conventions and architectural rule
 -   Significant feature development or refactoring MUST be preceded by an update to `PLAN.md` and `UI.md`.
 -   The work must be broken down into specific, verifiable steps in `TASKS.md`.
 
-### Rule 3.2: Benchmark-Driven Testing
--   The primary method for testing is through end-to-end benchmark tests.
--   Any new feature, especially a new action handler, MUST be accompanied by a new `.yml` benchmark file in the `reev-benchmarks` suite that specifically validates its functionality.
-
-### Rule 3.3: Debugging and Logging
+### Rule 3.2: Debugging and Logging
 -   **Don't Guess, Prove**: When debugging, do not guess the cause. Insert logging statements (`info!`, `debug!`, `trace!`) to trace execution and inspect state step-by-step. Start from a last known-working state and reintroduce changes incrementally.
 -   **Use `tracing`**: The `tracing` crate is the project standard. Use it for all logging. Control log verbosity with the `RUST_LOG` environment variable (e.g., `RUST_LOG=reev_lib=trace`).
-
-### Rule 3.4: Focused Testing
--   When fixing a bug or working on a specific feature, run only the relevant test to reduce execution time and log noise (e.g., `cargo test -p crate-name --test test_name`).
-
-
 
 ---
 
 ## 4. Workspace and Dependencies
 
-### Rule 4.1: Workspace Structure
--   The workspace MUST maintain a flat directory structure under `crates/`.
--   All crates within the workspace MUST be prefixed with `reev-`.
+### Rule 4.1: Production Workspace Structure
+-   Maintain flat directory structure under `crates/` with `reev-` prefix.
+-   Separate concerns: core library, runners, agents, protocols, and examples.
+-   Include comprehensive integration tests for all major components.
 
-### Rule 4.2: Standard Toolchain
--   To ensure consistency, the project standardizes on the following foundational crates for their respective tasks:
-    -   **Error Handling**: `anyhow` for simple, context-rich error management.
-    -   **Serialization**: `serde`, `serde_json`, `serde_yaml` for all data serialization tasks.
-    -   **CLI**: `clap` for the `reev-runner`.
-    -   **TUI**: `ratatui` for the `reev-tui`.
-    -   **Solana**: `solana-client`, `solana-sdk`, `spl-token` for blockchain interaction.
-    -   **Observability**: `tracing` and `opentelemetry` for performance analysis.
+### Rule 4.2: Production Toolchain Standards
+-   **Error Handling**: `anyhow` for context-rich error management with proper error chaining.
+-   **Serialization**: `serde`, `serde_json`, `serde_yaml` for all data handling.
+-   **CLI**: `clap` for command-line interfaces with comprehensive help.
+-   **TUI**: `ratatui` for interactive terminal interfaces with real-time updates.
+-   **Solana**: `solana-client`, `solana-sdk`, `spl-token` for blockchain integration.
+-   **LLM Integration**: `rig` for agent-LLM communication with multiple model support.
+-   **Observability**: `tracing` for structured logging and performance analysis.
 
-### Rule 4.3: Environment Configuration
--   Local development configuration and secrets (e.g., API keys) SHOULD be managed using a `.env` file.
--   The `dotenvy` crate is the standard tool for loading these variables into the application environment.
+### Rule 4.3: Configuration Management
+-   Use `.env` files for local development configuration and secrets.
+-   Implement `dotenvy` for environment variable loading.
+-   Support multiple configuration sources: CLI args, env files, and config files.
+-   Validate all configuration at startup with clear error messages.
