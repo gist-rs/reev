@@ -3,11 +3,13 @@
 //! This tool provides AI agent access to Jupiter's mint and redeem functionality
 //! for lending positions.
 
-use jup_sdk::api::{get_mint_instructions, get_redeem_instructions};
+use jup_sdk::api::get_redeem_instructions;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
+use std::str::FromStr;
 use thiserror::Error;
 
 /// Helper function to convert Jupiter InstructionData to JSON string
@@ -125,14 +127,26 @@ impl Tool for JupiterMintTool {
             .unwrap_or(&args.signer)
             .clone();
 
-        // Call the Jupiter API to get mint instructions
-        let response = get_mint_instructions(args.asset.clone(), signer.clone(), args.shares)
+        // Use the new lend_mint protocol handler which handles Base58 conversion
+        use crate::protocols::jupiter;
+        let asset = Pubkey::from_str(&args.asset).map_err(|e| {
+            JupiterMintRedeemError::ProtocolError(anyhow::anyhow!("Invalid asset pubkey: {e}"))
+        })?;
+        let shares = args.shares;
+        let mut key_map = self.key_map.clone();
+
+        // Ensure USER_WALLET_PUBKEY is in the key_map
+        if !key_map.contains_key("USER_WALLET_PUBKEY") {
+            key_map.insert("USER_WALLET_PUBKEY".to_string(), signer.clone());
+        }
+
+        // Call the centralized lend_mint protocol handler
+        let raw_instructions = jupiter::execute_jupiter_lend_mint(&asset, shares, &key_map)
             .await
             .map_err(JupiterMintRedeemError::ProtocolError)?;
 
-        // Convert InstructionData to JSON string
-        let instructions_json = convert_instructions_to_json(&response.instructions)?;
-        let output = instructions_json;
+        // Convert RawInstruction to JSON string
+        let instructions_json = serde_json::to_string(&raw_instructions)?;
 
         // Create the final response with context
         let response = json!({
@@ -140,7 +154,7 @@ impl Tool for JupiterMintTool {
             "asset": args.asset,
             "signer": signer,
             "shares": args.shares,
-            "instructions": serde_json::from_str::<serde_json::Value>(&output)?,
+            "instructions": serde_json::from_str::<serde_json::Value>(&instructions_json)?,
             "note": "These instructions mint jTokens representing lending positions. Execute them to create the position."
         });
 

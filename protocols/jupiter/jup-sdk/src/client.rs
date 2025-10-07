@@ -87,6 +87,14 @@ impl<'a> Jupiter<'a> {
         }
     }
 
+    /// Prepares a mint operation.
+    pub fn mint(&self, params: DepositParams) -> MintBuilder {
+        MintBuilder {
+            client: self,
+            params,
+        }
+    }
+
     fn get_user_pubkey(&self) -> Result<Pubkey> {
         self.user_pubkey.ok_or_else(|| {
             anyhow!("A user pubkey must be provided via .with_user_pubkey() or .with_signer()")
@@ -344,3 +352,73 @@ impl<'a> WithdrawBuilder<'a> {
         .await
     }
 }
+
+// --- Mint Builder ---
+
+pub struct MintBuilder<'a> {
+    client: &'a Jupiter<'a>,
+    params: DepositParams,
+}
+
+impl<'a> MintBuilder<'a> {
+    /// Private helper to fetch and prepare mint transaction components.
+    pub async fn prepare_transaction_components(
+        &self,
+    ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
+        let user_pubkey = self.client.get_user_pubkey()?;
+        let api_response = api::lend::get_mint_instructions(
+            self.params.asset_mint.to_string(),
+            user_pubkey.to_string(),
+            self.params.amount,
+        )
+        .await?;
+        let instructions = transaction::convert_instructions(api_response.instructions)?;
+        Ok((instructions, vec![])) // Lend API does not use ALTs
+    }
+
+    /// Builds an unsigned transaction for the mint.
+    pub async fn build_unsigned_transaction(&self) -> Result<UnsignedTransaction> {
+        let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
+        let user_pubkey = self.client.get_user_pubkey()?;
+        transaction::compile_transaction(
+            &self.client.rpc_client,
+            &user_pubkey,
+            instructions,
+            alt_accounts,
+        )
+    }
+
+    /// Executes the full mint simulation against a `surfpool` instance.
+    pub async fn commit(&self) -> Result<SimulationResult> {
+        if !self.client.is_surfpool {
+            return Err(anyhow!("`.commit()` is only available in surfpool mode."));
+        }
+        let signer = self
+            .client
+            .signer
+            .ok_or_else(|| anyhow!("A signer is required for `.commit()`."))?;
+        let surfpool_client = SurfpoolClient::new(&self.client.rpc_client.url());
+
+        surfpool::setup_wallet(
+            &self.client.rpc_client,
+            &surfpool_client,
+            signer,
+            &self.params.asset_mint,
+            self.params.amount * 2,
+        )
+        .await?;
+
+        let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
+
+        surfpool::execute_simulation(
+            &self.client.rpc_client,
+            &surfpool_client,
+            signer,
+            instructions,
+            alt_accounts,
+        )
+        .await
+    }
+}
+
+// --- Withdraw Builder ---
