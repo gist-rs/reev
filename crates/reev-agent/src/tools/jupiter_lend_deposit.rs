@@ -54,7 +54,7 @@ impl Tool for JupiterLendDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Deposit a token to earn yield using the Jupiter LST aggregator. This tool handles the entire process, including wrapping native SOL if required.".to_string(),
+            description: "DEPRECATED: Use jupiter_mint tool instead. This tool deposits tokens to earn yield but jupiter_mint is preferred for creating lending positions and minting jTokens.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

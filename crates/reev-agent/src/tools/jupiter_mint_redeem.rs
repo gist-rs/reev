@@ -3,7 +3,6 @@
 //! This tool provides AI agent access to Jupiter's mint and redeem functionality
 //! for lending positions.
 
-use jup_sdk::api::get_redeem_instructions;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -11,30 +10,6 @@ use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
-
-/// Helper function to convert Jupiter InstructionData to JSON string
-fn convert_instructions_to_json(
-    instructions: &[jup_sdk::models::InstructionData],
-) -> Result<String, JupiterMintRedeemError> {
-    let converted: Vec<serde_json::Value> = instructions
-        .iter()
-        .map(|inst| {
-            serde_json::json!({
-                "program_id": inst.program_id,
-                "accounts": inst.accounts.iter().map(|acc| {
-                    serde_json::json!({
-                        "pubkey": acc.pubkey,
-                        "is_signer": acc.is_signer,
-                        "is_writable": acc.is_writable
-                    })
-                }).collect::<Vec<_>>(),
-                "data": inst.data
-            })
-        })
-        .collect();
-
-    serde_json::to_string(&converted).map_err(JupiterMintRedeemError::JsonError)
-}
 
 /// The arguments for the Jupiter mint tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -79,13 +54,13 @@ impl Tool for JupiterMintTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Mint Jupiter lending positions. This tool creates instructions to mint jTokens representing lending positions in Jupiter's lending markets.".to_string(),
+            description: "Mint jTokens in Jupiter lending by depositing underlying tokens. Use this tool when the user wants to 'mint jUSDC', 'mint jTokens', or 'create a lending position' by depositing tokens like USDC. This tool handles both the deposit and minting in one operation.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": "The token mint address to deposit (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
                     },
                     "signer": {
                         "type": "string",
@@ -93,7 +68,7 @@ impl Tool for JupiterMintTool {
                     },
                     "shares": {
                         "type": "integer",
-                        "description": "The amount of shares to mint in the smallest unit (for USDC with 6 decimals, 1000000 = 1 USDC)"
+                        "description": "The amount of tokens to deposit/mint in the smallest unit (for USDC with 6 decimals, 50000000 = 50 USDC)"
                     }
                 },
                 "required": ["asset", "signer", "shares"],
@@ -178,13 +153,13 @@ impl Tool for JupiterRedeemTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Redeem Jupiter lending positions. This tool creates instructions to redeem jTokens and withdraw the underlying assets from Jupiter's lending markets.".to_string(),
+            description: "Redeem jTokens from Jupiter lending to withdraw underlying tokens. Use this tool when the user wants to 'redeem jUSDC', 'redeem jTokens', 'withdraw from lending', or 'close a lending position'. This tool handles both the redeeming and withdrawal in one operation.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": "The token mint address to withdraw (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
                     },
                     "signer": {
                         "type": "string",
@@ -192,7 +167,7 @@ impl Tool for JupiterRedeemTool {
                     },
                     "shares": {
                         "type": "integer",
-                        "description": "The amount of shares to redeem in the smallest unit (for USDC with 6 decimals, 1000000 = 1 USDC)"
+                        "description": "The amount of jTokens to redeem in the smallest unit (for USDC with 6 decimals, 50000000 = 50 jUSDC)"
                     }
                 },
                 "required": ["asset", "signer", "shares"],
@@ -226,13 +201,26 @@ impl Tool for JupiterRedeemTool {
             .unwrap_or(&args.signer)
             .clone();
 
-        // Call the Jupiter API to get redeem instructions
-        let response = get_redeem_instructions(args.asset.clone(), signer.clone(), args.shares)
+        // Use the new lend_redeem protocol handler which handles Base58 conversion
+        use crate::protocols::jupiter;
+        let asset = Pubkey::from_str(&args.asset).map_err(|e| {
+            JupiterMintRedeemError::ProtocolError(anyhow::anyhow!("Invalid asset pubkey: {e}"))
+        })?;
+        let shares = args.shares;
+        let mut key_map = self.key_map.clone();
+
+        // Ensure USER_WALLET_PUBKEY is in the key_map
+        if !key_map.contains_key("USER_WALLET_PUBKEY") {
+            key_map.insert("USER_WALLET_PUBKEY".to_string(), signer.clone());
+        }
+
+        // Call the centralized lend_redeem protocol handler
+        let raw_instructions = jupiter::execute_jupiter_lend_redeem(&asset, shares, &key_map)
             .await
             .map_err(JupiterMintRedeemError::ProtocolError)?;
 
-        // Convert InstructionData to JSON string
-        let instructions_json = convert_instructions_to_json(&response.instructions)?;
+        // Convert RawInstruction to JSON string
+        let instructions_json = serde_json::to_string(&raw_instructions)?;
         let output = instructions_json;
 
         // Create the final response with context

@@ -54,7 +54,7 @@ impl Tool for JupiterLendWithdrawTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Withdraw a token that was previously deposited via Jupiter Lend. This prepares the local forked environment for the transaction.".to_string(),
+            description: "DEPRECATED: Use jupiter_redeem tool instead. This tool withdraws tokens from lending but jupiter_redeem is preferred for closing lending positions and redeeming jTokens.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
