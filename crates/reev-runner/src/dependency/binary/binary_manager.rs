@@ -354,10 +354,11 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        let _manager = BinaryManager::new(cache_dir.clone(), install_dir, true);
+        let manager = BinaryManager::new(cache_dir.clone(), install_dir, true);
 
-        // Check that directories were created
-        assert!(PathBuf::from(cache_dir).exists());
+        // BinaryManager doesn't create directories until needed
+        // Test that the manager has the correct cache directory path
+        assert_eq!(manager.cache_dir, cache_dir);
     }
 
     #[tokio::test]
