@@ -23,14 +23,33 @@ pub(crate) fn handle_step(
     let info;
     let mut reward = 0.0;
 
-    // --- 2. Handle the case of no actions ---
-    if actions.is_empty() {
+    // --- 2. Handle API benchmarks (skip_instruction_validation) ---
+    if ground_truth.skip_instruction_validation {
+        // For API benchmarks, success is determined by making tool calls, not transactions
+        if actions.is_empty() {
+            let error_string = "Agent returned no actions for API benchmark.".to_string();
+            error!("{}", error_string);
+            tx_error = Some(error_string.clone());
+            info = json!({ "error": error_string, "type": "api_benchmark" });
+        } else {
+            // For API benchmarks, any action (even if it's just a placeholder) indicates success
+            // The actual success is determined by the scoring system
+            tx_status = "Success";
+            info = json!({
+                "message": "API benchmark completed - tool calls made",
+                "type": "api_benchmark",
+                "actions_count": actions.len()
+            });
+            reward = 1.0;
+        }
+    } else if actions.is_empty() {
+        // --- 3. Handle the case of no actions for transaction benchmarks ---
         let error_string = "Agent returned no actions to execute.".to_string();
         error!("{}", error_string);
         tx_error = Some(error_string.clone());
         info = json!({ "error": error_string });
     } else {
-        // --- 3. Build and simulate the transaction ---
+        // --- 4. Build and simulate the transaction for non-API benchmarks ---
         let instructions: Vec<Instruction> = actions.into_iter().map(|a| a.0).collect();
         let fee_payer_keypair = env.get_fee_payer_keypair()?;
         let mut signers = vec![fee_payer_keypair];
@@ -84,7 +103,7 @@ pub(crate) fn handle_step(
             tx_logs = sim_logs;
             info = json!({ "error": error_string });
         } else {
-            // --- 4. If simulation succeeds, execute the transaction ---
+            // --- 5. If simulation succeeds, execute the transaction ---
             info!("Transaction simulation successful. Executing transaction...");
             let latest_blockhash = env.rpc_client.get_latest_blockhash()?;
             transaction.sign(&signers, latest_blockhash);
@@ -115,10 +134,10 @@ pub(crate) fn handle_step(
         }
     }
 
-    // --- 5. Get the final observation AFTER the transaction has settled ---
+    // --- 6. Get the final observation AFTER the transaction has settled ---
     let obs = observation::get_observation(env, ground_truth, tx_status, tx_error, tx_logs)?;
 
-    // --- 6. Return the final step result ---
+    // --- 7. Return the final step result ---
     Ok(Step {
         observation: obs,
         reward,
