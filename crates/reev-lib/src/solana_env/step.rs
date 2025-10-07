@@ -9,7 +9,7 @@ use serde_json::json;
 use solana_client::rpc_config::RpcSimulateTransactionConfig;
 use solana_sdk::{instruction::Instruction, signature::Signer, transaction::Transaction};
 use solana_transaction_status::UiTransactionEncoding;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 pub(crate) fn handle_step(
     env: &mut SolanaEnv,
@@ -20,7 +20,7 @@ pub(crate) fn handle_step(
     let mut tx_status = "Failure";
     let mut tx_error: Option<String> = None;
     let mut tx_logs: Vec<String> = Vec::new();
-    let info;
+    let mut info = json!({});
     let mut reward = 0.0;
 
     // --- 2. Handle API benchmarks (skip_instruction_validation) ---
@@ -63,46 +63,23 @@ pub(crate) fn handle_step(
         error!("{}", error_string);
         tx_error = Some(error_string.clone());
         info = json!({ "error": error_string });
+        reward = 0.0; // Explicitly set reward for empty actions
     } else {
-        // --- 4. Check if this is a flow benchmark that should skip transaction execution ---
-        let is_flow_benchmark = actions
-            .first()
-            .and_then(|action| action.0.data.first())
-            .map(|&byte| byte == 2) // Flow success indicator
-            .unwrap_or(false);
+        // --- 4. Build and simulate the transaction for non-API benchmarks ---
+        let instructions: Vec<Instruction> = actions.into_iter().map(|a| a.0).collect();
+        let fee_payer_keypair = env.get_fee_payer_keypair()?;
+        let mut signers = vec![fee_payer_keypair];
 
-        if is_flow_benchmark {
-            // For flow benchmarks, skip transaction simulation and execution
-            info!("Flow benchmark detected - skipping transaction execution");
-            tx_status = "Success";
-            info = json!({
-                "message": "Flow benchmark completed successfully - no transaction needed",
-                "type": "flow_benchmark",
-                "steps_completed": actions.len()
-            });
-            reward = 1.0;
-        } else {
-            // --- 5. Build and simulate the transaction for non-flow benchmarks ---
-            let instructions: Vec<Instruction> = actions.into_iter().map(|a| a.0).collect();
-            let fee_payer_keypair = env.get_fee_payer_keypair()?;
-            let mut signers = vec![fee_payer_keypair];
-
-            for instruction in &instructions {
-                for acc in &instruction.accounts {
-                    if acc.is_signer {
-                        if let Some(keypair) = env
-                            .keypair_map
-                            .values()
-                            .find(|kp| kp.pubkey() == acc.pubkey)
-                        {
-                            if !signers.iter().any(|s| s.pubkey() == keypair.pubkey()) {
-                                signers.push(keypair);
-                            }
-                        } else if acc.pubkey != fee_payer_keypair.pubkey() {
-                            warn!(
-                                "Signer keypair for pubkey {} not found in keypair_map. Transaction may fail.",
-                                acc.pubkey
-                            );
+        for instruction in &instructions {
+            for acc in &instruction.accounts {
+                if acc.is_signer {
+                    if let Some(keypair) = env
+                        .keypair_map
+                        .values()
+                        .find(|kp| kp.pubkey() == acc.pubkey)
+                    {
+                        if !signers.iter().any(|s| s.pubkey() == keypair.pubkey()) {
+                            signers.push(keypair);
                         }
                     }
                 }
