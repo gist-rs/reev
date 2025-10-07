@@ -8,7 +8,7 @@ use tracing::info;
 pub(crate) async fn handle_sol_transfer(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '001-SOL-TRANSFER' id. Calling centralized SOL transfer handler.");
+    info!("[reev-agent] Matched '001-sol-transfer' id. Calling centralized SOL transfer handler.");
 
     let from_pubkey = key_map
         .get("USER_WALLET_PUBKEY")

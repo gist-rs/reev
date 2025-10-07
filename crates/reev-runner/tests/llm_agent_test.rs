@@ -312,15 +312,15 @@ async fn test_llm_agent_on_all_benchmarks(
                 // Set different score thresholds based on benchmark complexity
                 let (threshold, description) = match test_case.id.as_str() {
                     // Simple transfers should achieve higher scores
-                    "001-SOL-TRANSFER" | "002-SPL-TRANSFER" => (0.8, "simple transfer"),
+                    "001-sol-transfer" | "002-spl-transfer" => (0.8, "simple transfer"),
                     // Jupiter operations are more complex, lower threshold acceptable
-                    "100-JUP-SWAP-SOL-USDC" => (0.3, "Jupiter swap"),
-                    "110-JUP-LEND-DEPOSIT-SOL" | "111-JUP-LEND-DEPOSIT-USDC" => {
+                    "100-jup-swap-sol-usdc" => (0.3, "Jupiter swap"),
+                    "110-jup-lend-deposit-sol" | "111-jup-lend-deposit-usdc" => {
                         (0.4, "Jupiter lend deposit")
                     }
-                    "113-JUP-LEND-WITHDRAW-USDC" => (0.4, "Jupiter lend withdraw"),
+                    "113-jup-lend-withdraw-usdc" => (0.4, "Jupiter lend withdraw"),
                     // Multi-step operations are most challenging
-                    "112-JUP-LEND-WITHDRAW-SOL" => (0.2, "complex 3-step Jupiter operation"),
+                    "112-jup-lend-withdraw-sol" => (0.2, "complex 3-step Jupiter operation"),
                     // Default threshold for unknown benchmarks
                     _ => (0.5, "unknown benchmark"),
                 };

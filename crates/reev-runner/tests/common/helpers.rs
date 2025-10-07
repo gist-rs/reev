@@ -59,8 +59,8 @@ pub fn mock_perfect_instruction(
     key_map: &HashMap<String, String>,
 ) -> Result<Instruction> {
     match test_case.id.as_str() {
-        "001-SOL-TRANSFER" => create_sol_transfer_instruction(key_map, 100_000_000), // 0.1 SOL
-        "002-SPL-TRANSFER" | "003-SPL-TRANSFER-FAIL" => {
+        "001-sol-transfer" => create_sol_transfer_instruction(key_map, 100_000_000), // 0.1 SOL
+        "002-spl-transfer" | "003-spl-transfer-fail" => {
             create_spl_transfer_instruction(key_map, 15_000_000) // 15 USDC
         }
         _ => Err(anyhow!(

@@ -12,7 +12,7 @@ use tracing::info;
 pub(crate) async fn handle_jup_lend_withdraw_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '113-JUP-LEND-WITHDRAW-USDC' id. Calling centralized Jupiter lend withdraw handler.");
+    info!("[reev-agent] Matched '113-jup-lend-withdraw-usdc' id. Calling centralized Jupiter lend withdraw handler.");
 
     let user_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")

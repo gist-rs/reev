@@ -8,7 +8,7 @@ use tracing::info;
 pub(crate) async fn handle_spl_transfer(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '002-SPL-TRANSFER' id. Calling centralized SPL transfer handler.");
+    info!("[reev-agent] Matched '002-spl-transfer' id. Calling centralized SPL transfer handler.");
     let source_ata_str = key_map
         .get("USER_USDC_ATA")
         .context("USER_USDC_ATA not found in key_map")?;

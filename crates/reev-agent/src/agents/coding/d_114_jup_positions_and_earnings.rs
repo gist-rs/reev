@@ -11,7 +11,7 @@ use tracing::info;
 pub(crate) async fn handle_jup_positions_and_earnings(
     key_map: &HashMap<String, String>,
 ) -> Result<serde_json::Value> {
-    info!("[reev-agent] Matched '114-JUP-POSITIONS-AND-EARNINGS' id. Creating deterministic multi-step flow response.");
+    info!("[reev-agent] Matched '114-jup-positions-and-earnings' id. Creating deterministic multi-step flow response.");
 
     let user_pubkey = key_map
         .get("USER_WALLET_PUBKEY")

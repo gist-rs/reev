@@ -35,7 +35,7 @@ fn to_raw_instruction(instruction: Instruction) -> RawInstruction {
 pub(crate) async fn handle_jup_lend_deposit_sol(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '110-JUP-LEND-DEPOSIT-SOL' id. Calling centralized Jupiter lend deposit handler.");
+    info!("[reev-agent] Matched '110-jup-lend-deposit-sol' id. Calling centralized Jupiter lend deposit handler.");
 
     let user_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")

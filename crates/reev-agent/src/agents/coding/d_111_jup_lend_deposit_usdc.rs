@@ -13,7 +13,7 @@ use tracing::info;
 pub(crate) async fn handle_jup_lend_deposit_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '111-JUP-LEND-DEPOSIT-USDC' id. Calling centralized Jupiter lend deposit handler.");
+    info!("[reev-agent] Matched '111-jup-lend-deposit-usdc' id. Calling centralized Jupiter lend deposit handler.");
 
     let user_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")

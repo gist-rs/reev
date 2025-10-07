@@ -20,7 +20,7 @@ use tracing::info;
 pub(crate) async fn handle_jup_swap_sol_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
-    info!("[reev-agent] Matched '100-JUP-SWAP-SOL-USDC' id. Calling centralized Jupiter swap handler.");
+    info!("[reev-agent] Matched '100-jup-swap-sol-usdc' id. Calling centralized Jupiter swap handler.");
 
     let user_pubkey_str = key_map
         .get("USER_WALLET_PUBKEY")

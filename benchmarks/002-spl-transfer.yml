@@ -1,5 +1,4 @@
-
-id: 002-SPL-TRANSFER
+id: 002-spl-transfer
 description: A benchmark to test a simple SPL token transfer of real USDC.
 tags: ["spl-token", "transfer", "usdc", "surfpool"]
 

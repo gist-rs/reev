@@ -142,7 +142,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 /// Executes the deterministic, code-based agent logic to generate a ground truth instruction.
 async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     info!(
-        "[reev-agent] 🦀 Received request for benchmark id: \"{}\"",
+        "[reev-agent] Received request for benchmark id: \"{}\"",
         payload.id
     );
 
@@ -198,7 +198,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         }
         "114-jup-positions-and-earnings" => {
             info!(
-                "[reev-agent] 🦀 Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
+                "[reev-agent] Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
                 payload.id
             );
             let response =
@@ -217,7 +217,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         // Handle flow benchmarks (IDs starting with "200-")
         flow_id if flow_id.starts_with("200-") => {
             info!(
-                "[reev-agent] 🦀 Received flow benchmark request: \"{}\" - Creating deterministic flow response",
+                "[reev-agent] Received flow benchmark request: \"{}\" - Creating deterministic flow response",
                 payload.id
             );
             // For flow benchmarks, create a mock multi-step response
