@@ -9,7 +9,8 @@ use axum::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
+use solana_pubkey::Pubkey;
+use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info};
 
 pub mod flow;
@@ -213,6 +214,28 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                 response["summary"]["total_earnings_usd"].as_f64().unwrap_or(0.0)
             );
             response_json
+        }
+        "115-jup-lend-mint-usdc" => {
+            info!("[reev-agent] Handling 115-jup-lend-mint-usdc benchmark");
+            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
+            let ixs = agents::coding::d_115_jup_lend_mint_usdc::handle_jupiter_mint(
+                &asset, 50000000, // 50 USDC in smallest units
+                &key_map,
+            )
+            .await?;
+            serde_json::to_string(&ixs)?
+        }
+        "116-jup-lend-redeem-usdc" => {
+            info!("[reev-agent] Handling 116-jup-lend-redeem-usdc benchmark");
+            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
+            let ixs = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
+                &asset, 50000000, // 50 USDC in smallest units
+                &key_map,
+            )
+            .await?;
+            serde_json::to_string(&ixs)?
         }
         // Handle flow benchmarks (IDs starting with "200-")
         flow_id if flow_id.starts_with("200-") => {

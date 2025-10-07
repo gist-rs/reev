@@ -1,0 +1,59 @@
+id: 116-jup-lend-redeem-usdc
+description: Redeem jUSDC lending position using Jupiter
+tags: ["jupiter", "lend", "redeem", "yield", "jtoken"]
+
+initial_state:
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 2000000000
+
+  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 0
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000"
+
+  - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 0
+    data:
+      mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000"
+
+prompt: "Redeem 50 jUSDC from Jupiter lending to withdraw 50 USDC back to my token account. This will close the lending position and return the principal plus any earned yield."
+
+ground_truth:
+  transaction_status: "Success"
+
+  final_state_assertions:
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_gte: 50000000
+      weight: 0.3
+
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA_PLACEHOLDER"
+      expected: 50000000
+      weight: 0.3
+
+    - type: TokenAccountBalance
+      pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
+      expected: 0
+      weight: 0.2
+
+  expected_instructions:
+    - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
+      program_id_weight: 0.3
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: true
+          weight: 0.1
+        - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
+          is_signer: false
+          is_writable: true
+          weight: 0.1
+      data_weight: 0.2

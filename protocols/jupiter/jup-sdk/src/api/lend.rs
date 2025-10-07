@@ -65,3 +65,63 @@ pub async fn get_withdraw_instructions(
 
     Ok(response)
 }
+
+/// Fetches mint instructions from the Jupiter Lend API.
+pub async fn get_mint_instructions(
+    asset: String,
+    signer: String,
+    shares: u64,
+) -> Result<ApiResponse> {
+    let client = api_client::api_client();
+    let data = serde_json::json!({
+        "asset": asset,
+        "signer": signer,
+        "shares": shares.to_string(),
+        "cluster": "mainnet"
+    });
+
+    let response = client
+        .post(format!(
+            "{}/lend/v1/earn/mint-instructions",
+            config::base_url()
+        ))
+        .headers(api_client::json_headers())
+        .json(&data)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<ApiResponse>()
+        .await?;
+
+    Ok(response)
+}
+
+/// Fetches redeem instructions from the Jupiter Lend API.
+pub async fn get_redeem_instructions(
+    asset: String,
+    signer: String,
+    shares: u64,
+) -> Result<ApiResponse> {
+    let client = api_client::api_client();
+    let data = serde_json::json!({
+        "asset": asset,
+        "signer": signer,
+        "shares": shares.to_string(),
+        "cluster": "mainnet"
+    });
+
+    let response = client
+        .post(format!(
+            "{}/lend/v1/earn/redeem-instructions",
+            config::base_url()
+        ))
+        .headers(api_client::json_headers())
+        .json(&data)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<ApiResponse>()
+        .await?;
+
+    Ok(response)
+}

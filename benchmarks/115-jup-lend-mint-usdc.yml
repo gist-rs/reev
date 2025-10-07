@@ -1,0 +1,46 @@
+id: 115-jup-lend-mint-usdc
+description: Mint jUSDC lending position using Jupiter
+tags: ["jupiter", "lend", "mint", "yield", "jtoken"]
+
+initial_state:
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 2000000000
+
+  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 0
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000"
+
+prompt: "Mint 50 jUSDC in Jupiter lending by depositing 50 USDC from my token account. This will create a lending position that earns yield."
+
+ground_truth:
+  transaction_status: "Success"
+
+  final_state_assertions:
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_gte: -50000000
+      weight: 0.3
+
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA_PLACEHOLDER"
+      expected: 0
+      weight: 0.3
+
+  expected_instructions:
+    - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
+      program_id_weight: 0.3
+      accounts:
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: true
+          weight: 0.1
+        - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
+          is_signer: false
+          is_writable: true
+          weight: 0.1
+      data_weight: 0.2

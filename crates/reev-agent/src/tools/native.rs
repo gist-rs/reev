@@ -143,10 +143,10 @@ impl Tool for SolTransferTool {
                     &user_pubkey_parsed,
                     &_mint_pubkey,
                 );
-                let destination = spl_associated_token_account::get_associated_token_address(
-                    &recipient_pubkey_parsed,
-                    &_mint_pubkey,
-                );
+
+                // The agent should provide the correct recipient ATA address directly
+                // Use recipient_pubkey as the destination ATA without recalculating
+                let destination = recipient_pubkey_parsed;
 
                 handle_spl_transfer(
                     source,

@@ -14,8 +14,8 @@ use tracing::info;
 use crate::{
     prompt::SYSTEM_PREAMBLE,
     tools::{
-        JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterSwapTool,
-        SolTransferTool, SplTransferTool,
+        JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterMintTool,
+        JupiterRedeemTool, JupiterSwapTool, SolTransferTool, SplTransferTool,
     },
     LlmRequest,
 };
@@ -85,6 +85,12 @@ async fn run_gemini_agent(
     let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
         key_map: key_map.clone(),
     };
+    let jupiter_mint_tool = JupiterMintTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_redeem_tool = JupiterRedeemTool {
+        key_map: key_map.clone(),
+    };
     let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
@@ -106,6 +112,8 @@ async fn run_gemini_agent(
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
+        .tool(jupiter_mint_tool)
+        .tool(jupiter_redeem_tool)
         .tool(jupiter_positions_tool)
         .tool(jupiter_earnings_tool)
         .build();
@@ -155,6 +163,12 @@ async fn run_openai_compatible_agent(
     let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
         key_map: key_map.clone(),
     };
+    let jupiter_mint_tool = JupiterMintTool {
+        key_map: key_map.clone(),
+    };
+    let jupiter_redeem_tool = JupiterRedeemTool {
+        key_map: key_map.clone(),
+    };
     let jupiter_positions_tool = JupiterEarnTool {
         key_map: key_map.clone(),
     };
@@ -179,6 +193,8 @@ async fn run_openai_compatible_agent(
         .tool(jupiter_swap_tool)
         .tool(jupiter_lend_deposit_tool)
         .tool(jupiter_lend_withdraw_tool)
+        .tool(jupiter_mint_tool)
+        .tool(jupiter_redeem_tool)
         .tool(jupiter_positions_tool)
         .tool(jupiter_earnings_tool)
         .build();
@@ -188,7 +204,7 @@ async fn run_openai_compatible_agent(
         payload.context_prompt, payload.prompt
     );
 
-    let response = agent.prompt(&full_prompt).await?;
+    let response = agent.prompt(&full_prompt).multi_turn(3).await?;
 
     info!(
         "[reev-agent] Raw response from rig: {}",
@@ -225,6 +241,18 @@ async fn run_openai_compatible_agent(
                     return Ok(tool_result);
                 }
             }
+            "jupiter_mint" => {
+                if let Some(params) = tool_call_response.get("params") {
+                    let tool_result = execute_jupiter_mint(params, &key_map).await?;
+                    return Ok(tool_result);
+                }
+            }
+            "jupiter_redeem" => {
+                if let Some(params) = tool_call_response.get("params") {
+                    let tool_result = execute_jupiter_redeem(params, &key_map).await?;
+                    return Ok(tool_result);
+                }
+            }
             "jupiter_earn" => {
                 // For jupiter_earn, this might be an API-based benchmark
                 // Return the raw response since it doesn't contain instructions
@@ -234,6 +262,18 @@ async fn run_openai_compatible_agent(
                 info!("[reev-agent] Unknown tool method: {}", method);
             }
         }
+    }
+
+    // Check if this is a Jupiter tool response with instructions field
+    if let Some(instructions) = tool_call_response
+        .get("instructions")
+        .and_then(|i| i.as_array())
+    {
+        info!(
+            "[reev-agent] Detected Jupiter tool response with {} instructions",
+            instructions.len()
+        );
+        return Ok(serde_json::to_string(instructions)?);
     }
 
     // Check if this is a tool response without method field (direct tool call result)
@@ -413,4 +453,89 @@ async fn execute_jupiter_lend(
         }
     ]);
     Ok(serde_json::to_string(&instructions)?)
+}
+
+/// Helper function to execute Jupiter mint tool
+async fn execute_jupiter_mint(
+    params: &serde_json::Value,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    use jup_sdk::api::get_mint_instructions;
+
+    let asset = params
+        .get("asset")
+        .and_then(|a| a.as_str())
+        .unwrap_or("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        .to_string();
+    let signer = key_map
+        .get("USER_WALLET_PUBKEY")
+        .unwrap_or(&"unknown".to_string())
+        .clone();
+    let shares = params
+        .get("shares")
+        .and_then(|s| s.as_u64())
+        .unwrap_or(1000000);
+
+    let response = get_mint_instructions(asset.to_string(), signer.clone(), shares)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get mint instructions: {e}"))?;
+
+    // Convert InstructionData to JSON string
+    let instructions_json = convert_instructions_to_json(&response.instructions)?;
+    Ok(instructions_json)
+}
+
+/// Helper function to execute Jupiter redeem tool
+async fn execute_jupiter_redeem(
+    params: &serde_json::Value,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    use jup_sdk::api::get_redeem_instructions;
+
+    let asset = params
+        .get("asset")
+        .and_then(|a| a.as_str())
+        .unwrap_or("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        .to_string();
+    let signer = key_map
+        .get("USER_WALLET_PUBKEY")
+        .unwrap_or(&"unknown".to_string())
+        .clone();
+    let shares = params
+        .get("shares")
+        .and_then(|s| s.as_u64())
+        .unwrap_or(1000000);
+
+    let response = get_redeem_instructions(asset.to_string(), signer.clone(), shares)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get redeem instructions: {e}"))?;
+
+    // Convert InstructionData to JSON string
+    let instructions_json = convert_instructions_to_json(&response.instructions)?;
+    Ok(instructions_json)
+}
+
+/// Helper function to convert Jupiter InstructionData to JSON string
+fn convert_instructions_to_json(
+    instructions: &[jup_sdk::models::InstructionData],
+) -> Result<String> {
+    let converted: Vec<serde_json::Value> = instructions
+        .iter()
+        .map(|inst| {
+            serde_json::json!({
+                "program_id": inst.program_id,
+                "accounts": inst.accounts.iter().map(|acc| {
+                    serde_json::json!({
+                        "pubkey": acc.pubkey,
+                        "is_signer": acc.is_signer,
+                        "is_writable": acc.is_writable
+                    })
+                }).collect::<Vec<_>>(),
+                "data": inst.data
+            })
+        })
+        .collect();
+
+    serde_json::to_string(&converted)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize instructions: {e}"))
 }
