@@ -84,22 +84,18 @@ fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
 
     let action_node = Tree::Leaf(vec![format!("ACTION:\n{}", action_str)]);
 
-    // Check if this is an API benchmark by looking at the info field
-    let is_api_benchmark = step.info.get("type").and_then(|v| v.as_str()) == Some("api_benchmark");
-
-    let observation_label = if is_api_benchmark {
-        "OBSERVATION: API Query Completed".to_string()
-    } else {
-        format!("OBSERVATION: {}", step.observation.last_transaction_status)
+    // Check if this is a special benchmark type by looking at the info field
+    let observation_label = match step.info.get("type").and_then(|v| v.as_str()) {
+        Some("flow_benchmark") => "OBSERVATION: Flow Completed".to_string(),
+        Some("api_benchmark") => "OBSERVATION: API Query Completed".to_string(),
+        _ => format!("OBSERVATION: {}", step.observation.last_transaction_status),
     };
 
     let mut observation_children = Vec::new();
     if let Some(error) = &step.observation.last_transaction_error {
         observation_children.push(Tree::Leaf(vec![format!("Error: {}", error)]));
-    } else if is_api_benchmark {
-        if let Some(message) = step.info.get("message").and_then(|v| v.as_str()) {
-            observation_children.push(Tree::Leaf(vec![message.to_string()]));
-        }
+    } else if let Some(message) = step.info.get("message").and_then(|v| v.as_str()) {
+        observation_children.push(Tree::Leaf(vec![message.to_string()]));
     }
 
     let observation_node = Tree::Node(observation_label, observation_children);
