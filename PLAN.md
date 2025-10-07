@@ -38,45 +38,48 @@ Enable LLM agents to orchestrate multiple tools in sequence to complete complex 
 
 ---
 
-## 🚀 Phase 16: Smart Surfpool Management (Current Phase)
+## 🚀 Phase 16A: Smart Dependency Management (Current Phase)
 
 ### **🎯 Primary Objective**
-Implement intelligent surfpool lifecycle management to dramatically improve developer experience and testing performance.
+Implement intelligent dependency management architecture that separates concerns and provides zero-setup experience for developers while maintaining clean component boundaries.
 
-### **📋 Core Problems Solved**
-Currently, surfpool requires manual setup and build processes. This phase aims to create a seamless, automatic management system that eliminates friction for developers.
+### **📋 Core Architecture Changes**
+- **Component Separation**: `reev-lib` and `reev-agent` have no surfpool dependencies
+- **Runner as Orchestrator**: `reev-runner` manages all external dependencies automatically
+- **Starter Pack Distribution**: Pre-built binaries for instant setup without compilation
+- **Smart Process Management**: Automatic detection and shared instance support
 
 ### 🛠️ **Key Features to Implement**
 
-#### **Priority 1: Automatic Detection & Lifecycle Management**
-- **Smart Process Detection**: Check if surfpool is already running before starting new instances
-- **Health Monitoring**: Continuous monitoring of surfpool health and automatic recovery
-- **Shared Process Management**: Allow multiple evaluation processes to use the same surfpool instance
-- **Graceful Shutdown**: Clean process termination with proper resource cleanup
+#### **Priority 1: Dependency Management Architecture**
+- **Process Manager**: Centralized management of surfpool and reev-agent processes
+- **Health Monitoring**: Continuous health checks with automatic recovery mechanisms
+- **Service Discovery**: Automatic detection of running processes to avoid duplicates
+- **Lifecycle Management**: Proper cleanup and graceful shutdown on exit
 
-#### **Priority 2: Binary Optimization & Caching**
-- **Release Detection**: Automatically detect when released surfpool binaries are available
-- **Smart Downloading**: Download from GitHub releases instead of building when possible
-- **Local Caching**: Store binaries in `.surfpool/` folder (already gitignored) for instant reuse
-- **Fallback Building**: Build from source only when cached binaries are unavailable
+#### **Priority 2: Starter Pack System**
+- **Binary Distribution**: Platform-specific pre-built binaries (Linux, macOS, Windows)
+- **GitHub Integration**: Automatic download from GitHub releases when available
+- **Local Caching**: Store binaries in `.surfpool/cache/` for instant reuse
+- **Fallback Building**: Build from source only when binaries are unavailable
 
-#### **Priority 3: GitHub Integration**
-- **Release API Integration**: Connect to GitHub releases API for surfpool binaries
+#### **Priority 3: Smart Installation**
+- **Platform Detection**: Automatic detection of OS architecture and platform
 - **Version Management**: Check for updates and manage version compatibility
 - **Integrity Verification**: Verify downloaded binaries with checksums
-- **Automatic Updates**: Optional automatic update notifications and installation
+- **Extraction & Setup**: Automatic extraction to `.surfpool/installs/` with symlinks
 
-#### **Priority 4: Service Discovery & Management**
-- **Service Registry**: Implement surfpool service discovery mechanism
+#### **Priority 4: Process Orchestration**
+- **Sequential Startup**: Start reev-agent first, then surfpool with health verification
 - **Port Management**: Automatic port allocation and conflict resolution
-- **Multi-Version Support**: Support multiple surfpool versions simultaneously
-- **Configuration Management**: Centralized surfpool configuration and settings
+- **Shared Instances**: Allow multiple runner processes to use same services
+- **Cleanup Handling**: Proper termination of all processes on graceful shutdown
 
 ### 🎯 **Success Criteria**
-- **Zero-Setup Experience**: Developers can run benchmarks without manual surfpool setup
-- **Fast Startup**: Reduce benchmark startup time from minutes to seconds with binary caching
-- **Resource Efficiency**: Shared surfpool instances reduce memory and CPU usage
-- **Developer Friendly**: Clear status indicators and error messages for troubleshooting
+- **Zero-Setup Experience**: Run benchmarks with automatic dependency management
+- **Fast Startup**: Reduce startup time from minutes to seconds with cached binaries
+- **Component Independence**: Clean separation allows independent testing and development
+- **Developer Friendly**: Clear status indicators and automatic error handling
 
 ---
 
