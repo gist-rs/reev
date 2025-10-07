@@ -95,6 +95,14 @@ impl<'a> Jupiter<'a> {
         }
     }
 
+    /// Prepares a redeem operation.
+    pub fn redeem(&self, params: DepositParams) -> RedeemBuilder {
+        RedeemBuilder {
+            client: self,
+            params,
+        }
+    }
+
     fn get_user_pubkey(&self) -> Result<Pubkey> {
         self.user_pubkey.ok_or_else(|| {
             anyhow!("A user pubkey must be provided via .with_user_pubkey() or .with_signer()")
@@ -262,6 +270,96 @@ impl<'a> DepositBuilder<'a> {
             &surfpool_client,
             signer,
             instructions,
+            alt_accounts,
+        )
+        .await
+    }
+}
+
+// --- Redeem Builder ---
+
+pub struct RedeemBuilder<'a> {
+    client: &'a Jupiter<'a>,
+    params: DepositParams,
+}
+
+impl<'a> RedeemBuilder<'a> {
+    /// Private helper to fetch and prepare redeem transaction components.
+    pub async fn prepare_transaction_components(
+        &self,
+    ) -> Result<(Vec<Instruction>, Vec<AddressLookupTableAccount>)> {
+        let user_pubkey = self.client.get_user_pubkey()?;
+        let api_response = api::lend::get_redeem_instructions(
+            self.params.asset_mint.to_string(),
+            user_pubkey.to_string(),
+            self.params.amount,
+        )
+        .await?;
+        let instructions = transaction::convert_instructions(api_response.instructions)?;
+        Ok((instructions, vec![])) // Lend API does not use ALTs
+    }
+
+    /// Builds an unsigned transaction for the redeem.
+    pub async fn build_unsigned_transaction(&self) -> Result<UnsignedTransaction> {
+        let (instructions, alt_accounts) = self.prepare_transaction_components().await?;
+        let user_pubkey = self.client.get_user_pubkey()?;
+        transaction::compile_transaction(
+            &self.client.rpc_client,
+            &user_pubkey,
+            instructions,
+            alt_accounts,
+        )
+    }
+
+    /// Executes the full redeem simulation against a `surfpool` instance.
+    pub async fn commit(&self) -> Result<SimulationResult> {
+        if !self.client.is_surfpool {
+            return Err(anyhow!("`.commit()` is only available in surfpool mode."));
+        }
+        let signer = self
+            .client
+            .signer
+            .ok_or_else(|| anyhow!("A signer is required for `.commit()`."))?;
+        let surfpool_client = SurfpoolClient::new(&self.client.rpc_client.url());
+
+        // For a redeem simulation, we need to mint first to have jTokens to redeem.
+        info!("[SIM] Staging: Performing a mint to enable redemption...");
+        let mint_params = DepositParams {
+            asset_mint: self.params.asset_mint,
+            amount: self.params.amount,
+        };
+        let (mint_ixs, _) = MintBuilder {
+            client: self.client,
+            params: mint_params,
+        }
+        .prepare_transaction_components()
+        .await?;
+        surfpool::setup_wallet(
+            &self.client.rpc_client,
+            &surfpool_client,
+            signer,
+            &self.params.asset_mint,
+            self.params.amount * 2,
+        )
+        .await?;
+        surfpool::execute_simulation(
+            &self.client.rpc_client,
+            &surfpool_client,
+            signer,
+            mint_ixs,
+            vec![],
+        )
+        .await
+        .context("Staging mint failed before redemption attempt")?;
+        info!("[SIM] Staging: Mint complete. Proceeding to redeem.");
+
+        // Now, prepare and execute the actual redemption
+        let (redeem_ixs, alt_accounts) = self.prepare_transaction_components().await?;
+        surfpool::execute_simulation(
+            &self.client.rpc_client,
+            &surfpool_client,
+            signer,
+            redeem_ixs,
             alt_accounts,
         )
         .await
