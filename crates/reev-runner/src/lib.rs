@@ -6,85 +6,62 @@ use reev_lib::{
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
-    server_utils::kill_existing_reev_agent,
     solana_env::environment::SolanaEnv,
     test_scenarios,
     trace::ExecutionTrace,
 };
 use std::{
-    fs::{self, File},
+    fs,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
 };
-use tokio::time::{Duration, sleep};
 use tracing::{error, info, instrument};
 
 pub mod db;
+pub mod dependency;
 pub mod renderer;
 
+#[allow(dead_code)]
 const AGENT_PORT: u16 = 9090;
 
-/// A simple RAII guard to ensure the `reev-agent` process is killed.
-struct AgentProcessGuard {
-    process: Child,
+/// RAII guard for dependency management
+struct DependencyManagerGuard {
+    manager: dependency::DependencyManager,
 }
 
-impl Drop for AgentProcessGuard {
+impl Drop for DependencyManagerGuard {
     fn drop(&mut self) {
-        info!("Shutting down reev-agent...");
-        if let Err(e) = self.process.kill() {
-            error!(error = ?e, "Failed to kill reev-agent process");
+        info!("Cleaning up dependency manager...");
+        if let Err(e) = tokio::runtime::Handle::current().block_on(self.manager.cleanup()) {
+            error!(error = ?e, "Failed to cleanup dependency manager");
         }
     }
 }
 
-/// Starts the `reev-agent` process, redirects its output to a log file,
-/// and performs a health check. Returns a guard that will kill the process
-/// when it goes out of scope.
-async fn start_agent() -> Result<AgentProcessGuard> {
-    let log_dir = PathBuf::from("logs");
-    fs::create_dir_all(&log_dir)?;
-    let log_file_path = log_dir.join("reev-agent.log");
-    let log_file = File::create(&log_file_path)?;
-    let stderr_log = log_file.try_clone()?;
+/// Initialize dependency management and ensure services are running
+async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
+    info!("Initializing dependency management...");
 
-    info!(log_path = %log_file_path.display(), "Starting reev-agent...");
+    let config = dependency::DependencyConfig::from_env();
+    let mut manager = dependency::DependencyManager::new(config)
+        .context("Failed to create dependency manager")?;
 
-    info!("Building and running reev-agent from source...");
-    let agent_process = Command::new("cargo")
-        .args(["run", "--package", "reev-agent"])
-        .stdout(Stdio::from(log_file))
-        .stderr(Stdio::from(stderr_log))
-        .spawn()
-        .context("Failed to spawn reev-agent process using 'cargo run'")?;
+    // Set up signal handlers for graceful shutdown
+    manager
+        .setup_signal_handlers()
+        .context("Failed to setup signal handlers")?;
 
-    let guard = AgentProcessGuard {
-        process: agent_process,
-    };
+    // Ensure all dependencies are running
+    let urls = manager
+        .ensure_dependencies()
+        .await
+        .context("Failed to ensure dependencies are running")?;
 
-    info!("Waiting for reev-agent to be healthy...");
-    let client = reqwest::Client::new();
-    let health_check_url = "http://127.0.0.1:9090/health";
-    let mut attempts = 0;
-    loop {
-        if attempts >= 60 {
-            return Err(anyhow!(
-                "Timed out waiting for reev-agent to become healthy."
-            ));
-        }
-        match client.get(health_check_url).send().await {
-            Ok(response) if response.status().is_success() => {
-                info!("reev-agent is healthy.");
-                break;
-            }
-            _ => {
-                attempts += 1;
-                sleep(Duration::from_secs(1)).await;
-            }
-        }
-    }
+    info!("Dependencies initialized successfully");
+    info!("reev-agent: {}", urls.reev_agent);
+    info!("surfpool: {}", urls.surfpool_rpc);
 
-    Ok(guard)
+    let guard = DependencyManagerGuard { manager };
+    Ok((guard, urls))
 }
 
 /// Runs all benchmarks found at the given path and returns the results.
@@ -94,12 +71,10 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         return Ok(vec![]);
     }
 
-    // Clean up any existing agent processes before starting a new one.
-    kill_existing_reev_agent(AGENT_PORT).await?;
-
-    // Start the reev-agent service. The `_agent_guard` will ensure it's
-    // shut down when this function returns, keeping the service alive for all benchmarks.
-    let _agent_guard = start_agent().await?;
+    // Initialize dependency management system
+    let _dependency_guard = init_dependencies()
+        .await
+        .context("Failed to initialize dependencies")?;
 
     let db = db::Db::new("db/reev_results.db").await?;
     let mut results = vec![];
@@ -111,7 +86,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         info!(id = %test_case.id, "Loaded test case");
 
         let mut agent = LlmAgent::new(agent_name)?;
-        let mut env = SolanaEnv::new()?;
+        let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
         let options = serde_json::to_value(&test_case)
             .context("Failed to serialize test case for env options")?;
