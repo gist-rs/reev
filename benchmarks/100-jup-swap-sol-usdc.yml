@@ -1,4 +1,4 @@
-id: 100-JUP-SWAP-SOL-USDC
+id: 100-jup-swap-sol-usdc
 description: A benchmark to test a swap from native SOL to real USDC using a simulated Jupiter V6 Swap interaction.
 tags: ["jupiter", "swap", "sol", "usdc", "surfpool"]
 

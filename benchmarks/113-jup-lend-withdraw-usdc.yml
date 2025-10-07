@@ -1,4 +1,4 @@
-id: 113-JUP-LEND-WITHDRAW-USDC
+id: 113-jup-lend-withdraw-usdc
 description: A benchmark to test withdrawing USDC from a lending position using Jupiter's unified lend feature.
 tags: ["jupiter", "lend", "withdraw", "usdc", "spl", "solend"]
 

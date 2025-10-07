@@ -1,4 +1,4 @@
-id: 112-JUP-LEND-WITHDRAW-SOL
+id: 112-jup-lend-withdraw-sol
 description: A benchmark to test withdrawing native SOL from a lending position using Jupiter's unified lend feature.
 tags: ["jupiter", "lend", "withdraw", "sol", "surfpool"]
 

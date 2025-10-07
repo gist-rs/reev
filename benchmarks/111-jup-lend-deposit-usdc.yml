@@ -1,4 +1,4 @@
-id: 111-JUP-LEND-DEPOSIT-USDC
+id: 111-jup-lend-deposit-usdc
 description: A benchmark to test depositing USDC using Jupiter's unified lend feature.
 tags: ["jupiter", "lend", "deposit", "usdc", "spl", "surfpool"]
 

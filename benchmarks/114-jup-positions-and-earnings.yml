@@ -1,4 +1,4 @@
-id: 114-JUP-POSITIONS-AND-EARNINGS
+id: 114-jup-positions-and-earnings
 description: Multi-step flow to fetch Jupiter lending positions and then get detailed earnings information.
 tags:
   [

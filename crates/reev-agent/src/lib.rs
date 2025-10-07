@@ -158,45 +158,45 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
     // The coding agents return one or more instructions. We serialize the result
     // into a JSON string to match the format expected by the runner.
     let instructions_json = match payload.id.as_str() {
-        "001-SOL-TRANSFER" => {
+        "001-sol-transfer" => {
             let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
-        "002-SPL-TRANSFER" => {
+        "002-spl-transfer" => {
             let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
-        "100-JUP-SWAP-SOL-USDC" => {
+        "100-jup-swap-sol-usdc" => {
             let ixs =
                 agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
-        "110-JUP-LEND-DEPOSIT-SOL" => {
+        "110-jup-lend-deposit-sol" => {
             let ixs =
                 agents::coding::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(&key_map)
                     .await?;
             serde_json::to_string(&ixs)?
         }
-        "111-JUP-LEND-DEPOSIT-USDC" => {
+        "111-jup-lend-deposit-usdc" => {
             let ixs =
                 agents::coding::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(&key_map)
                     .await?;
             serde_json::to_string(&ixs)?
         }
-        "112-JUP-LEND-WITHDRAW-SOL" => {
+        "112-jup-lend-withdraw-sol" => {
             let ixs =
                 agents::coding::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(&key_map)
                     .await?;
             serde_json::to_string(&ixs)?
         }
-        "113-JUP-LEND-WITHDRAW-USDC" => {
+        "113-jup-lend-withdraw-usdc" => {
             let ixs = agents::coding::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
                 &key_map,
             )
             .await?;
             serde_json::to_string(&ixs)?
         }
-        "114-JUP-POSITIONS-AND-EARNINGS" => {
+        "114-jup-positions-and-earnings" => {
             info!(
                 "[reev-agent] 🦀 Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
                 payload.id

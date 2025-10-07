@@ -1,4 +1,4 @@
-id: 110-JUP-LEND-DEPOSIT-SOL
+id: 110-jup-lend-deposit-sol
 description: A benchmark to test depositing native SOL using Jupiter's unified lend feature.
 tags: ["jupiter", "lend", "deposit", "sol", "surfpool"]
 

@@ -1,4 +1,4 @@
-id: 003-SPL-TRANSFER-FAIL
+id: 003-spl-transfer-fail
 description: Tests an agent's ability to generate a correct instruction when the transaction is guaranteed to fail due to environmental constraints (insufficient funds). A high score is achieved by generating a perfect instruction (~75%), despite the on-chain execution failing (0%).
 tags: ["spl-token", "transfer", "usdc", "fail", "surfpool"]
 
