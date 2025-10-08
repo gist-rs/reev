@@ -172,6 +172,11 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
+        "003-spl-transfer-fail" => {
+            info!("[reev-agent] Handling 003-spl-transfer-fail benchmark - intentionally returning no instructions to ensure failure");
+            // This benchmark is designed to fail - return empty instructions
+            serde_json::to_string(&Vec::<serde_json::Value>::new())?
+        }
         "004-partial-score-spl-transfer" => {
             info!("[reev-agent] Handling 004-partial-score-spl-transfer - generating correct program ID but wrong instruction data for 50% score");
 
