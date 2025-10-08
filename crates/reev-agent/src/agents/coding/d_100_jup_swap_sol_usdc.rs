@@ -30,7 +30,7 @@ pub(crate) async fn handle_jup_swap_sol_usdc(
     let input_mint = native_mint::ID;
     let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
     let amount = 100_000_000; // 0.1 SOL
-    let slippage_bps = 500; // 5%
+    let slippage_bps = 800; // 8%
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions (setup, swap, cleanup) needed for the transaction.
