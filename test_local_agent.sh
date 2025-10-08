@@ -14,7 +14,7 @@ for arg in "$@"; do
     case $arg in
         --local)
             AGENT_TYPE="enhanced"
-            AGENT_FLAG="local-model"
+            AGENT_FLAG="local"
             shift
             ;;
         -h|--help)
@@ -38,22 +38,26 @@ for arg in "$@"; do
     esac
 done
 
-# Use specific benchmarks if provided, otherwise use all benchmarks
+# Use specific benchmarks if provided, otherwise dynamically discover all benchmarks
 if [ ${#SPECIFIC_BENCHMARKS[@]} -gt 0 ]; then
     benchmarks=("${SPECIFIC_BENCHMARKS[@]}")
 else
-    benchmarks=(
-        "001-sol-transfer.yml"
-        "002-spl-transfer.yml"
-        "003-spl-transfer-fail.yml"
-        "100-jup-swap-sol-usdc.yml"
-        "110-jup-lend-deposit-sol.yml"
-        "111-jup-lend-deposit-usdc.yml"
-        "112-jup-lend-withdraw-sol.yml"
-        "113-jup-lend-withdraw-usdc.yml"
-        "114-jup-positions-and-earnings.yml"
-        "200-jup-swap-then-lend-deposit.yml"
-    )
+    # Dynamically discover all benchmark files
+    echo "Discovering benchmark files..."
+
+    # Get all .yml files in benchmarks directory, sorted alphabetically
+    # Use a simpler method compatible with both macOS and Linux
+    benchmarks=($(find benchmarks -name "*.yml" -type f | sort))
+
+    if [ ${#benchmarks[@]} -eq 0 ]; then
+        echo "❌ No benchmark files found in benchmarks/ directory"
+        exit 1
+    fi
+
+    echo "Found ${#benchmarks[@]} benchmark files"
+    for benchmark in "${benchmarks[@]}"; do
+        echo "  - $(basename "$benchmark")"
+    done
 fi
 
 echo "Testing ${#benchmarks[@]} benchmark(s) with $AGENT_TYPE agents (flag: --agent $AGENT_FLAG)"
