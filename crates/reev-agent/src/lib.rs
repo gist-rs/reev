@@ -168,6 +168,38 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map).await?;
             serde_json::to_string(&ixs)?
         }
+        "004-partial-score-spl-transfer" => {
+            info!("[reev-agent] Handling 004-partial-score-spl-transfer - generating correct program ID but wrong instruction data for 50% score");
+
+            // Generate instruction with correct program ID but wrong data for 50% score
+            // This matches the ground truth program ID (50% weight) but has wrong data (0% weight)
+            let program_id = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+            let wrong_data = "11111111111111111111111111"; // Valid base58 but wrong instruction data
+
+            let instructions = vec![serde_json::json!({
+                "program_id": program_id,
+                "accounts": [
+                    {
+                        "pubkey": key_map.get("USER_USDC_ATA").unwrap_or(&"unknown".to_string()),
+                        "is_signer": false,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": key_map.get("RECIPIENT_USDC_ATA").unwrap_or(&"unknown".to_string()),
+                        "is_signer": false,
+                        "is_writable": true
+                    },
+                    {
+                        "pubkey": key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()),
+                        "is_signer": true,
+                        "is_writable": false
+                    }
+                ],
+                "data": wrong_data
+            })];
+
+            serde_json::to_string(&instructions)?
+        }
         "100-jup-swap-sol-usdc" => {
             let ixs =
                 agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map).await?;

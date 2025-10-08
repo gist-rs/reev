@@ -1,0 +1,72 @@
+id: 004-partial-score-spl-transfer
+description: A benchmark to test partial scoring by generating a transaction with correct program ID but wrong instruction data, expecting a 50% score.
+tags: ["spl-token", "transfer", "partial-score", "testing"]
+
+initial_state:
+  # User's main wallet with 1 SOL for fees.
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 1000000000 # 1 SOL
+
+  # User's Associated Token Account (ATA) for USDC with 10 USDC.
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token Program
+    lamports: 2039280 # Rent
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "10000000" # 10 USDC
+
+  # A recipient wallet and ATA to receive the transfer.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
+
+  - pubkey: "RECIPIENT_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280 # Rent
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "RECIPIENT_WALLET_PUBKEY"
+      amount: "0"
+
+prompt: "Please send 5 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
+
+# Ground truth expects a proper SPL Token Transfer instruction
+ground_truth:
+  expected_instructions:
+    - program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      program_id_weight: 0.5  # High weight for correct program ID
+      data: "3Bxs4vKJW"  # Transfer instruction discriminator
+      data_weight: 0.5     # High weight for correct instruction data
+      accounts:
+        # Source account (user's USDC ATA)
+        - pubkey: "USER_USDC_ATA"
+          is_signer: false
+          is_writable: true
+          weight: 0.25
+        # Destination account (recipient's USDC ATA)
+        - pubkey: "RECIPIENT_USDC_ATA"
+          is_signer: false
+          is_writable: true
+          weight: 0.25
+        # Authority (user wallet)
+        - pubkey: "USER_WALLET_PUBKEY"
+          is_signer: true
+          is_writable: false
+          weight: 0.25
+        # (Optional) Multisig signers if any
+        # Not used in this simple case
+
+  final_state_assertions:
+    # The user's USDC balance should decrease by exactly 5 USDC
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected: 5000000  # 5 USDC remaining (started with 10)
+      weight: 1.0
+
+    # The recipient's USDC balance should increase to 5 USDC
+    - type: TokenAccountBalance
+      pubkey: "RECIPIENT_USDC_ATA"
+      expected: 5000000  # 5 USDC received
+      weight: 1.0
