@@ -189,7 +189,7 @@ async fn run_flow_benchmark(
     test_case: &TestCase,
     flow_steps: &[FlowStep],
     agent_name: &str,
-    benchmark_path: &str,
+    _benchmark_path: &str,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -211,7 +211,7 @@ async fn run_flow_benchmark(
         .context("Failed to set up SPL scenario")?;
 
     // Execute each step in the flow
-    for (step_index, step) in flow_steps.iter().enumerate() {
+    for step in flow_steps.iter() {
         info!(
             step = step.step,
             description = %step.description,

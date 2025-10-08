@@ -54,7 +54,7 @@ pub mod process;
 
 // re-export main types for convenience
 pub use binary::{BinaryAcquisitionResult, BinaryManager, Platform, Version};
-pub use health::{HealthCheckConfig, HealthCheckResult, HealthChecker, HealthMonitor};
+pub use health::{HealthCheckConfig, HealthCheckResult, HealthChecker};
 pub use manager::{
     DependencyConfig, DependencyManager, DependencyService, DependencyType, DependencyUrls,
     ServiceHealth,

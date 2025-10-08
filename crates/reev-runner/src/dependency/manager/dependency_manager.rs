@@ -7,15 +7,14 @@ use std::sync::Arc;
 
 use super::{DependencyConfig, DependencyError, DependencyService, DependencyType, DependencyUrls};
 use crate::dependency::binary::BinaryManager;
-use crate::dependency::health::health_monitor::ServiceType;
-use crate::dependency::health::{HealthChecker, HealthMonitor, ServiceHealth};
+use crate::dependency::health::{HealthChecker, ServiceHealth};
 use crate::dependency::process::{ProcessConfig, ProcessGuard, ProcessManager, ProcessUtils};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use std::time::Duration;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 /// Main dependency manager for external services
@@ -31,9 +30,6 @@ pub struct DependencyManager {
 
     /// Health checker
     health_checker: Arc<HealthChecker>,
-
-    /// Health monitor for continuous monitoring
-    health_monitor: Arc<Mutex<Option<HealthMonitor>>>,
 
     /// Currently managed services
     services: Arc<RwLock<HashMap<DependencyType, DependencyService>>>,
@@ -72,7 +68,6 @@ impl DependencyManager {
             binary_manager,
             process_manager,
             health_checker,
-            health_monitor: Arc::new(Mutex::new(None)),
             services: Arc::new(RwLock::new(HashMap::new())),
             processes: Arc::new(RwLock::new(HashMap::new())),
             initialized: Arc::new(RwLock::new(false)),
@@ -103,10 +98,8 @@ impl DependencyManager {
             return Err(e);
         }
 
-        // Start health monitoring
-        if let Err(e) = self.start_health_monitoring().await {
-            warn!(error = %e, "Failed to start health monitoring, continuing without it");
-        }
+        // No continuous monitoring needed - services will be checked individually
+        info!("Dependencies initialized successfully");
 
         {
             let mut initialized = self.initialized.write().await;
@@ -310,48 +303,6 @@ impl DependencyManager {
         Ok(())
     }
 
-    /// Start continuous health monitoring
-    async fn start_health_monitoring(&self) -> Result<()> {
-        let mut monitor_guard = self.health_monitor.lock().await;
-        if monitor_guard.is_some() {
-            return Ok(());
-        }
-
-        let monitor = HealthMonitor::new(super::super::health::HealthCheckConfig {
-            check_interval: self.config.health_check_interval,
-            timeout: self.config.health_check_timeout,
-            failure_threshold: 3,
-            success_threshold: 2,
-            verbose_logging: self.config.verbose_logging,
-        });
-
-        // Add services to monitor
-        let services = self.services.read().await;
-        for (dependency_type, service) in services.iter() {
-            let service_type = match dependency_type {
-                DependencyType::ReevAgent => ServiceType::ReevAgent,
-                DependencyType::Surfpool => ServiceType::Surfpool,
-            };
-
-            if let Some(rpc_url) = service.urls.get("rpc") {
-                monitor
-                    .add_service(service.name.clone(), rpc_url.clone(), service_type, None)
-                    .await?;
-            } else if let Some(api_url) = service.urls.get("api") {
-                monitor
-                    .add_service(service.name.clone(), api_url.clone(), service_type, None)
-                    .await?;
-            }
-        }
-        drop(services);
-
-        monitor.start_monitoring().await?;
-        *monitor_guard = Some(monitor);
-
-        info!("Health monitoring started");
-        Ok(())
-    }
-
     /// Get dependency URLs
     pub async fn get_dependency_urls(&self) -> Result<DependencyUrls> {
         let services = self.services.read().await;
@@ -397,14 +348,8 @@ impl DependencyManager {
     pub async fn cleanup(&mut self) -> Result<()> {
         info!("Cleaning up dependencies...");
 
-        // Stop health monitoring
-        let mut monitor_guard = self.health_monitor.lock().await;
-        if let Some(monitor) = monitor_guard.take() {
-            if let Err(e) = monitor.stop_monitoring().await {
-                warn!(error = %e, "Failed to stop health monitoring");
-            }
-        }
-        drop(monitor_guard);
+        // No monitoring to stop - services are shut down directly
+        info!("Health checking stopped (continuous monitoring was not used)");
 
         // Shutdown processes
         let mut processes = self.processes.write().await;
@@ -431,12 +376,8 @@ impl DependencyManager {
     pub async fn force_cleanup(&mut self) -> Result<()> {
         info!("Force cleaning up dependencies...");
 
-        // Stop health monitoring
-        let mut monitor_guard = self.health_monitor.lock().await;
-        if let Some(monitor) = monitor_guard.take() {
-            let _ = monitor.stop_monitoring().await;
-        }
-        drop(monitor_guard);
+        // No monitoring to stop - services are shut down directly
+        debug!("Health checking force stopped (continuous monitoring was not used)");
 
         // Force shutdown processes
         let mut processes = self.processes.write().await;

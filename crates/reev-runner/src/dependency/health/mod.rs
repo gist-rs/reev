@@ -1,13 +1,11 @@
-//! Health monitoring system for dependency management
+//! Health checking system for dependency management
 //!
 //! This module provides health checking capabilities for external services
 //! like reev-agent and surfpool, with configurable intervals and thresholds.
 
 pub mod health_checker;
-pub mod health_monitor;
 
 pub use health_checker::HealthChecker;
-pub use health_monitor::HealthMonitor;
 
 use std::time::Duration;
 
