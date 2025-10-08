@@ -43,21 +43,13 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     if model_name.starts_with("gemini") {
         info!("[run_agent] Using Gemini enhanced agent");
         GeminiAgent::run(model_name, payload, key_map).await
-    } else if model_name.starts_with("local-") || model_name == "local-model" {
-        // Local models typically don't support OpenAI-style function calling
-        // Route to deterministic agent for local models
-        info!("[run_agent] Local model detected, routing to deterministic agent");
-        let response = crate::run_deterministic_agent(payload).await?;
-        // Extract the text field from LlmResponse
-        let response_text = response.0.result.text;
-        info!(
-            "[run_agent] Deterministic agent response: {}",
-            response_text
-        );
-        Ok(response_text)
     } else if model_name == "local" {
-        // Local agent flag - route to deterministic agent
-        info!("[run_agent] Local agent detected, routing to deterministic agent");
+        // Real local model - route to OpenAI agent which supports local LLM servers
+        info!("[run_agent] Using real local model via OpenAI agent");
+        OpenAIAgent::run(model_name, payload, key_map).await
+    } else {
+        // Route to deterministic agent
+        info!("[run_agent] Legacy local-model detected, routing to deterministic agent");
         let response = crate::run_deterministic_agent(payload).await?;
         // Extract the text field from LlmResponse
         let response_text = response.0.result.text;
@@ -66,8 +58,5 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
             response_text
         );
         Ok(response_text)
-    } else {
-        info!("[run_agent] Using OpenAI enhanced agent");
-        OpenAIAgent::run(model_name, payload, key_map).await
     }
 }

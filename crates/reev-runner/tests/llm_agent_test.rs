@@ -215,7 +215,7 @@ async fn create_ai_agent() -> Result<reev_lib::llm_agent::LlmAgent> {
         std::env::var("LLM_MODEL").unwrap_or_else(|_| "gemini-2.5-flash-lite".to_string())
     } else {
         // Use local model when no API keys are available
-        "local-model".to_string()
+        "local".to_string()
     };
 
     info!("🤖 Creating AI agent with model: {}", model_name);

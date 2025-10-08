@@ -39,9 +39,9 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     ```
 
 *   **Local LLM Agent:**
-    To run against a locally-served model, use the `local-model` agent name.
+    To run against a locally-served model, use the `local` agent name.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local-model
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
     ```
 
 ## Testing
@@ -106,23 +106,23 @@ For the master project plan and more detailed architectural documentation, pleas
 
 ```
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/111-jup-lend-deposit-usdc.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/111-jup-lend-deposit-usdc.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/111-jup-lend-deposit-usdc.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/112-jup-lend-withdraw-sol.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/112-jup-lend-withdraw-sol.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/112-jup-lend-withdraw-sol.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/113-jup-lend-withdraw-usdc.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/113-jup-lend-withdraw-usdc.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/113-jup-lend-withdraw-usdc.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agent local
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local-model
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
 ```

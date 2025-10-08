@@ -35,13 +35,8 @@ impl LlmAgent {
             base_url
         };
 
-        // Map the public-facing agent name 'local' to the internal model name 'local-model'
-        // that the reev-agent expects for locally-served models. Other names are passed through.
-        let model_name = if agent_name == "local" {
-            "local-model".to_string()
-        } else {
-            agent_name.to_string()
-        };
+        // Pass through agent names directly - 'local' should remain 'local' for actual local models
+        let model_name = agent_name.to_string();
 
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
         info!("[LlmAgent] Model name being sent in payload: '{model_name}'");

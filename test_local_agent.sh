@@ -6,14 +6,14 @@
 
 # Default to deterministic agents
 AGENT_TYPE="deterministic"
-AGENT_FLAG="local"
+AGENT_FLAG="deterministic"
 SPECIFIC_BENCHMARKS=()
 
 # Parse command line arguments
 for arg in "$@"; do
     case $arg in
         --local)
-            AGENT_TYPE="enhanced"
+            AGENT_TYPE="local"
             AGENT_FLAG="local"
             shift
             ;;

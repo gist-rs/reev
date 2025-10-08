@@ -238,7 +238,7 @@ cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agen
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
 
 # Test with different agents
-cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
 ```
 
 ### Expected Output

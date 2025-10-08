@@ -117,7 +117,7 @@ Each flow benchmark should execute:
 ```bash
 # Test both agents handle flows identically
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
-cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
 ```
 
 ### 4. Agent Compatibility Tests
@@ -134,7 +134,7 @@ RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-depo
 #### AI Agent Tests
 ```bash
 # Local model tests (requires LM Studio)
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
 
 # Gemini tests (requires API key)
 GEMINI_API_KEY=your_key cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro

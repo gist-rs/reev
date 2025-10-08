@@ -70,8 +70,8 @@ The framework now provides **automatic surfpool management** - no manual setup r
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
 
 # Jupiter protocols (swap, lending, mint/redeem)
-cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local-model
-cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
+cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 
 # Multi-step flows (swap + lend)
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
@@ -93,7 +93,7 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministi
 
 **Local Model Agent:**
 ```bash
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
 ```
 
 **Gemini Agent:**
@@ -120,11 +120,11 @@ Features:
 Real on-chain operations with Jupiter protocols:
 ```bash
 # Jupiter swap
-cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local
 
 # Jupiter lending (mint/redeem)
-cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local-model
-cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local-model
+cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
+cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 ```
 
 ### 🌊 **Flow Benchmarks** (200-series)

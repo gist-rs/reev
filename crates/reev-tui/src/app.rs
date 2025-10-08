@@ -36,7 +36,7 @@ impl SelectedAgent {
         match self {
             SelectedAgent::Deterministic => "deterministic",
             SelectedAgent::Gemini => "gemini-2.5-pro",
-            SelectedAgent::Local => "local-model",
+            SelectedAgent::Local => "local",
         }
     }
 
