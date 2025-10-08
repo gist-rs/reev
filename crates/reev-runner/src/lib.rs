@@ -15,7 +15,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 pub mod db;
 pub mod dependency;

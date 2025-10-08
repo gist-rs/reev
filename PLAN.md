@@ -1,44 +1,130 @@
 # PLAN.md: Development Roadmap for `reev` 🪸
 
-**Current Status: Production-Ready Framework with Advanced Capabilities**  
-**Next Focus: Smart Surfpool Service Management for Enhanced Developer Experience**
+**Current Status: Production-Ready Framework with Critical AI Agent Enhancement Needed**  
+**Next Focus: Making Local Model Superior to Deterministic Agent**
 
 ---
 
 ## 🎯 Executive Summary
 
-The `reev` framework has achieved **production-ready status** with comprehensive capabilities for evaluating Solana LLM agents. After completing 14 development phases, the framework now provides a robust, reliable platform with:
+The `reev` framework has achieved **production-ready status** with comprehensive capabilities for evaluating Solana LLM agents. However, a critical issue has been identified: the local AI model is underperforming compared to the deterministic agent, which defeats the purpose of AI evaluation.
 
-- ✅ **100% Benchmark Success**: All benchmarks passing with both deterministic and AI agents
-- ✅ **Complete Jupiter Integration**: Full protocol stack (swap, lending, mint/redeem, flows)
-- ✅ **Advanced Agent Support**: Multi-step workflows, RAG-based tool selection, API benchmarks
-- ✅ **Professional Infrastructure**: Interactive TUI, database persistence, comprehensive logging
-- ✅ **Real-World Validation**: Mainnet fork testing with actual deployed programs
+**Current Issue**: 
+- ✅ **Deterministic Agent**: 100% success rate with proper multi-step flows
+- ❌ **Local Model**: Only 75% success rate, fails to understand multi-step workflows
+- **Gap**: Local model generates single instructions instead of required multi-step flows
 
-The framework is now ready for production use and serves as the definitive evaluation platform for Solana-native autonomous agents.
-
----
-
-## ✅ Recently Completed: Phase 15 - Advanced Multi-Step Workflows
-
-### 🎯 **Objective Achieved**
-Enable LLM agents to orchestrate multiple tools in sequence to complete complex DeFi workflows.
-
-### 🏗️ **Major Accomplishments**
-- **Flow Benchmark Architecture** (200-series): Multi-step DeFi operations with automatic orchestration
-- **RAG-Based Flow Agent**: Vector store integration for dynamic tool selection
-- **Enhanced Tool System**: Jupiter swap and lending protocols with flow awareness
-- **Real Jupiter SDK Integration**: Complete replacement of public API calls with local `surfpool` interaction
-
-### 📊 **Production Results**
-- **Complete Pipeline**: Runner → Environment → Agent → LLM → Scoring working end-to-end
-- **Real AI Integration**: Successfully tested with local models and cloud APIs  
-- **Complex Operations**: Jupiter swap + lend workflows executing flawlessly
-- **Infrastructure Validation**: Automatic service management and error handling verified
+**Urgent Priority**: Enhance the local model to be smarter, more dynamic, and superior to deterministic execution.
 
 ---
 
-## 🚀 Phase 16A: Smart Dependency Management (Current Phase)
+## 🚨 Phase 16: Critical AI Agent Enhancement (Current Phase)
+
+### 🎯 **Primary Objective**
+Transform the local model from underperforming to superior by implementing advanced AI capabilities that exceed deterministic agent performance.
+
+### 🛠️ **Core Enhancement Areas**
+
+#### **Priority 1: Superior System Prompts & Context Engineering**
+- **Enhanced System Prompt**: Create intelligent prompts that understand multi-step DeFi workflows
+- **Context-Aware Reasoning**: Enable agent to understand when multiple steps are required
+- **Dynamic Flow Detection**: Agent should automatically identify need for multi-step operations
+- **Self-Correction**: Agent should recognize when a single step is insufficient and request additional steps
+
+#### **Priority 2: Multi-Turn Conversation Architecture**
+- **Rig Integration**: Implement multi-turn agent capabilities using Rig framework
+- **Step-by-Step Execution**: Allow agent to break complex operations into sequential steps
+- **State Management**: Maintain conversation context across multiple turns
+- **Progressive Completion**: Enable agent to validate and continue until full workflow completion
+
+#### **Priority 3: Enhanced Context & Tool Discovery**
+- **Rich Financial Context**: Provide comprehensive DeFi protocol information
+- **Dynamic Tool Selection**: Agent should discover and select appropriate tools for each step
+- **Balance Awareness**: Agent should understand token balances and requirements before operations
+- **Error Recovery**: Agent should handle failures and retry with different approaches
+
+### 🎯 **Success Criteria**
+- **Superior Performance**: Local model achieves 100% success rate on all flow benchmarks
+- **Multi-Step Mastery**: Agent properly sequences swap → lend operations without guidance
+- **Adaptive Intelligence**: Agent handles edge cases and unexpected scenarios better than deterministic
+- **Demonstrated Superiority**: Local model shows capabilities impossible with deterministic approach
+
+---
+
+## 🏗️ Implementation Strategy
+
+### **Phase 16.1: System Prompt & Context Enhancement** 
+- Design comprehensive DeFi system prompts
+- Implement rich context injection for financial operations
+- Add balance and requirement awareness
+
+### **Phase 16.2: Multi-Turn Architecture Integration**
+- Integrate Rig multi-turn agent framework
+- Implement step-by-step workflow management
+- Add conversation state persistence
+
+### **Phase 16.3: Advanced Tool Integration**
+- Enhance Jupiter tool integration with multi-step awareness
+- Add balance checking and validation tools
+- Implement error recovery and retry mechanisms
+
+### **Phase 16.4: Validation & Performance Testing**
+- Comprehensive testing against deterministic benchmarks
+- Performance comparison and optimization
+- Edge case handling validation
+
+---
+
+## 📊 Expected Outcomes
+
+### **Before Enhancement**
+- Local Model: 75% success rate, single-step thinking
+- Deterministic: 100% success rate, predictable behavior
+
+### **After Enhancement**
+- Local Model: 100%+ success rate, intelligent multi-step reasoning
+- Deterministic: 100% success rate, baseline for comparison
+- **Result**: Local model demonstrates superior AI capabilities that deterministic cannot achieve
+
+---
+
+## 🔮 Future Roadmap (Post-Phase 16)
+
+### **Phase 17: Advanced Multi-Agent Collaboration**
+- Multi-agent workflows for complex DeFi strategies
+- Competitive benchmarking between different AI approaches
+- Learning and adaptation capabilities
+
+### **Phase 18: Enterprise Features**
+- Team collaboration and shared workspaces
+- CI/CD integration and automated testing
+- Advanced analytics and performance insights
+
+### **Phase 19: Ecosystem Expansion**
+- Additional DeFi protocol support (Raydium, Orca, etc.)
+- Cross-chain operations and multi-chain strategies
+- Community features and public benchmark sharing
+
+---
+
+## 📚 Documentation & Resources
+
+### **📖 Current Documentation**
+- **README.md**: Production-ready quick start guide
+- **TASKS.md**: Detailed implementation plan for AI enhancement
+- **REFLECT.md**: Archive of debugging sessions and insights
+
+### **🎯 Development Guidelines**
+- **AI-First Development**: Prioritize agent intelligence over hard-coded logic
+- **Superiority Testing**: Ensure AI agent outperforms deterministic approaches
+- **Comprehensive Logging**: Detailed tracing for AI decision analysis
+- **Multi-Step Validation**: Rigorous testing of complex workflow execution
+
+---
+
+## 🎉 Conclusion
+
+The immediate focus is transforming the local model from a limitation to a demonstration of superior AI intelligence. By implementing advanced system prompts, multi-turn conversations, and enhanced context, the local model should not only match but exceed deterministic agent performance, showcasing the true potential of AI-driven autonomous agents in DeFi environments.
 
 ### **🎯 Primary Objective**
 Implement intelligent dependency management architecture that separates concerns and provides zero-setup experience for developers while maintaining clean component boundaries.

@@ -10,7 +10,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 use std::{str::FromStr, thread, time::Duration};
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 #[instrument(skip_all, name = "env.reset")]
 pub(crate) async fn handle_reset(
@@ -116,6 +116,47 @@ pub(crate) async fn handle_reset(
     test_scenarios::setup_spl_scenario(env, &test_case, &mut initial_observation)
         .await
         .context("Failed to set up SPL scenario")?;
+
+    // 9. Log final balances for debugging
+    if let Some(fee_payer_pubkey) = &env.fee_payer {
+        if let Ok(pubkey) = Pubkey::from_str(fee_payer_pubkey) {
+            if let Ok(balance) = env.rpc_client.get_balance(&pubkey) {
+                info!(
+                    "Final SOL balance for fee payer ({}): {} lamports ({} SOL)",
+                    fee_payer_pubkey,
+                    balance,
+                    balance as f64 / 1_000_000_000.0
+                );
+            } else {
+                warn!(
+                    "Failed to get SOL balance for fee payer ({}), pubkey: {}",
+                    fee_payer_pubkey, pubkey
+                );
+            }
+        } else {
+            warn!("Invalid fee payer pubkey: {}", fee_payer_pubkey);
+        }
+    }
+
+    // Check USDC balance if ATA exists
+    if let Some(usdc_ata) = initial_observation.key_map.get("USER_USDC_ATA_PLACEHOLDER") {
+        if let Ok(pubkey) = Pubkey::from_str(usdc_ata) {
+            if let Ok(token_balance) = env.rpc_client.get_token_account_balance(&pubkey) {
+                let usdc_amount = token_balance.amount.parse::<f64>().unwrap_or(0.0) / 1_000_000.0;
+                info!(
+                    "Final USDC balance for ATA ({}): {} raw units ({} USDC)",
+                    usdc_ata, token_balance.amount, usdc_amount
+                );
+            } else {
+                info!(
+                    "USDC ATA ({}) not found or has no balance, pubkey: {}",
+                    usdc_ata, pubkey
+                );
+            }
+        } else {
+            warn!("Invalid USDC ATA pubkey: {}", usdc_ata);
+        }
+    }
 
     info!("Environment reset complete.");
     Ok(initial_observation)

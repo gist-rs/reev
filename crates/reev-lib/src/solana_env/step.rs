@@ -93,6 +93,36 @@ pub(crate) fn handle_step(
                 instructions.len()
             );
 
+            // Log detailed instruction information for debugging
+            for (i, instruction) in instructions.iter().enumerate() {
+                info!(
+                    "Instruction {}: program_id={}, data_len={}, accounts={}",
+                    i + 1,
+                    instruction.program_id,
+                    instruction.data.len(),
+                    instruction.accounts.len()
+                );
+
+                // Log specific program details for common programs
+                match instruction.program_id.to_string().as_str() {
+                    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" => {
+                        info!("  -> Jupiter swap instruction detected");
+                    }
+                    "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9" => {
+                        info!("  -> Jupiter lending instruction detected");
+                    }
+                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" => {
+                        info!("  -> SPL Token program instruction detected");
+                    }
+                    "11111111111111111111111111111111" => {
+                        info!("  -> System program instruction detected");
+                    }
+                    _ => {
+                        info!("  -> Unknown program: {}", instruction.program_id);
+                    }
+                }
+            }
+
             let sim_config = RpcSimulateTransactionConfig {
                 sig_verify: false,
                 replace_recent_blockhash: true,
