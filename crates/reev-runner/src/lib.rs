@@ -6,6 +6,7 @@ use reev_lib::{
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
+    server_utils::{kill_existing_reev_agent, kill_existing_surfpool},
     solana_env::environment::SolanaEnv,
     test_scenarios,
     trace::ExecutionTrace,
@@ -14,7 +15,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 pub mod db;
 pub mod dependency;
@@ -31,15 +32,23 @@ struct DependencyManagerGuard {
 
 impl Drop for DependencyManagerGuard {
     fn drop(&mut self) {
-        info!("Cleaning up dependency manager...");
-        // Note: Cleanup is handled asynchronously in the main runtime
-        // Avoiding runtime-in-runtime issues in Drop implementation
+        info!("Dependency manager dropped - processes will be cleaned up on next startup");
+        // Note: Actual cleanup is handled at startup to avoid runtime-in-runtime issues
+        // This ensures clean state for the next run
     }
 }
 
 /// Initialize dependency management and ensure services are running
 async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
     info!("Initializing dependency management...");
+
+    // Clean up any existing processes before starting new ones
+    kill_existing_reev_agent(9090)
+        .await
+        .context("Failed to cleanup existing reev-agent processes")?;
+    kill_existing_surfpool(8899)
+        .await
+        .context("Failed to cleanup existing surfpool processes")?;
 
     let config = dependency::DependencyConfig::from_env();
     let mut manager = dependency::DependencyManager::new(config)

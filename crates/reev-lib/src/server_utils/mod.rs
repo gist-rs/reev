@@ -73,6 +73,72 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
     Ok(())
 }
 
+/// Kill existing surfpool processes on the specified port
+///
+/// This function finds and forcefully terminates any processes using the specified port.
+/// It's useful for cleaning up leftover surfpool instances before starting new ones.
+///
+/// # Arguments
+/// * `port` - The port to check for surfpool processes (typically 8899)
+///
+/// # Returns
+/// `Ok(())` if cleanup was successful, `Err` if cleanup failed
+///
+/// # Example
+/// ```rust,no_run
+/// use reev_lib::server_utils::kill_existing_surfpool;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Kill any existing surfpool processes on port 8899
+///     kill_existing_surfpool(8899).await?;
+///
+///     // Now it's safe to start a new surfpool instance
+///     Ok(())
+/// }
+/// ```
+pub async fn kill_existing_surfpool(port: u16) -> Result<()> {
+    info!(
+        "🧹 Checking for existing surfpool processes on port {}...",
+        port
+    );
+
+    // Try to kill any process using the specified port
+    match Command::new("lsof")
+        .args(["-ti", &format!(":{port}")])
+        .output()
+    {
+        Ok(output) => {
+            let pids = String::from_utf8_lossy(&output.stdout);
+            if !pids.trim().is_empty() {
+                info!("🔪 Found existing surfpool processes: {}", pids.trim());
+                for pid in pids.trim().lines() {
+                    match Command::new("kill").args(["-9", pid.trim()]).output() {
+                        Ok(_) => {
+                            info!("✅ Killed process {}", pid.trim());
+                        }
+                        Err(e) => {
+                            warn!("⚠️  Failed to kill process {}: {}", pid.trim(), e);
+                        }
+                    }
+                }
+                // Give processes time to terminate
+                sleep(Duration::from_millis(500)).await;
+            } else {
+                info!("✅ No existing surfpool processes found on port {}", port);
+            }
+        }
+        Err(e) => {
+            warn!(
+                "⚠️  Failed to check for existing surfpool processes on port {}: {}",
+                port, e
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Wait for a port to become available
 ///
 /// This function polls the specified port to check if it's available.
