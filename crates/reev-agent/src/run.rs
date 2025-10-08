@@ -24,7 +24,18 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     if payload.mock {
         info!("[run_agent] Mock mode enabled, routing to deterministic agent");
         let response = crate::run_deterministic_agent(payload).await?;
-        return Ok(serde_json::to_string(&response.0)?);
+
+        // Extract the text field from LlmResponse
+        let response_text = response
+            .result
+            .as_ref()
+            .map(|r| r.text.clone())
+            .unwrap_or_else(String::new);
+        info!(
+            "[run_agent] Deterministic agent response: {}",
+            response_text
+        );
+        return Ok(response_text);
     }
 
     // Parse the context to extract key_map for tools
@@ -52,7 +63,11 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
         info!("[run_agent] Legacy local-model detected, routing to deterministic agent");
         let response = crate::run_deterministic_agent(payload).await?;
         // Extract the text field from LlmResponse
-        let response_text = response.0.result.text;
+        let response_text = response
+            .result
+            .as_ref()
+            .map(|r| r.text.clone())
+            .unwrap_or_else(String::new);
         info!(
             "[run_agent] Deterministic agent response: {}",
             response_text

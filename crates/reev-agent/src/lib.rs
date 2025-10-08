@@ -51,7 +51,12 @@ struct LlmResult {
 /// The top-level response structure, mirroring what the real LLM service would send.
 #[derive(Debug, Serialize)]
 struct LlmResponse {
-    result: LlmResult,
+    // Support old format for backward compatibility
+    result: Option<LlmResult>,
+    // Support new comprehensive format
+    transactions: Option<Vec<serde_json::Value>>,
+    summary: Option<String>,
+    signatures: Option<Vec<String>>,
 }
 
 /// Structs for deserializing the `context_prompt` YAML.
@@ -120,8 +125,39 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 
     info!("[reev-agent] Raw response from AI agent tool call: {response_str}");
 
-    // Use regex to find a JSON block. This is more robust for models that
-    // wrap their output in conversational text or markdown.
+    // Try to parse the response as our new comprehensive format first
+    match serde_json::from_str::<serde_json::Value>(&response_str) {
+        Ok(json_value) => {
+            // Check if it's our new comprehensive format
+            if let (Some(transactions), Some(summary), Some(signatures)) = (
+                json_value.get("transactions"),
+                json_value.get("summary"),
+                json_value.get("signatures"),
+            ) {
+                info!("[reev-agent] Detected new comprehensive format, passing through directly");
+                // Return the new format directly
+                let response = LlmResponse {
+                    result: None, // Old format not used
+                    transactions: Some(transactions.as_array().unwrap_or(&vec![]).to_vec()),
+                    summary: summary.as_str().map(|s| s.to_string()),
+                    signatures: Some(
+                        signatures
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                            .collect(),
+                    ),
+                };
+                return Ok(Json(response));
+            }
+        }
+        Err(_) => {
+            // Not our new format, continue with old logic
+        }
+    }
+
+    // Use regex to find a JSON block for old format compatibility
     let re = Regex::new(r"(?s)```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```").unwrap();
     let extracted_json = if let Some(caps) = re.captures(&response_str) {
         caps.get(1).map_or("", |m| m.as_str()).to_string()
@@ -132,14 +168,44 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 
     let cleaned_response = extracted_json.trim().to_string();
 
-    // Validate the response is valid JSON, but pass the string through.
+    // Validate the response is valid JSON
     let _: serde_json::Value = serde_json::from_str(&cleaned_response)
         .context("Failed to validate AI agent response as parseable JSON")?;
 
+    // Check if it's our new comprehensive format without markdown
+    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&cleaned_response) {
+        if let (Some(transactions), Some(summary), Some(signatures)) = (
+            json_value.get("transactions"),
+            json_value.get("summary"),
+            json_value.get("signatures"),
+        ) {
+            info!("[reev-agent] Detected clean comprehensive format, passing through directly");
+            let response = LlmResponse {
+                result: None, // Old format not used
+                transactions: Some(transactions.as_array().unwrap_or(&vec![]).to_vec()),
+                summary: summary.as_str().map(|s| s.to_string()),
+                signatures: Some(
+                    signatures
+                        .as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                        .collect(),
+                ),
+            };
+            return Ok(Json(response));
+        }
+    }
+
+    // Fall back to old format for backward compatibility
+    info!("[reev-agent] Falling back to old LlmResult format");
     let response = LlmResponse {
-        result: LlmResult {
+        result: Some(LlmResult {
             text: cleaned_response,
-        },
+        }),
+        transactions: None,
+        summary: None,
+        signatures: None,
     };
 
     Ok(Json(response))
@@ -397,9 +463,12 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         instructions_json
     );
     let response = LlmResponse {
-        result: LlmResult {
-            text: instructions_json,
-        },
+        result: Some(LlmResult {
+            text: instructions_json.clone(),
+        }),
+        transactions: None,
+        summary: None,
+        signatures: None,
     };
 
     Ok(Json(response))

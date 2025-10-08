@@ -164,21 +164,49 @@ impl Agent for LlmAgent {
         // We need to recreate the response since we consumed it with .text()
         let llm_response_text = response_text;
 
+        info!(
+            "[LlmAgent] Debug - Raw response text: {}",
+            llm_response_text
+        );
+
         let llm_response: LlmResponse = serde_json::from_str(&llm_response_text)
             .context("Failed to deserialize the LLM API response")?;
 
-        // 9. Convert the raw instructions into a vector of native `AgentAction` and return it.
-        let actions: Vec<AgentAction> = llm_response
-            .result
-            .text
-            .into_iter()
-            .map(|raw_ix| raw_ix.try_into())
-            .collect::<Result<Vec<AgentAction>>>()?;
+        info!("[LlmAgent] Debug - Parsed LlmResponse: {:?}", llm_response);
+
+        // 9. Handle both old and new response formats
+        let actions: Vec<AgentAction> = if let Some(transactions) = llm_response.transactions {
+            // New comprehensive format: direct transactions array
+            transactions
+                .into_iter()
+                .map(|raw_ix| raw_ix.try_into())
+                .collect::<Result<Vec<AgentAction>>>()?
+        } else if let Some(result) = llm_response.result {
+            // Old format: nested in result.text
+            result
+                .text
+                .into_iter()
+                .map(|raw_ix| raw_ix.try_into())
+                .collect::<Result<Vec<AgentAction>>>()?
+        } else {
+            // No instructions found
+            vec![]
+        };
 
         info!(
             "[LlmAgent] Successfully parsed {} instruction(s).",
             actions.len()
         );
+
+        // 10. Log transaction signatures if available (for new format)
+        if let Some(signatures) = llm_response.signatures {
+            info!("[LlmAgent] Transaction signatures: {:?}", signatures);
+        }
+
+        // 11. Log summary if available (for new format)
+        if let Some(summary) = llm_response.summary {
+            info!("[LlmAgent] Agent summary: {}", summary);
+        }
         tracing::info!(
             instruction_count = actions.len(),
             "LLM generated raw instruction(s)"

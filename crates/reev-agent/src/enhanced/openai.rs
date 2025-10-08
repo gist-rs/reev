@@ -1,7 +1,8 @@
 use anyhow::Result;
 use rig::{completion::Prompt, prelude::*, providers::openai::Client};
+use serde_json::json;
 use std::collections::HashMap;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::{
     enhanced::enhanced_context::EnhancedContextAgent,
@@ -12,6 +13,14 @@ use crate::{
     },
     LlmRequest,
 };
+
+/// 🎯 Complete response format including transactions, summary, and signatures
+#[derive(Debug, Clone)]
+struct ExecutionResult {
+    transactions: Vec<serde_json::Value>,
+    summary: String,
+    signatures: Vec<String>,
+}
 
 /// 🤖 Enhanced OpenAI Agent with Superior Multi-Turn Capabilities
 ///
@@ -100,8 +109,37 @@ impl OpenAIAgent {
             .tool(jupiter_earnings_tool)
             .build();
 
-        // 🧠 MULTI-TURN AGENT: Enable intelligent step-by-step reasoning
-        let response = agent.prompt(&user_request).multi_turn(5).await?;
+        // 🧠 REDUCED CONVERSATION DEPTH: Use 1-turn for simple operations to prevent loops
+        let conversation_depth = if user_request.to_lowercase().contains("swap")
+            || user_request.to_lowercase().contains("transfer")
+            || user_request.to_lowercase().contains("send")
+        {
+            1 // Single operation - 1 turn only
+        } else if user_request.to_lowercase().contains("lend")
+            || user_request.to_lowercase().contains("deposit")
+            || user_request.to_lowercase().contains("withdraw")
+        {
+            2 // Lending operations - max 2 turns
+        } else {
+            3 // Complex operations - max 3 turns
+        };
+
+        info!(
+            "[OpenAIAgent] Using conversation depth: {} for request",
+            conversation_depth
+        );
+
+        // Add explicit stop instruction to the user request for simple operations
+        let enhanced_user_request = if conversation_depth == 1 {
+            format!("{user_request}\n\nIMPORTANT: Execute this operation and then STOP. Do not continue or repeat the operation.")
+        } else {
+            user_request.to_string()
+        };
+
+        let response = agent
+            .prompt(&enhanced_user_request)
+            .multi_turn(conversation_depth)
+            .await?;
 
         let response_str = response.to_string();
         info!(
@@ -109,43 +147,167 @@ impl OpenAIAgent {
             response_str
         );
 
-        // 🐛 DEBUG: Try to parse the response and log any errors
-        match serde_json::from_str::<serde_json::Value>(&response_str) {
-            Ok(json_value) => {
+        // 🎯 EXTRACT TOOL EXECUTION RESULTS FROM CONVERSATION
+        let execution_result = extract_execution_results(&response_str).await?;
+
+        // 🎯 FORMAT COMPREHENSIVE RESPONSE
+        let comprehensive_response = json!({
+            "transactions": execution_result.transactions,
+            "summary": execution_result.summary,
+            "signatures": execution_result.signatures
+        });
+
+        info!(
+            "[OpenAIAgent] Comprehensive response with {} transactions, {} signatures",
+            execution_result.transactions.len(),
+            execution_result.signatures.len()
+        );
+
+        Ok(serde_json::to_string(&comprehensive_response)?)
+    }
+}
+
+/// 🧠 Extract tool execution results from agent response
+async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult> {
+    info!("[OpenAIAgent] Extracting execution results from response");
+
+    // 🧠 Clean markdown JSON wrapper first (```json ... ```)
+    let cleaned_response = if response_str.starts_with("```json") && response_str.ends_with("```") {
+        response_str
+            .trim_start_matches("```json")
+            .trim_end_matches("```")
+            .trim()
+    } else if response_str.starts_with("```") && response_str.ends_with("```") {
+        response_str
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim()
+    } else {
+        response_str
+    };
+
+    // Try to parse as JSON first
+    match serde_json::from_str::<serde_json::Value>(cleaned_response) {
+        Ok(json_value) => {
+            // Check if response already contains our expected format
+            if let (Some(transactions), Some(summary), Some(signatures)) = (
+                json_value.get("transactions"),
+                json_value.get("summary"),
+                json_value.get("signatures"),
+            ) {
+                info!("[OpenAIAgent] Response already in comprehensive format");
+
+                // 🧠 HANDLE MARKDOWN JSON CODE BLOCKS - EXTRACT FROM WRAPPER
+                let final_instructions: Vec<serde_json::Value> = transactions
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .filter_map(|tx| {
+                        let tx_str = tx.as_str().unwrap_or_default();
+
+                        // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
+                        // We need to parse this escaped string to get the actual transaction object
+                        match serde_json::from_str::<serde_json::Value>(tx_str) {
+                            Ok(tx_obj) => {
+                                info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
+                                // Extract instructions from the transaction object
+                                tx_obj.get("instructions").map(|instructions| {
+                                    if instructions.is_array() {
+                                        // Get the array of instruction objects
+                                        instructions.as_array().unwrap_or(&vec![]).to_vec()
+                                    } else {
+                                        // Handle single instruction object
+                                        vec![instructions.clone()]
+                                    }
+                                })
+                            }
+                            Err(parse_error) => {
+                                warn!(
+                                    "[OpenAIAgent] Failed to parse escaped JSON transaction object: {}",
+                                    parse_error
+                                );
+                                None
+                            }
+                        }
+                    })
+                    .flatten()
+                    .collect();
+
+                return Ok(ExecutionResult {
+                    transactions: final_instructions,
+                    summary: summary.as_str().unwrap_or("").to_string(),
+                    signatures: signatures
+                        .as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .filter_map(|s| s.as_str())
+                        .map(|s| s.to_string())
+                        .collect(),
+                });
+            }
+
+            // 🎯 CHECK FOR STRUCTURED TOOL RESPONSES (JupiterSwapResponse, etc.)
+            if let (
+                Some(instructions),
+                Some(transaction_count),
+                Some(estimated_signatures),
+                Some(operation_type),
+            ) = (
+                json_value.get("instructions"),
+                json_value.get("transaction_count"),
+                json_value.get("estimated_signatures"),
+                json_value.get("operation_type"),
+            ) {
                 info!(
-                    "[OpenAIAgent] Successfully parsed response as JSON: {}",
-                    json_value
+                    "[OpenAIAgent] Found structured tool response for {}",
+                    operation_type
                 );
+                let tx_count = transaction_count.as_u64().unwrap_or(1) as usize;
+                let signatures: Vec<String> = estimated_signatures
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .filter_map(|s| s.as_str())
+                    .map(|s| s.to_string())
+                    .collect();
 
-                // Check if the response contains tool calls
-                if let Some(tool_calls) = json_value.get("tool_calls") {
-                    info!("[OpenAIAgent] Found tool calls in response: {}", tool_calls);
-                } else {
-                    warn!("[OpenAIAgent] No tool_calls field found in JSON response");
-                }
-
-                // 🧠 Process response and extract instructions
-                let instruction = if let Some(instruction_field) = json_value.get("instruction") {
-                    instruction_field
-                } else {
-                    &json_value
-                };
-
-                Ok(serde_json::to_string(instruction)?)
+                return Ok(ExecutionResult {
+                    transactions: instructions.as_array().unwrap_or(&vec![]).to_vec(),
+                    summary: format!(
+                        "Successfully executed {} {} operation(s)",
+                        tx_count,
+                        operation_type.as_str().unwrap_or("transaction")
+                    ),
+                    signatures,
+                });
             }
-            Err(parse_error) => {
-                error!(
-                    "[OpenAIAgent] Failed to parse response as JSON: {}",
-                    parse_error
-                );
-                error!("[OpenAIAgent] Response was not JSON - this suggests the model didn't call tools");
-                error!("[OpenAIAgent] Actual response: {}", response_str);
 
-                // Return an error that will be caught by the caller
-                Err(anyhow::anyhow!(
-                    "Model returned natural language instead of JSON instructions. Response: {response_str}"
-                ))
+            // Check if response contains tool calls or instruction data
+            if let Some(instruction_field) = json_value.get("instruction") {
+                info!("[OpenAIAgent] Found instruction field in response");
+                Ok(ExecutionResult {
+                    transactions: vec![instruction_field.clone()],
+                    summary: format!("Executed {} transaction(s)", 1),
+                    signatures: vec![], // Would need to be populated during actual execution
+                })
+            } else {
+                // Wrap natural language response
+                info!("[OpenAIAgent] Wrapping natural language response");
+                Ok(ExecutionResult {
+                    transactions: vec![],
+                    summary: response_str.trim().to_string(),
+                    signatures: vec![],
+                })
             }
+        }
+        Err(_parse_error) => {
+            // Pure natural language response
+            info!("[OpenAIAgent] Pure natural language response detected");
+            Ok(ExecutionResult {
+                transactions: vec![],
+                summary: response_str.trim().to_string(),
+                signatures: vec![],
+            })
         }
     }
 }

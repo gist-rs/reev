@@ -114,7 +114,12 @@ pub trait Agent {
 /// Structs for deserializing the third-party LLM's JSON response.
 #[derive(Debug, Deserialize)]
 pub struct LlmResponse {
-    pub result: LlmResult,
+    // Support old format for backward compatibility
+    pub result: Option<LlmResult>,
+    // Support new comprehensive format
+    pub transactions: Option<Vec<RawInstruction>>,
+    pub summary: Option<String>,
+    pub signatures: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
