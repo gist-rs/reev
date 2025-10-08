@@ -1,15 +1,6 @@
 id: 114-jup-positions-and-earnings
 description: Multi-step flow to fetch Jupiter lending positions and then get detailed earnings information.
-tags:
-  [
-    "jupiter",
-    "positions",
-    "earnings",
-    "portfolio",
-    "multi-step",
-    "flow",
-    "comprehensive",
-  ]
+tags: ["jupiter", "positions", "earnings", "portfolio", "api", "comprehensive"]
 
 initial_state:
   # User's main wallet with 2 SOL for transaction fees.
@@ -17,21 +8,7 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 2000000000 # 2 SOL
 
-prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings."
-
-flow:
-  - step: 1
-    description: "Fetch all Jupiter lending positions"
-    prompt: "First, show me all my Jupiter lending positions. I want to see all available positions including token details, balances, current rates, and liquidity data."
-    critical: true
-    timeout: 15
-
-  - step: 2
-    description: "Get detailed earnings for all positions"
-    prompt: "Now get the detailed earnings data for all my Jupiter lending positions. I want to see total deposits, withdrawals, current balances, and total earnings/profits for each position."
-    depends_on: ["step_1_result"]
-    critical: true
-    timeout: 15
+prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings. First fetch all Jupiter lending positions, then get detailed earnings data for all positions."
 
 ground_truth:
   min_score: 0.6
