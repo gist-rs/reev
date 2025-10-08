@@ -1,7 +1,10 @@
 //! Binary manager implementation for downloading and caching dependencies
 
+//! This module handles downloading surfpool binaries with proper platform detection
+//! and URL construction for the txtx/surfpool repository.
+
 use super::{BinaryAcquisitionResult, BinaryInfo, Platform, Version};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use flate2::read::GzDecoder;
 use reqwest::Client;
 use std::path::PathBuf;
@@ -9,7 +12,6 @@ use std::time::Duration;
 use std::{io::Read, path::Path};
 use tar::Archive;
 use tokio::fs;
-use tokio::process::Command;
 use tracing::{info, warn};
 
 /// Binary manager for handling external dependencies
@@ -57,10 +59,8 @@ impl BinaryManager {
             return Ok(BinaryAcquisitionResult::Downloaded(downloaded));
         }
 
-        // Fallback to building from source
-        self.build_surfpool_from_source()
-            .await
-            .map(BinaryAcquisitionResult::Built)
+        // Throw error
+        panic!("Expect surfpool binary");
     }
 
     /// Get cached surfpool binary
@@ -98,31 +98,38 @@ impl BinaryManager {
     ) -> Result<PathBuf> {
         info!("Downloading surfpool binary for {}-{}...", platform, arch);
 
-        // Construct download URL based on platform
-        let filename = match (platform, arch) {
-            (Platform::Linux, crate::dependency::binary::Architecture::X86_64) => {
-                "surfpool-linux-x86_64.tar.gz"
-            }
-            (Platform::MacOS, crate::dependency::binary::Architecture::X86_64) => {
-                "surfpool-darwin-x86_64.tar.gz"
-            }
-            (Platform::MacOS, crate::dependency::binary::Architecture::Aarch64) => {
-                "surfpool-darwin-aarch64.tar.gz"
-            }
-            (Platform::Windows, crate::dependency::binary::Architecture::X86_64) => {
-                "surfpool-windows-x86_64.zip"
-            }
+        // Get actual OS platform for filename construction
+        let actual_platform = self.detect_os_platform();
+        let actual_arch = self.detect_os_architecture();
+
+        // Construct download URL based on detected platform and architecture
+        let filename = match (&actual_platform, &actual_arch) {
+            (
+                crate::dependency::binary::Platform::Linux,
+                crate::dependency::binary::Architecture::X86_64,
+            ) => "surfpool-linux-x86_64.tar.gz",
+            (
+                crate::dependency::binary::Platform::MacOS,
+                crate::dependency::binary::Architecture::X86_64,
+            ) => "surfpool-darwin-x86_64.tar.gz",
+            (
+                crate::dependency::binary::Platform::MacOS,
+                crate::dependency::binary::Architecture::Aarch64,
+            ) => "surfpool-darwin-arm64.tar.gz",
+            (
+                crate::dependency::binary::Platform::Windows,
+                crate::dependency::binary::Architecture::X86_64,
+            ) => "surfpool-windows-x86_64.zip",
             _ => {
                 return Err(anyhow::anyhow!(
-                    "Unsupported platform/architecture: {platform}-{arch}"
+                    "Unsupported platform/architecture: {actual_platform:?}-{actual_arch:?}"
                 ));
             }
         };
 
-        // For now, we'll use a placeholder URL
-        // In a real implementation, this would query GitHub API for latest release
+        // Use specific version (v0.10.8) and correct repository
         let download_url =
-            format!("https://github.com/surf-pool/surfpool/releases/latest/download/{filename}");
+            format!("https://github.com/txtx/surfpool/releases/download/v0.10.8/{filename}");
 
         info!("Downloading from: {}", download_url);
 
@@ -222,60 +229,6 @@ impl BinaryManager {
         Err(anyhow::anyhow!("No surfpool.exe found in zip archive"))
     }
 
-    /// Build surfpool from source
-    async fn build_surfpool_from_source(&self) -> Result<PathBuf> {
-        info!("Building surfpool from source...");
-
-        // Check if we're in the right directory structure
-        let project_root =
-            project_root::get_project_root().context("Failed to find project root")?;
-
-        let surfpool_dir = project_root.join("surfpool");
-        if !surfpool_dir.exists() {
-            return Err(anyhow::anyhow!(
-                "surfpool source directory not found at: {}",
-                surfpool_dir.display()
-            ));
-        }
-
-        // Build with cargo
-        let output = Command::new("cargo")
-            .args(["build", "--release", "--package", "surfpool"])
-            .current_dir(&project_root)
-            .output()
-            .await
-            .context("Failed to execute cargo build")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to build surfpool: {stderr}"));
-        }
-
-        // Find the built binary
-        let target_dir = project_root.join("target").join("release");
-        let binary_name = if cfg!(windows) {
-            "surfpool.exe"
-        } else {
-            "surfpool"
-        };
-        let binary_path = target_dir.join(binary_name);
-
-        if !binary_path.exists() {
-            return Err(anyhow::anyhow!(
-                "Built surfpool binary not found at: {}",
-                binary_path.display()
-            ));
-        }
-
-        // Copy to cache directory
-        fs::create_dir_all(&self.cache_dir).await?;
-        let cached_path = PathBuf::from(&self.cache_dir).join(binary_name);
-        fs::copy(&binary_path, &cached_path).await?;
-
-        info!("Built surfpool from source: {}", cached_path.display());
-        Ok(cached_path)
-    }
-
     /// Check if a binary is cached and valid
     pub async fn is_cached_binary_valid(&self, binary_name: &str) -> Result<bool> {
         let binary_path = PathBuf::from(&self.cache_dir).join(binary_name);
@@ -336,6 +289,31 @@ impl BinaryManager {
         BinaryInfo::new(name.to_string(), version.clone(), platform, arch)
             .with_path(PathBuf::from(&self.cache_dir).join(name))
             .with_cached(true)
+    }
+
+    /// Detect actual OS platform
+    pub fn detect_os_platform(&self) -> Platform {
+        match std::env::consts::OS {
+            "linux" => Platform::Linux,
+            "macos" => Platform::MacOS,
+            "windows" => Platform::Windows,
+            _other => {
+                // Fallback to platform detection via binary module
+                Platform::current()
+            }
+        }
+    }
+
+    /// Detect actual OS architecture
+    pub fn detect_os_architecture(&self) -> crate::dependency::binary::Architecture {
+        match std::env::consts::ARCH {
+            "x86_64" => crate::dependency::binary::Architecture::X86_64,
+            "aarch64" => crate::dependency::binary::Architecture::Aarch64,
+            _other => {
+                // Fallback to architecture detection via binary module
+                crate::dependency::binary::Architecture::current()
+            }
+        }
     }
 }
 

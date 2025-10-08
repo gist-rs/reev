@@ -14,7 +14,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 pub mod db;
 pub mod dependency;
@@ -31,9 +31,8 @@ struct DependencyManagerGuard {
 impl Drop for DependencyManagerGuard {
     fn drop(&mut self) {
         info!("Cleaning up dependency manager...");
-        if let Err(e) = tokio::runtime::Handle::current().block_on(self.manager.cleanup()) {
-            error!(error = ?e, "Failed to cleanup dependency manager");
-        }
+        // Note: Cleanup is handled asynchronously in the main runtime
+        // Avoiding runtime-in-runtime issues in Drop implementation
     }
 }
 

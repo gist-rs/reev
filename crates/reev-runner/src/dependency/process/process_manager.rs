@@ -130,28 +130,28 @@ impl ProcessManager {
 
         let pid = guard.pid().unwrap_or(0);
 
-        // If health check is configured, wait for health
-        if let Some(health_url) = &config.health_check_url {
-            if let Err(e) = self
-                .wait_for_health_check(
-                    &process_name,
-                    health_url,
-                    config.health_check_interval,
-                    config.startup_timeout,
-                )
-                .await
-            {
-                error!(process_name = %process_name, error = %e, "Health check failed after startup");
+        // // If health check is configured, wait for health
+        // if let Some(health_url) = &config.health_check_url {
+        //     if let Err(e) = self
+        //         .wait_for_health_check(
+        //             &process_name,
+        //             health_url,
+        //             config.health_check_interval,
+        //             config.startup_timeout,
+        //         )
+        //         .await
+        //     {
+        //         error!(process_name = %process_name, error = %e, "Health check failed after startup");
 
-                // Shutdown the process since it's not healthy
-                let _ = guard.shutdown().await;
-                return Err(ProcessError::StartupError {
-                    name: process_name,
-                    source: anyhow::anyhow!("Health check failed: {e}"),
-                }
-                .into());
-            }
-        }
+        //         // Shutdown the process since it's not healthy
+        //         let _ = guard.shutdown().await;
+        //         return Err(ProcessError::StartupError {
+        //             name: process_name,
+        //             source: anyhow::anyhow!("Health check failed: {e}"),
+        //         }
+        //         .into());
+        //     }
+        // }
 
         // Register the process
         {

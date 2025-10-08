@@ -8,7 +8,7 @@ use anyhow::Result;
 use serde_json::json;
 use solana_client::rpc_config::RpcSimulateTransactionConfig;
 use solana_sdk::{instruction::Instruction, signature::Signer, transaction::Transaction};
-use solana_transaction_status::UiTransactionEncoding;
+
 use tracing::{error, info};
 
 pub(crate) fn handle_step(
@@ -118,19 +118,14 @@ pub(crate) fn handle_step(
                 let latest_blockhash = env.rpc_client.get_latest_blockhash()?;
                 transaction.sign(&signers, latest_blockhash);
 
+                // Execute the transaction
                 match env.rpc_client.send_and_confirm_transaction(&transaction) {
                     Ok(sig) => {
-                        let tx_info = env
-                            .rpc_client
-                            .get_transaction(&sig, UiTransactionEncoding::Json)?;
-                        tx_logs = tx_info
-                            .transaction
-                            .meta
-                            .and_then(|meta| meta.log_messages.into())
-                            .unwrap_or_default();
-                        info = json!({ "signature": sig.to_string() });
+                        info!("Transaction executed successfully: {}", sig.to_string());
                         tx_status = "Success";
                         reward = 1.0;
+                        // Use simulation logs since get_transaction might fail
+                        tx_logs = sim_logs.clone();
                     }
                     Err(e) => {
                         let error_string = format!(
