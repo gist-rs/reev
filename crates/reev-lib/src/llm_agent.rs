@@ -141,9 +141,10 @@ impl Agent for LlmAgent {
 
         // Check if this is a flow response (for flow benchmarks starting with "200-")
         // Flow responses contain flow_completed, steps, or summary fields
-        let is_flow_response = response_text.contains("flow_completed")
-            || response_text.contains("\"steps\"")
-            || response_text.contains("\"summary\"");
+        // Only detect as flow response if it contains flow_completed or steps, not just summary
+        // to avoid false positives with Jupiter swap responses that also have summary fields
+        let is_flow_response =
+            response_text.contains("flow_completed") || response_text.contains("\"steps\"");
 
         if is_flow_response {
             info!("[LlmAgent] Detected flow response, creating mock success action.");
@@ -177,12 +178,27 @@ impl Agent for LlmAgent {
         // 9. Handle both old and new response formats
         let actions: Vec<AgentAction> = if let Some(transactions) = llm_response.transactions {
             // New comprehensive format: direct transactions array
+            info!(
+                "[LlmAgent] Processing {} transactions from comprehensive format",
+                transactions.len()
+            );
+            for (i, tx) in transactions.iter().enumerate() {
+                info!(
+                    "[LlmAgent] Transaction {}: {}",
+                    i,
+                    serde_json::to_string_pretty(tx).unwrap_or_default()
+                );
+            }
             transactions
                 .into_iter()
                 .map(|raw_ix| raw_ix.try_into())
                 .collect::<Result<Vec<AgentAction>>>()?
         } else if let Some(result) = llm_response.result {
             // Old format: nested in result.text
+            info!(
+                "[LlmAgent] Processing {} instructions from old format",
+                result.text.len()
+            );
             result
                 .text
                 .into_iter()
@@ -190,6 +206,7 @@ impl Agent for LlmAgent {
                 .collect::<Result<Vec<AgentAction>>>()?
         } else {
             // No instructions found
+            info!("[LlmAgent] No instructions found in response");
             vec![]
         };
 
