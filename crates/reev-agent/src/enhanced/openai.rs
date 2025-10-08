@@ -203,31 +203,44 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                     .unwrap_or(&vec![])
                     .iter()
                     .filter_map(|tx| {
-                        let tx_str = tx.as_str().unwrap_or_default();
-
-                        // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
-                        // We need to parse this escaped string to get the actual transaction object
-                        match serde_json::from_str::<serde_json::Value>(tx_str) {
-                            Ok(tx_obj) => {
-                                info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
-                                // Extract instructions from the transaction object
-                                tx_obj.get("instructions").map(|instructions| {
-                                    if instructions.is_array() {
-                                        // Get the array of instruction objects
-                                        instructions.as_array().unwrap_or(&vec![]).to_vec()
-                                    } else {
-                                        // Handle single instruction object
-                                        vec![instructions.clone()]
-                                    }
-                                })
+                        // Check if transaction is a string (escaped JSON) or an object
+                        if let Some(tx_str) = tx.as_str() {
+                            // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
+                            // We need to parse this escaped string to get the actual transaction object
+                            match serde_json::from_str::<serde_json::Value>(tx_str) {
+                                Ok(tx_obj) => {
+                                    info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
+                                    // Extract instructions from the transaction object
+                                    tx_obj.get("instructions").map(|instructions| {
+                                        if instructions.is_array() {
+                                            // Get the array of instruction objects
+                                            instructions.as_array().unwrap_or(&vec![]).to_vec()
+                                        } else {
+                                            // Handle single instruction object
+                                            vec![instructions.clone()]
+                                        }
+                                    })
+                                }
+                                Err(parse_error) => {
+                                    warn!(
+                                        "[OpenAIAgent] Failed to parse escaped JSON transaction object: {}",
+                                        parse_error
+                                    );
+                                    None
+                                }
                             }
-                            Err(parse_error) => {
-                                warn!(
-                                    "[OpenAIAgent] Failed to parse escaped JSON transaction object: {}",
-                                    parse_error
-                                );
-                                None
-                            }
+                        } else {
+                            // Transaction is already an object, extract instructions directly
+                            info!("[OpenAIAgent] Processing transaction object directly");
+                            tx.get("instructions").map(|instructions| {
+                                if instructions.is_array() {
+                                    // Get the array of instruction objects
+                                    instructions.as_array().unwrap_or(&vec![]).to_vec()
+                                } else {
+                                    // Handle single instruction object
+                                    vec![instructions.clone()]
+                                }
+                            })
                         }
                     })
                     .flatten()

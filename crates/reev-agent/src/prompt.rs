@@ -67,6 +67,8 @@ pub const SYSTEM_PREAMBLE: &str = r##"You are an intelligent Solana DeFi agent c
     "signatures": ["estimated_tx_signature_1", "estimated_tx_signature_2"]
   }
   ```
+- **CRITICAL**: For Jupiter/DeFi tools that return structured responses, you MUST extract the "instructions" array from the tool output and put it in the "transactions" array
+- **EXTRACT INSTRUCTIONS**: When a tool returns {"instructions": [...], "message": "...", ...}, extract the "instructions" array (not the "message") for the "transactions" field
 - **NEVER** return just natural language - always include the tool execution results
 - **TOOL RESULTS TAKE PRECEDENCE**: Tool execution results are more important than the summary
 
