@@ -23,6 +23,8 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 1.4: Production-Ready Architecture
 -   **Comprehensive Testing**: All features must have corresponding benchmarks with 100% success rates.
+-   **Scoring Validation**: Must include test cases covering 0%, ~50%, ~75%, and 100% score scenarios.
+-   **Anti-False-Positive Testing**: Must differentiate between failure modes (no attempt vs attempted but failed).
 -   **Error Handling**: Robust error handling with clear logging and graceful degradation.
 -   **Performance Optimization**: Binary caching, shared instances, and efficient resource management.
 
@@ -56,7 +58,9 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 3.2: Debugging and Logging
 -   **Don't Guess, Prove**: When debugging, do not guess the cause. Insert logging statements (`info!`, `debug!`, `trace!`) to trace execution and inspect state step-by-step. Start from a last known-working state and reintroduce changes incrementally.
+-   **Scoring Debug**: Use `RUST_LOG=debug` to get detailed scoring breakdown including component comparisons and weight calculations.
 -   **Use `tracing`**: The `tracing` crate is the project standard. Use it for all logging. Control log verbosity with the `RUST_LOG` environment variable (e.g., `RUST_LOG=reev_lib=trace`).
+-   **Score Validation**: Always validate that new benchmarks produce expected scores within ±5% tolerance.
 
 ---
 
@@ -81,3 +85,17 @@ This document establishes the official coding conventions and architectural rule
 -   Implement `dotenvy` for environment variable loading.
 -   Support multiple configuration sources: CLI args, env files, and config files.
 -   Validate all configuration at startup with clear error messages.
+
+### Rule 4.4: Benchmark Development Standards
+-   **Score Coverage**: Every benchmark category must include test cases covering the full score spectrum.
+-   **Weight Validation**: All benchmark weights must be documented and validated against expected score ranges.
+-   **Ground Truth Accuracy**: Expected instructions must be precise and match actual successful executions.
+-   **Failure Mode Testing**: Must include intentional failure tests to validate scoring system accuracy.
+-   **Documentation**: Each benchmark must have clear documentation of purpose, expected score, and validation criteria.
+
+### Rule 4.5: Testing and Validation Requirements
+-   **Score Validation Suite**: Must maintain comprehensive test suite with validated score scenarios.
+-   **Regression Testing**: All score validations must pass on every code change.
+-   **Performance Monitoring**: Track scoring system performance and ensure consistent execution times.
+-   **Database Validation**: Verify that all test results are correctly persisted and retrievable.
+-   **Cross-Agent Testing**: Validate scoring consistency across different agent types (deterministic, AI).

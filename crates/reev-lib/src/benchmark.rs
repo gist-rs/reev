@@ -20,6 +20,9 @@ pub struct TestCase {
     pub initial_state: Vec<InitialStateItem>,
     /// The natural language prompt given to the agent.
     pub prompt: String,
+    /// Optional flow definition for multi-step benchmarks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow: Option<Vec<FlowStep>>,
     /// The ground truth assertions and expected outcomes for this benchmark.
     pub ground_truth: GroundTruth,
 }
@@ -85,6 +88,27 @@ fn default_transaction_status() -> String {
 /// Provides a default weight of 1.0 for an assertion.
 fn default_weight() -> f64 {
     1.0
+}
+
+/// Represents a single step in a multi-step flow benchmark.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct FlowStep {
+    /// Step number (1-based)
+    pub step: u32,
+    /// Description of what this step accomplishes
+    pub description: String,
+    /// The prompt for this specific step
+    pub prompt: String,
+    /// Whether this step is critical for flow success
+    #[serde(default)]
+    pub critical: bool,
+    /// Timeout for this step in seconds
+    #[serde(default)]
+    pub timeout: Option<u32>,
+    /// Dependencies on previous steps
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
 }
 
 /// An enum representing a single assertion about the final on-chain state.

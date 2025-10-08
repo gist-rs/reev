@@ -17,6 +17,7 @@ The framework achieves **100% success rates** across all benchmark categories:
 - **📊 Comprehensive Scoring**: Granular instruction quality evaluation + on-chain execution metrics
 - **🎮 Professional Tooling**: Interactive TUI cockpit, database persistence, detailed logging
 - **🔬 Real-World Testing**: Mainnet fork validation with actual deployed programs
+- **✅ Scoring System Validation**: Complete test suite covering 0%, 50%, 75%, and 100% score scenarios
 
 ### 🚀 **Core Architecture: Real Programs, Controlled State**
 
@@ -76,6 +77,10 @@ cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agen
 
 # API benchmarks (positions, earnings)
 cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agent deterministic
+
+# Scoring validation tests
+cargo run -p reev-runner -- benchmarks/003-spl-transfer-fail.yml --agent deterministic  # 0% score
+cargo run -p reev-runner -- benchmarks/004-partial-score-spl-transfer.yml --agent deterministic  # ~50% score
 ```
 
 ### 🤖 Agent Options
@@ -145,11 +150,32 @@ cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agen
 - ✅ **Real Jupiter Integration**: Full protocol stack working
 - ✅ **Multi-Step Flows**: Complex workflows executing successfully
 - ✅ **Production Infrastructure**: TUI, database, logging all operational
+- ✅ **Scoring System Validation**: Comprehensive test suite covering full score spectrum
+- ✅ **Anti-False-Positive Protection**: Differentiates failure modes accurately
 
 ### **Scoring System:**
+The framework implements a sophisticated two-tiered scoring system:
+
+**Component Breakdown:**
 - **Instruction Quality (75%)**: Granular evaluation of generated transactions
+  - Program ID matching (configurable weight)
+  - Instruction data validation (configurable weight)  
+  - Account metadata verification (signer/writable flags)
 - **On-Chain Execution (25%)**: Binary success/failure on surfpool
-- **Composite Scoring**: Fair assessment of agent reasoning vs. execution
+- **Composite Scoring**: Weighted average for final assessment
+
+**Validated Score Scenarios:**
+| Score Range | Test Case | Purpose | Status |
+|-------------|-----------|---------|---------|
+| **0%** | `003-spl-transfer-fail` | Complete failure (no instructions) | ✅ Validated |
+| **~50%** | `004-partial-score-spl-transfer` | Partial credit (correct ID, wrong data) | ✅ Validated |
+| **~75%** | `100-jup-swap-sol-usdc` (pre-fix) | Good reasoning, execution failure | ✅ Validated |
+| **100%** | `001-sol-transfer`, `002-spl-transfer` | Perfect execution | ✅ Validated |
+
+**Anti-False-Positive Testing:**
+- Differentiates between "no attempt" (0%) vs "attempted but failed" (partial credit)
+- Validates granular component scoring (program ID vs data vs accounts)
+- Ensures weighted scoring prevents gaming the system
 
 ## 🔧 Development & Testing
 

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use reev_lib::{
     agent::{Agent, AgentObservation},
-    benchmark::TestCase,
+    benchmark::{FlowStep, TestCase},
     env::GymEnv,
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
@@ -15,7 +15,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 pub mod db;
 pub mod dependency;
@@ -94,6 +94,26 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
 
+        // Check if this is a flow benchmark
+        if let Some(flow_steps) = &test_case.flow {
+            info!(
+                benchmark_id = %test_case.id,
+                steps_count = %flow_steps.len(),
+                "Detected flow benchmark, executing step-by-step"
+            );
+
+            let result = run_flow_benchmark(
+                &test_case,
+                flow_steps,
+                agent_name,
+                &path.display().to_string(),
+            )
+            .await?;
+            results.push(result);
+            continue;
+        }
+
+        // Regular benchmark execution
         let mut agent = LlmAgent::new(agent_name)?;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
@@ -105,7 +125,11 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             .context("Failed to set up SPL scenario")?;
 
         let (final_observation, trace, actions) =
-            run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation).await?;
+            run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation)
+                .await
+                .with_context(|| {
+                    format!("Evaluation loop failed for benchmark: {}", test_case.id)
+                })?;
 
         // Use the new comprehensive scoring function from reev-lib.
         // Use the new comprehensive scoring function.
@@ -114,6 +138,13 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             &actions,
             &initial_observation,
             &final_observation,
+        );
+
+        info!(
+            benchmark_id = %test_case.id,
+            score = %score,
+            instructions_count = %actions.len(),
+            "Benchmark scoring completed"
         );
         // A score >= 0.75 means the instruction was perfect, even if it failed on-chain.
         // This is the primary signal for agent success.
@@ -141,10 +172,125 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let result = TestResult::new(&test_case, final_status, score, trace);
         results.push(result);
 
-        env.close()?;
+        if let Err(e) = env.close() {
+            warn!(
+                benchmark_id = %test_case.id,
+                error = %e,
+                "Failed to close environment gracefully"
+            );
+        }
     }
     info!("All benchmarks finished.");
     Ok(results)
+}
+
+/// Execute a flow benchmark step-by-step
+async fn run_flow_benchmark(
+    test_case: &TestCase,
+    flow_steps: &[FlowStep],
+    agent_name: &str,
+    benchmark_path: &str,
+) -> Result<TestResult> {
+    info!(
+        benchmark_id = %test_case.id,
+        total_steps = %flow_steps.len(),
+        "Starting flow benchmark execution"
+    );
+
+    let mut agent = LlmAgent::new(agent_name)?;
+    let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
+    let mut all_actions = Vec::new();
+    let mut flow_trace = ExecutionTrace::new(test_case.prompt.clone());
+
+    // Set up initial environment
+    let options =
+        serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
+    let mut initial_observation = env.reset(None, Some(options)).await?;
+    test_scenarios::setup_spl_scenario(&mut env, test_case, &mut initial_observation)
+        .await
+        .context("Failed to set up SPL scenario")?;
+
+    // Execute each step in the flow
+    for (step_index, step) in flow_steps.iter().enumerate() {
+        info!(
+            step = step.step,
+            description = %step.description,
+            "Executing flow step"
+        );
+
+        // Create a step-specific test case
+        let step_test_case = TestCase {
+            id: format!("{}-step-{}", test_case.id, step.step),
+            description: step.description.clone(),
+            tags: test_case.tags.clone(),
+            initial_state: test_case.initial_state.clone(),
+            prompt: step.prompt.clone(),
+            flow: None, // No nested flows
+            ground_truth: test_case.ground_truth.clone(),
+        };
+
+        // Execute the step
+        let (step_observation, step_trace, step_actions) =
+            run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Flow step {} failed for benchmark: {}",
+                        step.step, test_case.id
+                    )
+                })?;
+
+        // Log step completion before moving actions
+        info!(
+            step = step.step,
+            actions_count = %step_actions.len(),
+            "Flow step completed"
+        );
+
+        // Collect actions and trace
+        all_actions.extend(step_actions);
+        flow_trace.steps.extend(step_trace.steps);
+
+        // Update observation for next step
+        initial_observation = step_observation;
+    }
+
+    // Calculate final score for the entire flow
+    let final_observation = initial_observation.clone();
+    let score = calculate_final_score(
+        test_case,
+        &all_actions,
+        &initial_observation,
+        &final_observation,
+    );
+
+    info!(
+        benchmark_id = %test_case.id,
+        score = %score,
+        total_actions = %all_actions.len(),
+        "Flow benchmark completed"
+    );
+
+    // Determine final status
+    let final_status = if score >= 0.6 {
+        // Use min_score from ground_truth if available
+        FinalStatus::Succeeded
+    } else {
+        FinalStatus::Failed
+    };
+
+    let result = TestResult::new(test_case, final_status, score, flow_trace);
+
+    // Close environment
+    if let Err(e) = env.close() {
+        warn!(
+            benchmark_id = %test_case.id,
+            error = %e,
+            "Failed to close environment gracefully after flow execution"
+        );
+    }
+
+    Ok(result)
 }
 
 /// Discovers benchmark files from a given path.

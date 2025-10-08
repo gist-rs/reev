@@ -9,7 +9,8 @@ use axum::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_pubkey::Pubkey;
+use solana_sdk::pubkey::Pubkey;
+use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info};
 
@@ -22,6 +23,9 @@ pub mod tools;
 mod agents;
 pub mod common;
 mod prompt;
+
+use protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
+use protocols::jupiter::swap::handle_jupiter_swap;
 
 #[derive(Debug, Deserialize)]
 pub struct LlmRequest {
@@ -270,8 +274,59 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             .await?;
             serde_json::to_string(&ixs)?
         }
+        // Handle individual flow steps
+        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-1") => {
+            info!("[reev-agent] Handling flow step 1: Jupiter SOL to USDC swap");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let input_mint = native_mint::ID;
+            let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+            let amount = 250_000_000; // 0.5 SOL for step 1
+            let slippage_bps = 800; // 8%
+
+            let instructions = handle_jupiter_swap(
+                user_pubkey,
+                input_mint,
+                output_mint,
+                amount,
+                slippage_bps,
+                &key_map,
+            )
+            .await?;
+
+            info!(
+                "[reev-agent] Step 1: Successfully generated {} Jupiter swap instructions",
+                instructions.len()
+            );
+            serde_json::to_string(&instructions)?
+        }
+        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-2") => {
+            info!("[reev-agent] Handling flow step 2: Jupiter USDC lending deposit");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+            let deposit_amount = 9_000_000; // ~9 USDC (estimated from 0.5 SOL swap)
+
+            let instructions =
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount, &key_map)
+                    .await?;
+
+            info!(
+                "[reev-agent] Step 2: Successfully generated {} Jupiter lending instructions",
+                instructions.len()
+            );
+            serde_json::to_string(&instructions)?
+        }
         "200-jup-swap-then-lend-deposit" => {
-            info!("[reev-agent] Handling 200-jup-swap-then-lend-deposit flow benchmark");
+            info!(
+                "[reev-agent] Handling 200-jup-swap-then-lend-deposit flow benchmark (legacy mode)"
+            );
             let ixs = agents::coding::d_200_jup_swap_then_lend_deposit::handle_jup_swap_then_lend_deposit(&key_map)
                 .await?;
             serde_json::to_string(&ixs)?
