@@ -70,6 +70,7 @@ pub(crate) fn handle_step(
         let fee_payer_keypair = env.get_fee_payer_keypair()?;
         let mut signers = vec![fee_payer_keypair];
 
+        // Collect signers from all instructions
         for instruction in &instructions {
             for acc in &instruction.accounts {
                 if acc.is_signer {
@@ -84,88 +85,87 @@ pub(crate) fn handle_step(
                     }
                 }
             }
+        }
 
-            let mut transaction =
-                Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
+        let mut transaction =
+            Transaction::new_with_payer(&instructions, Some(&fee_payer_keypair.pubkey()));
 
+        info!(
+            "Executing transaction with {} instruction(s).",
+            instructions.len()
+        );
+
+        // Log detailed instruction information for debugging
+        for (i, instruction) in instructions.iter().enumerate() {
             info!(
-                "Executing transaction with {} instruction(s).",
-                instructions.len()
+                "Instruction {}: program_id={}, data_len={}, accounts={}",
+                i + 1,
+                instruction.program_id,
+                instruction.data.len(),
+                instruction.accounts.len()
             );
 
-            // Log detailed instruction information for debugging
-            for (i, instruction) in instructions.iter().enumerate() {
-                info!(
-                    "Instruction {}: program_id={}, data_len={}, accounts={}",
-                    i + 1,
-                    instruction.program_id,
-                    instruction.data.len(),
-                    instruction.accounts.len()
-                );
-
-                // Log specific program details for common programs
-                match instruction.program_id.to_string().as_str() {
-                    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" => {
-                        info!("  -> Jupiter swap instruction detected");
-                    }
-                    "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9" => {
-                        info!("  -> Jupiter lending instruction detected");
-                    }
-                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" => {
-                        info!("  -> SPL Token program instruction detected");
-                    }
-                    "11111111111111111111111111111111" => {
-                        info!("  -> System program instruction detected");
-                    }
-                    _ => {
-                        info!("  -> Unknown program: {}", instruction.program_id);
-                    }
+            // Log specific program details for common programs
+            match instruction.program_id.to_string().as_str() {
+                "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" => {
+                    info!("  -> Jupiter swap instruction detected");
+                }
+                "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9" => {
+                    info!("  -> Jupiter lending instruction detected");
+                }
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" => {
+                    info!("  -> SPL Token program instruction detected");
+                }
+                "11111111111111111111111111111111" => {
+                    info!("  -> System program instruction detected");
+                }
+                _ => {
+                    info!("  -> Unknown program: {}", instruction.program_id);
                 }
             }
+        }
 
-            let sim_config = RpcSimulateTransactionConfig {
-                sig_verify: false,
-                replace_recent_blockhash: true,
-                commitment: Some(env.rpc_client.commitment()),
-                ..Default::default()
-            };
-            let sim_result = env
-                .rpc_client
-                .simulate_transaction_with_config(&transaction, sim_config)?;
+        let sim_config = RpcSimulateTransactionConfig {
+            sig_verify: false,
+            replace_recent_blockhash: true,
+            commitment: Some(env.rpc_client.commitment()),
+            ..Default::default()
+        };
+        let sim_result = env
+            .rpc_client
+            .simulate_transaction_with_config(&transaction, sim_config)?;
 
-            let sim_logs = sim_result.value.logs.clone().unwrap_or_default();
-            info!(simulation_logs = ?sim_logs, "Transaction simulation logs");
+        let sim_logs = sim_result.value.logs.clone().unwrap_or_default();
+        info!(simulation_logs = ?sim_logs, "Transaction simulation logs");
 
-            if let Some(err) = sim_result.value.err {
-                let error_string = format!("Transaction simulation failed: {err}");
-                error!("{}", error_string);
-                tx_error = Some(error_string.clone());
-                tx_logs = sim_logs;
-                info = json!({ "error": error_string });
-            } else {
-                // --- 6. If simulation succeeds, execute the transaction ---
-                info!("Transaction simulation successful. Executing transaction...");
-                let latest_blockhash = env.rpc_client.get_latest_blockhash()?;
-                transaction.sign(&signers, latest_blockhash);
+        if let Some(err) = sim_result.value.err {
+            let error_string = format!("Transaction simulation failed: {err}");
+            error!("{}", error_string);
+            tx_error = Some(error_string.clone());
+            tx_logs = sim_logs;
+            info = json!({ "error": error_string });
+        } else {
+            // --- 6. If simulation succeeds, execute the transaction ---
+            info!("Transaction simulation successful. Executing transaction...");
+            let latest_blockhash = env.rpc_client.get_latest_blockhash()?;
+            transaction.sign(&signers, latest_blockhash);
 
-                // Execute the transaction
-                match env.rpc_client.send_and_confirm_transaction(&transaction) {
-                    Ok(sig) => {
-                        info!("Transaction executed successfully: {}", sig.to_string());
-                        tx_status = "Success";
-                        reward = 1.0;
-                        // Use simulation logs since get_transaction might fail
-                        tx_logs = sim_logs.clone();
-                    }
-                    Err(e) => {
-                        let error_string = format!(
-                            "Transaction execution failed after successful simulation: {e}"
-                        );
-                        error!("{}", error_string);
-                        tx_error = Some(error_string.clone());
-                        tx_logs = sim_logs; // On execution failure, we only have simulation logs
-                        info = json!({ "error": error_string });
-                    }
+            // Execute the transaction
+            match env.rpc_client.send_and_confirm_transaction(&transaction) {
+                Ok(sig) => {
+                    info!("Transaction executed successfully: {}", sig.to_string());
+                    tx_status = "Success";
+                    reward = 1.0;
+                    // Use simulation logs since get_transaction might fail
+                    tx_logs = sim_logs.clone();
+                }
+                Err(e) => {
+                    let error_string =
+                        format!("Transaction execution failed after successful simulation: {e}");
+                    error!("{}", error_string);
+                    tx_error = Some(error_string.clone());
+                    tx_logs = sim_logs; // On execution failure, we only have simulation logs
+                    info = json!({ "error": error_string });
                 }
             }
         }

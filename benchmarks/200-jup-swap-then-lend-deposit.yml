@@ -5,7 +5,7 @@ tags: ["jupiter", "swap", "lend", "multi-step", "flow", "yield"]
 initial_state:
   - pubkey: "USER_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111"
-    lamports: 3000000000
+    lamports: 5000000000
 
   - pubkey: "USER_USDC_ATA_PLACEHOLDER"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"

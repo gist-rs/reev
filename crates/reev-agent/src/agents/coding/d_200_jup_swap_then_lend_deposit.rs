@@ -29,7 +29,7 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
     info!("[reev-agent] Step 1: Swapping 0.5 SOL to USDC");
     let input_mint = native_mint::ID;
     let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-    let swap_amount = 500_000_000; // 0.5 SOL
+    let swap_amount = 100_000_000; // 0.1 SOL
     let slippage_bps = 500; // 5%
 
     let swap_instructions = handle_jupiter_swap(
@@ -53,7 +53,7 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
     // For lending, we use the USDC mint and deposit the expected amount from the swap
     // Note: In a real scenario, we'd calculate the exact amount received from the swap
     // For deterministic purposes, we estimate ~0.5 SOL worth of USDC (accounting for slippage)
-    let deposit_amount = 45_000_000; // ~45 USDC (accounting for slippage and fees)
+    let deposit_amount = 9_000_000; // ~9 USDC (accounting for slippage and fees)
     let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
 
     let lend_instructions =

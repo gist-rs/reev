@@ -13,6 +13,7 @@ use solana_pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info};
 
+pub mod enhanced;
 pub mod flow;
 pub mod protocols;
 pub mod run;
