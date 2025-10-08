@@ -8,3 +8,4 @@ pub mod d_113_jup_lend_withdraw_usdc;
 pub mod d_114_jup_positions_and_earnings;
 pub mod d_115_jup_lend_mint_usdc;
 pub mod d_116_jup_lend_redeem_usdc;
+pub mod d_200_jup_swap_then_lend_deposit;

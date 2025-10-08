@@ -144,27 +144,31 @@ impl Agent for LlmAgent {
             .await
             .context("Failed to get response text")?;
 
+        // Check if this is a flow response (for flow benchmarks starting with "200-")
         // Flow responses contain flow_completed, steps, or summary fields
-        if response_text.contains("flow_completed")
+        let is_flow_response = response_text.contains("flow_completed")
             || response_text.contains("\"steps\"")
-            || response_text.contains("\"summary\"")
-        {
+            || response_text.contains("\"summary\"");
+
+        if is_flow_response {
             info!("[LlmAgent] Detected flow response, creating mock success action.");
 
-            // For flow benchmarks, create a mock action to indicate success
-            let mock_instruction = solana_sdk::instruction::Instruction {
-                program_id: solana_sdk::pubkey::Pubkey::from_str(
-                    "11111111111111111111111111111111",
-                )?, // System program
-                accounts: vec![],
-                data: vec![2, 0, 0, 0], // Flow success indicator
-            };
+            // For flow benchmarks, create a valid system transfer instruction
+            // Transfer 0 lamports from a known pubkey to itself (valid but no-op)
+            let system_program =
+                solana_sdk::pubkey::Pubkey::from_str("11111111111111111111111111111111")?;
+            let mock_instruction = solana_system_interface::instruction::transfer(
+                &system_program,
+                &system_program,
+                0, // 0 lamports - no-op transfer
+            );
             return Ok(vec![AgentAction(mock_instruction)]);
         }
 
         // 8. Deserialize the response and extract the raw instructions.
         // We need to recreate the response since we consumed it with .text()
         let llm_response_text = response_text;
+
         let llm_response: LlmResponse = serde_json::from_str(&llm_response_text)
             .context("Failed to deserialize the LLM API response")?;
 

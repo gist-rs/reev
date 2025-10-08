@@ -237,13 +237,19 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             .await?;
             serde_json::to_string(&ixs)?
         }
-        // Handle flow benchmarks (IDs starting with "200-")
+        "200-jup-swap-then-lend-deposit" => {
+            info!("[reev-agent] Handling 200-jup-swap-then-lend-deposit flow benchmark");
+            let ixs = agents::coding::d_200_jup_swap_then_lend_deposit::handle_jup_swap_then_lend_deposit(&key_map)
+                .await?;
+            serde_json::to_string(&ixs)?
+        }
+        // Handle other flow benchmarks (IDs starting with "200-")
         flow_id if flow_id.starts_with("200-") => {
             info!(
-                "[reev-agent] Received flow benchmark request: \"{}\" - Creating deterministic flow response",
+                "[reev-agent] Received unsupported flow benchmark request: \"{}\" - Creating deterministic flow response",
                 payload.id
             );
-            // For flow benchmarks, create a mock multi-step response
+            // For unsupported flow benchmarks, create a mock multi-step response
             let flow_response = serde_json::json!({
                 "flow_completed": true,
                 "total_steps": 2,
