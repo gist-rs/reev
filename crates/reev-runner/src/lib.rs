@@ -25,6 +25,7 @@ const AGENT_PORT: u16 = 9090;
 
 /// RAII guard for dependency management
 struct DependencyManagerGuard {
+    #[allow(dead_code)]
     manager: dependency::DependencyManager,
 }
 

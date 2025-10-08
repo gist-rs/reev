@@ -484,6 +484,7 @@ impl ProcessManager {
     }
 
     /// Wait for health check to pass
+    #[allow(dead_code)]
     async fn wait_for_health_check(
         &self,
         process_name: &str,
