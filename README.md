@@ -13,11 +13,12 @@
 The framework achieves **100% success rates** across all benchmark categories:
 - **🔄 Real Jupiter Integration**: Full swap, lending, mint/redeem operations with Jupiter SDK
 - **🤖 Advanced Agent Support**: Both deterministic (ground truth) and AI agents working perfectly  
-- **🏗️ Multi-Step Workflows**: Complex DeFi flows with multi-step orchestration (200-series)
+- **🔄 Multi-Step Workflows**: Complex DeFi flows with step-by-step orchestration (200-series)
 - **📊 Comprehensive Scoring**: Granular instruction quality evaluation + on-chain execution metrics
 - **🎮 Professional Tooling**: Interactive TUI cockpit, database persistence, detailed logging
 - **🔬 Real-World Testing**: Mainnet fork validation with actual deployed programs
 - **✅ Scoring System Validation**: Complete test suite covering 0%, 50%, 75%, and 100% score scenarios
+- **🌊 Flow Support**: Step-by-step flow execution with proper transaction isolation
 
 ### 🚀 **Core Architecture: Real Programs, Controlled State**
 
@@ -127,14 +128,20 @@ cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent loca
 ```
 
 ### 🌊 **Flow Benchmarks** (200-series)
-Multi-step DeFi workflows with automatic orchestration:
+Multi-step DeFi workflows with step-by-step execution:
 ```bash
-# Swap then lend
+# Swap then lend (2 steps: swap SOL→USDC, then deposit USDC)
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
 
 # Compound strategies
 cargo run -p reev-runner -- benchmarks/201-compound-strategy.yml --agent deterministic
 ```
+
+**Flow Execution Features:**
+- ✅ **Step-by-Step Processing**: Each flow step executes as a separate transaction
+- ✅ **Transaction Isolation**: Proper error handling per step, no cascading failures
+- ✅ **State Management**: Account state flows between steps automatically
+- ✅ **Agent Consistency**: Both deterministic and AI agents handle flows identically
 
 ### 📡 **API Benchmarks** (100-series)
 Data retrieval and portfolio management:
@@ -148,10 +155,11 @@ cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agen
 ### **Current Performance:**
 - ✅ **100% Success Rate**: All benchmarks passing with local model
 - ✅ **Real Jupiter Integration**: Full protocol stack working
-- ✅ **Multi-Step Flows**: Complex workflows executing successfully
+- ✅ **Multi-Step Flows**: Complex workflows executing step-by-step successfully
 - ✅ **Production Infrastructure**: TUI, database, logging all operational
 - ✅ **Scoring System Validation**: Comprehensive test suite covering full score spectrum
 - ✅ **Anti-False-Positive Protection**: Differentiates failure modes accurately
+- ✅ **Flow Framework**: Robust step-by-step execution with proper error handling
 
 ### **Scoring System:**
 The framework implements a sophisticated two-tiered scoring system:
@@ -163,6 +171,11 @@ The framework implements a sophisticated two-tiered scoring system:
   - Account metadata verification (signer/writable flags)
 - **On-Chain Execution (25%)**: Binary success/failure on surfpool
 - **Composite Scoring**: Weighted average for final assessment
+
+**Flow Scoring:**
+- **Per-Step Evaluation**: Each flow step is scored individually
+- **Combined Results**: Step scores aggregated for final flow assessment
+- **Partial Credit**: Successful steps count even if later steps fail
 
 **Validated Score Scenarios:**
 | Score Range | Test Case | Purpose | Status |

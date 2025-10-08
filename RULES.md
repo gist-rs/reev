@@ -10,6 +10,7 @@ This document establishes the official coding conventions and architectural rule
 -   **Core Library (`reev-lib`)**: Contains all core evaluation logic, environment implementations, agent traits, and protocol handlers. Must remain UI-agnostic.
 -   **Binary Crates (`reev-runner`, `reev-tui`, `reev-agent`)**: User-facing entrypoints handling UI layer (CLI, TUI, API). Must not contain core evaluation logic.
 -   **Protocol Modules**: Jupiter, native, and other protocol handlers in dedicated modules with clear interfaces.
+-   **Mainnet Fork Validation**: All operations must work on real mainnet-forked environments, not mock data.
 
 ### Rule 1.2: Service-Oriented Environment
 -   **Smart Service Management**: Surfpool is treated as an intelligent managed service with automatic detection, binary caching, and shared instance support.
@@ -25,8 +26,16 @@ This document establishes the official coding conventions and architectural rule
 -   **Comprehensive Testing**: All features must have corresponding benchmarks with 100% success rates.
 -   **Scoring Validation**: Must include test cases covering 0%, ~50%, ~75%, and 100% score scenarios.
 -   **Anti-False-Positive Testing**: Must differentiate between failure modes (no attempt vs attempted but failed).
+-   **Flow Execution Support**: Must support multi-step flow benchmarks with proper transaction isolation.
 -   **Error Handling**: Robust error handling with clear logging and graceful degradation.
 -   **Performance Optimization**: Binary caching, shared instances, and efficient resource management.
+
+### Rule 1.5: Flow Framework Architecture
+-   **Step-by-Step Execution**: Flow benchmarks must execute each step as a separate transaction.
+-   **Transaction Isolation**: Step failures must not cascade to other steps in the flow.
+-   **State Propagation**: Account states must flow correctly between steps automatically.
+-   **Agent Consistency**: Both deterministic and AI agents must handle flows identically.
+-   **Dependency Resolution**: Step dependencies must be properly resolved before execution.
 
 ---
 
@@ -46,8 +55,6 @@ This document establishes the official coding conventions and architectural rule
 ### Rule 2.4: Module Index Files (`mod.rs`)
 -   Module index files (`mod.rs`) MUST only contain `mod` and `pub use` statements. They serve as a public API for the module and MUST NOT contain any logic, structs, or enums.
 
-
-
 ---
 
 ## 3. Development Process
@@ -58,9 +65,16 @@ This document establishes the official coding conventions and architectural rule
 
 ### Rule 3.2: Debugging and Logging
 -   **Don't Guess, Prove**: When debugging, do not guess the cause. Insert logging statements (`info!`, `debug!`, `trace!`) to trace execution and inspect state step-by-step. Start from a last known-working state and reintroduce changes incrementally.
--   **Scoring Debug**: Use `RUST_LOG=debug` to get detailed scoring breakdown including component comparisons and weight calculations.
 -   **Use `tracing`**: The `tracing` crate is the project standard. Use it for all logging. Control log verbosity with the `RUST_LOG` environment variable (e.g., `RUST_LOG=reev_lib=trace`).
+-   **Scoring Debug**: Use `RUST_LOG=debug` to get detailed scoring breakdown including component comparisons and weight calculations.
 -   **Score Validation**: Always validate that new benchmarks produce expected scores within ±5% tolerance.
+-   **Flow Debug**: Use `RUST_LOG=info` to trace flow step execution and identify step failures.
+
+### Rule 3.3: Flow Development Process
+-   **Flow Definition**: All flow benchmarks MUST define clear steps with descriptions, prompts, and dependencies.
+-   **Step Testing**: Each flow step MUST be testable independently before integration.
+-   **Agent Consistency**: Flow implementations MUST work identically across deterministic and AI agents.
+-   **Error Isolation**: Step failures MUST be contained and not affect other steps.
 
 ---
 
@@ -91,11 +105,22 @@ This document establishes the official coding conventions and architectural rule
 -   **Weight Validation**: All benchmark weights must be documented and validated against expected score ranges.
 -   **Ground Truth Accuracy**: Expected instructions must be precise and match actual successful executions.
 -   **Failure Mode Testing**: Must include intentional failure tests to validate scoring system accuracy.
+-   **Flow Definition**: Flow benchmarks must define steps with proper sequencing, dependencies, and timeouts.
 -   **Documentation**: Each benchmark must have clear documentation of purpose, expected score, and validation criteria.
 
-### Rule 4.5: Testing and Validation Requirements
+### Rule 4.5: Flow Development Requirements
+-   **Step Isolation**: Each flow step must execute as an independent transaction with proper error handling.
+-   **State Management**: Account state changes must flow correctly between steps without manual intervention.
+-   **Dependency Resolution**: Step dependencies must be properly validated before execution.
+-   **Agent Parity**: Both deterministic and AI agents must handle flows using the same interface and produce consistent results.
+-   **Timeout Handling**: Each step must respect individual timeout constraints.
+
+### Rule 4.6: Testing and Validation Requirements
 -   **Score Validation Suite**: Must maintain comprehensive test suite with validated score scenarios.
 -   **Regression Testing**: All score validations must pass on every code change.
 -   **Performance Monitoring**: Track scoring system performance and ensure consistent execution times.
 -   **Database Validation**: Verify that all test results are correctly persisted and retrievable.
 -   **Cross-Agent Testing**: Validate scoring consistency across different agent types (deterministic, AI).
+-   **Flow Testing**: All flow benchmarks must validate step-by-step execution and proper aggregation.
+-   **Transaction Isolation**: Verify that step failures don't cascade to other steps.
+-   **State Consistency**: Validate account state propagation between flow steps.
