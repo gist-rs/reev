@@ -327,21 +327,33 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                     .filter_map(|tx| {
                         let tx_str = tx.as_str().unwrap_or_default();
 
-                        // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
-                        // We need to parse this escaped string to get the actual transaction object
+                        // The transaction string contains escaped JSON
+                        // It could be:
+                        // 1. An array of instruction objects: "[{\"program_id\":...}]"
+                        // 2. An object with instructions field: "{\"instructions\":[...]}"
                         match serde_json::from_str::<serde_json::Value>(tx_str) {
                             Ok(tx_obj) => {
                                 info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
-                                // Extract instructions from the transaction object
-                                tx_obj.get("instructions").map(|instructions| {
+
+                                // Check if this is an array of instruction objects (direct format)
+                                if tx_obj.is_array() {
+                                    info!("[OpenAIAgent] Found direct instruction array format");
+                                    Some(tx_obj.as_array().unwrap_or(&vec![]).to_vec())
+                                }
+                                // Check if this is an object with "instructions" field (wrapped format)
+                                else if let Some(instructions) = tx_obj.get("instructions") {
+                                    info!("[OpenAIAgent] Found wrapped instruction object with instructions field");
                                     if instructions.is_array() {
-                                        // Get the array of instruction objects
-                                        instructions.as_array().unwrap_or(&vec![]).to_vec()
+                                        Some(instructions.as_array().unwrap_or(&vec![]).to_vec())
                                     } else {
-                                        // Handle single instruction object
-                                        vec![instructions.clone()]
+                                        Some(vec![instructions.clone()])
                                     }
-                                })
+                                }
+                                // Handle single instruction object
+                                else {
+                                    info!("[OpenAIAgent] Found single instruction object format");
+                                    Some(vec![tx_obj])
+                                }
                             }
                             Err(parse_error) => {
                                 warn!(

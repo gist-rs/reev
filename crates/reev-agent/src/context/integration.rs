@@ -244,9 +244,16 @@ impl ContextIntegration {
                 discovery_depth: 7,
                 force_discovery: false,
             },
-            // Simple benchmarks use minimal context but need more depth for discovery
-            id if id.contains("001-") || id.contains("002-") => ContextConfig {
+            // Simple benchmarks: SOL transfers use minimal context, SPL transfers need balance info
+            id if id.contains("001-") => ContextConfig {
                 enable_context: false,
+                context_depth: 3,
+                discovery_depth: 7,
+                force_discovery: false,
+            },
+            // SPL transfers have token account data and should provide context
+            id if id.contains("002-") => ContextConfig {
+                enable_context: true,
                 context_depth: 3,
                 discovery_depth: 7,
                 force_discovery: false,

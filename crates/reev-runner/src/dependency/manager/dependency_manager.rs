@@ -11,6 +11,7 @@ use crate::dependency::health::{HealthChecker, ServiceHealth};
 use crate::dependency::process::{ProcessConfig, ProcessGuard, ProcessManager, ProcessUtils};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 
 use std::time::Duration;
@@ -85,6 +86,9 @@ impl DependencyManager {
         }
 
         info!("Initializing dependencies...");
+
+        // Clear log files for clean debugging
+        self.clear_log_files().await?;
 
         // Start reev-agent first
         if let Err(e) = self.start_reev_agent().await {
@@ -407,6 +411,29 @@ impl DependencyManager {
     pub fn update_config(&mut self, config: DependencyConfig) -> Result<()> {
         config.validate()?;
         self.config = config;
+        Ok(())
+    }
+
+    /// Clear log files for clean debugging
+    async fn clear_log_files(&self) -> Result<()> {
+        info!("Clearing log files for clean debugging...");
+
+        let log_files = ["reev-agent.log", "surfpool.log"];
+
+        for log_file in &log_files {
+            let log_path = PathBuf::from(&self.config.log_dir).join(log_file);
+            if log_path.exists() {
+                match fs::write(&log_path, "") {
+                    Ok(()) => {
+                        info!("Cleared log file: {}", log_file);
+                    }
+                    Err(e) => {
+                        warn!("Failed to clear log file {}: {}", log_file, e);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
