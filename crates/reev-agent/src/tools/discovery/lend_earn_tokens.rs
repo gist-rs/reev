@@ -64,6 +64,7 @@ pub struct AssetInfo {
     /// Asset address
     pub address: String,
     /// Chain ID
+    #[serde(rename = "chainId")]
     pub chain_id: String,
     /// Asset name
     pub name: String,
@@ -72,10 +73,12 @@ pub struct AssetInfo {
     /// Asset decimals
     pub decimals: u8,
     /// Logo URL
+    #[serde(rename = "logoUrl")]
     pub logo_url: String,
     /// Current price in USD
     pub price: String,
     /// Coingecko ID
+    #[serde(rename = "coingeckoId")]
     pub coingecko_id: String,
 }
 
@@ -202,6 +205,7 @@ impl LendEarnTokensTool {
             .client
             .get(url)
             .header("Accept", "application/json")
+            .timeout(std::time::Duration::from_secs(30))
             .send()
             .await?;
 
@@ -213,7 +217,41 @@ impl LendEarnTokensTool {
             )));
         }
 
-        let tokens: Vec<LendEarnToken> = response.json().await?;
+        // Check content length to detect potential truncation
+        if let Some(content_length) = response.headers().get(reqwest::header::CONTENT_LENGTH) {
+            if let Ok(length_str) = content_length.to_str() {
+                if let Ok(length) = length_str.parse::<usize>() {
+                    tracing::debug!(
+                        "[LendEarnTokensTool] Response content length: {} bytes",
+                        length
+                    );
+                    if length > 100_000 {
+                        tracing::warn!(
+                            "[LendEarnTokensTool] Large response detected ({} bytes), potential truncation risk",
+                            length
+                        );
+                    }
+                }
+            }
+        }
+
+        // Get response as text first for debugging
+        let response_text = response.text().await?;
+        tracing::debug!(
+            "[LendEarnTokensTool] Raw API response (first 500 chars): {}",
+            &response_text[..500.min(response_text.len())]
+        );
+
+        // Try to parse the JSON normally
+        let tokens: Vec<LendEarnToken> = serde_json::from_str(&response_text).map_err(|e| {
+            tracing::error!("[LendEarnTokensTool] Failed to parse JSON: {}", e);
+            tracing::error!(
+                "[LendEarnTokensTool] Response was: {}",
+                &response_text[..1000.min(response_text.len())]
+            );
+            LendEarnTokensError::JsonError(e)
+        })?;
+
         Ok(tokens)
     }
 
