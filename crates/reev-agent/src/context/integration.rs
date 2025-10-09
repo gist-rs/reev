@@ -229,7 +229,9 @@ impl ContextIntegration {
     pub fn config_for_benchmark_type(benchmark_id: &str) -> ContextConfig {
         match benchmark_id {
             // Jupiter benchmarks benefit most from context
-            id if id.contains("jup") && (id.contains("lend") || id.contains("earn")) => {
+            id if id.contains("jup")
+                && (id.contains("lend") || id.contains("earn") || id.contains("swap")) =>
+            {
                 ContextConfig {
                     enable_context: true,
                     context_depth: 3,

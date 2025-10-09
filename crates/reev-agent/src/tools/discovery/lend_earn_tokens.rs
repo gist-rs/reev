@@ -35,27 +35,37 @@ pub struct LendEarnToken {
     /// Token decimals
     pub decimals: u8,
     /// Underlying asset address
+    #[serde(rename = "assetAddress")]
     pub asset_address: String,
     /// Asset information including price
     pub asset: AssetInfo,
     /// Total assets in the pool
-    pub total_assets: String,
+    #[serde(default)]
+    pub total_assets: Option<String>,
     /// Total supply of tokens
-    pub total_supply: String,
+    #[serde(default)]
+    pub total_supply: Option<String>,
     /// Conversion rate to shares
-    pub convert_to_shares: String,
+    #[serde(default)]
+    pub convert_to_shares: Option<String>,
     /// Conversion rate to assets
-    pub convert_to_assets: String,
+    #[serde(default)]
+    pub convert_to_assets: Option<String>,
     /// Rewards rate
-    pub rewards_rate: String,
+    #[serde(default)]
+    pub rewards_rate: Option<String>,
     /// Supply rate (APY)
-    pub supply_rate: String,
+    #[serde(default)]
+    pub supply_rate: Option<String>,
     /// Total rate (rewards + supply)
-    pub total_rate: String,
+    #[serde(default)]
+    pub total_rate: Option<String>,
     /// Liquidity supply data
-    pub liquidity_supply_data: LiquiditySupplyData,
+    #[serde(default)]
+    pub liquidity_supply_data: Option<LiquiditySupplyData>,
     /// Rewards information
-    pub rewards: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub rewards: Option<Vec<serde_json::Value>>,
 }
 
 /// Asset information with price data
@@ -86,23 +96,32 @@ pub struct AssetInfo {
 #[derive(Deserialize, Debug, Serialize)]
 pub struct LiquiditySupplyData {
     /// Whether mode with interest is enabled
-    pub mode_with_interest: bool,
+    #[serde(default)]
+    pub mode_with_interest: Option<bool>,
     /// Total supply
-    pub supply: String,
+    #[serde(default)]
+    pub supply: Option<String>,
     /// Withdrawal limit
-    pub withdrawal_limit: String,
+    #[serde(default)]
+    pub withdrawal_limit: Option<String>,
     /// Last update timestamp
-    pub last_update_timestamp: String,
+    #[serde(default)]
+    pub last_update_timestamp: Option<String>,
     /// Expand percent
-    pub expand_percent: u32,
+    #[serde(default)]
+    pub expand_percent: Option<u32>,
     /// Expand duration
-    pub expand_duration: u32,
+    #[serde(default)]
+    pub expand_duration: Option<String>,
     /// Base withdrawal limit
-    pub base_withdrawal_limit: String,
+    #[serde(default)]
+    pub base_withdrawal_limit: Option<String>,
     /// Withdrawable until limit
-    pub withdrawable_until_limit: String,
+    #[serde(default)]
+    pub withdrawable_until_limit: Option<String>,
     /// Currently withdrawable amount
-    pub withdrawable: String,
+    #[serde(default)]
+    pub withdrawable: Option<String>,
 }
 
 /// A custom error type for the lend/earn tokens tool

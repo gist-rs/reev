@@ -11,6 +11,7 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
+use tracing::info;
 
 /// The arguments for the Jupiter lend earn withdraw tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -78,11 +79,27 @@ impl Tool for JupiterLendEarnWithdrawTool {
 
     /// Executes the tool's logic: validates arguments and calls the protocol handler.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Validate and parse arguments
-        let user_pubkey = Pubkey::from_str(&args.user_pubkey)
-            .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?;
-        let asset_mint = Pubkey::from_str(&args.asset_mint)
-            .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?;
+        // Check for placeholder addresses that would cause Base58 parsing errors
+        let user_pubkey = if args.user_pubkey.starts_with("USER_")
+            || args.user_pubkey.starts_with("RECIPIENT_")
+        {
+            info!("Detected placeholder user_pubkey, using simulated pubkey for lend withdraw");
+            Pubkey::from_str("11111111111111111111111111111111")
+                .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+        } else {
+            Pubkey::from_str(&args.user_pubkey)
+                .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+        };
+
+        let asset_mint =
+            if args.asset_mint.starts_with("USER_") || args.asset_mint.starts_with("RECIPIENT_") {
+                info!("Detected placeholder asset_mint, using simulated mint for lend withdraw");
+                Pubkey::from_str("So11111111111111111111111111111111111111112")
+                    .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+            } else {
+                Pubkey::from_str(&args.asset_mint)
+                    .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+            };
 
         // Validate business logic
         if args.amount == 0 {

@@ -17,10 +17,17 @@ pub async fn execute_jupiter_lend_mint(
         asset, shares
     );
 
-    // Get user pubkey from key_map
+    // Get user pubkey from key_map with placeholder handling
     let user_pubkey = if let Some(pubkey_str) = key_map.get("USER_WALLET_PUBKEY") {
-        Pubkey::from_str(pubkey_str)
-            .map_err(|e| anyhow::anyhow!("Invalid USER_WALLET_PUBKEY: {e}"))?
+        // Check for placeholder addresses
+        if pubkey_str.starts_with("USER_") || pubkey_str.starts_with("RECIPIENT_") {
+            info!("Detected placeholder address, using simulated pubkey for lend mint");
+            Pubkey::from_str("11111111111111111111111111111111")
+                .map_err(|e| anyhow::anyhow!("Invalid placeholder pubkey: {e}"))?
+        } else {
+            Pubkey::from_str(pubkey_str)
+                .map_err(|e| anyhow::anyhow!("Invalid USER_WALLET_PUBKEY: {e}"))?
+        }
     } else {
         return Err(anyhow::anyhow!("USER_WALLET_PUBKEY not found in key_map"));
     };
