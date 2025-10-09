@@ -54,7 +54,7 @@ impl Tool for JupiterLendEarnWithdrawTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Withdraw tokens from Jupiter lending position. Use when user wants to 'withdraw', 'remove', or 'take out' a specific amount of tokens. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
+            description: "DIRECTLY WITHDRAW tokens from Jupiter lending when user requests withdrawal. Use this tool IMMEDIATELY when user says 'withdraw', 'remove', or 'take out' tokens. DO NOT check positions first - call this tool directly for any withdrawal request. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

@@ -54,7 +54,7 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Deposit tokens into Jupiter lending to earn yield. Use when user wants to 'deposit', 'lend', or 'earn yield' on a specific amount of tokens. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
+            description: "DIRECTLY DEPOSIT tokens into Jupiter lending when user requests deposit/lending. Use this tool IMMEDIATELY when user says 'deposit', 'lend', or 'earn yield' tokens. DO NOT check positions first - call this tool directly for any deposit request. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

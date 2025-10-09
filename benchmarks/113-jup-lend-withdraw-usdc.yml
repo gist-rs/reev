@@ -32,7 +32,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Redeem jUSDC to withdraw 50 USDC using Jupiter. My wallet is USER_WALLET_PUBKEY."
+prompt: "Withdraw 50 USDC using Jupiter. My wallet is USER_WALLET_PUBKEY."
 
 ground_truth:
   final_state_assertions:
