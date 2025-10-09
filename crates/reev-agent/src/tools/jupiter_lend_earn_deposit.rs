@@ -1,6 +1,6 @@
-//! Jupiter lend deposit tool wrapper
+//! Jupiter lend earn deposit tool wrapper
 //!
-//! This tool provides AI agent access to Jupiter's lend/deposit functionality.
+//! This tool provides AI agent access to Jupiter's earn/deposit functionality.
 //! It acts as a thin wrapper around the protocol handler.
 
 use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
@@ -12,17 +12,17 @@ use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
-/// The arguments for the Jupiter lend deposit tool, which will be provided by the AI model.
+/// The arguments for the Jupiter lend earn deposit tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
-pub struct JupiterLendDepositArgs {
+pub struct JupiterLendEarnDepositArgs {
     pub user_pubkey: String,
     pub asset_mint: String,
     pub amount: u64,
 }
 
-/// A custom error type for the Jupiter lend deposit tool.
+/// A custom error type for the Jupiter lend earn deposit tool.
 #[derive(Debug, Error)]
-pub enum JupiterLendDepositError {
+pub enum JupiterLendEarnDepositError {
     #[error("Failed to parse pubkey: {0}")]
     PubkeyParse(String),
     #[error("Jupiter protocol call failed: {0}")]
@@ -33,17 +33,17 @@ pub enum JupiterLendDepositError {
     InvalidAmount(String),
 }
 
-/// A `rig` tool for performing lend deposit operations using the Jupiter API.
+/// A `rig` tool for performing lend earn deposit operations using the Jupiter API.
 /// This tool acts as a thin wrapper around the protocol handler.
 #[derive(Deserialize, Serialize)]
-pub struct JupiterLendDepositTool {
+pub struct JupiterLendEarnDepositTool {
     pub key_map: HashMap<String, String>,
 }
 
-impl Tool for JupiterLendDepositTool {
-    const NAME: &'static str = "jupiter_lend_deposit";
-    type Error = JupiterLendDepositError;
-    type Args = JupiterLendDepositArgs;
+impl Tool for JupiterLendEarnDepositTool {
+    const NAME: &'static str = "jupiter_lend_earn_deposit";
+    type Error = JupiterLendEarnDepositError;
+    type Args = JupiterLendEarnDepositArgs;
     type Output = String;
 
     /// Defines the tool's schema and description for the AI model.
@@ -54,7 +54,7 @@ impl Tool for JupiterLendDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "DEPRECATED: Use jupiter_mint tool instead. This tool deposits tokens to earn yield but jupiter_mint is preferred for creating lending positions and minting jTokens.".to_string(),
+            description: "Deposit tokens into Jupiter lending to earn yield. Use when user wants to 'deposit', 'lend', or 'earn yield' on a specific amount of tokens. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -80,13 +80,13 @@ impl Tool for JupiterLendDepositTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Validate and parse arguments
         let user_pubkey = Pubkey::from_str(&args.user_pubkey)
-            .map_err(|e| JupiterLendDepositError::PubkeyParse(e.to_string()))?;
+            .map_err(|e| JupiterLendEarnDepositError::PubkeyParse(e.to_string()))?;
         let asset_mint = Pubkey::from_str(&args.asset_mint)
-            .map_err(|e| JupiterLendDepositError::PubkeyParse(e.to_string()))?;
+            .map_err(|e| JupiterLendEarnDepositError::PubkeyParse(e.to_string()))?;
 
         // Validate business logic
         if args.amount == 0 {
-            return Err(JupiterLendDepositError::InvalidAmount(
+            return Err(JupiterLendEarnDepositError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
         }
@@ -95,7 +95,7 @@ impl Tool for JupiterLendDepositTool {
         let raw_instructions =
             handle_jupiter_lend_deposit(user_pubkey, asset_mint, args.amount, &self.key_map)
                 .await
-                .map_err(JupiterLendDepositError::ProtocolCall)?;
+                .map_err(JupiterLendEarnDepositError::ProtocolCall)?;
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

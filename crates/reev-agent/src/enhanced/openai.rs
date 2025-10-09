@@ -8,8 +8,9 @@ use crate::{
     enhanced::enhanced_context::EnhancedContextAgent,
     prompt::SYSTEM_PREAMBLE,
     tools::{
-        JupiterEarnTool, JupiterLendDepositTool, JupiterLendWithdrawTool, JupiterMintTool,
-        JupiterRedeemTool, JupiterSwapTool, SolTransferTool, SplTransferTool,
+        JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
+        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool, SolTransferTool,
+        SplTransferTool,
     },
     LlmRequest,
 };
@@ -73,16 +74,16 @@ impl OpenAIAgent {
         let jupiter_swap_tool = JupiterSwapTool {
             key_map: key_map.clone(),
         };
-        let jupiter_lend_deposit_tool = JupiterLendDepositTool {
+        let jupiter_lend_earn_deposit_tool = JupiterLendEarnDepositTool {
             key_map: key_map.clone(),
         };
-        let jupiter_lend_withdraw_tool = JupiterLendWithdrawTool {
+        let jupiter_lend_earn_withdraw_tool = JupiterLendEarnWithdrawTool {
             key_map: key_map.clone(),
         };
-        let jupiter_mint_tool = JupiterMintTool {
+        let jupiter_lend_earn_mint_tool = JupiterLendEarnMintTool {
             key_map: key_map.clone(),
         };
-        let jupiter_redeem_tool = JupiterRedeemTool {
+        let jupiter_lend_earn_redeem_tool = JupiterLendEarnRedeemTool {
             key_map: key_map.clone(),
         };
         let jupiter_positions_tool = JupiterEarnTool {
@@ -101,10 +102,10 @@ impl OpenAIAgent {
             .tool(sol_tool)
             .tool(spl_tool)
             .tool(jupiter_swap_tool)
-            .tool(jupiter_lend_deposit_tool)
-            .tool(jupiter_lend_withdraw_tool)
-            .tool(jupiter_mint_tool)
-            .tool(jupiter_redeem_tool)
+            .tool(jupiter_lend_earn_deposit_tool)
+            .tool(jupiter_lend_earn_withdraw_tool)
+            .tool(jupiter_lend_earn_mint_tool)
+            .tool(jupiter_lend_earn_redeem_tool)
             .tool(jupiter_positions_tool)
             .tool(jupiter_earnings_tool)
             .build();

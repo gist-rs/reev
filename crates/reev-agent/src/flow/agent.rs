@@ -18,8 +18,8 @@ use crate::{
     },
     run::run_agent,
     tools::{
-        jupiter_earn::JupiterEarnTool, jupiter_lend_deposit::JupiterLendDepositTool,
-        jupiter_lend_withdraw::JupiterLendWithdrawTool, jupiter_swap::JupiterSwapTool,
+        jupiter_earn::JupiterEarnTool, jupiter_lend_earn_deposit::JupiterLendEarnDepositTool,
+        jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool, jupiter_swap::JupiterSwapTool,
         native::SolTransferTool, native::SplTransferTool,
     },
     LlmRequest,
@@ -95,14 +95,14 @@ impl FlowAgent {
             }) as Box<dyn ToolDyn>,
         );
         tools.insert(
-            "jupiter_lend_deposit".to_string(),
-            Box::new(JupiterLendDepositTool {
+            "jupiter_lend_earn_deposit".to_string(),
+            Box::new(JupiterLendEarnDepositTool {
                 key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
         tools.insert(
-            "jupiter_lend_withdraw".to_string(),
-            Box::new(JupiterLendWithdrawTool {
+            "jupiter_lend_earn_withdraw".to_string(),
+            Box::new(JupiterLendEarnWithdrawTool {
                 key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );

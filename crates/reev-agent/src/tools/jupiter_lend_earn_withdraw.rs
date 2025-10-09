@@ -1,6 +1,6 @@
-//! Jupiter lend withdraw tool wrapper
+//! Jupiter lend earn withdraw tool wrapper
 //!
-//! This tool provides AI agent access to Jupiter's lend/withdraw functionality.
+//! This tool provides AI agent access to Jupiter's earn/withdraw functionality.
 //! It acts as a thin wrapper around the protocol handler.
 
 use crate::protocols::jupiter::lend_withdraw::handle_jupiter_lend_withdraw;
@@ -12,17 +12,17 @@ use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
-/// The arguments for the Jupiter lend withdraw tool, which will be provided by the AI model.
+/// The arguments for the Jupiter lend earn withdraw tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
-pub struct JupiterLendWithdrawArgs {
+pub struct JupiterLendEarnWithdrawArgs {
     pub user_pubkey: String,
     pub asset_mint: String,
     pub amount: u64,
 }
 
-/// A custom error type for the Jupiter lend withdraw tool.
+/// A custom error type for the Jupiter lend earn withdraw tool.
 #[derive(Debug, Error)]
-pub enum JupiterLendWithdrawError {
+pub enum JupiterLendEarnWithdrawError {
     #[error("Failed to parse pubkey: {0}")]
     PubkeyParse(String),
     #[error("Jupiter protocol call failed: {0}")]
@@ -33,17 +33,17 @@ pub enum JupiterLendWithdrawError {
     InvalidAmount(String),
 }
 
-/// A `rig` tool for performing lend withdrawal operations using the Jupiter API.
+/// A `rig` tool for performing lend earn withdrawal operations using the Jupiter API.
 /// This tool acts as a thin wrapper around the protocol handler.
 #[derive(Deserialize, Serialize)]
-pub struct JupiterLendWithdrawTool {
+pub struct JupiterLendEarnWithdrawTool {
     pub key_map: HashMap<String, String>,
 }
 
-impl Tool for JupiterLendWithdrawTool {
-    const NAME: &'static str = "jupiter_lend_withdraw";
-    type Error = JupiterLendWithdrawError;
-    type Args = JupiterLendWithdrawArgs;
+impl Tool for JupiterLendEarnWithdrawTool {
+    const NAME: &'static str = "jupiter_lend_earn_withdraw";
+    type Error = JupiterLendEarnWithdrawError;
+    type Args = JupiterLendEarnWithdrawArgs;
     type Output = String;
 
     /// Defines the tool's schema and description for the AI model.
@@ -54,7 +54,7 @@ impl Tool for JupiterLendWithdrawTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "DEPRECATED: Use jupiter_redeem tool instead. This tool withdraws tokens from lending but jupiter_redeem is preferred for closing lending positions and redeeming jTokens.".to_string(),
+            description: "Withdraw tokens from Jupiter lending position. Use when user wants to 'withdraw', 'remove', or 'take out' a specific amount of tokens. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -80,13 +80,13 @@ impl Tool for JupiterLendWithdrawTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Validate and parse arguments
         let user_pubkey = Pubkey::from_str(&args.user_pubkey)
-            .map_err(|e| JupiterLendWithdrawError::PubkeyParse(e.to_string()))?;
+            .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?;
         let asset_mint = Pubkey::from_str(&args.asset_mint)
-            .map_err(|e| JupiterLendWithdrawError::PubkeyParse(e.to_string()))?;
+            .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?;
 
         // Validate business logic
         if args.amount == 0 {
-            return Err(JupiterLendWithdrawError::InvalidAmount(
+            return Err(JupiterLendEarnWithdrawError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
         }
@@ -94,7 +94,8 @@ impl Tool for JupiterLendWithdrawTool {
         // Call the protocol handler
         let raw_instructions =
             handle_jupiter_lend_withdraw(user_pubkey, asset_mint, args.amount, &self.key_map)
-                .await?;
+                .await
+                .map_err(JupiterLendEarnWithdrawError::ProtocolCall)?;
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;
