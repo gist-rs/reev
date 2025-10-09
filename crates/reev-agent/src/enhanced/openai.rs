@@ -8,9 +8,9 @@ use crate::{
     context::integration::ContextIntegration,
     prompt::SYSTEM_PREAMBLE,
     tools::{
-        JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
-        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool, SolTransferTool,
-        SplTransferTool,
+        AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
+        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool,
+        LendEarnTokensTool, PositionInfoTool, SolTransferTool, SplTransferTool,
     },
     LlmRequest,
 };
@@ -97,6 +97,15 @@ impl OpenAIAgent {
             key_map: key_map.clone(),
         };
 
+        // 🔍 DISCOVERY TOOLS: Enable prerequisite validation when context is insufficient
+        let balance_tool = AccountBalanceTool {
+            key_map: key_map.clone(),
+        };
+        let position_tool = PositionInfoTool {
+            key_map: key_map.clone(),
+        };
+        let lend_earn_tokens_tool = LendEarnTokensTool::new(key_map.clone());
+
         // 🧠 Build enhanced multi-turn agent
         let agent = client
             .completion_model(model_name)
@@ -112,6 +121,9 @@ impl OpenAIAgent {
             .tool(jupiter_lend_earn_redeem_tool)
             .tool(jupiter_positions_tool)
             .tool(jupiter_earnings_tool)
+            .tool(balance_tool)
+            .tool(position_tool)
+            .tool(lend_earn_tokens_tool)
             .build();
 
         // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization

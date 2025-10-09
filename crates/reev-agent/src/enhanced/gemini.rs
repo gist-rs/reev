@@ -7,9 +7,9 @@ use crate::{
     enhanced::enhanced_context::EnhancedContextAgent,
     prompt::SYSTEM_PREAMBLE,
     tools::{
-        JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
-        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool, SolTransferTool,
-        SplTransferTool,
+        AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
+        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool,
+        LendEarnTokensTool, PositionInfoTool, SolTransferTool, SplTransferTool,
     },
     LlmRequest,
 };
@@ -85,7 +85,16 @@ impl GeminiAgent {
             key_map: key_map.clone(),
         };
 
-        // 🧠 Build enhanced agent with superior capabilities
+        // 🔍 DISCOVERY TOOLS: Enable prerequisite validation when context is insufficient
+        let balance_tool = AccountBalanceTool {
+            key_map: key_map.clone(),
+        };
+        let position_tool = PositionInfoTool {
+            key_map: key_map.clone(),
+        };
+        let lend_earn_tokens_tool = LendEarnTokensTool::new(key_map.clone());
+
+        // 🧠 Build enhanced multi-turn agent
         let agent = client
             .agent(model_name)
             .preamble(&enhanced_prompt)
@@ -99,6 +108,9 @@ impl GeminiAgent {
             .tool(jupiter_lend_earn_redeem_tool)
             .tool(jupiter_positions_tool)
             .tool(jupiter_earnings_tool)
+            .tool(balance_tool)
+            .tool(position_tool)
+            .tool(lend_earn_tokens_tool)
             .build();
 
         // 🤖 MULTI-TURN AGENT: Enable intelligent step-by-step reasoning

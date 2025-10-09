@@ -276,13 +276,18 @@ Transform the local model from underperforming to superior by implementing advan
 - **Progressive Completion**: Enable agent to validate and continue until full workflow completion
 
 #### **Priority 3: Enhanced Context & Tool Discovery**
-- **Rich Financial Context**: Provide comprehensive DeFi protocol information
-- **Dynamic Tool Selection**: Agent should discover and select appropriate tools for each step
+- **Prerequisite Validation**: Agent must validate wallet/account balances before executing operations
+- **Context-Aware Decision Making**: Use provided context for direct action when prerequisites are met
+- **Discovery Tools**: Implement tools for querying account balances and positions when context is insufficient
+- **Conditional Execution**: Execute directly if context validates, otherwise use discovery tools first
 - **Balance Awareness**: Agent should understand token balances and requirements before operations
 - **Error Recovery**: Agent should handle failures and retry with different approaches
 
 ### 🎯 **Success Criteria**
 - **Superior Performance**: Local model achieves 100% success rate on all flow benchmarks
+- **Prerequisite Validation**: 100% success rate on balance/position validation before execution
+- **Context Efficiency**: 60-80% reduction in unnecessary discovery tool calls when context is provided
+- **Discovery Robustness**: 85%+ success rate when context is insufficient and discovery tools are needed
 - **Multi-Step Mastery**: Agent properly sequences swap → lend operations without guidance
 - **Adaptive Intelligence**: Agent handles edge cases and unexpected scenarios better than deterministic
 - **Demonstrated Superiority**: Local model shows capabilities impossible with deterministic approach
