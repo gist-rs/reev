@@ -14,6 +14,7 @@ use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info};
 
+pub mod context;
 pub mod enhanced;
 pub mod flow;
 pub mod protocols;

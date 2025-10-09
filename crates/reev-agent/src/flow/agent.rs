@@ -541,13 +541,3 @@ impl FlowAgent {
         self.state = FlowState::new(0);
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    #[tokio::test]
-    async fn test_flow_agent_creation() {
-        // This test would require proper environment setup
-        // For now, we'll just test the structure
-    }
-}

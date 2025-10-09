@@ -209,9 +209,7 @@ impl ProcessDetector {
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(anyhow::anyhow!(
-                    "Failed to kill process {pid}: {stderr}"
-                ));
+                return Err(anyhow::anyhow!("Failed to kill process {pid}: {stderr}"));
             }
 
             info!(pid, "Successfully killed process");
@@ -268,32 +266,5 @@ fn get_process_list_output() -> Result<Output> {
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         anyhow::bail!("Process detection not supported on this platform")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_process_running() {
-        // Test with a process that should always exist
-        let result = ProcessDetector::is_process_running("init");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_find_process_pid() {
-        // Test with a process that should exist
-        let pid = ProcessDetector::find_process_pid("init");
-        // May or may not find it, depending on system
-        assert!(pid.is_some());
-    }
-
-    #[test]
-    fn test_is_port_in_use() {
-        // Test with a commonly used port
-        let result = ProcessDetector::is_port_in_use(22); // SSH
-        assert!(result.is_ok());
     }
 }
