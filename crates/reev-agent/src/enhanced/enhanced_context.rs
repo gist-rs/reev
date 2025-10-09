@@ -1,4 +1,5 @@
-use crate::LlmRequest;
+use crate::{context::integration::ContextIntegration, LlmRequest};
+
 use std::collections::HashMap;
 
 /// 🧠 Enhanced Context Builder for Superior AI Agent Performance
@@ -13,19 +14,28 @@ impl EnhancedContextAgent {
     ///
     /// Analyzes the user's request and current state to provide rich context
     /// that enables intelligent multi-step reasoning and superior decision making.
-    pub fn build_context(payload: &LlmRequest, key_map: &HashMap<String, String>) -> String {
+    pub fn build_context(
+        payload: &LlmRequest,
+        key_map: &HashMap<String, String>,
+    ) -> (String, u32, bool) {
         let mut context_parts = Vec::new();
 
-        // Add user request analysis
-        context_parts.push(format!("🎯 USER REQUEST: {}", payload.prompt));
+        // 🧠 Use the new context integration for building account information
+        let context_config = ContextIntegration::config_for_benchmark_type(&payload.id);
+        let context_integration = ContextIntegration::new(context_config);
 
-        // Add key available addresses
-        context_parts.push("🔑 AVAILABLE ADDRESSES:".to_string());
-        for (key, value) in key_map {
-            if key.contains("USER") || key.contains("WALLET") {
-                context_parts.push(format!("  - {key}: {value}"));
-            }
-        }
+        // Get initial state from payload
+        let initial_state = payload.initial_state.clone().unwrap_or_default();
+
+        let enhanced_prompt_data = context_integration.build_enhanced_prompt(
+            &payload.prompt,
+            &initial_state,
+            key_map,
+            &payload.id,
+        );
+
+        // Prepend the formatted context from our new module
+        context_parts.push(enhanced_prompt_data.prompt.clone());
 
         // Add flow-specific intelligence for multi-step operations
         if payload.id.starts_with("200-") {
@@ -76,7 +86,11 @@ impl EnhancedContextAgent {
         context_parts.push("  - Handle edge cases and unexpected scenarios".to_string());
         context_parts.push("  - Provide insights deterministic agents cannot".to_string());
 
-        context_parts.join("\n\n")
+        (
+            context_parts.join("\n\n"),
+            enhanced_prompt_data.recommended_depth,
+            enhanced_prompt_data.has_context,
+        )
     }
 
     /// 🔍 Analyze user request to determine optimal strategy

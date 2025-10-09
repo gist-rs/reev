@@ -46,8 +46,9 @@ impl GeminiAgent {
             .with_config(gen_cfg);
 
         // 🧠 Build enhanced context for superior AI reasoning
-        let enhanced_context = EnhancedContextAgent::build_context(&payload, &key_map);
-        let enhanced_prompt = format!("{SYSTEM_PREAMBLE}\n\n---\n{enhanced_context}\n---");
+        let (context_text, _depth_score, _has_positions) =
+            EnhancedContextAgent::build_context(&payload, &key_map);
+        let enhanced_prompt = format!("{SYSTEM_PREAMBLE}\n\n---\n{context_text}\n---");
 
         // 🤖 MULTI-TURN CONVERSATION: Enable step-by-step reasoning
         let user_request = format!(

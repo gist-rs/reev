@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 
 use crate::{
-    enhanced::enhanced_context::EnhancedContextAgent,
+    context::integration::ContextIntegration,
     prompt::SYSTEM_PREAMBLE,
     tools::{
         JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -43,21 +43,25 @@ impl OpenAIAgent {
     ) -> Result<String> {
         info!("[OpenAIAgent] Running enhanced multi-turn agent with model: {model_name}");
 
-        // 🧠 Build enhanced context for superior AI reasoning
-        let enhanced_context = EnhancedContextAgent::build_context(&payload, &key_map);
-        let enhanced_prompt = format!("{SYSTEM_PREAMBLE}\n\n---\n{enhanced_context}\n---");
+        // 🧠 Build enhanced context with account information
+        let context_config = ContextIntegration::config_for_benchmark_type(&payload.id);
+        let context_integration = ContextIntegration::new(context_config);
+        let initial_state = payload.initial_state.clone().unwrap_or_default();
+
+        let enhanced_prompt_data = context_integration.build_enhanced_prompt(
+            &payload.prompt,
+            &initial_state,
+            &key_map,
+            &payload.id,
+        );
+
+        let enhanced_prompt = format!(
+            "{SYSTEM_PREAMBLE}\n\n---\n{}\n---",
+            enhanced_prompt_data.prompt
+        );
 
         // 🤖 MULTI-TURN CONVERSATION: Enable step-by-step reasoning
-        let user_request = format!(
-            "{}\n\nUSER REQUEST: {}",
-            payload.context_prompt, payload.prompt
-        );
-
-        // 🐛 DEBUG: Log the full prompt being sent to the model
-        info!(
-            "[OpenAIAgent] DEBUG - Full prompt being sent to model:\n---\n{}\n---",
-            user_request
-        );
+        let user_request = enhanced_prompt_data.prompt.clone();
 
         // 🚀 Initialize OpenAI client
         let client = Client::builder("")
@@ -110,20 +114,14 @@ impl OpenAIAgent {
             .tool(jupiter_earnings_tool)
             .build();
 
-        // 🧠 REDUCED CONVERSATION DEPTH: Use 1-turn for simple operations to prevent loops
-        let conversation_depth = if user_request.to_lowercase().contains("swap")
-            || user_request.to_lowercase().contains("transfer")
-            || user_request.to_lowercase().contains("send")
-        {
-            1 // Single operation - 1 turn only
-        } else if user_request.to_lowercase().contains("lend")
-            || user_request.to_lowercase().contains("deposit")
-            || user_request.to_lowercase().contains("withdraw")
-            || user_request.to_lowercase().contains("mint")
-        {
-            3 // Lending and minting operations - max 3 turns to allow completion
+        // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization
+        let conversation_depth = if enhanced_prompt_data.has_context {
+            // Context provided - use efficient direct action depth
+            enhanced_prompt_data.recommended_depth as usize
         } else {
-            5 // Complex operations - max 5 turns
+            // Discovery mode - use extended depth for exploration
+            context_integration.determine_optimal_depth(&initial_state, &key_map, &payload.id)
+                as usize
         };
 
         info!(

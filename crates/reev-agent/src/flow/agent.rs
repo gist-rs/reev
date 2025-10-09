@@ -236,7 +236,25 @@ impl FlowAgent {
             prompt: enriched_prompt.clone(),
             context_prompt: self.build_context_prompt(benchmark, step)?,
             model_name: self.model_name.clone(),
-            mock: false, // Use real API calls for FlowAgent examples
+            mock: false,
+            initial_state: Some(
+                benchmark
+                    .initial_state
+                    .iter()
+                    .map(|account| reev_lib::benchmark::InitialStateItem {
+                        pubkey: account.pubkey.clone(),
+                        owner: account.owner.clone(),
+                        lamports: account.lamports,
+                        data: account.data.as_ref().map(|data| {
+                            reev_lib::benchmark::SplAccountData {
+                                mint: data.mint.clone(),
+                                owner: data.owner.clone(),
+                                amount: data.amount.clone(),
+                            }
+                        }),
+                    })
+                    .collect(),
+            ),
         };
 
         // Call the existing agent infrastructure

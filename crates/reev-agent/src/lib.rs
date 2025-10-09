@@ -37,6 +37,8 @@ pub struct LlmRequest {
     pub model_name: String,
     #[serde(default)]
     pub mock: bool,
+    #[serde(default)]
+    pub initial_state: Option<Vec<reev_lib::benchmark::InitialStateItem>>,
 }
 
 fn default_model() -> String {
