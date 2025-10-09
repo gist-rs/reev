@@ -166,9 +166,9 @@ impl ContextIntegration {
         enhanced.push_str("- Use 'jupiter_lend_earn_withdraw' to withdraw token amounts\n");
         enhanced
             .push_str("- Use 'jupiter_lend_earn_redeem' only to redeem share quantities (rare)\n");
-        enhanced.push_str(
-            "MOST requests should use deposit/withdraw tools, not mint/redeem tools.\n\n",
-        );
+        enhanced
+            .push_str("MOST requests should use deposit/withdraw tools, not mint/redeem tools.\n");
+        enhanced.push_str("IMPORTANT: Execute the correct tool and STOP. Do not call additional tools after successful execution.\n\n");
 
         enhanced.push_str("=== USER REQUEST ===\n");
         enhanced.push_str(base_prompt);

@@ -134,8 +134,28 @@ impl ContextBuilder {
         let mut issues = Vec::new();
 
         // Check if we have meaningful account information
-        if context.sol_balance.is_none() && context.token_balances.is_empty() {
-            issues.push("No SOL balance or token balances found".to_string());
+        // For Jupiter lending operations, SOL balance, token balances, or lending positions should be sufficient
+        if context.sol_balance.is_none()
+            && context.token_balances.is_empty()
+            && context.lending_positions.is_empty()
+        {
+            issues.push("No SOL balance, token balances, or lending positions found".to_string());
+        }
+
+        // Check for meaningful token balances (non-zero amounts)
+        let meaningful_token_balances = context
+            .token_balances
+            .values()
+            .filter(|balance| balance.amount > 0)
+            .count();
+
+        // For Jupiter lending operations, having meaningful token balances should be sufficient
+        // even without SOL balance (as long as we have some tokens to lend)
+        if meaningful_token_balances > 0 {
+            // Remove issues about lack of SOL balance if we have meaningful token balances
+            issues.retain(|issue| {
+                !issue.contains("No SOL balance, token balances, or lending positions found")
+            });
         }
 
         // Check for zero balances that might indicate setup issues
@@ -146,7 +166,24 @@ impl ContextBuilder {
             .count();
 
         if zero_balances > 0 && context.token_balances.len() == zero_balances {
-            issues.push("All token balances are zero".to_string());
+            // Only flag as issue if we also don't have SOL balance and no lending positions
+            // Jupiter lending can work with SOL balance alone, token balances alone, or with existing lending positions
+            if context.sol_balance.is_none() && context.lending_positions.is_empty() {
+                issues.push(
+                    "All token balances are zero and no SOL balance or lending positions found"
+                        .to_string(),
+                );
+            }
+        }
+
+        // For Jupiter lending benchmarks with lending positions, consider context valid
+        // even if token balances are minimal, as long as we have lending positions
+        if !context.lending_positions.is_empty() {
+            // Remove any issues about lack of token balances if we have lending positions
+            issues.retain(|issue| {
+                !issue.contains("No SOL balance, token balances, or lending positions found")
+            });
+            issues.retain(|issue| !issue.contains("All token balances are zero"));
         }
 
         if !issues.is_empty() {
