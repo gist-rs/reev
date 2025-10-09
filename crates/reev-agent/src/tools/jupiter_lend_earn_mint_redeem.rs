@@ -54,7 +54,7 @@ impl Tool for JupiterLendEarnMintTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Mint jTokens by SHARES in Jupiter lending (advanced). ONLY use when user specifies share amounts or wants exact share quantities. DO NOT use if user mentions token amounts like '0.1 SOL' - use jupiter_lend_earn_deposit instead. Works with share counts, not token amounts.".to_string(),
+            description: "EXCLUSIVE tool for MINTING jTokens by SHARES in Jupiter lending. Use ONLY when user specifically says 'mint' or mentions 'minting' jTokens. DO NOT use for 'deposit' operations - use jupiter_lend_earn_deposit instead. Works with share quantities, not token amounts. If user mentions 'deposit', use jupiter_lend_earn_deposit.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -155,7 +155,7 @@ impl Tool for JupiterLendEarnRedeemTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Redeem/burn jTokens by SHARES from Jupiter lending (advanced). ONLY use when user specifies share amounts to redeem. For withdrawing token amounts, use jupiter_lend_earn_withdraw instead. Works with share counts, not token amounts.".to_string(),
+            description: "EXCLUSIVE tool for REDEEMING jTokens by SHARES from Jupiter lending. Use ONLY when user specifically says 'redeem' or mentions 'redeeming' jTokens. DO NOT use for 'withdraw' operations - use jupiter_lend_earn_withdraw instead. Works with share quantities, not token amounts. If user mentions 'withdraw', use jupiter_lend_earn_withdraw.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

@@ -104,8 +104,9 @@ impl GeminiAgent {
             .tool(jupiter_swap_tool)
             .tool(jupiter_lend_earn_deposit_tool)
             .tool(jupiter_lend_earn_withdraw_tool)
-            .tool(jupiter_lend_earn_mint_tool)
-            .tool(jupiter_lend_earn_redeem_tool)
+            // Temporarily disabled mint/redeem tools to focus on deposit/withdraw
+            // .tool(jupiter_lend_earn_mint_tool)
+            // .tool(jupiter_lend_earn_redeem_tool)
             .tool(jupiter_positions_tool)
             .tool(jupiter_earnings_tool)
             .tool(balance_tool)

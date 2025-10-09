@@ -158,17 +158,20 @@ impl ContextIntegration {
         }
 
         enhanced.push_str("=== JUPITER LENDING TOOL SELECTION ===\n");
-        enhanced.push_str("For Jupiter lending operations:\n");
+        enhanced.push_str("CRITICAL: Use EXACTLY ONE tool based on user's specific words:\n");
+        enhanced
+            .push_str("- If user says 'deposit' or 'lend' → ONLY use jupiter_lend_earn_deposit\n");
+        enhanced.push_str("- If user says 'mint' or 'minting' → ONLY use jupiter_lend_earn_mint\n");
         enhanced.push_str(
-            "- Use 'jupiter_lend_earn_deposit' for token amounts (e.g., '0.1 SOL', '50 USDC')\n",
+            "- If user says 'withdraw' or 'withdrawing' → ONLY use jupiter_lend_earn_withdraw\n",
         );
-        enhanced.push_str("- Use 'jupiter_lend_earn_mint' only for share quantities (rare)\n");
-        enhanced.push_str("- Use 'jupiter_lend_earn_withdraw' to withdraw token amounts\n");
-        enhanced
-            .push_str("- Use 'jupiter_lend_earn_redeem' only to redeem share quantities (rare)\n");
-        enhanced
-            .push_str("MOST requests should use deposit/withdraw tools, not mint/redeem tools.\n");
-        enhanced.push_str("IMPORTANT: Execute the correct tool and STOP. Do not call additional tools after successful execution.\n\n");
+        enhanced.push_str(
+            "- If user says 'redeem' or 'redeeming' → ONLY use jupiter_lend_earn_redeem\n",
+        );
+        enhanced.push_str(
+            "NEVER mix tools. Do NOT call deposit AND mint. Do NOT call withdraw AND redeem.\n",
+        );
+        enhanced.push_str("Execute the ONE correct tool and STOP immediately after success.\n\n");
 
         enhanced.push_str("=== USER REQUEST ===\n");
         enhanced.push_str(base_prompt);

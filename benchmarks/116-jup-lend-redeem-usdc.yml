@@ -15,7 +15,7 @@ initial_state:
       owner: "USER_WALLET_PUBKEY"
       amount: "50000000"
 
-prompt: "Redeem 50 jUSDC from Jupiter lending to withdraw 50 USDC back to my token account. This will close the lending position and return the principal plus any earned yield."
+prompt: "Redeem 50 jUSDC from Jupiter lending to get 50 USDC back to my token account. This will close the lending position and return the principal plus any earned yield."
 
 ground_truth:
   transaction_status: "Success"

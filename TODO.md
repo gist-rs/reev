@@ -2,6 +2,11 @@
 
 - we must find the way to monitor the tool calling so we can score agent for `tool calling` too (must call tool precisly, you can imagine what tools should call in order and scoring from that). i can see log at logs/reev-agent.log but not sure how we can collect that to scoring, any idea?
 
+
+## Complex Flows
+- more complex flow e.g. swap if not enough then withdraw and deposit.
+- interacbetween 2 or more protocol e.g. withdraw from kamino and led via jupiter.
+
 ## Dashboard
 
 1. bring your own agents: will call with only prompt (you prepare the account, no token = fail)
