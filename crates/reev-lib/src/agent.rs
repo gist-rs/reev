@@ -154,6 +154,12 @@ impl TryFrom<RawInstruction> for AgentAction {
     type Error = anyhow::Error;
 
     fn try_from(raw: RawInstruction) -> Result<Self, Self::Error> {
+        tracing::debug!(
+            "Converting RawInstruction: program_id={}, data={}",
+            raw.program_id,
+            raw.data
+        );
+
         let program_id = Pubkey::from_str(&raw.program_id)
             .with_context(|| format!("Invalid program_id: {}", raw.program_id))?;
 
@@ -175,6 +181,7 @@ impl TryFrom<RawInstruction> for AgentAction {
             .into_vec()
             .with_context(|| format!("Invalid base58 data: {}", raw.data))?;
 
+        tracing::debug!("Successfully converted RawInstruction to AgentAction");
         Ok(AgentAction(Instruction {
             program_id,
             accounts,

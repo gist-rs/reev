@@ -79,13 +79,25 @@ impl Tool for JupiterLendEarnWithdrawTool {
 
     /// Executes the tool's logic: validates arguments and calls the protocol handler.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Check for placeholder addresses that would cause Base58 parsing errors
+        // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")
             || args.user_pubkey.starts_with("RECIPIENT_")
         {
-            info!("Detected placeholder user_pubkey, using simulated pubkey for lend withdraw");
-            Pubkey::from_str("11111111111111111111111111111111")
-                .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+            if let Some(resolved_pubkey) = self.key_map.get(&args.user_pubkey) {
+                info!(
+                    "Resolved {} from key_map: {}",
+                    args.user_pubkey, resolved_pubkey
+                );
+                Pubkey::from_str(resolved_pubkey)
+                    .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+            } else {
+                info!(
+                    "Could not resolve {} from key_map, using simulated pubkey for lend withdraw",
+                    args.user_pubkey
+                );
+                Pubkey::from_str("11111111111111111111111111111111")
+                    .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+            }
         } else {
             Pubkey::from_str(&args.user_pubkey)
                 .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
@@ -93,9 +105,21 @@ impl Tool for JupiterLendEarnWithdrawTool {
 
         let asset_mint =
             if args.asset_mint.starts_with("USER_") || args.asset_mint.starts_with("RECIPIENT_") {
-                info!("Detected placeholder asset_mint, using simulated mint for lend withdraw");
-                Pubkey::from_str("So11111111111111111111111111111111111111112")
-                    .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+                if let Some(resolved_mint) = self.key_map.get(&args.asset_mint) {
+                    info!(
+                        "Resolved {} from key_map: {}",
+                        args.asset_mint, resolved_mint
+                    );
+                    Pubkey::from_str(resolved_mint)
+                        .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+                } else {
+                    info!(
+                        "Could not resolve {} from key_map, using simulated mint for lend withdraw",
+                        args.asset_mint
+                    );
+                    Pubkey::from_str("So11111111111111111111111111111111111111112")
+                        .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?
+                }
             } else {
                 Pubkey::from_str(&args.asset_mint)
                     .map_err(|e| JupiterLendEarnWithdrawError::PubkeyParse(e.to_string()))?

@@ -472,9 +472,9 @@ impl<T: AgentResponse> TypedAgent<T> {
 
 ---
 
-## 📚 Latest Debugging Session: Tool Confusion Resolution (2025-01-10)
+## 📚 Latest Debugging Session: Placeholder Resolution Fix (2025-01-10)
 
-### **Session: Terminology Mixing and Tool Selection Chaos**
+### Session: Critical Placeholder Resolution Issue in Jupiter Tools
 
 #### **Problem Statement**
 The enhanced agents were experiencing severe tool confusion in Jupiter lending operations, specifically failing on benchmarks that mixed terminology like "mint by depositing" and "redeem to withdraw". This caused agents to call multiple tools (deposit+mint, withdraw+redeem) leading to MaxDepthError failures.

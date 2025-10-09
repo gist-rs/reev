@@ -25,6 +25,11 @@ pub async fn handle_jupiter_lend_deposit(
     let user_pubkey_str = user_pubkey.to_string();
     let asset_mint_str = asset_mint.to_string();
 
+    info!(
+        "DEBUG: Jupiter lend deposit called with user_pubkey={}, asset_mint={}, amount={}",
+        user_pubkey_str, asset_mint_str, amount
+    );
+
     // If we detect placeholder addresses, return simulated instructions
     if user_pubkey_str.starts_with("USER_")
         || user_pubkey_str.starts_with("RECIPIENT_")
