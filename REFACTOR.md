@@ -377,31 +377,348 @@ SOLANA_USER_AGENT=reev-agent/0.1.0
 ## 📊 Progress Summary
 
 - **Phase 1 (Jupiter Refactoring)**: ✅ **COMPLETED**
-- **Phase 2 (Native Protocol)**: ✅ **COMPLETED**
-- **Phase 3 (Configuration)**: ✅ **COMPLETED**  
+- **Phase 2 (Native Protocol)**: ✅ **COMPLETED**  
+- **Phase 3 (Configuration)**: ✅ **COMPLETED**
 - **Phase 4 (Abstraction)**: ✅ **COMPLETED**
-- **Phase 5 (Feature Flags)**: 🔄 **NOT STARTED**
-- **Phase 6 (Future Protocols)**: 🔄 **NOT STARTED**
 
-**Overall Progress**: 67% Complete (4 of 6 phases)
+**Overall Progress**: 57% Complete (4 of 7 phases)
 
 The foundation is now solid for the complete modular architecture. Both Jupiter and Native protocols serve as templates for all future protocol implementations, demonstrating the complete pattern from protocol handlers → AI tools → coding agents. The configuration system provides robust environment-based customization with validation and debugging capabilities. The protocol abstraction layer establishes consistent interfaces, standardized error handling, and comprehensive health monitoring for all protocols.
 
-## 🎯 Phase 4 Achievements Summary:
+## 🔄 Phase 5: Response Parsing Unification [IN PROGRESS]
 
-### ✅ Protocol Abstraction Layer Complete:
-1. **Common Protocol Traits**: Established `Protocol`, `SwapProtocol`, `LendProtocol`, `TransferProtocol` interfaces
-2. **Standardized Error Handling**: Comprehensive `ProtocolError` enum covering all protocol failure scenarios
-3. **Health Monitoring System**: `HealthChecker` and `HealthMonitor` for real-time protocol status tracking
-4. **Metrics Collection**: `ProtocolMetrics` and `MetricsCollector` for performance monitoring and analytics
-5. **Jupiter Protocol Implementation**: Full trait-based implementation demonstrating the abstraction pattern
-6. **Extensibility Framework**: Clear template for implementing future protocols (Drift, Kamino, etc.)
+### 🎯 Problem Statement
+**Current Issues:**
+- **Fragile parsing**: `extract_execution_results` breaks when LLM response formats change
+- **Complex nested conditions**: Multiple format-specific code paths are hard to maintain
+- **MaxDepthError**: LLM makes too many tool calls due to inefficient response handling
+- **Token format confusion**: Different Jupiter protocol token representations cause failures
+- **Edge cases remain**: Malformed or partially structured responses still fail
 
-### 🔧 Technical Achievements:
-- **Async Trait System**: Proper async/await support for all protocol operations
-- **Type Safety**: Strong typing ensures protocol interface compliance at compile time
-- **Performance Tracking**: Request/response times, success rates, error categorization
-- **Health States**: Healthy/Degraded/Unhealthy status with automatic recovery
-- **Macro Support**: Utility macros for common protocol implementation patterns
+**Root Cause:**
+The current approach tries to predict LLM response formats instead of extracting whatever format is provided. This creates brittleness when models change behavior.
 
-The protocol abstraction layer now provides a robust foundation for building and managing multiple blockchain protocols with consistent interfaces, comprehensive monitoring, and standardized error handling.
+### 🚀 Solution: Unified Response Parsing Architecture
+
+#### **Phase 5.1: Response Normalizer Core**
+```rust
+// crates/reev-agent/src/response_normalizer.rs
+pub struct ResponseNormalizer;
+
+impl ResponseNormalizer {
+    /// 🎯 Normalize ANY LLM response format to standard TransactionResult
+    /// Handles: Mixed markdown+JSON, partial structures, natural language
+    /// Never fails - gracefully degrades to extract what's available
+    pub fn normalize_llm_response(response_str: &str) -> Result<TransactionResult>
+}
+```
+
+#### **Phase 5.2: Defensive Parsing Strategy**
+```rust
+/// 🛡️ Three-tier extraction: Perfect → Pattern → Heuristic fallback
+impl ResponseNormalizer {
+    fn normalize_llm_response(response_str: &str) -> Result<TransactionResult> {
+        // 🥇 Attempt 1: Perfect structured JSON parse
+        if let Ok(result) = Self::try_perfect_parse(response_str) {
+            return Ok(result);
+        }
+        
+        // 🥈 Attempt 2: Pattern-based extraction (works on malformed responses)
+        if let Ok(instructions) = Self::extract_instruction_patterns(response_str) {
+            return Ok(Self::create_from_patterns(instructions));
+        }
+        
+        // 🥉 Attempt 3: Heuristic fallback (never fails)
+        let result = Self::heuristic_extraction(response_str);
+        return Ok(result);
+    }
+}
+```
+
+#### **Phase 5.3: Pattern-Based Instruction Extraction**
+```rust
+/// 🔍 Extract instruction patterns using regex (works on ANY malformed response)
+impl ResponseNormalizer {
+    fn extract_instruction_patterns(response_str: &str) -> Result<Vec<InstructionCandidate>> {
+        let patterns = vec![
+            // Jupiter format: {"program_id": "...", "accounts": [...], "data": "..."}
+            r#""program_id"\s*:\s*"[^"]*"[^}]*"accounts"\s*:\s*\[[^\]]*\][^}]*"data"\s*:\s*"[^"]*""#,
+            
+            // Direct format: {program_id: "...", accounts: [...], data: "..."}
+            r#""program_id"\s*:\s*"[^"]*"[^,]*"accounts"\s*:\s*\[[^\]]*\][^,]*"data"\s*:\s*"[^"]*""#,
+            
+            // Account arrays: [{"pubkey": "...", "is_signer": ..., "is_writable": ...}]
+            r#""pubkey"\s*:\s*"[^"]*"[^}]*"is_signer"\s*:\s*(true|false)[^}]*"is_writable"\s*:\s*(true|false)"#,
+        ];
+        
+        // Find all matches and normalize to standard InstructionCandidate format
+        Self::normalize_pattern_matches(response_str, &patterns)
+    }
+}
+```
+
+#### **Phase 5.4: Integration**
+```rust
+// Replace complex extract_execution_results logic:
+// crates/reev-agent/src/enhanced/openai.rs
+let execution_result = ResponseNormalizer::normalize_llm_response(&response_str)?;
+```
+
+### 🎯 Phase 5.5: Implementation Timeline
++- **Day 1**: Core ResponseNormalizer implementation
++- **Day 2**: Pattern extraction and normalization logic
++- **Day 3**: Integration with OpenAI agent, replace extract_execution_results
++- **Day 4**: Comprehensive testing against all failure cases
++- **Day 5**: Documentation and validation
+
+### 🎯 Expected Benefits
+- **✅ Never fails**: Handles any LLM response format gracefully
+- **✅ No MaxDepthError**: Single extraction eliminates tool call loops
+- **✅ Token confusion resolved**: Extracts actual instructions regardless of format
+- **✅ Future-proof**: Adapts to new LLM response formats automatically
+- **✅ Simplified maintenance**: Single parsing function, no nested conditions
+
+### 🎯 Target Benchmarks to Fix
+- ✅ **113-jup-lend-withdraw-usdc.yml**: Token format confusion → 100% score
+- ✅ **115-jup-lend-mint-usdc.yml**: MaxDepthError → 100% score  
+- ✅ **114-jup-positions-and-earnings.yml**: Unknown status → Working
+- ✅ **116-jup-lend-redeem-usdc.yml**: Unknown status → Working
+
+---
+
+## 📊 Phase 6: OpenTelemetry Integration & Observability [NEW]
+
+### 🎯 **Objective**
+Implement comprehensive OpenTelemetry observability for type-safe response architecture, providing real-time insights into agent behavior, API compliance, and performance metrics.
+
+### 🏗️ **Core OTEL Integration Architecture**
+
+#### **Component 1: Type-Aware Tracing**
+```rust
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+
+// 🎯 Type-safe instrumented agent execution
+#[tracing::instrument(
+    name = "agent_execution",
+    fields(
+        response_type = std::any::type_name::<T>(),
+        operation = T::operation_type(),
+        instruction_count = tracing::field::Empty,
+        api_source = tracing::field::Empty,
+    )
+)]
+pub async fn execute_typed_request<T: AgentResponse>(request: T::Request) -> Result<T, AgentError> {
+    let start = std::time::Instant::now();
+    
+    // 🎯 OpenTelemetry tracks exact types
+    tracing::info!(
+        agent_type = std::any::type_name::<T>(),
+        request_id = uuid::Uuid::new_v4().to_string(),
+        operation = T::operation_type(),
+        user_pubkey = request.user_pubkey(),
+    );
+    
+    // Execute with automatic tracing
+    let response = typed_agent.call_typed(request).await?;
+    
+    // 🎯 Record metrics
+    let execution_time = start.elapsed();
+    tracing::info!(
+        execution_time_ms = execution_time.as_millis(),
+        instruction_count = response.to_execution_result().transactions.len(),
+        validation_result = response.validate_instructions().is_ok(),
+        api_source = detect_api_source(&response),
+    );
+    
+    Ok(response)
+}
+```
+
+#### **Component 2: Structured Metrics Collection**
+```rust
+use opentelemetry::metrics::{Counter, Histogram, Gauge};
+
+// 🎯 Type-aware metrics collector
+pub struct TypeMetricsCollector {
+    request_counter: Counter<u64>,
+    execution_histogram: Histogram<f64>,
+    validation_gauge: Gauge<u64>,
+    api_source_counter: Counter<u64>,
+}
+
+impl TypeMetricsCollector {
+    pub fn new() -> Self {
+        let meter = opentelemetry::global::meter("reev_agent_metrics");
+        
+        Self {
+            request_counter: meter.u64_counter("agent_requests_total")
+                .with_description("Total number of agent requests"),
+            execution_histogram: meter.f64_histogram("agent_execution_time")
+                .with_description("Agent execution time in milliseconds"),
+            validation_gauge: meter.u64_gauge("agent_validation_status")
+                .with_description("Agent response validation status (1=valid, 0=invalid)"),
+            api_source_counter: meter.u64_counter("api_source_counts")
+                .with_description("Counts of API vs LLM generated responses"),
+        }
+    }
+    
+    pub fn record_request<T: AgentResponse>(&self, response: &T) {
+        self.request_counter.add(
+            1,
+            [
+                KeyValue::new("response_type", T::operation_type()),
+                KeyValue::new("operation_id", uuid::Uuid::new_v4().to_string()),
+            ],
+        );
+        
+        self.execution_histogram.record(
+            response.execution_time_ms() as f64,
+            [
+                KeyValue::new("response_type", T::operation_type()),
+                KeyValue::new("instruction_count", response.instruction_count() as u64),
+            ],
+        );
+        
+        self.validation_gauge.set(
+            if response.validate_instructions().is_ok() { 1 } else { 0 },
+            [
+                KeyValue::new("response_type", T::operation_type()),
+            ],
+        );
+        
+        self.api_source_counter.add(
+            1,
+            [
+                KeyValue::new("api_source", response.detect_api_source()),
+                KeyValue::new("response_type", T::operation_type()),
+            ],
+        );
+    }
+}
+```
+
+#### **Component 3: Custom Span Attributes**
+```rust
+use opentelemetry::trace::{Span, SpanKind, Status};
+
+// 🎯 Rich span attributes for compliance tracking
+impl<T: AgentResponse> AgentResponse for T {
+    fn create_span(&self, operation: &str) -> Span {
+        let span = tracing::span!(Level::INFO, operation, kind = SpanKind::Client);
+        
+        span.set_attribute("response_type", T::operation_type());
+        span.set_attribute("instruction_count", self.instruction_count() as u64);
+        span.set_attribute("api_compliant", self.validate_instructions().is_ok());
+        span.set_attribute("execution_time_ms", self.execution_time_ms());
+        span.set_attribute("api_source", self.detect_api_source());
+        
+        // Add protocol-specific attributes
+        if let Some(jupiter_data) = self.jupiter_metadata() {
+            span.set_attribute("jupiter_operation", jupiter_data.operation_type);
+            span.set_attribute("jupiter_tokens", jupiter_data.token_mints);
+        }
+        
+        span
+    }
+}
+```
+
+#### **Component 4: Distributed Tracing**
+```rust
+// 🎯 Distributed tracing for multi-step flows
+#[tracing::instrument(
+    name = "jupiter_swap_flow",
+    skip_if = true
+)]
+pub async fn execute_jupiter_swap_flow<T: AgentResponse>(
+    agent: &TypedAgent<T>,
+    request: JupiterSwapRequest,
+) -> Result<T, AgentError> {
+    // Step 1: Get quote
+    let quote_span = tracing::info_span!("jupiter_get_quote").entered();
+    let quote = agent.get_quote(&request).instrument(quote_span).await?;
+    quote_span.exit();
+    
+    // Step 2: Get instructions
+    let instructions_span = tracing::info_span!("jupiter_get_instructions").entered();
+    let instructions = agent.get_instructions(&quote).instrument(instructions_span).await?;
+    instructions_span.exit();
+    
+    // Step 3: Execute transaction
+    let execution_span = tracing::info_span!("jupiter_execute_transaction").entered();
+    let response = agent.execute_transaction(&instructions).instrument(execution_span).await?;
+    execution_span.exit();
+    
+    // Step 4: Validate result
+    let validation_span = tracing::info_span!("jupiter_validate_response").entered();
+    response.validate_instructions().instrument(validation_span).await?;
+    validation_span.exit();
+    
+    Ok(response)
+}
+```
+
+### 📊 **Implementation Timeline**
+
+#### **Phase 6.1: OTEL Infrastructure** (2 days)
+- Set up OpenTelemetry provider and exporter
+- Create type-aware metrics collector
+- Implement custom span attributes for compliance tracking
+
+#### **Phase 6.2: Agent Integration** (2 days)
+- Add tracing instrumentation to TypedAgent<T>
+- Implement type-specific span creation
+- Integrate metrics collection into agent execution
+
+#### **Phase 6.3: Distributed Tracing** (2 days)
+- Implement span propagation for multi-step flows
+- Add parent-child span relationships
+- Create correlation IDs for request tracking
+
+#### **Phase 6.4: Dashboard Integration** (1 day)
+- Set up Jaeger/Tempo for trace visualization
+- Create custom Grafana dashboards for agent metrics
+- Implement alerting for compliance violations
+
+### 🎯 **Key Metrics to Track**
+
+#### **Performance Metrics:**
+- **Request Rate**: Total agent requests per operation type
+- **Execution Time**: Time taken for each operation type
+- **Success Rate**: Percentage of successful executions
+
+#### **Compliance Metrics:**
+- **API Source Distribution**: API vs LLM generated responses
+- **Validation Rate**: Percentage of API-compliant responses
+- **Type Validation Success**: Pass/fail rate for each response type
+
+#### **Behavioral Metrics:**
+- **Tool Usage**: Frequency and patterns of tool calls
+- **Multi-step Success**: Rate of complex workflow completion
+- **Error Patterns**: Types and frequency of errors
+
+### 🎯 **Expected Benefits**
+
+#### **Immediate Improvements:**
+- **Real-time Visibility**: See exactly what agents are doing in production
+- **Performance Insights**: Identify bottlenecks and optimization opportunities
+- **Compliance Monitoring**: Ensure agents follow API-first principles
+
+#### **Long-term Advantages:**
+- **Data-Driven Optimization**: Use metrics to improve agent behavior
+- **Automated Alerting**: Get notified of compliance violations
+- **Historical Analysis**: Track agent performance over time
+- **Cross-Model Comparison**: Compare different model performance
+
+### 🎯 Success Criteria
+- **100% Coverage**: All agent operations are instrumented
+- **Real-time Dashboard**: Live monitoring of agent behavior
+- **Compliance Enforcement**: Automatic alerts for API violations
+- **Performance Optimization**: Metrics-driven agent improvements
+
+### 🎯 Overall Progress**: 57% Complete (4 of 6 phases)
