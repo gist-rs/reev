@@ -128,6 +128,79 @@ if pubkey.contains("USER_") || pubkey.contains("RECIPIENT_") {
 - **Insight**: Rejecting placeholders breaks development workflows
 - **Solution**: Provide simulated data with clear documentation of placeholder status
 
+---
+
+## 📚 Latest Debugging Session: Enhanced Agent Tool Selection (2025-01-10)
+
+### **Session: Jupiter Lending Tool Confusion Resolution**
+
+#### **Problem Statement**
+The enhanced agent was stuck in loops calling multiple Jupiter lending tools for the same request, hitting MaxDepthError limits. The prompt "Using Jupiter, mint jTokens by depositing 0.1 SOL" caused the agent to call both `jupiter_lend_earn_deposit` and `jupiter_lend_earn_mint` repeatedly.
+
+#### **Root Cause Analysis**
+- **Ambiguous Tool Descriptions**: Both tools mentioned "mint" and "deposit" in their descriptions
+- **Missing Selection Guidance**: No clear guidance on when to use each tool
+- **Prompt Ambiguity**: User prompt mentioned both "mint jTokens" and "depositing 0.1 SOL"
+
+#### **Solution Implementation**
+
+**1. Tool Description Clarification**
+```rust
+// BEFORE: Confusing descriptions
+description: "Mint jTokens (shares) in Jupiter lending. Use when user wants to 'mint jTokens'..."
+
+// AFTER: Clear guidance with boundaries
+description: "Mint jTokens by SHARES in Jupiter lending (advanced). ONLY use when user specifies share amounts or wants exact share quantities. DO NOT use if user mentions token amounts like '0.1 SOL' - use jupiter_lend_earn_deposit instead."
+```
+
+**2. System Prompt Enhancement**
+```rust
+enhanced.push_str("=== JUPITER LENDING TOOL SELECTION ===\n");
+enhanced.push_str("For Jupiter lending operations:\n");
+enhanced.push_str("- Use 'jupiter_lend_earn_deposit' for token amounts (e.g., '0.1 SOL', '50 USDC')\n");
+enhanced.push_str("- Use 'jupiter_lend_earn_mint' only for share quantities (rare)\n");
+enhanced.push_str("MOST requests should use deposit/withdraw tools, not mint/redeem tools.\n");
+```
+
+**3. Response Parsing Improvement**
+```rust
+// Enhanced JSON extraction from mixed natural language responses
+let json_str = if response_str.starts_with("```json") && response_str.ends_with("```") {
+    // Handle markdown JSON blocks
+} else if let Some(start) = response_str.find('{') {
+    // Find first complete JSON object in mixed text
+    let mut brace_count = 0;
+    let mut in_string = false;
+    // ... parsing logic
+} else {
+    response_str
+};
+```
+
+#### **Key Technical Decisions**
+- **Primary Tool Selection**: Made `jupiter_lend_earn_deposit` the primary choice for token amounts
+- **Explicit Boundaries**: Clear "DO NOT use" instructions in tool descriptions
+- **System Prompt Guidance**: Added dedicated section for tool selection logic
+- **Resilient Parsing**: Enhanced JSON extraction to handle mixed natural language responses
+
+#### **Results**
+- ✅ **Tool Confusion Resolved**: Agent no longer calls both deposit and mint tools
+- ✅ **Clear Selection Logic**: Agent understands when to use each tool type
+- ✅ **Improved Response Parsing**: Better extraction of JSON from natural language
+- 🔄 **Discovery Loops**: Still experiencing MaxDepthError from discovery tool loops
+
+#### **Lessons Learned**
+- **Tool Description Precision**: Ambiguous descriptions cause agent confusion and loops
+- **Explicit Boundaries**: Clear "DO NOT use" guidance is more effective than positive guidance
+- **System Prompt Authority**: System prompt guidance overrides tool description ambiguity
+- **Response Parsing Resilience**: Must handle LLM responses that mix natural language with structured data
+- **Depth Management**: Discovery tools can create loops that hit conversation limits
+
+#### **Ongoing Challenges**
+- **Discovery Loop Prevention**: Agent still gets stuck in discovery tool loops
+- **Intent Recognition**: Better understanding of when to stop discovery and take action
+- **Conversation Depth**: Need smarter depth management for complex operations
+
 **2. Tool Composition Pattern**
 ```rust
 // Discovery tools complement existing context

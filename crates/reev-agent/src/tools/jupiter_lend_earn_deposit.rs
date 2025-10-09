@@ -55,7 +55,7 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "DIRECTLY DEPOSIT tokens into Jupiter lending when user requests deposit/lending. Use this tool IMMEDIATELY when user says 'deposit', 'lend', or 'earn yield' tokens. DO NOT check positions first - call this tool directly for any deposit request. Works with token amounts (e.g., 50000000 for 50 USDC).".to_string(),
+            description: "PRIMARY tool for depositing tokens into Jupiter lending. Use when user wants to 'deposit', 'lend', or 'mint jTokens by depositing' tokens. Works with token amounts like '0.1 SOL' or '50 USDC'. This is the standard way to mint jTokens - use this unless user specifically mentions share quantities.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

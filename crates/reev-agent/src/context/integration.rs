@@ -157,7 +157,20 @@ impl ContextIntegration {
                 .push_str("You have extended conversation depth for exploration and discovery.\n");
         }
 
-        enhanced.push_str("\n=== USER REQUEST ===\n");
+        enhanced.push_str("=== JUPITER LENDING TOOL SELECTION ===\n");
+        enhanced.push_str("For Jupiter lending operations:\n");
+        enhanced.push_str(
+            "- Use 'jupiter_lend_earn_deposit' for token amounts (e.g., '0.1 SOL', '50 USDC')\n",
+        );
+        enhanced.push_str("- Use 'jupiter_lend_earn_mint' only for share quantities (rare)\n");
+        enhanced.push_str("- Use 'jupiter_lend_earn_withdraw' to withdraw token amounts\n");
+        enhanced
+            .push_str("- Use 'jupiter_lend_earn_redeem' only to redeem share quantities (rare)\n");
+        enhanced.push_str(
+            "MOST requests should use deposit/withdraw tools, not mint/redeem tools.\n\n",
+        );
+
+        enhanced.push_str("=== USER REQUEST ===\n");
         enhanced.push_str(base_prompt);
         enhanced.push('\n');
 

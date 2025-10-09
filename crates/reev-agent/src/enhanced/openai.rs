@@ -187,8 +187,8 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
         response_str
     );
 
-    // 🧠 Clean markdown JSON wrapper first (```json ... ```)
-    let cleaned_response = if response_str.starts_with("```json") && response_str.ends_with("```") {
+    // 🧠 Extract JSON from mixed natural language and JSON responses
+    let json_str = if response_str.starts_with("```json") && response_str.ends_with("```") {
         response_str
             .trim_start_matches("```json")
             .trim_end_matches("```")
@@ -198,17 +198,52 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
             .trim_start_matches("```")
             .trim_end_matches("```")
             .trim()
+    } else if let Some(start) = response_str.find("```json") {
+        // Find JSON block in natural language text
+        if let Some(end) = response_str[start..].find("```") {
+            response_str[start..start + end]
+                .trim_start_matches("```json")
+                .trim()
+        } else {
+            response_str
+        }
+    } else if let Some(start) = response_str.find('{') {
+        // Find first complete JSON object in text
+        let mut brace_count = 0;
+        let mut in_string = false;
+        let mut escape_next = false;
+        let mut json_end = start;
+
+        for (i, ch) in response_str[start..].char_indices() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+
+            match ch {
+                '"' if !in_string => in_string = true,
+                '"' if in_string => in_string = false,
+                '\\' if in_string => escape_next = true,
+                '{' if !in_string => brace_count += 1,
+                '}' if !in_string => {
+                    brace_count -= 1;
+                    if brace_count == 0 {
+                        json_end = start + i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        &response_str[start..json_end]
     } else {
         response_str
     };
 
-    info!(
-        "[OpenAIAgent] Debug - Cleaned response string: {}",
-        cleaned_response
-    );
+    info!("[OpenAIAgent] Debug - Extracted JSON string: {}", json_str);
 
     // Try to parse as JSON first
-    match serde_json::from_str::<serde_json::Value>(cleaned_response) {
+    match serde_json::from_str::<serde_json::Value>(json_str) {
         Ok(json_value) => {
             // Check if response already contains our expected format
             if let (Some(transactions), Some(summary), Some(signatures)) = (

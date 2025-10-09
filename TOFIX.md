@@ -20,7 +20,9 @@
 - **Placeholder Pubkey Handling**: Tools now gracefully handle placeholder addresses with simulated data
 - **Compilation Errors**: Fixed missing imports and trait implementations in Jupiter lending tools
 - **Import Issues**: Corrected rig-core vs rig import inconsistencies across multiple files
-- **Logging Macros**: Added missing tracing::info imports where needed
+- **Logging Macros**: Added missing tracing imports where needed
+- **Tool Selection Logic**: Enhanced agent now correctly chooses between deposit/mint tools based on user intent
+- **Response Parsing**: Fixed JSON extraction from mixed natural language responses in OpenAI agent
 
 ### 🚧 Current Issues
 - **Real API Integration**: Discovery tools currently use simulated data for placeholder addresses
@@ -52,7 +54,7 @@
 - **Impact**: Prevents Jupiter withdrawal operations
 - **Priority**: 🟡 HIGH - Implementation issue
 
-#### **4. MaxDepthError** (1/13 failures) - ✅ FULLY FIXED
+#### **4. MaxDepthError** (1/13 failures) - 🔄 PARTIALLY FIXED
 - **Error**: `MaxDepthError: (reached limit: 7)`
 - **Previously Affected**: 002-spl-transfer, 004-partial-score-spl-transfer
 - **Fixed**: 002-spl-transfer now works (100% success rate) - ✅ COMPLETE
@@ -64,7 +66,7 @@
   - Added log clearing for clean debugging
 - **Performance**: 9 conversation turns → 2 turns (78% reduction)
 - **Performance**: 5 tool calls → 1 tool call (80% reduction)
-- **Priority**: 🟢 LOW - Resolved for 002-spl-transfer
+- **Priority**: 🟡 MEDIUM - Tool confusion fixed, but discovery loops still causing depth issues
 
 #### **5. Service Timeout** (1/13 failures)
 - **Error**: `Timeout waiting for reev-agent to become healthy`
@@ -128,6 +130,7 @@
 - **Immediate Goal**: Achieve 70%+ success rate (from current 31%) - PROGRESS MADE
 - **Phase 5 Completion**: Target 85%+ overall success rate
 - **Production Ready**: 95%+ success rate with fallback mechanisms
+- **Current Blocker**: Discovery loops preventing agents from executing clear intent actions
 
 #### **Recent Progress - MAJOR ACHIEVEMENTS**
 - **MaxDepthError Fix**: ✅ Complete resolution for SPL transfers (002-spl-transfer)
@@ -135,5 +138,7 @@
 - **Transaction Parsing**: Fixed JSON parsing for all response formats
 - **System Prompt Optimization**: Eliminated redundant discovery calls
 - **JSON Parsing Fix**: Fixed chainId field mapping in Jupiter API responses
+- **Tool Confusion Resolution**: Fixed Jupiter lending tool selection logic
+- **Response Extraction**: Improved JSON parsing from mixed natural language responses
 - **Success Rate Improvement**: 23% → 31% (8% improvement)
 - **Infrastructure**: Added log clearing for clean debugging

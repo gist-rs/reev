@@ -54,7 +54,7 @@ impl Tool for JupiterLendEarnMintTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Mint jTokens (shares) in Jupiter lending. Use when user wants to 'mint jTokens', 'create shares', or 'mint positions' based on share count, not token amounts. Works with share counts.".to_string(),
+            description: "Mint jTokens by SHARES in Jupiter lending (advanced). ONLY use when user specifies share amounts or wants exact share quantities. DO NOT use if user mentions token amounts like '0.1 SOL' - use jupiter_lend_earn_deposit instead. Works with share counts, not token amounts.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -68,7 +68,7 @@ impl Tool for JupiterLendEarnMintTool {
                     },
                     "shares": {
                         "type": "integer",
-                        "description": "The amount of tokens to deposit/mint in the smallest unit (for USDC with 6 decimals, 50000000 = 50 USDC)"
+                        "description": "The amount of SHARES to mint (not token amounts). For token amounts like '0.1 SOL', use jupiter_lend_earn_deposit instead."
                     }
                 },
                 "required": ["asset", "signer", "shares"],
@@ -155,7 +155,7 @@ impl Tool for JupiterLendEarnRedeemTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Redeem/burn jTokens (shares) from Jupiter lending. Use when user wants to 'redeem jTokens', 'burn shares', or 'close positions' based on share count, not token amounts. Works with share counts.".to_string(),
+            description: "Redeem/burn jTokens by SHARES from Jupiter lending (advanced). ONLY use when user specifies share amounts to redeem. For withdrawing token amounts, use jupiter_lend_earn_withdraw instead. Works with share counts, not token amounts.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -169,7 +169,7 @@ impl Tool for JupiterLendEarnRedeemTool {
                     },
                     "shares": {
                         "type": "integer",
-                        "description": "The amount of jTokens to redeem in the smallest unit (for USDC with 6 decimals, 50000000 = 50 jUSDC)"
+                        "description": "The amount of jTokens SHARES to redeem (not token amounts). For token amounts, use jupiter_lend_earn_withdraw instead."
                     }
                 },
                 "required": ["asset", "signer", "shares"],
