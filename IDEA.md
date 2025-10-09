@@ -4,6 +4,112 @@
 
 The Reev framework implements a sophisticated two-tiered scoring system with comprehensive flow benchmark support that has been validated across the full spectrum of possible outcomes. The framework now supports step-by-step execution of multi-step DeFi workflows, ensuring accurate assessment of agent performance while preventing false positives and differentiating between various failure modes.
 
+## 🔒 API-Only Instruction Generation Principle
+
+A core architectural principle of the Reev framework is that **all DeFi protocol instructions must come from official APIs, never from LLM generation**. This ensures authenticity, correctness, and prevents hallucinated transactions.
+
+### Jupiter Operations: API-Exclusive Rule
+
+For Jupiter operations specifically, the framework enforces strict API compliance:
+
+**Forbidden LLM Activities:**
+- ❌ Generating Jupiter transaction instructions
+- ❌ Creating instruction data or parameters
+- ❌ Performing base58 encoding for instruction data
+- ❌ Modifying or formatting API responses
+- ❌ Hallucinating account structures or program calls
+
+**Required API Integration:**
+- ✅ Use official Jupiter SDK methods that call `get_swap_instructions`, `get_deposit_instructions`, `get_withdraw_instructions`
+- ✅ Extract exact instructions returned by Jupiter API without modification
+- ✅ Preserve complete API response structure (program_id, accounts, data)
+- ✅ Use official Jupiter routing and quote APIs for swap operations
+- ✅ Respect API-provided slippage, fees, and routing decisions
+
+### Implementation Examples
+
+**Correct Approach (API-Only):**
+```rust
+// Jupiter swap using official SDK
+let (instructions, _) = jupiter_client
+    .swap(swap_params)
+    .prepare_transaction_components()
+    .await?;
+
+// Extract exact API response
+let raw_instructions: Vec<RawInstruction> = instructions
+    .into_iter()
+    .map(|inst| convert_instruction_to_raw(inst)) // Only format conversion, no data generation
+    .collect();
+```
+
+**Incorrect Approach (LLM Generation):**
+```rust
+// ❌ NEVER DO THIS - LLM-generated instructions
+let instruction = Instruction {
+    program_id: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    accounts: vec![...], // LLM-generated accounts
+    data: bs58::encode(llm_generated_data), // LLM-generated data
+};
+```
+
+### Protocol-Specific Guidelines
+
+**Jupiter Operations:**
+- All routing decisions must come from Jupiter quote API
+- Instruction data must be exactly what Jupiter API returns
+- No custom slippage calculations or fee estimates
+- Use Jupiter SDK's built-in error handling and retry logic
+
+**Native Solana Operations:**
+- System program transfers can use Solana SDK directly
+- SPL token operations use official SPL token program instructions
+- Account creation follows standard Solana patterns
+
+**Other DeFi Protocols:**
+- Must use official protocol SDKs or APIs
+- Never generate custom instruction data
+- Respect protocol-specific validation and requirements
+
+### Enforcement Mechanisms
+
+**Tool-Level Validation:**
+- Jupiter tools validate inputs against API requirements
+- Tools reject attempts to pass custom-generated instruction data
+- Automatic detection of non-API instruction sources
+
+**Prompt Engineering:**
+- System prompts explicitly forbid LLM instruction generation
+- Prompts guide LLM to use appropriate tools for each operation
+- Clear documentation of which operations require API calls
+
+**Scoring System:**
+- Instructions not matching API responses receive zero score
+- On-chain failures from non-API instructions are heavily penalized
+- Perfect scores only possible with authentic API instructions
+
+### Benefits of API-Only Approach
+
+**Security:**
+- Prevents execution of malformed or malicious instructions
+- Eliminates injection attacks through LLM prompt manipulation
+- Ensures all transactions follow protocol specifications
+
+**Correctness:**
+- Guaranteed compatibility with target protocols
+- Eliminates instruction format errors
+- Ensures proper routing and execution paths
+
+**Reliability:**
+- Reduces transaction failure rates
+- Eliminates hallucination-related errors
+- Provides predictable, repeatable results
+
+**Maintainability:**
+- Clear separation between LLM reasoning and protocol execution
+- Easier debugging and troubleshooting
+- Simplified testing and validation
+
 ## 📊 Scoring Architecture
 
 ### Two-Tiered Scoring System
@@ -12,6 +118,11 @@ The Reev framework implements a sophisticated two-tiered scoring system with com
 ```
 Final Score = (Instruction Score × 75%) + (On-Chain Score × 25%)
 ```
+
+**API Compliance scoring:**
+- Instructions from official APIs: Full credit
+- Modified or non-API instructions: Zero credit
+- LLM-generated instructions: Zero credit and potential security flags
 
 #### 1. Instruction Score (75% weight)
 Evaluates the quality of agent-generated transactions against ground truth:

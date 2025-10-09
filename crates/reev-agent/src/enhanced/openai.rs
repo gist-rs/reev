@@ -118,10 +118,11 @@ impl OpenAIAgent {
         } else if user_request.to_lowercase().contains("lend")
             || user_request.to_lowercase().contains("deposit")
             || user_request.to_lowercase().contains("withdraw")
+            || user_request.to_lowercase().contains("mint")
         {
-            2 // Lending operations - max 2 turns
+            3 // Lending and minting operations - max 3 turns to allow completion
         } else {
-            3 // Complex operations - max 3 turns
+            5 // Complex operations - max 5 turns
         };
 
         info!(
@@ -170,6 +171,10 @@ impl OpenAIAgent {
 /// 🧠 Extract tool execution results from agent response
 async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult> {
     info!("[OpenAIAgent] Extracting execution results from response");
+    info!(
+        "[OpenAIAgent] Debug - Raw response string: {}",
+        response_str
+    );
 
     // 🧠 Clean markdown JSON wrapper first (```json ... ```)
     let cleaned_response = if response_str.starts_with("```json") && response_str.ends_with("```") {
@@ -186,6 +191,11 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
         response_str
     };
 
+    info!(
+        "[OpenAIAgent] Debug - Cleaned response string: {}",
+        cleaned_response
+    );
+
     // Try to parse as JSON first
     match serde_json::from_str::<serde_json::Value>(cleaned_response) {
         Ok(json_value) => {
@@ -196,42 +206,70 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                 json_value.get("signatures"),
             ) {
                 info!("[OpenAIAgent] Response already in comprehensive format");
+                info!(
+                    "[OpenAIAgent] Debug - Transactions found: {:?}",
+                    transactions
+                );
+                info!("[OpenAIAgent] Debug - Summary: {:?}", summary);
+                info!("[OpenAIAgent] Debug - Signatures: {:?}", signatures);
 
-                // 🧠 HANDLE MARKDOWN JSON CODE BLOCKS - EXTRACT FROM WRAPPER
-                let final_instructions: Vec<serde_json::Value> = transactions
+                // 🎯 CHECK FOR DIRECT INSTRUCTION OBJECTS IN TRANSACTIONS ARRAY
+                // Handle case where transactions array contains instruction objects directly
+                let direct_instructions: Vec<serde_json::Value> = transactions
                     .as_array()
                     .unwrap_or(&vec![])
                     .iter()
                     .filter_map(|tx| {
-                        // Check if transaction is a string (escaped JSON) or an object
-                        if let Some(tx_str) = tx.as_str() {
-                            // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
-                            // We need to parse this escaped string to get the actual transaction object
-                            match serde_json::from_str::<serde_json::Value>(tx_str) {
-                                Ok(tx_obj) => {
-                                    info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
-                                    // Extract instructions from the transaction object
-                                    tx_obj.get("instructions").map(|instructions| {
-                                        if instructions.is_array() {
-                                            // Get the array of instruction objects
-                                            instructions.as_array().unwrap_or(&vec![]).to_vec()
-                                        } else {
-                                            // Handle single instruction object
-                                            vec![instructions.clone()]
-                                        }
-                                    })
-                                }
-                                Err(parse_error) => {
-                                    warn!(
-                                        "[OpenAIAgent] Failed to parse escaped JSON transaction object: {}",
-                                        parse_error
-                                    );
-                                    None
-                                }
-                            }
+                        // Check if this is a direct instruction object (has program_id, accounts, data)
+                        if tx.get("program_id").is_some()
+                            && tx.get("accounts").is_some()
+                            && tx.get("data").is_some()
+                        {
+                            info!(
+                                "[OpenAIAgent] Found direct instruction object in transactions array"
+                            );
+                            Some(tx.clone())
                         } else {
-                            // Transaction is already an object, extract instructions directly
-                            info!("[OpenAIAgent] Processing transaction object directly");
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !direct_instructions.is_empty() {
+                    info!(
+                        "[OpenAIAgent] Processing {} direct instruction objects",
+                        direct_instructions.len()
+                    );
+                    info!(
+                        "[OpenAIAgent] Debug - Direct instruction objects found: {:?}",
+                        direct_instructions
+                    );
+                    return Ok(ExecutionResult {
+                        transactions: direct_instructions,
+                        summary: summary.as_str().unwrap_or("").to_string(),
+                        signatures: signatures
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .filter_map(|s| s.as_str())
+                            .map(|s| s.to_string())
+                            .collect(),
+                    });
+                }
+
+                // 🎯 CHECK FOR WRAPPED INSTRUCTION OBJECTS (jupiter_redeem format)
+                // Handle case where transactions array contains objects with "instructions" field
+                let wrapped_instructions: Vec<serde_json::Value> = transactions
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .filter_map(|tx| {
+                        // Check if this is a wrapped instruction object with "instructions" field
+                        if tx.get("instructions").is_some() {
+                            info!(
+                                "[OpenAIAgent] Found wrapped instruction object with instructions field"
+                            );
+                            // Extract the instructions array from the wrapped object
                             tx.get("instructions").map(|instructions| {
                                 if instructions.is_array() {
                                     // Get the array of instruction objects
@@ -241,11 +279,80 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                                     vec![instructions.clone()]
                                 }
                             })
+                        } else {
+                            None
                         }
                     })
                     .flatten()
                     .collect();
 
+                if !wrapped_instructions.is_empty() {
+                    info!(
+                        "[OpenAIAgent] Processing {} wrapped instruction objects",
+                        wrapped_instructions.len()
+                    );
+                    info!(
+                        "[OpenAIAgent] Debug - Wrapped instruction objects found: {:?}",
+                        wrapped_instructions
+                    );
+                    return Ok(ExecutionResult {
+                        transactions: wrapped_instructions,
+                        summary: summary.as_str().unwrap_or("").to_string(),
+                        signatures: signatures
+                            .as_array()
+                            .unwrap_or(&vec![])
+                            .iter()
+                            .filter_map(|s| s.as_str())
+                            .map(|s| s.to_string())
+                            .collect(),
+                    });
+                }
+
+                // 🧠 HANDLE MARKDOWN JSON CODE BLOCKS - EXTRACT FROM WRAPPER
+                let final_instructions: Vec<serde_json::Value> = transactions
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .filter_map(|tx| {
+                        let tx_str = tx.as_str().unwrap_or_default();
+
+                        // The transaction string contains escaped JSON like "{\"instructions\":[...]}"
+                        // We need to parse this escaped string to get the actual transaction object
+                        match serde_json::from_str::<serde_json::Value>(tx_str) {
+                            Ok(tx_obj) => {
+                                info!("[OpenAIAgent] Successfully parsed escaped JSON transaction object");
+                                // Extract instructions from the transaction object
+                                tx_obj.get("instructions").map(|instructions| {
+                                    if instructions.is_array() {
+                                        // Get the array of instruction objects
+                                        instructions.as_array().unwrap_or(&vec![]).to_vec()
+                                    } else {
+                                        // Handle single instruction object
+                                        vec![instructions.clone()]
+                                    }
+                                })
+                            }
+                            Err(parse_error) => {
+                                warn!(
+                                    "[OpenAIAgent] Failed to parse escaped JSON transaction object: {}",
+                                    parse_error
+                                );
+                                None
+                            }
+                        }
+                    })
+                    .flatten()
+                    .collect();
+
+                info!(
+                    "[OpenAIAgent] Debug - Final instructions from escaped JSON: {:?}",
+                    final_instructions
+                );
+
+                info!(
+                    "[OpenAIAgent] Debug - Returning execution result with {} instructions",
+                    final_instructions.len()
+                );
                 return Ok(ExecutionResult {
                     transactions: final_instructions,
                     summary: summary.as_str().unwrap_or("").to_string(),
@@ -284,6 +391,10 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                     .map(|s| s.to_string())
                     .collect();
 
+                info!(
+                    "[OpenAIAgent] Debug - Extracted {} instructions from structured response",
+                    tx_count
+                );
                 return Ok(ExecutionResult {
                     transactions: instructions.as_array().unwrap_or(&vec![]).to_vec(),
                     summary: format!(
@@ -313,9 +424,13 @@ async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult
                 })
             }
         }
-        Err(_parse_error) => {
+        Err(parse_error) => {
+            warn!(
+                "[OpenAIAgent] Failed to parse JSON as structured response: {}",
+                parse_error
+            );
+            info!("[OpenAIAgent] Debug - Falling back to natural language parsing");
             // Pure natural language response
-            info!("[OpenAIAgent] Pure natural language response detected");
             Ok(ExecutionResult {
                 transactions: vec![],
                 summary: response_str.trim().to_string(),

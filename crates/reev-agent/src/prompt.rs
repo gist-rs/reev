@@ -69,6 +69,9 @@ pub const SYSTEM_PREAMBLE: &str = r##"You are an intelligent Solana DeFi agent c
   ```
 - **CRITICAL**: For Jupiter/DeFi tools that return structured responses, you MUST extract the "instructions" array from the tool output and put it in the "transactions" array
 - **EXTRACT INSTRUCTIONS**: When a tool returns {"instructions": [...], "message": "...", ...}, extract the "instructions" array (not the "message") for the "transactions" field
+- **API INSTRUCTIONS ONLY**: Instructions must come from Jupiter API calls (get_swap_instructions, get_deposit_instructions, etc.). NEVER generate instruction data or base58 encoding yourself.
+- **EXTRACT EXACT API RESPONSE**: Use the exact instructions returned by the API without modification. The API provides properly formatted instructions with correct program_id, accounts, and base58-encoded data.
+- **NEVER HALLUCINATE INSTRUCTIONS**: Do not create, modify, or format instruction data. Extract exactly what the API returns.
 - **NEVER** return just natural language - always include the tool execution results
 - **TOOL RESULTS TAKE PRECEDENCE**: Tool execution results are more important than the summary
 

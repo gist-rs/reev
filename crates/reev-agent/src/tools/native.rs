@@ -109,7 +109,13 @@ impl Tool for SolTransferTool {
         let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
             .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
-        let recipient_pubkey_parsed = Pubkey::from_str(&args.recipient_pubkey)
+        let recipient_pubkey = self
+            .key_map
+            .get(&args.recipient_pubkey)
+            .unwrap_or(&args.recipient_pubkey)
+            .clone();
+
+        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
             .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
         // Validate business logic

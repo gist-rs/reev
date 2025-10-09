@@ -54,7 +54,7 @@ impl Tool for JupiterMintTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Mint jTokens in Jupiter lending by depositing underlying tokens. Use this tool when the user wants to 'mint jUSDC', 'mint jTokens', or 'create a lending position' by depositing tokens like USDC. This tool handles both the deposit and minting in one operation.".to_string(),
+            description: "Mint jTokens in Jupiter lending by depositing underlying tokens. Use this tool DIRECTLY when the user wants to mint jUSDC, jSOL, or other jTokens. This tool handles both the deposit and minting in one operation without needing to check positions first. DO NOT call jupiter_earn before or after jupiter_mint - jupiter_mint handles everything needed.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

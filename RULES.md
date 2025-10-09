@@ -115,7 +115,16 @@ This document establishes the official coding conventions and architectural rule
 -   **Agent Parity**: Both deterministic and AI agents must handle flows using the same interface and produce consistent results.
 -   **Timeout Handling**: Each step must respect individual timeout constraints.
 
-### Rule 4.6: Testing and Validation Requirements
+### Rule 4.6: API-Only Instruction Generation for Jupiter Operations
+-   **Jupiter API Mandate**: All Jupiter instructions MUST come from official Jupiter API calls (get_swap_instructions, get_deposit_instructions, get_withdraw_instructions, etc.).
+-   **No LLM Instruction Generation**: The LLM is strictly FORBIDDEN from generating Jupiter transaction instructions, instruction data, or base58-encoded data.
+-   **Exact API Extraction**: Tools must extract the exact instructions returned by Jupiter API without modification, formatting, or interpretation.
+-   **API Response Integrity**: Preserve the complete structure of API responses including program_id, accounts, and data fields exactly as returned by Jupiter.
+-   **SDK Enforcement**: Use only official Jupiter SDK methods that internally call the Jupiter API. Direct API manipulation is prohibited.
+-   **Instruction Validation**: All Jupiter instructions must be validated against the actual Jupiter API response format and content.
+-   **No Custom Data Encoding**: Never create custom instruction data or perform base58 encoding for Jupiter operations.
+
+### Rule 4.7: Testing and Validation Requirements
 -   **Score Validation Suite**: Must maintain comprehensive test suite with validated score scenarios.
 -   **Regression Testing**: All score validations must pass on every code change.
 -   **Performance Monitoring**: Track scoring system performance and ensure consistent execution times.
