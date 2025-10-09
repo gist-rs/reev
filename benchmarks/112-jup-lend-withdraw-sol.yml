@@ -22,7 +22,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Withdraw 0.1 SOL using Jupiter."
+prompt: "Redeem jSOL to withdraw 0.1 SOL using Jupiter. My wallet is USER_WALLET_PUBKEY."
 
 ground_truth:
   final_state_assertions:

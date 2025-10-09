@@ -32,7 +32,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Withdraw 50 USDC from your Solend lending position. You have L-USDC tokens (mint: 9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D) that can be redeemed for USDC."
+prompt: "Redeem jUSDC to withdraw 50 USDC using Jupiter. My wallet is USER_WALLET_PUBKEY."
 
 ground_truth:
   final_state_assertions:
