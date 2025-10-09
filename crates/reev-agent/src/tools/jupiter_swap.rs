@@ -71,7 +71,7 @@ impl Tool for JupiterSwapTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Swap tokens using Jupiter's aggregator for best rates and routes. This finds the optimal path for token exchanges across multiple DEXs.".to_string(),
+            description: "Swap tokens using Jupiter's aggregator for best rates and routes. This finds the optimal path for token exchanges across multiple DEXs. NOTE: If you don't see account balance information in the context, use get_account_balance tool first to verify sufficient funds before swapping.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -169,9 +169,7 @@ impl Tool for JupiterSwapTool {
             status: "success".to_string(),
             completed: true,
             next_action: "STOP".to_string(),
-            message: format!(
-                "Successfully executed {instruction_count} jupiter_swap operation(s)"
-            ),
+            message: format!("Successfully executed {instruction_count} jupiter_swap operation(s)"),
         };
 
         // Serialize the enhanced response to JSON string.
