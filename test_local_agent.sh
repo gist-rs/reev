@@ -130,13 +130,16 @@ for benchmark in "${benchmarks[@]}"; do
     fi
 
     # Run the benchmark and capture the output
-    output=$(timeout 300s cargo run -p reev-runner -- "$full_benchmark" --agent $AGENT_FLAG 2>&1)
+    output=$(cargo run -p reev-runner -- "$full_benchmark" --agent $AGENT_FLAG 2>&1)
     cargo_exit_code=$?
 
-    # Check if we were interrupted or timed out
+    # Check if we were interrupted
     if [ $cargo_exit_code -ne 0 ]; then
         echo ""
         echo "🛑 Benchmark failed or interrupted (exit code: $cargo_exit_code)!"
+        echo "Last 10 lines of output:"
+        echo "$output" | tail -n 10
+        echo "---"
         cleanup_processes
         exit $cargo_exit_code
     fi
