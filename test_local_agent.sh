@@ -4,6 +4,48 @@
 # Usage: ./test_local_agent.sh [--local] [benchmark1.yml benchmark2.yml ...]
 # Default: deterministic agents, all benchmarks
 
+# Cleanup function to kill existing processes
+cleanup_processes() {
+    echo "🧹 Cleaning up processes..."
+
+    # Kill all cargo processes first (most aggressive)
+    pkill -9 -f "cargo" 2>/dev/null || true
+
+    # Kill reev-agent processes
+    pkill -9 -f "reev-agent" 2>/dev/null || true
+
+    # Kill surfpool processes
+    pkill -9 -f "surfpool" 2>/dev/null || true
+
+    # Kill any remaining processes on ports
+    pids=$(lsof -ti:9090 2>/dev/null)
+    if [ ! -z "$pids" ]; then
+        echo "  Killing processes on port 9090: $pids"
+        kill -9 $pids 2>/dev/null || true
+    fi
+
+    pids=$(lsof -ti:8899 2>/dev/null)
+    if [ ! -z "$pids" ]; then
+        echo "  Killing processes on port 8899: $pids"
+        kill -9 $pids 2>/dev/null || true
+    fi
+
+    echo "✅ Cleanup complete"
+    }
+
+    # Function to show help
+    show_help() {
+        echo "Usage: $0 [--kill] [--local] [benchmark1.yml benchmark2.yml ...]"
+        echo ""
+        echo "Options:"
+        echo "  --kill          Kill all existing reev processes and exit"
+        echo "  --local         Test with enhanced agents (requires tool-calling capable model)"
+        echo "                  Default: deterministic agents (works with any model)"
+        echo "  [benchmarks...] Optional specific benchmark files to test"
+        echo "                  If not provided, tests all benchmarks"
+        echo "  -h, --help       Show this help message"
+    }
+
 # Default to deterministic agents
 AGENT_TYPE="deterministic"
 AGENT_FLAG="deterministic"
@@ -12,18 +54,18 @@ SPECIFIC_BENCHMARKS=()
 # Parse command line arguments
 for arg in "$@"; do
     case $arg in
+        --kill)
+            echo "🧹 Killing all reev processes..."
+            cleanup_processes
+            exit 0
+            ;;
         --local)
             AGENT_TYPE="local"
             AGENT_FLAG="local"
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 [--local] [benchmark1.yml benchmark2.yml ...]"
-            echo "  --local         Test with enhanced agents (requires tool-calling capable model)"
-            echo "                  Default: deterministic agents (works with any model)"
-            echo "  [benchmarks...]  Optional specific benchmark files to test"
-            echo "                  If not provided, tests all benchmarks"
-            echo "  -h, --help       Show this help message"
+            show_help
             exit 0
             ;;
         *.yml)
@@ -60,6 +102,12 @@ else
     done
 fi
 
+# Cleanup before starting
+cleanup_processes
+
+# Set up cleanup on script exit and interruption
+trap 'echo ""; echo "🛑 Interrupted! Cleaning up..."; cleanup_processes; exit 130' INT TERM
+
 echo "Testing ${#benchmarks[@]} benchmark(s) with $AGENT_TYPE agents (flag: --agent $AGENT_FLAG)"
 if [ ${#SPECIFIC_BENCHMARKS[@]} -gt 0 ]; then
     echo "Specific benchmarks: ${benchmarks[*]}"
@@ -80,7 +128,18 @@ for benchmark in "${benchmarks[@]}"; do
     else
         full_benchmark="$benchmark"
     fi
-    output=$(cargo run -p reev-runner -- "$full_benchmark" --agent $AGENT_FLAG 2>&1)
+
+    # Run the benchmark and capture the output
+    output=$(timeout 300s cargo run -p reev-runner -- "$full_benchmark" --agent $AGENT_FLAG 2>&1)
+    cargo_exit_code=$?
+
+    # Check if we were interrupted or timed out
+    if [ $cargo_exit_code -ne 0 ]; then
+        echo ""
+        echo "🛑 Benchmark failed or interrupted (exit code: $cargo_exit_code)!"
+        cleanup_processes
+        exit $cargo_exit_code
+    fi
 
     # Debug: Print last few lines of output if it failed
     if ! echo "$output" | grep -q "✅.*Succeeded\|❌.*Failed"; then
