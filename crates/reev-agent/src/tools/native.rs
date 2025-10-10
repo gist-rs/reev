@@ -4,7 +4,9 @@
 //! including SOL transfers and SPL token transfers, acting as thin wrappers
 //! around the protocol handlers.
 
+use crate::flow::GlobalFlowTracker;
 use crate::protocols::native::{handle_sol_transfer, handle_spl_transfer};
+use reev_lib::agent::ToolResultStatus;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -12,6 +14,7 @@ use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Instant;
 use thiserror::Error;
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
@@ -125,6 +128,9 @@ impl Tool for SolTransferTool {
             ));
         }
 
+        // Start timing for flow tracking
+        let start_time = Instant::now();
+
         // Call the appropriate protocol handler
         let raw_instructions = match args.operation {
             NativeTransferOperation::Sol => handle_sol_transfer(
@@ -165,6 +171,31 @@ impl Tool for SolTransferTool {
                 .map_err(NativeTransferError::ProtocolCall)?
             }
         };
+
+        let execution_time = start_time.elapsed().as_millis() as u32;
+
+        // Record flow data
+        let tool_args = json!({
+            "user_pubkey": args.user_pubkey,
+            "recipient_pubkey": args.recipient_pubkey,
+            "amount": args.amount,
+            "operation": args.operation,
+            "mint_address": args.mint_address
+        })
+        .to_string();
+
+        GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
+            tool_name: Self::NAME.to_string(),
+            tool_args,
+            execution_time_ms: execution_time,
+            result_status: ToolResultStatus::Success,
+            result_data: Some(json!({
+                "instruction_count": raw_instructions.len(),
+                "operation": format!("{:?}", args.operation)
+            })),
+            error_message: None,
+            depth: 1, // Default depth
+        });
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

@@ -6,6 +6,7 @@ use tracing::{info, warn};
 
 use crate::{
     context::integration::ContextIntegration,
+    flow::{create_flow_infrastructure, GlobalFlowTracker},
     prompt::SYSTEM_PREAMBLE,
     tools::{
         AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -68,6 +69,24 @@ impl OpenAIAgent {
             .base_url("http://localhost:1234/v1")
             .build()?;
 
+        // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization
+        let conversation_depth = if enhanced_prompt_data.has_context {
+            // Context provided - use efficient direct action depth
+            enhanced_prompt_data.recommended_depth as usize
+        } else {
+            // Discovery mode - use extended depth for exploration
+            context_integration.determine_optimal_depth(&initial_state, &key_map, &payload.id)
+                as usize
+        };
+
+        info!(
+            "[OpenAIAgent] Using conversation depth: {} for request",
+            conversation_depth
+        );
+
+        // 🛠️ Create flow tracking infrastructure
+        let _flow_tracker = create_flow_infrastructure();
+
         // 🛠️ Instantiate tools with context-aware key_map
         let sol_tool = SolTransferTool {
             key_map: key_map.clone(),
@@ -126,21 +145,6 @@ impl OpenAIAgent {
             .tool(lend_earn_tokens_tool)
             .build();
 
-        // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization
-        let conversation_depth = if enhanced_prompt_data.has_context {
-            // Context provided - use efficient direct action depth
-            enhanced_prompt_data.recommended_depth as usize
-        } else {
-            // Discovery mode - use extended depth for exploration
-            context_integration.determine_optimal_depth(&initial_state, &key_map, &payload.id)
-                as usize
-        };
-
-        info!(
-            "[OpenAIAgent] Using conversation depth: {} for request",
-            conversation_depth
-        );
-
         // Add explicit stop instruction to the user request for simple operations
         let enhanced_user_request = if conversation_depth == 1 {
             format!("{user_request}\n\nIMPORTANT: Execute this operation and then STOP. Do not continue or repeat the operation.")
@@ -162,12 +166,24 @@ impl OpenAIAgent {
         // 🎯 EXTRACT TOOL EXECUTION RESULTS FROM CONVERSATION
         let execution_result = extract_execution_results(&response_str).await?;
 
-        // 🎯 FORMAT COMPREHENSIVE RESPONSE
-        let comprehensive_response = json!({
+        // 🎯 EXTRACT FLOW DATA FROM GLOBAL TRACKER
+        let flow_data = GlobalFlowTracker::get_flow_data();
+
+        // 🎯 FORMAT COMPREHENSIVE RESPONSE WITH FLOWS
+        let mut comprehensive_response = json!({
             "transactions": execution_result.transactions,
             "summary": execution_result.summary,
             "signatures": execution_result.signatures
         });
+
+        // Add flow data if available
+        if let Some(flows) = flow_data {
+            comprehensive_response["flows"] = json!(flows);
+            info!(
+                "[OpenAIAgent] Flow data captured: {} tool calls",
+                flows.total_tool_calls
+            );
+        }
 
         info!(
             "[OpenAIAgent] Comprehensive response with {} transactions, {} signatures",

@@ -60,6 +60,8 @@ struct LlmResponse {
     transactions: Option<Vec<serde_json::Value>>,
     summary: Option<String>,
     signatures: Option<Vec<String>>,
+    // Flow information containing tool calls and execution order
+    flows: Option<reev_lib::agent::FlowData>,
 }
 
 /// Structs for deserializing the `context_prompt` YAML.
@@ -148,9 +150,11 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
                             .as_array()
                             .unwrap_or(&vec![])
                             .iter()
-                            .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                            .filter_map(|s| s.as_str())
+                            .map(|s| s.to_string())
                             .collect(),
                     ),
+                    flows: None, // Flow data not available in legacy responses
                 };
                 return Ok(Json(response));
             }
@@ -192,9 +196,11 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
                         .as_array()
                         .unwrap_or(&vec![])
                         .iter()
-                        .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                        .filter_map(|s| s.as_str())
+                        .map(|s| s.to_string())
                         .collect(),
                 ),
+                flows: None, // Flow data not available in legacy responses
             };
             return Ok(Json(response));
         }
@@ -209,6 +215,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
         transactions: None,
         summary: None,
         signatures: None,
+        flows: None, // Flow data not available in legacy responses
     };
 
     Ok(Json(response))
@@ -444,6 +451,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         transactions: None,
         summary: None,
         signatures: None,
+        flows: None, // Flow data not available in legacy responses
     };
 
     Ok(Json(response))

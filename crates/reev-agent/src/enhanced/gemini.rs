@@ -1,10 +1,12 @@
 use anyhow::Result;
 use rig::{completion::Prompt, prelude::*, providers::gemini};
+use serde_json::json;
 use std::collections::HashMap;
 use tracing::info;
 
 use crate::{
     enhanced::enhanced_context::EnhancedContextAgent,
+    flow::{create_flow_infrastructure, GlobalFlowTracker},
     prompt::SYSTEM_PREAMBLE,
     tools::{
         AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -55,6 +57,9 @@ impl GeminiAgent {
             "{}\n\nUSER REQUEST: {}",
             payload.context_prompt, payload.prompt
         );
+
+        // 🛠️ Create flow tracking infrastructure
+        let _flow_tracker = create_flow_infrastructure();
 
         // 🛠️ Instantiate tools with enhanced context awareness
         let sol_tool = SolTransferTool {
@@ -129,6 +134,25 @@ impl GeminiAgent {
             &tool_call_response
         };
 
-        Ok(serde_json::to_string(instruction)?)
+        // 🎯 EXTRACT FLOW DATA FROM GLOBAL TRACKER
+        let flow_data = GlobalFlowTracker::get_flow_data();
+
+        // 🎯 FORMAT COMPREHENSIVE RESPONSE WITH FLOWS
+        let mut comprehensive_response = json!({
+            "transactions": [],
+            "summary": instruction.to_string(),
+            "signatures": []
+        });
+
+        // Add flow data if available
+        if let Some(flows) = flow_data {
+            comprehensive_response["flows"] = json!(flows);
+            info!(
+                "[GeminiAgent] Flow data captured: {} tool calls",
+                flows.total_tool_calls
+            );
+        }
+
+        Ok(serde_json::to_string(&comprehensive_response)?)
     }
 }

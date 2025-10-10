@@ -3,13 +3,16 @@
 //! This tool provides AI agent access to Jupiter's swap functionality,
 //! acting as a thin wrapper around the protocol handler.
 
+use crate::flow::GlobalFlowTracker;
 use crate::protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
+use reev_lib::agent::ToolResultStatus;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Instant;
 use thiserror::Error;
 use tracing::info;
 
@@ -192,7 +195,8 @@ impl Tool for JupiterSwapTool {
             return Err(JupiterSwapError::SameMint);
         }
 
-        // Call the protocol handler
+        // Call the protocol handler with flow tracking
+        let start_time = Instant::now();
         let raw_instructions = handle_jupiter_swap(
             user_pubkey,
             input_mint,
@@ -203,6 +207,7 @@ impl Tool for JupiterSwapTool {
         )
         .await
         .map_err(JupiterSwapError::ProtocolCall)?;
+        let execution_time = start_time.elapsed().as_millis() as u32;
 
         // 🎯 Create enhanced response with metadata
         let instruction_count = raw_instructions.len();
@@ -240,6 +245,29 @@ impl Tool for JupiterSwapTool {
             "[JupiterSwapTool] Generated {} instructions for {}→{} swap",
             instruction_count, args.input_mint, args.output_mint
         );
+
+        // Record flow data
+        let tool_args = json!({
+            "user_pubkey": args.user_pubkey,
+            "input_mint": args.input_mint,
+            "output_mint": args.output_mint,
+            "amount": args.amount,
+            "slippage_bps": args.slippage_bps
+        })
+        .to_string();
+
+        GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
+            tool_name: Self::NAME.to_string(),
+            tool_args,
+            execution_time_ms: execution_time,
+            result_status: ToolResultStatus::Success,
+            result_data: Some(json!({
+                "instruction_count": instruction_count,
+                "swap_response": swap_response
+            })),
+            error_message: None,
+            depth: 1, // Default depth
+        });
 
         Ok(output)
     }

@@ -120,12 +120,54 @@ pub struct LlmResponse {
     pub transactions: Option<Vec<RawInstruction>>,
     pub summary: Option<String>,
     pub signatures: Option<Vec<String>>,
+    // Flow information containing tool calls and execution order
+    pub flows: Option<FlowData>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct LlmResult {
     #[serde(deserialize_with = "deserialize_string_to_instructions")]
     pub text: Vec<RawInstruction>,
+}
+
+/// Flow information containing tool calls and execution order
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlowData {
+    /// Sequential list of tool calls made during execution
+    pub tool_calls: Vec<ToolCallInfo>,
+    /// Total number of tool calls
+    pub total_tool_calls: u32,
+    /// Tool usage statistics
+    pub tool_usage: std::collections::HashMap<String, u32>,
+}
+
+/// Information about a specific tool call
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallInfo {
+    /// Tool name
+    pub tool_name: String,
+    /// Arguments passed to tool (JSON string)
+    pub tool_args: String,
+    /// Execution time in milliseconds
+    pub execution_time_ms: u32,
+    /// Tool result status
+    pub result_status: ToolResultStatus,
+    /// Result data if successful (JSON value)
+    pub result_data: Option<serde_json::Value>,
+    /// Error message if failed
+    pub error_message: Option<String>,
+    /// Timestamp when tool was called
+    pub timestamp: std::time::SystemTime,
+    /// Conversation depth when tool was called
+    pub depth: u32,
+}
+
+/// Tool execution result status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ToolResultStatus {
+    Success,
+    Error,
+    Timeout,
 }
 
 fn deserialize_string_to_instructions<'de, D>(
