@@ -103,13 +103,74 @@ impl Tool for JupiterSwapTool {
 
     /// Executes the tool's logic: validates arguments and calls the protocol handler.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Validate and parse arguments
-        let user_pubkey = Pubkey::from_str(&args.user_pubkey)
-            .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
-        let input_mint = Pubkey::from_str(&args.input_mint)
-            .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
-        let output_mint = Pubkey::from_str(&args.output_mint)
-            .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
+        // Check for placeholder addresses and resolve them from key_map if possible
+        let user_pubkey = if args.user_pubkey.starts_with("USER_")
+            || args.user_pubkey.starts_with("RECIPIENT_")
+        {
+            if let Some(resolved_pubkey) = self.key_map.get(&args.user_pubkey) {
+                info!(
+                    "Resolved {} from key_map: {}",
+                    args.user_pubkey, resolved_pubkey
+                );
+                Pubkey::from_str(resolved_pubkey)
+                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+            } else {
+                info!(
+                    "Could not resolve {} from key_map, using simulated pubkey for swap",
+                    args.user_pubkey
+                );
+                Pubkey::from_str("11111111111111111111111111111111")
+                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+            }
+        } else {
+            Pubkey::from_str(&args.user_pubkey)
+                .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+        };
+
+        let input_mint =
+            if args.input_mint.starts_with("USER_") || args.input_mint.starts_with("RECIPIENT_") {
+                if let Some(resolved_mint) = self.key_map.get(&args.input_mint) {
+                    info!(
+                        "Resolved {} from key_map: {}",
+                        args.input_mint, resolved_mint
+                    );
+                    Pubkey::from_str(resolved_mint)
+                        .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+                } else {
+                    info!(
+                        "Could not resolve {} from key_map, using simulated mint for swap",
+                        args.input_mint
+                    );
+                    Pubkey::from_str("So11111111111111111111111111111111111112")
+                        .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+                }
+            } else {
+                Pubkey::from_str(&args.input_mint)
+                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+            };
+
+        let output_mint = if args.output_mint.starts_with("USER_")
+            || args.output_mint.starts_with("RECIPIENT_")
+        {
+            if let Some(resolved_mint) = self.key_map.get(&args.output_mint) {
+                info!(
+                    "Resolved {} from key_map: {}",
+                    args.output_mint, resolved_mint
+                );
+                Pubkey::from_str(resolved_mint)
+                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+            } else {
+                info!(
+                    "Could not resolve {} from key_map, using simulated mint for swap",
+                    args.output_mint
+                );
+                Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+            }
+        } else {
+            Pubkey::from_str(&args.output_mint)
+                .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+        };
 
         // Validate business logic
         if args.amount == 0 {

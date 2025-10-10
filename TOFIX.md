@@ -1,154 +1,154 @@
-# TOFIX - Issues to Resolve
+Overview
+While most benchmarks now work at 100% success rate, these 3 benchmarks need specific fixes.
 
-## Enhanced Agent Performance - Current Status (2025-01-10)
+---
 
-### 🎉 MAJOR ACHIEVEMENT - 100% Jupiter Operations Success Rate Achieved (+300% improvement)
-- **Context Validation Enhancement**: Enhanced validation for SOL-only and token-only scenarios
-- **Tool Selection Logic**: Clear guidance between deposit/mint/withdraw/redeem tools  
-- **Response Parsing Resilience**: Fixed JSON extraction from mixed natural language responses
-- **Discovery Loop Prevention**: 10/13 benchmarks now work without unnecessary discovery
-- **Compilation Infrastructure**: All Rust compilation errors resolved across codebase
-- **Basic Operations**: SOL transfers, SPL transfers, and Jupiter swaps working at 100% success
-- **Jupiter Lending**: **PERFECT 100% success rate for ALL operations (SOL + USDC)**
-- **Tool Confusion Resolution**: Completely resolved by removing confusing mint/redeem tools
-- **🎯 CRITICAL FIX**: Placeholder resolution in Jupiter tools now properly resolves from key_map instead of using simulated pubkeys
-- **🏆 BREAKTHROUGH**: All four Jupiter lending benchmarks now achieve 100% success rate
+## 🎯 **Benchmark 115: jup-lend-mint-usdc.yml**
 
-### 🔧 Technical Fixes Applied
-- **Context Validation**: Enhanced for lending positions and token-only scenarios
-- **System Prompt Enhancement**: Added Jupiter lending tool selection guidance
-- **JSON Parsing**: Improved extraction from mixed natural language responses
-- **Import Consistency**: Standardized rig vs rig-core imports across all modules
-- **Response Extraction**: Enhanced parsing for comprehensive format responses
-- **Tool Boundaries**: Clear "DO NOT use" guidance in tool descriptions
-- **Tool Confusion Resolution**: Removed mint/redeem tools temporarily to focus on core operations
-- **Terminology Clarity**: Fixed mixed terminology in prompts causing tool confusion
-- **🎯 PLACEHOLDER RESOLUTION FIX**: Fixed JupiterLendEarnDepositTool and JupiterLendEarnWithdrawTool to resolve USER_WALLET_PUBKEY from key_map instead of using simulated pubkeys
-- **🏆 JUPITER OPERATIONS FIX**: Resolved all USDC program execution and agent action issues
+### **Issue Status**: DISABLED (currently skipped)
+### **Root Cause**: Tool confusion terminology mixing
 
-### ✅ ALL CRITICAL ISSUES RESOLVED
-- **USDC Operations**: Jupiter USDC deposit/withdraw operations now working at 100% success rate
-- **Real Transaction Execution**: All Jupiter operations execute with real on-chain signatures
-- **Placeholder Resolution**: Complete fix for USER_WALLET_PUBKEY resolution from key_map
-- **Agent Action Generation**: All agents properly generate and execute instructions
-- **Tool Integration**: Jupiter SDK integration working perfectly for both SOL and USDC
+#### **Problem**
+- Agent mixes "mint by depositing" terminology causing multiple tool calls
+- Mint/redeem tools were temporarily disabled to resolve confusion
+- Benchmark expects jUSDC minting operations but tools aren't available
 
-### 🔄 Remaining Non-Critical Issues
-- **Real API Integration**: Discovery tools currently use simulated data for placeholder addresses
-- **Price Data Accuracy**: LendEarnTokensTool fetches real prices but other tools use simulated data
-- **Error Handling**: Can improve error messages for insufficient context scenarios
-- **Advanced Tool Selection**: Mint/redeem operations can be re-enabled with proper logic
-- **Multi-Step Workflows**: Complex operations like benchmark 200 still hitting depth limits
+#### **Solution Required**
+1. **Re-enable Mint/Redeem Tools**: Add back `JupiterLendEarnMintTool` and `JupiterLendEarnRedeemTool`
+2. **Enhanced Terminology Detection**: Implement smart logic to distinguish:
+   - "Mint jTokens by depositing" → Use deposit tool
+   - "Mint jUSDC shares" → Use mint tool
+3. **Tool Selection Logic**: Add exclusive boundaries to prevent multiple calls
 
-### 🟢 **All Critical Issues RESOLVED (2025-01-10)**
+#### **Implementation Code**
+```rust
+// In enhanced agents - add back these tools
+.tool(jupiter_lend_earn_mint_tool {
+    key_map: key_map.clone(),
+})
+.tool(jupiter_lend_earn_redeem_tool {
+    key_map: key_map.clone(),
+})
+```
 
-#### **1. Placeholder Resolution in Jupiter Tools** - ✅ RESOLVED
-- **Previous Error**: `Provided owner is not allowed` and `Invalid base58 data`
-- **Previously Affected**: 110-jup-lend-deposit-sol (75% score), 112-jup-lend-withdraw-sol (75% score)
-- **Root Cause**: Jupiter tools were using simulated pubkeys (`11111111111111111111111111111111`) instead of resolving USER_WALLET_PUBKEY from key_map
-- **Solution Applied**: Enhanced placeholder detection to resolve from key_map before falling back to simulated values
-- **Result**: 110-jup-lend-deposit-sol (100% score), 112-jup-lend-withdraw-sol (100% score)
-- **Status**: 🟢 RESOLVED - SOL operations now working perfectly
+#### **Priority**: HIGH - Advanced operations functionality needed
 
-#### **2. USDC Program Execution Issues** - ✅ RESOLVED
-- **Previous Error**: `This program may not be used for executing instructions` and `Agent returned no actions`
-- **Previously Affected**: 111-jup-lend-deposit-usdc (75% score), 113-jup-lend-withdraw-usdc (75% score)
-- **Root Cause**: Temporary infrastructure issues and agent action generation problems
-- **Solution Applied**: Fixed Jupiter program execution and agent instruction generation
-- **Result**: 111-jup-lend-deposit-usdc (100% score), 113-jup-lend-withdraw-usdc (100% score)
-- **Status**: 🟢 RESOLVED - ALL USDC operations now working perfectly
+---
 
-#### **3. Complete Jupiter Operations Success** - ✅ MAJOR ACHIEVEMENT
-- **All Four Benchmarks**: 110, 111, 112, 113 now at 100% success rate
-- **Transaction Execution**: Real on-chain transactions with proper signatures
-- **Agent Integration**: Perfect agent-to-tool-to-protocol integration
-- **Status**: 🟢 RESOLVED - Complete success achieved
+## 🎯 **Benchmark 116: jup-lend-redeem-usdc.yml**
 
-#### **3. Edge Case Context Validation** - ✅ RESOLVED
-- **Previous Error**: `MaxDepthError: (reached limit: 5)`
-- **Previously Affected**: 111-jup-lend-deposit-usdc.yml
-- **Root Cause**: Token-only scenarios falling back to discovery mode
-- **Solution Applied**: Enhanced context validation for token-only scenarios
-- **Result**: 111-jup-lend-deposit-usdc.yml now working at 75% success rate
-- **Status**: 🟢 RESOLVED - All token scenarios working properly
+### **Issue Status**: DISABLED (currently skipped)
+### **Root Cause**: Same as above - tool confusion and disabled mint/redeem tools
 
-### ✅ **ALL CRITICAL ISSUES RESOLVED**
-- **HTTP Request Failures**: ✅ FIXED - Response parsing improved, communication stable
-- **Tool Discovery Issues**: ✅ FIXED - All required tools now available in enhanced agents  
-- **Pubkey Parsing**: ✅ FIXED - Placeholder resolution working correctly for ALL operations
-- **MaxDepthError (Basic)**: ✅ FIXED - Simple benchmarks now work without depth issues
-- **Service Timeout**: ✅ FIXED - Service stability improved
-- **Compilation Errors**: ✅ FIXED - All Rust compilation issues resolved
-- **Placeholder Resolution**: ✅ FIXED - Jupiter tools now properly resolve USER_WALLET_PUBKEY from key_map
-- **USDC Program Execution**: ✅ FIXED - All USDC operations now working perfectly
-- **Agent Action Generation**: ✅ FIXED - All agents properly generate instructions
-- **Jupiter Operations**: ✅ FIXED - Complete success for SOL and USDC operations
+#### **Problem**
+- Agent mixes "redeem to withdraw" terminology
+- Redeem tools currently disabled
+- Benchmark expects jUSDC redemption operations
 
-### 📊 Benchmark Results Summary (2025-01-10 - FINAL)
+#### **Solution Required**
+Same as benchmark 115:
+1. **Re-enable Redeem Tool**: Add back `JupiterLendEarnRedeemTool`
+2. **Smart Terminology Parsing**: Detect when user wants redemption vs withdrawal
+3. **Exclusive Tool Boundaries**: Clear "ONLY use when" guidance
 
-#### **Deterministic Agent (Baseline)**  
-- **Overall**: 100% success rate (13/13 benchmarks)
-- **Reliability**: Perfect - no failures
-- **Performance**: Consistent across all operation types
+#### **Implementation Steps**
+1. Fix placeholder resolution in mint/redeem tools (same as lend tools)
+2. Add back to enhanced agent toolset
+3. Update tool descriptions with exclusive boundaries
+4. Test with mixed terminology scenarios
 
-#### **Enhanced Local Agent (Final Status)**
-- **Overall**: 77% success rate (10/13 benchmarks) - **OUTSTANDING ACHIEVEMENT**
-- **Perfect Success**: ✅ 001-sol-transfer (100%), ✅ 002-spl-transfer (100%), ✅ 100-jup-swap-sol-usdc (100%), ✅ 114-jup-positions-and-earnings (100%)
-- **🏆 Jupiter Operations PERFECT**: ✅ 110-jup-lend-deposit-sol (100%), ✅ 111-jup-lend-deposit-usdc (100%), ✅ 112-jup-lend-withdraw-sol (100%), ✅ 113-jup-lend-withdraw-usdc (100%)
-- **Advanced Operations**: ⚠️ 115-jup-lend-mint-usdc (DISABLED), ⚠️ 116-jup-lend-redeem-usdc (DISABLED)
-- **Multi-Step Issues**: ❌ 200-jup-swap-then-lend-deposit (MaxDepthError)
-- **Key Achievement**: **+300% relative improvement** from baseline
-- **🎯 MAJOR MILESTONE**: **PERFECT 100% success rate for ALL Jupiter operations**
+#### **Priority**: HIGH - Complete Jupiter functionality needed
 
-### 🎯 Next Steps - Prioritized Action Plan
+---
 
-#### **Priority 1: USDC Program Support** (Critical)
-1. **Fix Jupiter USDC Operations**: Resolve program execution issues
-   - Investigate Jupiter lending program deployment on test validator
-   - Check if USDC mint account is properly configured
-   - Verify USDC token account creation and initialization
-   - Test with different USDC operation flows
+## 🎯 **Benchmark 200: jup-swap-then-lend-deposit.yml**
 
-2. **Multi-Step Workflow Management**: Fix completion recognition in complex operations
-   - Add better state tracking for multi-operation workflows
-   - Implement "stop after success" logic for compound operations
-   - Reduce unnecessary exploration after successful execution
+### **Issue Status**: ERROR - MaxDepthError reached
+### **Root Cause**: Multi-step workflow hitting conversation depth limit
 
-#### **Priority 2: Advanced Operations Development** (High)
-3. **Re-implement Mint/Redeem Tools**: Develop sophisticated tool selection logic
-   - Create separate enhanced agents for advanced operations
-   - Implement context-aware tool selection with terminology detection
-   - Add tool combination validation before execution
-   - Test with mixed terminology scenarios
+#### **Current Error**
+```
+MaxDepthError: (reached limit: 5)
+```
 
-4. **Context Validation Refinement**: Fix remaining token-only discovery fallbacks
-   - Improve context sufficiency detection for edge cases
-   - Add smarter validation for different token/lending position combinations
-   - Reduce unnecessary discovery calls when context is adequate
+#### **Problem Analysis**
+- Agent hitting conversation depth limit at step 1 (swap)
+- Complex multi-step operations require more conversation turns
+- Current depth setting insufficient for flow benchmarks
 
-#### **Priority 3: Production Readiness** (Medium)
-5. **Performance Monitoring**: Add comprehensive metrics collection
-   - Track tool selection accuracy rates
-   - Monitor conversation depth usage patterns
-   - Measure context validation effectiveness
+#### **Solution Required**
+1. **Increase Conversation Depth**: Flow benchmarks need extended depth
+2. **Multi-Step State Management**: Agent needs to track step completion
+3. **Efficient Tool Usage**: Reduce unnecessary discovery calls
 
-6. **Documentation**: Create operational guidelines for enhanced agents
-   - Document tool selection best practices
-   - Create troubleshooting guides for common issues
-   - Establish performance benchmarking procedures
+#### **Implementation Code**
+```rust
+// Already applied - depth increased from 7 to 10
+id if id.contains("200-") => ContextConfig {
+    enable_context: true,
+    context_depth: 5,
+    discovery_depth: 10,  // Increased from 7
+    force_discovery: false,
+},
+```
 
-#### **Target Metrics**
-- **Short Term**: ✅ ACHIEVED 77%+ success rate (from baseline 23%) - **EXCEEDED GOAL**
-- **Medium Term**: 95%+ success rate by re-enabling advanced operations
-- **Production Ready**: 98%+ success rate with complete workflow management
+#### **Additional Fixes Needed**
+1. **Placeholder Resolution in Jupiter Swap Tool**: Same pattern as lend tools
+2. **Step Completion Recognition**: Agent should stop after successful swap
+3. **State Transfer**: Pass swap results to lend deposit step
 
-#### **Recent Progress - 🏆 COMPLETE SUCCESS ACHIEVED**
-- **Placeholder Resolution**: ✅ Fixed critical Jupiter tools to resolve USER_WALLET_PUBKEY from key_map
-- **🎯 JUPITER OPERATIONS PERFECT**: ✅ 100% success for ALL Jupiter operations (SOL + USDC)
-- **Response Parsing**: ✅ JSON extraction robust across all response formats
-- **Discovery Prevention**: ✅ 10/13 benchmarks work without unnecessary tool calls
-- **Infrastructure Stability**: ✅ No more HTTP communication failures
-- **Real Transaction Execution**: ✅ All Jupiter operations execute with on-chain signatures
-- **Success Rate Achievement**: 23% → 77% (**+300% improvement**)
-- **Production Foundation**: ✅ **Perfect for ALL Jupiter operations**
-- **Key Insight**: Proper placeholder resolution + Jupiter SDK integration = production-ready AI agents
+#### **Current Status**:
+- ✅ Placeholder fix applied to Jupiter swap tool
+- ✅ Depth limit increased to 10
+- ❌ Still hitting MaxDepthError (needs investigation)
+
+#### **Priority**: HIGH - Multi-step workflow functionality critical
+
+---
+
+## 🔧 **Common Fix Pattern: Placeholder Resolution**
+
+All three issues relate to the same core problem. Here's the fix pattern:
+
+```rust
+// Apply to ALL Jupiter tools
+let user_pubkey = if args.user_pubkey.starts_with("USER_") {
+    if let Some(resolved_pubkey) = self.key_map.get(&args.user_pubkey) {
+        info!("Resolved {} from key_map: {}", args.user_pubkey, resolved_pubkey);
+        Pubkey::from_str(resolved_pubkey)?
+    } else {
+        Pubkey::from_str("11111111111111111111111111111111")?
+    }
+} else {
+    Pubkey::from_str(&args.user_pubkey)?
+};
+```
+
+---
+
+## 📊 **Expected Results After Fixes**
+
+| Benchmark | Current Status | Expected After Fix |
+|-----------|---------------|-------------------|
+| 115-jup-lend-mint-usdc | DISABLED | ✅ 90%+ success |
+| 116-jup-lend-redeem-usdc | DISABLED | ✅ 90%+ success |
+| 200-jup-swap-then-lend-deposit | ERROR | ✅ 85%+ success |
+
+**Overall Impact**: From 77% → **90%+** success rate for enhanced agents
+
+---
+
+## 🎯 **Implementation Priority**
+
+1. **Fix Benchmark 200** (HIGHEST) - Multi-step workflows critical
+2. **Fix Benchmarks 115/116** (HIGH) - Complete Jupiter functionality
+3. **Test & Validate** - Ensure fixes work without regressions
+
+---
+
+## 🏆 **Success Criteria**
+
+- **All 3 benchmarks** execute successfully with 85%+ scores
+- **No MaxDepthError** in multi-step workflows
+- **Complete Jupiter lending stack** functional (lend, mint, redeem, withdraw)
+- **Production-ready enhanced agents** for complex DeFi operations

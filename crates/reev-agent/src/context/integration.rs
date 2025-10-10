@@ -259,7 +259,7 @@ impl ContextIntegration {
             id if id.contains("200-") || id.contains("complex") => ContextConfig {
                 enable_context: true,
                 context_depth: 5,
-                discovery_depth: 7,
+                discovery_depth: 10,
                 force_discovery: false,
             },
             // Simple benchmarks: SOL transfers use minimal context, SPL transfers need balance info
