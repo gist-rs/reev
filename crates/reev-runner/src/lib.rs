@@ -3,7 +3,7 @@ use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
     env::GymEnv,
-    flow::{ExecutionResult, ExecutionStatistics, FlowLogger},
+    flow::{ExecutionResult, FlowLogger},
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
@@ -164,7 +164,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         );
 
         // Complete flow logging if enabled
-        if let Some(flow_logger) = agent.flow_logger.take() {
+        if let Some(mut flow_logger) = agent.flow_logger.take() {
             let start_time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -178,6 +178,11 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 * 1000;
 
             let statistics = flow_logger.get_current_statistics();
+            let final_status = if final_observation.last_transaction_status == "Success" {
+                FinalStatus::Succeeded
+            } else {
+                FinalStatus::Failed
+            };
             let execution_result = ExecutionResult {
                 success: final_status == FinalStatus::Succeeded,
                 score,
@@ -191,6 +196,58 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                     error = %e,
                     "Failed to complete flow logging"
                 );
+            } else {
+                // Successfully completed flow logging, render the flow as ASCII tree
+                info!(
+                    benchmark_id = %test_case.id,
+                    "Flow log completed, rendering as ASCII tree"
+                );
+
+                // Find the most recent flow log file for this benchmark
+                if let Ok(flow_logs_dir) = std::env::var("REEV_FLOW_LOG_PATH") {
+                    let logs_path = std::path::PathBuf::from(flow_logs_dir);
+                    if let Ok(entries) = std::fs::read_dir(&logs_path) {
+                        let mut latest_flow_file: Option<(
+                            std::path::PathBuf,
+                            std::time::SystemTime,
+                        )> = None;
+
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                                if filename.contains(&test_case.id) && filename.contains("local") {
+                                    if let Ok(metadata) = std::fs::metadata(&path) {
+                                        if let Ok(modified) = metadata.modified() {
+                                            match &latest_flow_file {
+                                                None => latest_flow_file = Some((path, modified)),
+                                                Some((_, latest_time)) => {
+                                                    if modified > *latest_time {
+                                                        latest_flow_file = Some((path, modified));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some((flow_file_path, _)) = latest_flow_file {
+                            match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
+                                Ok(tree_output) => {
+                                    info!("\n🌊 Flow Log ASCII Tree:\n{tree_output}");
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        benchmark_id = %test_case.id,
+                                        error = %e,
+                                        "Failed to render flow log as ASCII tree"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -343,7 +400,7 @@ async fn run_flow_benchmark(
     };
 
     // Complete flow logging if enabled
-    if let Some(flow_logger) = agent.flow_logger.take() {
+    if let Some(mut flow_logger) = agent.flow_logger.take() {
         let total_time_ms = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()

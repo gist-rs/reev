@@ -604,3 +604,232 @@ pub struct AgentBehaviorAnalysis {
     pub average_decision_time_ms: u64,
     pub error_recovery_rate: f64,
 }
+
+/// ASCII tree rendering for flow logs
+impl FlowLog {
+    /// Render the flow log as an ASCII tree
+    pub fn render_as_ascii_tree(&self) -> String {
+        let duration = if let Some(end) = self.end_time {
+            match end.duration_since(self.start_time) {
+                Ok(d) => format!("{}ms", d.as_millis()),
+                Err(_) => "Unknown".to_string(),
+            }
+        } else {
+            "In Progress".to_string()
+        };
+
+        let status = if let Some(result) = &self.final_result {
+            if result.success {
+                "✅ SUCCESS"
+            } else {
+                "❌ FAILED"
+            }
+        } else {
+            "⏳ RUNNING"
+        };
+
+        let root_label = format!(
+            "🌊 {} [{}] - {} (Duration: {})",
+            self.benchmark_id, self.agent_type, status, duration
+        );
+
+        let mut children = Vec::new();
+
+        // Add summary if available
+        if let Some(result) = &self.final_result {
+            let summary = format!(
+                "📊 Score: {:.1}% | LLM Calls: {} | Tool Calls: {} | Tokens: {}",
+                result.score * 100.0,
+                result.statistics.total_llm_calls,
+                result.statistics.total_tool_calls,
+                result.statistics.total_tokens
+            );
+            children.push(ascii_tree::Tree::Leaf(vec![summary]));
+        }
+
+        // Add events as tree nodes
+        for (i, event) in self.events.iter().enumerate() {
+            children.push(self.render_event_as_tree_node(i + 1, event));
+        }
+
+        let tree = ascii_tree::Tree::Node(root_label, children);
+        let mut buffer = String::new();
+        ascii_tree::write_tree(&mut buffer, &tree).unwrap();
+        buffer
+    }
+
+    fn render_event_as_tree_node(&self, event_num: usize, event: &FlowEvent) -> ascii_tree::Tree {
+        let event_label = match &event.event_type {
+            FlowEventType::LlmRequest => {
+                let model = event
+                    .content
+                    .data
+                    .get("model")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let tokens = event
+                    .content
+                    .data
+                    .get("context_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                format!(
+                    "🤖 Event {}: LLM Request (Depth: {}) - Model: {}, Tokens: {}",
+                    event_num, event.depth, model, tokens
+                )
+            }
+            FlowEventType::ToolCall => {
+                let tool_name = event
+                    .content
+                    .data
+                    .get("tool_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let exec_time = event
+                    .content
+                    .data
+                    .get("execution_time_ms")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                format!(
+                    "🔧 Event {}: Tool Call (Depth: {}) - {} ({}ms)",
+                    event_num, event.depth, tool_name, exec_time
+                )
+            }
+            FlowEventType::ToolResult => {
+                let tool_name = event
+                    .content
+                    .data
+                    .get("tool_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let result_status = event
+                    .content
+                    .data
+                    .get("result_status")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                format!(
+                    "📋 Event {}: Tool Result (Depth: {}) - {} - {}",
+                    event_num, event.depth, tool_name, result_status
+                )
+            }
+            FlowEventType::TransactionExecution => {
+                let signature = event
+                    .content
+                    .data
+                    .get("signature")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let success = event
+                    .content
+                    .data
+                    .get("success")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let status = if success { "✅" } else { "❌" };
+                format!(
+                    "💰 Event {}: Transaction {} - {}",
+                    event_num,
+                    status,
+                    &signature[..8.min(signature.len())]
+                )
+            }
+            FlowEventType::Error => {
+                let error_type = event
+                    .content
+                    .data
+                    .get("error_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                format!(
+                    "🚨 Event {}: Error (Depth: {}) - {}",
+                    event_num, event.depth, error_type
+                )
+            }
+            FlowEventType::BenchmarkStateChange => {
+                format!(
+                    "🔄 Event {}: State Change (Depth: {})",
+                    event_num, event.depth
+                )
+            }
+        };
+
+        let mut children = Vec::new();
+
+        // Add timestamp
+        let timestamp = format!("⏰ Time: {:?}", event.timestamp);
+        children.push(ascii_tree::Tree::Leaf(vec![timestamp]));
+
+        // Add event-specific details
+        match &event.event_type {
+            FlowEventType::LlmRequest => {
+                if let Some(prompt) = event.content.data.get("prompt").and_then(|v| v.as_str()) {
+                    let preview = if prompt.len() > 100 {
+                        format!("{}...", &prompt[..100])
+                    } else {
+                        prompt.to_string()
+                    };
+                    children.push(ascii_tree::Tree::Leaf(vec![format!(
+                        "💬 Prompt: {}",
+                        preview
+                    )]));
+                }
+            }
+            FlowEventType::ToolCall => {
+                if let Some(args) = event.content.data.get("tool_args").and_then(|v| v.as_str()) {
+                    let preview = if args.len() > 80 {
+                        format!("{}...", &args[..80])
+                    } else {
+                        args.to_string()
+                    };
+                    children.push(ascii_tree::Tree::Leaf(vec![format!(
+                        "📝 Args: {}",
+                        preview
+                    )]));
+                }
+            }
+            FlowEventType::ToolResult => {
+                if let Some(error) = event
+                    .content
+                    .data
+                    .get("error_message")
+                    .and_then(|v| v.as_str())
+                {
+                    children.push(ascii_tree::Tree::Leaf(vec![format!("❌ Error: {}", error)]));
+                } else if let Some(result) = event.content.data.get("result_data") {
+                    let result_str = serde_json::to_string_pretty(result).unwrap_or_default();
+                    let preview = if result_str.len() > 100 {
+                        format!("{}...", &result_str[..100])
+                    } else {
+                        result_str
+                    };
+                    children.push(ascii_tree::Tree::Leaf(vec![format!(
+                        "✅ Result: {}",
+                        preview
+                    )]));
+                }
+            }
+            FlowEventType::Error => {
+                if let Some(message) = event.content.data.get("message").and_then(|v| v.as_str()) {
+                    children.push(ascii_tree::Tree::Leaf(vec![format!(
+                        "💥 Message: {}",
+                        message
+                    )]));
+                }
+            }
+            _ => {}
+        }
+
+        ascii_tree::Tree::Node(event_label, children)
+    }
+}
+
+/// Load and render a flow log from file as ASCII tree
+pub fn render_flow_file_as_ascii_tree(
+    file_path: &std::path::Path,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let content = std::fs::read_to_string(file_path)?;
+    let flow: FlowLog = serde_yaml::from_str(&content)?;
+    Ok(flow.render_as_ascii_tree())
+}

@@ -3692,6 +3692,7 @@ name = "reev-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ascii_tree",
  "async-trait",
  "bs58",
  "jup-sdk",

@@ -15,13 +15,17 @@ use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Path to a specific benchmark YAML file or a directory containing multiple benchmarks.
+    /// Path to a specific benchmark YAML file, a directory containing multiple benchmarks, or a flow log file.
     path: PathBuf,
 
     /// The agent to run the benchmarks with.
     /// Can be 'deterministic', 'local', or a specific model name like 'gemini-2.5-pro'.
     #[arg(long, default_value = "deterministic")]
     agent: String,
+
+    /// Render flow log as ASCII tree (only works with .yml flow files)
+    #[arg(long)]
+    render_flow: bool,
 }
 
 /// Initializes the OpenTelemetry pipeline for tracing.
@@ -61,19 +65,39 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     info!("--- Reev Evaluation Runner ---");
-    info!(
-        "Running benchmarks at: '{}' with agent: '{}'",
-        cli.path.display(),
-        cli.agent
-    );
 
-    // Run the benchmarks using the library function.
-    let results = reev_runner::run_benchmarks(cli.path, &cli.agent).await?;
+    // Check if this is a flow log file that should be rendered
+    if cli.render_flow {
+        if cli.path.extension().and_then(|s| s.to_str()) == Some("yml") {
+            info!("Rendering flow log as ASCII tree: '{}'", cli.path.display());
+            match reev_lib::flow::render_flow_file_as_ascii_tree(&cli.path) {
+                Ok(tree_output) => {
+                    println!("\n{tree_output}");
+                }
+                Err(e) => {
+                    eprintln!("Error rendering flow log: {e}");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            eprintln!("Error: --render-flow requires a .yml flow log file");
+            std::process::exit(1);
+        }
+    } else {
+        info!(
+            "Running benchmarks at: '{}' with agent: '{}'",
+            cli.path.display(),
+            cli.agent
+        );
 
-    // Render the results.
-    for result in &results {
-        let tree_output = renderer::render_result_as_tree(result);
-        info!("\n{tree_output}");
+        // Run the benchmarks using the library function.
+        let results = reev_runner::run_benchmarks(cli.path, &cli.agent).await?;
+
+        // Render the results.
+        for result in &results {
+            let tree_output = renderer::render_result_as_tree(result);
+            info!("\n{tree_output}");
+        }
     }
 
     // Shutdown tracing.

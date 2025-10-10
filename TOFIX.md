@@ -3,6 +3,52 @@ While most benchmarks now work at 100% success rate, these 3 benchmarks need spe
 
 ---
 
+## ✅ **COMPLETED: Cargo.toml Dependency Fixes**
+
+### **Task**: Fix missing Solana and Jupiter dependencies causing compilation errors
+### **Status**: COMPLETED
+### **Implementation**: Fixed dependency configuration in `crates/reev-lib/Cargo.toml` and `crates/reev-runner/Cargo.toml`
+
+#### **Changes Made**
+- Added missing Solana dependencies to `[dependencies]` section in `reev-lib/Cargo.toml`
+- Removed duplicate dependency definitions
+- Updated OpenTelemetry dependencies in `reev-runner/Cargo.toml` to use workspace versions
+- Fixed import issues by adding back necessary `FromStr` and `SystemTime` imports
+
+#### **Code Changes**
+```toml
+# Added to reev-lib/Cargo.toml [dependencies] section
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
+spl-associated-token-account = { workspace = true }
+spl-token = { workspace = true, features = ["no-entrypoint"] }
+solana-program = { workspace = true }
+solana-transaction-status = { workspace = true }
+solana-system-interface = { workspace = true }
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
+
+# Updated in reev-runner/Cargo.toml
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+```
+
+#### **Import Fixes**
+- Added `std::str::FromStr` imports back to files that actually use them
+- Added `std::time::SystemTime` import to test modules
+- Fixed mutable borrowing issues in flow logger usage
+
+#### **Result**
+- ✅ All compilation errors resolved
+- ✅ `cargo clippy --fix --allow-dirty` now passes without errors
+- ✅ All unit tests pass
+- ✅ Project builds successfully
+
+---
+
+
+---
+
 ## ✅ **COMPLETED: TUI Score Display Enhancement**
 
 ### **Task**: Show score percentage before checkmark with fixed 3-char format

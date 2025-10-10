@@ -1,5 +1,4 @@
 use crate::flow::{FlowEvent, FlowLog};
-use std::time::SystemTime;
 use tracing::{debug, info, warn};
 
 /// Simplified flow tracer for logging (OpenTelemetry integration disabled for now)
@@ -207,6 +206,7 @@ pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use crate::flow::{EventContent, FlowEventType, LlmRequestContent};
+    use std::time::SystemTime;
 
     #[test]
     fn test_flow_tracer_creation() {
