@@ -19,6 +19,8 @@ use crate::{
     run::run_agent,
     tools::{
         jupiter_earn::JupiterEarnTool, jupiter_lend_earn_deposit::JupiterLendEarnDepositTool,
+        jupiter_lend_earn_mint_redeem::JupiterLendEarnMintTool,
+        jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemTool,
         jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool, jupiter_swap::JupiterSwapTool,
         native::SolTransferTool, native::SplTransferTool,
     },
@@ -106,13 +108,18 @@ impl FlowAgent {
                 key_map: key_map.clone(),
             }) as Box<dyn ToolDyn>,
         );
-        // JupiterPositionsTool consolidated into JupiterEarnTool
-        // tools.insert(
-        //     "jupiter_positions".to_string(),
-        //     Box::new(JupiterPositionsTool {
-        //         key_map: HashMap::new(),
-        //     }) as Box<dyn ToolDyn>,
-        // );
+        tools.insert(
+            "jupiter_lend_earn_mint".to_string(),
+            Box::new(JupiterLendEarnMintTool {
+                key_map: key_map.clone(),
+            }) as Box<dyn ToolDyn>,
+        );
+        tools.insert(
+            "jupiter_lend_earn_redeem".to_string(),
+            Box::new(JupiterLendEarnRedeemTool {
+                key_map: key_map.clone(),
+            }) as Box<dyn ToolDyn>,
+        );
         tools.insert(
             "jupiter_earn".to_string(),
             Box::new(JupiterEarnTool {

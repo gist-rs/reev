@@ -3,44 +3,55 @@ description: Mint jUSDC lending position using Jupiter
 tags: ["jupiter", "lend", "mint", "yield", "jtoken"]
 
 initial_state:
+  # User's main wallet with 0.1 SOL for transaction fees.
   - pubkey: "USER_WALLET_PUBKEY"
-    owner: "11111111111111111111111111111111"
-    lamports: 2000000000
+    owner: "11111111111111111111111111111111" # System Program
+    lamports: 100000000
 
+  # User's USDC token account with an initial balance of 100 USDC.
+  # This format is verbose but correctly maps to the InitialStateItem struct.
+  # The test runner is expected to derive the ATA from the `data` field and use it
+  # as the `pubkey` for this account. We provide a placeholder here.
+  # The lamports are the rent-exempt minimum for a token account.
   - pubkey: "USER_USDC_ATA_PLACEHOLDER"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    lamports: 0
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
+    lamports: 2039280
     data:
-      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      owner: "USER_WALLET_PUBKEY"
-      amount: "50000000"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      owner: "USER_WALLET_PUBKEY" # The wallet that owns the tokens
+      amount: "100000000" # 100 USDC (6 decimals)
+
+  # A dummy recipient, sometimes required by test setup helpers.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
 
 prompt: "Mint 50 jUSDC in Jupiter lending using 50 USDC from my token account. This will create a lending position that earns yield."
 
 ground_truth:
-  transaction_status: "Success"
-
   final_state_assertions:
-    - type: SolBalanceChange
-      pubkey: "USER_WALLET_PUBKEY"
-      expected_change_gte: -50000000
-      weight: 0.3
-
+    # After minting 50 jUSDC, the user's USDC balance should be exactly 50.
+    # We use address_derivation to find the ATA, which is the robust way.
     - type: TokenAccountBalance
-      pubkey: "USER_USDC_ATA_PLACEHOLDER"
-      expected: 0
-      weight: 0.3
+      pubkey: "UNUSED_PLACEHOLDER" # Pubkey is not used when address_derivation is present
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
+      expected: 50000000 # 50 USDC
+      weight: 0.5
 
-  expected_instructions:
-    - program_id: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
-      program_id_weight: 0.3
-      accounts:
-        - pubkey: "USER_WALLET_PUBKEY"
-          is_signer: true
-          is_writable: true
-          weight: 0.1
-        - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
-          is_signer: false
-          is_writable: true
-          weight: 0.1
-      data_weight: 0.2
+    # The user should also receive a corresponding amount of jUSDC tokens.
+    # We assert that they have a non-zero balance of the correct jToken.
+    # The mint address is for Jupiter's jUSDC tokens.
+    - type: TokenAccountBalance
+      pubkey: "UNUSED_PLACEHOLDER"
+      address_derivation:
+        type: AssociatedTokenAccount
+        owner: "USER_WALLET_PUBKEY"
+        mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D" # Jupiter jUSDC Mint
+      expected_gte: 1 # Should have *some* jUSDC tokens
+      weight: 0.5
+
+  # For this complex DeFi interaction, success is determined by the on-chain state assertions,
+  # not by a deterministic instruction set.

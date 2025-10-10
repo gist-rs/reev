@@ -14,9 +14,7 @@ mod common;
 use anyhow::Result;
 use glob::glob;
 use project_root::get_project_root;
-use reev_lib::{
-    agent::AgentAction, env::GymEnv, score::calculate_final_score,
-};
+use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_final_score};
 use rstest::rstest;
 use std::path::PathBuf;
 use tracing::info;
@@ -26,8 +24,6 @@ use common::helpers::{
     prepare_jupiter_lend_withdraw_sol, prepare_jupiter_lend_withdraw_usdc, prepare_jupiter_swap,
     setup_env_for_benchmark,
 };
-
-const AGENT_PORT: u16 = 9090;
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
