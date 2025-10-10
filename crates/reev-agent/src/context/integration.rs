@@ -253,13 +253,21 @@ impl ContextIntegration {
     pub fn config_for_benchmark_type(benchmark_id: &str) -> ContextConfig {
         match benchmark_id {
             // Jupiter benchmarks benefit most from context
+            // Mint/redeem operations are more complex and need additional depth
             id if id.contains("jup")
                 && (id.contains("lend") || id.contains("earn") || id.contains("swap")) =>
             {
+                // Mint/redeem operations are especially complex
+                let depth = if benchmark_id.contains("mint") || benchmark_id.contains("redeem") {
+                    12 // Extra depth for mint/redeem operations
+                } else {
+                    10 // Standard increased depth for other Jupiter operations
+                };
+
                 ContextConfig {
                     enable_context: true,
                     context_depth: 5,
-                    discovery_depth: 7,
+                    discovery_depth: depth,
                     force_discovery: false,
                 }
             }
