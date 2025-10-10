@@ -24,7 +24,7 @@ initial_state:
       owner: "USER_WALLET_PUBKEY"
       amount: "0"
 
-prompt: "Using Jupiter, swap 0.1 SOL for USDC. My wallet is USER_WALLET_PUBKEY and my USDC token account is USER_USDC_ATA."
+prompt: "Using Jupiter, swap 0.1 SOL for USDC. My USDC token account is USER_USDC_ATA."
 
 ground_truth:
   final_state_assertions:

@@ -4,8 +4,7 @@
 - we must find the way to monitor the tool calling so we can score agent for `tool calling` too (must call tool precisly, you can imagine what tools should call in order and scoring from that). i can see log at logs/reev-agent.log but not sure how we can collect that to scoring, any idea?
 
 # TOFIX
-- why we need `My wallet is USER_WALLET_PUBKEY.`? the context should included by say `connected wallet pubkey: {generated_pubkey}`
--
+- revisit kill port.
 
 ## Complex Flows
 - more complex flow in same protocols e.g. swap if not enough then withdraw and deposit. // we should have all combination as possible.

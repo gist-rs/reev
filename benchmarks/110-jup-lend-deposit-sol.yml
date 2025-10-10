@@ -13,7 +13,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Deposit 0.1 SOL into Jupiter lending. My wallet is USER_WALLET_PUBKEY."
+prompt: "Deposit 0.1 SOL into Jupiter lending."
 
 ground_truth:
   final_state_assertions:

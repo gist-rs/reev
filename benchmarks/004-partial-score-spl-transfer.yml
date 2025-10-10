@@ -30,15 +30,15 @@ initial_state:
       owner: "RECIPIENT_WALLET_PUBKEY"
       amount: "0"
 
-prompt: "Please send 5 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
+prompt: "Please send 5 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
 
 # Ground truth expects a proper SPL Token Transfer instruction
 ground_truth:
   expected_instructions:
     - program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-      program_id_weight: 0.5  # High weight for correct program ID
-      data: "3Bxs4vKJW"  # Transfer instruction discriminator
-      data_weight: 0.5     # High weight for correct instruction data
+      program_id_weight: 0.5 # High weight for correct program ID
+      data: "3Bxs4vKJW" # Transfer instruction discriminator
+      data_weight: 0.5 # High weight for correct instruction data
       accounts:
         # Source account (user's USDC ATA)
         - pubkey: "USER_USDC_ATA"
@@ -62,11 +62,11 @@ ground_truth:
     # The user's USDC balance should decrease by exactly 5 USDC
     - type: TokenAccountBalance
       pubkey: "USER_USDC_ATA"
-      expected: 5000000  # 5 USDC remaining (started with 10)
+      expected: 5000000 # 5 USDC remaining (started with 10)
       weight: 1.0
 
     # The recipient's USDC balance should increase to 5 USDC
     - type: TokenAccountBalance
       pubkey: "RECIPIENT_USDC_ATA"
-      expected: 5000000  # 5 USDC received
+      expected: 5000000 # 5 USDC received
       weight: 1.0

@@ -112,7 +112,7 @@ impl ContextIntegration {
         };
 
         let enhanced_prompt =
-            self.format_enhanced_prompt(base_prompt, &context, should_use_context);
+            self.format_enhanced_prompt(base_prompt, &context, should_use_context, key_map);
 
         debug!(
             "[ContextIntegration] Enhanced prompt built: {} chars, context: {}, depth: {}",
@@ -135,11 +135,18 @@ impl ContextIntegration {
         base_prompt: &str,
         context: &AccountContext,
         has_context: bool,
+        key_map: &HashMap<String, String>,
     ) -> String {
         let mut enhanced = String::new();
 
         // Add context header
         enhanced.push_str("=== ACCOUNT CONTEXT ===\n");
+
+        // Add connected wallet information if available
+        if let Some(wallet_pubkey) = key_map.get("USER_WALLET_PUBKEY") {
+            enhanced.push_str(&format!("🔗 Connected Wallet: {wallet_pubkey}\n\n"));
+        }
+
         enhanced.push_str(&context.formatted_context);
         enhanced.push('\n');
 

@@ -14,7 +14,7 @@ initial_state:
     lamports: 0
 
 # The natural language prompt given to the agent.
-prompt: "Please send 0.1 SOL from my wallet (USER_WALLET_PUBKEY) to the recipient (RECIPIENT_WALLET_PUBKEY)."
+prompt: "Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY)."
 
 # The objective criteria for judging the agent's performance.
 ground_truth:

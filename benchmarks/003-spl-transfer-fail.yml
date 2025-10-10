@@ -31,7 +31,7 @@ initial_state:
       owner: "RECIPIENT_WALLET_PUBKEY"
       amount: "0"
 
-prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA). I am the authority (USER_WALLET_PUBKEY)."
+prompt: "Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."
 
 ground_truth:
   final_state_assertions:
