@@ -3,6 +3,7 @@ use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
     env::GymEnv,
+    flow::{ExecutionResult, ExecutionStatistics, FlowLogger},
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
@@ -14,6 +15,7 @@ use reev_lib::{
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 use tracing::{info, instrument, warn};
 
@@ -113,8 +115,22 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             continue;
         }
 
-        // Regular benchmark execution
-        let mut agent = LlmAgent::new(agent_name)?;
+        // Initialize flow logging if enabled
+        let flow_logger = if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+            let output_path =
+                std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
+            let path = PathBuf::from(output_path);
+            std::fs::create_dir_all(&path)?;
+            Some(FlowLogger::new(
+                test_case.id.clone(),
+                agent_name.to_string(),
+                path,
+            ))
+        } else {
+            None
+        };
+
+        let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
         let options = serde_json::to_value(&test_case)
@@ -146,6 +162,38 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             instructions_count = %actions.len(),
             "Benchmark scoring completed"
         );
+
+        // Complete flow logging if enabled
+        if let Some(flow_logger) = agent.flow_logger.take() {
+            let start_time = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            let total_time_ms = (SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+                - start_time)
+                * 1000;
+
+            let statistics = flow_logger.get_current_statistics();
+            let execution_result = ExecutionResult {
+                success: final_status == FinalStatus::Succeeded,
+                score,
+                total_time_ms,
+                statistics,
+            };
+
+            if let Err(e) = flow_logger.complete(execution_result) {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    error = %e,
+                    "Failed to complete flow logging"
+                );
+            }
+        }
+
         // A score >= 0.75 means the instruction was perfect, even if it failed on-chain.
         // This is the primary signal for agent success.
         let final_status = if score >= 0.75 {
@@ -197,7 +245,22 @@ async fn run_flow_benchmark(
         "Starting flow benchmark execution"
     );
 
-    let mut agent = LlmAgent::new(agent_name)?;
+    // Initialize flow logging for flow benchmarks
+    let flow_logger = if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+        let output_path =
+            std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
+        let path = PathBuf::from(output_path);
+        std::fs::create_dir_all(&path)?;
+        Some(FlowLogger::new(
+            test_case.id.clone(),
+            agent_name.to_string(),
+            path,
+        ))
+    } else {
+        None
+    };
+
+    let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
     let mut all_actions = Vec::new();
     let mut flow_trace = ExecutionTrace::new(test_case.prompt.clone());
@@ -278,6 +341,30 @@ async fn run_flow_benchmark(
     } else {
         FinalStatus::Failed
     };
+
+    // Complete flow logging if enabled
+    if let Some(flow_logger) = agent.flow_logger.take() {
+        let total_time_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let statistics = flow_logger.get_current_statistics();
+        let execution_result = ExecutionResult {
+            success: final_status == FinalStatus::Succeeded,
+            score,
+            total_time_ms,
+            statistics,
+        };
+
+        if let Err(e) = flow_logger.complete(execution_result) {
+            warn!(
+                benchmark_id = %test_case.id,
+                error = %e,
+                "Failed to complete flow logging"
+            );
+        }
+    }
 
     let result = TestResult::new(test_case, final_status, score, flow_trace);
 

@@ -3,3 +3,5 @@
 - run `cargo clippy --fix --allow-dirty`  before commit.
 - commit with git convesion e.g. `feat:...`, `fix:...`, `refactor:...` when done for each task.
 - dont add a test on each file, do add to test folder.
+- prefer `match` more than `if`.
+- use `return` instead of `else`.

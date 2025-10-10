@@ -3695,6 +3695,8 @@ dependencies = [
  "async-trait",
  "bs58",
  "jup-sdk",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "reqwest",
  "serde",
  "serde_json",
@@ -3706,8 +3708,12 @@ dependencies = [
  "solana-transaction-status",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
+ "tempfile",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "uuid",
 ]
 
 [[package]]

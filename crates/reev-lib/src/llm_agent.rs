@@ -1,6 +1,11 @@
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
+use crate::flow::{
+    ExecutionResult, ExecutionStatistics, FlowError, FlowLogger, LlmRequestContent,
+    ToolCallContent, ToolResultStatus,
+};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -13,6 +18,8 @@ pub struct LlmAgent {
     api_url: String,
     api_key: Option<String>,
     model_name: String,
+    pub flow_logger: Option<FlowLogger>,
+    current_depth: u32,
 }
 
 impl LlmAgent {
@@ -21,6 +28,14 @@ impl LlmAgent {
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
     pub fn new(agent_name: &str) -> Result<Self> {
+        Self::new_with_flow_logging(agent_name, None)
+    }
+
+    /// Creates a new `LlmAgent` with optional flow logging.
+    pub fn new_with_flow_logging(
+        agent_name: &str,
+        flow_logger: Option<FlowLogger>,
+    ) -> Result<Self> {
         info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
         // Load base API URL from environment variables, falling back to a default.
@@ -58,6 +73,8 @@ impl LlmAgent {
             api_url,
             api_key,
             model_name,
+            flow_logger,
+            current_depth: 0,
         })
     }
 }
@@ -73,6 +90,21 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>> {
+        // Initialize flow logger if not already done and logging is enabled
+        if self.flow_logger.is_none() && std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+            let output_path =
+                std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
+            let path = PathBuf::from(output_path);
+            std::fs::create_dir_all(&path)?;
+
+            self.flow_logger = Some(FlowLogger::new(
+                id.to_string(),
+                self.model_name.clone(),
+                path,
+            ));
+
+            info!("[LlmAgent] Flow logging enabled for benchmark: {}", id);
+        }
         // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
@@ -97,7 +129,19 @@ impl Agent for LlmAgent {
             serde_json::to_string_pretty(&request_payload)?
         );
 
-        // 4. Send the request to the LLM API.
+        // 4. Log LLM request to flow logger
+        if let Some(flow_logger) = &mut self.flow_logger {
+            let context_tokens = context_prompt.len() as u32 / 4; // Rough estimate
+            let llm_request = LlmRequestContent {
+                prompt: prompt.to_string(),
+                context_tokens,
+                model: self.model_name.clone(),
+                request_id: uuid::Uuid::new_v4().to_string(),
+            };
+            flow_logger.log_llm_request(llm_request, self.current_depth);
+        }
+
+        // 5. Send the request to the LLM API.
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
             request_builder = request_builder.header("X-API-Key", api_key);
@@ -108,10 +152,23 @@ impl Agent for LlmAgent {
             .await
             .context("Failed to send request to LLM API")?;
 
-        // 5. Handle API errors.
+        // 6. Handle API errors.
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
+
+            // Log error to flow logger
+            if let Some(flow_logger) = &mut self.flow_logger {
+                use crate::flow::ErrorContent;
+                let error_content = ErrorContent {
+                    error_type: "LLM_API_ERROR".to_string(),
+                    message: format!("LLM API request failed with status {status}: {error_body}"),
+                    stack_trace: None,
+                    context: std::collections::HashMap::new(),
+                };
+                flow_logger.log_error(error_content, self.current_depth);
+            }
+
             anyhow::bail!("LLM API request failed with status {status}: {error_body}");
         }
 
