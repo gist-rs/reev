@@ -382,9 +382,16 @@ impl ProcessUtils {
 
             for line in output_str.lines() {
                 if line.contains(name) && !line.contains("grep") {
-                    if let Some(pid_str) = line.split_whitespace().next() {
-                        if let Ok(pid) = pid_str.parse::<u32>() {
-                            pids.push(pid);
+                    // Extract the command part (after PID)
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let command = parts[1];
+                        // Check if the executable name matches exactly
+                        // This avoids false positives from log files or arguments
+                        if command == name || command.ends_with(&format!("/{name}")) {
+                            if let Ok(pid) = parts[0].parse::<u32>() {
+                                pids.push(pid);
+                            }
                         }
                     }
                 }
@@ -405,9 +412,16 @@ impl ProcessUtils {
 
             for line in output_str.lines() {
                 if line.contains(name) && !line.contains("grep") {
-                    if let Some(pid_str) = line.split_whitespace().next() {
-                        if let Ok(pid) = pid_str.parse::<u32>() {
-                            pids.push(pid);
+                    // Extract the command part (after PID)
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let command = parts[1];
+                        // Check if the executable name matches exactly
+                        // This avoids false positives from log files or arguments
+                        if command == name || command.ends_with(&format!("/{}", name)) {
+                            if let Ok(pid) = parts[0].parse::<u32>() {
+                                pids.push(pid);
+                            }
                         }
                     }
                 }

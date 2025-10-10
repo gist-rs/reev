@@ -16,7 +16,6 @@ use glob::glob;
 use project_root::get_project_root;
 use reev_lib::{
     agent::AgentAction, env::GymEnv, score::calculate_final_score,
-    server_utils::kill_existing_reev_agent,
 };
 use rstest::rstest;
 use std::path::PathBuf;
@@ -60,9 +59,6 @@ async fn test_all_benchmarks_with_deterministic_agent(
 ) -> Result<()> {
     // Initialize tracing for this test to ensure logs are captured when using `--nocapture`.
     let _ = tracing_subscriber::fmt::try_init();
-
-    // Clean up any existing reev-agent processes before starting
-    kill_existing_reev_agent(AGENT_PORT).await?;
 
     for benchmark_path in benchmark_paths {
         info!(
@@ -223,9 +219,6 @@ async fn test_deterministic_agent_jupiter_swap_integration(
 
     let _ = tracing_subscriber::fmt::try_init();
     info!("🧪 Starting deterministic agent integration test for Jupiter Swap");
-
-    // Clean up any existing reev-agent processes before starting
-    kill_existing_reev_agent(AGENT_PORT).await?;
 
     // Set up environment
     let (mut env, test_case, initial_observation) =
