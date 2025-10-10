@@ -23,7 +23,15 @@ impl OtelFlowTracer {
             Self { enabled: false }
         }
     }
+}
 
+impl Default for OtelFlowTracer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OtelFlowTracer {
     /// Trace a complete flow log (simplified)
     pub fn trace_flow(&self, flow: &FlowLog) {
         if !self.enabled {

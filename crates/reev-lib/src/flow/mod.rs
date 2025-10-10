@@ -414,7 +414,7 @@ impl WebsiteExporter {
         Ok(website_data)
     }
 
-    fn build_flow_graph(&self, flows: &[FlowLog]) -> FlowGraph {
+    fn build_flow_graph(&self, _flows: &[FlowLog]) -> FlowGraph {
         // Build interactive flow visualization data
         let nodes = Vec::new();
         let edges = Vec::new();
@@ -430,8 +430,8 @@ impl WebsiteExporter {
         for flow in flows {
             for event in &flow.events {
                 if let FlowEventType::ToolCall = event.event_type {
-                    if let Some(tool_content) =
-                        serde_json::from_value::<ToolCallContent>(event.content.data.clone()).ok()
+                    if let Ok(tool_content) =
+                        serde_json::from_value::<ToolCallContent>(event.content.data.clone())
                     {
                         *total_usage
                             .entry(tool_content.tool_name.clone())
