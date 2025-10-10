@@ -13,7 +13,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "Using Jupiter, mint jTokens by depositing 0.1 SOL. My wallet is USER_WALLET_PUBKEY."
+prompt: "Deposit 0.1 SOL into Jupiter lending. My wallet is USER_WALLET_PUBKEY."
 
 ground_truth:
   final_state_assertions:

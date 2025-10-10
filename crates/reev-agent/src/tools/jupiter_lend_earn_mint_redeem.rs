@@ -79,17 +79,22 @@ impl Tool for JupiterLendEarnMintTool {
     /// Executes the tool's logic: validates arguments and calls the Jupiter API.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Validate arguments
+        tracing::debug!("[jupiter_lend_earn_mint] Starting mint execution with args: asset={}, signer={}, shares={}", args.asset, args.signer, args.shares);
+
         if args.asset.is_empty() {
+            tracing::error!("[jupiter_lend_earn_mint] Asset cannot be empty");
             return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
                 "Asset cannot be empty".to_string(),
             ));
         }
         if args.signer.is_empty() {
+            tracing::error!("[jupiter_lend_earn_mint] Signer cannot be empty");
             return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
                 "Signer cannot be empty".to_string(),
             ));
         }
         if args.shares == 0 {
+            tracing::error!("[jupiter_lend_earn_mint] Shares must be greater than 0");
             return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
                 "Shares must be greater than 0".to_string(),
             ));
@@ -101,6 +106,8 @@ impl Tool for JupiterLendEarnMintTool {
             .get("USER_WALLET_PUBKEY")
             .unwrap_or(&args.signer)
             .clone();
+
+        tracing::debug!("[jupiter_lend_earn_mint] Resolved signer: {}", signer);
 
         // Use the new lend_mint protocol handler which handles Base58 conversion
         use crate::protocols::jupiter;
