@@ -30,8 +30,28 @@ cleanup_processes() {
         kill -9 $pids 2>/dev/null || true
     fi
 
+    # Kill any remaining processes that might hold shared state
+    pkill -9 -f "target/debug/reev-agent" 2>/dev/null || true
+    pkill -9 -f "target/debug/reev-runner" 2>/dev/null || true
+
+    # Wait a moment for processes to fully terminate
+    sleep 1
+
+    # Double-check ports are clear
+    pids=$(lsof -ti:9090 2>/dev/null)
+    if [ ! -z "$pids" ]; then
+        echo "  Force killing remaining processes on port 9090: $pids"
+        kill -9 $pids 2>/dev/null || true
+    fi
+
+    pids=$(lsof -ti:8899 2>/dev/null)
+    if [ ! -z "$pids" ]; then
+        echo "  Force killing remaining processes on port 8899: $pids"
+        kill -9 $pids 2>/dev/null || true
+    fi
+
     echo "✅ Cleanup complete"
-    }
+}
 
     # Function to show help
     show_help() {
@@ -140,8 +160,7 @@ for benchmark in "${benchmarks[@]}"; do
         echo "Last 10 lines of output:"
         echo "$output" | tail -n 10
         echo "---"
-        cleanup_processes
-        exit $cargo_exit_code
+        # Don't exit - continue to next benchmark
     fi
 
     # Debug: Print last few lines of output if it failed

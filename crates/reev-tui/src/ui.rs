@@ -87,16 +87,38 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
         .benchmarks
         .iter()
         .map(|b| {
-            let status_symbol = match b.status {
-                BenchmarkStatus::Pending => Span::styled("[ ]", Style::default()),
-                BenchmarkStatus::Running => Span::styled("[…]", Style::default().fg(Color::Yellow)),
+            let (score_prefix, status_symbol) = match b.status {
+                BenchmarkStatus::Pending => (
+                    Span::styled("000%", Style::default().add_modifier(Modifier::DIM)),
+                    Span::styled("[ ]", Style::default()),
+                ),
+                BenchmarkStatus::Running => (
+                    Span::styled("000%", Style::default().add_modifier(Modifier::DIM)),
+                    Span::styled("[…]", Style::default().fg(Color::Yellow)),
+                ),
                 BenchmarkStatus::Succeeded => {
-                    Span::styled("[✔]", Style::default().fg(Color::Green))
+                    let score = b.result.as_ref().map_or(0.0, |r| r.score);
+                    let percentage = (score * 100.0).round() as u32;
+                    let score_str = format!("{percentage:03}%");
+                    (
+                        Span::styled(score_str, Style::default().add_modifier(Modifier::DIM)),
+                        Span::styled("[✔]", Style::default().fg(Color::Green)),
+                    )
                 }
-                BenchmarkStatus::Failed => Span::styled("[✗]", Style::default().fg(Color::Red)),
+                BenchmarkStatus::Failed => {
+                    let score = b.result.as_ref().map_or(0.0, |r| r.score);
+                    let percentage = (score * 100.0).round() as u32;
+                    let score_str = format!("{percentage:03}%");
+                    (
+                        Span::styled(score_str, Style::default().add_modifier(Modifier::DIM)),
+                        Span::styled("[✗]", Style::default().fg(Color::Red)),
+                    )
+                }
             };
             let file_name = b.path.file_name().unwrap_or_default().to_string_lossy();
             ListItem::new(Line::from(vec![
+                score_prefix,
+                Span::raw(" "),
                 status_symbol,
                 Span::raw(format!(" {file_name}")),
             ]))

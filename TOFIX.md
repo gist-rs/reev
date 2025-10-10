@@ -3,6 +3,46 @@ While most benchmarks now work at 100% success rate, these 3 benchmarks need spe
 
 ---
 
+## ✅ **COMPLETED: TUI Score Display Enhancement**
+
+### **Task**: Show score percentage before checkmark with fixed 3-char format
+### **Status**: COMPLETED
+### **Implementation**: Modified `crates/reev-tui/src/ui.rs`
+
+#### **Changes Made**
+- Added score display with fixed 3-character percentage format (`000%`, `050%`, `100%`)
+- Score appears before the status checkmark with dim color styling
+- Uses actual score from `TestResult.score` field when available
+- Shows `000%` for pending/running benchmarks
+
+#### **Code Changes**
+```rust
+let (score_prefix, status_symbol) = match b.status {
+    BenchmarkStatus::Pending => (
+        Span::styled("000%", Style::default().add_modifier(Modifier::DIM)),
+        Span::styled("[ ]", Style::default()),
+    ),
+    BenchmarkStatus::Succeeded => {
+        let score = b.result.as_ref().map_or(0.0, |r| r.score);
+        let percentage = (score * 100.0).round() as u32;
+        let score_str = format!("{percentage:03}%");
+        (
+            Span::styled(score_str, Style::default().add_modifier(Modifier::DIM)),
+            Span::styled("[✔]", Style::default().fg(Color::Green)),
+        )
+    }
+    // ... similar for other statuses
+};
+```
+
+#### **Result**
+- ✅ Fixed 3-character width ensures consistent alignment
+- ✅ Dim color for score prefix as requested
+- ✅ Real-time score updates when benchmarks complete
+- ✅ No compilation warnings (clippy clean)
+
+---
+
 ## 🎯 **Benchmark 115: jup-lend-mint-usdc.yml**
 
 ### **Issue Status**: DISABLED (currently skipped)
