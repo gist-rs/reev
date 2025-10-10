@@ -55,7 +55,7 @@ impl Tool for JupiterLendEarnWithdrawTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "EXCLUSIVE tool for WITHDRAWING tokens from Jupiter lending. Use ONLY when user specifically says 'withdraw', 'withdrawing', or mentions withdrawing token amounts. DO NOT use for 'redeem' operations - use jupiter_lend_earn_redeem instead. Works with token amounts (e.g., lamports for SOL). If user mentions 'redeem', use jupiter_lend_earn_redeem.".to_string(),
+            description: "EXCLUSIVE tool for WITHDRAWING tokens from Jupiter lending. This is a COMPLETE operation - returns ALL instructions needed to withdraw tokens to your wallet. Use ONLY when user specifically says 'withdraw', 'withdrawing', or mentions withdrawing token amounts. DO NOT use for 'redeem' operations - use jupiter_lend_earn_redeem instead. Works with token amounts (e.g., lamports for SOL). If user mentions 'redeem', use jupiter_lend_earn_redeem.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

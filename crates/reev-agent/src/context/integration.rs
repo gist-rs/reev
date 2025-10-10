@@ -163,7 +163,7 @@ impl ContextIntegration {
             .push_str("- If user says 'deposit' or 'lend' → ONLY use jupiter_lend_earn_deposit\n");
         enhanced.push_str("- If user says 'mint' or 'minting' → ONLY use jupiter_lend_earn_mint\n");
         enhanced.push_str(
-            "- If user says 'withdraw' or 'withdrawing' → ONLY use jupiter_lend_earn_withdraw\n",
+            "- If user says 'withdraw' or 'withdrawing' → ONLY use jupiter_lend_earn_withdraw (COMPLETE operation - returns all instructions)\n",
         );
         enhanced.push_str(
             "- If user says 'redeem' or 'redeeming' → ONLY use jupiter_lend_earn_redeem\n",
@@ -171,6 +171,7 @@ impl ContextIntegration {
         enhanced.push_str(
             "NEVER mix tools. Do NOT call deposit AND mint. Do NOT call withdraw AND redeem.\n",
         );
+        enhanced.push_str("Jupiter tools return COMPLETE instruction sets - NO additional tools needed after success.\n");
         enhanced.push_str("Execute the ONE correct tool and STOP immediately after success.\n\n");
 
         enhanced.push_str("=== USER REQUEST ===\n");
