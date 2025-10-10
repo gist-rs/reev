@@ -1,6 +1,7 @@
 use crate::{
     agent::{AgentAction, AgentObservation},
     benchmark::TestCase,
+    flow::ScoringBreakdown,
     instruction_score::calculate_instruction_score,
 };
 use tracing::{debug, info};
@@ -53,6 +54,63 @@ pub fn calculate_final_score(
         onchain_score, final_score, "Final weighted score calculated."
     );
     final_score
+}
+
+/// Calculates detailed scoring breakdown for analysis
+pub fn calculate_detailed_score(
+    test_case: &TestCase,
+    actions: &[AgentAction],
+    initial_observation: &AgentObservation,
+    final_observation: &AgentObservation,
+) -> ScoringBreakdown {
+    let instruction_score = if test_case.ground_truth.skip_instruction_validation {
+        1.0
+    } else {
+        calculate_instruction_score(test_case, actions, &initial_observation.key_map)
+    };
+
+    let onchain_score = calculate_onchain_score(
+        final_observation,
+        test_case.ground_truth.skip_instruction_validation,
+    );
+
+    let final_score = if test_case.ground_truth.skip_instruction_validation {
+        1.0
+    } else {
+        (instruction_score * INSTRUCTION_SCORE_WEIGHT) + (onchain_score * ONCHAIN_SCORE_WEIGHT)
+    };
+
+    let mut issues = Vec::new();
+    let mut mismatches = Vec::new();
+
+    // Analyze instruction score issues
+    if instruction_score < 1.0 && !test_case.ground_truth.skip_instruction_validation {
+        let lost_instruction_points = (1.0 - instruction_score) * 100.0;
+        if lost_instruction_points > 20.0 {
+            issues.push(format!(
+                "Instruction matching lost {lost_instruction_points:.1} points"
+            ));
+            mismatches.push("Program ID, accounts, or instruction data mismatches".to_string());
+        } else {
+            mismatches.push("Minor instruction format differences".to_string());
+        }
+    }
+
+    // Analyze on-chain execution issues
+    if onchain_score < 1.0 && !test_case.ground_truth.skip_instruction_validation {
+        issues.push("Transaction failed on-chain execution".to_string());
+        if let Some(error) = &final_observation.last_transaction_error {
+            mismatches.push(format!("On-chain error: {error}"));
+        }
+    }
+
+    ScoringBreakdown {
+        instruction_score,
+        onchain_score,
+        final_score,
+        issues,
+        mismatches,
+    }
 }
 
 /// Calculates a binary score based on the transaction's on-chain execution status.

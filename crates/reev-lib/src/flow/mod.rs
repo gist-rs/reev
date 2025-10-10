@@ -157,6 +157,8 @@ pub struct ExecutionResult {
     pub total_time_ms: u64,
     /// Summary statistics
     pub statistics: ExecutionStatistics,
+    /// Detailed scoring breakdown
+    pub scoring_breakdown: Option<ScoringBreakdown>,
 }
 
 /// Execution statistics
@@ -172,6 +174,21 @@ pub struct ExecutionStatistics {
     pub tool_usage: HashMap<String, u32>,
     /// Conversation depth reached
     pub max_depth: u32,
+}
+
+/// Detailed scoring breakdown for analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScoringBreakdown {
+    /// Instruction matching score (0-1)
+    pub instruction_score: f64,
+    /// On-chain execution score (0-1)
+    pub onchain_score: f64,
+    /// Weighted final score (0-1)
+    pub final_score: f64,
+    /// Issues that affected the score
+    pub issues: Vec<String>,
+    /// Specific mismatches found
+    pub mismatches: Vec<String>,
 }
 
 /// Main flow logger interface
@@ -611,7 +628,14 @@ impl FlowLog {
     pub fn render_as_ascii_tree(&self) -> String {
         let duration = if let Some(end) = self.end_time {
             match end.duration_since(self.start_time) {
-                Ok(d) => format!("{}ms", d.as_millis()),
+                Ok(d) => {
+                    let total_ms = d.as_millis();
+                    if total_ms >= 1000 {
+                        format!("{:.2}s", total_ms as f64 / 1000.0)
+                    } else {
+                        format!("{total_ms}ms")
+                    }
+                }
                 Err(_) => "Unknown".to_string(),
             }
         } else {
@@ -635,16 +659,53 @@ impl FlowLog {
 
         let mut children = Vec::new();
 
-        // Add summary if available
+        // Add detailed score breakdown if available
         if let Some(result) = &self.final_result {
-            let summary = format!(
-                "📊 Score: {:.1}% | LLM Calls: {} | Tool Calls: {} | Tokens: {}",
-                result.score * 100.0,
+            let score_percent = result.score * 100.0;
+            let score_grade = match score_percent {
+                s if s >= 95.0 => "🏆 PERFECT",
+                s if s >= 85.0 => "🥇 EXCELLENT",
+                s if s >= 75.0 => "🥈 GOOD",
+                s if s >= 60.0 => "🥉 FAIR",
+                s if s >= 40.0 => "⚠️  POOR",
+                _ => "❌ VERY POOR",
+            };
+
+            let score_summary = format!(
+                "📊 Score: {:.1}% {} | LLM: {} | Tools: {} | Tokens: {}",
+                score_percent,
+                score_grade,
                 result.statistics.total_llm_calls,
                 result.statistics.total_tool_calls,
                 result.statistics.total_tokens
             );
-            children.push(ascii_tree::Tree::Leaf(vec![summary]));
+            children.push(ascii_tree::Tree::Leaf(vec![score_summary]));
+
+            // Add detailed scoring breakdown if available
+            if let Some(scoring) = &result.scoring_breakdown {
+                let instruction_percent = scoring.instruction_score * 100.0;
+                let onchain_percent = scoring.onchain_score * 100.0;
+
+                let breakdown = format!(
+                    "🔍 Breakdown: Instructions {:.1}% (×75%) + On-chain {:.1}% (×25%) = {:.1}%",
+                    instruction_percent,
+                    onchain_percent,
+                    scoring.final_score * 100.0
+                );
+                children.push(ascii_tree::Tree::Leaf(vec![breakdown]));
+
+                // Add specific issues if not perfect
+                if scoring.final_score < 1.0 && !scoring.issues.is_empty() {
+                    let issues_text = format!("⚠️  Issues: {}", scoring.issues.join(" | "));
+                    children.push(ascii_tree::Tree::Leaf(vec![issues_text]));
+                }
+
+                // Add specific mismatches if available
+                if !scoring.mismatches.is_empty() {
+                    let mismatches_text = format!("🔧 Details: {}", scoring.mismatches.join(" | "));
+                    children.push(ascii_tree::Tree::Leaf(vec![mismatches_text]));
+                }
+            }
         }
 
         // Add events as tree nodes
@@ -674,7 +735,7 @@ impl FlowLog {
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
                 format!(
-                    "🤖 Event {}: LLM Request (Depth: {}) - Model: {}, Tokens: {}",
+                    "🤖 Event {}: LLM Request (Depth: {}) - {} ({} tokens)",
                     event_num, event.depth, model, tokens
                 )
             }
@@ -691,9 +752,14 @@ impl FlowLog {
                     .get("execution_time_ms")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
+                let duration_str = if exec_time >= 1000 {
+                    format!("{:.2}s", exec_time as f64 / 1000.0)
+                } else {
+                    format!("{exec_time}ms")
+                };
                 format!(
-                    "🔧 Event {}: Tool Call (Depth: {}) - {} ({}ms)",
-                    event_num, event.depth, tool_name, exec_time
+                    "🔧 Event {}: Tool Call (Depth: {}) - {} ({})",
+                    event_num, event.depth, tool_name, duration_str
                 )
             }
             FlowEventType::ToolResult => {
@@ -757,9 +823,19 @@ impl FlowLog {
 
         let mut children = Vec::new();
 
-        // Add timestamp
-        let timestamp = format!("⏰ Time: {:?}", event.timestamp);
-        children.push(ascii_tree::Tree::Leaf(vec![timestamp]));
+        // Add event duration (simplified)
+        let event_duration =
+            if let Ok(duration_since_start) = event.timestamp.duration_since(self.start_time) {
+                let ms = duration_since_start.as_millis();
+                if ms >= 1000 {
+                    format!("⏰ +{:.2}s", ms as f64 / 1000.0)
+                } else {
+                    format!("⏰ +{ms}ms")
+                }
+            } else {
+                "⏰ Unknown time".to_string()
+            };
+        children.push(ascii_tree::Tree::Leaf(vec![event_duration]));
 
         // Add event-specific details
         match &event.event_type {

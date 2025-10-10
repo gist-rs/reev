@@ -46,6 +46,67 @@ opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
 
 ---
 
+## ✅ **COMPLETED: Flow ASCII Tree Rendering**
+
+### **Task**: Add ASCII tree rendering for flow logs with command-line interface
+### **Status**: COMPLETED
+### **Implementation**: Enhanced `crates/reev-lib/src/flow/mod.rs` and `crates/reev-runner/src/main.rs`
+
+#### **Changes Made**
+- Added `render_as_ascii_tree()` method to `FlowLog` for visual representation
+- Created `render_flow_file_as_ascii_tree()` function for file-based rendering
+- Added `--render-flow` CLI option to render existing flow files
+- Implemented automatic flow tree rendering after benchmark completion
+- Added `ascii_tree` dependency for tree visualization
+
+#### **Code Changes**
+```rust
+// Added to FlowLog impl
+pub fn render_as_ascii_tree(&self) -> String {
+    let status = if let Some(result) = &self.final_result {
+        if result.success { "✅ SUCCESS" } else { "❌ FAILED" }
+    } else { "⏳ RUNNING" };
+    
+    let root_label = format!(
+        "🌊 {} [{}] - {} (Duration: {})",
+        self.benchmark_id, self.agent_type, status, duration
+    );
+    // ... tree rendering logic
+}
+
+// CLI option added
+#[arg(long)]
+render_flow: bool,
+```
+
+#### **Usage Examples**
+```bash
+# Run benchmark with flow logging and auto ASCII tree rendering
+RUST_LOG=info REEV_ENABLE_FLOW_LOGGING=1 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
+
+# Render existing flow file as ASCII tree
+cargo run -p reev-runner -- --render-flow logs/flows/flow_200-jup-swap-then-lend-deposit_local_*.yml
+```
+
+#### **ASCII Tree Output Features**
+- 🌊 Flow summary with status, duration, and agent type
+- 📊 Performance metrics (score, LLM calls, tool calls, tokens)
+- 🤖 LLM request events with model and token information
+- 🔧 Tool call events with execution times and arguments
+- 💰 Transaction execution with success/failure status
+- 🚨 Error events with detailed error messages
+- ⏰ Timestamps for all events
+
+#### **Result**
+- ✅ Complete flow visualization in terminal-friendly ASCII format
+- ✅ Automatic rendering after benchmark completion when flow logging enabled
+- ✅ Manual rendering capability for any flow log file
+- ✅ Rich event details with icons and structured information
+- ✅ Enhanced debugging and analysis capabilities
+
+---
+
+
 
 ---
 

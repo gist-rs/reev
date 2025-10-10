@@ -6,7 +6,7 @@ use reev_lib::{
     flow::{ExecutionResult, FlowLogger},
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
-    score::calculate_final_score,
+    score::{calculate_detailed_score, calculate_final_score},
     server_utils::{kill_existing_reev_agent, kill_existing_surfpool},
     solana_env::environment::SolanaEnv,
     test_scenarios,
@@ -183,11 +183,21 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             } else {
                 FinalStatus::Failed
             };
+
+            // Calculate detailed scoring breakdown
+            let scoring_breakdown = calculate_detailed_score(
+                &test_case,
+                &actions,
+                &initial_observation,
+                &final_observation,
+            );
+
             let execution_result = ExecutionResult {
                 success: final_status == FinalStatus::Succeeded,
                 score,
                 total_time_ms,
                 statistics,
+                scoring_breakdown: Some(scoring_breakdown),
             };
 
             if let Err(e) = flow_logger.complete(execution_result) {
@@ -407,11 +417,30 @@ async fn run_flow_benchmark(
             .as_millis() as u64;
 
         let statistics = flow_logger.get_current_statistics();
+
+        // Create a simple scoring breakdown for flow benchmarks
+        let scoring_breakdown = reev_lib::flow::ScoringBreakdown {
+            instruction_score: if score >= 0.75 { 1.0 } else { score },
+            onchain_score: if final_status == FinalStatus::Succeeded {
+                1.0
+            } else {
+                0.0
+            },
+            final_score: score,
+            issues: if score < 1.0 {
+                vec![format!("Flow execution scored {:.1}%", score * 100.0)]
+            } else {
+                vec![]
+            },
+            mismatches: vec![],
+        };
+
         let execution_result = ExecutionResult {
             success: final_status == FinalStatus::Succeeded,
             score,
             total_time_ms,
             statistics,
+            scoring_breakdown: Some(scoring_breakdown),
         };
 
         if let Err(e) = flow_logger.complete(execution_result) {
