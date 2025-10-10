@@ -1,0 +1,19 @@
+# Ignore Rust build artifacts. This is the most important line for build caching.
+/target
+**/target/
+
+# Ignore version control files
+.git
+.gitignore
+
+# Ignore local environment files. These are handled by the deployment script.
+# .env
+# **/.env
+
+# Ignore IDE and editor configuration folders
+.vscode/
+.idea/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
