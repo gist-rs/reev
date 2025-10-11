@@ -3,6 +3,72 @@ While most benchmarks now work at 100% success rate, these 3 benchmarks need spe
 
 ---
 
+## ✅ **COMPLETED: TUI Percent Prefix Styling Enhancement**
+
+### **Task**: Style percent prefix with black color and value with yellow when below 100%
+### **Status**: COMPLETED
+### **Implementation**: Enhanced `crates/reev-tui/src/ui.rs` with color-coded percentage display
+
+#### **Changes Made**
+- Added `create_percentage_spans()` function to create styled percentage spans
+- Modified `render_benchmark_navigator()` to use color-coded percentage display
+- Prefix (leading zeros) styled with black color to visually hide
+- Percentage values of 0% styled with grey color (for pending/running benchmarks)
+- Percentage values below 100% but above 0% styled with yellow color
+- Values at 100% use white color
+
+#### **Code Changes**
+```rust
+fn create_percentage_spans(score_str: String, percentage: u32) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let chars: Vec<char> = score_str.chars().collect();
+
+    // Find the first non-zero digit
+    let mut first_non_zero_idx = 0;
+    for (i, &c) in chars.iter().enumerate() {
+        if c != '0' && c != '%' {
+            first_non_zero_idx = i;
+            break;
+        }
+    }
+
+    // Add prefix (leading zeros) with black color
+    if first_non_zero_idx > 0 {
+        let prefix: String = chars.iter().take(first_non_zero_idx).collect();
+        spans.push(Span::styled(prefix, Style::default().fg(Color::Black)));
+    }
+
+    // Add the number and percent sign with yellow if below 100% but not 0%, grey for 0%, otherwise white
+        let suffix: String = chars.iter().skip(first_non_zero_idx).collect();
+        let color = if percentage == 0 {
+            Color::DarkGray
+        } else if percentage < 100 {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+    spans.push(Span::styled(suffix, Style::default().fg(color)));
+
+    spans
+}
+```
+
+#### **Visual Results**
+- `075%` → `0` (black) `75%` (yellow) - visually emphasizes the 75% score
+- `100%` → `100%` (white) - full score remains white
+- `050%` → `0` (black) `50%` (yellow) - partial scores highlighted
+- `000%` → `000%` (grey) - pending/running benchmarks styled with grey
+
+#### **Impact**
+- ✅ Enhanced visual distinction between completed and incomplete benchmarks
+- ✅ Leading zeros visually hidden with black color for cleaner appearance
+- ✅ Below-100% scores highlighted in yellow for immediate attention
+- ✅ 0% scores styled in grey to clearly indicate pending/running state
+- ✅ 100% scores remain white for consistent successful benchmark indication
+- ✅ No compilation errors (clippy clean)
+
+---
+
 ## ✅ **COMPLETED: Flow Logging Tool Call Capture**
 
 ### **Task**: Fix missing tool call information in flow logs (total_tool_calls: 0)

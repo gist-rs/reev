@@ -1,5 +1,44 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-10: TUI Percent Prefix Styling Enhancement
+
+### **Problem Identified**
+The TUI percentage display showed all scores with the same dim styling, making it difficult to visually distinguish between completed benchmarks with different performance levels. The leading zeros in percentages like "075%" were visually distracting and didn't provide meaningful information.
+
+### **Root Cause Analysis**
+1. **Uniform Styling**: All percentage displays used the same `Modifier::DIM` style regardless of the actual score value
+2. **Visual Noise**: Leading zeros in percentage formatting (e.g., "075%") created unnecessary visual clutter
+3. **Lack of Visual Hierarchy**: No distinction between partial scores and perfect scores
+4. **Color Underutilization**: The TUI had access to multiple colors but wasn't using them to convey performance information
+
+### **Solution Applied**
+1. **Dynamic Color Coding**: Implemented color logic where 0% scores display in grey, scores below 100% display in yellow, while 100% scores remain white
+2. **Prefix Hiding**: Styled leading zeros with black color to make them visually disappear
+3. **Span Creation**: Added `create_percentage_spans()` function to handle complex styling requirements
+4. **Lifecycle Management**: Ensured proper ownership of styled spans to avoid borrow checker issues
+
+### **Lessons Learned**
+1. **Visual Information Hierarchy**: Color and styling are powerful tools for conveying performance metrics at a glance
+2. **Rust Ownership Patterns**: When working with ratatui spans, careful attention to lifetimes and ownership is critical
+3. **User Experience Focus**: Small visual improvements can significantly enhance the usability of terminal interfaces
+4. **Incremental Enhancement**: Building on existing UI patterns while adding new visual cues maintains consistency
+
+#### **Impact**
+- ✅ Enhanced visual distinction between partial and perfect scores
+- ✅ Cleaner appearance with visually hidden leading zeros
+- ✅ Immediate attention drawn to incomplete benchmarks via yellow highlighting
+- ✅ 0% scores styled in grey to clearly indicate pending/running state
+- ✅ Maintained consistency with existing TUI design patterns
+- ✅ Zero compilation warnings and proper error handling
+
+### **Future Prevention**
+- Design UI components with visual hierarchy from the beginning
+- Consider color psychology when displaying performance metrics
+- Test UI changes across different terminal environments
+- Document styling patterns for consistent future development
+
+---
+
 ## 2025-06-18: Cargo.toml Dependency Resolution
 
 ### **Problem Identified**

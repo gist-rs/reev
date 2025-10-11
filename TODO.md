@@ -1,10 +1,12 @@
 # TODO
-- Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Doker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
+- Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Docker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
 
-- we must find the way to monitor the tool calling so we can score agent for `tool calling` too (must call tool precisly, you can imagine what tools should call in order and scoring from that). i can see log at logs/reev-agent.log but not sure how we can collect that to scoring, any idea?
-
-# TOFIX
-- revisit kill port.
+-`"Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."` look not like human conversation, it should say `"Send 15 USDC to xxx." which xxx is someone wallet and we should provide the wallet info including ata by code inject to context for llm.
+  - user prompt `"Send 15 USDC to xxx."
+  - llm get balance info via tool (did we have this yet?) and inject to the context so it's user_prompt+wallet_info
+  - llm call remain tools maybe swap and reason about current state e.g. retry once or give up if condition not sttified e.g. no balance or high slippage
+  - we collect all the flow to score that (because we aim to evalate the flow and tx)
+  - create yml report for debug and report what llm do and how tx doing, ready for make a report and bechmark
 
 ## Complex Flows
 - more complex flow in same protocols e.g. swap if not enough then withdraw and deposit. // we should have all combination as possible.

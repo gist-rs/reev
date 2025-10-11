@@ -8,6 +8,39 @@ use ratatui::{
 };
 use strum::IntoEnumIterator;
 
+fn create_percentage_spans(score_str: String, percentage: u32) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let chars: Vec<char> = score_str.chars().collect();
+
+    // Find the first non-zero digit
+    let mut first_non_zero_idx = 0;
+    for (i, &c) in chars.iter().enumerate() {
+        if c != '0' && c != '%' {
+            first_non_zero_idx = i;
+            break;
+        }
+    }
+
+    // Add prefix (leading zeros) with black color
+    if first_non_zero_idx > 0 {
+        let prefix: String = chars.iter().take(first_non_zero_idx).collect();
+        spans.push(Span::styled(prefix, Style::default().fg(Color::Black)));
+    }
+
+    // Add the number and percent sign with yellow if below 100% but not 0%, grey for 0%, otherwise white
+    let suffix: String = chars.iter().skip(first_non_zero_idx).collect();
+    let color = if percentage == 0 {
+        Color::DarkGray
+    } else if percentage < 100 {
+        Color::Yellow
+    } else {
+        Color::White
+    };
+    spans.push(Span::styled(suffix, Style::default().fg(color)));
+
+    spans
+}
+
 pub fn ui(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -116,12 +149,32 @@ fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {
                 }
             };
             let file_name = b.path.file_name().unwrap_or_default().to_string_lossy();
-            ListItem::new(Line::from(vec![
-                score_prefix,
-                Span::raw(" "),
-                status_symbol,
-                Span::raw(format!(" {file_name}")),
-            ]))
+            let score_content = score_prefix.content.to_string();
+            let score_spans = if score_content
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == '%')
+            {
+                if let Some(percent_idx) = score_content.find('%') {
+                    let percentage_str = &score_content[..percent_idx];
+                    if let Ok(percentage_val) = percentage_str.parse::<u32>() {
+                        create_percentage_spans(score_content, percentage_val)
+                    } else {
+                        vec![score_prefix]
+                    }
+                } else {
+                    vec![score_prefix]
+                }
+            } else {
+                vec![score_prefix]
+            };
+
+            let mut line_spans = Vec::new();
+            line_spans.extend(score_spans);
+            line_spans.push(Span::raw(" "));
+            line_spans.push(status_symbol);
+            line_spans.push(Span::raw(format!(" {file_name}")));
+
+            ListItem::new(Line::from(line_spans))
         })
         .collect();
 
