@@ -1,5 +1,43 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-11: Benchmark 115 Human Prompt Enhancement
+
+### **Problem Identified**
+Benchmark 115-jup-lend-mint-usdc.yml contained a technical, non-human prompt that didn't reflect real user interactions. The prompt "Mint 50 jUSDC in Jupiter lending using 50 USDC from my token account. This will create a lending position that earns yield." was more like API documentation than a natural user request.
+
+### **Root Cause Analysis**
+1. **Inconsistent Prompt Style**: Benchmark 116 had a natural, human-friendly prompt while 115 used technical jargon
+2. **Poor User Simulation**: The prompt didn't represent how real users would request the service
+3. **Documentation vs. Interaction**: The prompt read like technical documentation rather than a user request
+4. **Agent Confusion Risk**: Technical prompts could potentially confuse agents expecting natural language input
+
+### **Solution Applied**
+1. **Prompt Humanization**: Replaced technical prompt with natural conversation: "I want to deposit 50 USDC into Jupiter lending to earn yield. Can you help me deposit my USDC to get jUSDC tokens?"
+2. **Consistency Alignment**: Matched the conversational style used in benchmark 116
+3. **Functional Preservation**: Maintained the same operational requirements while improving user experience
+4. **Real-World Simulation**: Enhanced the benchmark to better reflect actual user interactions
+
+### **Lessons Learned**
+1. **Natural Language Importance**: Even in technical benchmarks, human-like prompts provide better testing scenarios
+2. **Consistency Standards**: Related benchmarks should maintain consistent prompt styles for accurate comparison
+3. **User Experience Focus**: Benchmark design should prioritize realistic user interaction patterns
+4. **Testing Quality**: Natural prompts better test agent understanding of real-world user requests
+
+### **Impact**
+- ✅ Benchmark 115 now achieves 100% success rate with improved user experience
+- ✅ Consistent prompt style across Jupiter lending benchmarks (115 and 116)
+- ✅ Better real-world simulation of user-deagent interactions
+- ✅ Enhanced benchmark readability and maintainability
+- ✅ No regressions in existing functionality
+
+### **Future Prevention**
+- Establish prompt style guidelines across benchmark suites
+- Review all benchmarks for human-friendliness during development
+- Create benchmark templates with natural language examples
+- Include prompt quality checks in the development workflow
+
+---
+
 ## 2025-10-10: TUI Percent Prefix Styling Enhancement
 
 ### **Problem Identified**

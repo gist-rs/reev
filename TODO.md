@@ -3,7 +3,7 @@
 
 -`"Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."` look not like human conversation, it should say `"Send 15 USDC to xxx." which xxx is someone wallet and we should provide the wallet info including ata by code inject to context for llm.
   - user prompt `"Send 15 USDC to xxx."
-  - llm get balance info via tool (did we have this yet?) and inject to the context so it's user_prompt+wallet_info
+  - llm get balance info for that token via tool (did we have this tool yet?) and inject to the context so it's user_prompt+wallet_info
   - llm call remain tools maybe swap and reason about current state e.g. retry once or give up if condition not sttified e.g. no balance or high slippage
   - we collect all the flow to score that (because we aim to evalate the flow and tx)
   - create yml report for debug and report what llm do and how tx doing, ready for make a report and bechmark

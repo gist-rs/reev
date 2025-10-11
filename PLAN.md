@@ -12,11 +12,13 @@
 - **Core Framework**: Fully functional benchmark execution and scoring
 - **Agent Systems**: Deterministic, Gemini, and Local agents operational
 - **TUI Interface**: Real-time benchmark monitoring with enhanced score display styling
+- **Human-Friendly Prompts**: Natural language prompts for realistic user interaction testing
 - **Database**: Results storage and analytics with SQLite
 - **Jupiter Integration**: Complete DeFi protocol support (swap, lend, mint, redeem)
 - **Process Management**: Automated dependency startup and cleanup
 - **Test Coverage**: All benchmarks passing successfully
 - **Visual Enhancement**: Color-coded percentage display with prefix hiding
+- **Benchmark Quality**: Improved prompt consistency and human-readability across test suite
 
 ### 🔧 **Active Development Areas**
 
