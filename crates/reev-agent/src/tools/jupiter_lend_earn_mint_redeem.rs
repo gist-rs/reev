@@ -171,7 +171,10 @@ impl Tool for JupiterLendEarnMintTool {
             "signer": signer,
             "shares": args.shares,
             "instructions": serde_json::from_str::<serde_json::Value>(&instructions_json)?,
-            "note": "These instructions mint jTokens representing lending positions. Execute them to create the position."
+            "note": "These instructions mint jTokens representing lending positions. Execute them to create the position.",
+            "status": "ready",
+            "action": "mint_complete",
+            "message": format!("Successfully generated minting instructions for {} shares. After execution, you will receive jTokens representing your lending position.", args.shares)
         });
 
         Ok(response.to_string())
@@ -273,7 +276,10 @@ impl Tool for JupiterLendEarnRedeemTool {
             "signer": signer,
             "shares": args.shares,
             "instructions": serde_json::from_str::<serde_json::Value>(&output)?,
-            "note": "These instructions redeem jTokens and withdraw the underlying assets from lending positions. Execute them to close the position."
+            "note": "These instructions redeem jTokens and withdraw the underlying assets from lending positions. Execute them to close the position.",
+            "status": "ready",
+            "action": "redeem_complete",
+            "message": format!("Successfully generated redemption instructions for {} shares. After execution, the jTokens will be redeemed and underlying assets withdrawn to your wallet.", args.shares)
         });
 
         Ok(response.to_string())

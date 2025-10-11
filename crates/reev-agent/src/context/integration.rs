@@ -178,8 +178,20 @@ impl ContextIntegration {
         enhanced.push_str(
             "NEVER mix tools. Do NOT call deposit AND mint. Do NOT call withdraw AND redeem.\n",
         );
-        enhanced.push_str("Jupiter tools return COMPLETE instruction sets - NO additional tools needed after success.\n");
-        enhanced.push_str("Execute the ONE correct tool and STOP immediately after success.\n\n");
+        enhanced.push_str(
+            "Jupiter tools return COMPLETE instruction sets with success confirmation.\n",
+        );
+        enhanced.push_str("Execute the ONE correct tool and STOP immediately after receiving success confirmation.\n");
+        enhanced.push_str("IMPORTANT: After calling a Jupiter tool, check for 'status: ready' and 'action: *_complete' in the response.\n");
+        enhanced.push_str("Once you see completion confirmation, do NOT call any more tools - respond with the transaction instructions.\n");
+        enhanced.push_str("TOOL COMPLETION STRATEGY:\n");
+        enhanced.push_str("1. Call ONE Jupiter tool based on user request\n");
+        enhanced
+            .push_str("2. Check if response contains 'status: ready' and 'action: *_complete'\n");
+        enhanced.push_str("3. If yes: STOP calling tools and format transaction response\n");
+        enhanced
+            .push_str("4. If no: You may call ONE more tool to gather information, then STOP\n");
+        enhanced.push_str("MAXIMUM 2 tool calls per request - then provide response!\n\n");
 
         enhanced.push_str("=== USER REQUEST ===\n");
         enhanced.push_str(base_prompt);
