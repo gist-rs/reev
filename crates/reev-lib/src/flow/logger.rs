@@ -113,7 +113,7 @@ impl FlowLogger {
     }
 
     /// Complete the flow log with final results
-    pub fn complete(&mut self, result: ExecutionResult) -> FlowResult<()> {
+    pub fn complete(&mut self, result: ExecutionResult) -> FlowResult<PathBuf> {
         let end_time = SystemTime::now();
 
         let flow_log = FlowLog {
@@ -149,7 +149,7 @@ impl FlowLogger {
             "Flow log completed and saved"
         );
 
-        Ok(())
+        Ok(file_path)
     }
 
     /// Get current statistics

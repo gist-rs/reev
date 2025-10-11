@@ -26,7 +26,7 @@ flow:
 
   - step: 2
     description: "Deposit received USDC into Jupiter lending"
-    prompt: "I want to deposit my entire USDC balance of 18.54 USDC into Jupiter lending to start earning yield. Please deposit the maximum available amount from my USDC account."
+    prompt: "I want to deposit all the USDC I received from the swap into Jupiter lending to start earning yield. Please deposit the full USDC balance available in my USDC account."
     depends_on: ["step_1_result"]
     critical: true
     timeout: 30

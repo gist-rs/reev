@@ -5,8 +5,8 @@
   - user prompt `"Send 15 USDC to xxx."
   - llm get balance info for that token via tool (did we have this tool yet?) and inject to the context so it's user_prompt+wallet_info
   - llm call remain tools maybe swap and reason about current state e.g. retry once or give up if condition not sttified e.g. no balance or high slippage
-  - we collect all the flow to score that (because we aim to evalate the flow and tx)
-  - create yml report for debug and report what llm do and how tx doing, ready for make a report and bechmark
+  - we collect all the flow to score that (because we aim to evalate the flow and tx) // we have this already just need cross check
+  - create yml report for debug and report what llm do and how tx doing, ready for make a report and bechmark // we have this already just need cross check
 
 ## Complex Flows
 - more complex flow in same protocols e.g. swap if not enough then withdraw and deposit. // we should have all combination as possible.

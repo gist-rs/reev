@@ -445,12 +445,31 @@ async fn run_flow_benchmark(
             scoring_breakdown: Some(scoring_breakdown),
         };
 
-        if let Err(e) = flow_logger.complete(execution_result) {
-            warn!(
-                benchmark_id = %test_case.id,
-                error = %e,
-                "Failed to complete flow logging"
-            );
+        // Auto-render flow as ASCII tree after completion
+        if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+            match flow_logger.complete(execution_result) {
+                Ok(flow_file_path) => {
+                    match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
+                        Ok(tree_output) => {
+                            info!("\n{}", tree_output);
+                        }
+                        Err(e) => {
+                            warn!(
+                                benchmark_id = %test_case.id,
+                                error = %e,
+                                "Failed to render flow as ASCII tree"
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        benchmark_id = %test_case.id,
+                        error = %e,
+                        "Failed to complete flow logging"
+                    );
+                }
+            }
         }
     }
 
