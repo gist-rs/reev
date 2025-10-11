@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
-use crate::flow::{FlowLogger, LlmRequestContent};
+use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent, ToolResultStatus};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -278,6 +278,38 @@ impl Agent for LlmAgent {
         if let Some(summary) = llm_response.summary {
             info!("[LlmAgent] Agent summary: {}", summary);
         }
+
+        // 12. Process flows from LlmResponse and log tool calls
+        if let Some(flows) = llm_response.flows {
+            info!(
+                "[LlmAgent] Processing {} tool calls from flows",
+                flows.total_tool_calls
+            );
+
+            if let Some(flow_logger) = &mut self.flow_logger {
+                for tool_call in &flows.tool_calls {
+                    let tool_call_content = ToolCallContent {
+                        tool_name: tool_call.tool_name.clone(),
+                        tool_args: tool_call.tool_args.clone(),
+                        execution_time_ms: tool_call.execution_time_ms,
+                        result_status: match tool_call.result_status {
+                            crate::agent::ToolResultStatus::Success => ToolResultStatus::Success,
+                            crate::agent::ToolResultStatus::Error => ToolResultStatus::Error,
+                            crate::agent::ToolResultStatus::Timeout => ToolResultStatus::Timeout,
+                        },
+                        result_data: tool_call.result_data.clone(),
+                        error_message: tool_call.error_message.clone(),
+                    };
+
+                    // Log the tool call
+                    flow_logger.log_tool_call(tool_call_content.clone(), tool_call.depth);
+
+                    // Also log the tool result
+                    flow_logger.log_tool_result(tool_call_content, tool_call.depth);
+                }
+            }
+        }
+
         tracing::info!(
             instruction_count = actions.len(),
             "LLM generated raw instruction(s)"

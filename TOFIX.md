@@ -3,6 +3,70 @@ While most benchmarks now work at 100% success rate, these 3 benchmarks need spe
 
 ---
 
+## ✅ **COMPLETED: Flow Logging Tool Call Capture**
+
+### **Task**: Fix missing tool call information in flow logs (total_tool_calls: 0)
+### **Status**: COMPLETED
+### **Implementation**: Fixed flow data extraction and logging in `crates/reev-agent/src/lib.rs` and `crates/reev-lib/src/llm_agent.rs`
+
+#### **Problem**
+- Flow logs showed `total_tool_calls: 0` despite tools being executed
+- Tool call information from enhanced agents was not being captured in flow logs
+- Missing tool usage statistics and detailed execution information
+
+#### **Root Cause Analysis**
+1. **Flow Data Not Extracted**: `run_ai_agent` in `reev-agent` was always setting `flows: None` instead of extracting flows from JSON response
+2. **Flow Data Not Logged**: `LlmAgent` in `reev-lib` wasn't processing flows from `LlmResponse` to log tool calls
+
+#### **Changes Made**
+- **Fixed Flow Data Extraction**: Updated `run_ai_agent` to extract flows from comprehensive JSON responses
+- **Enhanced Flow Logging**: Modified `LlmAgent` to process flows and log tool calls/results to FlowLogger
+- **Type Conversion**: Added proper conversion between `agent::ToolResultStatus` and `types::ToolResultStatus`
+
+#### **Code Changes**
+```rust
+// Fixed in crates/reev-agent/src/lib.rs
+let flows = json_value.get("flows").and_then(|f| {
+    serde_json::from_value::<reev_lib::agent::FlowData>(f.clone()).ok()
+});
+// ... instead of flows: None
+
+// Enhanced in crates/reev-lib/src/llm_agent.rs
+if let Some(flows) = llm_response.flows {
+    if let Some(flow_logger) = &mut self.flow_logger {
+        for tool_call in &flows.tool_calls {
+            let tool_call_content = ToolCallContent { /* ... */ };
+            flow_logger.log_tool_call(tool_call_content.clone(), tool_call.depth);
+            flow_logger.log_tool_result(tool_call_content, tool_call.depth);
+        }
+    }
+}
+```
+
+#### **Results**
+- ✅ Tool calls now captured: `total_tool_calls: 1` (previously 0)
+- ✅ Tool usage statistics populated: `tool_usage: jupiter_swap: 1`
+- ✅ Detailed tool call information logged:
+  - Tool name: `jupiter_swap`
+  - Tool args: JSON with swap parameters
+  - Execution time: `531ms`
+  - Result status: `Success`
+  - Complete instruction data with all 6 generated instructions
+- ✅ Both `ToolCall` and `ToolResult` events properly logged with timestamps
+
+#### **Impact**
+- Flow logs now provide complete tool execution tracking
+- Enhanced debugging and analysis capabilities for agent behavior
+- Comprehensive performance metrics and tool usage patterns
+
+---
+
+## 🎯 **Benchmark 115: jup-lend-mint-usdc.yml**
+
+### **Issue Status**: DISABLED (currently skipped)
+
+---
+
 ## ✅ **COMPLETED: Cargo.toml Dependency Fixes**
 
 ### **Task**: Fix missing Solana and Jupiter dependencies causing compilation errors

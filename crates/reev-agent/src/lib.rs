@@ -141,6 +141,11 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
             ) {
                 info!("[reev-agent] Detected new comprehensive format, passing through directly");
                 // Return the new format directly
+                // Extract flows if available
+                let flows = json_value.get("flows").and_then(|f| {
+                    serde_json::from_value::<reev_lib::agent::FlowData>(f.clone()).ok()
+                });
+
                 let response = LlmResponse {
                     result: None, // Old format not used
                     transactions: Some(transactions.as_array().unwrap_or(&vec![]).to_vec()),
@@ -154,7 +159,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
                             .map(|s| s.to_string())
                             .collect(),
                     ),
-                    flows: None, // Flow data not available in legacy responses
+                    flows, // Include flow data if available
                 };
                 return Ok(Json(response));
             }
@@ -187,6 +192,11 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
             json_value.get("signatures"),
         ) {
             info!("[reev-agent] Detected clean comprehensive format, passing through directly");
+            // Extract flows if available
+            let flows = json_value
+                .get("flows")
+                .and_then(|f| serde_json::from_value::<reev_lib::agent::FlowData>(f.clone()).ok());
+
             let response = LlmResponse {
                 result: None, // Old format not used
                 transactions: Some(transactions.as_array().unwrap_or(&vec![]).to_vec()),
@@ -200,7 +210,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
                         .map(|s| s.to_string())
                         .collect(),
                 ),
-                flows: None, // Flow data not available in legacy responses
+                flows, // Include flow data if available
             };
             return Ok(Json(response));
         }

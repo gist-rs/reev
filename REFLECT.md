@@ -33,3 +33,39 @@ The project had multiple compilation errors due to missing Solana and Jupiter de
 - Regular `cargo clippy` checks in CI/CD pipeline
 - Dependency audit scripts to verify workspace alignment
 - Test-driven import cleanup to avoid breaking functionality
+
+---
+
+## 2025-10-10: Flow Logging Tool Call Capture Fix
+
+### **Problem Identified**
+Flow logs were showing `total_tool_calls: 0` despite tools being executed by enhanced agents. The flow tracking infrastructure was in place but not properly connected between the agent response processing and the flow logger.
+
+### **Root Cause Analysis**
+1. **Flow Data Not Extracted**: The `run_ai_agent` function in `reev-agent` was parsing comprehensive JSON responses but always setting `flows: None` instead of extracting the flow data
+2. **Flow Data Not Logged**: The `LlmAgent` in `reev-lib` wasn't processing the flows field from `LlmResponse` to log tool calls to the FlowLogger
+3. **Type Mismatch**: `agent::ToolResultStatus` and `types::ToolResultStatus` were separate types requiring manual conversion
+
+### **Solution Applied**
+1. **Fixed Flow Data Extraction**: Updated `run_ai_agent` to extract flows from JSON responses using `serde_json::from_value`
+2. **Enhanced Flow Logging**: Modified `LlmAgent` to iterate through flows and log both `ToolCall` and `ToolResult` events
+3. **Type Conversion**: Added manual pattern matching to convert between the two ToolResultStatus types
+
+### **Lessons Learned**
+1. **Data Flow Connectivity**: Having infrastructure isn't enough - all components must be properly connected end-to-end
+2. **Type System Awareness**: Similar types in different modules can cause subtle integration issues
+3. **Comprehensive Testing**: Flow logging should be verified with actual tool execution, not just unit tests
+4. **Debugging Flow**: Following the data path from JSON response → agent processing → flow logger revealed the missing connections
+
+### **Impact**
+- ✅ Tool calls now properly captured: `total_tool_calls: 1` (previously 0)
+- ✅ Tool usage statistics populated: `tool_usage: jupiter_swap: 1`
+- ✅ Complete tool execution tracking with timestamps, execution times, and results
+- ✅ Enhanced debugging and analysis capabilities for agent behavior
+- ✅ Rich flow logs with detailed instruction data and performance metrics
+
+### **Future Prevention**
+- Integration tests for flow logging with actual tool execution
+- Type system audits to identify and consolidate duplicate types
+- End-to-end flow validation in CI/CD pipeline
+- Comprehensive documentation of data flow paths between components
