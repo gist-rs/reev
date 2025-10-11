@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 /// An agent that uses a large language model to generate raw Solana instructions.
 pub struct LlmAgent {
@@ -264,24 +264,24 @@ impl Agent for LlmAgent {
             vec![]
         };
 
-        info!(
+        debug!(
             "[LlmAgent] Successfully parsed {} instruction(s).",
             actions.len()
         );
 
         // 10. Log transaction signatures if available (for new format)
         if let Some(signatures) = llm_response.signatures {
-            info!("[LlmAgent] Transaction signatures: {:?}", signatures);
+            debug!("[LlmAgent] Transaction signatures: {:?}", signatures);
         }
 
         // 11. Log summary if available (for new format)
         if let Some(summary) = llm_response.summary {
-            info!("[LlmAgent] Agent summary: {}", summary);
+            debug!("[LlmAgent] Agent summary: {}", summary);
         }
 
         // 12. Process flows from LlmResponse and log tool calls
         if let Some(flows) = llm_response.flows {
-            info!(
+            debug!(
                 "[LlmAgent] Processing {} tool calls from flows",
                 flows.total_tool_calls
             );
@@ -310,7 +310,7 @@ impl Agent for LlmAgent {
             }
         }
 
-        tracing::info!(
+        tracing::debug!(
             instruction_count = actions.len(),
             "LLM generated raw instruction(s)"
         );
