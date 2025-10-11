@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::info;
 
 /// The arguments for the Jupiter earn tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -99,26 +100,54 @@ impl Tool for JupiterEarnTool {
         // Execute the requested operation
         let result = match args.operation {
             JupiterEarnOperation::Positions => {
+                info!(
+                    "[JupiterEarn] Calling get_positions_summary for user: {}",
+                    user_pubkey
+                );
                 let positions = get_positions_summary(user_pubkey.clone()).await?;
+                info!(
+                    "[JupiterEarn] Positions result: {}",
+                    serde_json::to_string_pretty(&positions).unwrap_or_default()
+                );
                 json!({
                     "operation": "positions",
                     "data": positions
                 })
             }
             JupiterEarnOperation::Earnings => {
+                info!(
+                    "[JupiterEarn] Calling get_earnings_summary for user: {}, position: {:?}",
+                    user_pubkey, args.position_address
+                );
                 let earnings =
                     get_earnings_summary(user_pubkey.clone(), args.position_address.clone())
                         .await?;
+                info!(
+                    "[JupiterEarn] Earnings result: {}",
+                    serde_json::to_string_pretty(&earnings).unwrap_or_default()
+                );
                 json!({
                     "operation": "earnings",
                     "data": earnings
                 })
             }
             JupiterEarnOperation::Both => {
+                info!(
+                    "[JupiterEarn] Calling both operations for user: {}",
+                    user_pubkey
+                );
                 let positions = get_positions_summary(user_pubkey.clone()).await?;
+                info!(
+                    "[JupiterEarn] Both - Positions result: {}",
+                    serde_json::to_string_pretty(&positions).unwrap_or_default()
+                );
                 let earnings =
                     get_earnings_summary(user_pubkey.clone(), args.position_address.clone())
                         .await?;
+                info!(
+                    "[JupiterEarn] Both - Earnings result: {}",
+                    serde_json::to_string_pretty(&earnings).unwrap_or_default()
+                );
                 json!({
                     "operation": "both",
                     "data": {
@@ -138,6 +167,10 @@ impl Tool for JupiterEarnTool {
             "result": result
         });
 
+        info!(
+            "[JupiterEarn] Final response: {}",
+            serde_json::to_string_pretty(&response).unwrap_or_default()
+        );
         Ok(response.to_string())
     }
 }

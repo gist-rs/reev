@@ -27,13 +27,13 @@ prompt: "I want to test the full Jupiter lending cycle. First help me mint 50 US
 flow:
   - step: 1
     description: "Mint 50 USDC into Jupiter lending to get jUSDC tokens"
-    prompt: "I want to mint 50 USDC into Jupiter lending to get jUSDC tokens and start earning yield."
+    prompt: "I want to mint 50 USDC into Jupiter lending to get jUSDC tokens and start earning yield. Execute the mint operation exactly once and stop when the transaction is successful. Do not repeat the mint operation."
     critical: true
     timeout: 30
 
   - step: 2
     description: "Redeem jUSDC tokens back to USDC"
-    prompt: "I want to redeem my jUSDC tokens back to USDC. Please redeem all jUSDC tokens from my Jupiter lending position."
+    prompt: "I want to redeem all my jUSDC tokens back to USDC. First, use jupiter_earn tool with operation 'positions' to discover my exact jUSDC balance, then redeem the full amount. Check the positions data carefully to find the correct shares amount and use that exact number for the redeem operation. Execute only once the redeem transaction with the correct amount."
     depends_on: ["step_1_result"]
     critical: true
     timeout: 30
