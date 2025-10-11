@@ -248,9 +248,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                     if let Some((flow_file_path, _)) = latest_flow_file {
                         match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
                             Ok(tree_output) => {
-                                info!("\n🌊 Flow Log ASCII Tree:\n{tree_output}");
-                                // Also print to console for immediate visibility
-                                println!("\n🌊 Flow Execution Details:\n{tree_output}");
+                                info!("\n🌊 Flow Execution Details:\n{tree_output}");
                             }
                             Err(e) => {
                                 warn!(
