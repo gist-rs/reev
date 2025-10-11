@@ -22,9 +22,25 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "I want to mint 50 USDC into Jupiter lending to get jUSDC tokens, then redeem those jUSDC tokens back to USDC. Can you help me first mint 50 USDC worth of jUSDC, then redeem it back to USDC?"
+prompt: "I want to test the full Jupiter lending cycle. First help me mint 50 USDC worth of jUSDC tokens, then redeem those jUSDC tokens back to USDC."
+
+flow:
+  - step: 1
+    description: "Mint 50 USDC into Jupiter lending to get jUSDC tokens"
+    prompt: "I want to mint 50 USDC into Jupiter lending to get jUSDC tokens and start earning yield."
+    critical: true
+    timeout: 30
+
+  - step: 2
+    description: "Redeem jUSDC tokens back to USDC"
+    prompt: "I want to redeem my jUSDC tokens back to USDC. Please redeem all jUSDC tokens from my Jupiter lending position."
+    depends_on: ["step_1_result"]
+    critical: true
+    timeout: 30
 
 ground_truth:
+  min_score: 0.6
+
   final_state_assertions:
     # After the full cycle (mint then redeem), the user's jUSDC balance should be effectively zero.
     - type: TokenAccountBalance
@@ -34,7 +50,7 @@ ground_truth:
         owner: "USER_WALLET_PUBKEY"
         mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D" # Jupiter jUSDC Mint
       expected: 0
-      weight: 0.4
+      weight: 0.3
 
     # The user's USDC balance should be close to the original amount minus fees/slippage.
     # Should have ~50 USDC from redemption, but lose some to fees and slippage.
@@ -45,7 +61,20 @@ ground_truth:
         owner: "USER_WALLET_PUBKEY"
         mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
       expected_gte: 48000000 # At least 48 USDC (allowing for fees/slippage)
-      weight: 0.6
+      weight: 0.4
 
-  # For this complex DeFi interaction, success is determined by the on-chain state assertions,
-  # not by a deterministic instruction set.
+  success_criteria:
+    - type: "steps_completed"
+      description: "Both mint and redeem steps must be completed successfully"
+      required: 2
+      weight: 0.5
+
+    - type: "no_critical_errors"
+      description: "No errors in critical steps"
+      required: true
+      weight: 0.3
+
+    - type: "final_balance_positive"
+      description: "User should end with positive USDC balance"
+      required: true
+      weight: 0.2
