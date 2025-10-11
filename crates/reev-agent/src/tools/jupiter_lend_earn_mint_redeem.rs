@@ -60,7 +60,7 @@ impl Tool for JupiterLendEarnMintTool {
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address to deposit (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": "The token mint address to mint (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
                     },
                     "signer": {
                         "type": "string",
@@ -168,7 +168,7 @@ impl Tool for JupiterLendEarnRedeemTool {
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address to withdraw (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": "The token mint address to redeem (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
                     },
                     "signer": {
                         "type": "string",
