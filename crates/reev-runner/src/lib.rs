@@ -214,26 +214,28 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 );
 
                 // Find the most recent flow log file for this benchmark
-                if let Ok(flow_logs_dir) = std::env::var("REEV_FLOW_LOG_PATH") {
-                    let logs_path = std::path::PathBuf::from(flow_logs_dir);
-                    if let Ok(entries) = std::fs::read_dir(&logs_path) {
-                        let mut latest_flow_file: Option<(
-                            std::path::PathBuf,
-                            std::time::SystemTime,
-                        )> = None;
+                let logs_path = if let Ok(flow_logs_dir) = std::env::var("REEV_FLOW_LOG_PATH") {
+                    std::path::PathBuf::from(flow_logs_dir)
+                } else {
+                    // Default to logs/flows directory
+                    std::path::PathBuf::from("logs/flows")
+                };
 
-                        for entry in entries.flatten() {
-                            let path = entry.path();
-                            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                                if filename.contains(&test_case.id) && filename.contains("local") {
-                                    if let Ok(metadata) = std::fs::metadata(&path) {
-                                        if let Ok(modified) = metadata.modified() {
-                                            match &latest_flow_file {
-                                                None => latest_flow_file = Some((path, modified)),
-                                                Some((_, latest_time)) => {
-                                                    if modified > *latest_time {
-                                                        latest_flow_file = Some((path, modified));
-                                                    }
+                if let Ok(entries) = std::fs::read_dir(&logs_path) {
+                    let mut latest_flow_file: Option<(std::path::PathBuf, std::time::SystemTime)> =
+                        None;
+
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                            if filename.contains(&test_case.id) && filename.contains("local") {
+                                if let Ok(metadata) = std::fs::metadata(&path) {
+                                    if let Ok(modified) = metadata.modified() {
+                                        match &latest_flow_file {
+                                            None => latest_flow_file = Some((path, modified)),
+                                            Some((_, latest_time)) => {
+                                                if modified > *latest_time {
+                                                    latest_flow_file = Some((path, modified));
                                                 }
                                             }
                                         }
@@ -241,19 +243,21 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                                 }
                             }
                         }
+                    }
 
-                        if let Some((flow_file_path, _)) = latest_flow_file {
-                            match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
-                                Ok(tree_output) => {
-                                    info!("\n🌊 Flow Log ASCII Tree:\n{tree_output}");
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        benchmark_id = %test_case.id,
-                                        error = %e,
-                                        "Failed to render flow log as ASCII tree"
-                                    );
-                                }
+                    if let Some((flow_file_path, _)) = latest_flow_file {
+                        match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
+                            Ok(tree_output) => {
+                                info!("\n🌊 Flow Log ASCII Tree:\n{tree_output}");
+                                // Also print to console for immediate visibility
+                                println!("\n🌊 Flow Execution Details:\n{tree_output}");
+                            }
+                            Err(e) => {
+                                warn!(
+                                    benchmark_id = %test_case.id,
+                                    error = %e,
+                                    "Failed to render flow log as ASCII tree"
+                                );
                             }
                         }
                     }
