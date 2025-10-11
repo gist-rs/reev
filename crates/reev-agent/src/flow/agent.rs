@@ -354,9 +354,9 @@ impl FlowAgent {
             || prompt_lower.contains("earn")
             || prompt_lower.contains("profits")
             || prompt_lower.contains("returns"))
-            && self.tools.contains_key("jupiter_earnings")
+            && self.tools.contains_key("jupiter_earn")
         {
-            relevant_tools.push("jupiter_earnings".to_string());
+            relevant_tools.push("jupiter_earn".to_string());
         }
 
         if prompt_lower.contains("sol")

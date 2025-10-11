@@ -86,7 +86,7 @@ impl GeminiAgent {
         let jupiter_positions_tool = JupiterEarnTool {
             key_map: key_map.clone(),
         };
-        let jupiter_earnings_tool = JupiterEarnTool {
+        let jupiter_earn_tool = JupiterEarnTool {
             key_map: key_map.clone(),
         };
 
@@ -112,7 +112,7 @@ impl GeminiAgent {
             .tool(jupiter_lend_earn_mint_tool)
             .tool(jupiter_lend_earn_redeem_tool)
             .tool(jupiter_positions_tool)
-            .tool(jupiter_earnings_tool)
+            .tool(jupiter_earn_tool)
             .tool(balance_tool)
             .tool(position_tool)
             .tool(lend_earn_tokens_tool)

@@ -8,7 +8,7 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 2000000000 # 2 SOL
 
-prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings. First fetch all Jupiter lending positions, then get detailed earnings data for all positions."
+prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings. Use the jupiter_earn tool with operation 'both' to get positions and earnings data in a single call."
 
 ground_truth:
   min_score: 0.6
@@ -20,65 +20,65 @@ ground_truth:
       expected: 2000000000 # Should remain unchanged for API-only benchmark
       weight: 1.0
 
-  # Expected API calls for both tools
+  # Expected API call for jupiter_earn tool with both operations
   expected_api_calls:
     - service: "jupiter_positions"
       method: "GET"
       endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
       expected_params: ["users"]
-      weight: 0.4
+      weight: 0.2
       critical: true
     - service: "jupiter_earnings"
       method: "GET"
       endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/earnings"
       expected_params: ["user"]
-      weight: 0.4
+      weight: 0.2
       critical: true
 
   # Verify both responses have correct structure
   response_validation:
-    - field: "step_1_result.total_positions"
+    - field: "result.data.positions.total_positions"
       type: "number"
       min_value: 0
-      weight: 0.2
-    - field: "step_1_result.summary"
+      weight: 0.25
+    - field: "result.data.positions.summary"
       type: "array"
-      weight: 0.2
-    - field: "step_2_result.total_positions"
+      weight: 0.25
+    - field: "result.data.earnings.total_positions"
       type: "number"
       min_value: 0
-      weight: 0.2
-    - field: "step_2_result.summary"
+      weight: 0.25
+    - field: "result.data.earnings.summary"
       type: "object"
-      weight: 0.2
+      weight: 0.25
 
-  # Expected data structure from positions API
+  # Expected data structure from jupiter_earn tool with both operations
   expected_data_structure:
-    - path: "$.step_1_result.summary[*].token.symbol"
+    - path: "$.result.data.positions.summary[*].token.symbol"
       type: "string"
       expected_values:
         ["jlUSDC", "jlUSDT", "jlSOL", "jlEURC", "jlUSDS", "jlUSDG"]
-      weight: 0.1
-    - path: "$.step_1_result.summary[*].rates.supply_rate_pct"
+      weight: 0.125
+    - path: "$.result.data.positions.summary[*].rates.supply_rate_pct"
       type: "number"
       min_value: 0
-      weight: 0.1
-    - path: "$.step_2_result.summary.total_earnings.decimal"
+      weight: 0.125
+    - path: "$.result.data.earnings.summary.total_earnings.decimal"
       type: "number"
       min_value: 0
-      weight: 0.1
-    - path: "$.step_2_result.positions[*].position_address"
+      weight: 0.125
+    - path: "$.result.data.earnings.positions[*].position_address"
       type: "string"
-      weight: 0.1
+      weight: 0.125
 
   success_criteria:
     - type: "steps_completed"
-      description: "Both critical steps must be completed successfully"
-      required: 2
+      description: "Single tool call with both operations must be completed successfully"
+      required: 1
       weight: 0.4
 
     - type: "api_calls_success"
-      description: "Both Jupiter APIs must be called successfully"
+      description: "Both Jupiter APIs must be called successfully via single tool call"
       required: true
       weight: 0.3
 
@@ -87,28 +87,18 @@ ground_truth:
       required: true
       weight: 0.3
 
-  # Tool execution validation for both steps
+  # Tool execution validation for single call
   tool_validation:
     - step: 1
-      tool_name: "jupiter_positions"
+      tool_name: "jupiter_earn"
       required: true
-      expected_params: ["user_pubkey"]
+      expected_params: ["user_pubkey", "operation"]
       success_indicators:
-        - "total_positions"
-        - "summary"
-        - "raw_positions"
-      weight: 0.4
-      critical: true
-    - step: 2
-      tool_name: "jupiter_earnings"
-      required: true
-      expected_params: ["user_pubkey"]
-      success_indicators:
-        - "total_positions"
-        - "summary"
+        - "result"
+        - "data"
         - "positions"
-        - "raw_earnings"
-      weight: 0.4
+        - "earnings"
+      weight: 0.8
       critical: true
 
   # Skip instruction validation for this API-based benchmark
