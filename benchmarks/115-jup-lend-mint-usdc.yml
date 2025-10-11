@@ -26,7 +26,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 0
 
-prompt: "I want to deposit 50 USDC into Jupiter lending to earn yield. Can you help me deposit my USDC to get jUSDC tokens?"
+prompt: "I want to mint 50 USDC into Jupiter lending to earn yield. Can you help me mint my USDC to get jUSDC tokens?"
 
 ground_truth:
   final_state_assertions:

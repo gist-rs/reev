@@ -27,7 +27,7 @@ initial_state:
       owner: "USER_WALLET_PUBKEY"
       amount: "50000000" # 50 jUSDC tokens (representing lending position)
 
-prompt: "I want to withdraw 50 USDC from my Jupiter lending position. Can you help me withdraw my jUSDC tokens to get USDC back?"
+prompt: "I want to redeem 50 USDC from my Jupiter lending position. Can you help me redeem my jUSDC tokens to get USDC back?"
 
 ground_truth:
   final_state_assertions:
