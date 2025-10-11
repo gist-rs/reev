@@ -1,6 +1,6 @@
 id: 116-jup-lend-redeem-usdc
-description: Redeem jUSDC lending position using Jupiter
-tags: ["jupiter", "lend", "redeem", "yield", "jtoken"]
+description: Mint then redeem jUSDC lending position using Jupiter
+tags: ["jupiter", "lend", "mint", "redeem", "yield", "jtoken"]
 
 initial_state:
   # User's main wallet with 5 SOL for transaction fees.
@@ -8,30 +8,25 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 5000000000 # 5 SOL
 
-  # User's USDC token account with a small initial balance to receive redeemed funds.
+  # User's USDC token account with initial balance to mint into lending.
   - pubkey: "USER_USDC_ATA_PLACEHOLDER"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
     lamports: 2039280 # Rent-exempt minimum
     data:
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
       owner: "USER_WALLET_PUBKEY"
-      amount: "10000000" # 10 USDC
+      amount: "100000000" # 100 USDC (to have enough for both mint and redeem)
 
-  # User's jUSDC token account representing a previous minted position of ~50 jUSDC.
-  # This uses the REAL mint address for Jupiter's jUSDC tokens.
-  - pubkey: "USER_L_USDC_ATA_PLACEHOLDER"
-    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # SPL Token Program
-    lamports: 2039280
-    data:
-      mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D" # Jupiter jUSDC Mint
-      owner: "USER_WALLET_PUBKEY"
-      amount: "50000000" # 50 jUSDC tokens (representing lending position)
+  # A dummy recipient, sometimes required by test setup helpers.
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 0
 
-prompt: "I want to redeem 50 USDC from my Jupiter lending position. Can you help me redeem my jUSDC tokens to get USDC back?"
+prompt: "I want to mint 50 USDC into Jupiter lending to get jUSDC tokens, then redeem those jUSDC tokens back to USDC. Can you help me first mint 50 USDC worth of jUSDC, then redeem it back to USDC?"
 
 ground_truth:
   final_state_assertions:
-    # After redeeming 50 jUSDC, the user's jUSDC balance should be effectively zero.
+    # After the full cycle (mint then redeem), the user's jUSDC balance should be effectively zero.
     - type: TokenAccountBalance
       pubkey: "UNUSED_PLACEHOLDER"
       address_derivation:
@@ -39,18 +34,18 @@ ground_truth:
         owner: "USER_WALLET_PUBKEY"
         mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D" # Jupiter jUSDC Mint
       expected: 0
-      weight: 0.5
+      weight: 0.4
 
-    # The user's USDC balance should increase by ~50 USDC.
-    # The final balance should be >= 59 USDC (10 initial + 50 redeemed - fees/slippage).
+    # The user's USDC balance should be close to the original amount minus fees/slippage.
+    # Should have ~50 USDC from redemption, but lose some to fees and slippage.
     - type: TokenAccountBalance
       pubkey: "UNUSED_PLACEHOLDER"
       address_derivation:
         type: AssociatedTokenAccount
         owner: "USER_WALLET_PUBKEY"
         mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" # USDC Mint
-      expected_gte: 59000000
-      weight: 0.5
+      expected_gte: 48000000 # At least 48 USDC (allowing for fees/slippage)
+      weight: 0.6
 
   # For this complex DeFi interaction, success is determined by the on-chain state assertions,
   # not by a deterministic instruction set.

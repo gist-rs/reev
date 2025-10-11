@@ -114,3 +114,80 @@ Since the tool implementation is solid and already supports both positions and e
 - ✅ Benchmark validation aligned with actual tool capabilities
 - ✅ Consistent naming throughout all agent implementations
 - ✅ No more tool discovery failures due to naming mismatch
+
+---
+
+## Transaction Parsing Issue - Agent Response Format
+
+### Issue Description
+The agent is returning transaction data in the `summary` field as a JSON string instead of the `transactions` array field, causing "Agent returned no actions to execute" errors.
+
+### Root Cause Analysis
+
+#### The Problem
+From the log of benchmark `116-jup-lend-redeem-usdc`:
+```json
+{
+  "result": null,
+  "transactions": [],  // EMPTY ARRAY
+  "summary": "I notice I'm encountering a repetitive pattern... ```json\n{\n  \"transactions\": [\n    {\n      \"program_id\": \"jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9\",\n      \"accounts\": [...],\n      \"data\": \"PcB3tF1KHa29RNjc94cor7\"\n    }\n  ],\n  \"summary\": \"Successfully generated transaction instructions...\"\n}\n```",  // TRANSACTION DATA EMBEDDED HERE
+  "signatures": []
+}
+```
+
+#### Technical Details
+
+1. **Agent Response Structure**:
+   - `transactions`: `[]` (empty array)
+   - `summary`: Contains actual transaction data as JSON string
+   - Parser only looks for data in `transactions` array or `result.text` fields
+
+2. **Parsing Logic Issue**:
+   ```rust
+   // Current parsing logic in llm_agent.rs
+   let actions: Vec<AgentAction> = if let Some(transactions) = llm_response.transactions {
+       // This is empty, so no actions extracted
+       transactions.into_iter().map(|raw_ix| raw_ix.try_into()).collect()?
+   } else {
+       vec![]  // No actions found
+   };
+   ```
+
+3. **Error Flow**:
+   - Agent puts transaction data in summary as JSON string
+   - Parser finds empty transactions array
+   - Returns empty actions vector
+   - Environment logs: "Agent returned no actions to execute"
+   - Episode fails with on-chain score 0.0
+
+### Files Affected
+- `reev/crates/reev-lib/src/llm_agent.rs` (L235-280) - Response parsing logic
+- Potentially agent response generation logic in enhanced agents
+
+### Solution Options
+
+#### Option 1: Fix Response Generation
+Ensure agents put transaction data in the `transactions` array field instead of embedding it in the summary.
+
+#### Option 2: Enhanced Response Parsing
+Add logic to extract transaction data from summary field when transactions array is empty.
+
+#### Option 3: Agent Prompt Improvement
+Update agent prompts to explicitly format responses correctly.
+
+### Status: 🔄 IN PROGRESS  
+**Priority**: HIGH - Prevents successful completion of transaction-based benchmarks
+**Impact**: Agent generates correct transaction data but parser cannot extract it
+
+### Verification
+- ✅ Jupiter earn naming fix resolved (benchmark 114 passes with 100%)
+- ❌ Transaction parsing issue persists (benchmark 116 fails with 75% score)
+- 📊 Error pattern: Agent returns transaction data in summary, not transactions array
+- ✅ Parsing enhancement implemented - code correctly attempts to extract from summary
+- ❌ New issue discovered: Agent response JSON formatting error
+
+### Current Issue: Agent JSON Response Formatting Error
+**Error**: `invalid type: string "50000000  # This represents 50 USDC (with 6 decimals)", expected u64`
+**Root Cause**: Agent is sending comments and text descriptions in JSON numeric fields
+**Impact**: Tool call validation fails before transactions can be generated
+**Status**: 🔄 NEW ISSUE - Needs immediate attention

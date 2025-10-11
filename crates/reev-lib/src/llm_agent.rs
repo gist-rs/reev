@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse};
+use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse, RawInstruction};
 use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent, ToolResultStatus};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 /// An agent that uses a large language model to generate raw Solana instructions.
 pub struct LlmAgent {
@@ -232,21 +232,49 @@ impl Agent for LlmAgent {
         // 9. Handle both old and new response formats
         let actions: Vec<AgentAction> = if let Some(transactions) = llm_response.transactions {
             // New comprehensive format: direct transactions array
-            info!(
-                "[LlmAgent] Processing {} transactions from comprehensive format",
-                transactions.len()
-            );
-            for (i, tx) in transactions.iter().enumerate() {
+            if !transactions.is_empty() {
                 info!(
-                    "[LlmAgent] Transaction {}: {}",
-                    i,
-                    serde_json::to_string_pretty(tx).unwrap_or_default()
+                    "[LlmAgent] Processing {} transactions from comprehensive format",
+                    transactions.len()
                 );
+                for (i, tx) in transactions.iter().enumerate() {
+                    info!(
+                        "[LlmAgent] Transaction {}: {}",
+                        i,
+                        serde_json::to_string_pretty(tx).unwrap_or_default()
+                    );
+                }
+                transactions
+                    .into_iter()
+                    .map(|raw_ix| raw_ix.try_into())
+                    .collect::<Result<Vec<AgentAction>>>()?
+            } else {
+                // Empty transactions array, try to extract from summary as fallback
+                if let Some(summary) = &llm_response.summary {
+                    info!(
+                        "[LlmAgent] Transactions array empty, attempting to extract from summary"
+                    );
+                    match self.extract_transactions_from_summary(summary) {
+                        Ok(extracted_actions) => {
+                            if !extracted_actions.is_empty() {
+                                info!(
+                                    "[LlmAgent] Successfully extracted {} transactions from summary",
+                                    extracted_actions.len()
+                                );
+                                return Ok(extracted_actions);
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                "[LlmAgent] Failed to extract transactions from summary: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+                info!("[LlmAgent] No transactions found in response");
+                vec![]
             }
-            transactions
-                .into_iter()
-                .map(|raw_ix| raw_ix.try_into())
-                .collect::<Result<Vec<AgentAction>>>()?
         } else if let Some(result) = llm_response.result {
             // Old format: nested in result.text
             info!(
@@ -259,7 +287,27 @@ impl Agent for LlmAgent {
                 .map(|raw_ix| raw_ix.try_into())
                 .collect::<Result<Vec<AgentAction>>>()?
         } else {
-            // No instructions found
+            // No instructions found, try summary as last resort
+            if let Some(summary) = &llm_response.summary {
+                info!("[LlmAgent] No transactions array, attempting to extract from summary");
+                match self.extract_transactions_from_summary(summary) {
+                    Ok(extracted_actions) => {
+                        if !extracted_actions.is_empty() {
+                            info!(
+                                "[LlmAgent] Successfully extracted {} transactions from summary",
+                                extracted_actions.len()
+                            );
+                            return Ok(extracted_actions);
+                        }
+                    }
+                    Err(e) => {
+                        warn!(
+                            "[LlmAgent] Failed to extract transactions from summary: {}",
+                            e
+                        );
+                    }
+                }
+            }
             info!("[LlmAgent] No instructions found in response");
             vec![]
         };
@@ -316,5 +364,114 @@ impl Agent for LlmAgent {
         );
 
         Ok(actions)
+    }
+}
+
+impl LlmAgent {
+    /// Extract transactions from a summary field that contains JSON-formatted transaction data
+    fn extract_transactions_from_summary(&self, summary: &str) -> Result<Vec<AgentAction>> {
+        use serde_json::Value;
+
+        // Look for JSON blocks in the summary that contain transaction data
+        // Pattern: ```json\n{...transactions...}\n```
+        if let Some(json_start) = summary.find("```json") {
+            let json_content = &summary[json_start + 7..];
+            if let Some(json_end) = json_content.find("```") {
+                let json_str = &json_content[..json_end];
+                match serde_json::from_str::<Value>(json_str) {
+                    Ok(parsed) => {
+                        // Try to extract transactions array from the parsed JSON
+                        if let Some(transactions) =
+                            parsed.get("transactions").and_then(|t| t.as_array())
+                        {
+                            info!(
+                                "[LlmAgent] Found {} transactions in summary JSON",
+                                transactions.len()
+                            );
+                            let mut actions = Vec::new();
+                            for transaction in transactions {
+                                match serde_json::from_value::<RawInstruction>(transaction.clone())
+                                {
+                                    Ok(raw_ix) => match raw_ix.try_into() {
+                                        Ok(action) => actions.push(action),
+                                        Err(e) => {
+                                            warn!(
+                                                    "[LlmAgent] Failed to convert transaction to action: {}",
+                                                    e
+                                                );
+                                        }
+                                    },
+                                    Err(e) => {
+                                        warn!(
+                                            "[LlmAgent] Failed to parse transaction from summary: {}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                            return Ok(actions);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("[LlmAgent] Failed to parse JSON from summary: {}", e);
+                    }
+                }
+            }
+        }
+
+        // Fallback: try to find any JSON object that looks like a transaction
+        // Look for patterns like "program_id" in the summary
+        if summary.contains("program_id") && summary.contains("accounts") {
+            // Try to extract individual transaction objects
+            let mut actions = Vec::new();
+
+            // Simple regex-like approach to find transaction-like JSON objects
+            let lines: Vec<&str> = summary.lines().collect();
+            let mut in_transaction = false;
+            let mut transaction_lines = Vec::new();
+
+            for line in lines {
+                if line.trim().contains("\"program_id\"") {
+                    in_transaction = true;
+                    transaction_lines.clear();
+                }
+
+                if in_transaction {
+                    transaction_lines.push(line);
+
+                    // End of transaction object (simplified detection)
+                    if line.trim().ends_with('}') && line.trim().starts_with('}') {
+                        let transaction_json = transaction_lines.join("\n");
+                        match serde_json::from_str::<RawInstruction>(&transaction_json) {
+                            Ok(raw_ix) => match raw_ix.try_into() {
+                                Ok(action) => actions.push(action),
+                                Err(e) => {
+                                    warn!(
+                                        "[LlmAgent] Failed to convert transaction to action: {}",
+                                        e
+                                    );
+                                }
+                            },
+                            Err(_) => {
+                                // Try parsing as part of a larger object
+                                // This is a fallback for malformed JSON
+                            }
+                        }
+                        in_transaction = false;
+                        transaction_lines.clear();
+                    }
+                }
+            }
+
+            if !actions.is_empty() {
+                info!(
+                    "[LlmAgent] Extracted {} transactions using fallback method",
+                    actions.len()
+                );
+                return Ok(actions);
+            }
+        }
+
+        Ok(Vec::new())
     }
 }
