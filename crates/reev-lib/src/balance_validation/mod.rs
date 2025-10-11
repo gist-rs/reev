@@ -227,6 +227,7 @@ impl BalanceValidator {
     // Private helper methods
 
     /// Get identifier patterns for a token mint
+    #[allow(unused)]
     fn get_token_identifiers(&self, mint: &str) -> Vec<String> {
         match mint {
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => {
