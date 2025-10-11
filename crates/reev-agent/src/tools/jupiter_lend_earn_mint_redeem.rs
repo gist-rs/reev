@@ -4,18 +4,49 @@
 //! for lending positions.
 
 use rig::{completion::ToolDefinition, tool::Tool};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
 
+/// Custom deserializer to clean up shares parameter that may contain comments
+fn deserialize_shares<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    use serde_json::Value;
+
+    // Deserialize as a JSON value first to handle multiple formats
+    let value = Value::deserialize(deserializer)?;
+
+    match value {
+        Value::String(s) => {
+            // Remove HTML comments and extra whitespace
+            let cleaned = s
+                .split("<!--")
+                .next()
+                .unwrap_or(&s)
+                .trim()
+                .parse()
+                .map_err(|e| Error::custom(format!("Invalid number format: {e}")))?;
+            Ok(cleaned)
+        }
+        Value::Number(n) => n
+            .as_u64()
+            .ok_or_else(|| Error::custom("Number is not a valid u64")),
+        _ => Err(Error::custom("Expected string or number")),
+    }
+}
+
 /// The arguments for the Jupiter lend earn mint tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
 pub struct JupiterLendEarnMintArgs {
     pub asset: String,
     pub signer: String,
+    #[serde(deserialize_with = "deserialize_shares")]
     pub shares: u64,
 }
 
@@ -24,6 +55,7 @@ pub struct JupiterLendEarnMintArgs {
 pub struct JupiterLendEarnRedeemArgs {
     pub asset: String,
     pub signer: String,
+    #[serde(deserialize_with = "deserialize_shares")]
     pub shares: u64,
 }
 
