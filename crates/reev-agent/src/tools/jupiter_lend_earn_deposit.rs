@@ -4,6 +4,7 @@
 //! It acts as a thin wrapper around the protocol handler.
 
 use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
+use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -11,7 +12,7 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 /// The arguments for the Jupiter lend earn deposit tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -32,6 +33,8 @@ pub enum JupiterLendEarnDepositError {
     Serialization(#[from] serde_json::Error),
     #[error("Invalid amount: {0}")]
     InvalidAmount(String),
+    #[error("Balance validation failed: {0}")]
+    BalanceValidation(#[from] BalanceValidationError),
 }
 
 /// A `rig` tool for performing lend earn deposit operations using the Jupiter API.
@@ -55,7 +58,7 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. DO NOT use for 'mint' or 'redeem' operations. Works with token amounts like '0.1 SOL' or '50 USDC'. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
+            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. IMPORTANT: This tool will automatically validate the balance against available funds. If you need to check the available balance first, use the get_account_balance tool. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -69,7 +72,7 @@ impl Tool for JupiterLendEarnDepositTool {
                     },
                     "amount": {
                         "type": "number",
-                        "description": "The amount of the token to deposit, in its smallest denomination (e.g., lamports for SOL)."
+                        "description": "The amount of the token to deposit, in its smallest denomination (e.g., lamports for SOL). This will be validated against available balance."
                     }
                 },
                 "required": ["user_pubkey", "asset_mint", "amount"],
@@ -134,6 +137,50 @@ impl Tool for JupiterLendEarnDepositTool {
             return Err(JupiterLendEarnDepositError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
+        }
+
+        // Use shared balance validation utility
+        let balance_validator = BalanceValidator::new(self.key_map.clone());
+
+        match balance_validator.validate_token_balance(
+            &asset_mint.to_string(),
+            &args.user_pubkey,
+            args.amount,
+        ) {
+            Ok(()) => {
+                info!(
+                    "✅ Balance validation passed: requested {} for mint {}",
+                    args.amount, asset_mint
+                );
+
+                // Log the available balance for debugging
+                if let Ok(available) =
+                    balance_validator.get_token_balance(&asset_mint.to_string(), &args.user_pubkey)
+                {
+                    info!("Available balance: {}", available);
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "❌ Balance validation failed for mint {}: {}",
+                    asset_mint, e
+                );
+
+                // Provide helpful guidance for insufficient funds errors
+                if let BalanceValidationError::InsufficientFunds {
+                    requested,
+                    available,
+                } = &e
+                {
+                    warn!(
+                        "💡 Suggestion: Use get_account_balance tool to check available balance before depositing. \
+                        Available: {}, Requested: {}",
+                        available, requested
+                    );
+                }
+
+                return Err(JupiterLendEarnDepositError::BalanceValidation(e));
+            }
         }
 
         // Call the protocol handler

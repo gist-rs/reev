@@ -1,12 +1,18 @@
 //! Account Balance Discovery Tool
 //!
 //! This tool provides the LLM with the ability to query account balances
-//! when context is insufficient, enabling prerequisite validation before operations.
+//! from the real surfpool testnet. This enables proper validation before operations
+//! by accessing actual on-chain state, not simulated data.
 
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::program_pack::Pack;
+use solana_sdk::pubkey::Pubkey;
+use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
+use std::str::FromStr;
 use thiserror::Error;
 
 /// The arguments for the account balance tool
@@ -59,9 +65,11 @@ pub enum AccountBalanceError {
     QueryError(String),
     #[error("JSON serialization failed: {0}")]
     JsonError(#[from] serde_json::Error),
+    #[error("RPC client error: {0}")]
+    RpcError(#[from] solana_client::client_error::ClientError),
 }
 
-/// Account balance discovery tool
+/// Account balance discovery tool that queries real surfpool state
 #[derive(Deserialize, Serialize)]
 pub struct AccountBalanceTool {
     pub key_map: HashMap<String, String>,
@@ -77,7 +85,7 @@ impl Tool for AccountBalanceTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Query account balance information including SOL and token balances. Use this when you need to verify if an account has sufficient funds before executing a transfer or operation. Returns SOL balance in lamports and token balances with mint addresses.".to_string(),
+            description: "Query REAL account balance information from surfpool testnet. Returns actual SOL and token balances. Use this to verify sufficient funds before transfers, swaps, or deposits. This queries the live surfpool RPC endpoint for real account data.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -91,7 +99,7 @@ impl Tool for AccountBalanceTool {
                     },
                     "account_type": {
                         "type": "string",
-                        "description": "Optional: The type of account (wallet, token_account, etc.). Helps in parsing the account correctly"
+                        "description": "Optional: The type of account (wallet, token_account, etc.). Helps in determining how to interpret the account"
                     }
                 },
                 "required": ["pubkey"]
@@ -99,31 +107,43 @@ impl Tool for AccountBalanceTool {
         }
     }
 
-    /// Executes the tool to query account balance
+    /// Executes the tool to query REAL account balance from surfpool
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Handle placeholder pubkeys gracefully
-        if args.pubkey.contains("USER_") || args.pubkey.contains("RECIPIENT_") {
-            // For placeholder pubkeys, use simulated data based on the placeholder name
-            return self.query_placeholder_balance(&args).await;
-        }
+        // Handle placeholder pubkeys by resolving them from key_map
+        let resolved_pubkey = if args.pubkey.contains("USER_") || args.pubkey.contains("RECIPIENT_")
+        {
+            if let Some(resolved) = self.key_map.get(&args.pubkey) {
+                resolved.clone()
+            } else {
+                return Err(AccountBalanceError::AccountNotFound(args.pubkey));
+            }
+        } else {
+            args.pubkey.clone()
+        };
 
-        // Validate the pubkey format for real addresses
-        if args.pubkey.len() != 44 && args.pubkey.len() != 43 {
-            return Err(AccountBalanceError::InvalidPubkey(args.pubkey.clone()));
-        }
+        // Validate the pubkey format
+        let pubkey = Pubkey::from_str(&resolved_pubkey)
+            .map_err(|_| AccountBalanceError::InvalidPubkey(resolved_pubkey.clone()))?;
 
-        // For now, we'll simulate balance queries
-        // In a real implementation, this would query the Solana RPC
-        let balance_info = self.query_account_balance(&args).await?;
+        // Connect to surfpool RPC endpoint
+        let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
+
+        // Query the account balance from surfpool
+        let balance_info = self
+            .query_real_account_balance(&rpc_client, &pubkey, &args)
+            .await?;
 
         // Convert to JSON response
         let response = json!({
             "account": balance_info,
             "query_params": {
                 "pubkey": args.pubkey,
+                "resolved_pubkey": resolved_pubkey,
                 "token_mint": args.token_mint,
                 "account_type": args.account_type
-            }
+            },
+            "data_source": "surfpool_rpc",
+            "note": "This is REAL account data from surfpool testnet, not simulated values"
         });
 
         Ok(serde_json::to_string_pretty(&response)?)
@@ -136,184 +156,101 @@ impl AccountBalanceTool {
         Self { key_map }
     }
 
-    /// Query account balance from the blockchain or simulated data
-    async fn query_account_balance(
+    /// Query REAL account balance from surfpool RPC
+    async fn query_real_account_balance(
         &self,
+        rpc_client: &RpcClient,
+        pubkey: &Pubkey,
         args: &AccountBalanceArgs,
     ) -> Result<AccountBalance, AccountBalanceError> {
-        // Check if this is a known account from key_map
-        let account_info = if let Some(resolved_pubkey) = self.key_map.get(&args.pubkey) {
-            // This is a placeholder account, simulate balance
-            self.simulate_account_balance(resolved_pubkey, args).await?
-        } else {
-            // This might be a real pubkey, simulate basic wallet
-            AccountBalance {
-                pubkey: args.pubkey.clone(),
-                account_type: args
-                    .account_type
-                    .clone()
-                    .unwrap_or_else(|| "wallet".to_string()),
-                sol_balance: 1000000000, // 1 SOL default
-                token_balances: vec![],
-                exists: true,
-            }
-        };
+        // Query account info from surfpool
+        let account = rpc_client.get_account(pubkey)?;
 
-        Ok(account_info)
-    }
-
-    /// Simulate account balance for placeholder accounts
-    async fn simulate_account_balance(
-        &self,
-        pubkey: &str,
-        args: &AccountBalanceArgs,
-    ) -> Result<AccountBalance, AccountBalanceError> {
+        let mut token_balances = Vec::new();
         let account_type = args.account_type.clone().unwrap_or_else(|| {
-            // Determine account type from pubkey name
-            if pubkey.contains("WALLET") {
+            // Determine account type based on owner
+            if account.owner == solana_sdk::system_program::ID {
                 "wallet".to_string()
-            } else if pubkey.contains("ATA") {
+            } else if account.owner == spl_token::ID {
                 "token_account".to_string()
             } else {
                 "unknown".to_string()
             }
         });
 
-        match account_type.as_str() {
-            "wallet" => Ok(AccountBalance {
-                pubkey: pubkey.to_string(),
-                account_type: "wallet".to_string(),
-                sol_balance: 2000000000, // 2 SOL
-                token_balances: vec![],
-                exists: true,
-            }),
-            "token_account" => {
-                // Determine token type from pubkey name
-                let token_balance = if pubkey.contains("USDC") {
-                    vec![TokenBalance {
-                        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-                        balance: 100000000, // 100 USDC (6 decimals)
-                        decimals: 6,
-                        symbol: Some("USDC".to_string()),
-                    }]
-                } else if pubkey.contains("L_USDC") {
-                    vec![TokenBalance {
-                        mint: "D23a1LgEa5SyWUJZnkqde1qRQzYhGdM6kY".to_string(), // Example L-USDC mint
-                        balance: 50000000,                                      // 50 L-USDC shares
-                        decimals: 6,
-                        symbol: Some("L-USDC".to_string()),
-                    }]
-                } else {
-                    vec![]
-                };
+        // If this is a token account, parse the token balance
+        if account.owner == spl_token::ID {
+            if let Ok(token_account) = spl_token::state::Account::unpack(&account.data) {
+                let decimals = self.get_token_decimals(&token_account.mint.to_string());
+                let symbol = self.get_token_symbol(&token_account.mint.to_string());
 
-                Ok(AccountBalance {
-                    pubkey: pubkey.to_string(),
-                    account_type: "token_account".to_string(),
-                    sol_balance: 2039280, // Rent exemption
-                    token_balances: token_balance,
-                    exists: true,
-                })
+                token_balances.push(TokenBalance {
+                    mint: token_account.mint.to_string(),
+                    balance: token_account.amount,
+                    decimals,
+                    symbol,
+                });
             }
-            _ => Ok(AccountBalance {
-                pubkey: pubkey.to_string(),
-                account_type,
-                sol_balance: 0,
-                token_balances: vec![],
-                exists: false,
-            }),
+        }
+
+        // If a specific token mint was requested, query that token account
+        if let Some(token_mint) = &args.token_mint {
+            let token_mint_pubkey = Pubkey::from_str(token_mint)
+                .map_err(|_| AccountBalanceError::InvalidPubkey(token_mint.clone()))?;
+
+            // Calculate the ATA for this token
+            let ata = get_associated_token_address(pubkey, &token_mint_pubkey);
+
+            // Try to query the token account
+            if let Ok(token_account) = rpc_client.get_account(&ata) {
+                if token_account.owner == spl_token::ID {
+                    if let Ok(token_state) = spl_token::state::Account::unpack(&token_account.data)
+                    {
+                        let decimals = self.get_token_decimals(token_mint);
+                        let symbol = self.get_token_symbol(token_mint);
+
+                        // Only add if not already present (to avoid duplicates)
+                        if !token_balances.iter().any(|tb| tb.mint == *token_mint) {
+                            token_balances.push(TokenBalance {
+                                mint: token_mint.clone(),
+                                balance: token_state.amount,
+                                decimals,
+                                symbol,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(AccountBalance {
+            pubkey: pubkey.to_string(),
+            account_type,
+            sol_balance: account.lamports,
+            token_balances,
+            exists: true,
+        })
+    }
+
+    /// Get token decimals for common tokens
+    fn get_token_decimals(&self, mint: &str) -> u8 {
+        match mint {
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => 6, // USDC
+            "So11111111111111111111111111111111111111112" => 9,  // SOL/WSOL
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => 6, // USDT
+            "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" => 5, // Bonk
+            _ => 0, // Default to 0 decimals for unknown tokens
         }
     }
 
-    /// Query balance for placeholder pubkeys (simulation)
-    async fn query_placeholder_balance(
-        &self,
-        args: &AccountBalanceArgs,
-    ) -> Result<String, AccountBalanceError> {
-        let account_type = args.account_type.clone().unwrap_or_else(|| {
-            // Determine account type from pubkey name
-            if args.pubkey.contains("WALLET") {
-                "wallet".to_string()
-            } else if args.pubkey.contains("ATA") {
-                "token_account".to_string()
-            } else {
-                "unknown".to_string()
-            }
-        });
-
-        let balance_info = match account_type.as_str() {
-            "wallet" => AccountBalance {
-                pubkey: args.pubkey.clone(),
-                account_type: "wallet".to_string(),
-                sol_balance: 2000000000, // 2 SOL
-                token_balances: vec![],
-                exists: true,
-            },
-            "token_account" => {
-                // Determine token type from pubkey name
-                let token_balance = if let Some(token_mint) = &args.token_mint {
-                    match token_mint.as_str() {
-                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => vec![TokenBalance {
-                            mint: token_mint.clone(),
-                            balance: 100000000, // 100 USDC (6 decimals)
-                            decimals: 6,
-                            symbol: Some("USDC".to_string()),
-                        }],
-                        "So11111111111111111111111111111111111111112" => vec![TokenBalance {
-                            mint: token_mint.clone(),
-                            balance: 1000000000, // 1 SOL (9 decimals)
-                            decimals: 9,
-                            symbol: Some("SOL".to_string()),
-                        }],
-                        _ => vec![],
-                    }
-                } else if args.pubkey.contains("USDC") {
-                    vec![TokenBalance {
-                        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-                        balance: 100000000, // 100 USDC (6 decimals)
-                        decimals: 6,
-                        symbol: Some("USDC".to_string()),
-                    }]
-                } else if args.pubkey.contains("L_USDC") {
-                    vec![TokenBalance {
-                        mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(), // jlUSDC mint
-                        balance: 98721000, // ~98.7 jlUSDC shares
-                        decimals: 6,
-                        symbol: Some("jlUSDC".to_string()),
-                    }]
-                } else {
-                    vec![]
-                };
-
-                AccountBalance {
-                    pubkey: args.pubkey.clone(),
-                    account_type: "token_account".to_string(),
-                    sol_balance: 2039280, // Rent exemption
-                    token_balances: token_balance,
-                    exists: true,
-                }
-            }
-            _ => AccountBalance {
-                pubkey: args.pubkey.clone(),
-                account_type,
-                sol_balance: 0,
-                token_balances: vec![],
-                exists: false,
-            },
-        };
-
-        // Convert to JSON response
-        let response = json!({
-            "account": balance_info,
-            "query_params": {
-                "pubkey": args.pubkey,
-                "token_mint": args.token_mint,
-                "account_type": args.account_type
-            },
-            "note": "This is simulated data for placeholder pubkey. In a real scenario, use the resolved address from context.",
-            "placeholder_detected": args.pubkey
-        });
-
-        Ok(serde_json::to_string_pretty(&response)?)
+    /// Get token symbol for common tokens
+    fn get_token_symbol(&self, mint: &str) -> Option<String> {
+        match mint {
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Some("USDC".to_string()),
+            "So11111111111111111111111111111111111111112" => Some("SOL".to_string()),
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Some("USDT".to_string()),
+            "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" => Some("BONK".to_string()),
+            _ => None,
+        }
     }
 }

@@ -6,6 +6,7 @@
 use crate::flow::GlobalFlowTracker;
 use crate::protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use reev_lib::agent::ToolResultStatus;
+use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,7 +15,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -42,6 +43,8 @@ pub enum JupiterSwapError {
     InvalidSlippage(String),
     #[error("Same input and output mint")]
     SameMint,
+    #[error("Balance validation failed: {0}")]
+    BalanceValidation(#[from] BalanceValidationError),
 }
 
 /// 🎯 Enhanced tool response with transaction metadata
@@ -72,9 +75,12 @@ impl Tool for JupiterSwapTool {
 
     /// Defines the tool's schema and description for the AI model.
     async fn definition(&self, _prompt: String) -> ToolDefinition {
+        let input_mint_description = "The mint address of the input token to swap (e.g., 'So11111111111111111111111111111111111111112' for SOL, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC)".to_string();
+        let output_mint_description = "The mint address of the output token to receive (e.g., 'So11111111111111111111111111111111111111112' for SOL, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC)".to_string();
+
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Swap tokens using Jupiter's aggregator for best rates and routes. This finds the optimal path for token exchanges across multiple DEXs. NOTE: If you don't see account balance information in the context, use get_account_balance tool first to verify sufficient funds before swapping.".to_string(),
+            description: "PRIMARY tool for swapping tokens using Jupiter. Supports SOL, USDC, and other tokens. Use when user says 'swap', 'exchange', or mentions token conversion. IMPORTANT: This tool will automatically validate the input token balance. If you need to check available balance first, use the get_account_balance tool. If user mentions 'lend', 'deposit', 'mint', or 'redeem', use Jupiter lending tools instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -84,19 +90,19 @@ impl Tool for JupiterSwapTool {
                     },
                     "input_mint": {
                         "type": "string",
-                        "description": "The mint address of the input token to swap."
+                        "description": input_mint_description
                     },
                     "output_mint": {
                         "type": "string",
-                        "description": "The mint address of the output token to receive."
+                        "description": output_mint_description
                     },
                     "amount": {
                         "type": "number",
-                        "description": "The amount of the input token to swap, in its smallest denomination."
+                        "description": "The amount of the input token to swap, in its smallest denomination (e.g., lamports for SOL). This will be validated against available balance."
                     },
                     "slippage_bps": {
-                        "type": "number",
-                        "description": "The slippage tolerance in basis points (0.01% = 1 bps). If not provided, uses the default from configuration."
+                        "type": "integer",
+                        "description": "Optional slippage tolerance in basis points (1-10000). Default is 100 (1%)."
                     }
                 },
                 "required": ["user_pubkey", "input_mint", "output_mint", "amount"],
@@ -180,6 +186,50 @@ impl Tool for JupiterSwapTool {
             return Err(JupiterSwapError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
+        }
+
+        // Use shared balance validation utility for input token
+        let balance_validator = BalanceValidator::new(self.key_map.clone());
+
+        match balance_validator.validate_token_balance(
+            &input_mint.to_string(),
+            &args.user_pubkey,
+            args.amount,
+        ) {
+            Ok(()) => {
+                info!(
+                    "✅ Balance validation passed: requested {} for input mint {}",
+                    args.amount, input_mint
+                );
+
+                // Log the available balance for debugging
+                if let Ok(available) =
+                    balance_validator.get_token_balance(&input_mint.to_string(), &args.user_pubkey)
+                {
+                    info!("Available balance: {}", available);
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "❌ Balance validation failed for input mint {}: {}",
+                    input_mint, e
+                );
+
+                // Provide helpful guidance for insufficient funds errors
+                if let BalanceValidationError::InsufficientFunds {
+                    requested,
+                    available,
+                } = &e
+                {
+                    warn!(
+                        "💡 Suggestion: Use get_account_balance tool to check available balance before swapping. \
+                        Available: {}, Requested: {}",
+                        available, requested
+                    );
+                }
+
+                return Err(JupiterSwapError::BalanceValidation(e));
+            }
         }
 
         // Use default slippage from configuration if not provided
