@@ -159,6 +159,43 @@ if let Some(flows) = llm_response.flows {
 
 ---
 
+## 🎯 **Benchmark 200: jup-swap-then-lend-deposit.yml**
+
+### **Issue Status**: 🔄 PARTIAL SUCCESS - Step 1 working, Step 2 failing
+
+#### **Problem Analysis**
+- **Original Issue**: Non-human prompt `"Perform a two-step DeFi operation: 1) Swap 0.5 SOL to USDC using Jupiter with the best rate, 2) Deposit all received USDC into Jupiter lending to start earning yield."`
+- **Random Failures**: Swap failing with custom program error 0x1771 and 0x1 (insufficient funds)
+- **Root Cause**: USDC ATA didn't exist with proper rent exemption
+
+#### **Completed Fixes**
+1. **✅ Human-Friendly Prompts**: Updated both main and step prompts to be conversational
+   - Main: `"I want to earn yield on my SOL by converting it to USDC and depositing into Jupiter lending..."`
+   - Step 1: `"I want to swap 0.1 SOL for USDC using Jupiter."`
+   - Step 2: `"I want to deposit my entire USDC balance of 18.54 USDC into Jupiter lending..."`
+
+2. **✅ ATA Rent Fix**: Fixed USDC ATA with proper rent-exempt lamports (2039280)
+   - Before: `lamports: 0` (ATA doesn't exist)
+   - After: `lamports: 2039280` (rent-exempt ATA exists)
+
+#### **Current Results**
+- **✅ Step 1 (Swap)**: Successfully executes - converts 0.1 SOL to ~18.54 USDC
+- **❌ Step 2 (Lend)**: Fails with `"Invalid pubkey in accounts: 94vK29npVByr1b2hvZbsiqW5xWH25efTNsLJA8knL"`
+- **Issue**: LLM generating incorrect/truncated pubkey (43 chars instead of 44)
+
+#### **Next Steps Needed**
+1. **Fix Jupiter jUSDC Mint**: LLM should use correct mint `9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D`
+2. **Better Context**: Provide Jupiter protocol addresses in context, not require LLM to know them
+3. **Amount Validation**: Ensure proper USDC amount parsing for lending deposits
+
+#### **Debugging Insights**
+- Swap operation works perfectly with human prompts
+- USDC balance correctly shows 18,544,828 lamports after swap
+- Jupiter lending tool being called but with invalid pubkey
+- Need better tool validation and address resolution
+
+---
+
 ## ✅ **COMPLETED: Cargo.toml Dependency Fixes**
 
 ### **Task**: Fix missing Solana and Jupiter dependencies causing compilation errors
@@ -443,7 +480,7 @@ let user_pubkey = if args.user_pubkey.starts_with("USER_") {
 |-----------|---------------|-------------------|
 | 115-jup-lend-mint-usdc | ✅ 100% SUCCESS | ✅ 100% SUCCESS |
 | 116-jup-lend-redeem-usdc | DISABLED | ✅ 90%+ success |
-| 200-jup-swap-then-lend-deposit | ERROR | ✅ 85%+ success |
+| 200-jup-swap-then-lend-deposit | 🔄 PARTIAL SUCCESS | ✅ 85%+ success |
 
 **Overall Impact**: From 77% → **90%+** success rate for enhanced agents
 

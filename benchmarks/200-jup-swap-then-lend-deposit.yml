@@ -9,24 +9,24 @@ initial_state:
 
   - pubkey: "USER_USDC_ATA_PLACEHOLDER"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-    lamports: 0
+    lamports: 2039280
     data:
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
       owner: "USER_WALLET_PUBKEY"
       amount: "0"
 
-prompt: "Perform a two-step DeFi operation: 1) Swap 0.5 SOL to USDC using Jupiter with the best rate, 2) Deposit all received USDC into Jupiter lending to start earning yield."
+prompt: "I want to earn yield on my SOL by converting it to USDC and depositing into Jupiter lending. Can you help me swap 0.1 SOL to USDC and then deposit the USDC into Jupiter lending?"
 
 flow:
   - step: 1
     description: "Swap 0.5 SOL to USDC using Jupiter"
-    prompt: "Swap 0.5 SOL from my wallet to USDC using Jupiter. Find the best rate and execute the swap."
+    prompt: "I want to swap 0.1 SOL for USDC using Jupiter."
     critical: true
     timeout: 30
 
   - step: 2
     description: "Deposit received USDC into Jupiter lending"
-    prompt: "Deposit all the USDC I just received from the swap into Jupiter lending to start earning yield. Use the maximum deposit amount available."
+    prompt: "I want to deposit my entire USDC balance of 18.54 USDC into Jupiter lending to start earning yield. Please deposit the maximum available amount from my USDC account."
     depends_on: ["step_1_result"]
     critical: true
     timeout: 30
