@@ -19,10 +19,13 @@ pub struct RawInstruction {
 }
 
 /// A simplified, string-based version of `AccountMeta` for easy JSON serialization.
+/// Fields are optional to handle incomplete LLM responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawAccountMeta {
     pub pubkey: String,
+    #[serde(default)]
     pub is_signer: bool,
+    #[serde(default)]
     pub is_writable: bool,
 }
 

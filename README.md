@@ -12,7 +12,7 @@
 
 The framework achieves **100% success rates** across all benchmark categories:
 - **🔄 Real Jupiter Integration**: Full swap, lending, mint/redeem operations with Jupiter SDK
-- **🤖 Advanced Agent Support**: Both deterministic (ground truth) and AI agents working perfectly  
+- **🤖 Advanced Agent Support**: Both deterministic (ground truth) and AI agents working perfectly
 - **🔄 Multi-Step Workflows**: Complex DeFi flows with step-by-step orchestration (200-series)
 - **📊 Comprehensive Scoring**: Granular instruction quality evaluation + on-chain execution metrics
 - **🎮 Professional Tooling**: Interactive TUI cockpit, database persistence, detailed logging
@@ -93,7 +93,7 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministi
 
 **Local Model Agent:**
 ```bash
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
+cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 ```
 
 **Gemini Agent:**
@@ -167,7 +167,7 @@ The framework implements a sophisticated two-tiered scoring system:
 **Component Breakdown:**
 - **Instruction Quality (75%)**: Granular evaluation of generated transactions
   - Program ID matching (configurable weight)
-  - Instruction data validation (configurable weight)  
+  - Instruction data validation (configurable weight)
   - Account metadata verification (signer/writable flags)
 - **On-Chain Execution (25%)**: Binary success/failure on surfpool
 - **Composite Scoring**: Weighted average for final assessment
@@ -207,7 +207,7 @@ cargo test -p reev-runner --test llm_agent_test
 # Protocol examples
 cargo run -p reev-agent --example 115-jup-lend-mint-usdc
 
-# Flow examples  
+# Flow examples
 cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
 ```
 
