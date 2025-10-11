@@ -272,12 +272,14 @@ impl ContextIntegration {
                 }
             }
             // Complex multi-step benchmarks need more depth
-            id if id.contains("200-") || id.contains("complex") => ContextConfig {
-                enable_context: true,
-                context_depth: 5,
-                discovery_depth: 10,
-                force_discovery: false,
-            },
+            id if id.contains("200-") || id.contains("complex") || Self::is_multi_step_flow(id) => {
+                ContextConfig {
+                    enable_context: true,
+                    context_depth: 5,
+                    discovery_depth: 10,
+                    force_discovery: false,
+                }
+            }
             // Simple benchmarks: SOL transfers use minimal context, SPL transfers need balance info
             id if id.contains("001-") => ContextConfig {
                 enable_context: false,
@@ -333,6 +335,16 @@ impl ContextIntegration {
                 success,
             ),
         }
+    }
+
+    /// Detect if this is a multi-step flow benchmark by checking the ID pattern
+    fn is_multi_step_flow(benchmark_id: &str) -> bool {
+        // Look for flow step patterns in the ID
+        benchmark_id.contains("-step-")
+            || benchmark_id.starts_with("116-") && benchmark_id.contains("jup-lend")
+            || benchmark_id.contains("lend-redeem")
+            || benchmark_id.contains("swap-then-lend")
+            || benchmark_id.contains("lend-deposit")
     }
 
     /// Generate optimization recommendations
