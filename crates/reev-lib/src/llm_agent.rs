@@ -411,6 +411,38 @@ impl LlmAgent {
                             }
                             return Ok(actions);
                         }
+
+                        // Also check for direct_transactions from tool responses
+                        if let Some(direct_transactions) =
+                            parsed.get("direct_transactions").and_then(|t| t.as_array())
+                        {
+                            info!(
+                                "[LlmAgent] Found {} direct transactions from tool response",
+                                direct_transactions.len()
+                            );
+                            let mut actions = Vec::new();
+                            for transaction in direct_transactions {
+                                match serde_json::from_value::<RawInstruction>(transaction.clone())
+                                {
+                                    Ok(raw_ix) => match raw_ix.try_into() {
+                                        Ok(action) => actions.push(action),
+                                        Err(e) => {
+                                            warn!(
+                                                    "[LlmAgent] Failed to convert direct transaction to action: {}",
+                                                    e
+                                                );
+                                        }
+                                    },
+                                    Err(e) => {
+                                        warn!(
+                                            "[LlmAgent] Failed to parse direct transaction from tool: {}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                            return Ok(actions);
+                        }
                     }
                     Err(e) => {
                         warn!("[LlmAgent] Failed to parse JSON from summary: {}", e);
