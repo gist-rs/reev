@@ -57,7 +57,7 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 
 ### Prerequisites
 
-1. **Rust Toolchain**: Install Rust (1.70+)
+1. **Rust Toolchain**: Install Rust (latest stable recommended)
 2. **Git**: Clone the repository
 3. **Optional LLM**: Install LM Studio or have Gemini API key for AI agents
 
@@ -133,8 +133,7 @@ Multi-step DeFi workflows with step-by-step execution:
 # Swap then lend (2 steps: swap SOL→USDC, then deposit USDC)
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
 
-# Compound strategies
-cargo run -p reev-runner -- benchmarks/201-compound-strategy.yml --agent deterministic
+# More flow benchmarks coming soon...
 ```
 
 **Flow Execution Features:**
@@ -180,8 +179,8 @@ The framework implements a sophisticated two-tiered scoring system:
 **Validated Score Scenarios:**
 | Score Range | Test Case | Purpose | Status |
 |-------------|-----------|---------|---------|
-| **0%** | `003-spl-transfer-fail` | Complete failure (no instructions) | ✅ Validated |
-| **~50%** | `004-partial-score-spl-transfer` | Partial credit (correct ID, wrong data) | ✅ Validated |
+| **~75%** | `003-spl-transfer-fail` | Correct instruction, on-chain failure | ✅ Validated |
+| **~78.6%** | `004-partial-score-spl-transfer` | Partial credit (correct ID, some errors) | ✅ Validated |
 | **~75%** | `100-jup-swap-sol-usdc` (pre-fix) | Good reasoning, execution failure | ✅ Validated |
 | **100%** | `001-sol-transfer`, `002-spl-transfer` | Perfect execution | ✅ Validated |
 

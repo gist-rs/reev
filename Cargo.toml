@@ -7,9 +7,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Reev Developers"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/example/reev"
+repository = "https://github.com/gist-rs/reev"
 description = "A framework for the reproducible evaluation of Solana-native LLM agents."
-homepage = "https://github.com/example/reev"
+homepage = "https://github.com/gist-rs/reev"
 keywords = ["solana", "llm", "agent", "evaluation", "testing"]
 categories = ["development-tools", "simulation"]
 
