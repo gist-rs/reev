@@ -123,6 +123,76 @@ The `reev` framework now serves as a model for how systematic technical debt res
 
 ---
 
+## 2025-10-13: Surfpool Fork vs Mainnet API Integration Issue
+
+### 🎯 **Problem Identified**
+Local LLM agent failing in multi-step flow benchmarks due to architectural mismatch between surfpool forked mainnet environment and Jupiter's mainnet API calls.
+
+### 🔍 **Root Cause Analysis**
+The issue occurs in benchmark `116-jup-lend-redeem-usdc` Step 2 (redeem jUSDC):
+
+1. **Step 1 Success**: Jupiter mint operation successfully executes in surfpool forked mainnet
+2. **Step 2 Failure**: Agent calls `jupiter_earn` tool to check positions on real mainnet API
+3. **Position Mismatch**: Real mainnet has no record of jUSDC tokens minted in surfpool fork
+4. **Agent Error**: Tool returns "zero jUSDC shares" causing redeem operation to fail
+
+### 🏗️ **Technical Architecture Conflict**
+```
+Surfpool Forked Mainnet ≠ Jupiter Mainnet API
+├── Surfpool: Local fork with minted jUSDC tokens ✅
+├── Jupiter API: Queries real mainnet positions ❌
+├── Result: Position data mismatch causing flow failures
+└── Impact: Multi-step flows fail despite successful operations
+```
+
+### 💡 **Key Insight**
+The agent is correctly following the intended workflow (check positions → redeem), but the architectural design creates a fundamental conflict:
+- **Flow operations** execute in surfpool forked environment
+- **Position checking** queries real mainnet via Jupiter API
+- **No synchronization** between the two environments
+
+### 🔧 **Solutions Required**
+
+#### **Option 1: Skip Position Checks for Flows**
+- Trust that Step 1 operations were successful
+- Skip redundant position validation in flow steps
+- Modify agent prompting to avoid unnecessary API calls
+
+#### **Option 2: Extract Position Data from Transaction Logs**
+- Parse transaction logs from Step 1 to extract minted amounts
+- Use extracted data to determine correct redeem amounts
+- Maintain data integrity within flow execution context
+
+#### **Option 3: Hybrid Position Tracking**
+- Use surfpool state queries for position data when available
+- Fall back to mainnet API only for real-world scenarios
+- Implement context-aware position checking logic
+
+### 📊 **Impact Assessment**
+- **Severity**: HIGH - Affects all multi-step Jupiter flow benchmarks
+- **Scope**: Architectural - Requires changes to agent workflow logic
+- **Priority**: Critical - Blocks production flow evaluation capabilities
+
+### 🎓 **Lessons Learned**
+- **Environment Consistency**: All operations in a flow must use the same data source
+- **API Integration Design**: External APIs must account for local testing environments
+- **Flow State Management**: Position data needs to flow between steps in local execution
+- **Testing Architecture**: Forked environments require self-contained state management
+
+### 🚀 **Implementation Strategy**
+Prioritize Option 1 (Skip Position Checks) for immediate fix:
+- Modify FlowAgent prompting to avoid redundant position checks
+- Trust transaction execution results from previous flow steps
+- Maintain flow continuity without external API dependencies
+
+### 📈 **Expected Outcome**
+- Multi-step flows complete successfully with local LLM agents
+- Consistent behavior between deterministic and local agents
+- Improved reliability of flow benchmark execution
+- Reduced dependency on external API availability
+
+---
+
 ## 2025-10-12: Initial Foundation Assessment
 
 *Earlier reflections captured the initial assessment of technical debt and provided the roadmap for the comprehensive resolution completed above.*

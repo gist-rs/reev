@@ -44,20 +44,35 @@
 ### ✅ Phase 19: Technical Debt Resolution - COMPLETED
 ✅ **ALL 10 TOFIX ISSUES RESOLVED** - Complete elimination of technical debt across stability, maintainability, and code quality dimensions.
 
-### 🔄 Phase 20: Advanced Multi-Agent Collaboration (NEW FOCUS)
+### 🔄 Phase 20: Agent Loop Behavior Optimization (ACTIVE ISSUE)
+
+### 🎯 **Critical Issue Identified**
+Local LLM agent failing to call tools in multi-step flows, causing benchmark failures.
+
+**Problem**: In benchmark `116-jup-lend-redeem-usdc`, Step 2 (redeem jUSDC) fails because:
+- Local LLM agent returns empty transactions instead of calling tools
+- Agent hallucinates "zero jUSDC shares" without using `jupiter_earn` tool to check positions
+- Deterministic agent works perfectly (100% score) - issue is LLM-specific
+
+**Root Cause**: Agent loop behavior where LLM doesn't use available tools for position checking
+**Impact**: Flow benchmarks fail with local agents despite working infrastructure
+**Priority**: HIGH - affects production LLM agent evaluation
+
+### 🔄 Phase 21: Advanced Multi-Agent Collaboration (FUTURE)
+
 Now that all technical debt is resolved, focus shifts to advanced agent capabilities:
 - Agent orchestration and specialization
 - Swarm intelligence patterns
 - Distributed problem solving
 - Enhanced performance optimization
 
-### 🔄 Phase 21: Enterprise Features (FUTURE)
+### 🔄 Phase 22: Enterprise Features (FUTURE)
 - Role-based access control
 - Advanced security features
 - Custom benchmark creation tools
 - Performance analytics dashboard
 
-### 🔄 Phase 22: Ecosystem Expansion (FUTURE)
+### 🔄 Phase 23: Ecosystem Expansion (FUTURE)
 - Additional blockchain support
 - More DeFi protocol integrations
 - Community contribution framework
