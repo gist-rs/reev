@@ -55,7 +55,6 @@ async fn test_flow_tracking_integration() {
     // Extract flow data
     let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
 
-    println!("🔍 Debug: Flow data result: {flow_data:?}");
     assert!(flow_data.is_some(), "Flow data should be available");
 
     let data = flow_data.unwrap();
@@ -178,7 +177,10 @@ async fn test_llm_response_with_flows() {
 
     // Extract flow data and verify it matches expected format
     let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
-    assert!(flow_data.is_some());
+    assert!(
+        flow_data.is_some(),
+        "Flow data should be available for LLM test"
+    );
 
     let data = flow_data.unwrap();
 
