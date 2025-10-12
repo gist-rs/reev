@@ -2,6 +2,7 @@
 
 pub mod addresses;
 pub mod amounts;
+pub mod env;
 
 // Re-export commonly used constants for convenience
 pub use addresses::{
@@ -22,4 +23,16 @@ pub use amounts::{
     slippage::{EIGHT_PERCENT, FIVE_PERCENT, TEN_PERCENT},
     solana::{MIN_BALANCE, RENT_EXEMPTION},
     tokens::{sol, usdc},
+};
+
+pub use env::{
+    agents::{default_agent, enable_mock, mock_param},
+    database::{database_path, enable_connection_pooling, max_connections},
+    llm::{google_api_key, local_server_url, max_turns, temperature},
+    load_config,
+    logging::{enable_debug, rust_log_filter},
+    network::{reev_agent_host, reev_agent_port, surfpool_host, surfpool_port},
+    solana::{commitment_level, devnet_rpc_url, mainnet_rpc_url, preflight_commitment},
+    timeouts::{benchmark_timeout_seconds, health_check_seconds, http_request_seconds},
+    validate_required_env,
 };

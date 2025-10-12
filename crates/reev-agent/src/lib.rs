@@ -44,7 +44,7 @@ async fn handle_simple_transfer_benchmarks(
             .await?;
             Ok(serde_json::to_string(&ixs)?)
         }
-        _ => anyhow::bail!("Not a simple transfer benchmark: {}", benchmark_id),
+        _ => anyhow::bail!("Not a simple transfer benchmark: {benchmark_id}"),
     }
 }
 
@@ -59,7 +59,7 @@ async fn handle_jupiter_swap_benchmarks(
                 agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(key_map).await?;
             Ok(serde_json::to_string(&ixs)?)
         }
-        _ => anyhow::bail!("Not a Jupiter swap benchmark: {}", benchmark_id),
+        _ => anyhow::bail!("Not a Jupiter swap benchmark: {benchmark_id}"),
     }
 }
 
@@ -130,7 +130,7 @@ async fn handle_jupiter_lending_benchmarks(
             .await?;
             Ok(serde_json::to_string(&ixs)?)
         }
-        _ => anyhow::bail!("Not a Jupiter lending benchmark: {}", benchmark_id),
+        _ => anyhow::bail!("Not a Jupiter lending benchmark: {benchmark_id}"),
     }
 }
 
@@ -231,7 +231,7 @@ async fn handle_flow_benchmarks(
             });
             Ok(serde_json::to_string(&flow_response)?)
         }
-        _ => anyhow::bail!("Not a flow benchmark: {}", benchmark_id),
+        _ => anyhow::bail!("Not a flow benchmark: {benchmark_id}"),
     }
 }
 
@@ -319,7 +319,7 @@ async fn handle_flow_step_benchmarks(
             );
             Ok(serde_json::to_string(&instructions)?)
         }
-        _ => anyhow::bail!("Not a flow step benchmark: {}", benchmark_id),
+        _ => anyhow::bail!("Not a flow step benchmark: {benchmark_id}"),
     }
 }
 

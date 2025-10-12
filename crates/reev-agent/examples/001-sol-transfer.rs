@@ -8,9 +8,8 @@ use tracing::{debug, info};
 
 // Include the common CLI parsing module.
 mod common;
-mod common_helpers;
 
-use common_helpers::{run_example, ExampleConfig};
+use crate::common::helpers::ExampleConfig;
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -138,10 +137,10 @@ async fn main() -> Result<()> {
         debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
-        error!("❌ Agent request failed with status: {}", status);
+        tracing::error!("❌ Agent request failed with status: {}", status);
         let error_text = response.text().await.unwrap_or_default();
-        error!("Error response: {}", error_text);
-        return Err(anyhow::anyhow!("Agent request failed: {}", status));
+        tracing::error!("Error response: {}", error_text);
+        return Err(anyhow::anyhow!("Agent request failed: {status}"));
     }
 
     // The server is running in a background thread. Exit explicitly.

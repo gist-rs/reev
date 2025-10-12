@@ -7,6 +7,7 @@ pub mod env;
 pub mod flow;
 pub mod instruction_score;
 pub mod llm_agent;
+pub mod mock;
 
 pub mod results;
 pub mod score;

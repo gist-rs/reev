@@ -9,6 +9,8 @@ use tracing::{debug, info};
 // Include the common CLI parsing module.
 mod common;
 
+use crate::common::helpers::ExampleConfig;
+
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
 struct TestCase {
@@ -57,11 +59,10 @@ async fn main() -> Result<()> {
     });
 
     // 2. Wait for the server to be healthy before proceeding.
-    let client = reqwest::Client::new();
-    let health_url = "http://127.0.0.1:9090/health";
+    let config = ExampleConfig::new(&agent_name);
     info!("Waiting for agent server to start...");
     loop {
-        match client.get(health_url).send().await {
+        match config.client.get(config.health_check_url()).send().await {
             Ok(response) if response.status().is_success() => {
                 info!("Agent server is running.");
                 break;
@@ -109,16 +110,12 @@ async fn main() -> Result<()> {
         serde_json::to_string_pretty(&request_payload)?
     );
 
-    // 6. Send the request to the running reev-agent.
-    let agent_url = if agent_name == "deterministic" {
-        "http://127.0.0.1:9090/gen/tx?mock=true"
-    } else {
-        "http://127.0.0.1:9090/gen/tx"
-    };
-    info!("Sending request to agent at {}...", agent_url);
+    // 6. Send the request to the running reev-agent using common helper.
+    info!("Sending request to agent at {}...", config.tx_url());
 
-    let response = client
-        .post(agent_url)
+    let response = config
+        .client
+        .post(config.tx_url())
         .json(&request_payload)
         .send()
         .await

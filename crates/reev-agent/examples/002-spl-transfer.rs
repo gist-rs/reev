@@ -8,8 +8,8 @@ use tracing::{debug, info};
 
 // Include the common CLI parsing module.
 mod common;
-mod common_helpers;
-use common_helpers::run_example;
+
+use crate::common::helpers::ExampleConfig;
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -60,8 +60,19 @@ async fn main() -> Result<()> {
     });
 
     // 2. Wait for the server to be healthy before proceeding.
+    let config = ExampleConfig::new(&agent_name);
     info!("Waiting for agent server to start...");
-    // The run_example function handles health checking and request sending
+    loop {
+        match config.client.get(config.health_check_url()).send().await {
+            Ok(response) if response.status().is_success() => {
+                info!("Agent server is running.");
+                break;
+            }
+            _ => {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
 
     // 3. Load the benchmark file.
     let benchmark_path = PathBuf::from("benchmarks/002-spl-transfer.yml");
@@ -104,18 +115,32 @@ async fn main() -> Result<()> {
         serde_json::to_string_pretty(&request_payload)?
     );
 
-    // 6. Send the request to the running reev-agent.
-    let agent_url = if agent_name == "deterministic" {
-        "http://127.0.0.1:9090/gen/tx?mock=true"
+    // 6. Send the request to the running reev-agent using common helper.
+    info!("Sending request to agent at {}...", config.tx_url());
+
+    let response = config
+        .client
+        .post(config.tx_url())
+        .json(&request_payload)
+        .send()
+        .await
+        .context("Failed to send request to the agent")?;
+
+    // 7. Process and print the response.
+    if response.status().is_success() {
+        let response_json: serde_json::Value = response
+            .json()
+            .await
+            .context("Failed to deserialize agent response")?;
+        info!("✅ Agent responded successfully!");
+        debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
-        "http://127.0.0.1:9090/gen/tx"
-    };
-
-    // 7. Send the request to the running reev-agent using common helper.
-    let response_json = run_example(&agent_name, &test_case.id, &test_case.prompt).await?;
-
-    info!("✅ Agent responded successfully!");
-    debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
+        let status = response.status();
+        tracing::error!("❌ Agent request failed with status: {}", status);
+        let error_text = response.text().await.unwrap_or_default();
+        tracing::error!("Error response: {}", error_text);
+        return Err(anyhow::anyhow!("Agent request failed: {status}"));
+    }
 
     // The server is running in a background thread. Exit explicitly.
     std::process::exit(0);
