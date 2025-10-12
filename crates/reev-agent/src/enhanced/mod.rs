@@ -14,10 +14,10 @@
 //! - Context-aware decision making that exceeds deterministic patterns
 
 pub mod enhanced_context;
-pub mod gemini;
+// pub mod gemini; // Not implemented yet
 pub mod openai;
 
 // Re-export main components for easier access
 pub use enhanced_context::{EnhancedContextAgent, RequestAnalysis};
-pub use gemini::GeminiAgent;
+// pub use gemini::GeminiAgent; // Not implemented yet
 pub use openai::OpenAIAgent;

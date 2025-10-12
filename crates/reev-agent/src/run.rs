@@ -3,10 +3,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::info;
 
-use crate::{
-    enhanced::{gemini::GeminiAgent, openai::OpenAIAgent},
-    LlmRequest,
-};
+use crate::{enhanced::openai::OpenAIAgent, LlmRequest};
 
 /// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
 #[derive(Debug, Deserialize)]
@@ -51,10 +48,7 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     let key_map = context.key_map;
 
     // Route to appropriate enhanced agent based on model type
-    if model_name.starts_with("gemini") {
-        info!("[run_agent] Using Gemini enhanced agent");
-        GeminiAgent::run(model_name, payload, key_map).await
-    } else if model_name == "local" {
+    if model_name == "local" {
         // Real local model - route to OpenAI agent which supports local LLM servers
         info!("[run_agent] Using real local model via OpenAI agent");
         OpenAIAgent::run(model_name, payload, key_map).await

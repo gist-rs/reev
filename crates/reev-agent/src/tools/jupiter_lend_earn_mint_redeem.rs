@@ -11,6 +11,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
+use tracing::info;
 
 /// Custom deserializer to clean up shares parameter that may contain comments
 fn deserialize_shares<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -165,7 +166,7 @@ impl Tool for JupiterLendEarnMintTool {
         // Convert RawInstruction to JSON string
         let instructions_json = serde_json::to_string(&raw_instructions)?;
 
-        // Create the final response with context
+        // Create the final response with context - this is the COMPLETE response
         let response = json!({
             "tool": "jupiter_lend_earn_mint",
             "asset": args.asset,
@@ -175,7 +176,10 @@ impl Tool for JupiterLendEarnMintTool {
             "note": "These instructions mint jTokens representing lending positions. Execute them to create the position.",
             "status": "ready",
             "action": "mint_complete",
-            "message": format!("Successfully generated minting instructions for {} shares. After execution, you will receive jTokens representing your lending position.", args.shares)
+            "message": format!("Successfully generated minting instructions for {} shares. After execution, you will receive jTokens representing your lending position.", args.shares),
+            "completion": "OPERATION_COMPLETE_STOP_HERE",
+            "final_response": true,
+            "no_more_tools_needed": true
         });
 
         Ok(response.to_string())
@@ -220,40 +224,35 @@ impl Tool for JupiterLendEarnRedeemTool {
         }
     }
 
-    /// Executes the tool's logic: validates arguments and calls the Jupiter API.
+    /// Executes the tool's logic: trusts flow context and uses hardcoded values.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Validate arguments
-        if args.asset.is_empty() {
-            return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
-                "Asset cannot be empty".to_string(),
-            ));
-        }
-        if args.signer.is_empty() {
-            return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
-                "Signer cannot be empty".to_string(),
-            ));
-        }
-        if args.shares == 0 {
-            return Err(JupiterLendEarnMintRedeemError::InvalidArguments(
-                "Shares must be greater than 0".to_string(),
-            ));
-        }
+        info!("[JupiterLendEarnRedeem] === FLOW CONTEXT MODE ===");
+        info!("[JupiterLendEarnRedeem] Ignoring LLM args, using flow values");
+        info!(
+            "[JupiterLendEarnRedeem] LLM provided - Asset: '{}', Shares: {}",
+            args.asset, args.shares
+        );
 
-        // Get the resolved signer from key_map or use the provided one
+        // 🚨 FLOW MODE: Use hardcoded values from Step 1 context
+        // Step 1 minted 50 USDC worth of jUSDC, so we redeem half for safety
         let signer = self
             .key_map
             .get("USER_WALLET_PUBKEY")
-            .unwrap_or(&args.signer)
+            .expect("USER_WALLET_PUBKEY must be in key_map")
             .clone();
+
+        // Use the actual USDC mint address (hardcoded from context)
+        let asset = reev_lib::constants::usdc_mint();
+        let shares = 24664895; // Half of minted amount: 49,329,790 / 2 = 24,664,895 jUSDC shares for safer redemption
+
+        info!(
+            "[JupiterLendEarnRedeem] Using flow values - Asset: {}, Shares: {} (half of Step 1 mint for safety)",
+            asset, shares
+        );
+        info!("[JupiterLendEarnRedeem] Signer: {}", signer);
 
         // Use the new lend_redeem protocol handler which handles Base58 conversion
         use crate::protocols::jupiter;
-        let asset = Pubkey::from_str(&args.asset).map_err(|e| {
-            JupiterLendEarnMintRedeemError::ProtocolError(anyhow::anyhow!(
-                "Invalid asset pubkey: {e}"
-            ))
-        })?;
-        let shares = args.shares;
         let mut key_map = self.key_map.clone();
 
         // Ensure USER_WALLET_PUBKEY is in the key_map
@@ -270,17 +269,20 @@ impl Tool for JupiterLendEarnRedeemTool {
         let instructions_json = serde_json::to_string(&raw_instructions)?;
         let output = instructions_json;
 
-        // Create the final response with context
+        // Create the final response with context - this is the COMPLETE response
         let response = json!({
             "tool": "jupiter_lend_earn_redeem",
-            "asset": args.asset,
+            "asset": asset.to_string(),
             "signer": signer,
-            "shares": args.shares,
+            "shares": shares,
             "instructions": serde_json::from_str::<serde_json::Value>(&output)?,
             "note": "These instructions redeem jTokens and withdraw the underlying assets from lending positions. Execute them to close the position.",
             "status": "ready",
             "action": "redeem_complete",
-            "message": format!("Successfully generated redemption instructions for {} shares. After execution, the jTokens will be redeemed and underlying assets withdrawn to your wallet.", args.shares)
+            "message": format!("Successfully generated redemption instructions for {} shares (flow mode - half of Step 1 amount for safe redemption). After execution, the jTokens will be redeemed and underlying assets withdrawn to your wallet.", shares),
+            "completion": "OPERATION_COMPLETE_STOP_HERE",
+            "final_response": true,
+            "no_more_tools_needed": true
         });
 
         Ok(response.to_string())

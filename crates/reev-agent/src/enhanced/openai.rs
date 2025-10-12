@@ -11,7 +11,7 @@ use crate::{
     tools::{
         AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
         JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool,
-        LendEarnTokensTool, PositionInfoTool, SolTransferTool, SplTransferTool,
+        LendEarnTokensTool, SolTransferTool, SplTransferTool,
     },
     LlmRequest,
 };
@@ -44,6 +44,16 @@ impl OpenAIAgent {
     ) -> Result<String> {
         info!("[OpenAIAgent] Running enhanced multi-turn agent with model: {model_name}");
 
+        // 🚨 Check for allowed tools filtering (for flow operations)
+        let allowed_tools = payload.allowed_tools.as_ref();
+        if let Some(tools) = allowed_tools {
+            info!(
+                "[OpenAIAgent] Flow mode: Only allowing {} tools: {:?}",
+                tools.len(),
+                tools
+            );
+        }
+
         // 🧠 Build enhanced context with account information
         let context_config = ContextIntegration::config_for_benchmark_type(&payload.id);
         let context_integration = ContextIntegration::new(context_config);
@@ -60,6 +70,20 @@ impl OpenAIAgent {
             "{SYSTEM_PREAMBLE}\n\n---\n{}\n---",
             enhanced_prompt_data.prompt
         );
+
+        // 🚨 CRITICAL LOGGING: Log the exact prompt being sent to LLM
+        info!("[OpenAIAgent] === PROMPT BEING SENT TO LLM ===");
+        info!("[OpenAIAgent] Benchmark ID: {}", payload.id);
+        info!("[OpenAIAgent] Model: {}", model_name);
+        info!(
+            "[OpenAIAgent] Enhanced Prompt Length: {} chars",
+            enhanced_prompt.len()
+        );
+        info!(
+            "[OpenAIAgent] Enhanced Prompt Content:\n{}",
+            enhanced_prompt
+        );
+        info!("[OpenAIAgent] === END PROMPT ===");
 
         // 🤖 MULTI-TURN CONVERSATION: Enable step-by-step reasoning
         let user_request = enhanced_prompt_data.prompt.clone();
@@ -79,10 +103,22 @@ impl OpenAIAgent {
                 as usize
         };
 
+        info!("[OpenAIAgent] === DEPTH CALCULATION ===");
+        info!("[OpenAIAgent] Benchmark ID: {}", payload.id);
         info!(
-            "[OpenAIAgent] Using conversation depth: {} for request",
+            "[OpenAIAgent] Has Context: {}",
+            enhanced_prompt_data.has_context
+        );
+        info!(
+            "[OpenAIAgent] Recommended Depth: {}",
+            enhanced_prompt_data.recommended_depth
+        );
+        info!(
+            "[OpenAIAgent] Final Conversation Depth: {}",
             conversation_depth
         );
+        info!("[OpenAIAgent] Is Single Turn: {}", conversation_depth == 1);
+        info!("[OpenAIAgent] === END DEPTH CALCULATION ===");
 
         // 🛠️ Create flow tracking infrastructure
         let _flow_tracker = create_flow_infrastructure();
@@ -109,9 +145,6 @@ impl OpenAIAgent {
         let jupiter_lend_earn_redeem_tool = JupiterLendEarnRedeemTool {
             key_map: key_map.clone(),
         };
-        let jupiter_positions_tool = JupiterEarnTool {
-            key_map: key_map.clone(),
-        };
         let jupiter_earn_tool = JupiterEarnTool {
             key_map: key_map.clone(),
         };
@@ -120,37 +153,94 @@ impl OpenAIAgent {
         let balance_tool = AccountBalanceTool {
             key_map: key_map.clone(),
         };
-        let position_tool = PositionInfoTool {
-            key_map: key_map.clone(),
-        };
+        // let position_tool = PositionInfoTool {
+        //     key_map: key_map.clone(),
+        // };
         let lend_earn_tokens_tool = LendEarnTokensTool::new(key_map.clone());
 
-        // 🧠 Build enhanced multi-turn agent
-        let agent = client
-            .completion_model(model_name)
-            .completions_api()
-            .into_agent_builder()
-            .preamble(&enhanced_prompt)
-            .tool(sol_tool)
-            .tool(spl_tool)
-            .tool(jupiter_swap_tool)
-            .tool(jupiter_lend_earn_deposit_tool)
-            .tool(jupiter_lend_earn_withdraw_tool)
-            .tool(jupiter_lend_earn_mint_tool)
-            .tool(jupiter_lend_earn_redeem_tool)
-            .tool(jupiter_positions_tool)
-            .tool(jupiter_earn_tool)
-            .tool(balance_tool)
-            .tool(position_tool)
-            .tool(lend_earn_tokens_tool)
-            .build();
+        // 🧠 Build enhanced multi-turn agent with conditional tool filtering
+        let agent = if let Some(allowed_tools) = allowed_tools {
+            // Flow mode: only add tools that are explicitly allowed
+            info!(
+                "[OpenAIAgent] Flow mode: Only allowing {} tools: {:?}",
+                allowed_tools.len(),
+                allowed_tools
+            );
+            let mut builder = client
+                .completion_model(model_name)
+                .completions_api()
+                .into_agent_builder()
+                .preamble(&enhanced_prompt)
+                .tool(sol_tool)
+                .tool(spl_tool)
+                .tool(jupiter_swap_tool)
+                .tool(jupiter_lend_earn_deposit_tool)
+                .tool(jupiter_lend_earn_withdraw_tool)
+                .tool(jupiter_lend_earn_mint_tool)
+                .tool(jupiter_lend_earn_redeem_tool);
+
+            if allowed_tools.contains(&"get_lend_earn_tokens".to_string()) {
+                builder = builder.tool(lend_earn_tokens_tool);
+            }
+            if allowed_tools.contains(&"get_account_balance".to_string()) {
+                builder = builder.tool(balance_tool);
+            }
+            if allowed_tools.contains(&"jupiter_earn".to_string()) {
+                builder = builder.tool(jupiter_earn_tool);
+            }
+
+            builder.build()
+        } else {
+            // Normal mode: add all discovery tools
+            info!("[OpenAIAgent] Normal mode: Adding all discovery tools");
+            client
+                .completion_model(model_name)
+                .completions_api()
+                .into_agent_builder()
+                .preamble(&enhanced_prompt)
+                .tool(sol_tool)
+                .tool(spl_tool)
+                .tool(jupiter_swap_tool)
+                .tool(jupiter_lend_earn_deposit_tool)
+                .tool(jupiter_lend_earn_withdraw_tool)
+                .tool(jupiter_lend_earn_mint_tool)
+                .tool(jupiter_lend_earn_redeem_tool)
+                // .tool(jupiter_positions_tool)
+                // .tool(jupiter_earn_tool)
+                .tool(balance_tool)
+                // .tool(position_tool)
+                .tool(lend_earn_tokens_tool)
+                .build()
+        };
 
         // Add explicit stop instruction to the user request for simple operations
         let enhanced_user_request = if conversation_depth == 1 {
-            format!("{user_request}\n\n🚨 CRITICAL INSTRUCTIONS:\n1. Execute the requested operation using appropriate tools\n2. When tools return 'status: ready' and 'action: *_complete', IMMEDIATELY STOP\n3. Format the transaction response using the provided instructions\n4. DO NOT make additional tool calls after completion\n5. FAILURE TO STOP WILL CAUSE MaxDepthError!")
+            format!(
+                "{user_request}\n\n🚨🚨🚨 URGENT - READ CAREFULLY 🚨🚨🚨\n\
+1. Execute the requested operation using appropriate tools\n\
+2. When tools return 'status: ready' and 'action: *_complete' - OPERATION IS COMPLETE!\n\
+3. IMMEDIATELY STOP - Format and return the transaction instructions\n\
+4. ABSOLUTELY NO MORE TOOL CALLS AFTER SUCCESS!\n\
+5. 💀💀💀 EACH EXTRA TOOL CALL CAUSES MaxDepthError AND COMPLETE FAILURE 💀💀💀\n\
+6. YOUR ENTIRE MISSION IS: Execute ONCE, detect completion, and STOP!"
+            )
         } else {
+            info!(
+                "[OpenAIAgent] Multi-turn mode - conversation_depth: {}",
+                conversation_depth
+            );
             user_request.to_string()
         };
+
+        info!("[OpenAIAgent] === AGENT EXECUTION START ===");
+        info!(
+            "[OpenAIAgent] Sending to agent - conversation_depth: {}",
+            conversation_depth
+        );
+        info!(
+            "[OpenAIAgent] Final request being sent to agent:\n{}",
+            enhanced_user_request
+        );
 
         let response = agent
             .prompt(&enhanced_user_request)
@@ -158,9 +248,14 @@ impl OpenAIAgent {
             .await?;
 
         let response_str = response.to_string();
+        info!("[OpenAIAgent] === AGENT RESPONSE RECEIVED ===");
         info!(
             "[OpenAIAgent] Raw response from enhanced multi-turn agent: {}",
             response_str
+        );
+        info!(
+            "[OpenAIAgent] Response length: {} chars",
+            response_str.len()
         );
 
         // 🎯 EXTRACT TOOL EXECUTION RESULTS FROM CONVERSATION
@@ -197,10 +292,31 @@ impl OpenAIAgent {
 
 /// 🧠 Extract tool execution results from agent response
 async fn extract_execution_results(response_str: &str) -> Result<ExecutionResult> {
+    info!("[OpenAIAgent] === EXECUTION RESULT EXTRACTION ===");
     info!("[OpenAIAgent] Extracting execution results from response");
     info!(
         "[OpenAIAgent] Debug - Raw response string: {}",
         response_str
+    );
+
+    // Check if response contains completion signals
+    let has_completion_signals = response_str.contains("status") && response_str.contains("ready");
+    let has_action_complete = response_str.contains("action") && response_str.contains("_complete");
+    let has_final_response =
+        response_str.contains("final_response") && response_str.contains("true");
+
+    info!("[OpenAIAgent] Completion Signal Analysis:");
+    info!(
+        "[OpenAIAgent] - Has 'status: ready': {}",
+        has_completion_signals
+    );
+    info!(
+        "[OpenAIAgent] - Has 'action: *_complete': {}",
+        has_action_complete
+    );
+    info!(
+        "[OpenAIAgent] - Has 'final_response: true': {}",
+        has_final_response
     );
 
     // 🧠 Extract JSON from mixed natural language and JSON responses

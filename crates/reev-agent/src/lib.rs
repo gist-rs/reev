@@ -348,6 +348,8 @@ pub struct LlmRequest {
     pub mock: bool,
     #[serde(default)]
     pub initial_state: Option<Vec<reev_lib::benchmark::InitialStateItem>>,
+    #[serde(default)]
+    pub allowed_tools: Option<Vec<String>>,
 }
 
 fn default_model() -> String {

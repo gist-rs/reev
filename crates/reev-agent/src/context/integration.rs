@@ -182,20 +182,24 @@ impl ContextIntegration {
             "Jupiter tools return COMPLETE instruction sets with success confirmation.\n",
         );
         enhanced.push_str("Execute the ONE correct tool and STOP immediately after receiving success confirmation.\n");
-        enhanced.push_str("IMPORTANT: After calling a Jupiter tool, check for 'status: ready' and 'action: *_complete' in the response.\n");
-        enhanced.push_str("Once you see completion confirmation, do NOT call any more tools - respond with the transaction instructions.\n");
-        enhanced.push_str("🚨 CRITICAL: Jupiter tools will tell you when they are DONE. Trust their completion signals!\n");
+        enhanced.push_str("🚨 URGENT: Jupiter tools return COMPLETE transaction sets - NO additional tools needed!\n");
+        enhanced.push_str(
+            "When you see 'status: ready' and 'action: *_complete' - OPERATION IS COMPLETE!\n",
+        );
+        enhanced.push_str("IMMEDIATELY format and return the transaction instructions - DO NOT make more tool calls!\n");
+        enhanced.push_str("ABSOLOUTE RULE: STOP after successful Jupiter tool execution!\n");
+        enhanced.push_str(
+            "🛑 CRITICAL: Each additional tool call after success causes MaxDepthError!\n",
+        );
         enhanced.push_str("TOOL COMPLETION STRATEGY:\n");
         enhanced.push_str("1. Call ONE Jupiter tool based on user request\n");
+        enhanced.push_str("2. Look for 'status: ready' and 'action: *_complete' in the response\n");
         enhanced
-            .push_str("2. Check if response contains 'status: ready' and 'action: *_complete'\n");
-        enhanced.push_str("3. If yes: IMMEDIATELY STOP - format transaction response using the provided instructions\n");
-        enhanced
-            .push_str("4. If no: You may call ONE more tool to gather information, then STOP\n");
-        enhanced
-            .push_str("🛑 HARD LIMIT: MAXIMUM 2 tool calls per request - then provide response!\n");
+            .push_str("3. If found: IMMEDIATELY STOP - format transaction response and RETURN!\n");
+        enhanced.push_str("4. If not found: You may call ONE discovery tool, then STOP!\n");
+        enhanced.push_str("🔥 ABSOLUTE MAXIMUM: 2 tool calls total - then you MUST respond!\n");
         enhanced.push_str(
-            "⚠️  WARNING: Exceeding 2 tool calls will cause MaxDepthError and failure!\n",
+            "💀 FATAL ERROR: Exceeding 2 tool calls = MaxDepthError = complete failure!\n",
         );
         enhanced.push_str(
             "🔄 FLOW OPERATIONS: If this is a multi-step flow (redeem/withdraw), \

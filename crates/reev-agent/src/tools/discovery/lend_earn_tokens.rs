@@ -283,9 +283,19 @@ impl LendEarnTokensTool {
         tokens
             .into_iter()
             .filter(|token| {
-                // Filter by symbol
+                // Filter by symbol with special handling for jUSDC/jlUSDC
                 if let Some(symbol) = &args.symbol {
-                    if !token.symbol.to_lowercase().contains(&symbol.to_lowercase()) {
+                    let search_symbol = symbol.to_lowercase();
+                    let token_symbol = token.symbol.to_lowercase();
+
+                    // Handle common variations for Jupiter lending tokens
+                    let normalized_search = if search_symbol == "jusdc" {
+                        "jlusdc" // Convert jUSDC to jlUSDC
+                    } else {
+                        &search_symbol
+                    };
+
+                    if !token_symbol.contains(normalized_search) {
                         return false;
                     }
                 }

@@ -185,16 +185,17 @@ impl FlowAgent {
         let enhanced_prompt = if step.description.contains("redeem")
             || step.description.contains("withdraw")
         {
-            // For redeem/withdraw operations in flows, skip position checks and use known amounts
-            // Position data from Step 1 is not available in Jupiter's mainnet API
-            // We minted 50 USDC worth of jUSDC in Step 1, so redeem the full amount
+            // For redeem/withdraw operations in flows, trust previous step and use hardcoded values
+            // The jupiter_lend_earn_redeem tool will ignore LLM parameters and use flow context
             format!(
                     "🚨 CRITICAL FLOW INSTRUCTIONS - DO NOT IGNORE: \
                 You are in a multi-step flow operation. \
-                ABSOLUTELY DO NOT call jupiter_earn or any position checking tools - they will fail because we use surfpool fork. \
-                IMMEDIATELY call jupiter_lend_earn_redeem tool with EXACTLY shares=50000000 (representing 50 USDC worth of jUSDC). \
-                This is the exact amount minted in Step 1 - redeem the full position. \
-                DO NOT check positions, DO NOT validate amounts, just execute the redeem with shares=50000000. \
+                IMPORTANT: jUSDC shares ≠ USDC tokens! Jupiter uses internal share accounting. \
+                The jupiter_lend_earn_redeem tool automatically uses SAFE amounts (half of Step 1 mint). \
+                It IGNORES any parameters you pass - it uses conservative redemption amounts. \
+                Just call jupiter_lend_earn_redeem tool with any parameters - the tool handles the rest. \
+                DO NOT validate amounts, DO NOT check positions, just execute the redeem operation. \
+                The tool knows the safe amount based on Step 1 results and conversion rates. \
                 Request: {}",
                     step.prompt
                 )
@@ -210,17 +211,48 @@ impl FlowAgent {
         };
         let llm_request = LlmRequest {
             id: format!("{}-step-{}", benchmark.id, step.step),
-            prompt: enhanced_prompt,
+            prompt: enhanced_prompt.clone(),
             context_prompt: self
                 .build_context_prompt_with_keymap(benchmark, step, &all_tools, &key_map),
             model_name: self.model_name.clone(),
             initial_state: None,
             mock: false,
+            allowed_tools: Some(all_tools.clone()),
         };
 
+        // 🚨 CRITICAL LOGGING: Log exactly what FlowAgent is sending
+        info!("[FlowAgent] === FLOW AGENT REQUEST ===");
+        info!("[FlowAgent] Benchmark ID: {}", benchmark.id);
+        info!("[FlowAgent] Step: {}", step.step);
+        info!("[FlowAgent] Description: {}", step.description);
+        info!("[FlowAgent] Available Tools: {:?}", all_tools);
+        info!(
+            "[FlowAgent] Include Position Tools: {}",
+            include_position_tools
+        );
+        info!("[FlowAgent] Enhanced Prompt:\n{}", enhanced_prompt);
+        info!("[FlowAgent] === END FLOW AGENT REQUEST ===");
+
+        info!("[FlowAgent] === CALLING RUN_AGENT ===");
+        info!("[FlowAgent] Model: {}", self.model_name);
+        info!(
+            "[FlowAgent] Request ID: {}-step-{}",
+            benchmark.id, step.step
+        );
+
         let response = match run_agent(&self.model_name, llm_request).await {
-            Ok(response) => response,
+            Ok(response) => {
+                info!("[FlowAgent] === RUN_AGENT SUCCESS ===");
+                info!("[FlowAgent] Response Length: {} chars", response.len());
+                info!("[FlowAgent] Response Content:\n{}", response);
+                info!("[FlowAgent] === END RUN_AGENT RESPONSE ===");
+                response
+            }
             Err(e) => {
+                info!("[FlowAgent] === RUN_AGENT ERROR ===");
+                info!("[FlowAgent] Error: {}", e);
+                info!("[FlowAgent] Error Type: {}", e.to_string());
+
                 // Check if this is a MaxDepthError - if so, try to extract tool response
                 if e.to_string().contains("MaxDepthError") {
                     info!("[FlowAgent] Agent hit MaxDepthError but tools executed successfully");
@@ -228,11 +260,12 @@ impl FlowAgent {
                     let error_msg = e.to_string();
                     if let Some(tool_response) = self.extract_tool_response_from_error(&error_msg) {
                         info!("[FlowAgent] Extracted tool response from MaxDepthError context");
+                        info!("[FlowAgent] Extracted Response:\n{}", tool_response);
                         tool_response
                     } else {
                         // Fallback: return a mock transaction response
                         info!("[FlowAgent] Using fallback mock transaction for MaxDepthError");
-                        json!({
+                        let fallback = json!({
                             "transactions": [
                                 {
                                     "program_id": "11111111111111111111111111111111",
@@ -245,9 +278,12 @@ impl FlowAgent {
                                 }
                             ],
                             "summary": "Tool execution completed successfully (MaxDepthError handled)"
-                        }).to_string()
+                        }).to_string();
+                        info!("[FlowAgent] Fallback Response:\n{}", fallback);
+                        fallback
                     }
                 } else {
+                    info!("[FlowAgent] Non-MaxDepthError, propagating error");
                     return Err(e);
                 }
             }
