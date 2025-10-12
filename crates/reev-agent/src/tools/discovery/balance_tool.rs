@@ -66,7 +66,13 @@ pub enum AccountBalanceError {
     #[error("JSON serialization failed: {0}")]
     JsonError(#[from] serde_json::Error),
     #[error("RPC client error: {0}")]
-    RpcError(#[from] solana_client::client_error::ClientError),
+    RpcError(#[from] Box<solana_client::client_error::ClientError>),
+}
+
+impl From<solana_client::client_error::ClientError> for AccountBalanceError {
+    fn from(err: solana_client::client_error::ClientError) -> Self {
+        Self::RpcError(Box::new(err))
+    }
 }
 
 /// Account balance discovery tool that queries real surfpool state

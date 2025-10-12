@@ -26,12 +26,17 @@ pub enum BalanceValidationError {
     #[error("Could not determine balance for mint: {mint}")]
     BalanceUnavailable { mint: String },
     #[error("RPC error: {0}")]
-    RpcError(#[from] solana_client::client_error::ClientError),
+    RpcError(#[from] Box<solana_client::client_error::ClientError>),
     #[error("Invalid pubkey: {0}")]
     InvalidPubkey(String),
 }
 
-/// Result type for balance validation operations
+impl From<solana_client::client_error::ClientError> for BalanceValidationError {
+    fn from(err: solana_client::client_error::ClientError) -> Self {
+        Self::RpcError(Box::new(err))
+    }
+}
+
 pub type BalanceValidationResult<T> = Result<T, BalanceValidationError>;
 
 /// Balance information for a token account

@@ -34,7 +34,13 @@ pub enum JupiterLendEarnDepositError {
     #[error("Invalid amount: {0}")]
     InvalidAmount(String),
     #[error("Balance validation failed: {0}")]
-    BalanceValidation(#[from] BalanceValidationError),
+    BalanceValidation(#[from] Box<BalanceValidationError>),
+}
+
+impl From<BalanceValidationError> for JupiterLendEarnDepositError {
+    fn from(err: BalanceValidationError) -> Self {
+        Self::BalanceValidation(Box::new(err))
+    }
 }
 
 /// A `rig` tool for performing lend earn deposit operations using the Jupiter API.
@@ -142,11 +148,10 @@ impl Tool for JupiterLendEarnDepositTool {
         // Use shared balance validation utility
         let balance_validator = BalanceValidator::new(self.key_map.clone());
 
-        match balance_validator.validate_token_balance(
-            &asset_mint.to_string(),
-            &args.user_pubkey,
-            args.amount,
-        ) {
+        match balance_validator
+            .validate_token_balance(&asset_mint.to_string(), &args.user_pubkey, args.amount)
+            .map_err(JupiterLendEarnDepositError::from)
+        {
             Ok(()) => {
                 info!(
                     "✅ Balance validation passed: requested {} for mint {}",
@@ -167,19 +172,21 @@ impl Tool for JupiterLendEarnDepositTool {
                 );
 
                 // Provide helpful guidance for insufficient funds errors
-                if let BalanceValidationError::InsufficientFunds {
-                    requested,
-                    available,
-                } = &e
-                {
-                    warn!(
-                        "💡 Suggestion: Use get_account_balance tool to check available balance before depositing. \
-                        Available: {}, Requested: {}",
-                        available, requested
-                    );
+                if let JupiterLendEarnDepositError::BalanceValidation(boxed_err) = &e {
+                    if let BalanceValidationError::InsufficientFunds {
+                        requested,
+                        available,
+                    } = boxed_err.as_ref()
+                    {
+                        warn!(
+                            "💡 Suggestion: Use get_account_balance tool to check available balance before depositing. \
+                            Available: {}, Requested: {}",
+                            available, requested
+                        );
+                    }
                 }
 
-                return Err(JupiterLendEarnDepositError::BalanceValidation(e));
+                return Err(e);
             }
         }
 

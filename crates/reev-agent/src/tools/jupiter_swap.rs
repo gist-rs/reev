@@ -44,7 +44,13 @@ pub enum JupiterSwapError {
     #[error("Same input and output mint")]
     SameMint,
     #[error("Balance validation failed: {0}")]
-    BalanceValidation(#[from] BalanceValidationError),
+    BalanceValidation(#[from] Box<BalanceValidationError>),
+}
+
+impl From<BalanceValidationError> for JupiterSwapError {
+    fn from(err: BalanceValidationError) -> Self {
+        Self::BalanceValidation(Box::new(err))
+    }
 }
 
 /// 🎯 Enhanced tool response with transaction metadata
@@ -191,11 +197,10 @@ impl Tool for JupiterSwapTool {
         // Use shared balance validation utility for input token
         let balance_validator = BalanceValidator::new(self.key_map.clone());
 
-        match balance_validator.validate_token_balance(
-            &input_mint.to_string(),
-            &args.user_pubkey,
-            args.amount,
-        ) {
+        match balance_validator
+            .validate_token_balance(&input_mint.to_string(), &args.user_pubkey, args.amount)
+            .map_err(JupiterSwapError::from)
+        {
             Ok(()) => {
                 info!(
                     "✅ Balance validation passed: requested {} for input mint {}",
@@ -216,19 +221,21 @@ impl Tool for JupiterSwapTool {
                 );
 
                 // Provide helpful guidance for insufficient funds errors
-                if let BalanceValidationError::InsufficientFunds {
-                    requested,
-                    available,
-                } = &e
-                {
-                    warn!(
-                        "💡 Suggestion: Use get_account_balance tool to check available balance before swapping. \
-                        Available: {}, Requested: {}",
-                        available, requested
-                    );
+                if let JupiterSwapError::BalanceValidation(boxed_err) = &e {
+                    if let BalanceValidationError::InsufficientFunds {
+                        requested,
+                        available,
+                    } = boxed_err.as_ref()
+                    {
+                        warn!(
+                            "💡 Suggestion: Use get_account_balance tool to check available balance before swapping. \
+                            Available: {}, Requested: {}",
+                            available, requested
+                        );
+                    }
                 }
 
-                return Err(JupiterSwapError::BalanceValidation(e));
+                return Err(e);
             }
         }
 

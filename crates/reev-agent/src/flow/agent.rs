@@ -28,7 +28,7 @@ pub struct FlowAgent {
     /// Model name for the agent (used only for complex scenarios)
     model_name: String,
     /// Available tools for the flow agent
-    tools: HashMap<String, Box<dyn ToolDyn>>,
+    _tools: HashMap<String, Box<dyn ToolDyn>>,
     /// Current conversation state
     state: FlowState,
 }
@@ -48,7 +48,7 @@ impl FlowAgent {
 
         Ok(Self {
             model_name: model_name.to_string(),
-            tools,
+            _tools: tools,
             state,
         })
     }
@@ -125,10 +125,10 @@ impl FlowAgent {
         benchmark: &FlowBenchmark,
     ) -> Result<StepResult> {
         let start_time = std::time::SystemTime::now();
-        let start_time_clone = start_time;
+        let _start_time_clone = start_time;
 
         // Enrich prompt with context
-        let prompt = self.enrich_prompt(&step.prompt, benchmark);
+        let _prompt = self.enrich_prompt(&step.prompt, benchmark);
 
         // Simple tool selection based on keywords
         // Give ALL tools to LLM for simpler logic
@@ -228,7 +228,7 @@ impl FlowAgent {
         &self,
         _benchmark: &FlowBenchmark,
         _step: &crate::flow::benchmark::FlowStep,
-        all_tools: &[String],
+        _all_tools: &[String],
     ) -> String {
         let context_parts: Vec<String> = Vec::new();
 
