@@ -153,9 +153,6 @@ impl OpenAIAgent {
         let balance_tool = AccountBalanceTool {
             key_map: key_map.clone(),
         };
-        // let position_tool = PositionInfoTool {
-        //     key_map: key_map.clone(),
-        // };
         let lend_earn_tokens_tool = LendEarnTokensTool::new(key_map.clone());
 
         // 🧠 Build enhanced multi-turn agent with conditional tool filtering
@@ -205,10 +202,8 @@ impl OpenAIAgent {
                 .tool(jupiter_lend_earn_withdraw_tool)
                 .tool(jupiter_lend_earn_mint_tool)
                 .tool(jupiter_lend_earn_redeem_tool)
-                // .tool(jupiter_positions_tool)
-                // .tool(jupiter_earn_tool)
+                .tool(jupiter_earn_tool)
                 .tool(balance_tool)
-                // .tool(position_tool)
                 .tool(lend_earn_tokens_tool)
                 .build()
         };
@@ -216,12 +211,12 @@ impl OpenAIAgent {
         // Add explicit stop instruction to the user request for simple operations
         let enhanced_user_request = if conversation_depth == 1 {
             format!(
-                "{user_request}\n\n🚨🚨🚨 URGENT - READ CAREFULLY 🚨🚨🚨\n\
+                "{user_request}\n\nURGENT - READ CAREFULLY\n\
 1. Execute the requested operation using appropriate tools\n\
 2. When tools return 'status: ready' and 'action: *_complete' - OPERATION IS COMPLETE!\n\
 3. IMMEDIATELY STOP - Format and return the transaction instructions\n\
 4. ABSOLUTELY NO MORE TOOL CALLS AFTER SUCCESS!\n\
-5. 💀💀💀 EACH EXTRA TOOL CALL CAUSES MaxDepthError AND COMPLETE FAILURE 💀💀💀\n\
+5. EACH EXTRA TOOL CALL CAUSES MaxDepthError AND COMPLETE FAILURE\n\
 6. YOUR ENTIRE MISSION IS: Execute ONCE, detect completion, and STOP!"
             )
         } else {

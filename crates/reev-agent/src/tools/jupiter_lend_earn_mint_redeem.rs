@@ -244,9 +244,8 @@ impl Tool for JupiterLendEarnRedeemTool {
         let asset = reev_lib::constants::usdc_mint();
 
         // Query the actual jUSDC token balance
-        let jupiter_usdc_mint = "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D"
-            .parse()
-            .unwrap();
+        use reev_lib::constants::addresses::tokens::jusdc_mint;
+        let jupiter_usdc_mint = jusdc_mint();
         let shares = self
             .query_jusdc_balance(&signer, &jupiter_usdc_mint)
             .await?;

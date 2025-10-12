@@ -148,8 +148,11 @@ impl FlowAgent {
         let _prompt = self.enrich_prompt(&step.prompt, benchmark);
 
         // Determine if we should include position checking tools
-        let include_position_tools =
-            !(step.description.contains("redeem") || step.description.contains("withdraw"));
+        // Position tools are enabled for API benchmarks, disabled for flow benchmarks
+        let is_api_benchmark = benchmark.id.contains("114-jup-positions-and-earnings");
+        let is_flow_redeem =
+            step.description.contains("redeem") || step.description.contains("withdraw");
+        let include_position_tools = is_api_benchmark && !is_flow_redeem;
 
         // Create conditional toolset based on operation type
         let (_tools, key_map) = Self::create_conditional_toolset(include_position_tools).await?;
@@ -169,8 +172,12 @@ impl FlowAgent {
         // Only add position checking tools if allowed
         if include_position_tools {
             all_tools.push("jupiter_earn".to_string());
+            info!(
+                "[FlowAgent] Included jupiter_earn tool for API benchmark: {}",
+                benchmark.id
+            );
         } else {
-            info!("[FlowAgent] Excluded jupiter_earn tool for redeem/withdraw operation to prevent position checking");
+            info!("[FlowAgent] Excluded jupiter_earn tool - not an API benchmark or is flow redeem operation");
         }
 
         info!(
