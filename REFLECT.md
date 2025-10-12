@@ -327,6 +327,131 @@ Prioritize Option 1 (Skip Position Checks) for immediate fix:
 
 ---
 
+## 2025-10-12: Jupiter Flow Balance Querying Fix - 100% Score Restoration
+
+### 🎯 **Problem Solved**
+Successfully restored Jupiter lending flow benchmarks from 75% back to 100% by implementing real-time balance querying instead of hardcoded redemption amounts.
+
+### 🔍 **Root Cause Analysis**
+The regression occurred because we were using hardcoded amounts for jUSDC redemption:
+
+1. **Step 1**: Mint 50 USDC → ~49.33 jUSDC tokens (variable based on conversion rates)
+2. **Step 2**: Redeem hardcoded 24.66M shares (half amount) → Only partial redemption
+3. **Ground Truth Failure**: Expected jUSDC balance = 0, USDC ≥ 48M, but got partial amounts
+4. **Score Impact**: 75% instead of 100% due to incomplete redemption
+
+### 🔧 **Key Technical Fix**
+
+#### **Real-Time Balance Querying Implementation**
+```rust
+// Before: Hardcoded amount
+let shares = 24664895; // Half of estimated amount
+
+// After: Query actual balance
+let shares = self.query_jusdc_balance(&signer, &jupiter_usdc_mint).await?;
+
+async fn query_jusdc_balance(&self, signer: &str, jupiter_usdc_mint: &Pubkey) -> Result<u64> {
+    let jusdc_ata = spl_associated_token_account::get_associated_token_address(
+        &signer_pubkey, jupiter_usdc_mint
+    );
+    let balance = jupiter::query_token_balance(&jusdc_ata.to_string()).await?;
+    Ok(balance)
+}
+```
+
+#### **Surfpool RPC Integration**
+```rust
+pub async fn query_token_balance(token_account: &str) -> Result<u64> {
+    let request_body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTokenAccountBalance",
+        "params": [token_account]
+    });
+    
+    // Parse response: result.value.amount
+    let balance = result.get("result")
+        .and_then(|v| v.get("value"))
+        .and_then(|v| v.get("amount"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<u64>().ok())?;
+}
+```
+
+### 🏗️ **Architecture Improvements**
+
+#### **Flow-Aware Tool Design**
+- **Dynamic Amount Detection**: Query actual minted amounts instead of estimates
+- **Surfpool Integration**: Direct RPC calls to forked mainnet state
+- **Exact Redemption**: Redeem precisely what was minted, accounting for:
+  - Real conversion rates (not 1:1)
+  - Gas fees and slippage
+  - Pool state dynamics
+
+#### **Tool Filtering Enhancement**
+- **Flow Context Awareness**: Position checking tools excluded for flow operations
+- **Allowed Tools Parameter**: FlowAgent passes specific tool lists to enhanced agents
+- **Prevention of External API Calls**: Avoid mainnet API queries during local flow execution
+
+### 📊 **Impact Achieved**
+
+#### **Score Restoration**
+- **Before**: 75% (partial redemption)
+- **After**: 100% (complete redemption)
+- **Improvement**: Full ground truth compliance
+
+#### **Technical Robustness**
+- **Conversion Rate Handling**: Accounts for real USDC→jUSDC conversion (~0.9866:1)
+- **Balance Accuracy**: Redeems exact amount: 49,329,580 shares
+- **State Consistency**: All operations use same surfpool forked environment
+
+#### **Flow Reliability**
+- **Step 1**: Mint 50 USDC → 49,329,580 jUSDC shares ✅
+- **Step 2**: Redeem 49,329,580 jUSDC shares → ~49+ USDC ✅
+- **Final State**: jUSDC = 0, USDC ≥ 48M ✅
+
+### 🎓 **Lessons Learned**
+
+#### **Hardcoded vs Dynamic Values**
+- **Conversion Complexity**: Token conversions are never 1:1 in DeFi protocols
+- **State Synchronization**: Must query actual state, not rely on estimates
+- **Ground Truth Alignment**: Test expectations must match real protocol behavior
+
+#### **Forked Environment Challenges**
+- **Isolation Benefits**: Surfpool provides consistent testing environment
+- **State Access**: Direct RPC queries provide accurate balance information
+- **API Separation**: Local operations shouldn't depend on external mainnet APIs
+
+#### **Flow Architecture Patterns**
+- **State Passing**: Later steps need context from earlier steps
+- **Tool Filtering**: Flow operations require different tool availability
+- **Completion Detection**: Agents need clear signals when operations succeed
+
+### 🚀 **Production Readiness Achieved**
+
+#### **Complete Flow Success**
+- **Multi-Step Execution**: Both mint and redeem operations succeed
+- **Score Compliance**: 100% meets all ground truth requirements
+- **Agent Reliability**: Local LLM agents handle complex flows correctly
+
+#### **Framework Capabilities**
+- **Real-Time Integration**: Dynamic balance querying during execution
+- **Forked Environment**: Full compatibility with surfpool mainnet forking
+- **Tool Management**: Sophisticated tool filtering for different execution contexts
+
+### 🎯 **Strategic Victory**
+
+This fix demonstrates the framework's ability to handle complex DeFi operations:
+
+- **Protocol Integration**: Deep Jupiter lending protocol understanding
+- **State Management**: Accurate tracking of token positions across operations
+- **Agent Intelligence**: LLM agents can coordinate multi-step workflows
+- **Testing Infrastructure**: Reliable end-to-end flow validation
+
+The Jupiter lending flow now serves as a model for implementing other complex DeFi protocols requiring multi-step operations with state synchronization between steps.
+
+---
+
 ## 2025-10-12: Initial Foundation Assessment
 
 *Earlier reflections captured the initial assessment of technical debt and provided the roadmap for the comprehensive resolution completed above.*

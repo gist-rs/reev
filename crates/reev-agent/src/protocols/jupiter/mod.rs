@@ -270,3 +270,42 @@ pub async fn parse_json_response(response: reqwest::Response) -> Result<Value> {
     serde_json::from_str(&body)
         .map_err(|e| anyhow::anyhow!("Failed to parse JSON response: {e} - Body: {body}"))
 }
+
+/// Query token balance from surfpool RPC
+pub async fn query_token_balance(token_account: &str) -> Result<u64> {
+    let config = get_jupiter_config();
+    let rpc_url = config
+        .surfpool_rpc_url
+        .as_deref()
+        .unwrap_or("http://localhost:8899");
+
+    let client = config.create_client()?;
+
+    let request_body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTokenAccountBalance",
+        "params": [token_account]
+    });
+
+    let response = client.post(rpc_url).json(&request_body).send().await?;
+
+    let result: Value = parse_json_response(response).await?;
+
+    let balance = result
+        .get("result")
+        .and_then(|v| v.get("value"))
+        .and_then(|v| v.get("amount"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<u64>().ok())
+        .ok_or_else(|| {
+            anyhow::anyhow!("Failed to parse token balance from response: {result}")
+        })?;
+
+    tracing::debug!(
+        "[Jupiter] Queried token balance for {}: {}",
+        token_account,
+        balance
+    );
+    Ok(balance)
+}

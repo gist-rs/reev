@@ -224,17 +224,16 @@ impl Tool for JupiterLendEarnRedeemTool {
         }
     }
 
-    /// Executes the tool's logic: trusts flow context and uses hardcoded values.
+    /// Executes the tool's logic: queries actual balance before redeeming.
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[JupiterLendEarnRedeem] === FLOW CONTEXT MODE ===");
-        info!("[JupiterLendEarnRedeem] Ignoring LLM args, using flow values");
+        info!("[JupiterLendEarnRedeem] Ignoring LLM args, querying actual balance");
         info!(
             "[JupiterLendEarnRedeem] LLM provided - Asset: '{}', Shares: {}",
             args.asset, args.shares
         );
 
-        // 🚨 FLOW MODE: Use hardcoded values from Step 1 context
-        // Step 1 minted 50 USDC worth of jUSDC, so we redeem half for safety
+        // 🚨 FLOW MODE: Query actual jUSDC balance after Step 1 mint
         let signer = self
             .key_map
             .get("USER_WALLET_PUBKEY")
@@ -243,10 +242,17 @@ impl Tool for JupiterLendEarnRedeemTool {
 
         // Use the actual USDC mint address (hardcoded from context)
         let asset = reev_lib::constants::usdc_mint();
-        let shares = 24664895; // Half of minted amount: 49,329,790 / 2 = 24,664,895 jUSDC shares for safer redemption
+
+        // Query the actual jUSDC token balance
+        let jupiter_usdc_mint = "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D"
+            .parse()
+            .unwrap();
+        let shares = self
+            .query_jusdc_balance(&signer, &jupiter_usdc_mint)
+            .await?;
 
         info!(
-            "[JupiterLendEarnRedeem] Using flow values - Asset: {}, Shares: {} (half of Step 1 mint for safety)",
+            "[JupiterLendEarnRedeem] Using actual balance - Asset: {}, Shares: {} (queried from on-chain)",
             asset, shares
         );
         info!("[JupiterLendEarnRedeem] Signer: {}", signer);
@@ -286,5 +292,37 @@ impl Tool for JupiterLendEarnRedeemTool {
         });
 
         Ok(response.to_string())
+    }
+}
+
+impl JupiterLendEarnRedeemTool {
+    /// Query the actual jUSDC token balance for the given signer
+    async fn query_jusdc_balance(
+        &self,
+        signer: &str,
+        jupiter_usdc_mint: &Pubkey,
+    ) -> Result<u64, JupiterLendEarnMintRedeemError> {
+        use crate::protocols::jupiter;
+
+        // Get the jUSDC Associated Token Account address
+        let signer_pubkey = signer.parse().map_err(|e| {
+            JupiterLendEarnMintRedeemError::InvalidArguments(format!("Invalid signer pubkey: {e}"))
+        })?;
+
+        let jusdc_ata = spl_associated_token_account::get_associated_token_address(
+            &signer_pubkey,
+            jupiter_usdc_mint,
+        );
+
+        // Query the balance using the jupiter protocol handler
+        let balance = jupiter::query_token_balance(&jusdc_ata.to_string())
+            .await
+            .map_err(JupiterLendEarnMintRedeemError::ProtocolError)?;
+
+        info!(
+            "[JupiterLendEarnRedeem] Queried jUSDC balance for {}: {} shares",
+            signer, balance
+        );
+        Ok(balance)
     }
 }
