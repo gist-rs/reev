@@ -7,6 +7,7 @@ use crate::flow::GlobalFlowTracker;
 use crate::protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use reev_lib::agent::ToolResultStatus;
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
+use reev_lib::constants::{sol_mint, usdc_mint};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -81,8 +82,16 @@ impl Tool for JupiterSwapTool {
 
     /// Defines the tool's schema and description for the AI model.
     async fn definition(&self, _prompt: String) -> ToolDefinition {
-        let input_mint_description = "The mint address of the input token to swap (e.g., 'So11111111111111111111111111111111111111112' for SOL, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC)".to_string();
-        let output_mint_description = "The mint address of the output token to receive (e.g., 'So11111111111111111111111111111111111111112' for SOL, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC)".to_string();
+        let input_mint_description = format!(
+            "The mint address of the input token to swap (e.g., '{}' for SOL, '{}' for USDC)",
+            sol_mint(),
+            usdc_mint()
+        );
+        let output_mint_description = format!(
+            "The mint address of the output token to receive (e.g., '{}' for SOL, '{}' for USDC)",
+            sol_mint(),
+            usdc_mint()
+        );
 
         ToolDefinition {
             name: Self::NAME.to_string(),
@@ -179,8 +188,7 @@ impl Tool for JupiterSwapTool {
                     "Could not resolve {} from key_map, using simulated mint for swap",
                     args.output_mint
                 );
-                Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                    .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?
+                usdc_mint()
             }
         } else {
             Pubkey::from_str(&args.output_mint)

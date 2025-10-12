@@ -90,20 +90,21 @@ let agent_url = if agent_name == "deterministic" {
 
 ---
 
-### 5. TODO & HACK COMMENTS
+### 5. HACK COMMENTS
 
 #### 📍 Location: Multiple files
 **Issue**: Outstanding technical debt markers
 
 **Found**:
-- `crates/reev-agent/src/protocols/jupiter/protocol.rs`: 3 TODOs for passing actual key_map
 - `crates/reev-runner/tests/common/helpers.rs`: HACK for race conditions
 - `crates/reev-runner/tests/scoring_test.rs`: HACK for tracing initialization
 - `protocols/jupiter/jup-sdk/src/surfpool.rs`: TODO for debug info
 
-**Impact**: Incomplete implementations, potential bugs
+**Impact**: Potential bugs
 
-**Solution**: Address each TODO/HACK appropriately
+**Solution**: Address each HACK appropriately
+
+**✅ RESOLVED**: Jupiter protocol TODOs for key_map parameters have been fixed by removing unused parameters
 
 ---
 

@@ -1,6 +1,7 @@
 use crate::protocols::jupiter::swap::handle_jupiter_swap;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
+use reev_lib::constants::{usdc_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT};
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
@@ -28,9 +29,9 @@ pub(crate) async fn handle_jup_swap_sol_usdc(
     let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
     let input_mint = native_mint::ID;
-    let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-    let amount = 100_000_000; // 0.1 SOL
-    let slippage_bps = 800; // 8%
+    let output_mint = usdc_mint();
+    let amount = SOL_SWAP_AMOUNT; // 0.1 SOL
+    let slippage_bps = EIGHT_PERCENT; // 8%
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions (setup, swap, cleanup) needed for the transaction.

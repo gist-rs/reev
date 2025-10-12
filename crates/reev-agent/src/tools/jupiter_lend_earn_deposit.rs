@@ -5,6 +5,7 @@
 
 use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
+use reev_lib::constants::usdc_mint;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -59,8 +60,9 @@ impl Tool for JupiterLendEarnDepositTool {
     /// Defines the tool's schema and description for the AI model.
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         let asset_mint_description = format!(
-            "The mint address of the token to be lent. For native SOL, use '{}'. For USDC, use 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'.",
-            native_mint::ID
+            "The mint address of the token to be lent. For native SOL, use '{}'. For USDC, use '{}'.",
+            native_mint::ID,
+            usdc_mint()
         );
         ToolDefinition {
             name: Self::NAME.to_string(),

@@ -2,6 +2,7 @@ use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use crate::protocols::jupiter::swap::handle_jupiter_swap;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
+use reev_lib::constants::{usdc_mint, FIVE_PERCENT, SOL_SWAP_AMOUNT, USDC_LEND_AMOUNT_LARGE};
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
@@ -28,9 +29,9 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
     // Step 1: Swap 0.5 SOL to USDC using Jupiter
     info!("[reev-agent] Step 1: Swapping 0.5 SOL to USDC");
     let input_mint = native_mint::ID;
-    let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-    let swap_amount = 100_000_000; // 0.1 SOL
-    let slippage_bps = 500; // 5%
+    let output_mint = usdc_mint();
+    let swap_amount = SOL_SWAP_AMOUNT; // 0.1 SOL
+    let slippage_bps = FIVE_PERCENT; // 5%
 
     let swap_instructions = handle_jupiter_swap(
         user_pubkey,
@@ -52,8 +53,8 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
     // For lending, we use the USDC mint and deposit the expected amount from the swap
     // Note: In a real scenario, we'd calculate the exact amount received from the swap
     // For deterministic purposes, we estimate ~0.5 SOL worth of USDC (accounting for slippage)
-    let deposit_amount = 9_000_000; // ~9 USDC (accounting for slippage and fees)
-    let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+    let deposit_amount = USDC_LEND_AMOUNT_LARGE; // ~9 USDC (accounting for slippage and fees)
+    let usdc_mint = usdc_mint();
 
     let lend_instructions =
         handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;

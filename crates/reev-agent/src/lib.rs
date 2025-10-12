@@ -6,6 +6,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use reev_lib::constants::{
+    usdc, usdc_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT_MEDIUM, USDC_MINT_AMOUNT,
+};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -346,9 +349,9 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
             let input_mint = native_mint::ID;
-            let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-            let amount = 250_000_000; // 0.5 SOL for step 1
-            let slippage_bps = 800; // 8%
+            let output_mint = usdc_mint();
+            let amount = SOL_SWAP_AMOUNT_MEDIUM; // 0.5 SOL for step 1
+            let slippage_bps = EIGHT_PERCENT; // 8%
 
             let instructions =
                 handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, slippage_bps)
@@ -387,8 +390,8 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
                 .context("USER_WALLET_PUBKEY not found in key_map")?;
             let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-            let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-            let deposit_amount = 50_000_000; // 50 USDC for step 1
+            let usdc_mint = usdc_mint();
+            let deposit_amount = USDC_MINT_AMOUNT; // 50 USDC for step 1
 
             let instructions =
                 handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
@@ -401,9 +404,8 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         }
         flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-2") => {
             info!("[reev-agent] Handling flow step 2: Jupiter jUSDC redeem (withdraw)");
-            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
-            let redeem_amount = 40_000_000; // 40 USDC worth of jUSDC (conservative amount to ensure success)
+            let asset = usdc_mint();
+            let redeem_amount = usdc::FORTY; // 40 USDC worth of jUSDC (conservative amount to ensure success)
 
             let instructions = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
                 &asset,

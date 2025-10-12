@@ -3,6 +3,7 @@
 //! This tool provides the LLM with the ability to query lending positions,
 //! liquidity positions, and other DeFi positions when context is insufficient.
 
+use reev_lib::constants::usdc_mint;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -237,7 +238,7 @@ impl PositionInfoTool {
                 protocol: "jupiter".to_string(),
                 position_type: "lending".to_string(),
                 deposit_token: TokenInfo {
-                    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                    mint: usdc_mint().to_string(),
                     symbol: "USDC".to_string(),
                     decimals: 6,
                 },
@@ -313,7 +314,7 @@ impl PositionInfoTool {
                 protocol: "jupiter".to_string(),
                 position_type: "lending".to_string(),
                 deposit_token: TokenInfo {
-                    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                    mint: usdc_mint().to_string(),
                     symbol: "USDC".to_string(),
                     decimals: 6,
                 },

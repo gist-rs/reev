@@ -3,6 +3,7 @@
 //! This tool provides AI agent access to Jupiter's earn/mint and earn/redeem functionality
 //! for lending positions.
 
+use reev_lib::constants::usdc_mint;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -92,7 +93,7 @@ impl Tool for JupiterLendEarnMintTool {
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address to mint (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": &format!("The token mint address to mint (e.g., USDC mint: {})", usdc_mint())
                     },
                     "signer": {
                         "type": "string",
@@ -203,7 +204,7 @@ impl Tool for JupiterLendEarnRedeemTool {
                 "properties": {
                     "asset": {
                         "type": "string",
-                        "description": "The token mint address to redeem (e.g., USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)"
+                        "description": &format!("The token mint address to redeem (e.g., USDC mint: {})", usdc_mint())
                     },
                     "signer": {
                         "type": "string",

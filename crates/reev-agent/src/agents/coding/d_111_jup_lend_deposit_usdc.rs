@@ -1,6 +1,7 @@
 use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
+use reev_lib::constants::{usdc_mint, USDC_LEND_AMOUNT};
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
@@ -20,8 +21,8 @@ pub(crate) async fn handle_jup_lend_deposit_usdc(
         .context("USER_WALLET_PUBKEY not found in key_map")?;
     let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-    let asset_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-    let amount = 10_000_000; // 10 USDC
+    let asset_mint = usdc_mint();
+    let amount = USDC_LEND_AMOUNT; // 10 USDC
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions needed for the transaction.

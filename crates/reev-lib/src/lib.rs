@@ -2,6 +2,7 @@ pub mod actions;
 pub mod agent;
 pub mod balance_validation;
 pub mod benchmark;
+pub mod constants;
 pub mod env;
 pub mod flow;
 pub mod instruction_score;

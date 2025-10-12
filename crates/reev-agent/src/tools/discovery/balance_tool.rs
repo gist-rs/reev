@@ -4,6 +4,7 @@
 //! from the real surfpool testnet. This enables proper validation before operations
 //! by accessing actual on-chain state, not simulated data.
 
+use reev_lib::constants::{sol_mint, usdc_mint};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -241,19 +242,19 @@ impl AccountBalanceTool {
     /// Get token decimals for common tokens
     fn get_token_decimals(&self, mint: &str) -> u8 {
         match mint {
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => 6, // USDC
-            "So11111111111111111111111111111111111111112" => 9,  // SOL/WSOL
+            _ if mint == usdc_mint().to_string() => 6, // USDC
+            _ if mint == sol_mint().to_string() => 9,  // SOL/WSOL
             "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => 6, // USDT
             "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" => 5, // Bonk
-            _ => 0, // Default to 0 decimals for unknown tokens
+            _ => 0,                                    // Default to 0 decimals for unknown tokens
         }
     }
 
     /// Get token symbol for common tokens
     fn get_token_symbol(&self, mint: &str) -> Option<String> {
         match mint {
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Some("USDC".to_string()),
-            "So11111111111111111111111111111111111111112" => Some("SOL".to_string()),
+            _ if mint == usdc_mint().to_string() => Some("USDC".to_string()),
+            _ if mint == sol_mint().to_string() => Some("SOL".to_string()),
             "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Some("USDT".to_string()),
             "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" => Some("BONK".to_string()),
             _ => None,

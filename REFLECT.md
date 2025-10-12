@@ -1,5 +1,45 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-13: Jupiter Protocol TODOs Resolution
+
+### **Problem Identified**
+Three TODOs in `crates/reev-agent/src/protocols/jupiter/protocol.rs` were identified as high-priority security/stability issues. The TODOs indicated incomplete implementations where empty `HashMap::new()` objects were being passed as placeholders for actual `key_map` parameters in Jupiter protocol functions.
+
+### **Root Cause Analysis**
+1. **Unused Parameter Design**: The Jupiter handler functions (`handle_jupiter_swap`, `handle_jupiter_lend_deposit`, `handle_jupiter_lend_withdraw`) had `_key_map` parameters that were never actually used in the implementation
+2. **Protocol Abstraction Mismatch**: The protocol trait methods didn't include `key_map` parameters, but the underlying handlers expected them
+3. **Technical Debt Accumulation**: The TODOs represented incomplete refactoring where the parameter was added but never properly implemented or removed
+
+### **Solution Applied**
+1. **Parameter Removal**: Completely removed the unused `_key_map` parameter from all three Jupiter handler functions
+2. **Call Site Updates**: Updated 15+ function calls across the codebase to remove the key_map parameter
+3. **Import Cleanup**: Removed unused `std::collections::HashMap` imports from affected files
+4. **Comprehensive Testing**: Ran diagnostics and clippy to ensure all compilation errors were resolved
+
+### **Lessons Learned**
+- **Early Decision Making**: Better to make clear architectural decisions early rather than leaving TODOs that accumulate technical debt
+- **Parameter Design**: Function signatures should reflect actual usage patterns - unused parameters add confusion and maintenance overhead
+- **Comprehensive Refactoring**: When changing function signatures, ensure all call sites are updated consistently
+- **Tool-Assisted Development**: Using grep and diagnostics tools helped identify all locations that needed updates
+
+### **Impact**
+- **Code Quality**: Eliminated technical debt and improved code clarity
+- **Maintainability**: Simplified function signatures and removed confusion around unused parameters
+- **Compilation**: Fixed compilation errors and warnings throughout the codebase
+- **Performance**: Minor performance improvement by removing unnecessary parameter passing
+
+### **Future Prevention**
+- **No Unused Parameters**: Design function signatures to only include parameters that are actually used
+- **Immediate TODO Resolution**: Address TODOs immediately rather than letting them accumulate
+- **Regular Code Reviews**: Implement regular reviews to identify and resolve technical debt
+- **Architecture Consistency**: Ensure protocol abstractions match implementation requirements
+
+### **Final Status: JUPITER PROTOCOL TODOS COMPLETELY RESOLVED** ✅
+
+---
+
+## 2025-10-11: MaxDepthError and Agent Tool Loop Resolution
+
 ## 2025-10-11: MaxDepthError and Agent Tool Loop Resolution
 
 ### **Problem Identified**
