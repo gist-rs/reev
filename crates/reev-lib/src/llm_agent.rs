@@ -17,6 +17,7 @@ pub struct LlmAgent {
     model_name: String,
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
+    is_glm: bool,
 }
 
 impl LlmAgent {
@@ -35,35 +36,65 @@ impl LlmAgent {
     ) -> Result<Self> {
         info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
-        // Load base API URL from environment variables, falling back to a default.
-        let base_url = std::env::var("LLM_API_URL")
-            .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
-        info!("[LlmAgent] Using base URL: {base_url}");
+        // Check for GLM environment variables
+        let glm_api_key = std::env::var("GLM_API_KEY").ok();
+        let glm_api_url = std::env::var("GLM_API_URL").ok();
 
-        // Append `?mock=true` if the deterministic agent is selected.
-        let api_url = if agent_name == "deterministic" {
-            format!("{base_url}?mock=true")
-        } else {
-            base_url
+        let (api_url, api_key, model_name, is_glm) = match (glm_api_key, glm_api_url) {
+            (Some(key), Some(url)) if !key.is_empty() && !url.is_empty() => {
+                info!("[LlmAgent] Using GLM 4.6 API with OpenAI compatibility");
+                let final_url = if agent_name == "deterministic" {
+                    format!("{url}?mock=true")
+                } else {
+                    url
+                };
+                (final_url, Some(key), "glm-4.6".to_string(), true)
+            }
+            (Some(_), None) => {
+                anyhow::bail!("GLM_API_KEY is set but GLM_API_URL is missing. Please set both GLM_API_KEY and GLM_API_URL for GLM 4.6 support.");
+            }
+            (None, Some(_)) => {
+                anyhow::bail!("GLM_API_URL is set but GLM_API_KEY is missing. Please set both GLM_API_KEY and GLM_API_URL for GLM 4.6 support.");
+            }
+            _ => {
+                info!("[LlmAgent] GLM environment variables not found, using default LLM configuration");
+
+                // Load base API URL from environment variables, falling back to a default.
+                let base_url = std::env::var("LLM_API_URL")
+                    .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
+                info!("[LlmAgent] Using base URL: {base_url}");
+
+                // Append `?mock=true` if the deterministic agent is selected.
+                let api_url = if agent_name == "deterministic" {
+                    format!("{base_url}?mock=true")
+                } else {
+                    base_url
+                };
+
+                // Pass through agent names directly - 'local' should remain 'local' for actual local models
+                let model_name = agent_name.to_string();
+
+                // Load API key from environment variables if it exists.
+                let api_key = match std::env::var("LLM_API_KEY") {
+                    Ok(key) if !key.is_empty() => {
+                        info!("[LlmAgent] Using LLM_API_KEY from environment.");
+                        Some(key)
+                    }
+                    _ => {
+                        info!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty.");
+                        None
+                    }
+                };
+
+                (api_url, api_key, model_name, false)
+            }
         };
-
-        // Pass through agent names directly - 'local' should remain 'local' for actual local models
-        let model_name = agent_name.to_string();
 
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
         info!("[LlmAgent] Model name being sent in payload: '{model_name}'");
-
-        // Load API key from environment variables if it exists.
-        let api_key = match std::env::var("LLM_API_KEY") {
-            Ok(key) if !key.is_empty() => {
-                info!("[LlmAgent] Using LLM_API_KEY from environment.");
-                Some(key)
-            }
-            _ => {
-                info!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty.");
-                None
-            }
-        };
+        if is_glm {
+            info!("[LlmAgent] GLM 4.6 mode enabled with OpenAI-compatible API");
+        }
 
         Ok(Self {
             client: Client::new(),
@@ -72,6 +103,7 @@ impl LlmAgent {
             model_name,
             flow_logger,
             current_depth: 0,
+            is_glm,
         })
     }
 }
@@ -113,12 +145,31 @@ impl Agent for LlmAgent {
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 
         // 2. Create the final JSON payload for the API.
-        let request_payload = json!({
-            "id": id,
-            "context_prompt": context_prompt,
-            "prompt": prompt,
-            "model_name": self.model_name,
-        });
+        let request_payload = if self.is_glm {
+            // GLM uses OpenAI-compatible format
+            let full_prompt = format!("{}\n\n{}\n\n{}", context_prompt, prompt,
+                "Generate Solana transactions as JSON array in the response. Each transaction should include program_id, accounts, and data fields.");
+
+            json!({
+                "model": self.model_name,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": full_prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": 4000
+            })
+        } else {
+            // Default reev API format
+            json!({
+                "id": id,
+                "context_prompt": context_prompt,
+                "prompt": prompt,
+                "model_name": self.model_name,
+            })
+        };
 
         // 3. Log the raw request for debugging.
         info!(
@@ -141,7 +192,12 @@ impl Agent for LlmAgent {
         // 5. Send the request to the LLM API.
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
-            request_builder = request_builder.header("X-API-Key", api_key);
+            if self.is_glm {
+                request_builder =
+                    request_builder.header("Authorization", format!("Bearer {api_key}"));
+            } else {
+                request_builder = request_builder.header("X-API-Key", api_key);
+            }
         }
         let response = request_builder
             .json(&request_payload)
@@ -224,8 +280,90 @@ impl Agent for LlmAgent {
             llm_response_text
         );
 
-        let llm_response: LlmResponse = serde_json::from_str(&llm_response_text)
-            .context("Failed to deserialize the LLM API response")?;
+        let llm_response = if self.is_glm {
+            // Parse OpenAI-compatible response from GLM
+            let openai_response: serde_json::Value = serde_json::from_str(&llm_response_text)
+                .context("Failed to deserialize GLM OpenAI-compatible response")?;
+
+            info!(
+                "[LlmAgent] Debug - Parsed GLM OpenAI response: {:?}",
+                openai_response
+            );
+
+            // Extract content from OpenAI response format
+            let content = openai_response
+                .get("choices")
+                .and_then(|choices| choices.get(0))
+                .and_then(|choice| choice.get("message"))
+                .and_then(|message| message.get("content"))
+                .and_then(|content| content.as_str())
+                .unwrap_or("");
+
+            info!("[LlmAgent] Debug - GLM extracted content: {}", content);
+
+            // Try to parse the content as JSON to extract transactions
+            match serde_json::from_str::<serde_json::Value>(content) {
+                Ok(json_content) => {
+                    // Look for transactions array in the parsed content
+                    if let Some(transactions) =
+                        json_content.get("transactions").and_then(|t| t.as_array())
+                    {
+                        LlmResponse {
+                            transactions: Some(
+                                transactions
+                                    .iter()
+                                    .filter_map(|tx| serde_json::from_value(tx.clone()).ok())
+                                    .collect(),
+                            ),
+                            result: None,
+                            summary: json_content
+                                .get("summary")
+                                .and_then(|s| s.as_str())
+                                .map(|s| s.to_string()),
+                            signatures: None,
+                            flows: None,
+                        }
+                    } else {
+                        // Fallback: treat the entire content as a transactions array
+                        if let Ok(transaction) =
+                            serde_json::from_value::<RawInstruction>(json_content)
+                        {
+                            LlmResponse {
+                                transactions: Some(vec![transaction]),
+                                result: None,
+                                summary: None,
+                                signatures: None,
+                                flows: None,
+                            }
+                        } else {
+                            // If we can't parse as transaction, create empty response
+                            LlmResponse {
+                                transactions: None,
+                                result: None,
+                                summary: Some(content.to_string()),
+                                signatures: None,
+                                flows: None,
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    // If we can't parse as JSON, create a default response
+                    warn!("[LlmAgent] Could not parse GLM response as JSON, using fallback");
+                    LlmResponse {
+                        transactions: None,
+                        result: None,
+                        summary: Some(content.to_string()),
+                        signatures: None,
+                        flows: None,
+                    }
+                }
+            }
+        } else {
+            // Default reev API format
+            serde_json::from_str(&llm_response_text)
+                .context("Failed to deserialize the LLM API response")?
+        };
 
         info!("[LlmAgent] Debug - Parsed LlmResponse: {:?}", llm_response);
 
