@@ -255,7 +255,6 @@ impl SwapProtocol for JupiterProtocol {
                         output_mint_parsed,
                         amount,
                         slippage_bps,
-                        &HashMap::new(), // TODO: Pass actual key_map
                     )
                 })
                 .map_err(|e| ProtocolError::ProtocolSpecific {
@@ -369,12 +368,7 @@ impl LendProtocol for JupiterProtocol {
             let rt = tokio::runtime::Handle::current();
             let instructions = rt
                 .block_on(async {
-                    handle_jupiter_lend_deposit(
-                        user_pubkey_parsed,
-                        token_mint_parsed,
-                        amount,
-                        &HashMap::new(), // TODO: Pass actual key_map
-                    )
+                    handle_jupiter_lend_deposit(user_pubkey_parsed, token_mint_parsed, amount)
                 })
                 .map_err(|e| ProtocolError::ProtocolSpecific {
                     protocol: "jupiter".to_string(),
@@ -422,12 +416,7 @@ impl LendProtocol for JupiterProtocol {
             let rt = tokio::runtime::Handle::current();
             let instructions = rt
                 .block_on(async {
-                    handle_jupiter_lend_withdraw(
-                        user_pubkey_parsed,
-                        token_mint_parsed,
-                        amount,
-                        &HashMap::new(), // TODO: Pass actual key_map
-                    )
+                    handle_jupiter_lend_withdraw(user_pubkey_parsed, token_mint_parsed, amount)
                 })
                 .map_err(|e| ProtocolError::ProtocolSpecific {
                     protocol: "jupiter".to_string(),

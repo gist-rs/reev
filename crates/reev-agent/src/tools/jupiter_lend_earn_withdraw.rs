@@ -133,10 +133,9 @@ impl Tool for JupiterLendEarnWithdrawTool {
         }
 
         // Call the protocol handler
-        let raw_instructions =
-            handle_jupiter_lend_withdraw(user_pubkey, asset_mint, args.amount, &self.key_map)
-                .await
-                .map_err(JupiterLendEarnWithdrawError::ProtocolCall)?;
+        let raw_instructions = handle_jupiter_lend_withdraw(user_pubkey, asset_mint, args.amount)
+            .await
+            .map_err(JupiterLendEarnWithdrawError::ProtocolCall)?;
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

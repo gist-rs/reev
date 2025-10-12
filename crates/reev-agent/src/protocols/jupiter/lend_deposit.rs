@@ -10,7 +10,7 @@ use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use solana_system_interface::instruction as system_instruction;
 use spl_associated_token_account;
 use spl_token;
-use std::collections::HashMap;
+
 use tracing::{debug, info};
 
 /// Handle Jupiter lend deposit operation using the jup-sdk.
@@ -19,7 +19,6 @@ pub async fn handle_jupiter_lend_deposit(
     user_pubkey: Pubkey,
     asset_mint: Pubkey,
     amount: u64,
-    _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
     // Check for placeholder addresses that would cause Base58 parsing errors
     let user_pubkey_str = user_pubkey.to_string();

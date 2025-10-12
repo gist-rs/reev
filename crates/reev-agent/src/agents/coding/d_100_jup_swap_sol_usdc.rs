@@ -34,15 +34,8 @@ pub(crate) async fn handle_jup_swap_sol_usdc(
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions (setup, swap, cleanup) needed for the transaction.
-    let instructions = handle_jupiter_swap(
-        user_pubkey,
-        input_mint,
-        output_mint,
-        amount,
-        slippage_bps,
-        key_map,
-    )
-    .await?;
+    let instructions =
+        handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, slippage_bps).await?;
 
     info!(
         "[reev-agent] Successfully received {} instructions. Responding to runner.",

@@ -25,8 +25,7 @@ pub(crate) async fn handle_jup_lend_withdraw_sol(
 
     // The handler performs account pre-loading and returns the complete set of
     // instructions needed for the transaction.
-    let instructions =
-        handle_jupiter_lend_withdraw(user_pubkey, asset_mint, amount, key_map).await?;
+    let instructions = handle_jupiter_lend_withdraw(user_pubkey, asset_mint, amount).await?;
 
     info!(
         "[reev-agent] Successfully received {} instructions. Responding to runner.",

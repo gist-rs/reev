@@ -260,7 +260,6 @@ impl Tool for JupiterSwapTool {
             output_mint,
             args.amount,
             slippage_bps,
-            &self.key_map,
         )
         .await
         .map_err(JupiterSwapError::ProtocolCall)?;

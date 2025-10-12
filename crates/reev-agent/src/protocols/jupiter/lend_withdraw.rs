@@ -9,7 +9,7 @@ use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use spl_associated_token_account;
 use spl_token;
-use std::collections::HashMap;
+
 use tracing::{debug, info};
 
 /// Handle Jupiter lend withdraw operation using the jup-sdk.
@@ -18,7 +18,6 @@ pub async fn handle_jupiter_lend_withdraw(
     user_pubkey: Pubkey,
     asset_mint: Pubkey,
     amount: u64,
-    _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
     // Check for placeholder addresses that would cause Base58 parsing errors
     let user_pubkey_str = user_pubkey.to_string();

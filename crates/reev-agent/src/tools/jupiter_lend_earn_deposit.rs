@@ -191,10 +191,9 @@ impl Tool for JupiterLendEarnDepositTool {
         }
 
         // Call the protocol handler
-        let raw_instructions =
-            handle_jupiter_lend_deposit(user_pubkey, asset_mint, args.amount, &self.key_map)
-                .await
-                .map_err(JupiterLendEarnDepositError::ProtocolCall)?;
+        let raw_instructions = handle_jupiter_lend_deposit(user_pubkey, asset_mint, args.amount)
+            .await
+            .map_err(JupiterLendEarnDepositError::ProtocolCall)?;
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

@@ -3,7 +3,7 @@ use bs58;
 use jup_sdk::{models::SwapParams, Jupiter};
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
 use solana_sdk::pubkey::Pubkey;
-use std::collections::HashMap;
+
 use tracing::{debug, info};
 
 /// Handle Jupiter swap operation using the jup-sdk.
@@ -14,7 +14,6 @@ pub async fn handle_jupiter_swap(
     output_mint: Pubkey,
     amount: u64,
     slippage_bps: u16,
-    _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
     // Check for placeholder addresses that would cause Base58 parsing errors
     let user_pubkey_str = user_pubkey.to_string();

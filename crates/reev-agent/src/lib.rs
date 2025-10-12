@@ -350,15 +350,9 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let amount = 250_000_000; // 0.5 SOL for step 1
             let slippage_bps = 800; // 8%
 
-            let instructions = handle_jupiter_swap(
-                user_pubkey,
-                input_mint,
-                output_mint,
-                amount,
-                slippage_bps,
-                &key_map,
-            )
-            .await?;
+            let instructions =
+                handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, slippage_bps)
+                    .await?;
 
             info!(
                 "[reev-agent] Step 1: Successfully generated {} Jupiter swap instructions",
@@ -377,8 +371,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let deposit_amount = 9_000_000; // ~9 USDC (estimated from 0.5 SOL swap)
 
             let instructions =
-                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount, &key_map)
-                    .await?;
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
 
             info!(
                 "[reev-agent] Step 2: Successfully generated {} Jupiter lending instructions",
@@ -398,8 +391,7 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             let deposit_amount = 50_000_000; // 50 USDC for step 1
 
             let instructions =
-                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount, &key_map)
-                    .await?;
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
 
             info!(
                 "[reev-agent] Step 1: Successfully generated {} Jupiter lending mint instructions",

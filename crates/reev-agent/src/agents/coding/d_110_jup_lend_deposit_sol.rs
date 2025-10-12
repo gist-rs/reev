@@ -28,8 +28,7 @@ pub(crate) async fn handle_jup_lend_deposit_sol(
     // The handler performs account pre-loading and returns the complete set of
     // instructions needed for the transaction, including SOL wrapping.
     info!("[reev-agent] Getting Jupiter lend/deposit instructions...");
-    let jupiter_instructions =
-        handle_jupiter_lend_deposit(user_pubkey, wsol_mint, amount, key_map).await?;
+    let jupiter_instructions = handle_jupiter_lend_deposit(user_pubkey, wsol_mint, amount).await?;
 
     // --- Convert all instructions ---
     info!("[reev-agent] Converting Jupiter instructions...");

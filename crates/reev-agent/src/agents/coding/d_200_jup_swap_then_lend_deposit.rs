@@ -38,7 +38,6 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
         output_mint,
         swap_amount,
         slippage_bps,
-        key_map,
     )
     .await?;
 
@@ -57,7 +56,7 @@ pub(crate) async fn handle_jup_swap_then_lend_deposit(
     let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
 
     let lend_instructions =
-        handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount, key_map).await?;
+        handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
 
     info!(
         "[reev-agent] Step 2 completed: {} lending instructions generated",
