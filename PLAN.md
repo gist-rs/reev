@@ -23,7 +23,7 @@
 ### 🎉 **MAJOR MILESTONE ACHIEVED**
 **ALL 10 TOFIX TECHNICAL DEBT ISSUES COMPLETELY RESOLVED**
 - ✅ Jupiter Protocol TODOs
-- ✅ Hardcoded Addresses Centralization  
+- ✅ Hardcoded Addresses Centralization
 - ✅ Error Handling Improvements
 - ✅ Magic Numbers Centralization
 - ✅ Code Duplication Elimination
@@ -52,20 +52,6 @@
 - ✅ OpenAI-compatible request/response format handling
 - ✅ Comprehensive test coverage for GLM integration
 - ✅ Fallback to default LLM configuration when GLM not configured
-
-### 🔄 Phase 21: Agent Loop Behavior Optimization (ACTIVE ISSUE)
-
-### 🎯 **Critical Issue Identified**
-Local LLM agent failing to call tools in multi-step flows, causing benchmark failures.
-
-**Problem**: In benchmark `116-jup-lend-redeem-usdc`, Step 2 (redeem jUSDC) fails because:
-- Local LLM agent returns empty transactions instead of calling tools
-- Agent hallucinates "zero jUSDC shares" without using `jupiter_earn` tool to check positions
-- Deterministic agent works perfectly (100% score) - issue is LLM-specific
-
-**Root Cause**: Agent loop behavior where LLM doesn't use available tools for position checking
-**Impact**: Flow benchmarks fail with local agents despite working infrastructure
-**Priority**: HIGH - affects production LLM agent evaluation
 
 ### 🔄 Phase 21: Advanced Multi-Agent Collaboration (FUTURE)
 
