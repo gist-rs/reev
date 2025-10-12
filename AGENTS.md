@@ -1,7 +1,8 @@
-- always diag after edit, fix diag, follow PLAN.md TASKS.md, update plan PLAN.md TASKS.md when complete, remove done
-- add what to fix in TOFIX.md, when fixed add reflect to REFLECT.md
-- commit when impl and run success result without error and warning with git convesion e.g. `feat:...`, `fix:...`, `refactor:...` when done for each task.
+- always diag after edit, fix diag, follow PLAN.md TASKS.md, update plan PLAN.md TASKS.md when complete
+- remove what done from to TOFIX.md, add what to fix in TOFIX.md
+- when fixed add reflect to REFLECT.md
+- commit when done impl or fixed and run success result without error and warning with git convesion e.g. `feat:...`, `fix:...`, `refactor:...` when done for each task.
 - run `cargo clippy --fix --allow-dirty`  before commit.
-- dont add a test on each file, do add to test folder.
+- don't add a test on each file, do add test to tests folder.
 - prefer `match` more than `if`.
-- use `return` instead of `else`.
+- use early `return` condition instead of `else`.
