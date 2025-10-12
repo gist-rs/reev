@@ -1,5 +1,51 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-13: Flow Example Context Structure Fix - Final Issue Resolution
+
+### **Problem Identified**
+The multi-step flow example (200-jup-swap-then-lend-deposit) was failing with "missing field `key_map`" error when parsing context_prompt YAML. This was the last remaining issue preventing 100% completion of the TOFIX.md technical debt resolution.
+
+### **Root Cause Analysis**
+The FlowAgent's `build_context_prompt` method was returning an empty string instead of properly formatted YAML with the required `key_map` field. The deterministic agent expected a YAML structure matching the `AgentContext` struct:
+```rust
+struct AgentContext {
+    key_map: HashMap<String, String>,
+}
+```
+
+### **Solution Applied**
+1. **FlowAgent Architecture Enhancement**: Added `key_map` field to FlowAgent struct to maintain state across method calls
+
+2. **Toolset Creation Refactoring**: Modified `create_toolset()` to return both tools and key_map:
+```rust
+async fn create_toolset() -> Result<(HashMap<String, Box<dyn ToolDyn>>, HashMap<String, String>)>
+```
+
+3. **Context Prompt Builder Fix**: Implemented proper YAML serialization:
+```rust
+fn build_context_prompt(&self, ...) -> String {
+    let context_yaml = serde_json::json!({
+        "key_map": self.key_map
+    });
+    format!(
+        "---\n\nCURRENT ON-CHAIN CONTEXT:\n{}\n\n---",
+        serde_yaml::to_string(&context_yaml).expect("Failed to serialize key_map")
+    )
+}
+```
+
+### **Lessons Learned**
+- **Interface Consistency**: All agent types (deterministic, AI, flow) must conform to the same context structure
+- **State Management**: Flow agents need to maintain key mapping context for proper tool execution
+- **YAML Serialization**: Proper context formatting is critical for agent communication
+- **Testing Integration**: Flow examples validate the complete agent ecosystem integration
+
+### **Impact Achieved**
+- **100% TOFIX Completion**: All 10 technical debt issues now resolved
+- **Flow System Validation**: Multi-step workflows fully operational
+- **Production Readiness**: Complete end-to-end functionality confirmed
+- **Framework Maturity**: Robust multi-agent architecture with consistent interfaces
+
 ## 2025-10-13: Comprehensive TOFIX Resolution and Code Quality Improvements
 
 ### **Problem Identified**

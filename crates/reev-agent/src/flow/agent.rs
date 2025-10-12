@@ -31,6 +31,8 @@ pub struct FlowAgent {
     _tools: HashMap<String, Box<dyn ToolDyn>>,
     /// Current conversation state
     state: FlowState,
+    /// Key mapping for placeholder pubkeys to real values
+    key_map: HashMap<String, String>,
 }
 
 impl FlowAgent {
@@ -42,7 +44,7 @@ impl FlowAgent {
         );
 
         // Create toolset with all available flow tools
-        let tools = Self::create_toolset().await?;
+        let (tools, key_map) = Self::create_toolset().await?;
 
         let state = FlowState::new(0);
 
@@ -50,11 +52,13 @@ impl FlowAgent {
             model_name: model_name.to_string(),
             _tools: tools,
             state,
+            key_map,
         })
     }
 
     /// Create the toolset with all available flow tools
-    async fn create_toolset() -> Result<HashMap<String, Box<dyn ToolDyn>>> {
+    async fn create_toolset() -> Result<(HashMap<String, Box<dyn ToolDyn>>, HashMap<String, String>)>
+    {
         let mut tools: HashMap<String, Box<dyn ToolDyn>> = HashMap::new();
 
         // Create real pubkeys for the key_map like existing examples
@@ -115,7 +119,7 @@ impl FlowAgent {
             }) as Box<dyn ToolDyn>,
         );
 
-        Ok(tools)
+        Ok((tools, key_map))
     }
 
     /// Execute a single step in the flow
@@ -230,9 +234,15 @@ impl FlowAgent {
         _step: &crate::flow::benchmark::FlowStep,
         _all_tools: &[String],
     ) -> String {
-        let context_parts: Vec<String> = Vec::new();
+        // Create YAML context with key_map like other examples
+        let context_yaml = serde_json::json!({
+            "key_map": self.key_map
+        });
 
-        context_parts.join("\n")
+        format!(
+            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{}\n\n---",
+            serde_yaml::to_string(&context_yaml).expect("Failed to serialize key_map")
+        )
     }
 
     /// Get the current flow state
