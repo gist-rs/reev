@@ -94,10 +94,10 @@ fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
         let is_selected = *agent == app.selected_agent;
         let is_disabled = agent.is_disabled(app.is_running_benchmark);
 
-        let style = if is_disabled {
-            disabled_style
-        } else if is_selected {
+        let style = if is_selected {
             highlight_style
+        } else if is_disabled {
+            disabled_style
         } else {
             normal_style
         };
@@ -295,7 +295,10 @@ fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
-        Span::raw("◄ ► Agent | "),
+        Span::styled("1-4", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" Agent | "),
+        Span::styled("G", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("LM | "),
         Span::styled("h l", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(" Scroll | "),
         Span::styled("[L]", Style::default().add_modifier(Modifier::BOLD)),

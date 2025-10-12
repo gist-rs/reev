@@ -320,6 +320,34 @@ impl<'a> App<'a> {
         }
     }
 
+    pub fn select_deterministic(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = SelectedAgent::Deterministic;
+            self.reset_benchmarks();
+        }
+    }
+
+    pub fn select_gemini(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = SelectedAgent::Gemini;
+            self.reset_benchmarks();
+        }
+    }
+
+    pub fn select_local(&mut self) {
+        if !self.is_running_benchmark {
+            self.selected_agent = SelectedAgent::Local;
+            self.reset_benchmarks();
+        }
+    }
+
+    pub fn select_glm46(&mut self) {
+        if !self.is_running_benchmark && !self.selected_agent.is_disabled(false) {
+            self.selected_agent = SelectedAgent::Glm46;
+            self.reset_benchmarks();
+        }
+    }
+
     pub fn on_down(&mut self) {
         if self.benchmarks.is_empty() {
             return;
