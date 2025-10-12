@@ -386,6 +386,46 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
             );
             serde_json::to_string(&instructions)?
         }
+        // Handle 116-jup-lend-redeem-usdc flow steps
+        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-1") => {
+            info!("[reev-agent] Handling flow step 1: Jupiter USDC mint (deposit)");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
+            let deposit_amount = 50_000_000; // 50 USDC for step 1
+
+            let instructions =
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount, &key_map)
+                    .await?;
+
+            info!(
+                "[reev-agent] Step 1: Successfully generated {} Jupiter lending mint instructions",
+                instructions.len()
+            );
+            serde_json::to_string(&instructions)?
+        }
+        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-2") => {
+            info!("[reev-agent] Handling flow step 2: Jupiter jUSDC redeem (withdraw)");
+            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
+            let redeem_amount = 40_000_000; // 40 USDC worth of jUSDC (conservative amount to ensure success)
+
+            let instructions = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
+                &asset,
+                redeem_amount,
+                &key_map,
+            )
+            .await?;
+
+            info!(
+                "[reev-agent] Step 2: Successfully generated {} Jupiter lending redeem instructions",
+                instructions.len()
+            );
+            serde_json::to_string(&instructions)?
+        }
         "200-jup-swap-then-lend-deposit" => {
             info!(
                 "[reev-agent] Handling 200-jup-swap-then-lend-deposit flow benchmark (legacy mode)"
