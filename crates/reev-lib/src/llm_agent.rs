@@ -72,7 +72,12 @@ impl LlmAgent {
                 };
 
                 // Pass through agent names directly - 'local' should remain 'local' for actual local models
-                let model_name = agent_name.to_string();
+                // Add support for "glm" alias to "glm-4.6"
+                let model_name = match agent_name {
+                    "glm" => "glm-4.6",
+                    _ => agent_name,
+                }
+                .to_string();
 
                 // Load API key from environment variables if it exists.
                 let api_key = match std::env::var("LLM_API_KEY") {

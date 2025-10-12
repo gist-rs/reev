@@ -23,6 +23,19 @@ It is important to run this from the workspace root so that the TUI can correctl
 ### Keybindings
 
 -   **Navigate Benchmarks**: `Up`/`Down` arrow keys or `k`/`j`
+-   **Switch Agents**: `Left`/`Right` arrow keys (Deterministic | Local | GLM 4.6 | Gemini)
 -   **Run Selected Benchmark**: `r`
+-   **Run All Benchmarks**: `a`
 -   **Cycle Through Panels**: `Tab`
+-   **Toggle Log Panel**: `l`
 -   **Quit**: `q` or `Esc`
+
+### Agent Selection
+
+The TUI supports four different agent types:
+- **Deterministic**: Ground truth agent with perfect instructions
+- **Local**: Local LLM model (requires `reev-agent` service)
+- **GLM 4.6**: OpenAI-compatible GLM API (requires `GLM_API_KEY` and `GLM_API_URL`)
+- **Gemini**: Google Gemini model (requires `GEMINI_API_KEY`)
+
+Note: GLM 4.6 tab appears grayed out when environment variables are not configured.

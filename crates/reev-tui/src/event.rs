@@ -19,12 +19,6 @@ pub fn handle_events(app: &mut App) -> Result<()> {
                         app.on_run()
                     }
                     KeyCode::Char('a') if !app.is_running_benchmark => app.on_run_all(),
-                    // Agent selection shortcuts
-                    KeyCode::Char('1') => app.select_deterministic(),
-                    KeyCode::Char('2') => app.select_gemini(),
-                    KeyCode::Char('3') => app.select_local(),
-                    KeyCode::Char('4') => app.select_glm46(),
-                    KeyCode::Char('g') => app.select_glm46(), // Alternative shortcut for GLM
                     _ => match app.active_panel {
                         ActivePanel::BenchmarkNavigator => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.on_up(),

@@ -44,6 +44,15 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     RUST_LOG=info cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
     ```
 
+*   **GLM 4.6 Agent:**
+    To run using the GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm` agent name.
+    ```sh
+    export GLM_API_KEY="your-glm-api-key"
+    export GLM_API_URL="https://api.example.com/v1/chat/completions"
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm
+    ```
+    > **Note:** Both `GLM_API_KEY` and `GLM_API_URL` environment variables must be set for GLM 4.6 to work.
+
 ## Testing
 
 **Core Principle:** All tests in this crate run against a `surfpool` instance, which is a high-speed, in-memory fork of the Solana mainnet. This allows tests to interact with the *real, deployed* versions of on-chain programs.
@@ -57,6 +66,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     ```
 2.  **For LLM Agent Tests:**
     *   Configure your `.env` file with the appropriate API keys (e.g., `GEMINI_API_KEY`).
+    *   For GLM 4.6 tests, set both `GLM_API_KEY` and `GLM_API_URL` environment variables.
     *   Build and run the `reev-agent` service in a separate terminal:
         ```sh
         cargo run -p reev-agent

@@ -111,7 +111,7 @@ cargo run -p reev-tui
 Features:
 - 📊 Live benchmark execution with status updates
 - 🔍 Detailed execution trace analysis
-- 🏷️ Agent selection (deterministic, local, gemini)
+- 🏷️ Agent selection (deterministic, local, glm-4.6, gemini)
 - 📈 Real-time scoring and metrics
 
 ## 📊 Benchmark Categories

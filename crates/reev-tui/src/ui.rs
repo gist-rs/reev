@@ -295,10 +295,7 @@ fn render_agent_log_view(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_footer(f: &mut Frame, area: Rect) {
     let controls = Line::from(vec![
-        Span::styled("1-4", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" Agent | "),
-        Span::styled("G", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("LM | "),
+        Span::raw("◄ ► Agent | "),
         Span::styled("h l", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(" Scroll | "),
         Span::styled("[L]", Style::default().add_modifier(Modifier::BOLD)),
