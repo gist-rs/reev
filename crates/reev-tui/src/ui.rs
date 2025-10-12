@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, Tabs},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation},
     Frame,
 };
 use strum::IntoEnumIterator;
@@ -76,7 +76,9 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 }
 
 fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
-    let titles = SelectedAgent::iter().map(|t| t.to_string());
+    let block = Block::default()
+        .title(" Reev TUI - Agent Selection ")
+        .borders(Borders::ALL);
 
     let normal_style = Style::default().fg(Color::White);
     let highlight_style = Style::default()
@@ -84,25 +86,37 @@ fn render_header(f: &mut Frame, app: &mut App, area: Rect) {
         .add_modifier(Modifier::BOLD);
     let disabled_style = Style::default().fg(Color::DarkGray);
 
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .title(" Reev TUI - Agent Selection ")
-                .borders(Borders::ALL),
-        )
-        .select(app.selected_agent as usize)
-        .style(if app.is_running_benchmark {
+    // Create custom tabs with individual styling
+    let agents: Vec<_> = SelectedAgent::iter().collect();
+    let mut tab_spans = Vec::new();
+
+    for (index, agent) in agents.iter().enumerate() {
+        let is_selected = *agent == app.selected_agent;
+        let is_disabled = agent.is_disabled(app.is_running_benchmark);
+
+        let style = if is_disabled {
             disabled_style
+        } else if is_selected {
+            highlight_style
         } else {
             normal_style
-        })
-        .highlight_style(if app.is_running_benchmark {
-            disabled_style
-        } else {
-            highlight_style
-        });
+        };
 
-    f.render_widget(tabs, area);
+        let tab_text = agent.to_string();
+        tab_spans.push(Span::styled(tab_text, style));
+
+        // Add separator between tabs
+        if index < agents.len() - 1 {
+            tab_spans.push(Span::styled("|", normal_style));
+        }
+    }
+
+    let tabs_text = Line::from(tab_spans);
+    let paragraph = Paragraph::new(tabs_text)
+        .block(block)
+        .alignment(ratatui::layout::Alignment::Center);
+
+    f.render_widget(paragraph, area);
 }
 
 fn render_benchmark_navigator(f: &mut Frame, app: &mut App, area: Rect) {

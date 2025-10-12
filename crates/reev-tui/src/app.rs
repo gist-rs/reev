@@ -20,7 +20,7 @@ pub enum BenchmarkStatus {
     Failed,
 }
 
-#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, Debug, Display, FromRepr, EnumIter, PartialEq, Eq)]
 pub enum SelectedAgent {
     #[default]
     #[strum(to_string = " Deterministic ")]
@@ -29,6 +29,8 @@ pub enum SelectedAgent {
     Gemini,
     #[strum(to_string = " Local ")]
     Local,
+    #[strum(to_string = " GLM 4.6 ")]
+    Glm46,
 }
 
 impl SelectedAgent {
@@ -37,6 +39,7 @@ impl SelectedAgent {
             SelectedAgent::Deterministic => "deterministic",
             SelectedAgent::Gemini => "gemini-2.5-pro",
             SelectedAgent::Local => "local",
+            SelectedAgent::Glm46 => "glm-4.6",
         }
     }
 
@@ -53,7 +56,18 @@ impl SelectedAgent {
     }
 
     pub fn is_disabled(&self, is_running: bool) -> bool {
-        is_running
+        if is_running {
+            return true;
+        }
+
+        // Check if GLM environment variables are properly configured
+        if matches!(self, SelectedAgent::Glm46) {
+            let has_glm_key = std::env::var("GLM_API_KEY").is_ok();
+            let has_glm_url = std::env::var("GLM_API_URL").is_ok();
+            !(has_glm_key && has_glm_url)
+        } else {
+            false
+        }
     }
 }
 
@@ -94,6 +108,12 @@ pub struct App<'a> {
     pub log_scroll: u16,
     pub log_horizontal_scroll: u16,
     pub log_scroll_state: ScrollbarState,
+}
+
+impl<'a> Default for App<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> App<'a> {
