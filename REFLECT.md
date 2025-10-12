@@ -1,5 +1,57 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-13: Constants Centralization and Hardcoded Address Resolution
+
+### **Problem Identified**
+The codebase contained extensive use of hardcoded blockchain addresses and magic numbers scattered throughout multiple files. This created maintenance nightmares, increased the risk of typos causing silent failures, and made it difficult to update values consistently across the project.
+
+### **Root Cause Analysis**
+1. **No Central Configuration**: Addresses like `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (USDC) appeared 20+ times across the codebase
+2. **Magic Numbers**: Amounts like `100_000_000` (0.1 SOL) and `800` (8% slippage) were repeated without clear meaning
+3. **Inconsistent Patterns**: Some files used hardcoded strings, others used `Pubkey::from_str()` calls
+4. **Maintenance Overhead**: Updating any address required changes in multiple, hard-to-find locations
+
+### **Solution Applied**
+1. **Constants Module Creation**: Designed and implemented a comprehensive constants module with three main components:
+   - `addresses.rs`: Centralized blockchain addresses with helper functions
+   - `amounts.rs`: Standardized amounts, slippage values, and scoring constants
+   - `mod.rs`: Clean re-exports for convenient imports
+
+2. **Systematic Replacement**: Methodically replaced hardcoded values in:
+   - Agent handlers (d_100, d_111, d_113, d_200, etc.)
+   - Tool implementations (jupiter_swap, jupiter_lend_earn_deposit, etc.)
+   - Discovery tools (balance_tool, position_tool)
+   - Main lib.rs flow step handlers
+
+3. **Smart Re-exports**: Designed the module API to provide both convenience and clarity:
+   ```rust
+   use reev_lib::constants::{usdc_mint, sol_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT};
+   ```
+
+### **Lessons Learned**
+- **Centralization First**: A centralized configuration system should be established early in project development
+- **Semantic Naming**: Constants should have descriptive names (`SOL_SWAP_AMOUNT` vs `100_000_000`)
+- **Helper Functions**: Providing functions like `usdc_mint()` that return `Pubkey` is more convenient than raw strings
+- **Module Design**: Thoughtful re-export design makes the API ergonomic while maintaining organization
+- **Validation is Key**: Including unit tests for address validation prevents silent failures from typos
+
+### **Impact**
+- **Maintainability**: Single source of truth for all blockchain addresses and amounts
+- **Reliability**: Reduced risk of typos causing silent failures through validation
+- **Clarity**: Code becomes self-documenting with meaningful constant names
+- **Development Speed**: Easier to add new features using standardized values
+- **Testing**: Centralized constants make test data more consistent and maintainable
+
+### **Future Prevention**
+- **Constants-First Development**: New code should immediately define constants for repeated values
+- **Regular Audits**: Periodic reviews to identify new hardcoded values that should be centralized
+- **Documentation**: Clear comments explaining the purpose and context of each constant
+- **Type Safety**: Continue using strongly-typed constants over string literals where possible
+
+### **Final Status: HARDCODED ADDRESSES COMPLETELY RESOLVED** ✅
+
+---
+
 ## 2025-10-13: Jupiter Protocol TODOs Resolution
 
 ### **Problem Identified**

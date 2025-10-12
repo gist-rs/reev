@@ -173,7 +173,8 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     }
 
     // Use regex to find a JSON block for old format compatibility
-    let re = Regex::new(r"(?s)```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```").unwrap();
+    let re = Regex::new(r"(?s)```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```")
+        .context("Failed to compile JSON extraction regex")?;
     let extracted_json = if let Some(caps) = re.captures(&response_str) {
         caps.get(1).map_or("", |m| m.as_str()).to_string()
     } else {

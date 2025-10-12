@@ -72,7 +72,10 @@ let agent_url = if agent_name == "deterministic" {
 
 **Solution**: Central address constants module
 
+**✅ RESOLVED**: Created centralized constants module with addresses.rs, amounts.rs, and proper re-exports. All hardcoded addresses in agent code have been replaced with constants.
+
 ---
+
 
 ### 4. PORT NUMBERS & CONFIGURATION
 
