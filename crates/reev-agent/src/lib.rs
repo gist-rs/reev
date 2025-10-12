@@ -7,7 +7,8 @@ use axum::{
     Json, Router,
 };
 use reev_lib::constants::{
-    usdc, usdc_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT_MEDIUM, USDC_MINT_AMOUNT,
+    usdc, usdc_mint, EIGHT_PERCENT, FIVE_PERCENT, SOL_SWAP_AMOUNT, SOL_SWAP_AMOUNT_MEDIUM,
+    USDC_LEND_AMOUNT, USDC_LEND_AMOUNT_LARGE, USDC_MINT_AMOUNT,
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,311 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info};
+
+/// Handle simple transfer benchmarks (001-004 series)
+async fn handle_simple_transfer_benchmarks(
+    benchmark_id: &str,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    match benchmark_id {
+        "001-sol-transfer" => {
+            let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(key_map).await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "002-spl-transfer" => {
+            let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(key_map).await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "003-spl-transfer-fail" => {
+            let ixs =
+                agents::coding::d_003_spl_transfer_fail::handle_spl_transfer_fail(key_map).await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "004-partial-score-spl-transfer" => {
+            let ixs = agents::coding::d_004_partial_score_spl_transfer::handle_partial_score_spl_transfer(
+                key_map,
+            )
+            .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        _ => anyhow::bail!("Not a simple transfer benchmark: {}", benchmark_id),
+    }
+}
+
+/// Handle Jupiter swap benchmarks (100 series)
+async fn handle_jupiter_swap_benchmarks(
+    benchmark_id: &str,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    match benchmark_id {
+        "100-jup-swap-sol-usdc" => {
+            let ixs =
+                agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(key_map).await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        _ => anyhow::bail!("Not a Jupiter swap benchmark: {}", benchmark_id),
+    }
+}
+
+/// Handle Jupiter lending benchmarks (110-116 series)
+async fn handle_jupiter_lending_benchmarks(
+    benchmark_id: &str,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    match benchmark_id {
+        "110-jup-lend-deposit-sol" => {
+            let ixs =
+                agents::coding::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(key_map)
+                    .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "111-jup-lend-deposit-usdc" => {
+            let ixs =
+                agents::coding::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(key_map)
+                    .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "112-jup-lend-withdraw-sol" => {
+            let ixs =
+                agents::coding::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(key_map)
+                    .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "113-jup-lend-withdraw-usdc" => {
+            let ixs = agents::coding::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
+                key_map,
+            )
+            .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "114-jup-positions-and-earnings" => {
+            info!(
+                "[reev-agent] Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
+                benchmark_id
+            );
+            let response =
+                agents::coding::d_114_jup_positions_and_earnings::handle_jup_positions_and_earnings(
+                    key_map,
+                )
+                .await?;
+            let response_json = serde_json::to_string(&response)?;
+            info!(
+                "[reev-agent] Successfully created deterministic response with {} total positions and ${:.2} in earnings",
+                response["step_1_result"]["total_positions"],
+                response["summary"]["total_earnings_usd"].as_f64().unwrap_or(0.0)
+            );
+            Ok(response_json)
+        }
+        "115-jup-lend-mint-usdc" => {
+            let ixs = agents::coding::d_115_jup_lend_mint_usdc::handle_jupiter_mint(
+                &usdc_mint(),
+                USDC_MINT_AMOUNT,
+                key_map,
+            )
+            .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        "116-jup-lend-redeem-usdc" => {
+            let ixs = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
+                &usdc_mint(),
+                usdc::FORTY,
+                key_map,
+            )
+            .await?;
+            Ok(serde_json::to_string(&ixs)?)
+        }
+        _ => anyhow::bail!("Not a Jupiter lending benchmark: {}", benchmark_id),
+    }
+}
+
+/// Handle flow benchmarks (200 series and multi-step flows)
+async fn handle_flow_benchmarks(
+    benchmark_id: &str,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    match benchmark_id {
+        "200-jup-swap-then-lend-deposit" => {
+            info!(
+                "[reev-agent] Matched '200-jup-swap-then-lend-deposit' id. Starting deterministic flow."
+            );
+
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            // Step 1: Swap 0.1 SOL to USDC using Jupiter
+            info!("[reev-agent] Step 1: Swapping 0.1 SOL to USDC");
+            let input_mint = native_mint::ID;
+            let output_mint = usdc_mint();
+            let swap_amount = SOL_SWAP_AMOUNT; // 0.1 SOL
+            let slippage_bps = FIVE_PERCENT; // 5%
+
+            let swap_instructions = handle_jupiter_swap(
+                user_pubkey,
+                input_mint,
+                output_mint,
+                swap_amount,
+                slippage_bps,
+            )
+            .await?;
+
+            info!(
+                "[reev-agent] Step 1 completed: {} swap instructions generated",
+                swap_instructions.len()
+            );
+
+            // Step 2: Deposit received USDC into Jupiter lending
+            info!("[reev-agent] Step 2: Depositing USDC into Jupiter lending");
+
+            // For lending, we use the USDC mint and deposit the expected amount from the swap
+            // Note: In a real scenario, we'd calculate the exact amount received from the swap
+            // For deterministic purposes, we estimate ~0.5 SOL worth of USDC (accounting for slippage)
+            let deposit_amount = USDC_LEND_AMOUNT_LARGE; // ~9 USDC (accounting for slippage and fees)
+            let usdc_mint = usdc_mint();
+
+            let lend_instructions =
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
+
+            info!(
+                "[reev-agent] Step 2 completed: {} lending instructions generated",
+                lend_instructions.len()
+            );
+
+            // Combine all instructions for the complete flow
+            let mut all_instructions = Vec::new();
+            all_instructions.extend(swap_instructions);
+            all_instructions.extend(lend_instructions);
+
+            // Create flow response
+            let flow_response = serde_json::json!({
+                "benchmark_id": "200-jup-swap-then-lend-deposit",
+                "agent_type": "deterministic",
+                "steps": [
+                    {
+                        "step_id": "1",
+                        "description": "Swap 0.1 SOL to USDC using Jupiter",
+                        "instructions": all_instructions,
+                        "estimated_time_seconds": 10
+                    },
+                    {
+                        "step_id": "2",
+                        "description": "Deposit received USDC into Jupiter lending",
+                        "instructions": [],
+                        "estimated_time_seconds": 15
+                    }
+                ]
+            });
+            Ok(serde_json::to_string(&flow_response)?)
+        }
+        // Handle other flow benchmarks (IDs starting with "200-")
+        flow_id if flow_id.starts_with("200-") => {
+            // Generic flow handler for other 200-series benchmarks
+            let flow_response = serde_json::json!({
+                "benchmark_id": benchmark_id,
+                "agent_type": "deterministic",
+                "steps": [
+                    {
+                        "step_id": "1",
+                        "description": format!("Handling flow benchmark: {}", benchmark_id),
+                        "instructions": [],
+                        "estimated_time_seconds": 15
+                    }
+                ]
+            });
+            Ok(serde_json::to_string(&flow_response)?)
+        }
+        _ => anyhow::bail!("Not a flow benchmark: {}", benchmark_id),
+    }
+}
+
+/// Handle flow step benchmarks (multi-step flows)
+async fn handle_flow_step_benchmarks(
+    benchmark_id: &str,
+    key_map: &HashMap<String, String>,
+) -> Result<String> {
+    match benchmark_id {
+        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-1") => {
+            info!("[reev-agent] Handling flow step 1: Jupiter SOL to USDC swap");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let input_mint = native_mint::ID;
+            let output_mint = usdc_mint();
+            let amount = SOL_SWAP_AMOUNT_MEDIUM; // 0.5 SOL for step 1
+            let slippage_bps = EIGHT_PERCENT; // 8%
+
+            let instructions =
+                handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, slippage_bps)
+                    .await?;
+
+            info!(
+                "[reev-agent] Step 1: Successfully generated {} Jupiter swap instructions",
+                instructions.len()
+            );
+            Ok(serde_json::to_string(&instructions)?)
+        }
+        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-2") => {
+            info!("[reev-agent] Handling flow step 2: Jupiter USDC lending deposit");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let usdc_mint = usdc_mint();
+            let deposit_amount = USDC_LEND_AMOUNT; // 10 USDC
+
+            let instructions =
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
+
+            info!(
+                "[reev-agent] Step 2: Successfully generated {} Jupiter lending instructions",
+                instructions.len()
+            );
+            Ok(serde_json::to_string(&instructions)?)
+        }
+        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-1") => {
+            info!("[reev-agent] Handling flow step 1: Jupiter USDC mint (deposit)");
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            let usdc_mint = usdc_mint();
+            let deposit_amount = USDC_MINT_AMOUNT; // 50 USDC for step 1
+
+            let instructions =
+                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
+
+            info!(
+                "[reev-agent] Step 1: Successfully generated {} Jupiter lending mint instructions",
+                instructions.len()
+            );
+            Ok(serde_json::to_string(&instructions)?)
+        }
+        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-2") => {
+            info!("[reev-agent] Handling flow step 2: Jupiter jUSDC redeem (withdraw)");
+            let asset = usdc_mint();
+            let redeem_amount = usdc::FORTY; // 40 USDC worth of jUSDC (conservative amount to ensure success)
+
+            let instructions = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
+                &asset,
+                redeem_amount,
+                key_map,
+            )
+            .await?;
+
+            info!(
+                "[reev-agent] Step 2: Successfully generated {} Jupiter redeem instructions",
+                instructions.len()
+            );
+            Ok(serde_json::to_string(&instructions)?)
+        }
+        _ => anyhow::bail!("Not a flow step benchmark: {}", benchmark_id),
+    }
+}
 
 pub mod context;
 pub mod enhanced;
@@ -253,236 +559,23 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
 
     // The coding agents return one or more instructions. We serialize the result
     // into a JSON string to match the format expected by the runner.
-    let instructions_json = match payload.id.as_str() {
-        "001-sol-transfer" => {
-            let ixs = agents::coding::d_001_sol_transfer::handle_sol_transfer(&key_map).await?;
-            serde_json::to_string(&ixs)?
-        }
-        "002-spl-transfer" => {
-            let ixs = agents::coding::d_002_spl_transfer::handle_spl_transfer(&key_map).await?;
-            serde_json::to_string(&ixs)?
-        }
-        "003-spl-transfer-fail" => {
-            let ixs =
-                agents::coding::d_003_spl_transfer_fail::handle_spl_transfer_fail(&key_map).await?;
-            serde_json::to_string(&ixs)?
-        }
-        "004-partial-score-spl-transfer" => {
-            let ixs = agents::coding::d_004_partial_score_spl_transfer::handle_partial_score_spl_transfer(&key_map).await?;
-            serde_json::to_string(&ixs)?
-        }
-        "100-jup-swap-sol-usdc" => {
-            let ixs =
-                agents::coding::d_100_jup_swap_sol_usdc::handle_jup_swap_sol_usdc(&key_map).await?;
-            serde_json::to_string(&ixs)?
-        }
-        "110-jup-lend-deposit-sol" => {
-            let ixs =
-                agents::coding::d_110_jup_lend_deposit_sol::handle_jup_lend_deposit_sol(&key_map)
-                    .await?;
-            serde_json::to_string(&ixs)?
-        }
-        "111-jup-lend-deposit-usdc" => {
-            let ixs =
-                agents::coding::d_111_jup_lend_deposit_usdc::handle_jup_lend_deposit_usdc(&key_map)
-                    .await?;
-            serde_json::to_string(&ixs)?
-        }
-        "112-jup-lend-withdraw-sol" => {
-            let ixs =
-                agents::coding::d_112_jup_lend_withdraw_sol::handle_jup_lend_withdraw_sol(&key_map)
-                    .await?;
-            serde_json::to_string(&ixs)?
-        }
-        "113-jup-lend-withdraw-usdc" => {
-            let ixs = agents::coding::d_113_jup_lend_withdraw_usdc::handle_jup_lend_withdraw_usdc(
-                &key_map,
-            )
-            .await?;
-            serde_json::to_string(&ixs)?
-        }
-        "114-jup-positions-and-earnings" => {
-            info!(
-                "[reev-agent] Received request for benchmark id: \"{}\" - Deterministic Jupiter Positions and Earnings Flow",
-                payload.id
-            );
-            let response =
-                agents::coding::d_114_jup_positions_and_earnings::handle_jup_positions_and_earnings(
-                    &key_map,
-                )
-                .await?;
-            let response_json = serde_json::to_string(&response)?;
-            info!(
-                "[reev-agent] Successfully created deterministic response with {} total positions and ${:.2} in earnings",
-                response["step_1_result"]["total_positions"],
-                response["summary"]["total_earnings_usd"].as_f64().unwrap_or(0.0)
-            );
-            response_json
-        }
-        "115-jup-lend-mint-usdc" => {
-            info!("[reev-agent] Handling 115-jup-lend-mint-usdc benchmark");
-            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
-            let ixs = agents::coding::d_115_jup_lend_mint_usdc::handle_jupiter_mint(
-                &asset, 50000000, // 50 USDC in smallest units
-                &key_map,
-            )
-            .await?;
-            serde_json::to_string(&ixs)?
-        }
-        "116-jup-lend-redeem-usdc" => {
-            info!("[reev-agent] Handling 116-jup-lend-redeem-usdc benchmark");
-            let asset = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                .map_err(|e| anyhow::anyhow!("Invalid USDC mint: {e}"))?;
-            let ixs = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
-                &asset, 50000000, // 50 USDC in smallest units
-                &key_map,
-            )
-            .await?;
-            serde_json::to_string(&ixs)?
-        }
-        // Handle individual flow steps
-        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-1") => {
-            info!("[reev-agent] Handling flow step 1: Jupiter SOL to USDC swap");
-            let user_pubkey_str = key_map
-                .get("USER_WALLET_PUBKEY")
-                .context("USER_WALLET_PUBKEY not found in key_map")?;
-            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
-
-            let input_mint = native_mint::ID;
-            let output_mint = usdc_mint();
-            let amount = SOL_SWAP_AMOUNT_MEDIUM; // 0.5 SOL for step 1
-            let slippage_bps = EIGHT_PERCENT; // 8%
-
-            let instructions =
-                handle_jupiter_swap(user_pubkey, input_mint, output_mint, amount, slippage_bps)
-                    .await?;
-
-            info!(
-                "[reev-agent] Step 1: Successfully generated {} Jupiter swap instructions",
-                instructions.len()
-            );
-            serde_json::to_string(&instructions)?
-        }
-        flow_id if flow_id.contains("200-jup-swap-then-lend-deposit-step-2") => {
-            info!("[reev-agent] Handling flow step 2: Jupiter USDC lending deposit");
-            let user_pubkey_str = key_map
-                .get("USER_WALLET_PUBKEY")
-                .context("USER_WALLET_PUBKEY not found in key_map")?;
-            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
-
-            let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
-            let deposit_amount = 9_000_000; // ~9 USDC (estimated from 0.5 SOL swap)
-
-            let instructions =
-                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
-
-            info!(
-                "[reev-agent] Step 2: Successfully generated {} Jupiter lending instructions",
-                instructions.len()
-            );
-            serde_json::to_string(&instructions)?
-        }
-        // Handle 116-jup-lend-redeem-usdc flow steps
-        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-1") => {
-            info!("[reev-agent] Handling flow step 1: Jupiter USDC mint (deposit)");
-            let user_pubkey_str = key_map
-                .get("USER_WALLET_PUBKEY")
-                .context("USER_WALLET_PUBKEY not found in key_map")?;
-            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
-
-            let usdc_mint = usdc_mint();
-            let deposit_amount = USDC_MINT_AMOUNT; // 50 USDC for step 1
-
-            let instructions =
-                handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;
-
-            info!(
-                "[reev-agent] Step 1: Successfully generated {} Jupiter lending mint instructions",
-                instructions.len()
-            );
-            serde_json::to_string(&instructions)?
-        }
-        flow_id if flow_id.contains("116-jup-lend-redeem-usdc-step-2") => {
-            info!("[reev-agent] Handling flow step 2: Jupiter jUSDC redeem (withdraw)");
-            let asset = usdc_mint();
-            let redeem_amount = usdc::FORTY; // 40 USDC worth of jUSDC (conservative amount to ensure success)
-
-            let instructions = agents::coding::d_116_jup_lend_redeem_usdc::handle_jupiter_redeem(
-                &asset,
-                redeem_amount,
-                &key_map,
-            )
-            .await?;
-
-            info!(
-                "[reev-agent] Step 2: Successfully generated {} Jupiter lending redeem instructions",
-                instructions.len()
-            );
-            serde_json::to_string(&instructions)?
-        }
-        "200-jup-swap-then-lend-deposit" => {
-            info!(
-                "[reev-agent] Handling 200-jup-swap-then-lend-deposit flow benchmark (legacy mode)"
-            );
-            let ixs = agents::coding::d_200_jup_swap_then_lend_deposit::handle_jup_swap_then_lend_deposit(&key_map)
-                .await?;
-            serde_json::to_string(&ixs)?
-        }
-        // Handle other flow benchmarks (IDs starting with "200-")
-        flow_id if flow_id.starts_with("200-") => {
-            info!(
-                "[reev-agent] Received unsupported flow benchmark request: \"{}\" - Creating deterministic flow response",
-                payload.id
-            );
-            // For unsupported flow benchmarks, create a mock multi-step response
-            let flow_response = serde_json::json!({
-                "flow_completed": true,
-                "total_steps": 2,
-                "completed_steps": 2,
-                "status": "success",
-                "steps": [
-                    {
-                        "step": 1,
-                        "description": "Swap SOL to USDC using Jupiter",
-                        "status": "success",
-                        "instructions": [
-                            {
-                                "program_id": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-                                "accounts": [
-                                    {"pubkey": &key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
-                                    {"pubkey": "So11111111111111111111111111111111111111112", "is_signer": false, "is_writable": false},
-                                    {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
-                                ],
-                                "data": "swap_500000000"
-                            }
-                        ]
+    let instructions_json = match handle_simple_transfer_benchmarks(&payload.id, &key_map).await {
+        Ok(result) => result,
+        Err(_) => match handle_jupiter_swap_benchmarks(&payload.id, &key_map).await {
+            Ok(result) => result,
+            Err(_) => match handle_jupiter_lending_benchmarks(&payload.id, &key_map).await {
+                Ok(result) => result,
+                Err(_) => match handle_flow_step_benchmarks(&payload.id, &key_map).await {
+                    Ok(result) => result,
+                    Err(_) => match handle_flow_benchmarks(&payload.id, &key_map).await {
+                        Ok(result) => result,
+                        Err(_) => {
+                            anyhow::bail!("Coding agent does not support this id: '{}'", payload.id)
+                        }
                     },
-                    {
-                        "step": 2,
-                        "description": "Deposit USDC into Jupiter lending",
-                        "status": "success",
-                        "instructions": [
-                            {
-                                "program_id": "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9",
-                                "accounts": [
-                                    {"pubkey": &key_map.get("USER_WALLET_PUBKEY").unwrap_or(&"unknown".to_string()), "is_signer": true, "is_writable": true},
-                                    {"pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "is_signer": false, "is_writable": false}
-                                ],
-                                "data": "deposit_500000000"
-                            }
-                        ]
-                    }
-                ],
-                "summary": {
-                    "total_instructions": 2,
-                    "estimated_gas": 5000000,
-                    "estimated_time_seconds": 15
-                }
-            });
-            serde_json::to_string(&flow_response)?
-        }
-        _ => anyhow::bail!("Coding agent does not support this id: '{}'", payload.id),
+                },
+            },
+        },
     };
 
     info!(

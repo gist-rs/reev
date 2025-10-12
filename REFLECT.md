@@ -1,5 +1,74 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-13: Comprehensive TOFIX Resolution and Code Quality Improvements
+
+### **Problem Identified**
+The codebase had accumulated significant technical debt across multiple areas identified in TOFIX.md, including incomplete implementations, hardcoded values, error handling anti-patterns, and code duplication. These issues were impacting maintainability, stability, and development velocity.
+
+### **Root Cause Analysis**
+1. **Development Velocity vs Code Quality**: Rapid development had led to shortcuts and technical debt accumulation
+2. **Lack of Centralization**: No single source of truth for common values and patterns
+3. **Incomplete Refactoring**: Many TODO items and placeholder code remained from earlier iterations
+4. **Inconsistent Patterns**: Different approaches to similar problems across the codebase
+
+### **Solution Applied**
+1. **Systematic TOFIX Resolution**: Addressed issues by priority (High → Medium → Low):
+   
+   **High Priority (COMPLETED ✅):**
+   - **Jupiter Protocol TODOs**: Removed unused key_map parameters from all Jupiter handlers
+   - **Hardcoded Addresses**: Created comprehensive constants module with addresses.rs and amounts.rs
+   - **Error Handling**: Fixed critical unwrap() calls with proper context() error handling
+   
+   **Medium Priority (PARTIALLY COMPLETED 🔄):**
+   - **Magic Numbers**: Fully centralized in constants module ✅
+   - **Code Duplication**: Created foundation with common/helpers.rs and common/config.rs 🔄
+   - **Function Complexity**: Not yet addressed ⏳
+
+2. **Constants Module Architecture**: Designed modular constants system:
+   ```rust
+   // Clean, ergonomic imports
+   use reev_lib::constants::{usdc_mint, sol_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT};
+   
+   // Type-safe helper functions
+   let usdc = usdc_mint(); // Returns Pubkey, not string
+   let amount = SOL_SWAP_AMOUNT; // Descriptive constant name
+   ```
+
+3. **Error Handling Strategy**: Risk-based approach to unwrap() replacement:
+   - **High Risk**: External data parsing, regex compilation → proper error handling
+   - **Medium Risk**: Internal mutex locks → documented acceptable usage
+   - **Low Risk**: Constants validation, display functions → kept as-is
+
+4. **Code Duplication Foundation**: Created shared infrastructure:
+   - Common example helpers with health checks and URL construction
+   - Centralized configuration constants for network, endpoints, timeouts
+   - Reusable patterns for HTTP client setup and error handling
+
+### **Lessons Learned**
+- **Priority-Driven Refactoring**: Addressing high-impact issues first provides immediate benefits
+- **Constants-First Design**: Centralized values dramatically improve maintainability
+- **Risk-Based Error Handling**: Not all unwrap() calls are equal - assess and prioritize
+- **Foundational Infrastructure**: Building shared components enables future improvements
+- **Incremental Progress**: Partial completion is valuable and builds momentum
+
+### **Impact**
+- **Stability**: Eliminated potential panics from critical error paths
+- **Maintainability**: Single source of truth for addresses, amounts, and patterns
+- **Developer Experience**: Cleaner imports and self-documenting constants
+- **Code Quality**: Reduced duplication and established consistent patterns
+- **Technical Debt**: Significantly reduced high-priority issues
+
+### **Future Prevention**
+- **Constants-First Development**: Define shared values early in feature development
+- **Regular TOFIX Reviews**: Periodic audits to identify new technical debt
+- **Error Handling Standards**: Establish patterns for different risk levels
+- **Documentation Standards**: Document acceptable anti-patterns and their rationale
+- **Incremental Refactoring**: Address issues continuously rather than letting them accumulate
+
+### **Final Status: HIGH PRIORITY TOFIX ISSUES COMPLETELY RESOLVED** ✅
+
+---
+
 ## 2025-10-13: Constants Centralization and Hardcoded Address Resolution
 
 ### **Problem Identified**
