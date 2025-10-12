@@ -52,6 +52,58 @@ The codebase contained extensive use of hardcoded blockchain addresses and magic
 
 ---
 
+## 2025-10-13: Error Handling Anti-Pattern Resolution
+
+### **Problem Identified**
+The codebase contained numerous instances of `unwrap()` and `expect()` calls that could potentially panic in production. These anti-patterns represented stability risks, especially in critical paths like JSON parsing, regex compilation, and mutex access.
+
+### **Root Cause Analysis**
+1. **Development Convenience**: `unwrap()` was used extensively during development for rapid prototyping
+2. **Incomplete Error Propagation**: Many functions didn't have proper error types to propagate failures
+3. **Mutex Poisoning Oversight**: Internal mutex locks were assumed to never be poisoned
+4. **Regex Validation Assumptions**: Hardcoded regex patterns were assumed to always compile successfully
+
+### **Solution Applied**
+1. **Critical Path Fixes**: Identified and replaced high-risk unwrap() calls with proper error handling:
+   - **JSON Parsing**: Fixed regex compilation in `lib.rs` with `context()` error handling
+   - **Error Context**: Improved error messages to provide clear debugging information
+   - **Input Validation**: Enhanced validation to fail gracefully instead of panicking
+
+2. **Risk Assessment**: Categorized unwrap() usage by risk level:
+   - **High Risk**: Replaced with proper error handling (regex compilation, external data parsing)
+   - **Medium Risk**: Left in place with documentation (internal mutex locks)
+   - **Low Risk**: Kept as-is (constants validation, test code, display functions)
+
+3. **Error Message Enhancement**: Improved error messages to provide context for debugging:
+   ```rust
+   .context("Failed to compile JSON extraction regex")?
+   ```
+
+### **Lessons Learned**
+- **Early Error Handling**: Establish error handling patterns early in development
+- **Risk-Based Approach**: Not all unwrap() calls are equal - assess risk before replacement
+- **Error Context**: Rich error messages dramatically improve debugging experience
+- **Trait Compatibility**: Error handling improvements must consider trait interface constraints
+- **Mutex Realities**: Internal mutex poisoning is rare but should be documented
+
+### **Impact**
+- **Stability**: Reduced risk of production panics from malformed input
+- **Debuggability**: Enhanced error messages help identify root causes quickly
+- **Maintainability**: Clear error handling patterns make code more predictable
+- **Safety**: Graceful degradation instead of crashes in error scenarios
+- **Developer Experience**: Better error context speeds up troubleshooting
+
+### **Future Prevention**
+- **Error-First Development**: Design error handling into function signatures from the start
+- **Regular Audits**: Periodic reviews to identify new unwrap() usage patterns
+- **Documentation Standards**: Document acceptable unwrap() usage and risk assessment
+- **Testing Error Paths**: Ensure error conditions are properly tested, not just happy paths
+- **Trait Design**: Consider error handling requirements when defining trait interfaces
+
+### **Final Status: ERROR HANDLING ANTI-PATTERNS MOSTLY RESOLVED** ✅
+
+---
+
 ## 2025-10-13: Jupiter Protocol TODOs Resolution
 
 ### **Problem Identified**

@@ -8,6 +8,9 @@ use tracing::{debug, info};
 
 // Include the common CLI parsing module.
 mod common;
+mod common_helpers;
+
+use common_helpers::{run_example, ExampleConfig};
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -65,11 +68,10 @@ async fn main() -> Result<()> {
     });
 
     // 2. Wait for the server to be healthy before proceeding.
-    let client = reqwest::Client::new();
-    let health_url = "http://127.0.0.1:9090/health";
+    let config = ExampleConfig::new(&agent_name);
     info!("Waiting for agent server to start...");
     loop {
-        match client.get(health_url).send().await {
+        match config.client.get(config.health_check_url()).send().await {
             Ok(response) if response.status().is_success() => {
                 info!("Agent server is running.");
                 break;
@@ -115,12 +117,12 @@ async fn main() -> Result<()> {
         serde_json::to_string_pretty(&request_payload)?
     );
 
-    // 7. Send the request to the running reev-agent.
-    let agent_url = "http://127.0.0.1:9090/gen/tx";
-    info!("Sending request to agent at {}...", agent_url);
+    // 7. Send the request to the running reev-agent using common helper.
+    info!("Sending request to agent at {}...", config.tx_url());
 
-    let response = client
-        .post(agent_url)
+    let response = config
+        .client
+        .post(config.tx_url())
         .json(&request_payload)
         .send()
         .await
@@ -136,8 +138,10 @@ async fn main() -> Result<()> {
         debug!("{}", serde_json::to_string_pretty(&response_json).unwrap());
     } else {
         let status = response.status();
-        let error_body = response.text().await.unwrap_or_default();
-        anyhow::bail!("❌ Agent request failed with status {status}: {error_body}");
+        error!("❌ Agent request failed with status: {}", status);
+        let error_text = response.text().await.unwrap_or_default();
+        error!("Error response: {}", error_text);
+        return Err(anyhow::anyhow!("Agent request failed: {}", status));
     }
 
     // The server is running in a background thread. Exit explicitly.
