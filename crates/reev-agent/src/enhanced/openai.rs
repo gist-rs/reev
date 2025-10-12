@@ -147,7 +147,7 @@ impl OpenAIAgent {
 
         // Add explicit stop instruction to the user request for simple operations
         let enhanced_user_request = if conversation_depth == 1 {
-            format!("{user_request}\n\nIMPORTANT: Execute this operation and then STOP. Do not continue or repeat the operation.")
+            format!("{user_request}\n\n🚨 CRITICAL INSTRUCTIONS:\n1. Execute the requested operation using appropriate tools\n2. When tools return 'status: ready' and 'action: *_complete', IMMEDIATELY STOP\n3. Format the transaction response using the provided instructions\n4. DO NOT make additional tool calls after completion\n5. FAILURE TO STOP WILL CAUSE MaxDepthError!")
         } else {
             user_request.to_string()
         };

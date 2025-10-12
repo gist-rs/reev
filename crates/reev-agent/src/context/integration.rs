@@ -184,14 +184,23 @@ impl ContextIntegration {
         enhanced.push_str("Execute the ONE correct tool and STOP immediately after receiving success confirmation.\n");
         enhanced.push_str("IMPORTANT: After calling a Jupiter tool, check for 'status: ready' and 'action: *_complete' in the response.\n");
         enhanced.push_str("Once you see completion confirmation, do NOT call any more tools - respond with the transaction instructions.\n");
+        enhanced.push_str("🚨 CRITICAL: Jupiter tools will tell you when they are DONE. Trust their completion signals!\n");
         enhanced.push_str("TOOL COMPLETION STRATEGY:\n");
         enhanced.push_str("1. Call ONE Jupiter tool based on user request\n");
         enhanced
             .push_str("2. Check if response contains 'status: ready' and 'action: *_complete'\n");
-        enhanced.push_str("3. If yes: STOP calling tools and format transaction response\n");
+        enhanced.push_str("3. If yes: IMMEDIATELY STOP - format transaction response using the provided instructions\n");
         enhanced
             .push_str("4. If no: You may call ONE more tool to gather information, then STOP\n");
-        enhanced.push_str("MAXIMUM 2 tool calls per request - then provide response!\n\n");
+        enhanced
+            .push_str("🛑 HARD LIMIT: MAXIMUM 2 tool calls per request - then provide response!\n");
+        enhanced.push_str(
+            "⚠️  WARNING: Exceeding 2 tool calls will cause MaxDepthError and failure!\n",
+        );
+        enhanced.push_str(
+            "🔄 FLOW OPERATIONS: If this is a multi-step flow (redeem/withdraw), \
+            DO NOT call position checking tools - use the amounts specified in the prompt!\n\n",
+        );
 
         enhanced.push_str("=== USER REQUEST ===\n");
         enhanced.push_str(base_prompt);
