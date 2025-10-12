@@ -408,13 +408,21 @@ pub struct JupiterPositionItem {
 /// Mock raw Jupiter earnings data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawJupiterEarnings {
+    #[serde(rename = "address")]
     pub address: String,
-    pub ownerAddress: String,
-    pub totalDeposits: String,
-    pub totalWithdraws: String,
-    pub totalBalance: String,
-    pub totalAssets: String,
+    #[serde(rename = "ownerAddress")]
+    pub owner_address: String,
+    #[serde(rename = "totalDeposits")]
+    pub total_deposits: String,
+    #[serde(rename = "totalWithdraws")]
+    pub total_withdraws: String,
+    #[serde(rename = "totalBalance")]
+    pub total_balance: String,
+    #[serde(rename = "totalAssets")]
+    pub total_assets: String,
+    #[serde(rename = "earnings")]
     pub earnings: String,
+    #[serde(rename = "slot")]
     pub slot: u64,
 }
 
@@ -556,11 +564,11 @@ impl MockGenerator {
 
         RawJupiterEarnings {
             address: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(),
-            ownerAddress: user_pubkey.to_string(),
-            totalDeposits: total_deposits,
-            totalWithdraws: total_withdraws,
-            totalBalance: total_balance,
-            totalAssets: self.random_amount(900_000_000, 1_000_000_000).to_string(),
+            owner_address: user_pubkey.to_string(),
+            total_deposits,
+            total_withdraws,
+            total_balance,
+            total_assets: self.random_amount(900_000_000, 1_000_000_000).to_string(),
             earnings: self.random_amount(1_000_000, 10_000_000).to_string(),
             slot: self.random_amount(370_000_000, 380_000_000),
         }

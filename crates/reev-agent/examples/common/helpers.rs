@@ -17,6 +17,9 @@ pub mod config {
     /// Health check endpoint
     pub const HEALTH_ENDPOINT: &str = "/health";
 
+    /// Transaction generation endpoint
+    pub const TX_ENDPOINT: &str = "/gen/tx";
+
     /// Mock parameter for deterministic agent
     pub const MOCK_PARAM: &str = "mock=true";
 
@@ -37,12 +40,13 @@ impl ExampleConfig {
     pub fn new(agent_name: &str) -> Self {
         let base_url = format!("http://{}:{}", config::DEFAULT_HOST, config::DEFAULT_PORT);
         let health_url = format!("{}{}", base_url, config::HEALTH_ENDPOINT);
+        let tx_url = format!("{}{}", base_url, config::TX_ENDPOINT);
 
         Self {
             agent_url: if agent_name == "deterministic" {
-                format!("{}?{}", base_url, config::MOCK_PARAM)
+                format!("{}?{}", tx_url, config::MOCK_PARAM)
             } else {
-                base_url.to_string()
+                tx_url
             },
             health_url,
             client: Client::builder()

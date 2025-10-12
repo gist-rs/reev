@@ -16,6 +16,7 @@ use tracing::info;
 ///
 /// The agent acts as an oracle by calling the centralized Jupiter handlers for both operations.
 /// It returns the complete set of instructions needed for the entire flow.
+#[allow(dead_code)] // Flow system handles this benchmark through individual steps
 pub(crate) async fn handle_jup_swap_then_lend_deposit(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
