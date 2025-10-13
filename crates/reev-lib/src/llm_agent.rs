@@ -125,7 +125,7 @@ impl Agent for LlmAgent {
         skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>> {
         // Initialize flow logger if not already done and logging is enabled
-        if self.flow_logger.is_none() && std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+        if self.flow_logger.is_none() && crate::flow::is_flow_logging_enabled() {
             let output_path =
                 std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
             let path = PathBuf::from(output_path);

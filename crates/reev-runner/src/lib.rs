@@ -125,7 +125,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         }
 
         // Initialize flow logging if enabled
-        let flow_logger = if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+        let flow_logger = if reev_lib::flow::is_flow_logging_enabled() {
             let output_path =
                 std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
             let path = PathBuf::from(output_path);
@@ -328,7 +328,7 @@ async fn run_flow_benchmark(
     );
 
     // Initialize flow logging for flow benchmarks
-    let flow_logger = if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+    let flow_logger = if reev_lib::flow::is_flow_logging_enabled() {
         let output_path =
             std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
         let path = PathBuf::from(output_path);
@@ -462,7 +462,7 @@ async fn run_flow_benchmark(
         };
 
         // Auto-render flow as ASCII tree after completion
-        if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
+        if reev_lib::flow::is_flow_logging_enabled() {
             match flow_logger.complete(execution_result).await {
                 Ok(flow_file_path) => {
                     match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {

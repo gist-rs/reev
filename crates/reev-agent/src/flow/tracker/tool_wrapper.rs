@@ -39,7 +39,7 @@ impl SimpleFlowTracker {
 
     /// Check if flow tracking is enabled
     pub fn is_enabled(&self) -> bool {
-        std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok()
+        reev_lib::flow::is_flow_logging_enabled()
     }
 
     /// Record a tool call

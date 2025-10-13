@@ -25,7 +25,7 @@ pub struct FlowTracker {
 impl FlowTracker {
     /// Create a new flow tracker
     pub fn new() -> Self {
-        let enabled = std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok();
+        let enabled = reev_lib::flow::is_flow_logging_enabled();
         debug!("Flow tracker initialized - enabled: {}", enabled);
 
         Self {

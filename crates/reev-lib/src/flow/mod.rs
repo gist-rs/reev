@@ -73,8 +73,15 @@ pub fn create_flow_logger(
 }
 
 /// Check if flow logging is enabled
+/// Defaults to true unless explicitly set to "false" or "0"
 pub fn is_flow_logging_enabled() -> bool {
-    std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok()
+    match std::env::var("REEV_ENABLE_FLOW_LOGGING") {
+        Ok(val) => {
+            let val_lower = val.to_lowercase();
+            val_lower != "false" && val_lower != "0"
+        }
+        Err(_) => true, // Default to true when not set
+    }
 }
 
 /// Get the default flow log output path
