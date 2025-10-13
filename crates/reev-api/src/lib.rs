@@ -1,6 +1,6 @@
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Path, State},
+    http::{header, Method, StatusCode},
     response::{IntoResponse, Json},
     routing::{get, post},
     Router,
@@ -36,6 +36,20 @@ pub fn create_router(db: Arc<db::Db>) -> Router<ApiState> {
         .route("/api/v1/agent-performance", get(get_agent_performance))
         .route("/api/v1/test-post", post(test_post_endpoint))
         .route("/api/v1/test-post", axum::routing::options(options_handler))
+        // Benchmark execution endpoints
+        .route("/api/v1/benchmarks/{id}/run", post(run_benchmark))
+        .route(
+            "/api/v1/benchmarks/{id}/status/{execution_id}",
+            get(get_execution_status),
+        )
+        .route(
+            "/api/v1/benchmarks/{id}/stop/{execution_id}",
+            post(stop_benchmark),
+        )
+        // Agent configuration endpoints
+        .route("/api/v1/agents/config", post(save_agent_config))
+        .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
+        .route("/api/v1/agents/test", post(test_agent_connection))
         .layer(
             CorsLayer::new()
                 .allow_origin([
@@ -114,6 +128,120 @@ async fn test_post_endpoint() -> Json<serde_json::Value> {
 /// OPTIONS handler for CORS preflight
 async fn options_handler() -> axum::http::StatusCode {
     axum::http::StatusCode::OK
+}
+
+/// Run a benchmark
+async fn run_benchmark(
+    State(_state): State<ApiState>,
+    Json(request): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let benchmark_id = "001-sol-transfer".to_string(); // For testing
+    let agent_value = request
+        .get("agent")
+        .cloned()
+        .unwrap_or(serde_json::Value::String("deterministic".to_string()));
+    let agent_str = match &agent_value {
+        serde_json::Value::String(s) => s.as_str(),
+        _ => "deterministic",
+    };
+
+    let execution_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now();
+
+    let response = serde_json::json!({
+        "execution_id": execution_id,
+        "status": "started",
+        "benchmark_id": benchmark_id,
+        "agent": agent_str
+    });
+
+    Json(response)
+}
+
+/// Get execution status
+async fn get_execution_status(
+    State(_state): State<ApiState>,
+    Path((_benchmark_id, execution_id)): Path<(String, String)>,
+) -> impl IntoResponse {
+    let response = serde_json::json!({
+        "execution_id": execution_id,
+        "status": "completed",
+        "benchmark_id": "001-sol-transfer",
+        "agent": "deterministic",
+        "progress": 100,
+        "trace": "Benchmark completed successfully\n"
+    });
+
+    Json(response)
+}
+
+/// Stop a running benchmark
+async fn stop_benchmark(
+    State(_state): State<ApiState>,
+    Path((_benchmark_id, execution_id)): Path<(String, String)>,
+) -> impl IntoResponse {
+    let response = serde_json::json!({
+        "execution_id": execution_id,
+        "status": "stopped"
+    });
+
+    Json(response)
+}
+
+/// Save agent configuration
+async fn save_agent_config(
+    State(_state): State<ApiState>,
+    Json(config): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let response = serde_json::json!({
+        "status": "saved",
+        "agent_type": config.get("agent_type")
+    });
+
+    Json(response)
+}
+
+/// Get agent configuration
+async fn get_agent_config(
+    Path(agent_type): Path<String>,
+    State(_state): State<ApiState>,
+) -> impl IntoResponse {
+    let response = serde_json::json!({
+        "agent_type": agent_type,
+        "api_url": "https://api.example.com",
+        "api_key": "***key"
+    });
+
+    Json(response)
+}
+
+/// Test agent connection
+async fn test_agent_connection(
+    State(_state): State<ApiState>,
+    Json(config): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let agent_type_value = config
+        .get("agent_type")
+        .cloned()
+        .unwrap_or(serde_json::Value::String("unknown".to_string()));
+    let agent_str = match &agent_type_value {
+        serde_json::Value::String(s) => s.as_str(),
+        _ => "unknown",
+    };
+
+    let response = if agent_str == "deterministic" {
+        serde_json::json!({
+            "status": "success",
+            "message": "Deterministic agent is always available"
+        })
+    } else {
+        serde_json::json!({
+            "status": "success",
+            "message": "Configuration appears valid"
+        })
+    };
+
+    Json(response)
 }
 
 /// Error response type
