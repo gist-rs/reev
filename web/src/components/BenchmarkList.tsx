@@ -311,7 +311,19 @@ export function BenchmarkList({
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
-    for (const benchmark of benchmarks.benchmarks) {
+    console.log(
+      "Starting Run All for",
+      benchmarks.benchmarks.length,
+      "benchmarks",
+    );
+
+    for (let i = 0; i < benchmarks.benchmarks.length; i++) {
+      const benchmark = benchmarks.benchmarks[i];
+      console.log(
+        `Starting benchmark ${i + 1}/${benchmarks.benchmarks.length}:`,
+        benchmark.id,
+      );
+
       // Start the benchmark
       await handleRunBenchmark(benchmark);
 
@@ -322,10 +334,19 @@ export function BenchmarkList({
             (exec) => exec.benchmark_id === benchmark.id,
           );
 
+          console.log(
+            `Checking completion for ${benchmark.id}, status:`,
+            execution?.status,
+          );
+
           if (
             execution &&
             (execution.status === "Completed" || execution.status === "Failed")
           ) {
+            console.log(
+              `Benchmark ${benchmark.id} completed with status:`,
+              execution.status,
+            );
             resolve();
           } else {
             // Check again in 1 second
@@ -334,10 +355,14 @@ export function BenchmarkList({
         };
 
         // Start checking after a short delay
-        setTimeout(checkCompletion, 1000);
+        setTimeout(checkCompletion, 2000);
       });
     }
-  }, [benchmarks, isRunning, handleRunBenchmark, executions]);
+
+    // Refresh overview when all benchmarks are complete
+    console.log("All benchmarks completed, refreshing overview");
+    refetch();
+  }, [benchmarks, isRunning, handleRunBenchmark, executions, refetch]);
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
