@@ -309,51 +309,104 @@ pub async fn get_ascii_tree_direct(
         benchmark_id, agent_type
     );
 
-    // Get YML TestResult from database
-    let yml_content = match state
+    // Try to get YML TestResult from database first
+    match state
         .db
         .get_yml_testresult(&benchmark_id, &agent_type)
         .await
     {
-        Ok(Some(yml)) => {
+        Ok(Some(yml_content)) => {
             info!("Found YML TestResult for benchmark: {}", benchmark_id);
-            yml
+
+            // Parse YML to TestResult
+            let test_result: reev_lib::results::TestResult =
+                match serde_yaml::from_str(&yml_content) {
+                    Ok(result) => result,
+                    Err(e) => {
+                        error!("Failed to parse YML to TestResult: {}", e);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Failed to parse YML: {e}"),
+                        )
+                            .into_response();
+                    }
+                };
+
+            // Render as ASCII tree
+            let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
+
+            info!(
+                "Successfully rendered ASCII tree for benchmark: {}",
+                benchmark_id
+            );
+            return (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree).into_response();
         }
         Ok(None) => {
-            info!("No YML TestResult found for benchmark: {}", benchmark_id);
-            return (StatusCode::NOT_FOUND, "No YML TestResult found").into_response();
+            info!("No YML TestResult found in database, falling back to execution state");
         }
         Err(e) => {
-            error!("Failed to query YML TestResult: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to query YML TestResult",
-            )
-                .into_response();
+            error!("Failed to query YML TestResult from database: {}", e);
+            info!("Falling back to execution state");
         }
-    };
+    }
 
-    // Parse YML to TestResult
-    let test_result: reev_lib::results::TestResult = match serde_yaml::from_str(&yml_content) {
-        Ok(result) => result,
-        Err(e) => {
-            error!("Failed to parse YML to TestResult: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to parse YML: {e}"),
-            )
-                .into_response();
+    // Fallback: Get ASCII tree from current execution state
+    let executions = state.executions.lock().await;
+
+    // Find the most recent execution for this benchmark and agent
+    let mut matching_execution = None;
+    for execution in executions.values() {
+        if execution.benchmark_id == benchmark_id && execution.agent == agent_type {
+            match matching_execution {
+                None => matching_execution = Some(execution),
+                Some(current) => {
+                    if execution.start_time > current.start_time {
+                        matching_execution = Some(execution);
+                    }
+                }
+            }
         }
-    };
+    }
 
-    // Render as ASCII tree
-    let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
+    match matching_execution {
+        Some(execution) => {
+            info!(
+                "Found execution with status: {}",
+                match execution.status {
+                    ExecutionStatus::Pending => "Pending",
+                    ExecutionStatus::Running => "Running",
+                    ExecutionStatus::Completed => "Completed",
+                    ExecutionStatus::Failed => "Failed",
+                }
+            );
 
-    info!(
-        "Successfully rendered ASCII tree for benchmark: {}",
-        benchmark_id
-    );
-    (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree).into_response()
+            if !execution.trace.is_empty() {
+                info!(
+                    "Returning ASCII tree trace from execution state ({} chars)",
+                    execution.trace.len()
+                );
+                (
+                    StatusCode::OK,
+                    [("Content-Type", "text/plain")],
+                    execution.trace.clone(),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    "No trace available for this execution",
+                )
+                    .into_response()
+            }
+        }
+        None => {
+            info!(
+                "No execution found for benchmark: {} by agent: {}",
+                benchmark_id, agent_type
+            );
+            (StatusCode::NOT_FOUND, "No execution found").into_response()
+        }
+    }
 }
 
 /// Render TestResult as ASCII tree
