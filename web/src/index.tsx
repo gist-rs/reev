@@ -243,9 +243,23 @@ export function App() {
     [executions, updateExecution, currentExecution],
   );
 
-  const handleExecutionComplete = useCallback(() => {
-    setIsRunning(false);
-  }, []);
+  const handleExecutionComplete = useCallback(
+    (benchmarkId: string, execution: any) => {
+      console.log("=== App.handleExecutionComplete ===");
+      console.log("benchmarkId:", benchmarkId);
+      console.log("execution:", execution);
+      console.log("selectedBenchmark:", selectedBenchmark);
+
+      setIsRunning(false);
+
+      // If this is the currently selected benchmark, update currentExecution immediately
+      if (selectedBenchmark === benchmarkId) {
+        console.log("Updating currentExecution for completed benchmark");
+        setCurrentExecution(execution);
+      }
+    },
+    [selectedBenchmark],
+  );
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -283,6 +297,7 @@ export function App() {
               onBenchmarkSelect={handleBenchmarkSelect}
               isRunning={isRunning}
               onExecutionStart={handleExecutionStart}
+              onExecutionComplete={handleExecutionComplete}
               executions={executions}
               updateExecution={updateExecution}
             />

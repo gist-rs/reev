@@ -14,6 +14,7 @@ interface BenchmarkListProps {
   onBenchmarkSelect: (benchmark: string) => void;
   isRunning: boolean;
   onExecutionStart: (executionId: string) => void;
+  onExecutionComplete: (benchmarkId: string, execution: any) => void;
   executions: Map<string, any>;
   updateExecution: (benchmarkId: string, execution: any) => void;
 }
@@ -24,6 +25,7 @@ export function BenchmarkList({
   onBenchmarkSelect,
   isRunning,
   onExecutionStart,
+  onExecutionComplete,
   executions,
   updateExecution,
 }: BenchmarkListProps) {
@@ -130,6 +132,26 @@ export function BenchmarkList({
             console.log("benchmarkId:", benchmarkId);
             console.log("Final status:", status);
             console.log("Final trace length:", status.trace?.length || 0);
+
+            // Force immediate update to ensure parent component gets the final state
+            const finalExecutionState = {
+              id: status.id,
+              benchmark_id: benchmarkId,
+              agent: selectedAgent,
+              status: status.status,
+              progress: 100,
+              start_time: status.start_time,
+              end_time: status.end_time,
+              trace: status.trace,
+              logs: status.logs,
+              error: status.error,
+            };
+
+            updateExecution(benchmarkId, finalExecutionState);
+
+            // Notify parent component that execution is complete
+            console.log("=== NOTIFYING PARENT OF COMPLETION ===");
+            onExecutionComplete(benchmarkId, finalExecutionState);
 
             setTimeout(() => {
               setRunningBenchmarks((prev) => {
