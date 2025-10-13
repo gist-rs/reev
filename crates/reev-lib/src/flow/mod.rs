@@ -21,7 +21,7 @@ pub use types::{
 };
 
 pub use error::{FlowError, FlowResult};
-pub use logger::{FlowLogger, WebsiteExporter};
+pub use logger::{FlowLogDatabase, FlowLogger, WebsiteExporter};
 pub use renderer::render_flow_file_as_ascii_tree;
 
 use std::path::Path;

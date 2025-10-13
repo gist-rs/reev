@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api"]
 resolver = "2"
 
 [workspace.package]

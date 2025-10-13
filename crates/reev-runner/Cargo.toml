@@ -36,6 +36,7 @@ path = "tests/llm_agent_test.rs"
 [dependencies]
 reev-lib = { path = "../reev-lib" }
 anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
 clap = { version = "4.5.48", features = ["derive"] }
@@ -56,6 +57,7 @@ opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
 chrono = "0.4.42"
 ascii_tree = "0.1.1"
 solana-sdk = { workspace = true }
+async-trait = "0.1"
 
 # Dependency management
 flate2 = "1.0"

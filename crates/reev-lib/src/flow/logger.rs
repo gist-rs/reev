@@ -1,8 +1,25 @@
 use super::error::{FlowError, FlowResult};
 use super::types::*;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
+
+/// Database trait for flow logger dependency injection
+#[async_trait::async_trait]
+pub trait FlowLogDatabase: Send + Sync {
+    async fn insert_flow_log(&self, flow_log: &FlowLog) -> Result<i64, FlowError>;
+    async fn insert_agent_performance(
+        &self,
+        benchmark_id: &str,
+        agent_type: &str,
+        score: f64,
+        final_status: &str,
+        execution_time_ms: u64,
+        timestamp: &str,
+        flow_log_id: Option<i64>,
+    ) -> Result<(), FlowError>;
+}
 
 /// Main flow logger interface
 pub struct FlowLogger {
@@ -12,6 +29,7 @@ pub struct FlowLogger {
     start_time: SystemTime,
     events: Vec<FlowEvent>,
     output_path: PathBuf,
+    database: Option<Arc<dyn FlowLogDatabase>>,
 }
 
 impl FlowLogger {
@@ -34,6 +52,35 @@ impl FlowLogger {
             start_time,
             events: Vec::new(),
             output_path,
+            database: None,
+        }
+    }
+
+    /// Create a new flow logger with database support
+    pub fn new_with_database(
+        benchmark_id: String,
+        agent_type: String,
+        output_path: PathBuf,
+        database: Arc<dyn FlowLogDatabase>,
+    ) -> Self {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let start_time = SystemTime::now();
+
+        info!(
+            session_id = %session_id,
+            benchmark_id = %benchmark_id,
+            agent_type = %agent_type,
+            "Initializing flow logger with database support"
+        );
+
+        Self {
+            session_id,
+            benchmark_id,
+            agent_type,
+            start_time,
+            events: Vec::new(),
+            output_path,
+            database: Some(database),
         }
     }
 
@@ -113,7 +160,7 @@ impl FlowLogger {
     }
 
     /// Complete the flow log with final results
-    pub fn complete(&mut self, result: ExecutionResult) -> FlowResult<PathBuf> {
+    pub async fn complete(&mut self, result: ExecutionResult) -> FlowResult<PathBuf> {
         let end_time = SystemTime::now();
 
         let flow_log = FlowLog {
@@ -126,30 +173,91 @@ impl FlowLogger {
             final_result: Some(result),
         };
 
-        // Generate filename with timestamp
-        let timestamp = end_time
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let filename = format!(
-            "flow_{}_{}_{}.yml",
-            self.benchmark_id, self.agent_type, timestamp
-        );
-        let file_path = self.output_path.join(filename);
+        // Save to database if available
+        if let Some(database) = &self.database {
+            match database.insert_flow_log(&flow_log).await {
+                Ok(flow_log_id) => {
+                    // Insert agent performance data
+                    let timestamp = chrono::Utc::now().to_rfc3339();
+                    let execution_time_ms = flow_log
+                        .final_result
+                        .as_ref()
+                        .map(|r| r.total_time_ms)
+                        .unwrap_or(0);
+                    let score = flow_log
+                        .final_result
+                        .as_ref()
+                        .map(|r| r.score)
+                        .unwrap_or(0.0);
+                    let final_status = if flow_log
+                        .final_result
+                        .as_ref()
+                        .map(|r| r.success)
+                        .unwrap_or(false)
+                    {
+                        "Succeeded"
+                    } else {
+                        "Failed"
+                    };
 
-        // Write YML file
-        let yml_content = serde_yaml::to_string(&flow_log)
-            .map_err(|e| FlowError::serialization(e.to_string()))?;
+                    if let Err(e) = database
+                        .insert_agent_performance(
+                            &flow_log.benchmark_id,
+                            &flow_log.agent_type,
+                            score,
+                            final_status,
+                            execution_time_ms,
+                            &timestamp,
+                            Some(flow_log_id),
+                        )
+                        .await
+                    {
+                        warn!(
+                            "Failed to insert agent performance for session {}: {}",
+                            self.session_id, e
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to save flow log to database for session {}: {}",
+                        self.session_id, e
+                    );
+                }
+            }
+        }
 
-        std::fs::write(&file_path, yml_content).map_err(|e| FlowError::file(e.to_string()))?;
+        // Still save YML file for debugging if enabled
+        if std::env::var("REEV_ENABLE_YML_EXPORT").unwrap_or_default() == "true" {
+            let timestamp = end_time
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let filename = format!(
+                "flow_{}_{}_{}.yml",
+                self.benchmark_id, self.agent_type, timestamp
+            );
+            let file_path = self.output_path.join(filename);
+
+            let yml_content = serde_yaml::to_string(&flow_log)
+                .map_err(|e| FlowError::serialization(e.to_string()))?;
+
+            std::fs::write(&file_path, yml_content).map_err(|e| FlowError::file(e.to_string()))?;
+
+            info!(
+                session_id = %self.session_id,
+                file_path = %file_path.display(),
+                "Flow log YML export completed"
+            );
+        }
 
         info!(
             session_id = %self.session_id,
-            file_path = %file_path.display(),
-            "Flow log completed and saved"
+            "Flow log completed"
         );
 
-        Ok(file_path)
+        // Return output path for backward compatibility
+        Ok(self.output_path.clone())
     }
 
     /// Get current statistics

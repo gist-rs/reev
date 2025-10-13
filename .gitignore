@@ -5,3 +5,4 @@ test-ledger
 *.db*
 logs
 .log
+node_modules

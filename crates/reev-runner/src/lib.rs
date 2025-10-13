@@ -15,9 +15,12 @@ use reev_lib::{
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
     time::SystemTime,
 };
 use tracing::{info, instrument, warn};
+
+mod db_adapter;
 
 pub mod db;
 pub mod dependency;
@@ -87,7 +90,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         .await
         .context("Failed to initialize dependencies")?;
 
-    let db = db::Db::new("db/reev_results.db").await?;
+    let db = Arc::new(db::Db::new("db/reev_results.db").await?);
     let mut results = vec![];
 
     for path in benchmark_paths {
@@ -109,6 +112,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 flow_steps,
                 agent_name,
                 &path.display().to_string(),
+                Arc::clone(&db),
             )
             .await?;
             results.push(result);
@@ -121,10 +125,13 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
             let path = PathBuf::from(output_path);
             std::fs::create_dir_all(&path)?;
-            Some(FlowLogger::new(
+
+            let db_adapter = Arc::new(db_adapter::FlowLogDatabaseAdapter::new(Arc::clone(&db)));
+            Some(FlowLogger::new_with_database(
                 test_case.id.clone(),
                 agent_name.to_string(),
                 path,
+                db_adapter,
             ))
         } else {
             None
@@ -200,7 +207,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 scoring_breakdown: Some(scoring_breakdown),
             };
 
-            if let Err(e) = flow_logger.complete(execution_result) {
+            if let Err(e) = flow_logger.complete(execution_result).await {
                 warn!(
                     benchmark_id = %test_case.id,
                     error = %e,
@@ -307,6 +314,7 @@ async fn run_flow_benchmark(
     flow_steps: &[FlowStep],
     agent_name: &str,
     _benchmark_path: &str,
+    db: Arc<db::Db>,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -320,10 +328,13 @@ async fn run_flow_benchmark(
             std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
-        Some(FlowLogger::new(
+
+        let db_adapter = Arc::new(db_adapter::FlowLogDatabaseAdapter::new(Arc::clone(&db)));
+        Some(FlowLogger::new_with_database(
             test_case.id.clone(),
             agent_name.to_string(),
             path,
+            db_adapter,
         ))
     } else {
         None
@@ -447,7 +458,7 @@ async fn run_flow_benchmark(
 
         // Auto-render flow as ASCII tree after completion
         if std::env::var("REEV_ENABLE_FLOW_LOGGING").is_ok() {
-            match flow_logger.complete(execution_result) {
+            match flow_logger.complete(execution_result).await {
                 Ok(flow_file_path) => {
                     match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
                         Ok(tree_output) => {

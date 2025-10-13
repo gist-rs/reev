@@ -30,6 +30,10 @@ pub enum FlowError {
     /// YAML error
     #[error("YAML error: {0}")]
     YamlError(#[from] serde_yaml::Error),
+
+    /// Database error
+    #[error("Database error: {0}")]
+    DatabaseError(String),
 }
 
 impl FlowError {
@@ -51,6 +55,11 @@ impl FlowError {
     /// Create a new configuration error
     pub fn config(msg: impl Into<String>) -> Self {
         Self::ConfigError(msg.into())
+    }
+
+    /// Create a new database error
+    pub fn database(msg: impl Into<String>) -> Self {
+        Self::DatabaseError(msg.into())
     }
 }
 
