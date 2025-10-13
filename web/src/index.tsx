@@ -261,6 +261,11 @@ export function App() {
     [selectedBenchmark],
   );
 
+  const handleStopExecution = useCallback(() => {
+    setIsRunning(false);
+    // TODO: Add actual stop execution logic
+  }, []);
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Performance Overview - Top Section (shows all agents) */}
@@ -328,7 +333,7 @@ export function App() {
               <div className="flex space-x-2">
                 {currentExecution && currentExecution.status === "Running" && (
                   <button
-                    onClick={handleExecutionComplete}
+                    onClick={handleStopExecution}
                     className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                   >
                     Stop Execution
