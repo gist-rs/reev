@@ -2,13 +2,13 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use reev_runner::db;
 use serde::Serialize;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
 /// API state containing database connection
@@ -34,7 +34,18 @@ pub fn create_router(db: Arc<db::Db>) -> Router<ApiState> {
         .route("/api/v1/benchmarks", get(list_benchmarks))
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agent-performance", get(get_agent_performance))
-        .layer(CorsLayer::permissive())
+        .route("/api/v1/test-post", post(test_post_endpoint))
+        .route("/api/v1/test-post", axum::routing::options(options_handler))
+        .layer(
+            CorsLayer::new()
+                .allow_origin([
+                    "http://localhost:3000".parse().unwrap(),
+                    "http://localhost:5173".parse().unwrap(),
+                ])
+                .allow_methods(Any)
+                .allow_headers(Any)
+                .allow_credentials(true),
+        )
         .with_state(state)
 }
 
@@ -92,6 +103,17 @@ async fn get_agent_performance(State(state): State<ApiState>) -> impl axum::resp
                 .into_response()
         }
     }
+}
+
+/// POST test endpoint
+async fn test_post_endpoint() -> Json<serde_json::Value> {
+    let response = serde_json::json!({"status": "POST test working"});
+    Json(response)
+}
+
+/// OPTIONS handler for CORS preflight
+async fn options_handler() -> axum::http::StatusCode {
+    axum::http::StatusCode::OK
 }
 
 /// Error response type

@@ -24,7 +24,11 @@ const AGENT_TABS: AgentTab[] = [
   { id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", requiresConfig: true },
 ];
 
-export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: AgentSelectorProps) {
+export function AgentSelector({
+  selectedAgent,
+  onAgentChange,
+  isRunning,
+}: AgentSelectorProps) {
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState<AgentConfig>({
     agent_type: "",
@@ -34,7 +38,10 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
   const [configLoading, setConfigLoading] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [testResult, setTestResult] = useState<{ status: string; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    status: string;
+    message: string;
+  } | null>(null);
 
   const handleAgentTabClick = useCallback(
     async (agent: AgentTab) => {
@@ -50,7 +57,7 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
       setTestResult(null);
       setConfigError(null);
     },
-    [onAgentChange, isRunning]
+    [onAgentChange, isRunning],
   );
 
   const loadAgentConfig = async (agentType: string) => {
@@ -85,7 +92,7 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
       setTestResult(null);
       setConfigError(null);
     },
-    []
+    [],
   );
 
   const handleSaveConfig = async () => {
@@ -96,9 +103,14 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
 
     try {
       await apiClient.saveAgentConfig(config);
-      setTestResult({ status: "success", message: "Configuration saved successfully" });
+      setTestResult({
+        status: "success",
+        message: "Configuration saved successfully",
+      });
     } catch (error) {
-      setConfigError(error instanceof Error ? error.message : "Failed to save configuration");
+      setConfigError(
+        error instanceof Error ? error.message : "Failed to save configuration",
+      );
     } finally {
       setConfigLoading(false);
     }
@@ -116,7 +128,8 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
     } catch (error) {
       setTestResult({
         status: "error",
-        message: error instanceof Error ? error.message : "Connection test failed",
+        message:
+          error instanceof Error ? error.message : "Connection test failed",
       });
     } finally {
       setTestingConnection(false);
@@ -134,7 +147,8 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
   };
 
   const getTabStyle = (agent: AgentTab) => {
-    const baseClasses = "px-4 py-2 text-sm font-medium transition-colors border-b-2";
+    const baseClasses =
+      "px-4 py-2 text-sm font-medium transition-colors border-b-2";
     const isSelected = selectedAgent === agent.id;
     const isDisabled = agent.disabled || isRunning;
 
@@ -174,7 +188,8 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
 
           {/* Configuration Button */}
           <div className="flex items-center space-x-4">
-            {AGENT_TABS.find((tab) => tab.id === selectedAgent)?.requiresConfig && (
+            {AGENT_TABS.find((tab) => tab.id === selectedAgent)
+              ?.requiresConfig && (
               <button
                 onClick={() => setShowConfig(!showConfig)}
                 className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
@@ -191,23 +206,33 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
 
         {/* Configuration Panel */}
         {showConfig &&
-          AGENT_TABS.find((tab) => tab.id === selectedAgent)?.requiresConfig && (
+          AGENT_TABS.find((tab) => tab.id === selectedAgent)
+            ?.requiresConfig && (
             <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
               <div className="max-w-2xl">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  Configure {AGENT_TABS.find((tab) => tab.id === selectedAgent)?.displayName}
+                  Configure{" "}
+                  {
+                    AGENT_TABS.find((tab) => tab.id === selectedAgent)
+                      ?.displayName
+                  }
                 </h3>
 
                 {/* API URL */}
                 <div className="mb-4">
-                  <label htmlFor="api-url" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="api-url"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     API URL
                   </label>
                   <input
                     id="api-url"
                     type="text"
                     value={config.api_url || ""}
-                    onChange={(e) => handleConfigChange("api_url", e.currentTarget.value)}
+                    onChange={(e) =>
+                      handleConfigChange("api_url", e.currentTarget.value)
+                    }
                     placeholder="https://api.example.com/v1"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={configLoading}
@@ -216,14 +241,19 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
 
                 {/* API Key */}
                 <div className="mb-4">
-                  <label htmlFor="api-key" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="api-key"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     API Key
                   </label>
                   <input
                     id="api-key"
                     type="password"
                     value={config.api_key || ""}
-                    onChange={(e) => handleConfigChange("api_key", e.currentTarget.value)}
+                    onChange={(e) =>
+                      handleConfigChange("api_key", e.currentTarget.value)
+                    }
                     placeholder="Enter your API key"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={configLoading}
@@ -254,7 +284,9 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
                 <div className="flex space-x-3">
                   <button
                     onClick={handleSaveConfig}
-                    disabled={configLoading || !config.api_url || !config.api_key}
+                    disabled={
+                      configLoading || !config.api_url || !config.api_key
+                    }
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
                     {configLoading ? "Saving..." : "Save Configuration"}
@@ -262,7 +294,9 @@ export function AgentSelector({ selectedAgent, onAgentChange, isRunning }: Agent
 
                   <button
                     onClick={handleTestConnection}
-                    disabled={testingConnection || !config.api_url || !config.api_key}
+                    disabled={
+                      testingConnection || !config.api_url || !config.api_key
+                    }
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
                     {testingConnection ? "Testing..." : "Test Connection"}

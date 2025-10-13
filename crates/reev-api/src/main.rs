@@ -1,9 +1,9 @@
 use anyhow::Result;
 use axum::{
     extract::{Path, State},
-    http::{header::CONTENT_TYPE, Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{get, options, post},
+    routing::{get, post},
     Router,
 };
 use reev_runner::db::Db;
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
@@ -376,7 +376,7 @@ async fn execute_benchmark_background(
         if let Some(execution) = executions.get_mut(&execution_id) {
             execution.status = ExecutionStatus::Running;
             execution.progress = 10;
-            execution.trace = format!("Starting benchmark {} with agent {}\n", benchmark_id, agent);
+            execution.trace = format!("Starting benchmark {benchmark_id} with agent {agent}\n");
         }
     }
 
@@ -395,7 +395,7 @@ async fn execute_benchmark_background(
             execution.progress = progress;
             execution
                 .trace
-                .push_str(&format!("Progress: {}%\n", progress));
+                .push_str(&format!("Progress: {progress}%\n"));
         }
     }
 

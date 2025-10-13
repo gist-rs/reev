@@ -22,7 +22,9 @@ export function BenchmarkList({
 }: BenchmarkListProps) {
   const { benchmarks, loading, error, refetch } = useBenchmarkList();
   const [executions, setExecutions] = useState<Map<string, any>>(new Map());
-  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(new Set());
+  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Poll for execution status updates
   useEffect(() => {
@@ -37,7 +39,10 @@ export function BenchmarkList({
         if (!executionId) continue;
 
         try {
-          const status = await apiClient.getExecutionStatus(benchmarkId, executionId);
+          const status = await apiClient.getExecutionStatus(
+            benchmarkId,
+            executionId,
+          );
           updates.set(benchmarkId, status);
 
           if (status.status === "Running") {
@@ -103,10 +108,12 @@ export function BenchmarkList({
         setTimeout(refetch, 500);
       } catch (error) {
         console.error("Failed to run benchmark:", error);
-        alert(`Failed to run benchmark: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to run benchmark: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     },
-    [selectedAgent, isRunning, onExecutionStart, refetch]
+    [selectedAgent, isRunning, onExecutionStart, refetch],
   );
 
   const handleRunAllBenchmarks = useCallback(async () => {
@@ -127,17 +134,20 @@ export function BenchmarkList({
       }
       return benchmark.status;
     },
-    [executions]
+    [executions],
   );
 
-  const getBenchmarkScore = useCallback((benchmark: BenchmarkItem): number => {
-    const execution = executions.get(benchmark.id);
-    if (execution && execution.status === "Completed") {
-      // For now, return a mock score
-      return 1.0;
-    }
-    return 0;
-  }, [executions]);
+  const getBenchmarkScore = useCallback(
+    (benchmark: BenchmarkItem): number => {
+      const execution = executions.get(benchmark.id);
+      if (execution && execution.status === "Completed") {
+        // For now, return a mock score
+        return 1.0;
+      }
+      return 0;
+    },
+    [executions],
+  );
 
   const getStatusIcon = useCallback((status: ExecutionStatus) => {
     switch (status) {
@@ -249,19 +259,27 @@ export function BenchmarkList({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     {/* Status Icon */}
-                    <span className={`font-mono text-sm ${getStatusColor(status)}`}>
+                    <span
+                      className={`font-mono text-sm ${getStatusColor(status)}`}
+                    >
                       {getStatusIcon(status)}
                     </span>
 
                     {/* Score */}
-                    <span className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}>
+                    <span
+                      className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
+                    >
                       {status === "Completed" ? formatScore(score) : "000%"}
                     </span>
 
                     {/* Benchmark Name */}
                     <div>
-                      <div className="font-medium text-gray-900">{benchmark.name}</div>
-                      <div className="text-sm text-gray-500">{benchmark.id}</div>
+                      <div className="font-medium text-gray-900">
+                        {benchmark.name}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {benchmark.id}
+                      </div>
                     </div>
                   </div>
 
@@ -284,7 +302,9 @@ export function BenchmarkList({
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(executions.get(benchmark.id)?.progress || 0)}%` }}
+                        style={{
+                          width: `${executions.get(benchmark.id)?.progress || 0}%`,
+                        }}
                       ></div>
                     </div>
                   </div>
