@@ -1,7 +1,10 @@
 // BenchmarkList component for interactive benchmark navigation and execution
 
 import { useState, useCallback, useEffect } from "preact/hooks";
-import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
+import {
+  useBenchmarkList,
+  useExecutionState,
+} from "../hooks/useBenchmarkExecution";
 import { apiClient } from "../services/api";
 import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
 
@@ -11,6 +14,8 @@ interface BenchmarkListProps {
   onBenchmarkSelect: (benchmark: string) => void;
   isRunning: boolean;
   onExecutionStart: (executionId: string) => void;
+  executions: Map<string, any>;
+  updateExecution: (benchmarkId: string, execution: any) => void;
 }
 
 export function BenchmarkList({
@@ -19,13 +24,14 @@ export function BenchmarkList({
   onBenchmarkSelect,
   isRunning,
   onExecutionStart,
+  executions,
+  updateExecution,
 }: BenchmarkListProps) {
   const { benchmarks, loading, error, refetch } = useBenchmarkList();
-  // Track executions by benchmarkId for the selected agent
-  const [executions, setExecutions] = useState<Map<string, any>>(new Map());
-  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
-    new Set(),
-  );
+  // Track running benchmarks and their execution IDs for polling
+  const [runningBenchmarks, setRunningBenchmarks] = useState<
+    Map<string, string>
+  >(new Map());
   const [historicalResults, setHistoricalResults] = useState<Map<string, any>>(
     new Map(),
   );
@@ -77,19 +83,40 @@ export function BenchmarkList({
     if (runningBenchmarks.size === 0) return;
 
     const interval = setInterval(async () => {
-      const updates = new Map<string, any>();
       const stillRunning = new Set<string>();
 
-      for (const benchmarkId of runningBenchmarks) {
-        const executionId = executions.get(benchmarkId)?.execution_id;
+      for (const [benchmarkId, executionId] of runningBenchmarks) {
+        console.log("=== Polling for benchmark ===");
+        console.log("benchmarkId:", benchmarkId);
+        console.log("executionId:", executionId);
+        console.log(
+          "runningBenchmarks:",
+          Array.from(runningBenchmarks.entries()),
+        );
+
         if (!executionId) continue;
 
         try {
+          console.log("Fetching status for:", benchmarkId, executionId);
           const status = await apiClient.getExecutionStatus(
             benchmarkId,
             executionId,
           );
-          updates.set(benchmarkId, status);
+
+          // Update the shared execution state for parent components
+          console.log("Updating execution for benchmark:", benchmarkId, status);
+          updateExecution(benchmarkId, {
+            id: status.id,
+            benchmark_id: benchmarkId,
+            agent: selectedAgent,
+            status: status.status,
+            progress: status.progress,
+            start_time: status.start_time,
+            end_time: status.end_time,
+            trace: status.trace,
+            logs: status.logs,
+            error: status.error,
+          });
 
           if (status.status === "Running") {
             stillRunning.add(benchmarkId);
@@ -97,39 +124,33 @@ export function BenchmarkList({
             status.status === "Completed" ||
             status.status === "Failed"
           ) {
-            // Execution completed or failed - update final status but keep polling a bit longer
-            // Don't remove from running immediately to allow UI to show final state
-            if (!executions.get(benchmarkId)?.finalUpdateShown) {
-              // Mark that we've shown the final update
-              updates.set(benchmarkId, { ...status, finalUpdateShown: true });
-              setTimeout(() => {
-                setRunningBenchmarks((prev) => {
-                  const updated = new Set(prev);
-                  updated.delete(benchmarkId);
-                  return updated;
-                });
-              }, 2000); // Keep in "running" state for 2 more seconds to show final status
-            }
+            // Execution completed or failed - keep polling a bit longer to show final state
+            setTimeout(() => {
+              setRunningBenchmarks((prev) => {
+                const updated = new Map(prev);
+                updated.delete(benchmarkId);
+                return updated;
+              });
+            }, 2000); // Keep in "running" state for 2 more seconds to show final status
           }
         } catch (error) {
           console.error(`Failed to get status for ${benchmarkId}:`, error);
         }
       }
 
-      setExecutions((prev) => {
-        const updated = new Map(prev);
-        updates.forEach((status, benchmarkId) => {
-          const current = updated.get(benchmarkId) || {};
-          updated.set(benchmarkId, { ...current, ...status });
-        });
-        return updated;
+      // Convert stillRunning Set back to Map for next iteration
+      const nextRunningBenchmarks = new Map<string, string>();
+      stillRunning.forEach((benchmarkId) => {
+        const executionId = runningBenchmarks.get(benchmarkId);
+        if (executionId) {
+          nextRunningBenchmarks.set(benchmarkId, executionId);
+        }
       });
-
-      setRunningBenchmarks(stillRunning);
+      setRunningBenchmarks(nextRunningBenchmarks);
     }, 1000); // Poll every 1 second for more responsive updates
 
     return () => clearInterval(interval);
-  }, [runningBenchmarks, executions, onExecutionStart]);
+  }, [runningBenchmarks, executions, selectedAgent, updateExecution]);
 
   const handleRunBenchmark = useCallback(
     async (benchmark: BenchmarkItem) => {
@@ -151,20 +172,26 @@ export function BenchmarkList({
           config,
         });
 
-        // Track this execution by benchmarkId
-        setExecutions((prev) => {
-          const updated = new Map(prev);
-          updated.set(benchmark.id, {
-            execution_id: response.execution_id,
-            status: "Pending",
-            progress: 0,
-            agentType: selectedAgent,
-            benchmarkId: benchmark.id,
-          });
-          return updated;
+        // Update shared execution state for parent components
+        console.log(
+          "Starting benchmark execution:",
+          benchmark.id,
+          response.execution_id,
+        );
+        updateExecution(benchmark.id, {
+          id: response.execution_id,
+          benchmark_id: benchmark.id,
+          agent: selectedAgent,
+          status: "Pending",
+          progress: 0,
+          start_time: new Date().toISOString(),
+          trace: "",
+          logs: "",
         });
 
-        setRunningBenchmarks((prev) => new Set(prev).add(benchmark.id));
+        setRunningBenchmarks((prev) =>
+          new Map(prev).set(benchmark.id, response.execution_id),
+        );
         onExecutionStart(response.execution_id);
 
         // Refresh benchmark list to update status
@@ -191,7 +218,9 @@ export function BenchmarkList({
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
-      return executions.get(benchmarkId);
+      return Array.from(executions.values()).find(
+        (exec) => exec.benchmark_id === benchmarkId,
+      );
     },
     [executions],
   );
@@ -389,7 +418,7 @@ export function BenchmarkList({
                             : "bg-blue-600"
                         }`}
                         style={{
-                          width: `${executions.get(benchmark.id)?.progress || 0}%`,
+                          width: `${getBenchmarkStatus(benchmark.id)?.progress || 0}%`,
                         }}
                       ></div>
                     </div>

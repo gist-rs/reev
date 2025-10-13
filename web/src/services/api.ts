@@ -4,6 +4,7 @@ import {
   AgentPerformanceSummary,
   BenchmarkResult,
   FlowLogResponse,
+  FlowLogsResponse,
   PaginatedResponse,
   ResultsQuery,
   HealthResponse,
@@ -115,8 +116,8 @@ class ApiClient {
   }
 
   // Flow logs
-  async getFlowLog(benchmarkId: string): Promise<FlowLogResponse> {
-    return this.request<FlowLogResponse>(`/api/v1/flow-logs/${benchmarkId}`);
+  async getFlowLog(benchmarkId: string): Promise<FlowLogsResponse> {
+    return this.request<FlowLogsResponse>(`/api/v1/flow-logs/${benchmarkId}`);
   }
 
   // Agent performance
@@ -246,6 +247,7 @@ export type {
   AgentPerformanceSummary,
   BenchmarkResult,
   FlowLogResponse,
+  FlowLogsResponse,
   PaginatedResponse,
   ResultsQuery,
   HealthResponse,

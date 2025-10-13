@@ -30,6 +30,9 @@ export interface FlowLogResponse {
   performance_metrics: PerformanceMetrics;
 }
 
+// Array type for flow logs response
+export type FlowLogsResponse = FlowLogResponse[];
+
 export interface PerformanceMetrics {
   total_execution_time_ms: number;
   total_llm_calls: number;

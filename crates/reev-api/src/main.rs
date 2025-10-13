@@ -259,15 +259,30 @@ async fn run_benchmark(
         benchmark_id, request.agent
     );
 
-    // Start the benchmark execution in background
+    // Start the benchmark execution in background using blocking task for non-Send dependencies
     let state_clone = state.clone();
     let execution_id_clone = execution_id.clone();
     let benchmark_id_clone = benchmark_id.clone();
     let agent = request.agent.clone();
 
     tokio::spawn(async move {
-        execute_benchmark_background(state_clone, execution_id_clone, benchmark_id_clone, agent)
-            .await;
+        tokio::task::spawn_blocking(move || {
+            // Use a blocking runtime for the benchmark runner
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
+                execute_benchmark_background(
+                    state_clone,
+                    execution_id_clone,
+                    benchmark_id_clone,
+                    agent,
+                )
+                .await;
+            })
+        })
+        .await
+        .unwrap_or_else(|e| {
+            error!("Benchmark execution task failed: {}", e);
+        });
     });
 
     Json(ExecutionResponse {
@@ -393,77 +408,175 @@ async fn execute_benchmark_background(
         }
     }
 
-    // Simulate benchmark execution
     info!(
         "Executing benchmark: {} with agent: {}",
         benchmark_id, agent
     );
 
-    // Simulate progress updates with flow log data
-    for progress in [20, 40, 60, 80] {
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-
-        let mut executions = state.executions.lock().await;
-        if let Some(execution) = executions.get_mut(&execution_id) {
-            execution.progress = progress;
-
-            // Simulate flow log data that would come from actual execution
-            let flow_data = format!(
-                "├── system_program\n│   ├── transfer\n│   │   ├── from: source_wallet\n│   │   ├── to: destination_wallet\n│   │   └── amount: 1.0 SOL\n│   └── status: success\n└── step_{}\nProgress: {}%\n",
-                progress / 20, progress
-            );
-            execution.trace.push_str(&flow_data);
-
-            // Store flow logs as transaction data
-            let transaction_data = format!(
-                "Transaction {}:\n  Signature: sig_{}\n  Status: Success\n  Fee: 5000 lamports\n  Timestamp: {}\n",
-                progress / 20,
-                progress,
-                chrono::Utc::now().to_rfc3339()
-            );
-            execution.logs.push_str(&transaction_data);
+    // Find the benchmark file
+    let benchmark_path = find_benchmark_file(&benchmark_id);
+    let benchmark_path = match benchmark_path {
+        Some(path) => path,
+        None => {
+            error!("Benchmark file not found: {}", benchmark_id);
+            update_execution_failed(&state, &execution_id, "Benchmark file not found").await;
+            return;
         }
-    }
+    };
 
-    // Simulate completion
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-
+    // Update progress
     {
         let mut executions = state.executions.lock().await;
         if let Some(execution) = executions.get_mut(&execution_id) {
-            execution.status = ExecutionStatus::Completed;
-            execution.progress = 100;
-            execution.end_time = Some(chrono::Utc::now());
+            execution.progress = 30;
+            execution.trace.push_str(&format!(
+                "Found benchmark file: {}\n",
+                benchmark_path.display()
+            ));
+        }
+    }
 
-            // Add final completion data
-            execution.trace.push_str("└── benchmark_result\n    ├── status: success\n    ├── score: 1.0\n    └── execution_time: 5000ms\nBenchmark completed successfully\n");
+    // Execute the benchmark using the real runner
+    let execution_result = match reev_runner::run_benchmarks(benchmark_path.clone(), &agent).await {
+        Ok(mut results) => {
+            if let Some(result) = results.pop() {
+                Ok(result)
+            } else {
+                Err(anyhow::anyhow!("Benchmark runner returned no results"))
+            }
+        }
+        Err(e) => Err(e),
+    };
 
-            execution.logs.push_str(
-                "Transaction final:\n  Status: Completed\n  Result: Success\n  Score: 100%\n",
-            );
+    match execution_result {
+        Ok(test_result) => {
+            // Generate ASCII tree trace from the actual result
+            let ascii_trace = reev_runner::renderer::render_result_as_tree(&test_result);
+
+            // Generate transaction logs from the trace
+            let transaction_logs = generate_transaction_logs(&test_result);
+
+            // Calculate score as percentage
+            let score_percentage = test_result.score * 100.0;
+
+            {
+                let mut executions = state.executions.lock().await;
+                if let Some(execution) = executions.get_mut(&execution_id) {
+                    execution.status = ExecutionStatus::Completed;
+                    execution.progress = 100;
+                    execution.end_time = Some(chrono::Utc::now());
+                    execution.trace = ascii_trace;
+                    execution.logs = transaction_logs;
+
+                    info!(
+                        "Benchmark {} completed with score: {:.1}%",
+                        benchmark_id, score_percentage
+                    );
+                }
+            }
 
             // Store result in database
             let db_clone = state.db.clone();
             let benchmark_id_clone = benchmark_id.clone();
             let agent_clone = agent.clone();
-            let trace_data = execution.trace.clone();
 
             tokio::spawn(async move {
-                if let Err(e) =
-                    store_benchmark_result(&db_clone, &benchmark_id_clone, &agent_clone, 1.0).await
+                if let Err(e) = store_benchmark_result(
+                    &db_clone,
+                    &benchmark_id_clone,
+                    &agent_clone,
+                    test_result.score,
+                )
+                .await
                 {
                     error!("Failed to store benchmark result: {}", e);
                 }
 
                 // Store flow log in database
-                if let Err(e) = store_flow_log(&db_clone, &benchmark_id_clone, &trace_data).await {
+                if let Err(e) =
+                    store_flow_log_from_result(&db_clone, &benchmark_id_clone, &test_result).await
+                {
                     error!("Failed to store flow log: {}", e);
                 }
             });
         }
+        Err(e) => {
+            error!("Benchmark execution failed: {}", e);
+            update_execution_failed(&state, &execution_id, &format!("Execution failed: {}", e))
+                .await;
+        }
     }
 
     info!("Benchmark execution completed: {}", execution_id);
+}
+
+/// Find benchmark file by ID
+fn find_benchmark_file(benchmark_id: &str) -> Option<std::path::PathBuf> {
+    let benchmarks_dir = std::path::Path::new("benchmarks");
+
+    if benchmarks_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(benchmarks_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(file_name) = path.file_name() {
+                        if let Some(name_str) = file_name.to_str() {
+                            if name_str.starts_with(benchmark_id)
+                                || name_str == benchmark_id
+                                || name_str == format!("{}.yml", benchmark_id)
+                                || name_str == format!("{}.yaml", benchmark_id)
+                            {
+                                return Some(path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Try direct path
+    let direct_path = std::path::Path::new(benchmark_id);
+    if direct_path.exists() {
+        return Some(direct_path.to_path_buf());
+    }
+
+    None
+}
+
+/// Generate transaction logs from test result
+fn generate_transaction_logs(result: &reev_lib::results::TestResult) -> String {
+    let mut logs = String::new();
+
+    for (i, step) in result.trace.steps.iter().enumerate() {
+        logs.push_str(&format!("Step {}:\n", i + 1));
+
+        for log in &step.observation.last_transaction_logs {
+            logs.push_str(&format!("  {}\n", log));
+        }
+
+        if let Some(error) = &step.observation.last_transaction_error {
+            logs.push_str(&format!("  Error: {}\n", error));
+        }
+
+        logs.push_str("\n");
+    }
+
+    logs
+}
+
+/// Update execution as failed
+async fn update_execution_failed(state: &ApiState, execution_id: &str, error_message: &str) {
+    let mut executions = state.executions.lock().await;
+    if let Some(execution) = executions.get_mut(execution_id) {
+        execution.status = ExecutionStatus::Failed;
+        execution.progress = 100;
+        execution.end_time = Some(chrono::Utc::now());
+        execution.error = Some(error_message.to_string());
+        execution
+            .trace
+            .push_str(&format!("ERROR: {}\n", error_message));
+    }
 }
 
 /// Store benchmark result in database
@@ -490,7 +603,71 @@ async fn store_benchmark_result(
     Ok(())
 }
 
-/// Store flow log in database
+/// Store flow log in database from test result
+async fn store_flow_log_from_result(
+    db: &Db,
+    benchmark_id: &str,
+    test_result: &reev_lib::results::TestResult,
+) -> Result<()> {
+    use reev_lib::flow::types::{
+        EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowLog,
+    };
+    use std::time::SystemTime;
+
+    let start_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let total_time_ms = (SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        - start_time)
+        * 1000;
+
+    let flow_log = FlowLog {
+        session_id: uuid::Uuid::new_v4().to_string(),
+        benchmark_id: benchmark_id.to_string(),
+        agent_type: "deterministic".to_string(), // This should come from the execution
+        start_time: SystemTime::now(),
+        end_time: Some(SystemTime::now()),
+        events: vec![FlowEvent {
+            timestamp: SystemTime::now(),
+            event_type: reev_lib::flow::types::FlowEventType::BenchmarkStateChange,
+            depth: 0,
+            content: EventContent {
+                data: serde_json::json!({
+                    "trace": test_result,
+                    "status": if test_result.final_status == reev_lib::results::FinalStatus::Succeeded {
+                        "completed"
+                    } else {
+                        "failed"
+                    }
+                }),
+                metadata: std::collections::HashMap::new(),
+            },
+        }],
+        final_result: Some(ExecutionResult {
+            success: test_result.final_status == reev_lib::results::FinalStatus::Succeeded,
+            score: test_result.score,
+            total_time_ms: total_time_ms as u64,
+            statistics: ExecutionStatistics {
+                total_llm_calls: 0, // These should come from actual execution stats
+                total_tool_calls: test_result.trace.steps.len() as u32,
+                total_tokens: 0,
+                tool_usage: std::collections::HashMap::new(),
+                max_depth: 0,
+            },
+            scoring_breakdown: None,
+        }),
+    };
+
+    db.insert_flow_log(&flow_log).await?;
+    Ok(())
+}
+
+/// Store flow log in database (legacy method for trace string)
 async fn store_flow_log(db: &Db, benchmark_id: &str, trace_data: &str) -> Result<()> {
     use reev_lib::flow::types::{
         EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowLog,

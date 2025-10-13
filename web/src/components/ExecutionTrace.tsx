@@ -9,6 +9,52 @@ interface ExecutionTraceProps {
   className?: string;
 }
 
+// Helper function to split trace into lines for display
+function getTraceLines(trace: string): string[] {
+  if (!trace || trace.trim() === "") {
+    return [];
+  }
+  return trace.split("\n");
+}
+
+// Helper function to get CSS class for trace lines based on content
+function getLineClass(line: string): string {
+  const trimmed = line.trim();
+
+  if (trimmed.includes("✅") || trimmed.includes("Succeeded")) {
+    return "text-green-400";
+  } else if (
+    trimmed.includes("❌") ||
+    trimmed.includes("Failed") ||
+    trimmed.includes("Error:")
+  ) {
+    return "text-red-400";
+  } else if (trimmed.includes("⚠️") || trimmed.includes("Warning")) {
+    return "text-yellow-400";
+  } else if (trimmed.includes("Step")) {
+    return "text-blue-400 font-semibold";
+  } else if (trimmed.includes("ACTION:")) {
+    return "text-cyan-400";
+  } else if (trimmed.includes("OBSERVATION:")) {
+    return "text-purple-400";
+  } else if (trimmed.includes("Program ID:")) {
+    return "text-gray-300";
+  } else if (trimmed.includes("Accounts:") || trimmed.includes("Data")) {
+    return "text-gray-400";
+  } else if (
+    trimmed.includes("🖋️") ||
+    trimmed.includes("🖍️") ||
+    trimmed.includes("➕") ||
+    trimmed.includes("➖")
+  ) {
+    return "text-gray-300";
+  } else if (trimmed.startsWith("     ")) {
+    return "text-gray-300";
+  } else {
+    return "text-gray-200";
+  }
+}
+
 export function ExecutionTrace({
   execution,
   isRunning,
@@ -79,7 +125,7 @@ export function ExecutionTrace({
     );
   }
 
-  const traceLines = getTraceLines(execution.trace);
+  const traceLines = getTraceLines(execution?.trace || "");
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
@@ -138,7 +184,7 @@ export function ExecutionTrace({
           {/* Action buttons */}
           <button
             onClick={handleCopyTrace}
-            disabled={!execution.trace}
+            disabled={!execution?.trace}
             className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"
           >
             Copy
@@ -181,7 +227,11 @@ export function ExecutionTrace({
       <div
         ref={traceRef}
         className="flex-1 bg-gray-900 font-mono text-sm p-4 overflow-auto border border-gray-700"
-        style={{ minHeight: "200px" }}
+        style={{
+          minHeight: "200px",
+          maxHeight: "calc(100vh - 400px)",
+          height: "0", // Important: allows flex child to shrink properly
+        }}
       >
         {traceLines.length === 0 ? (
           <div className="text-gray-500 text-center py-8">
