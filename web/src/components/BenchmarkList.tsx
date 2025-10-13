@@ -318,11 +318,20 @@ export function BenchmarkList({
       "benchmarks",
     );
 
+    // Auto-select the first benchmark for Execution Details display
+    if (benchmarks.benchmarks.length > 0 && !selectedBenchmark) {
+      const firstBenchmark = benchmarks.benchmarks[0];
+      console.log(
+        "Auto-selecting first benchmark for Run All:",
+        firstBenchmark.id,
+      );
+      onBenchmarkSelect(firstBenchmark.id);
+    }
+
     for (let i = 0; i < benchmarks.benchmarks.length; i++) {
       const benchmark = benchmarks.benchmarks[i];
       console.log(
-        `Starting benchmark ${i + 1}/${benchmarks.benchmarks.length}:`,
-        benchmark.id,
+        `Starting benchmark ${i + 1}/${benchmarks.length}: ${benchmark.id}`,
       );
 
       // Start the benchmark and get the execution ID
