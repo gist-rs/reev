@@ -9,7 +9,11 @@ interface ExecutionTraceProps {
   className?: string;
 }
 
-export function ExecutionTrace({ execution, isRunning, className = "" }: ExecutionTraceProps) {
+export function ExecutionTrace({
+  execution,
+  isRunning,
+  className = "",
+}: ExecutionTraceProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const traceRef = useRef<HTMLDivElement>(null);
 
@@ -38,23 +42,27 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
   };
 
   const getTraceLines = (trace: string) => {
-    return trace.split('\n').filter(line => line.trim() !== '');
+    return trace.split("\n").filter((line) => line.trim() !== "");
   };
 
   const getLineClass = (line: string) => {
-    if (line.includes('ERROR') || line.includes('Failed')) {
-      return 'text-red-600';
+    if (line.includes("ERROR") || line.includes("Failed")) {
+      return "text-red-600";
     }
-    if (line.includes('WARNING') || line.includes('Warning')) {
-      return 'text-yellow-600';
+    if (line.includes("WARNING") || line.includes("Warning")) {
+      return "text-yellow-600";
     }
-    if (line.includes('SUCCESS') || line.includes('completed') || line.includes('✔')) {
-      return 'text-green-600';
+    if (
+      line.includes("SUCCESS") ||
+      line.includes("completed") ||
+      line.includes("✔")
+    ) {
+      return "text-green-600";
     }
-    if (line.includes('Progress:')) {
-      return 'text-blue-600';
+    if (line.includes("Progress:")) {
+      return "text-blue-600";
     }
-    return 'text-gray-700';
+    return "text-gray-700";
   };
 
   const handleCopyTrace = () => {
@@ -65,7 +73,7 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
 
   const handleClearTrace = () => {
     // This would need to be handled by parent component
-    console.log('Clear trace requested');
+    console.log("Clear trace requested");
   };
 
   if (!execution) {
@@ -86,7 +94,9 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
           <div className="text-center">
             <div className="text-6xl mb-4">📋</div>
             <p>No execution selected</p>
-            <p className="text-sm">Select a benchmark to see execution details</p>
+            <p className="text-sm">
+              Select a benchmark to see execution details
+            </p>
           </div>
         </div>
       </div>
@@ -105,20 +115,20 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
             {/* Status Badge */}
             <span
               className={`px-2 py-1 text-xs font-medium rounded-full ${
-                execution.status === 'Running'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : execution.status === 'Completed'
-                  ? 'bg-green-100 text-green-800'
-                  : execution.status === 'Failed'
-                  ? 'bg-red-100 text-red-800'
-                  : 'bg-gray-100 text-gray-800'
+                execution.status === "Running"
+                  ? "bg-yellow-100 text-yellow-800"
+                  : execution.status === "Completed"
+                    ? "bg-green-100 text-green-800"
+                    : execution.status === "Failed"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-800"
               }`}
             >
               {execution.status}
             </span>
 
             {/* Progress */}
-            {execution.status === 'Running' && (
+            {execution.status === "Running" && (
               <div className="flex items-center space-x-2">
                 <div className="w-24 bg-gray-200 rounded-full h-2">
                   <div
@@ -126,7 +136,9 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
                     style={{ width: `${execution.progress}%` }}
                   ></div>
                 </div>
-                <span className="text-sm text-gray-600">{execution.progress}%</span>
+                <span className="text-sm text-gray-600">
+                  {execution.progress}%
+                </span>
               </div>
             )}
           </div>
@@ -157,9 +169,7 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
           </button>
 
           {isRunning && (
-            <button
-              className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-            >
+            <button className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors">
               Stop
             </button>
           )}
@@ -198,18 +208,23 @@ export function ExecutionTrace({ execution, isRunning, className = "" }: Executi
       >
         {traceLines.length === 0 ? (
           <div className="text-gray-500 text-center py-8">
-            {execution.status === 'Running' ? 'Waiting for execution output...' : 'No trace output available'}
+            {execution.status === "Running"
+              ? "Waiting for execution output..."
+              : "No trace output available"}
           </div>
         ) : (
           <div className="space-y-1">
             {traceLines.map((line, index) => (
-              <div key={index} className={`whitespace-pre-wrap ${getLineClass(line)}`}>
+              <div
+                key={index}
+                className={`whitespace-pre-wrap ${getLineClass(line)}`}
+              >
                 {line}
               </div>
             ))}
 
             {/* Show loading indicator when running */}
-            {execution.status === 'Running' && (
+            {execution.status === "Running" && (
               <div className="flex items-center space-x-2 text-blue-400 animate-pulse">
                 <span>●</span>
                 <span>Execution in progress...</span>
