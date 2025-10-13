@@ -9,7 +9,7 @@ REST API server for the Reev benchmark execution system. Provides endpoints for 
 The easiest way to run the API server in development is with `cargo watch`:
 
 ```bash
-cargo watch -x "run -p reev-api --bin reev-api"
+cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api"
 ```
 
 This will:
@@ -145,7 +145,7 @@ List all available agent types.
 ```json
 [
   "deterministic",
-  "local", 
+  "local",
   "gemini",
   "glm-4.6"
 ]

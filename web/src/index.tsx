@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useState, useCallback, useEffect } from "preact/hooks";
+import { useState, useCallback, useEffect, useRef } from "preact/hooks";
 import { AgentSelector } from "./components/AgentSelector";
 import { AgentConfig } from "./components/AgentConfig";
 import { BenchmarkList } from "./components/BenchmarkList";
@@ -8,6 +8,7 @@ import { TransactionLog } from "./components/TransactionLog";
 import { BenchmarkGrid } from "./components/BenchmarkGrid";
 import { useBenchmarkExecution } from "./hooks/useBenchmarkExecution";
 import { apiClient } from "./services/api";
+import { BenchmarkItem } from "./types/configuration";
 import "./style.css";
 
 export function App() {
@@ -17,9 +18,20 @@ export function App() {
   );
   const [isRunning, setIsRunning] = useState(false);
   const [currentExecution, setCurrentExecution] = useState<any>(null);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const runAllQueue = useRef<BenchmarkItem[]>([]);
+  const currentRunAllIndex = useRef(0);
 
   const [showTransactionLog, setShowTransactionLog] = useState(false);
-  const { benchmarks, executions, updateExecution } = useBenchmarkExecution();
+  const {
+    benchmarks,
+    executions,
+    updateExecution,
+    setCompletionCallback,
+    loading,
+    error,
+    refetch,
+  } = useBenchmarkExecution();
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
@@ -293,6 +305,88 @@ export function App() {
     // TODO: Add actual stop execution logic
   }, []);
 
+  // Run All completion callback - simplified approach
+  const runAllCompletionCallback = useCallback(
+    async (benchmarkId: string, execution: any) => {
+      console.log(
+        `🎯 App: Run All completion callback triggered for ${benchmarkId}`,
+      );
+
+      // Notify BenchmarkList component
+      handleExecutionComplete(benchmarkId, execution);
+
+      // Continue to next benchmark in queue
+      currentRunAllIndex.current++;
+
+      if (currentRunAllIndex.current < runAllQueue.current.length) {
+        const nextBenchmark = runAllQueue.current[currentRunAllIndex.current];
+        console.log(
+          `🚀 App: Starting next benchmark ${currentRunAllIndex.current + 1}/${runAllQueue.current.length}: ${nextBenchmark.id}`,
+        );
+
+        // Auto-select the next benchmark for Execution Details display
+        handleBenchmarkSelect(nextBenchmark.id);
+
+        // Start next benchmark directly via API
+        try {
+          const response = await apiClient.runBenchmark(nextBenchmark.id, {
+            agent: selectedAgent,
+          });
+
+          console.log(
+            `🚀 App: Started next benchmark ${nextBenchmark.id} with execution ID: ${response.execution_id}`,
+          );
+
+          // Update execution state
+          updateExecution(nextBenchmark.id, {
+            id: response.execution_id,
+            benchmark_id: nextBenchmark.id,
+            agent: selectedAgent,
+            status: "Pending",
+            progress: 0,
+            start_time: new Date().toISOString(),
+            trace: "",
+            logs: "",
+          });
+
+          handleExecutionStart(response.execution_id);
+        } catch (error) {
+          console.error(
+            `Failed to start benchmark ${nextBenchmark.id}:`,
+            error,
+          );
+          // Continue to next one even on failure
+          runAllCompletionCallback(nextBenchmark.id, {
+            status: "Failed",
+            error,
+          });
+        }
+      } else {
+        // All benchmarks completed
+        console.log("✅ App: All benchmarks completed, refreshing overview");
+        setIsRunningAll(false);
+        runAllQueue.current = [];
+        currentRunAllIndex.current = 0;
+
+        // Clear the completion callback after a delay
+        setTimeout(() => {
+          console.log(
+            "🧹 App: Clearing completion callback after Run All completion",
+          );
+          setCompletionCallback(() => () => {});
+        }, 1000);
+      }
+    },
+    [
+      handleExecutionComplete,
+      handleBenchmarkSelect,
+      setCompletionCallback,
+      selectedAgent,
+      updateExecution,
+      handleExecutionStart,
+    ],
+  );
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Performance Overview - Top Section (shows all agents) */}
@@ -327,11 +421,21 @@ export function App() {
               selectedAgent={selectedAgent}
               selectedBenchmark={selectedBenchmark}
               onBenchmarkSelect={handleBenchmarkSelect}
-              isRunning={isRunning}
+              isRunning={isRunning || isRunningAll}
               onExecutionStart={handleExecutionStart}
               onExecutionComplete={handleExecutionComplete}
               executions={executions}
               updateExecution={updateExecution}
+              isRunningAll={isRunningAll}
+              setIsRunningAll={setIsRunningAll}
+              setCompletionCallback={setCompletionCallback}
+              runAllCompletionCallback={runAllCompletionCallback}
+              runAllQueue={runAllQueue}
+              currentRunAllIndex={currentRunAllIndex}
+              benchmarks={benchmarks}
+              loading={loading}
+              error={error}
+              refetch={refetch}
             />
           </div>
 

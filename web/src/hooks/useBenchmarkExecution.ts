@@ -12,6 +12,9 @@ interface UseBenchmarkExecutionReturn {
   executions: Map<string, ExecutionState>;
   updateExecution: (benchmarkId: string, execution: ExecutionState) => void;
   clearExecutions: () => void;
+  setCompletionCallback: (
+    callback: (benchmarkId: string, execution: ExecutionState) => void,
+  ) => void;
 }
 
 export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
@@ -21,7 +24,10 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   const [executions, setExecutions] = useState<Map<string, ExecutionState>>(
     new Map(),
   );
-  const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pollingIntervals = useRef<Map<string, number>>(new Map());
+  const completionCallback = useRef<
+    ((benchmarkId: string, execution: ExecutionState) => void) | null
+  >(null);
 
   const fetchBenchmarks = useCallback(async () => {
     try {
@@ -113,6 +119,20 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
                 `Stopping polling for ${benchmarkId} - execution completed`,
               );
               stopPolling(benchmarkId);
+
+              // Call completion callback if set
+              console.log(
+                `🔍 Checking completion callback for ${benchmarkId}:`,
+                !!completionCallback.current,
+              );
+              if (completionCallback.current) {
+                console.log(
+                  `🎯 Calling completion callback for ${benchmarkId}`,
+                );
+                completionCallback.current(benchmarkId, updatedExecution);
+              } else {
+                console.log(`❌ No completion callback set for ${benchmarkId}`);
+              }
             }
           } else {
             console.log(`❌ No execution data returned for ${benchmarkId}`);
@@ -161,6 +181,14 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     setExecutions(new Map());
   }, []);
 
+  const setCompletionCallback = useCallback(
+    (callback: (benchmarkId: string, execution: ExecutionState) => void) => {
+      console.log("🔧 Setting completion callback:", !!callback);
+      completionCallback.current = callback;
+    },
+    [],
+  );
+
   return {
     benchmarks,
     loading,
@@ -169,6 +197,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     executions,
     updateExecution,
     clearExecutions,
+    setCompletionCallback,
   };
 }
 

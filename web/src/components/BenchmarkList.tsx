@@ -1,10 +1,6 @@
 // BenchmarkList component for interactive benchmark navigation and execution
 
-import { useState, useCallback, useEffect } from "preact/hooks";
-import {
-  useBenchmarkList,
-  useExecutionState,
-} from "../hooks/useBenchmarkExecution";
+import { useState, useCallback, useEffect, useRef } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
 
@@ -17,6 +13,18 @@ interface BenchmarkListProps {
   onExecutionComplete: (benchmarkId: string, execution: any) => void;
   executions: Map<string, any>;
   updateExecution: (benchmarkId: string, execution: any) => void;
+  isRunningAll: boolean;
+  setIsRunningAll: (running: boolean) => void;
+  setCompletionCallback: (
+    callback: (benchmarkId: string, execution: any) => void,
+  ) => void;
+  runAllCompletionCallback: (benchmarkId: string, execution: any) => void;
+  runAllQueue: { current: BenchmarkItem[] };
+  currentRunAllIndex: { current: number };
+  benchmarks: any;
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
 }
 
 export function BenchmarkList({
@@ -28,8 +36,17 @@ export function BenchmarkList({
   onExecutionComplete,
   executions,
   updateExecution,
+  isRunningAll,
+  setIsRunningAll,
+  setCompletionCallback,
+  runAllCompletionCallback,
+  runAllQueue,
+  currentRunAllIndex,
+  benchmarks,
+  loading,
+  error,
+  refetch,
 }: BenchmarkListProps) {
-  const { benchmarks, loading, error, refetch } = useBenchmarkList();
   // Track running benchmarks and their execution IDs for polling
   const [runningBenchmarks, setRunningBenchmarks] = useState<
     Map<string, string>
@@ -141,6 +158,13 @@ export function BenchmarkList({
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
+    console.log("🎯 Starting Run All Benchmarks");
+    setIsRunningAll(true);
+
+    // Set up completion callback (from App component)
+    console.log("🔧 BenchmarkList: Setting up completion callback for Run All");
+    setCompletionCallback(runAllCompletionCallback);
+
     // Auto-select the first benchmark for Execution Details display
     if (benchmarks.benchmarks.length > 0 && !selectedBenchmark) {
       const firstBenchmark = benchmarks.benchmarks[0];
@@ -151,72 +175,32 @@ export function BenchmarkList({
       onBenchmarkSelect(firstBenchmark.id);
     }
 
-    for (let i = 0; i < benchmarks.benchmarks.length; i++) {
-      const benchmark = benchmarks.benchmarks[i];
-      console.log(
-        `Starting benchmark ${i + 1}/${benchmarks.length}: ${benchmark.id}`,
-      );
+    // Initialize queue (managed by App component)
+    runAllQueue.current = [...benchmarks.benchmarks];
+    currentRunAllIndex.current = 0;
 
-      // Start the benchmark and get the execution ID
-      let response;
-      try {
-        response = await handleRunBenchmark(benchmark);
-      } catch (error) {
-        console.error(`Failed to start benchmark ${benchmark.id}:`, error);
-        continue; // Skip to next benchmark on failure
-      }
+    // Start first benchmark
+    const firstBenchmark = runAllQueue.current[0];
+    console.log(
+      `🚀 Starting benchmark 1/${runAllQueue.current.length}: ${firstBenchmark.id}`,
+    );
 
-      const executionId = response.execution_id;
-      console.log(`Started ${benchmark.id} with execution ID: ${executionId}`);
-
-      // Wait for the benchmark to complete before starting the next one
-      await new Promise<void>((resolve) => {
-        let checkCount = 0;
-        const maxChecks = 60; // Max 2 minutes per benchmark (60 * 2 seconds)
-
-        const checkCompletion = () => {
-          checkCount++;
-
-          // Get fresh executions reference each time to prevent stale reference issues
-          const currentExecutions = Array.from(executions.values());
-          const execution = currentExecutions.find(
-            (exec) =>
-              exec.benchmark_id === benchmark.id && exec.id === executionId,
-          );
-
-          console.log(
-            `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
-          );
-
-          if (
-            execution &&
-            (execution.status === "Completed" || execution.status === "Failed")
-          ) {
-            console.log(
-              `✅ Benchmark ${benchmark.id} completed with status:`,
-              execution.status,
-            );
-            resolve();
-          } else if (checkCount >= maxChecks) {
-            console.log(
-              `⏰ Timeout waiting for ${benchmark.id}, continuing to next`,
-            );
-            resolve(); // Continue even if timeout
-          } else {
-            // Check again in 2 seconds
-            setTimeout(checkCompletion, 2000);
-          }
-        };
-
-        // Start checking after 3 seconds to allow execution to be created and updated
-        setTimeout(checkCompletion, 3000);
-      });
+    try {
+      await handleRunBenchmark(firstBenchmark);
+    } catch (error) {
+      console.error(`Failed to start benchmark ${firstBenchmark.id}:`, error);
+      // Continue to next one even on failure
+      runAllCompletionCallback(firstBenchmark.id, { status: "Failed", error });
     }
-
-    // Refresh overview when all benchmarks are complete
-    console.log("All benchmarks completed, refreshing overview");
-    refetch();
-  }, [benchmarks, isRunning, handleRunBenchmark, updateExecution, refetch]);
+  }, [
+    isRunning,
+    benchmarks,
+    selectedBenchmark,
+    onBenchmarkSelect,
+    handleRunBenchmark,
+    setCompletionCallback,
+    runAllCompletionCallback,
+  ]);
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
@@ -322,10 +306,10 @@ export function BenchmarkList({
         <div className="flex space-x-2">
           <button
             onClick={handleRunAllBenchmarks}
-            disabled={isRunning}
+            disabled={isRunning || isRunningAll}
             className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            Run All
+            {isRunningAll ? "Running All..." : "Run All"}
           </button>
         </div>
       </div>
@@ -402,7 +386,7 @@ export function BenchmarkList({
                       e.stopPropagation();
                       handleRunBenchmark(benchmark);
                     }}
-                    disabled={isRunning || status === "Running"}
+                    disabled={isRunning || isRunningAll || status === "Running"}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   >
                     {status === "Running" ? "Running..." : "Run"}
