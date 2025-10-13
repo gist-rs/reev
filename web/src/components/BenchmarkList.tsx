@@ -296,13 +296,14 @@ export function BenchmarkList({
         );
         onExecutionStart(response.execution_id);
 
-        // Refresh benchmark list to update status
-        setTimeout(refetch, 500);
+        // Return the response for Run All to use
+        return response;
       } catch (error) {
         console.error("Failed to run benchmark:", error);
         alert(
           `Failed to run benchmark: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
+        throw error; // Re-throw so Run All can handle it
       }
     },
     [selectedAgent, isRunning, onExecutionStart, refetch],
@@ -324,19 +325,34 @@ export function BenchmarkList({
         benchmark.id,
       );
 
-      // Start the benchmark
-      await handleRunBenchmark(benchmark);
+      // Start the benchmark and get the execution ID
+      let response;
+      try {
+        response = await handleRunBenchmark(benchmark);
+      } catch (error) {
+        console.error(`Failed to start benchmark ${benchmark.id}:`, error);
+        continue; // Skip to next benchmark on failure
+      }
+
+      const executionId = response.execution_id;
+      console.log(`Started ${benchmark.id} with execution ID: ${executionId}`);
 
       // Wait for the benchmark to complete before starting the next one
       await new Promise<void>((resolve) => {
+        let checkCount = 0;
+        const maxChecks = 60; // Max 2 minutes per benchmark (60 * 2 seconds)
+
         const checkCompletion = () => {
+          checkCount++;
+
+          // Look for execution by both benchmark_id and execution_id
           const execution = Array.from(executions.values()).find(
-            (exec) => exec.benchmark_id === benchmark.id,
+            (exec) =>
+              exec.benchmark_id === benchmark.id && exec.id === executionId,
           );
 
           console.log(
-            `Checking completion for ${benchmark.id}, status:`,
-            execution?.status,
+            `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
           );
 
           if (
@@ -344,18 +360,23 @@ export function BenchmarkList({
             (execution.status === "Completed" || execution.status === "Failed")
           ) {
             console.log(
-              `Benchmark ${benchmark.id} completed with status:`,
+              `✅ Benchmark ${benchmark.id} completed with status:`,
               execution.status,
             );
             resolve();
+          } else if (checkCount >= maxChecks) {
+            console.log(
+              `⏰ Timeout waiting for ${benchmark.id}, continuing to next`,
+            );
+            resolve(); // Continue even if timeout
           } else {
-            // Check again in 1 second
-            setTimeout(checkCompletion, 1000);
+            // Check again in 2 seconds
+            setTimeout(checkCompletion, 2000);
           }
         };
 
-        // Start checking after a short delay
-        setTimeout(checkCompletion, 2000);
+        // Start checking after 3 seconds to allow execution to be created and updated
+        setTimeout(checkCompletion, 3000);
       });
     }
 
