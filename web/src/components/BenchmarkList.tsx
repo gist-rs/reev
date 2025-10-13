@@ -360,6 +360,13 @@ export function BenchmarkList({
           console.log(
             `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
           );
+          console.log(
+            `DEBUG: executions.has(${benchmark.id}):`,
+            executions.has(benchmark.id),
+          );
+          console.log(`DEBUG: executions keys:`, Array.from(executions.keys()));
+          console.log(`DEBUG: looking for execution with key:`, benchmark.id);
+          console.log(`DEBUG: found execution:`, execution);
 
           if (
             execution &&
