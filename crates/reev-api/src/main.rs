@@ -1,9 +1,9 @@
 use anyhow::Result;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{header::CONTENT_TYPE, Method, StatusCode},
     response::{IntoResponse, Json},
-    routing::{get, post},
+    routing::{get, options, post},
     Router,
 };
 use reev_runner::db::Db;
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
@@ -103,26 +103,19 @@ async fn main() -> Result<()> {
         agent_configs: Arc::new(Mutex::new(HashMap::new())),
     };
 
-    // Create router with state
+    // Create router with state - simple approach for testing
     let app = Router::new()
+        // Health check
         .route("/api/v1/health", get(health_check))
+        // General routes
         .route("/api/v1/benchmarks", get(list_benchmarks))
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agent-performance", get(get_agent_performance))
-        // New endpoints for benchmark execution
-        .route("/api/v1/benchmarks/:id/run", post(run_benchmark))
-        .route(
-            "/api/v1/benchmarks/:id/status/:execution_id",
-            get(get_execution_status),
-        )
-        .route(
-            "/api/v1/benchmarks/:id/stop/:execution_id",
-            post(stop_benchmark),
-        )
-        // Agent configuration endpoints
-        .route("/api/v1/agents/config", post(save_agent_config))
-        .route("/api/v1/agents/config/:agent_type", get(get_agent_config))
-        .route("/api/v1/agents/test", post(test_agent_connection))
+        // Test endpoint without JSON
+        .route("/api/v1/test", get(test_endpoint))
+        // Test POST endpoint without JSON
+        .route("/api/v1/test-post", post(test_post_endpoint))
+        // Simple CORS layer
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -199,11 +192,27 @@ async fn get_agent_performance(State(state): State<ApiState>) -> impl IntoRespon
 }
 
 /// Run a benchmark
+/// Simple test endpoint
+async fn test_endpoint() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "test working"}))
+}
+
+/// POST test endpoint without JSON
+async fn test_post_endpoint() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "POST test working"}))
+}
+
+/// OPTIONS handler for CORS preflight
+async fn options_handler() -> impl IntoResponse {
+    StatusCode::OK
+}
+
+/// Run a benchmark
 async fn run_benchmark(
-    Path(benchmark_id): Path<String>,
     State(state): State<ApiState>,
     Json(request): Json<BenchmarkExecutionRequest>,
 ) -> impl IntoResponse {
+    let benchmark_id = "001-sol-transfer".to_string(); // Hardcoded for testing
     let execution_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now();
 
@@ -256,8 +265,8 @@ async fn run_benchmark(
 
 /// Get execution status
 async fn get_execution_status(
-    Path((_benchmark_id, execution_id)): Path<(String, String)>,
     State(state): State<ApiState>,
+    Path(execution_id): Path<String>,
 ) -> impl IntoResponse {
     let executions = state.executions.lock().await;
 
@@ -269,8 +278,8 @@ async fn get_execution_status(
 
 /// Stop a running benchmark
 async fn stop_benchmark(
-    Path((_benchmark_id, execution_id)): Path<(String, String)>,
     State(state): State<ApiState>,
+    Path(execution_id): Path<String>,
 ) -> impl IntoResponse {
     let mut executions = state.executions.lock().await;
 
