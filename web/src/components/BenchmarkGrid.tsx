@@ -157,11 +157,6 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Reev Benchmark Dashboard
-              </h1>
-            </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
                 {data.reduce((sum, agent) => sum + agent.results.length, 0)}{" "}
@@ -171,36 +166,39 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
                 {data.length} agents
               </span>
             </div>
+            <div className="mb-4 p-2 bg-gray-50 rounded border">
+              <div className="flex justify-center">
+                {/* Legend - Updated to include untested */}
+                <div className="mb-4 p-2 bg-gray-50 rounded border">
+                  <div className="flex justify-center">
+                    <div className="flex items-center space-x-4 text-xs text-gray-600">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
+                        <span>Perfect (100%)</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
+                        <span>Partial (25-99%)</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
+                        <span>Poor (&lt;25%)</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
+                        <span>Not Tested</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
-        {/* Legend - Updated to include untested */}
-        <div className="mb-4 p-2 bg-gray-50 rounded border">
-          <div className="flex justify-center">
-            <div className="flex items-center space-x-4 text-xs text-gray-600">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
-                <span>Perfect (100%)</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
-                <span>Partial (25-99%)</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
-                <span>Poor (&lt;25%)</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
-                <span>Not Tested</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Agent Sections */}
         <div className="space-y-6">
           {ALL_AGENT_TYPES.map((agentType) => {

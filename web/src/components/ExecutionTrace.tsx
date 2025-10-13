@@ -41,32 +41,6 @@ export function ExecutionTrace({
     }
   };
 
-  const getTraceLines = (trace: string) => {
-    // Handle both trace and logs data for comprehensive view
-    const allContent = trace + (execution?.logs || "");
-    return allContent.split("\n").filter((line) => line.trim() !== "");
-  };
-
-  const getLineClass = (line: string) => {
-    if (line.includes("ERROR") || line.includes("Failed")) {
-      return "text-red-600";
-    }
-    if (line.includes("WARNING") || line.includes("Warning")) {
-      return "text-yellow-600";
-    }
-    if (
-      line.includes("SUCCESS") ||
-      line.includes("completed") ||
-      line.includes("✔")
-    ) {
-      return "text-green-600";
-    }
-    if (line.includes("Progress:")) {
-      return "text-blue-600";
-    }
-    return "text-gray-700";
-  };
-
   const handleCopyTrace = () => {
     if (execution?.trace) {
       navigator.clipboard.writeText(execution.trace);
@@ -206,12 +180,12 @@ export function ExecutionTrace({
       {/* Trace Display */}
       <div
         ref={traceRef}
-        className="flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 overflow-auto border border-gray-700"
+        className="flex-1 bg-gray-900 font-mono text-sm p-4 overflow-auto border border-gray-700"
         style={{ minHeight: "200px" }}
       >
         {traceLines.length === 0 ? (
           <div className="text-gray-500 text-center py-8">
-            {execution.status === "Running"
+            {execution?.status === "Running"
               ? "Waiting for execution output..."
               : "No trace output available"}
           </div>
@@ -227,7 +201,7 @@ export function ExecutionTrace({
             ))}
 
             {/* Show loading indicator when running */}
-            {execution.status === "Running" && (
+            {execution?.status === "Running" && (
               <div className="flex items-center space-x-2 text-blue-400 animate-pulse">
                 <span>●</span>
                 <span>Execution in progress...</span>
