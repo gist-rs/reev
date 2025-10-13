@@ -149,13 +149,11 @@ async fn list_benchmarks(State(_state): State<ApiState>) -> Json<Vec<String>> {
     let mut benchmarks = Vec::new();
     match std::fs::read_dir(&benchmarks_dir) {
         Ok(entries) => {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() && path.extension().is_some_and(|ext| ext == "yml") {
-                        if let Some(stem) = path.file_stem() {
-                            benchmarks.push(stem.to_string_lossy().to_string());
-                        }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().is_some_and(|ext| ext == "yml") {
+                    if let Some(stem) = path.file_stem() {
+                        benchmarks.push(stem.to_string_lossy().to_string());
                     }
                 }
             }
