@@ -83,46 +83,37 @@ export function App() {
             console.log(
               "No execution found, loading flow logs from database...",
             );
-            const flowLogs = await apiClient.getFlowLog(benchmarkId);
-            console.log("Flow logs loaded:", flowLogs);
+            // Get ASCII tree directly from database (single API call)
+            console.log("Loading ASCII tree from database...");
+            const response = await fetch(
+              `/api/v1/ascii-tree/${benchmarkId}/deterministic`,
+            );
 
-            if (flowLogs && Array.isArray(flowLogs) && flowLogs.length > 0) {
-              // Get the most recent flow log
-              const latestFlowLog = flowLogs[flowLogs.length - 1];
-              console.log("Latest flow log:", latestFlowLog);
+            if (response.ok) {
+              const asciiTree = await response.text();
+              console.log("ASCII tree loaded:", asciiTree);
 
-              // Extract trace data from flow log
-              const traceData = await extractTraceFromFlowLog(latestFlowLog);
-              console.log("Extracted trace data:", traceData);
-
-              // Create execution from flow log data
-              const flowExecution = {
-                id: latestFlowLog.session_id,
+              // Create execution from historical data
+              const historicalExecution = {
+                id: `historical-${benchmarkId}-${Date.now()}`,
                 benchmark_id: benchmarkId,
-                agent: latestFlowLog.agent_type,
-                status: latestFlowLog.final_result?.success
-                  ? "Completed"
-                  : "Failed",
+                agent: "deterministic",
+                status: "Completed",
                 progress: 100,
-                start_time: (latestFlowLog as any).start_time?.secs_since_epoch
-                  ? new Date(
-                      (latestFlowLog as any).start_time.secs_since_epoch * 1000,
-                    ).toISOString()
-                  : new Date().toISOString(),
-                end_time: (latestFlowLog as any).end_time?.secs_since_epoch
-                  ? new Date(
-                      (latestFlowLog as any).end_time.secs_since_epoch * 1000,
-                    ).toISOString()
-                  : undefined,
-                trace: traceData,
-                logs: extractTransactionLogsFromFlowLog(latestFlowLog),
-                score: latestFlowLog.final_result?.score || 0,
+                start_time: new Date().toISOString(),
+                end_time: new Date().toISOString(),
+                trace: asciiTree,
+                logs: "",
+                score: 0, // We don't have score in this simple approach
               };
 
-              console.log("Created execution from flow log:", flowExecution);
-              setCurrentExecution(flowExecution);
+              console.log("Created historical execution:", historicalExecution);
+              setCurrentExecution(historicalExecution);
+            } else if (response.status === 404) {
+              console.log("No ASCII tree found for benchmark:", benchmarkId);
+              setCurrentExecution(null);
             } else {
-              console.log("No flow logs found for benchmark:", benchmarkId);
+              console.error("Failed to get ASCII tree:", response.statusText);
               setCurrentExecution(null);
             }
           } catch (error) {

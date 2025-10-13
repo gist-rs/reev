@@ -57,9 +57,18 @@ impl Db {
                 FOREIGN KEY (flow_log_id) REFERENCES flow_logs (id)
             );
 
+            CREATE TABLE IF NOT EXISTS yml_testresults (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                benchmark_id TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                yml_content TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE INDEX IF NOT EXISTS idx_flow_logs_benchmark_agent ON flow_logs(benchmark_id, agent_type);
             CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score);
             CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_yml_testresults_benchmark_agent ON yml_testresults(benchmark_id, agent_type);
         ";
         conn.execute(schema_query, ())
             .await

@@ -132,6 +132,15 @@ async fn main() -> Result<()> {
             post(parse_yml_to_testresult),
         )
         .route("/api/v1/render-ascii-tree", post(render_ascii_tree))
+        // YML TestResult endpoints for historical access
+        .route(
+            "/api/v1/yml-testresult/{benchmark_id}/{agent_type}",
+            get(get_yml_testresult),
+        )
+        .route(
+            "/api/v1/ascii-tree/{benchmark_id}/{agent_type}",
+            get(get_ascii_tree_direct),
+        )
         // Test endpoint without JSON
         .route("/api/v1/test", get(test_endpoint))
         // Test POST endpoint without JSON
@@ -517,6 +526,15 @@ async fn execute_benchmark_background(
                         ascii_trace.len()
                     );
 
+                    // Store YML TestResult in database for historical access
+                    if let Err(e) =
+                        store_yml_testresult(&state.db, &benchmark_id, &agent, &test_result).await
+                    {
+                        error!("Failed to store YML TestResult in database: {}", e);
+                    } else {
+                        info!("YML TestResult stored in database for historical access");
+                    }
+
                     // Debug: Log first and last parts of the trace
                     if ascii_trace.len() > 0 {
                         let first_part = if ascii_trace.len() > 100 {
@@ -778,6 +796,73 @@ async fn store_flow_log(db: &Db, benchmark_id: &str, trace_data: &str) -> Result
     Ok(())
 }
 
+/// Store YML TestResult in database for historical access
+async fn store_yml_testresult(
+    db: &Db,
+    benchmark_id: &str,
+    agent: &str,
+    test_result: &reev_lib::results::TestResult,
+) -> Result<()> {
+    // Convert TestResult to YML string
+    let yml_content =
+        serde_yaml::to_string(test_result).context("Failed to serialize TestResult to YML")?;
+
+    let query = "
+        INSERT OR REPLACE INTO yml_testresults (
+            benchmark_id,
+            agent_type,
+            yml_content,
+            created_at
+        ) VALUES (?1, ?2, ?3, datetime('now'))
+    ";
+
+    db.conn
+        .execute(query, [benchmark_id, agent, yml_content.as_str()])
+        .await
+        .context("Failed to store YML TestResult in database")?;
+
+    info!(
+        "YML TestResult stored for benchmark: {} by agent: {}",
+        benchmark_id, agent
+    );
+    Ok(())
+}
+
+/// Get YML TestResult for a benchmark
+async fn get_yml_testresult(
+    State(state): State<ApiState>,
+    Path((benchmark_id, agent_type)): Path<(String, String)>,
+) -> impl IntoResponse {
+    info!(
+        "Getting YML TestResult for benchmark: {} by agent: {}",
+        benchmark_id, agent_type
+    );
+
+    let query = "
+        SELECT yml_content FROM yml_testresults
+        WHERE benchmark_id = ?1 AND agent_type = ?2
+        ORDER BY created_at DESC
+        LIMIT 1
+    ";
+
+    match state
+        .conn
+        .query_row(query, [benchmark_id.as_str(), agent_type.as_str()], |row| {
+            row.get::<_, String>(0)
+        })
+        .await
+    {
+        Ok(yml_content) => {
+            info!("Found YML TestResult for benchmark: {}", benchmark_id);
+            (StatusCode::OK, [("Content-Type", "text/yaml")], yml_content).into_response()
+        }
+        Err(_) => {
+            info!("No YML TestResult found for benchmark: {}", benchmark_id);
+            (StatusCode::NOT_FOUND, "No YML TestResult found").into_response()
+        }
+    }
+}
+
 /// Get flow logs for a benchmark
 async fn get_flow_log(
     State(state): State<ApiState>,
@@ -806,6 +891,64 @@ async fn get_flow_log(
             error!("Failed to get YML flow logs: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow logs").into_response()
         }
+    }
+
+    /// Get ASCII tree directly from YML TestResult in database
+    async fn get_ascii_tree_direct(
+        State(state): State<ApiState>,
+        Path((benchmark_id, agent_type)): Path<(String, String)>,
+    ) -> impl IntoResponse {
+        info!(
+            "Getting ASCII tree for benchmark: {} by agent: {}",
+            benchmark_id, agent_type
+        );
+
+        // Get YML TestResult from database
+        let query = "
+            SELECT yml_content FROM yml_testresults
+            WHERE benchmark_id = ?1 AND agent_type = ?2
+            ORDER BY created_at DESC
+            LIMIT 1
+        ";
+
+        let yml_content = match state
+            .conn
+            .query_row(query, [benchmark_id.as_str(), agent_type.as_str()], |row| {
+                row.get::<_, String>(0)
+            })
+            .await
+        {
+            Ok(yml) => {
+                info!("Found YML TestResult for benchmark: {}", benchmark_id);
+                yml
+            }
+            Err(_) => {
+                info!("No YML TestResult found for benchmark: {}", benchmark_id);
+                return (StatusCode::NOT_FOUND, "No YML TestResult found").into_response();
+            }
+        };
+
+        // Parse YML to TestResult
+        let test_result: reev_lib::results::TestResult = match serde_yaml::from_str(&yml_content) {
+            Ok(result) => result,
+            Err(e) => {
+                error!("Failed to parse YML to TestResult: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to parse YML: {}", e),
+                )
+                    .into_response();
+            }
+        };
+
+        // Render as ASCII tree
+        let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
+
+        info!(
+            "Successfully rendered ASCII tree for benchmark: {}",
+            benchmark_id
+        );
+        (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree).into_response()
     }
 }
 
