@@ -81,19 +81,26 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
       const pollExecution = async () => {
         try {
           // Get execution status from backend
+          console.log(`Polling API for ${benchmarkId} (${executionId})`);
           const updatedExecution = await apiClient.getExecutionStatus(
             benchmarkId,
             executionId,
           );
 
+          console.log(`API response for ${benchmarkId}:`, updatedExecution);
+
           if (updatedExecution) {
             console.log(
-              `Polled update for ${benchmarkId}:`,
+              `✅ Polled update for ${benchmarkId}:`,
               updatedExecution.status,
             );
             setExecutions((prev) => {
               const updated = new Map(prev);
               updated.set(benchmarkId, updatedExecution);
+              console.log(
+                `Updated executions map for ${benchmarkId}:`,
+                Array.from(updated.entries()),
+              );
               return updated;
             });
 
@@ -107,6 +114,8 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
               );
               stopPolling(benchmarkId);
             }
+          } else {
+            console.log(`❌ No execution data returned for ${benchmarkId}`);
           }
         } catch (error) {
           console.error(`Failed to poll execution ${executionId}:`, error);
