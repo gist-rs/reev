@@ -30,16 +30,20 @@ interface AgentPerformanceSummary {
 
 interface BenchmarkGridProps {
   className?: string;
+  refreshTrigger?: number;
 }
 
-export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
+export function BenchmarkGrid({
+  className = "",
+  refreshTrigger = 0,
+}: BenchmarkGridProps) {
   const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
     null,
   );
 
   // Get benchmark list and agent performance data
   const { benchmarks } = useBenchmarkList();
-  const { data, loading, error } = useAgentPerformance();
+  const { data, loading, error, refetch } = useAgentPerformance();
   const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -61,6 +65,16 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
 
     loadBenchmarks();
   }, []);
+
+  // Refetch performance data when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log(
+        "🔄 Refreshing performance overview due to benchmark completion",
+      );
+      refetch();
+    }
+  }, [refreshTrigger, refetch]);
 
   const handleBenchmarkClick = useCallback((result: BenchmarkResult) => {
     setSelectedResult(result);

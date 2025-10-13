@@ -33,6 +33,10 @@ export function App() {
     refetch,
   } = useBenchmarkExecution();
 
+  // State for performance overview refresh
+  const [performanceOverviewRefresh, setPerformanceOverviewRefresh] =
+    useState(0);
+
   // Keep currentExecution in sync with executions map
   useEffect(() => {
     console.log("=== EXECUTION SYNC CHECK ===");
@@ -259,6 +263,9 @@ export function App() {
       console.log("executions map before:", Array.from(executions.entries()));
       setIsRunning(true);
 
+      // Trigger performance overview refresh for execution start
+      setPerformanceOverviewRefresh((prev) => prev + 1);
+
       // Find the execution and update current
       const execution = Array.from(executions.values()).find(
         (exec) => exec.id === executionId,
@@ -277,7 +284,12 @@ export function App() {
         console.log("No execution found for ID:", executionId);
       }
     },
-    [executions, updateExecution, currentExecution],
+    [
+      executions,
+      updateExecution,
+      currentExecution,
+      setPerformanceOverviewRefresh,
+    ],
   );
 
   // Focused polling now handles getting the ASCII tree, no need for verification here
@@ -291,13 +303,16 @@ export function App() {
 
       setIsRunning(false);
 
+      // Trigger performance overview refresh for individual benchmark completion
+      setPerformanceOverviewRefresh((prev) => prev + 1);
+
       // If this is the currently selected benchmark, update currentExecution immediately
       if (selectedBenchmark === benchmarkId) {
         console.log("Updating currentExecution for completed benchmark");
         setCurrentExecution(execution);
       }
     },
-    [selectedBenchmark],
+    [selectedBenchmark, setPerformanceOverviewRefresh],
   );
 
   const handleStopExecution = useCallback(() => {
@@ -314,6 +329,9 @@ export function App() {
 
       // Notify BenchmarkList component
       handleExecutionComplete(benchmarkId, execution);
+
+      // Trigger performance overview refresh
+      setPerformanceOverviewRefresh((prev) => prev + 1);
 
       // Continue to next benchmark in queue
       currentRunAllIndex.current++;
@@ -400,7 +418,7 @@ export function App() {
 
         {/* Overview Content */}
         <div className="flex-1 overflow-auto">
-          <BenchmarkGrid />
+          <BenchmarkGrid refreshTrigger={performanceOverviewRefresh} />
         </div>
       </div>
 
