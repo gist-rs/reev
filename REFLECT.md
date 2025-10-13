@@ -1,5 +1,61 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-13: Run All Sequential Execution Fix - Critical Web Feature Resolved
+
+### 🎯 **Problem Solved**
+The "Run All" feature was completing the first benchmark successfully but getting stuck and never continuing to subsequent benchmarks. This was a critical blocker for batch operations.
+
+### 🔧 **Root Cause Analysis**
+The issue was caused by React closure stale references in the `handleRunAllBenchmarks` function. The component captured a stale reference to the `executions` map, so even though the hook correctly updated state and detected completion, the "Run All" logic couldn't see the updated state.
+
+**Evidence from logs:**
+- ✅ Hook updates: `Executions map after update: [Array(2)]`
+- ✅ Execution Details: Shows completed benchmark with full trace  
+- ❌ Run All: `executions keys: []`, `found execution: undefined`
+
+### 🔧 **Solution Implemented**
+Implemented a callback-based sequential execution architecture:
+
+**Key Changes:**
+1. **Single Hook Instance**: Both App and BenchmarkList now use the same `useBenchmarkExecution` hook instance
+2. **App-Level Completion Callback**: Completion callback managed in App component where hook instance lives
+3. **Direct API Calls**: Instead of complex ref-based communication, App component directly calls API for next benchmarks
+4. **Automatic Benchmark Selection**: Callback automatically selects next benchmark so Execution Details panel shows progress
+
+**Technical Implementation:**
+```typescript
+const runAllCompletionCallback = async (benchmarkId, execution) => {
+  // Continue to next benchmark in queue
+  const nextBenchmark = runAllQueue.current[currentRunAllIndex.current];
+  
+  // Auto-select for Execution Details display
+  handleBenchmarkSelect(nextBenchmark.id);
+  
+  // Start next benchmark directly via API
+  const response = await apiClient.runBenchmark(nextBenchmark.id, { agent });
+  updateExecution(nextBenchmark.id, response);
+};
+```
+
+### 📊 **Impact Achieved**
+- ✅ **Sequential Execution**: Run All now properly sequences through all benchmarks
+- ✅ **Automatic Switching**: Execution Details panel auto-focuses on current benchmark
+- ✅ **Better UX**: Instant transition between benchmarks without timeout waiting
+- ✅ **Cleaner Architecture**: Eliminated complex ref-based communication patterns
+
+### 🎓 **Lessons Learned**
+- **React Closure Management**: Stale references are a common issue in React callbacks
+- **Hook Instance Management**: Multiple instances of the same hook can cause state synchronization issues
+- **Simpler is Better**: Direct API calls are more reliable than complex component communication patterns
+
+### 🚀 **Current Status**
+- ✅ **Run All Feature**: Fully operational across all benchmarks
+- ✅ **Execution Details**: Properly tracks and displays current benchmark
+- ✅ **State Management**: Consistent across all components
+- ✅ **Production Ready**: Core web functionality complete
+
+---
+
 ## 2025-10-13: Web Interface Integration Complete - Platform Transformation Milestone
 
 ### 🎯 **Major Achievement**
