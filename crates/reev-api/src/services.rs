@@ -161,30 +161,25 @@ pub async fn execute_benchmark_background(
                 }
             }
 
-            // Store result in database
-            let db_clone = state.db.clone();
-            let benchmark_id_clone = benchmark_id.clone();
-            let agent_clone = agent.clone();
+            // Store result in database - serialize access to avoid SQLite locking
+            // Store result in database sequentially (no concurrent access)
+            if let Err(e) = store_benchmark_result(
+                &state.db,
+                &benchmark_id,
+                &agent,
+                test_result.score,
+            )
+            .await
+            {
+                error!("Failed to store benchmark result: {}", e);
+            }
 
-            tokio::spawn(async move {
-                if let Err(e) = store_benchmark_result(
-                    &db_clone,
-                    &benchmark_id_clone,
-                    &agent_clone,
-                    test_result.score,
-                )
-                .await
-                {
-                    error!("Failed to store benchmark result: {}", e);
-                }
-
-                // Store flow log in database
-                if let Err(e) =
-                    store_flow_log_from_result(&db_clone, &benchmark_id_clone, &test_result).await
-                {
-                    error!("Failed to store flow log: {}", e);
-                }
-            });
+            // Store flow log in database
+            if let Err(e) =
+                store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await
+            {
+                error!("Failed to store flow log: {}", e);
+            }
         }
         Err(e) => {
             error!("Benchmark execution failed: {}", e);
@@ -403,18 +398,28 @@ pub async fn store_yml_testresult(
     let yml_content = serde_yaml::to_string(test_result)
         .map_err(|e| anyhow::anyhow!("Failed to serialize TestResult to YML: {e}"))?;
 
+    info!("Attempting to store YML TestResult ({} chars) in database", yml_content.len());
+
     // Use a method to insert YML TestResult instead of accessing private conn
-    if let Err(e) = db
+    match db
         .insert_yml_testresult(benchmark_id, agent, &yml_content)
         .await
     {
-        error!("YML TestResult insertion error: {:?}", e);
-        error!("YML content length: {} chars", yml_content.len());
-        error!(
-            "YML content preview: {}",
-            &yml_content[..yml_content.len().min(200)]
-        );
-        return Err(e.context("Failed to store YML TestResult in database"));
+        Ok(_) => {
+            info!("Successfully stored YML TestResult in database");
+        }
+        Err(e) => {
+            error!("YML TestResult insertion error: {:?}", e);
+            error!("YML content length: {} chars", yml_content.len());
+            error!(
+                "YML content preview: {}",
+                &yml_content[..yml_content.len().min(200)]
+            );
+
+            // Try to understand the specific error
+            if e.to_string().contains("UNIQUE constraint") {
+                error!("This might be a duplicate entry issue");
+            } else if e.to_string().contains("database is locked")xt("Failed to store YML TestResult in database"));
     }
 
     info!("YML TestResult stored for benchmark: {benchmark_id} by agent: {agent}");
