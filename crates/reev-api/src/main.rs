@@ -164,15 +164,17 @@ async fn list_benchmarks() -> Json<Vec<String>> {
     let benchmarks = vec![
         "001-sol-transfer".to_string(),
         "002-spl-transfer".to_string(),
-        "003-jupiter-swap".to_string(),
-        "004-jupiter-lend".to_string(),
-        "005-jupiter-mint".to_string(),
-        "006-jupiter-redeem".to_string(),
-        "007-kamino-lend".to_string(),
-        "008-kamino-withdraw".to_string(),
-        "009-meteora-swap".to_string(),
-        "010-orca-swap".to_string(),
-        "011-raydium-swap".to_string(),
+        "003-spl-transfer-fail".to_string(),
+        "004-partial-score-spl-transfer".to_string(),
+        "100-jup-swap-sol-usdc".to_string(),
+        "110-jup-lend-deposit-sol".to_string(),
+        "111-jup-lend-deposit-usdc".to_string(),
+        "112-jup-lend-withdraw-sol".to_string(),
+        "113-jup-lend-withdraw-usdc".to_string(),
+        "114-jup-positions-and-earnings".to_string(),
+        "115-jup-lend-mint-usdc".to_string(),
+        "116-jup-lend-redeem-usdc".to_string(),
+        "200-jup-swap-then-lend-deposit".to_string(),
     ];
     Json(benchmarks)
 }
