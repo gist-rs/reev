@@ -15,9 +15,16 @@ export function BenchmarkBox({
   onClick,
   className = "",
 }: BenchmarkBoxProps) {
-  const getColorClass = (score: number): string => {
-    if (score >= 1.0) return "bg-green-500"; // 100%
-    if (score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
+  const getColorClass = (result: BenchmarkResult): string => {
+    // Use color_class if specified, otherwise fall back to score-based logic
+    if (result.color_class === "gray") return "bg-gray-400";
+    if (result.color_class === "green") return "bg-green-500";
+    if (result.color_class === "yellow") return "bg-yellow-500";
+    if (result.color_class === "red") return "bg-red-500";
+
+    // Fallback to score-based logic
+    if (result.score >= 1.0) return "bg-green-500"; // 100%
+    if (result.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
     return "bg-red-500"; // <25%
   };
 
@@ -27,7 +34,7 @@ export function BenchmarkBox({
     }
   };
 
-  const baseClasses = `${getColorClass(result.score)} hover:opacity-80 transition-opacity cursor-pointer`;
+  const baseClasses = `${getColorClass(result)} hover:opacity-80 transition-opacity cursor-pointer`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,

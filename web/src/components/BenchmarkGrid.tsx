@@ -43,6 +43,9 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
   const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // All agent types that should be displayed
+  const ALL_AGENT_TYPES = ["deterministic", "local", "gemini", "glm-4.6"];
+
   // Load all benchmarks from API
   useEffect(() => {
     const loadBenchmarks = async () => {
@@ -200,100 +203,114 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
 
         {/* Agent Sections */}
         <div className="space-y-6">
-          {data.map((agent) => (
-            <div
-              key={agent.agent_type}
-              className="bg-white rounded-lg shadow-sm border p-4"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">{agent.agent_type}</h3>
-                <div className="text-sm text-gray-600">
-                  <span className="mr-4">
-                    Avg:{" "}
-                    <span
-                      className={
-                        agent.average_score >= 1.0
-                          ? "text-green-600"
-                          : agent.average_score >= 0.25
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                      }
-                    >
-                      {(agent.average_score * 100).toFixed(1)}%
+          {ALL_AGENT_TYPES.map((agentType) => {
+            // Find the agent data from the API results, or create placeholder
+            const agentData = data.find((a) => a.agent_type === agentType) || {
+              agent_type: agentType,
+              total_benchmarks: 0,
+              average_score: 0,
+              success_rate: 0,
+              best_benchmarks: [],
+              worst_benchmarks: [],
+              results: [],
+            };
+
+            return (
+              <div
+                key={agentType}
+                className="bg-white rounded-lg shadow-sm border p-4"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">{agentType}</h3>
+                  <div className="text-sm text-gray-600">
+                    <span className="mr-4">
+                      Avg:{" "}
+                      <span
+                        className={
+                          agentData.average_score >= 1.0
+                            ? "text-green-600"
+                            : agentData.average_score >= 0.25
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                        }
+                      >
+                        {(agentData.average_score * 100).toFixed(1)}%
+                      </span>
                     </span>
-                  </span>
-                  <span>
-                    Success:{" "}
-                    <span
-                      className={
-                        agent.success_rate >= 0.9
-                          ? "text-green-600"
-                          : agent.success_rate >= 0.7
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                      }
-                    >
-                      {(agent.success_rate * 100).toFixed(1)}%
+                    <span>
+                      Success:{" "}
+                      <span
+                        className={
+                          agentData.success_rate >= 0.9
+                            ? "text-green-600"
+                            : agentData.success_rate >= 0.7
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                        }
+                      >
+                        {(agentData.success_rate * 100).toFixed(1)}%
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                </div>
+
+                {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
+                <div className="flex flex-wrap gap-1">
+                  {(() => {
+                    // Create a map of all benchmark results for this agent
+                    const resultsMap = new Map();
+                    agentData.results.forEach((result) => {
+                      const benchmarkId = result.benchmark_id;
+                      const existing = resultsMap.get(benchmarkId);
+                      if (
+                        !existing ||
+                        new Date(result.timestamp) >
+                          new Date(existing.timestamp)
+                      ) {
+                        resultsMap.set(benchmarkId, result);
+                      }
+                    });
+
+                    // Show all benchmarks, creating grey boxes for untested ones
+                    return allBenchmarks.map((benchmarkId) => {
+                      const result = resultsMap.get(benchmarkId);
+
+                      if (result) {
+                        // Tested benchmark - show actual result
+                        return (
+                          <BenchmarkBox
+                            key={`${agentType}-${benchmarkId}`}
+                            result={result}
+                            onClick={handleBenchmarkClick}
+                          />
+                        );
+                      } else {
+                        // Untested benchmark - create grey placeholder result
+                        const placeholderResult: BenchmarkResult = {
+                          id: `placeholder-${agentType}-${benchmarkId}`,
+                          benchmark_id: benchmarkId,
+                          agent_type: agentType,
+                          score: 0,
+                          final_status: "Not Tested",
+                          execution_time_ms: 0,
+                          timestamp: new Date().toISOString(),
+                          color_class: "gray",
+                        };
+
+                        return (
+                          <BenchmarkBox
+                            key={`${agentType}-${benchmarkId}`}
+                            result={placeholderResult}
+                            onClick={handleBenchmarkClick}
+                          />
+                        );
+                      }
+                    });
+                  })()}
                 </div>
               </div>
-
-              {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
-              <div className="flex flex-wrap gap-1">
-                {(() => {
-                  // Create a map of all benchmark results for this agent
-                  const resultsMap = new Map();
-                  agent.results.forEach((result) => {
-                    const benchmarkId = result.benchmark_id;
-                    const existing = resultsMap.get(benchmarkId);
-                    if (
-                      !existing ||
-                      new Date(result.timestamp) > new Date(existing.timestamp)
-                    ) {
-                      resultsMap.set(benchmarkId, result);
-                    }
-                  });
-
-                  // Show all benchmarks, creating grey boxes for untested ones
-                  return allBenchmarks.map((benchmarkId) => {
-                    const result = resultsMap.get(benchmarkId);
-
-                    if (result) {
-                      // Tested benchmark - show actual result
-                      return (
-                        <BenchmarkBox
-                          key={`${agent.agent_type}-${benchmarkId}`}
-                          result={result}
-                          onClick={handleBenchmarkClick}
-                        />
-                      );
-                    } else {
-                      // Untested benchmark - create grey placeholder result
-                      const placeholderResult: BenchmarkResult = {
-                        id: `placeholder-${agent.agent_type}-${benchmarkId}`,
-                        benchmark_id: benchmarkId,
-                        agent_type: agent.agent_type,
-                        score: 0,
-                        final_status: "Not Tested",
-                        execution_time_ms: 0,
-                        timestamp: new Date().toISOString(),
-                        color_class: "gray",
-                      };
-
-                      return (
-                        <BenchmarkBox
-                          key={`${agent.agent_type}-${benchmarkId}`}
-                          result={placeholderResult}
-                          onClick={handleBenchmarkClick}
-                        />
-                      );
-                    }
-                  });
-                })()}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </main>
 
