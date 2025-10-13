@@ -125,13 +125,19 @@ export function BenchmarkList({
             status.status === "Failed"
           ) {
             // Execution completed or failed - keep polling a bit longer to show final state
+            // Also ensure the parent component gets the final execution state
+            console.log("=== Execution completed ===");
+            console.log("benchmarkId:", benchmarkId);
+            console.log("Final status:", status);
+            console.log("Final trace length:", status.trace?.length || 0);
+
             setTimeout(() => {
               setRunningBenchmarks((prev) => {
                 const updated = new Map(prev);
                 updated.delete(benchmarkId);
                 return updated;
               });
-            }, 2000); // Keep in "running" state for 2 more seconds to show final status
+            }, 3000); // Extended to 3 seconds to ensure final state is captured
           }
         } catch (error) {
           console.error(`Failed to get status for ${benchmarkId}:`, error);

@@ -70,6 +70,18 @@ export function ExecutionTrace({
     }
   }, [execution?.trace, autoScroll]);
 
+  // Also auto-scroll when execution completes
+  useEffect(() => {
+    if (autoScroll && traceRef.current && execution?.status === "Completed") {
+      // Small delay to ensure content is rendered
+      setTimeout(() => {
+        if (traceRef.current) {
+          traceRef.current.scrollTop = traceRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [execution?.status, autoScroll]);
+
   const handleScroll = () => {
     if (traceRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = traceRef.current;

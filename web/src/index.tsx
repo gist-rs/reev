@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useState, useCallback } from "preact/hooks";
+import { useState, useCallback, useEffect } from "preact/hooks";
 import { AgentSelector } from "./components/AgentSelector";
 import { AgentConfig } from "./components/AgentConfig";
 import { BenchmarkList } from "./components/BenchmarkList";
@@ -20,6 +20,29 @@ export function App() {
 
   const [showTransactionLog, setShowTransactionLog] = useState(false);
   const { benchmarks, executions, updateExecution } = useBenchmarkExecution();
+
+  // Keep currentExecution in sync with executions map
+  useEffect(() => {
+    if (selectedBenchmark && executions.has(selectedBenchmark)) {
+      const execution = executions.get(selectedBenchmark);
+      console.log("=== Syncing currentExecution with executions map ===");
+      console.log("selectedBenchmark:", selectedBenchmark);
+      console.log("execution from map:", execution);
+      console.log("current currentExecution:", currentExecution);
+
+      // Only update if the execution is different or has new data
+      if (
+        !currentExecution ||
+        currentExecution.id !== execution?.id ||
+        currentExecution.trace !== execution?.trace ||
+        currentExecution.status !== execution?.status ||
+        currentExecution.progress !== execution?.progress
+      ) {
+        console.log("Updating currentExecution to match executions map");
+        setCurrentExecution(execution);
+      }
+    }
+  }, [executions, selectedBenchmark, currentExecution]);
 
   const handleBenchmarkSelect = useCallback(
     async (benchmarkId: string) => {
@@ -69,14 +92,14 @@ export function App() {
                   ? "Completed"
                   : "Failed",
                 progress: 100,
-                start_time: latestFlowLog.start_time?.secs_since_epoch
+                start_time: (latestFlowLog as any).start_time?.secs_since_epoch
                   ? new Date(
-                      latestFlowLog.start_time.secs_since_epoch * 1000,
+                      (latestFlowLog as any).start_time.secs_since_epoch * 1000,
                     ).toISOString()
                   : new Date().toISOString(),
-                end_time: latestFlowLog.end_time?.secs_since_epoch
+                end_time: (latestFlowLog as any).end_time?.secs_since_epoch
                   ? new Date(
-                      latestFlowLog.end_time.secs_since_epoch * 1000,
+                      (latestFlowLog as any).end_time.secs_since_epoch * 1000,
                     ).toISOString()
                   : undefined,
                 trace: traceData,
@@ -104,7 +127,7 @@ export function App() {
         console.log("Current currentExecution after update:", currentExecution);
       }, 0);
     },
-    [executions],
+    [executions, currentExecution],
   );
 
   // Helper function to extract trace data from flow log
