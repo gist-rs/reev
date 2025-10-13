@@ -81,9 +81,9 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
       const pollExecution = async () => {
         try {
           // Get execution status from backend
-          const executionsList = await apiClient.getExecutions();
-          const updatedExecution = executionsList.find(
-            (exec: any) => exec.id === executionId,
+          const updatedExecution = await apiClient.getExecutionStatus(
+            benchmarkId,
+            executionId,
           );
 
           if (updatedExecution) {
