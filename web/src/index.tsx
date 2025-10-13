@@ -16,14 +16,13 @@ export function App() {
   );
   const [isRunning, setIsRunning] = useState(false);
   const [currentExecution, setCurrentExecution] = useState<any>(null);
-  const [showOverview, setShowOverview] = useState(true);
+
   const [showTransactionLog, setShowTransactionLog] = useState(false);
   const { executions, updateExecution } = useExecutionState();
 
   const handleBenchmarkSelect = useCallback(
     (benchmarkId: string) => {
       setSelectedBenchmark(benchmarkId);
-      setShowOverview(false);
 
       // Update current execution if we have one for this benchmark
       const execution = Array.from(executions.values()).find(
@@ -54,10 +53,6 @@ export function App() {
     setIsRunning(false);
   }, []);
 
-  const handleToggleOverview = useCallback(() => {
-    setShowOverview(!showOverview);
-  }, [showOverview]);
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Agent Selector */}
@@ -68,27 +63,19 @@ export function App() {
       />
 
       {/* Performance Overview - Top Section */}
-      {showOverview && (
-        <div className="h-96 border-b bg-white">
-          {/* Overview Header */}
-          <div className="p-4 border-b bg-white">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Performance Overview</h2>
-              <button
-                onClick={handleToggleOverview}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Show Details
-              </button>
-            </div>
-          </div>
-
-          {/* Overview Content */}
-          <div className="flex-1 overflow-auto">
-            <BenchmarkGrid />
+      <div className="h-96 border-b bg-white">
+        {/* Overview Header */}
+        <div className="p-4 border-b bg-white">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Performance Overview</h2>
           </div>
         </div>
-      )}
+
+        {/* Overview Content */}
+        <div className="flex-1 overflow-auto">
+          <BenchmarkGrid />
+        </div>
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -128,14 +115,6 @@ export function App() {
                   : "Execution Details"}
               </h2>
               <div className="flex space-x-2">
-                {!showOverview && (
-                  <button
-                    onClick={handleToggleOverview}
-                    className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                  >
-                    Show Overview
-                  </button>
-                )}
                 {currentExecution && currentExecution.status === "Running" && (
                   <button
                     onClick={handleExecutionComplete}
