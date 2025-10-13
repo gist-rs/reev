@@ -382,16 +382,18 @@ impl Db {
         yml_content: &str,
     ) -> Result<()> {
         let query = "
-            INSERT OR REPLACE INTO yml_testresults (
+            INSERT INTO yml_testresults (
                 benchmark_id,
                 agent_type,
                 yml_content,
                 created_at
-            ) VALUES (?1, ?2, ?3, datetime('now'))
+            ) VALUES (?1, ?2, ?3, ?4);
         ";
 
+        let timestamp = chrono::Utc::now().to_rfc3339();
+
         self.conn
-            .execute(query, [benchmark_id, agent_type, yml_content])
+            .execute(query, [benchmark_id, agent_type, yml_content, &timestamp])
             .await
             .context("Failed to insert YML TestResult into database")?;
 
