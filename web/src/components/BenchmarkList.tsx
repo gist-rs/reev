@@ -26,6 +26,51 @@ export function BenchmarkList({
   const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
     new Set(),
   );
+  const [historicalResults, setHistoricalResults] = useState<Map<string, any>>(
+    new Map(),
+  );
+
+  // Load historical benchmark results on component mount
+  useEffect(() => {
+    const loadHistoricalResults = async () => {
+      try {
+        const results = await apiClient.getAgentPerformance();
+        const resultsMap = new Map();
+
+        // Group results by benchmarkId for the selected agent
+        results.forEach((agentSummary) => {
+          if (agentSummary.agent_type === selectedAgent) {
+            agentSummary.results.forEach((result) => {
+              const key = `${result.benchmark_id}`;
+              if (
+                !resultsMap.has(key) ||
+                new Date(result.timestamp) >
+                  new Date(resultsMap.get(key).timestamp)
+              ) {
+                resultsMap.set(key, {
+                  ...result,
+                  status:
+                    result.final_status === "Succeeded"
+                      ? "Completed"
+                      : "Failed",
+                  progress: 100,
+                  execution_id: result.id,
+                  agentType: result.agent_type,
+                  benchmarkId: result.benchmark_id,
+                });
+              }
+            });
+          }
+        });
+
+        setHistoricalResults(resultsMap);
+      } catch (error) {
+        console.error("Failed to load historical results:", error);
+      }
+    };
+
+    loadHistoricalResults();
+  }, [selectedAgent]);
 
   // Poll for execution status updates
   useEffect(() => {
@@ -272,8 +317,15 @@ export function BenchmarkList({
         <div className="divide-y">
           {benchmarks.benchmarks.map((benchmark) => {
             const execution = getBenchmarkStatus(benchmark.id);
-            const status = execution?.status || null;
-            const score = getBenchmarkScore(benchmark.id);
+            const historicalResult = historicalResults.get(benchmark.id);
+            const status =
+              execution?.status || historicalResult?.status || null;
+            const score =
+              execution?.status === "Completed"
+                ? getBenchmarkScore(benchmark.id)
+                : historicalResult?.final_status === "Succeeded"
+                  ? historicalResult.score || 1.0
+                  : 0;
             const isSelected = selectedBenchmark === benchmark.id;
 
             return (
@@ -297,7 +349,9 @@ export function BenchmarkList({
                     <span
                       className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
                     >
-                      {status === "Completed" ? formatScore(score) : "000%"}
+                      {status === "Completed" || status === "Failed"
+                        ? formatScore(score)
+                        : "000%"}
                     </span>
 
                     {/* Benchmark Name */}
