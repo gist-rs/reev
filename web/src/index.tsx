@@ -23,6 +23,22 @@ export function App() {
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
+    console.log("=== EXECUTION SYNC CHECK ===");
+    console.log("selectedBenchmark:", selectedBenchmark);
+    console.log(
+      "executions.has(selectedBenchmark):",
+      executions.has(selectedBenchmark),
+    );
+    console.log("executions map keys:", Array.from(executions.keys()));
+    console.log(
+      "executions map values:",
+      Array.from(executions.values()).map((e) => ({
+        id: e.id,
+        benchmark_id: e.benchmark_id,
+        status: e.status,
+      })),
+    );
+
     if (selectedBenchmark && executions.has(selectedBenchmark)) {
       const execution = executions.get(selectedBenchmark);
       console.log("=== Syncing currentExecution with executions map ===");
@@ -58,7 +74,11 @@ export function App() {
 
   const handleBenchmarkSelect = useCallback(
     async (benchmarkId: string) => {
+      console.log("=== BENCHMARK SELECTED ===");
+      console.log("benchmarkId:", benchmarkId);
+      console.log("Previous selectedBenchmark:", selectedBenchmark);
       setSelectedBenchmark(benchmarkId);
+      console.log("Set selectedBenchmark to:", benchmarkId);
 
       // Update current execution if we have one for this benchmark
       const execution = Array.from(executions.values()).find(
@@ -221,6 +241,10 @@ export function App() {
 
   const handleExecutionStart = useCallback(
     (executionId: string) => {
+      console.log("=== EXECUTION START ===");
+      console.log("executionId:", executionId);
+      console.log("selectedBenchmark:", selectedBenchmark);
+      console.log("executions map before:", Array.from(executions.entries()));
       setIsRunning(true);
 
       // Find the execution and update current
