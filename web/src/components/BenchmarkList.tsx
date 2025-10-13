@@ -105,6 +105,20 @@ export function BenchmarkList({
             executionId,
           );
 
+          // Debug the API response
+          console.log("=== API RESPONSE DEBUG ===");
+          console.log("benchmarkId:", benchmarkId);
+          console.log("executionId:", executionId);
+          console.log("status.status:", status.status);
+          console.log("status.progress:", status.progress);
+          console.log("status.trace length:", status.trace?.length || 0);
+          console.log(
+            "status.trace preview:",
+            status.trace?.substring(0, 100) || "NO TRACE",
+          );
+          console.log("status.end_time:", status.end_time);
+          console.log("=== END API RESPONSE DEBUG ===");
+
           // Update the shared execution state for parent components
           console.log("Updating execution for benchmark:", benchmarkId, status);
           updateExecution(benchmarkId, {
@@ -159,7 +173,7 @@ export function BenchmarkList({
                 updated.delete(benchmarkId);
                 return updated;
               });
-            }, 3000); // Extended to 3 seconds to ensure final state is captured
+            }, 3000); // Keep in "running" state for 3 more seconds to show final status
           }
         } catch (error) {
           console.error(`Failed to get status for ${benchmarkId}:`, error);
