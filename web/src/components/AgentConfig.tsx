@@ -13,6 +13,18 @@ interface AgentConfigProps {
   onConfigSaved?: (agentType: string) => void;
 }
 
+// Default API URLs for each agent type
+const DEFAULT_API_URLS: Record<string, string> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta",
+  "glm-4.6": "https://open.bigmodel.cn/api/paas/v4",
+  local: "http://localhost:8080/api",
+  deterministic: "",
+};
+
+function getDefaultApiUrl(agentType: string): string {
+  return DEFAULT_API_URLS[agentType] || "";
+}
+
 export function AgentConfig({
   selectedAgent,
   isRunning,
@@ -20,7 +32,7 @@ export function AgentConfig({
 }: AgentConfigProps) {
   const [config, setConfig] = useState<AgentConfigType>({
     agent_type: selectedAgent,
-    api_url: "",
+    api_url: getDefaultApiUrl(selectedAgent),
     api_key: "",
   });
   const [loading, setLoading] = useState(false);
@@ -116,7 +128,7 @@ export function AgentConfig({
   const handleReset = useCallback(() => {
     setConfig({
       agent_type: selectedAgent,
-      api_url: "",
+      api_url: getDefaultApiUrl(selectedAgent),
       api_key: "",
     });
     setTestResult(null);
@@ -177,12 +189,22 @@ export function AgentConfig({
             onChange={(e) =>
               handleInputChange("api_url", e.currentTarget.value)
             }
-            placeholder="https://api.example.com"
+            placeholder={
+              getDefaultApiUrl(selectedAgent) || "https://api.example.com"
+            }
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             disabled={isRunning}
           />
           <p className="text-xs text-gray-500 mt-1">
             Enter the API endpoint for the {selectedAgent} service
+            {getDefaultApiUrl(selectedAgent) && (
+              <span className="block mt-1">
+                Default:{" "}
+                <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">
+                  {getDefaultApiUrl(selectedAgent)}
+                </code>
+              </span>
+            )}
           </p>
         </div>
 
