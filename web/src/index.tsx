@@ -64,6 +64,29 @@ export function App() {
         isRunning={isRunning}
       />
 
+      {/* Performance Overview - Top Section */}
+      {showOverview && (
+        <div className="h-96 border-b bg-white">
+          {/* Overview Header */}
+          <div className="p-4 border-b bg-white">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Performance Overview</h2>
+              <button
+                onClick={handleToggleOverview}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Show Details
+              </button>
+            </div>
+          </div>
+
+          {/* Overview Content */}
+          <div className="flex-1 overflow-auto">
+            <BenchmarkGrid />
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Benchmark List */}
@@ -77,69 +100,44 @@ export function App() {
           />
         </div>
 
-        {/* Right Panel - Execution Trace or Overview */}
+        {/* Right Panel - Execution Trace */}
         <div className="flex-1 flex flex-col">
-          {showOverview ? (
-            <>
-              {/* Overview Header */}
-              <div className="p-4 border-b bg-white">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
-                    Performance Overview
-                  </h2>
+          {/* Details Header */}
+          <div className="p-4 border-b bg-white">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                {selectedBenchmark
+                  ? `Benchmark: ${selectedBenchmark}`
+                  : "Execution Details"}
+              </h2>
+              <div className="flex space-x-2">
+                {!showOverview && (
                   <button
                     onClick={handleToggleOverview}
-                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                   >
-                    Show Details
+                    Show Overview
                   </button>
-                </div>
+                )}
+                {currentExecution && currentExecution.status === "Running" && (
+                  <button
+                    onClick={handleExecutionComplete}
+                    className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  >
+                    Stop Execution
+                  </button>
+                )}
               </div>
+            </div>
+          </div>
 
-              {/* Overview Content */}
-              <div className="flex-1 overflow-auto">
-                <BenchmarkGrid />
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Details Header */}
-              <div className="p-4 border-b bg-white">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
-                    {selectedBenchmark
-                      ? `Benchmark: ${selectedBenchmark}`
-                      : "Execution Details"}
-                  </h2>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={handleToggleOverview}
-                      className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                    >
-                      Show Overview
-                    </button>
-                    {currentExecution &&
-                      currentExecution.status === "Running" && (
-                        <button
-                          onClick={handleExecutionComplete}
-                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                        >
-                          Stop Execution
-                        </button>
-                      )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Execution Details */}
-              <div className="flex-1">
-                <ExecutionTrace
-                  execution={currentExecution}
-                  isRunning={isRunning}
-                />
-              </div>
-            </>
-          )}
+          {/* Execution Details */}
+          <div className="flex-1">
+            <ExecutionTrace
+              execution={currentExecution}
+              isRunning={isRunning}
+            />
+          </div>
         </div>
       </div>
     </div>
