@@ -141,12 +141,6 @@ export function BenchmarkList({
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
-    console.log(
-      "Starting Run All for",
-      benchmarks.benchmarks.length,
-      "benchmarks",
-    );
-
     // Auto-select the first benchmark for Execution Details display
     if (benchmarks.benchmarks.length > 0 && !selectedBenchmark) {
       const firstBenchmark = benchmarks.benchmarks[0];
@@ -183,9 +177,9 @@ export function BenchmarkList({
         const checkCompletion = () => {
           checkCount++;
 
-          // Look for execution using the hook state directly
-          // This prevents stale reference issues in the completion check
-          const execution = Array.from(executions.values()).find(
+          // Get fresh executions reference each time to prevent stale reference issues
+          const currentExecutions = Array.from(executions.values());
+          const execution = currentExecutions.find(
             (exec) =>
               exec.benchmark_id === benchmark.id && exec.id === executionId,
           );
@@ -193,13 +187,6 @@ export function BenchmarkList({
           console.log(
             `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
           );
-          console.log(
-            `DEBUG: executions.has(${benchmark.id}):`,
-            executions.has(benchmark.id),
-          );
-          console.log(`DEBUG: executions keys:`, Array.from(executions.keys()));
-          console.log(`DEBUG: looking for execution with key:`, benchmark.id);
-          console.log(`DEBUG: found execution:`, execution);
 
           if (
             execution &&
@@ -229,7 +216,7 @@ export function BenchmarkList({
     // Refresh overview when all benchmarks are complete
     console.log("All benchmarks completed, refreshing overview");
     refetch();
-  }, [benchmarks, isRunning, handleRunBenchmark, executions, refetch]);
+  }, [benchmarks, isRunning, handleRunBenchmark, updateExecution, refetch]);
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
