@@ -38,6 +38,102 @@ export function BenchmarkList({
     new Map(),
   );
 
+  // Focused polling function to get ASCII tree after completion
+  const startFocusedPolling = useCallback(
+    async (benchmarkId: string, executionId: string, agent: string) => {
+      console.log("=== STARTING FOCUSED POLLING FOR ASCII TREE ===");
+      console.log("benchmarkId:", benchmarkId);
+      console.log("executionId:", executionId);
+
+      let attempts = 0;
+      const maxAttempts = 3;
+      const retryDelay = 3000; // 3 seconds
+
+      const pollForAsciiTree = async () => {
+        attempts++;
+        console.log(`Focused polling attempt ${attempts}/${maxAttempts}`);
+
+        try {
+          const status = await apiClient.getExecutionStatus(
+            benchmarkId,
+            executionId,
+          );
+
+          console.log("=== FOCUSED POLLING RESULT ===");
+          console.log("status:", status.status);
+          console.log("progress:", status.progress);
+          console.log("trace length:", status.trace?.length || 0);
+          console.log("trace preview:", status.trace?.substring(0, 100));
+
+          // Update execution state
+          updateExecution(benchmarkId, {
+            id: status.id,
+            benchmark_id: benchmarkId,
+            agent: agent,
+            status: status.status,
+            progress: status.progress,
+            start_time: status.start_time,
+            end_time: status.end_time,
+            trace: status.trace,
+            logs: status.logs,
+            error: status.error,
+          });
+
+          // Notify parent component
+          onExecutionComplete(benchmarkId, status);
+
+          // Check if we got the ASCII tree
+          if (
+            status.status === "Completed" &&
+            status.trace &&
+            status.trace.length > 50 // ASCII tree should have substantial content
+          ) {
+            console.log("✅ ASCII TREE SUCCESSFULLY RETRIEVED!");
+            console.log("Final trace length:", status.trace.length);
+
+            // Remove from running benchmarks
+            setRunningBenchmarks((prev) => {
+              const updated = new Map(prev);
+              updated.delete(benchmarkId);
+              return updated;
+            });
+            return;
+          }
+
+          // If we haven't got the ASCII tree yet and have more attempts
+          if (attempts < maxAttempts) {
+            console.log(`ASCII tree not ready, retrying in ${retryDelay}ms...`);
+            setTimeout(pollForAsciiTree, retryDelay);
+          } else {
+            console.log("❌ Focused polling failed - no ASCII tree retrieved");
+            // Remove from running anyway after max attempts
+            setRunningBenchmarks((prev) => {
+              const updated = new Map(prev);
+              updated.delete(benchmarkId);
+              return updated;
+            });
+          }
+        } catch (error) {
+          console.error("Focused polling error:", error);
+          if (attempts < maxAttempts) {
+            setTimeout(pollForAsciiTree, retryDelay);
+          } else {
+            // Remove from running after max attempts
+            setRunningBenchmarks((prev) => {
+              const updated = new Map(prev);
+              updated.delete(benchmarkId);
+              return updated;
+            });
+          }
+        }
+      };
+
+      // Start the focused polling
+      pollForAsciiTree();
+    },
+    [updateExecution, onExecutionComplete],
+  );
+
   // Load historical benchmark results on component mount
   useEffect(() => {
     const loadHistoricalResults = async () => {
@@ -105,20 +201,6 @@ export function BenchmarkList({
             executionId,
           );
 
-          // Debug the API response
-          console.log("=== API RESPONSE DEBUG ===");
-          console.log("benchmarkId:", benchmarkId);
-          console.log("executionId:", executionId);
-          console.log("status.status:", status.status);
-          console.log("status.progress:", status.progress);
-          console.log("status.trace length:", status.trace?.length || 0);
-          console.log(
-            "status.trace preview:",
-            status.trace?.substring(0, 100) || "NO TRACE",
-          );
-          console.log("status.end_time:", status.end_time);
-          console.log("=== END API RESPONSE DEBUG ===");
-
           // Update the shared execution state for parent components
           console.log("Updating execution for benchmark:", benchmarkId, status);
           updateExecution(benchmarkId, {
@@ -140,40 +222,18 @@ export function BenchmarkList({
             status.status === "Completed" ||
             status.status === "Failed"
           ) {
-            // Execution completed or failed - keep polling a bit longer to show final state
-            // Also ensure the parent component gets the final execution state
-            console.log("=== Execution completed ===");
+            // Execution completed - trigger focused polling to get ASCII tree
+            console.log(
+              "=== Execution completed - starting focused polling ===",
+            );
             console.log("benchmarkId:", benchmarkId);
             console.log("Final status:", status);
             console.log("Final trace length:", status.trace?.length || 0);
 
-            // Force immediate update to ensure parent component gets the final state
-            const finalExecutionState = {
-              id: status.id,
-              benchmark_id: benchmarkId,
-              agent: selectedAgent,
-              status: status.status,
-              progress: 100,
-              start_time: status.start_time,
-              end_time: status.end_time,
-              trace: status.trace,
-              logs: status.logs,
-              error: status.error,
-            };
+            // Start focused polling to get the ASCII tree
+            startFocusedPolling(benchmarkId, executionId, selectedAgent);
 
-            updateExecution(benchmarkId, finalExecutionState);
-
-            // Notify parent component that execution is complete
-            console.log("=== NOTIFYING PARENT OF COMPLETION ===");
-            onExecutionComplete(benchmarkId, finalExecutionState);
-
-            setTimeout(() => {
-              setRunningBenchmarks((prev) => {
-                const updated = new Map(prev);
-                updated.delete(benchmarkId);
-                return updated;
-              });
-            }, 3000); // Keep in "running" state for 3 more seconds to show final status
+            stillRunning.add(benchmarkId); // Keep in running to prevent removal
           }
         } catch (error) {
           console.error(`Failed to get status for ${benchmarkId}:`, error);
