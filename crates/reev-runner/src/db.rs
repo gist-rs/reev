@@ -335,6 +335,73 @@ impl Db {
         Ok(yml_logs)
     }
 
+    /// Retrieves YML TestResult for a specific benchmark and agent
+    pub async fn get_yml_testresult(
+        &self,
+        benchmark_id: &str,
+        agent_type: &str,
+    ) -> Result<Option<String>> {
+        let query = "
+            SELECT yml_content FROM yml_testresults
+            WHERE benchmark_id = ?1 AND agent_type = ?2
+            ORDER BY created_at DESC
+            LIMIT 1
+        ";
+
+        let mut stmt = self
+            .conn
+            .prepare(query)
+            .await
+            .context("Failed to prepare YML TestResult query")?;
+
+        let mut rows = stmt
+            .query([benchmark_id, agent_type])
+            .await
+            .context("Failed to execute YML TestResult query")?;
+
+        match rows
+            .next()
+            .await
+            .map_err(|e| anyhow::anyhow!("Row iteration error: {e}"))?
+        {
+            Some(row) => {
+                let yml_content: String = row
+                    .get(0)
+                    .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
+                Ok(Some(yml_content))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Inserts YML TestResult into database
+    pub async fn insert_yml_testresult(
+        &self,
+        benchmark_id: &str,
+        agent_type: &str,
+        yml_content: &str,
+    ) -> Result<()> {
+        let query = "
+            INSERT OR REPLACE INTO yml_testresults (
+                benchmark_id,
+                agent_type,
+                yml_content,
+                created_at
+            ) VALUES (?1, ?2, ?3, datetime('now'))
+        ";
+
+        self.conn
+            .execute(query, [benchmark_id, agent_type, yml_content])
+            .await
+            .context("Failed to insert YML TestResult into database")?;
+
+        info!(
+            "YML TestResult stored for benchmark: {} by agent: {}",
+            benchmark_id, agent_type
+        );
+        Ok(())
+    }
+
     /// Retrieves agent performance summary by agent type
     pub async fn get_agent_performance(&self) -> Result<Vec<AgentPerformanceSummary>> {
         let query = "
