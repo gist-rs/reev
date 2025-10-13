@@ -487,10 +487,16 @@ async fn execute_benchmark_background(
             }
 
             // Generate ASCII tree trace from the actual result
+            info!("Generating ASCII tree trace from test result...");
             let ascii_trace = reev_runner::renderer::render_result_as_tree(&test_result);
+            info!("ASCII tree generated, length: {} chars", ascii_trace.len());
 
             // Generate transaction logs from the trace
             let transaction_logs = generate_transaction_logs(&test_result);
+            info!(
+                "Transaction logs generated, length: {} chars",
+                transaction_logs.len()
+            );
 
             // Calculate score as percentage
             let score_percentage = test_result.score * 100.0;
@@ -501,13 +507,34 @@ async fn execute_benchmark_background(
                     execution.status = ExecutionStatus::Completed;
                     execution.progress = 100;
                     execution.end_time = Some(chrono::Utc::now());
-                    execution.trace = ascii_trace;
+                    execution.trace = ascii_trace.clone();
                     execution.logs = transaction_logs;
 
                     info!(
-                        "Benchmark {} completed with score: {:.1}%",
-                        benchmark_id, score_percentage
+                        "Benchmark {} completed with score: {:.1}%, trace length: {}",
+                        benchmark_id,
+                        score_percentage,
+                        ascii_trace.len()
                     );
+
+                    // Debug: Log first and last parts of the trace
+                    if ascii_trace.len() > 0 {
+                        let first_part = if ascii_trace.len() > 100 {
+                            ascii_trace.chars().take(100).collect::<String>()
+                        } else {
+                            ascii_trace.clone()
+                        };
+                        let last_part = if ascii_trace.len() > 100 {
+                            ascii_trace
+                                .chars()
+                                .skip(ascii_trace.len() - 100)
+                                .collect::<String>()
+                        } else {
+                            String::new()
+                        };
+                        debug!("Trace first 100 chars: {}", first_part);
+                        debug!("Trace last 100 chars: {}", last_part);
+                    }
                 }
             }
 

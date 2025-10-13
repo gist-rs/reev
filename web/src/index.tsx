@@ -39,6 +39,18 @@ export function App() {
         currentExecution.progress !== execution?.progress
       ) {
         console.log("Updating currentExecution to match executions map");
+
+        // Add debugging for trace data when execution completes
+        if (execution?.status === "Completed" && execution.trace) {
+          console.log("=== EXECUTION COMPLETED WITH TRACE ===");
+          console.log("Trace length:", execution.trace.length);
+          console.log(
+            "First 200 chars of trace:",
+            execution.trace.substring(0, 200),
+          );
+          console.log("Last 200 chars of trace:", execution.trace.slice(-200));
+        }
+
         setCurrentExecution(execution);
       }
     }
@@ -351,6 +363,9 @@ export function App() {
                   {console.log("=== Rendering ExecutionTrace ===")}
                   {console.log("currentExecution:", currentExecution)}
                   {console.log("isRunning:", isRunning)}
+                  {currentExecution?.status === "Completed" &&
+                    currentExecution?.trace &&
+                    console.log("=== ABOUT TO RENDER COMPLETED EXECUTION ===")}
                   <ExecutionTrace
                     execution={currentExecution}
                     isRunning={isRunning}

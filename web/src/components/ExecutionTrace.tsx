@@ -66,19 +66,47 @@ export function ExecutionTrace({
   // Auto-scroll to bottom when new content is added
   useEffect(() => {
     if (autoScroll && traceRef.current) {
+      console.log("=== AUTO-SCROLL: New trace content detected ===");
+      console.log("Trace length:", execution?.trace?.length || 0);
+      console.log("Auto-scroll enabled:", autoScroll);
       traceRef.current.scrollTop = traceRef.current.scrollHeight;
+      console.log(
+        "Scrolled to bottom, new scrollTop:",
+        traceRef.current.scrollTop,
+      );
     }
   }, [execution?.trace, autoScroll]);
 
-  // Also auto-scroll when execution completes
+  // Also auto-scroll when execution completes - more aggressive
   useEffect(() => {
     if (autoScroll && traceRef.current && execution?.status === "Completed") {
-      // Small delay to ensure content is rendered
-      setTimeout(() => {
+      console.log("=== AUTO-SCROLL: Execution completed ===");
+      console.log("Status:", execution?.status);
+      console.log("Auto-scroll enabled:", autoScroll);
+      console.log("Trace length:", execution?.trace?.length || 0);
+
+      // Multiple attempts to ensure scroll works
+      const scrollToBottom = () => {
         if (traceRef.current) {
+          console.log("Scrolling to bottom...");
           traceRef.current.scrollTop = traceRef.current.scrollHeight;
+          console.log(
+            "Scroll completed, scrollTop:",
+            traceRef.current.scrollTop,
+            "scrollHeight:",
+            traceRef.current.scrollHeight,
+          );
         }
-      }, 100);
+      };
+
+      // Immediate scroll
+      scrollToBottom();
+
+      // Delayed scroll to ensure content is rendered
+      setTimeout(scrollToBottom, 100);
+
+      // Another delayed scroll for safety
+      setTimeout(scrollToBottom, 500);
     }
   }, [execution?.status, autoScroll]);
 
@@ -252,10 +280,17 @@ export function ExecutionTrace({
               : "No trace output available"}
           </div>
         ) : (
-          <div className="space-y-1">
+          <div key={execution?.trace?.length || 0} className="space-y-1">
+            {console.log("=== RENDERING TRACE LINES ===")}
+            {console.log("Total lines:", traceLines.length)}
+            {console.log("Execution status:", execution?.status)}
+            {console.log(
+              "First line preview:",
+              traceLines[0]?.substring(0, 50),
+            )}
             {traceLines.map((line, index) => (
               <div
-                key={index}
+                key={`${index}-${execution?.trace?.length || 0}`}
                 className={`whitespace-pre-wrap ${getLineClass(line)}`}
               >
                 {line}
@@ -267,6 +302,14 @@ export function ExecutionTrace({
               <div className="flex items-center space-x-2 text-blue-400 animate-pulse">
                 <span>●</span>
                 <span>Execution in progress...</span>
+              </div>
+            )}
+
+            {/* Show completion indicator */}
+            {execution?.status === "Completed" && (
+              <div className="flex items-center space-x-2 text-green-400 font-semibold">
+                <span>✓</span>
+                <span>Execution completed - Full trace displayed above</span>
               </div>
             )}
           </div>
