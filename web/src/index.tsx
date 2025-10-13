@@ -1,9 +1,149 @@
 import { render } from "preact";
+import { useState, useCallback } from "preact/hooks";
+import { AgentSelector } from "./components/AgentSelector";
+import { BenchmarkList } from "./components/BenchmarkList";
+import { ExecutionTrace } from "./components/ExecutionTrace";
 import { BenchmarkGrid } from "./components/BenchmarkGrid";
+import { useExecutionState } from "./hooks/useBenchmarkExecution";
 import "./style.css";
 
 export function App() {
-  return <BenchmarkGrid />;
+  const [selectedAgent, setSelectedAgent] = useState("deterministic");
+  const [selectedBenchmark, setSelectedBenchmark] = useState<string | null>(
+    null,
+  );
+  const [isRunning, setIsRunning] = useState(false);
+  const [currentExecution, setCurrentExecution] = useState<any>(null);
+  const [showOverview, setShowOverview] = useState(true);
+  const { executions, updateExecution } = useExecutionState();
+
+  const handleBenchmarkSelect = useCallback(
+    (benchmarkId: string) => {
+      setSelectedBenchmark(benchmarkId);
+      setShowOverview(false);
+
+      // Update current execution if we have one for this benchmark
+      const execution = Array.from(executions.values()).find(
+        (exec) => exec.benchmark_id === benchmarkId,
+      );
+      setCurrentExecution(execution || null);
+    },
+    [executions],
+  );
+
+  const handleExecutionStart = useCallback(
+    (executionId: string) => {
+      setIsRunning(true);
+
+      // Find the execution and update current
+      const execution = Array.from(executions.values()).find(
+        (exec) => exec.id === executionId,
+      );
+      if (execution) {
+        setCurrentExecution(execution);
+        updateExecution(execution.benchmark_id, execution);
+      }
+    },
+    [executions, updateExecution],
+  );
+
+  const handleExecutionComplete = useCallback(() => {
+    setIsRunning(false);
+  }, []);
+
+  const handleToggleOverview = useCallback(() => {
+    setShowOverview(!showOverview);
+  }, [showOverview]);
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Agent Selector */}
+      <AgentSelector
+        selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent}
+        isRunning={isRunning}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Benchmark List */}
+        <div className="w-1/3 border-r bg-white">
+          <BenchmarkList
+            selectedAgent={selectedAgent}
+            selectedBenchmark={selectedBenchmark}
+            onBenchmarkSelect={handleBenchmarkSelect}
+            isRunning={isRunning}
+            onExecutionStart={handleExecutionStart}
+          />
+        </div>
+
+        {/* Right Panel - Execution Trace or Overview */}
+        <div className="flex-1 flex flex-col">
+          {showOverview ? (
+            <>
+              {/* Overview Header */}
+              <div className="p-4 border-b bg-white">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">
+                    Performance Overview
+                  </h2>
+                  <button
+                    onClick={handleToggleOverview}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Show Details
+                  </button>
+                </div>
+              </div>
+
+              {/* Overview Content */}
+              <div className="flex-1 overflow-auto">
+                <BenchmarkGrid />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Details Header */}
+              <div className="p-4 border-b bg-white">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">
+                    {selectedBenchmark
+                      ? `Benchmark: ${selectedBenchmark}`
+                      : "Execution Details"}
+                  </h2>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleToggleOverview}
+                      className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                    >
+                      Show Overview
+                    </button>
+                    {currentExecution &&
+                      currentExecution.status === "Running" && (
+                        <button
+                          onClick={handleExecutionComplete}
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        >
+                          Stop Execution
+                        </button>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Execution Details */}
+              <div className="flex-1">
+                <ExecutionTrace
+                  execution={currentExecution}
+                  isRunning={isRunning}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 render(<App />, document.getElementById("app"));

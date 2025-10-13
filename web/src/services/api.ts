@@ -10,6 +10,17 @@ import {
   ErrorResponse,
 } from "../types/benchmark";
 
+import {
+  AgentConfig,
+  ConnectionTestResult,
+  BenchmarkExecutionRequest,
+  ExecutionResponse,
+  ExecutionState,
+  BenchmarkList,
+  BenchmarkItem,
+  RealtimeUpdate,
+} from "../types/configuration";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 class ApiClient {
@@ -113,6 +124,76 @@ class ApiClient {
     return this.request<AgentPerformanceSummary[]>("/api/v1/agent-performance");
   }
 
+  // Benchmark execution
+  async runBenchmark(
+    benchmarkId: string,
+    request: BenchmarkExecutionRequest,
+  ): Promise<ExecutionResponse> {
+    return this.request<ExecutionResponse>(
+      `/api/v1/benchmarks/${benchmarkId}/run`,
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      },
+    );
+  }
+
+  async getExecutionStatus(
+    benchmarkId: string,
+    executionId: string,
+  ): Promise<ExecutionState> {
+    return this.request<ExecutionState>(
+      `/api/v1/benchmarks/${benchmarkId}/status/${executionId}`,
+    );
+  }
+
+  async stopBenchmark(
+    benchmarkId: string,
+    executionId: string,
+  ): Promise<{ status: string }> {
+    return this.request<{ status: string }>(
+      `/api/v1/benchmarks/${benchmarkId}/stop/${executionId}`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  // Agent configuration
+  async saveAgentConfig(config: AgentConfig): Promise<{ status: string }> {
+    return this.request<{ status: string }>("/api/v1/agents/config", {
+      method: "POST",
+      body: JSON.stringify(config),
+    });
+  }
+
+  async getAgentConfig(agentType: string): Promise<AgentConfig> {
+    return this.request<AgentConfig>(`/api/v1/agents/config/${agentType}`);
+  }
+
+  async testAgentConnection(
+    config: AgentConfig,
+  ): Promise<ConnectionTestResult> {
+    return this.request<ConnectionTestResult>("/api/v1/agents/test", {
+      method: "POST",
+      body: JSON.stringify(config),
+    });
+  }
+
+  // Benchmark list
+  async getBenchmarkList(): Promise<BenchmarkList> {
+    const benchmarks = await this.listBenchmarks();
+    return {
+      benchmarks: benchmarks.map((id, index) => ({
+        id,
+        name: id.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+        file_path: `benchmarks/${id}.yml`,
+        status: "Pending" as const,
+      })),
+      total: benchmarks.length,
+    };
+  }
+
   // Utility method to check API availability
   async isAvailable(): Promise<boolean> {
     try {
@@ -139,6 +220,20 @@ export const apiClient = {
     apiClientInstance.getBenchmarkResults(benchmarkId),
   getFlowLog: (sessionId: string) => apiClientInstance.getFlowLog(sessionId),
   getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
+  // New methods
+  runBenchmark: (benchmarkId: string, request: BenchmarkExecutionRequest) =>
+    apiClientInstance.runBenchmark(benchmarkId, request),
+  getExecutionStatus: (benchmarkId: string, executionId: string) =>
+    apiClientInstance.getExecutionStatus(benchmarkId, executionId),
+  stopBenchmark: (benchmarkId: string, executionId: string) =>
+    apiClientInstance.stopBenchmark(benchmarkId, executionId),
+  saveAgentConfig: (config: AgentConfig) =>
+    apiClientInstance.saveAgentConfig(config),
+  getAgentConfig: (agentType: string) =>
+    apiClientInstance.getAgentConfig(agentType),
+  testAgentConnection: (config: AgentConfig) =>
+    apiClientInstance.testAgentConnection(config),
+  getBenchmarkList: () => apiClientInstance.getBenchmarkList(),
   isAvailable: () => apiClientInstance.isAvailable(),
 };
 
@@ -154,4 +249,12 @@ export type {
   ResultsQuery,
   HealthResponse,
   ErrorResponse,
+  AgentConfig,
+  ConnectionTestResult,
+  BenchmarkExecutionRequest,
+  ExecutionResponse,
+  ExecutionState,
+  BenchmarkList,
+  BenchmarkItem,
+  RealtimeUpdate,
 };
