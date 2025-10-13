@@ -42,7 +42,9 @@ export function ExecutionTrace({
   };
 
   const getTraceLines = (trace: string) => {
-    return trace.split("\n").filter((line) => line.trim() !== "");
+    // Handle both trace and logs data for comprehensive view
+    const allContent = trace + (execution?.logs || "");
+    return allContent.split("\n").filter((line) => line.trim() !== "");
   };
 
   const getLineClass = (line: string) => {
@@ -201,10 +203,11 @@ export function ExecutionTrace({
       </div>
 
       {/* Trace Content */}
+      {/* Trace Display */}
       <div
         ref={traceRef}
-        className="flex-1 overflow-y-auto p-4 bg-gray-900 font-mono text-sm"
-        onScroll={handleScroll}
+        className="flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 overflow-auto border border-gray-700"
+        style={{ minHeight: "200px" }}
       >
         {traceLines.length === 0 ? (
           <div className="text-gray-500 text-center py-8">

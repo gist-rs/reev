@@ -5,13 +5,13 @@ import { apiClient } from "../services/api";
 
 interface TransactionLogProps {
   benchmarkId: string | null;
-  executionId: string | null;
+  execution: any;
   isRunning: boolean;
 }
 
 export function TransactionLog({
   benchmarkId,
-  executionId,
+  execution,
   isRunning,
 }: TransactionLogProps) {
   const [flowLog, setFlowLog] = useState<any>(null);
@@ -19,7 +19,7 @@ export function TransactionLog({
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // Load flow logs from database
+  // Load flow logs from database and execution state
   const loadFlowLog = useCallback(async () => {
     if (!benchmarkId) return;
 
@@ -27,14 +27,30 @@ export function TransactionLog({
     setError(null);
 
     try {
+      // Try to get flow logs from database first
       const logData = await apiClient.getFlowLog(benchmarkId);
       setFlowLog(logData);
     } catch (err) {
+      // If database fails, try to get from current execution state
       setError(err instanceof Error ? err.message : "Failed to load flow log");
     } finally {
       setLoading(false);
     }
   }, [benchmarkId]);
+
+  // Update flow log from execution state when running
+  useEffect(() => {
+    if (isRunning && execution?.logs) {
+      setFlowLog({
+        events: execution.logs.split("\n").filter((line) => line.trim() !== ""),
+        final_result: {
+          status: execution.status,
+          progress: execution.progress,
+          trace: execution.trace,
+        },
+      });
+    }
+  }, [isRunning, execution]);
 
   // Auto-refresh for running executions
   useEffect(() => {
@@ -42,7 +58,7 @@ export function TransactionLog({
 
     const interval = setInterval(loadFlowLog, 2000);
     return () => clearInterval(interval);
-  }, [autoRefresh, isRunning, benchmarkId, loadFlowLog]);
+  }, [autoRefresh, isRunning, execution, loadFlowLog]);
 
   // Load on mount and when execution changes
   useEffect(() => {
@@ -60,7 +76,7 @@ export function TransactionLog({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `flow-log-${benchmarkId}.json`;
+    a.download = `flow-log-${benchmarkId}-${execution?.id || "unknown"}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [flowLog, benchmarkId]);
@@ -80,6 +96,14 @@ export function TransactionLog({
 
   const formatFlowLog = (logData: any) => {
     if (!logData) return "";
+
+    // Handle different data formats
+    if (logData.final_result && logData.final_result.trace) {
+      // Show both trace and logs from execution state
+      const trace = logData.final_result.trace || "";
+      const logs = logData.final_result.logs || "";
+      return `${trace}\n${logs}`;
+    }
 
     // If the flow log contains ASCII tree format, return it as-is
     if (logData.events && Array.isArray(logData.events)) {
@@ -209,11 +233,21 @@ export function TransactionLog({
         ) : (
           <div className="p-4">
             <div className="text-xs font-medium text-gray-700 mb-2">
-              Flow Log (YAML/ASCII Tree):
+              Transaction Log (Real-time):
+              {isRunning && (
+                <span className="ml-2 text-green-600 animate-pulse">
+                  ● Live
+                </span>
+              )}
             </div>
             <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded border overflow-x-auto font-mono leading-relaxed">
               {formatFlowLog(flowLog)}
             </pre>
+            {isRunning && (
+              <div className="mt-2 text-xs text-blue-400 text-center">
+                Executing: {benchmarkId} - Progress: {execution?.progress || 0}%
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -221,7 +255,9 @@ export function TransactionLog({
       {/* Footer Info */}
       <div className="mt-3 text-xs text-gray-500 flex items-center justify-between">
         <span>Flow Log Data</span>
-        <span>Benchmark: {benchmarkId}</span>
+        <span>
+          Benchmark: {benchmarkId} | Execution: {execution?.id || "N/A"}
+        </span>
       </div>
     </div>
   );

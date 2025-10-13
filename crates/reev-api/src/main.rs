@@ -399,16 +399,29 @@ async fn execute_benchmark_background(
         benchmark_id, agent
     );
 
-    // Simulate progress updates
+    // Simulate progress updates with flow log data
     for progress in [20, 40, 60, 80] {
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let mut executions = state.executions.lock().await;
         if let Some(execution) = executions.get_mut(&execution_id) {
             execution.progress = progress;
-            execution
-                .trace
-                .push_str(&format!("Progress: {progress}%\n"));
+
+            // Simulate flow log data that would come from actual execution
+            let flow_data = format!(
+                "├── system_program\n│   ├── transfer\n│   │   ├── from: source_wallet\n│   │   ├── to: destination_wallet\n│   │   └── amount: 1.0 SOL\n│   └── status: success\n└── step_{}\nProgress: {}%\n",
+                progress / 20, progress
+            );
+            execution.trace.push_str(&flow_data);
+
+            // Store flow logs as transaction data
+            let transaction_data = format!(
+                "Transaction {}:\n  Signature: sig_{}\n  Status: Success\n  Fee: 5000 lamports\n  Timestamp: {}\n",
+                progress / 20,
+                progress,
+                chrono::Utc::now().to_rfc3339()
+            );
+            execution.logs.push_str(&transaction_data);
         }
     }
 
@@ -421,20 +434,30 @@ async fn execute_benchmark_background(
             execution.status = ExecutionStatus::Completed;
             execution.progress = 100;
             execution.end_time = Some(chrono::Utc::now());
-            execution
-                .trace
-                .push_str("Benchmark completed successfully\n");
+
+            // Add final completion data
+            execution.trace.push_str("└── benchmark_result\n    ├── status: success\n    ├── score: 1.0\n    └── execution_time: 5000ms\nBenchmark completed successfully\n");
+
+            execution.logs.push_str(
+                "Transaction final:\n  Status: Completed\n  Result: Success\n  Score: 100%\n",
+            );
 
             // Store result in database
             let db_clone = state.db.clone();
             let benchmark_id_clone = benchmark_id.clone();
             let agent_clone = agent.clone();
+            let trace_data = execution.trace.clone();
 
             tokio::spawn(async move {
                 if let Err(e) =
                     store_benchmark_result(&db_clone, &benchmark_id_clone, &agent_clone, 1.0).await
                 {
                     error!("Failed to store benchmark result: {}", e);
+                }
+
+                // Store flow log in database
+                if let Err(e) = store_flow_log(&db_clone, &benchmark_id_clone, &trace_data).await {
+                    error!("Failed to store flow log: {}", e);
                 }
             });
         }
@@ -464,6 +487,50 @@ async fn store_benchmark_result(
     )
     .await?;
 
+    Ok(())
+}
+
+/// Store flow log in database
+async fn store_flow_log(db: &Db, benchmark_id: &str, trace_data: &str) -> Result<()> {
+    use reev_lib::flow::types::{
+        EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowLog,
+    };
+    use std::time::SystemTime;
+
+    let flow_log = FlowLog {
+        session_id: uuid::Uuid::new_v4().to_string(),
+        benchmark_id: benchmark_id.to_string(),
+        agent_type: "deterministic".to_string(),
+        start_time: SystemTime::now(),
+        end_time: Some(SystemTime::now()),
+        events: vec![FlowEvent {
+            timestamp: SystemTime::now(),
+            event_type: reev_lib::flow::types::FlowEventType::BenchmarkStateChange,
+            depth: 0,
+            content: EventContent {
+                data: serde_json::json!({
+                    "trace": trace_data,
+                    "status": "completed"
+                }),
+                metadata: std::collections::HashMap::new(),
+            },
+        }],
+        final_result: Some(ExecutionResult {
+            success: true,
+            score: 1.0,
+            total_time_ms: 5000,
+            statistics: ExecutionStatistics {
+                total_llm_calls: 0,
+                total_tool_calls: 0,
+                total_tokens: 0,
+                tool_usage: std::collections::HashMap::new(),
+                max_depth: 0,
+            },
+            scoring_breakdown: None,
+        }),
+    };
+
+    db.insert_flow_log(&flow_log).await?;
     Ok(())
 }
 

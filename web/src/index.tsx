@@ -158,7 +158,7 @@ export function App() {
               {showTransactionLog ? (
                 <TransactionLog
                   benchmarkId={selectedBenchmark}
-                  executionId={currentExecution?.id || null}
+                  execution={currentExecution}
                   isRunning={isRunning}
                 />
               ) : (
