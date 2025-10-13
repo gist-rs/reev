@@ -62,3 +62,11 @@ pub struct HealthResponse {
     pub timestamp: String,
     pub version: String,
 }
+
+/// Error response type
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub message: String,
+    pub timestamp: String,
+}

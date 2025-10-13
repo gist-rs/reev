@@ -19,22 +19,43 @@ pub async fn health_check() -> Json<HealthResponse> {
 }
 
 /// List all available benchmarks
-pub async fn list_benchmarks() -> Json<Vec<String>> {
-    let benchmarks = vec![
-        "001-sol-transfer".to_string(),
-        "002-spl-transfer".to_string(),
-        "003-spl-transfer-fail".to_string(),
-        "004-partial-score-spl-transfer".to_string(),
-        "100-jup-swap-sol-usdc".to_string(),
-        "110-jup-lend-deposit-sol".to_string(),
-        "111-jup-lend-deposit-usdc".to_string(),
-        "112-jup-lend-withdraw-sol".to_string(),
-        "113-jup-lend-withdraw-usdc".to_string(),
-        "114-jup-positions-and-earnings".to_string(),
-        "115-jup-lend-mint-usdc".to_string(),
-        "116-jup-lend-redeem-usdc".to_string(),
-        "200-jup-swap-then-lend-deposit".to_string(),
-    ];
+pub async fn list_benchmarks(State(_state): State<ApiState>) -> Json<Vec<String>> {
+    // Load benchmarks dynamically from actual files
+    let project_root = match project_root::get_project_root() {
+        Ok(root) => root,
+        Err(e) => {
+            error!("Failed to get project root: {}", e);
+            return Json(vec![]);
+        }
+    };
+
+    let benchmarks_dir = project_root.join("benchmarks");
+
+    if !benchmarks_dir.exists() {
+        error!("Benchmarks directory not found: {:?}", benchmarks_dir);
+        return Json(vec![]);
+    }
+
+    let mut benchmarks = Vec::new();
+    match std::fs::read_dir(&benchmarks_dir) {
+        Ok(entries) => {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().is_some_and(|ext| ext == "yml") {
+                    if let Some(stem) = path.file_stem() {
+                        benchmarks.push(stem.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to read benchmarks directory: {}", e);
+            return Json(vec![]);
+        }
+    }
+
+    benchmarks.sort();
+    info!("Found {} benchmark files", benchmarks.len());
     Json(benchmarks)
 }
 
@@ -386,4 +407,18 @@ pub async fn parse_yml_to_testresult(yml_content: String) -> impl IntoResponse {
 
     info!("Successfully parsed YML to TestResult");
     Json(test_result).into_response()
+}
+
+/// Helper function to create error responses
+#[allow(dead_code)]
+pub fn create_error_response(
+    status: StatusCode,
+    message: String,
+) -> (StatusCode, Json<ErrorResponse>) {
+    let response = ErrorResponse {
+        error: status.as_str().to_string(),
+        message,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    (status, Json(response))
 }
