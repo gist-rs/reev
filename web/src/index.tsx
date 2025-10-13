@@ -55,14 +55,7 @@ export function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      {/* Agent Selector */}
-      <AgentSelector
-        selectedAgent={selectedAgent}
-        onAgentChange={setSelectedAgent}
-        isRunning={isRunning}
-      />
-
-      {/* Performance Overview - Top Section */}
+      {/* Performance Overview - Top Section (shows all agents) */}
       <div className="h-96 border-b bg-white">
         {/* Overview Header */}
         <div className="p-4 border-b bg-white">
@@ -76,6 +69,13 @@ export function App() {
           <BenchmarkGrid />
         </div>
       </div>
+
+      {/* Agent Selector */}
+      <AgentSelector
+        selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent}
+        isRunning={isRunning}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
