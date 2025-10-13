@@ -21,28 +21,28 @@ export function TransactionLog({
 
   // Load flow logs from database
   const loadFlowLog = useCallback(async () => {
-    if (!executionId) return;
+    if (!benchmarkId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const logData = await apiClient.getFlowLog(executionId);
+      const logData = await apiClient.getFlowLog(benchmarkId);
       setFlowLog(logData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load flow log");
     } finally {
       setLoading(false);
     }
-  }, [executionId]);
+  }, [benchmarkId]);
 
   // Auto-refresh for running executions
   useEffect(() => {
-    if (!autoRefresh || !isRunning || !executionId) return;
+    if (!autoRefresh || !isRunning || !benchmarkId) return;
 
     const interval = setInterval(loadFlowLog, 2000);
     return () => clearInterval(interval);
-  }, [autoRefresh, isRunning, executionId, loadFlowLog]);
+  }, [autoRefresh, isRunning, benchmarkId, loadFlowLog]);
 
   // Load on mount and when execution changes
   useEffect(() => {
@@ -60,10 +60,10 @@ export function TransactionLog({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `flow-log-${benchmarkId}-${executionId}.json`;
+    a.download = `flow-log-${benchmarkId}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [flowLog, benchmarkId, executionId]);
+  }, [flowLog, benchmarkId]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -99,7 +99,7 @@ export function TransactionLog({
     return JSON.stringify(logData, null, 2);
   };
 
-  if (!benchmarkId || !executionId) {
+  if (!benchmarkId) {
     return (
       <div className="p-4 bg-white border rounded-lg">
         <h3 className="text-lg font-semibold mb-3">Transaction Log</h3>
@@ -221,9 +221,7 @@ export function TransactionLog({
       {/* Footer Info */}
       <div className="mt-3 text-xs text-gray-500 flex items-center justify-between">
         <span>Flow Log Data</span>
-        <span>
-          Benchmark: {benchmarkId} | Execution: {executionId}
-        </span>
+        <span>Benchmark: {benchmarkId}</span>
       </div>
     </div>
   );

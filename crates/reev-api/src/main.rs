@@ -126,7 +126,7 @@ async fn main() -> Result<()> {
         .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
         .route("/api/v1/agents/test", post(test_agent_connection))
         // Flow logs endpoints
-        .route("/api/v1/flow-logs/{session_id}", get(get_flow_log))
+        .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
         // Test endpoint without JSON
         .route("/api/v1/test", get(test_endpoint))
         // Test POST endpoint without JSON
@@ -463,20 +463,22 @@ async fn store_benchmark_result(
         None,
     )
     .await?;
+
+    Ok(())
 }
 
-/// Get flow logs for a session
+/// Get flow logs for a benchmark
 async fn get_flow_log(
     State(state): State<ApiState>,
-    Path(session_id): Path<String>,
+    Path(benchmark_id): Path<String>,
 ) -> impl IntoResponse {
-    info!("Getting flow log for session: {}", session_id);
+    info!("Getting flow logs for benchmark: {}", benchmark_id);
 
-    match state.db.get_flow_log(&session_id).await {
-        Ok(flow_log) => Json(flow_log).into_response(),
+    match state.db.get_flow_logs(&benchmark_id).await {
+        Ok(flow_logs) => Json(flow_logs).into_response(),
         Err(e) => {
-            error!("Failed to get flow log: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow log").into_response()
+            error!("Failed to get flow logs: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow logs").into_response()
         }
     }
 }

@@ -115,8 +115,8 @@ class ApiClient {
   }
 
   // Flow logs
-  async getFlowLog(sessionId: string): Promise<FlowLogResponse> {
-    return this.request<FlowLogResponse>(`/api/v1/flow-logs/${sessionId}`);
+  async getFlowLog(benchmarkId: string): Promise<FlowLogResponse> {
+    return this.request<FlowLogResponse>(`/api/v1/flow-logs/${benchmarkId}`);
   }
 
   // Agent performance
@@ -218,7 +218,8 @@ export const apiClient = {
   listResults: (query?: ResultsQuery) => apiClientInstance.listResults(query),
   getBenchmarkResults: (benchmarkId: string) =>
     apiClientInstance.getBenchmarkResults(benchmarkId),
-  getFlowLog: (sessionId: string) => apiClientInstance.getFlowLog(sessionId),
+  getFlowLog: (benchmarkId: string) =>
+    apiClientInstance.getFlowLog(benchmarkId),
   getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
   // New methods
   runBenchmark: (benchmarkId: string, request: BenchmarkExecutionRequest) =>
