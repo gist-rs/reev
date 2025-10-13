@@ -817,13 +817,33 @@ async fn render_ascii_tree(Json(test_result): Json<serde_json::Value>) -> impl I
 /// Parse YML to TestResult
 async fn parse_yml_to_testresult(yml_content: String) -> impl IntoResponse {
     info!("Parsing YML to TestResult");
+    info!("YML content length: {} chars", yml_content.len());
+    info!(
+        "YML content preview: {}",
+        &yml_content[..yml_content.len().min(200)]
+    );
+
+    // Log the first few lines to understand the format
+    let lines: Vec<&str> = yml_content.lines().take(5).collect();
+    info!("YML first 5 lines: {:?}", lines);
 
     // Parse YML to TestResult object
     let test_result: reev_lib::results::TestResult = match serde_yaml::from_str(&yml_content) {
-        Ok(result) => result,
+        Ok(result) => {
+            info!("Successfully parsed YML to TestResult");
+            result
+        }
         Err(e) => {
             error!("Failed to parse YML to TestResult: {}", e);
-            return (StatusCode::BAD_REQUEST, "Invalid YML format").into_response();
+            error!(
+                "YML content that failed: {}",
+                &yml_content[..yml_content.len().min(500)]
+            );
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid YML format: {}", e),
+            )
+                .into_response();
         }
     };
 

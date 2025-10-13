@@ -76,57 +76,67 @@ export function App() {
       console.log("Found execution:", execution);
       console.log("Current currentExecution before update:", currentExecution);
 
-      // If no current execution, try to load flow logs from database
+      // If no current execution, try to load historical results from database
       if (!execution) {
         (async () => {
           try {
             console.log(
-              "No execution found, loading flow logs from database...",
+              "No execution found, loading historical results from database...",
             );
-            const flowLogs = await apiClient.getFlowLog(benchmarkId);
-            console.log("Flow logs loaded:", flowLogs);
 
-            if (flowLogs && Array.isArray(flowLogs) && flowLogs.length > 0) {
-              // Get the most recent flow log
-              const latestFlowLog = flowLogs[flowLogs.length - 1];
-              console.log("Latest flow log:", latestFlowLog);
+            // Load agent performance data which should contain actual execution results
+            const performanceData = await apiClient.getAgentPerformance();
+            console.log("Performance data loaded:", performanceData);
 
-              // Extract trace data from flow log
-              const traceData = await extractTraceFromFlowLog(latestFlowLog);
-              console.log("Extracted trace data:", traceData);
+            // Find the most recent result for this benchmark and the deterministic agent
+            let bestResult = null;
+            for (const agentSummary of performanceData) {
+              if (agentSummary.agent_type === "deterministic") {
+                for (const result of agentSummary.results) {
+                  if (result.benchmark_id === benchmarkId) {
+                    if (
+                      !bestResult ||
+                      new Date(result.timestamp) >
+                        new Date(bestResult.timestamp)
+                    ) {
+                      bestResult = result;
+                    }
+                  }
+                }
+              }
+            }
 
-              // Create execution from flow log data
-              const flowExecution = {
-                id: latestFlowLog.session_id,
+            if (bestResult) {
+              console.log("Found best result:", bestResult);
+
+              // Create execution from performance data
+              const historicalExecution = {
+                id: bestResult.id,
                 benchmark_id: benchmarkId,
-                agent: latestFlowLog.agent_type,
-                status: latestFlowLog.final_result?.success
-                  ? "Completed"
-                  : "Failed",
+                agent: "deterministic",
+                status:
+                  bestResult.final_status === "Succeeded"
+                    ? "Completed"
+                    : "Failed",
                 progress: 100,
-                start_time: (latestFlowLog as any).start_time?.secs_since_epoch
-                  ? new Date(
-                      (latestFlowLog as any).start_time.secs_since_epoch * 1000,
-                    ).toISOString()
-                  : new Date().toISOString(),
-                end_time: (latestFlowLog as any).end_time?.secs_since_epoch
-                  ? new Date(
-                      (latestFlowLog as any).end_time.secs_since_epoch * 1000,
-                    ).toISOString()
-                  : undefined,
-                trace: traceData,
-                logs: extractTransactionLogsFromFlowLog(latestFlowLog),
-                score: latestFlowLog.final_result?.score || 0,
+                start_time: new Date(bestResult.timestamp).toISOString(),
+                end_time: new Date(bestResult.timestamp).toISOString(),
+                trace: `Historical result from ${new Date(bestResult.timestamp).toLocaleString()}\nScore: ${(bestResult.score * 100).toFixed(1)}%\nStatus: ${bestResult.final_status}\n\nNote: This is a historical result. Run a new benchmark to see the detailed ASCII tree trace.`,
+                logs: "",
+                score: bestResult.score,
               };
 
-              console.log("Created execution from flow log:", flowExecution);
-              setCurrentExecution(flowExecution);
+              console.log("Created historical execution:", historicalExecution);
+              setCurrentExecution(historicalExecution);
             } else {
-              console.log("No flow logs found for benchmark:", benchmarkId);
+              console.log(
+                "No historical results found for benchmark:",
+                benchmarkId,
+              );
               setCurrentExecution(null);
             }
           } catch (error) {
-            console.error("Failed to load flow logs:", error);
+            console.error("Failed to load historical results:", error);
             setCurrentExecution(null);
           }
         })();
@@ -142,81 +152,8 @@ export function App() {
     [executions, currentExecution],
   );
 
-  // Helper function to extract trace data from flow log
-  async function extractTraceFromFlowLog(flowLog: any): Promise<string> {
-    try {
-      console.log("Extracting trace from flow log:", flowLog);
-
-      // The flow log should contain YML TestResult data directly
-      console.log("Raw YML content:", flowLog);
-
-      // Parse YML to TestResult object
-      let testResult;
-      if (typeof flowLog === "string") {
-        // Parse YML string to TestResult object using backend
-        const response = await fetch(`/api/v1/parse-yml-to-testresult`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "text/plain",
-          },
-          body: flowLog,
-        });
-
-        if (response.ok) {
-          testResult = await response.json();
-          console.log("Parsed TestResult from YML:", testResult);
-        } else {
-          throw new Error(`Failed to parse YML: ${response.statusText}`);
-        }
-      } else {
-        testResult = flowLog; // Already parsed
-      }
-
-      // Call backend to convert TestResult to ASCII tree
-      const renderResponse = await fetch(`/api/v1/render-ascii-tree`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(testResult),
-      });
-
-      if (renderResponse.ok) {
-        const asciiTree = await renderResponse.text();
-        console.log("Got ASCII tree from backend:", asciiTree);
-        return asciiTree;
-      } else {
-        throw new Error(
-          `Failed to render ASCII tree: ${renderResponse.statusText}`,
-        );
-      }
-    } catch (error) {
-      console.error("Failed to extract trace:", error);
-      return `Error extracting trace: ${error}`;
-    }
-  }
-
-  // Helper function to extract transaction logs from flow log
-  function extractTransactionLogsFromFlowLog(flowLog: any): string {
-    try {
-      const logs: string[] = [];
-
-      for (const event of flowLog.events || []) {
-        if (event.content?.data?.trace?.trace?.steps) {
-          for (const step of event.content.data.trace.trace.steps) {
-            if (step.observation?.last_transaction_logs) {
-              logs.push(...step.observation.last_transaction_logs);
-            }
-          }
-        }
-      }
-
-      return logs.join("\n");
-    } catch (error) {
-      console.error("Error extracting transaction logs from flow log:", error);
-      return "Error extracting transaction logs";
-    }
-  }
+  // Simplified approach - no complex YML parsing needed
+  // Historical results are loaded directly from agent performance data
 
   const handleExecutionStart = useCallback(
     (executionId: string) => {
