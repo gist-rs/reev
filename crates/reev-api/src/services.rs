@@ -408,6 +408,12 @@ pub async fn store_yml_testresult(
         .insert_yml_testresult(benchmark_id, agent, &yml_content)
         .await
     {
+        error!("YML TestResult insertion error: {:?}", e);
+        error!("YML content length: {} chars", yml_content.len());
+        error!(
+            "YML content preview: {}",
+            &yml_content[..yml_content.len().min(200)]
+        );
         return Err(e.context("Failed to store YML TestResult in database"));
     }
 

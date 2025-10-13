@@ -78,6 +78,11 @@ async fn main() -> Result<()> {
             "/api/v1/ascii-tree/{benchmark_id}/{agent_type}",
             get(get_ascii_tree_direct),
         )
+        // Temporary endpoint for ASCII tree from execution state
+        .route(
+            "/api/v1/ascii-tree-state/{benchmark_id}/{agent_type}",
+            get(get_ascii_tree_from_state),
+        )
         // Test endpoint without JSON
         .route("/api/v1/test", get(test_endpoint))
         // Test POST endpoint without JSON

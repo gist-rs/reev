@@ -409,6 +409,74 @@ pub async fn parse_yml_to_testresult(yml_content: String) -> impl IntoResponse {
     Json(test_result).into_response()
 }
 
+/// Get ASCII tree from current execution state (temporary fix)
+pub async fn get_ascii_tree_from_state(
+    State(state): State<ApiState>,
+    Path((benchmark_id, agent_type)): Path<(String, String)>,
+) -> impl IntoResponse {
+    info!(
+        "Getting ASCII tree from execution state for benchmark: {} by agent: {}",
+        benchmark_id, agent_type
+    );
+
+    let executions = state.executions.lock().await;
+
+    // Find the most recent execution for this benchmark and agent
+    let mut matching_execution = None;
+    for execution in executions.values() {
+        if execution.benchmark_id == benchmark_id && execution.agent == agent_type {
+            match matching_execution {
+                None => matching_execution = Some(execution),
+                Some(current) => {
+                    if execution.start_time > current.start_time {
+                        matching_execution = Some(execution);
+                    }
+                }
+            }
+        }
+    }
+
+    match matching_execution {
+        Some(execution) => {
+            info!(
+                "Found execution with status: {}",
+                match execution.status {
+                    ExecutionStatus::Pending => "Pending",
+                    ExecutionStatus::Running => "Running",
+                    ExecutionStatus::Completed => "Completed",
+                    ExecutionStatus::Failed => "Failed",
+                }
+            );
+
+            if !execution.trace.is_empty() {
+                info!(
+                    "Returning ASCII tree trace ({} chars)",
+                    execution.trace.len()
+                );
+                (
+                    StatusCode::OK,
+                    [("Content-Type", "text/plain")],
+                    execution.trace.clone(),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    "No trace available for this execution",
+                )
+                    .into_response()
+            }
+        }
+        None => {
+            info!(
+                "No execution found for benchmark: {} by agent: {}",
+                benchmark_id, agent_type
+            );
+            (StatusCode::NOT_FOUND, "No execution found").into_response()
+        }
+    }
+}
+
 /// Helper function to create error responses
 #[allow(dead_code)]
 pub fn create_error_response(
