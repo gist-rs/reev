@@ -255,6 +255,77 @@ impl Db {
         Ok(flow_logs)
     }
 
+    /// Store YML flow log directly in database
+    pub async fn insert_yml_flow_log(&self, benchmark_id: &str, yml_content: &str) -> Result<i64> {
+        let insert_query = "
+            INSERT INTO flow_logs (
+                session_id, benchmark_id, agent_type, start_time, end_time,
+                final_result, flow_data
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+        ";
+
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let start_time = chrono::Utc::now().to_rfc3339();
+        let end_time = chrono::Utc::now().to_rfc3339();
+
+        self.conn
+            .execute(
+                insert_query,
+                [
+                    session_id.as_str(),
+                    benchmark_id,
+                    "deterministic",
+                    start_time.as_str(),
+                    &end_time,
+                    "{}", // final_result as JSON placeholder
+                    yml_content,
+                ],
+            )
+            .await
+            .context("Failed to insert YML flow log into database")?;
+
+        let flow_log_id = self.conn.last_insert_rowid();
+        info!(
+            "[DB] Saved YML flow log '{}' for benchmark '{}' to database.",
+            session_id, benchmark_id
+        );
+        Ok(flow_log_id)
+    }
+
+    /// Retrieves YML flow logs for a specific benchmark
+    pub async fn get_yml_flow_logs(&self, benchmark_id: &str) -> Result<Vec<String>> {
+        let query = "
+            SELECT flow_data FROM flow_logs
+            WHERE benchmark_id = ?1
+            ORDER BY created_at DESC
+        ";
+
+        let mut stmt = self
+            .conn
+            .prepare(query)
+            .await
+            .context("Failed to prepare YML flow logs query")?;
+
+        let mut rows = stmt
+            .query([benchmark_id])
+            .await
+            .context("Failed to execute YML flow logs query")?;
+
+        let mut yml_logs = Vec::new();
+        while let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| anyhow::anyhow!("Row iteration error: {e}"))?
+        {
+            let yml_content: String = row
+                .get(0)
+                .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
+            yml_logs.push(yml_content);
+        }
+
+        Ok(yml_logs)
+    }
+
     /// Retrieves agent performance summary by agent type
     pub async fn get_agent_performance(&self) -> Result<Vec<AgentPerformanceSummary>> {
         let query = "

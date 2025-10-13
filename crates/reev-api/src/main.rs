@@ -127,6 +127,11 @@ async fn main() -> Result<()> {
         .route("/api/v1/agents/test", post(test_agent_connection))
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
+        .route(
+            "/api/v1/parse-yml-to-testresult",
+            post(parse_yml_to_testresult),
+        )
+        .route("/api/v1/render-ascii-tree", post(render_ascii_tree))
         // Test endpoint without JSON
         .route("/api/v1/test", get(test_endpoint))
         // Test POST endpoint without JSON
@@ -502,8 +507,7 @@ async fn execute_benchmark_background(
         }
         Err(e) => {
             error!("Benchmark execution failed: {}", e);
-            update_execution_failed(&state, &execution_id, &format!("Execution failed: {}", e))
-                .await;
+            update_execution_failed(&state, &execution_id, &format!("Execution failed: {e}")).await;
         }
     }
 
@@ -523,8 +527,8 @@ fn find_benchmark_file(benchmark_id: &str) -> Option<std::path::PathBuf> {
                         if let Some(name_str) = file_name.to_str() {
                             if name_str.starts_with(benchmark_id)
                                 || name_str == benchmark_id
-                                || name_str == format!("{}.yml", benchmark_id)
-                                || name_str == format!("{}.yaml", benchmark_id)
+                                || name_str == format!("{benchmark_id}.yml")
+                                || name_str == format!("{benchmark_id}.yaml")
                             {
                                 return Some(path);
                             }
@@ -552,14 +556,14 @@ fn generate_transaction_logs(result: &reev_lib::results::TestResult) -> String {
         logs.push_str(&format!("Step {}:\n", i + 1));
 
         for log in &step.observation.last_transaction_logs {
-            logs.push_str(&format!("  {}\n", log));
+            logs.push_str(&format!("  {log}\n"));
         }
 
         if let Some(error) = &step.observation.last_transaction_error {
-            logs.push_str(&format!("  Error: {}\n", error));
+            logs.push_str(&format!("  Error: {error}\n"));
         }
 
-        logs.push_str("\n");
+        logs.push('\n');
     }
 
     logs
@@ -575,7 +579,7 @@ async fn update_execution_failed(state: &ApiState, execution_id: &str, error_mes
         execution.error = Some(error_message.to_string());
         execution
             .trace
-            .push_str(&format!("ERROR: {}\n", error_message));
+            .push_str(&format!("ERROR: {error_message}\n"));
     }
 }
 
@@ -651,7 +655,7 @@ async fn store_flow_log_from_result(
         final_result: Some(ExecutionResult {
             success: test_result.final_status == reev_lib::results::FinalStatus::Succeeded,
             score: test_result.score,
-            total_time_ms: total_time_ms as u64,
+            total_time_ms,
             statistics: ExecutionStatistics {
                 total_llm_calls: 0, // These should come from actual execution stats
                 total_tool_calls: test_result.trace.steps.len() as u32,
@@ -663,7 +667,12 @@ async fn store_flow_log_from_result(
         }),
     };
 
-    db.insert_flow_log(&flow_log).await?;
+    // Store the actual TestResult as YML in database
+    let yml_content = serde_yaml::to_string(&test_result)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize TestResult to YML: {}", e))?;
+
+    // Store YML directly in database
+    db.insert_yml_flow_log(benchmark_id, &yml_content).await?;
     Ok(())
 }
 
@@ -716,13 +725,50 @@ async fn get_flow_log(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
 ) -> impl IntoResponse {
-    info!("Getting flow logs for benchmark: {}", benchmark_id);
+    info!("Getting YML flow logs for benchmark: {}", benchmark_id);
 
-    match state.db.get_flow_logs(&benchmark_id).await {
-        Ok(flow_logs) => Json(flow_logs).into_response(),
+    match state.db.get_yml_flow_logs(&benchmark_id).await {
+        Ok(yml_logs) => Json(yml_logs).into_response(),
         Err(e) => {
-            error!("Failed to get flow logs: {}", e);
+            error!("Failed to get YML flow logs: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow logs").into_response()
         }
     }
+}
+
+/// Render TestResult as ASCII tree
+async fn render_ascii_tree(Json(test_result): Json<serde_json::Value>) -> impl IntoResponse {
+    info!("Rendering ASCII tree for TestResult");
+
+    // Parse the TestResult from JSON
+    let test_result: reev_lib::results::TestResult = match serde_json::from_value(test_result) {
+        Ok(result) => result,
+        Err(e) => {
+            error!("Failed to parse TestResult: {}", e);
+            return (StatusCode::BAD_REQUEST, "Invalid TestResult format").into_response();
+        }
+    };
+
+    // Render as ASCII tree
+    let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
+
+    info!("Successfully rendered ASCII tree");
+    (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree).into_response()
+}
+
+/// Parse YML to TestResult
+async fn parse_yml_to_testresult(yml_content: String) -> impl IntoResponse {
+    info!("Parsing YML to TestResult");
+
+    // Parse YML to TestResult object
+    let test_result: reev_lib::results::TestResult = match serde_yaml::from_str(&yml_content) {
+        Ok(result) => result,
+        Err(e) => {
+            error!("Failed to parse YML to TestResult: {}", e);
+            return (StatusCode::BAD_REQUEST, "Invalid YML format").into_response();
+        }
+    };
+
+    info!("Successfully parsed YML to TestResult");
+    Json(test_result).into_response()
 }

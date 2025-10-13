@@ -43,52 +43,58 @@ export function App() {
 
       // If no current execution, try to load flow logs from database
       if (!execution) {
-        try {
-          console.log("No execution found, loading flow logs from database...");
-          const flowLogs = await apiClient.getFlowLog(benchmarkId);
-          console.log("Flow logs loaded:", flowLogs);
+        (async () => {
+          try {
+            console.log(
+              "No execution found, loading flow logs from database...",
+            );
+            const flowLogs = await apiClient.getFlowLog(benchmarkId);
+            console.log("Flow logs loaded:", flowLogs);
 
-          if (flowLogs && Array.isArray(flowLogs) && flowLogs.length > 0) {
-            // Get the most recent flow log
-            const latestFlowLog = flowLogs[flowLogs.length - 1];
-            console.log("Latest flow log:", latestFlowLog);
+            if (flowLogs && Array.isArray(flowLogs) && flowLogs.length > 0) {
+              // Get the most recent flow log
+              const latestFlowLog = flowLogs[flowLogs.length - 1];
+              console.log("Latest flow log:", latestFlowLog);
 
-            // Extract trace data from flow log
-            const traceData = extractTraceFromFlowLog(latestFlowLog);
-            console.log("Extracted trace data:", traceData);
+              // Extract trace data from flow log
+              const traceData = await extractTraceFromFlowLog(latestFlowLog);
+              console.log("Extracted trace data:", traceData);
 
-            // Create execution from flow log data
-            const flowExecution = {
-              id: latestFlowLog.session_id,
-              benchmark_id: benchmarkId,
-              agent: latestFlowLog.agent_type,
-              status: latestFlowLog.final_result?.success
-                ? "Completed"
-                : "Failed",
-              progress: 100,
-              start_time: new Date(
-                latestFlowLog.start_time.secs_since_epoch * 1000,
-              ).toISOString(),
-              end_time: latestFlowLog.end_time
-                ? new Date(
-                    latestFlowLog.end_time.secs_since_epoch * 1000,
-                  ).toISOString()
-                : undefined,
-              trace: traceData,
-              logs: extractTransactionLogsFromFlowLog(latestFlowLog),
-              score: latestFlowLog.final_result?.score || 0,
-            };
+              // Create execution from flow log data
+              const flowExecution = {
+                id: latestFlowLog.session_id,
+                benchmark_id: benchmarkId,
+                agent: latestFlowLog.agent_type,
+                status: latestFlowLog.final_result?.success
+                  ? "Completed"
+                  : "Failed",
+                progress: 100,
+                start_time: latestFlowLog.start_time?.secs_since_epoch
+                  ? new Date(
+                      latestFlowLog.start_time.secs_since_epoch * 1000,
+                    ).toISOString()
+                  : new Date().toISOString(),
+                end_time: latestFlowLog.end_time?.secs_since_epoch
+                  ? new Date(
+                      latestFlowLog.end_time.secs_since_epoch * 1000,
+                    ).toISOString()
+                  : undefined,
+                trace: traceData,
+                logs: extractTransactionLogsFromFlowLog(latestFlowLog),
+                score: latestFlowLog.final_result?.score || 0,
+              };
 
-            console.log("Created execution from flow log:", flowExecution);
-            setCurrentExecution(flowExecution);
-          } else {
-            console.log("No flow logs found for benchmark:", benchmarkId);
+              console.log("Created execution from flow log:", flowExecution);
+              setCurrentExecution(flowExecution);
+            } else {
+              console.log("No flow logs found for benchmark:", benchmarkId);
+              setCurrentExecution(null);
+            }
+          } catch (error) {
+            console.error("Failed to load flow logs:", error);
             setCurrentExecution(null);
           }
-        } catch (error) {
-          console.error("Failed to load flow logs:", error);
-          setCurrentExecution(null);
-        }
+        })();
       } else {
         setCurrentExecution(execution);
       }
@@ -102,38 +108,56 @@ export function App() {
   );
 
   // Helper function to extract trace data from flow log
-  function extractTraceFromFlowLog(flowLog: any): string {
+  async function extractTraceFromFlowLog(flowLog: any): Promise<string> {
     try {
-      // Try to extract trace from the events data
-      for (const event of flowLog.events || []) {
-        if (event.content?.data?.trace) {
-          const traceData = event.content.data.trace;
+      console.log("Extracting trace from flow log:", flowLog);
 
-          // If trace is a string, return it directly
-          if (typeof traceData === "string") {
-            return traceData;
-          }
+      // The flow log should contain YML TestResult data directly
+      console.log("Raw YML content:", flowLog);
 
-          // If trace is an object with trace.steps, convert to ASCII tree
-          if (traceData.trace?.steps) {
-            const testResult = {
-              id: flowLog.benchmark_id,
-              final_status:
-                traceData.final_status === "Succeeded" ? "Succeeded" : "Failed",
-              score: traceData.score || 1.0,
-              trace: traceData.trace,
-            };
+      // Parse YML to TestResult object
+      let testResult;
+      if (typeof flowLog === "string") {
+        // Parse YML string to TestResult object using backend
+        const response = await fetch(`/api/v1/parse-yml-to-testresult`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+          },
+          body: flowLog,
+        });
 
-            // This would normally use the renderer, but for now return a formatted string
-            return formatTraceAsText(testResult);
-          }
+        if (response.ok) {
+          testResult = await response.json();
+          console.log("Parsed TestResult from YML:", testResult);
+        } else {
+          throw new Error(`Failed to parse YML: ${response.statusText}`);
         }
+      } else {
+        testResult = flowLog; // Already parsed
       }
 
-      return "No trace data found in flow log";
+      // Call backend to convert TestResult to ASCII tree
+      const renderResponse = await fetch(`/api/v1/render-ascii-tree`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(testResult),
+      });
+
+      if (renderResponse.ok) {
+        const asciiTree = await renderResponse.text();
+        console.log("Got ASCII tree from backend:", asciiTree);
+        return asciiTree;
+      } else {
+        throw new Error(
+          `Failed to render ASCII tree: ${renderResponse.statusText}`,
+        );
+      }
     } catch (error) {
-      console.error("Error extracting trace from flow log:", error);
-      return "Error extracting trace data";
+      console.error("Failed to extract trace:", error);
+      return `Error extracting trace: ${error}`;
     }
   }
 
@@ -157,45 +181,6 @@ export function App() {
       console.error("Error extracting transaction logs from flow log:", error);
       return "Error extracting transaction logs";
     }
-  }
-
-  // Helper function to format trace as text (simplified version of the renderer)
-  function formatTraceAsText(testResult: any): string {
-    const statusIcon = testResult.final_status === "Succeeded" ? "✅" : "❌";
-    const scorePercent = testResult.score * 100;
-
-    let output = `${statusIcon} ${testResult.id} (Score: ${scorePercent.toFixed(1)}%): ${testResult.final_status}\n`;
-
-    testResult.trace.steps.forEach((step: any, index: number) => {
-      output += ` └─ Step ${index + 1}\n`;
-
-      if (step.action && step.action.length > 0) {
-        const action = step.action[0][0]; // First instruction
-        output += `    ├─ ACTION:\n`;
-        output += `     Program ID: ${action.program_id}\n`;
-        output += `     Accounts:\n`;
-
-        action.accounts.forEach((account: any, accIndex: number) => {
-          const signerIcon = account.is_signer ? "🖋️" : "🖍️";
-          const writableIcon = account.is_writable ? "➕" : "➖";
-          output += `     [${accIndex.toString().padStart(2)}] ${signerIcon} ${writableIcon} ${account.pubkey}\n`;
-        });
-
-        output += `     Data (Base58): ${action.data}\n`;
-
-        if (step.action.length > 1) {
-          output += `     (+ ${step.action.length - 1} more instructions in this transaction)\n`;
-        }
-      }
-
-      output += `    └─ OBSERVATION: ${step.observation?.last_transaction_status || "Unknown"}\n`;
-
-      if (step.observation?.last_transaction_error) {
-        output += `       Error: ${step.observation.last_transaction_error}\n`;
-      }
-    });
-
-    return output;
   }
 
   const handleExecutionStart = useCallback(
