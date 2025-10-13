@@ -131,7 +131,41 @@ export function App() {
           }
         })();
       } else {
-        setCurrentExecution(execution);
+        // Check if execution exists but lacks trace data (might be incomplete)
+        if (
+          execution.status === "Completed" &&
+          (!execution.trace || execution.trace.trim() === "")
+        ) {
+          console.log(
+            "=== EXECUTION COMPLETED BUT NO TRACE - LOADING FROM DATABASE ===",
+          );
+          (async () => {
+            try {
+              const flowLogs = await apiClient.getFlowLog(benchmarkId);
+              if (flowLogs && Array.isArray(flowLogs) && flowLogs.length > 0) {
+                const latestFlowLog = flowLogs[flowLogs.length - 1];
+                const traceData = await extractTraceFromFlowLog(latestFlowLog);
+
+                // Update execution with trace data
+                const updatedExecution = {
+                  ...execution,
+                  trace: traceData,
+                  logs: extractTransactionLogsFromFlowLog(latestFlowLog),
+                };
+
+                console.log(
+                  "Updated execution with trace data:",
+                  updatedExecution,
+                );
+                setCurrentExecution(updatedExecution);
+              }
+            } catch (error) {
+              console.error("Failed to load missing trace data:", error);
+            }
+          })();
+        } else {
+          setCurrentExecution(execution);
+        }
       }
 
       // Log after state update (in next tick)
@@ -243,6 +277,45 @@ export function App() {
     [executions, updateExecution, currentExecution],
   );
 
+  // Add verification API call when completion is detected
+  const verifyFinalExecutionState = useCallback(
+    async (benchmarkId: string, executionId: string) => {
+      console.log("=== VERIFYING FINAL EXECUTION STATE ===");
+      try {
+        const finalStatus = await apiClient.getExecutionStatus(
+          benchmarkId,
+          executionId,
+        );
+        console.log("Final verification status:", finalStatus);
+        console.log("Final trace length:", finalStatus.trace?.length || 0);
+        console.log(
+          "Final trace preview:",
+          finalStatus.trace?.substring(0, 100) || "NO TRACE",
+        );
+
+        // Update current execution with verified final state
+        if (selectedBenchmark === benchmarkId) {
+          console.log("Updating currentExecution with verified final state");
+          setCurrentExecution({
+            id: finalStatus.id,
+            benchmark_id: benchmarkId,
+            agent: finalStatus.agent,
+            status: finalStatus.status,
+            progress: finalStatus.progress,
+            start_time: finalStatus.start_time,
+            end_time: finalStatus.end_time,
+            trace: finalStatus.trace,
+            logs: finalStatus.logs,
+            error: finalStatus.error,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to verify final execution state:", error);
+      }
+    },
+    [selectedBenchmark],
+  );
+
   const handleExecutionComplete = useCallback(
     (benchmarkId: string, execution: any) => {
       console.log("=== App.handleExecutionComplete ===");
@@ -256,9 +329,14 @@ export function App() {
       if (selectedBenchmark === benchmarkId) {
         console.log("Updating currentExecution for completed benchmark");
         setCurrentExecution(execution);
+
+        // Also verify the final state by making a fresh API call
+        setTimeout(() => {
+          verifyFinalExecutionState(benchmarkId, execution.id);
+        }, 500); // Small delay to ensure backend has fully processed the completion
       }
     },
-    [selectedBenchmark],
+    [selectedBenchmark, verifyFinalExecutionState],
   );
 
   const handleStopExecution = useCallback(() => {
