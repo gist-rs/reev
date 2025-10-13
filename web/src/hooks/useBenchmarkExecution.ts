@@ -1,6 +1,6 @@
 // Hook for managing benchmark execution state and data fetching
 
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkList, ExecutionState } from "../types/configuration";
 
@@ -21,6 +21,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   const [executions, setExecutions] = useState<Map<string, ExecutionState>>(
     new Map(),
   );
+  const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const fetchBenchmarks = useCallback(async () => {
     try {
@@ -58,11 +59,96 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         );
         return updated;
       });
+
+      // Start polling if execution is running
+      if (execution.status === "Running" || execution.status === "Pending") {
+        startPolling(benchmarkId, execution.id);
+      } else {
+        // Stop polling if execution is completed or failed
+        stopPolling(benchmarkId);
+      }
     },
     [],
   );
 
+  const startPolling = useCallback(
+    (benchmarkId: string, executionId: string) => {
+      // Clear any existing polling for this benchmark
+      stopPolling(benchmarkId);
+
+      console.log(`Starting polling for ${benchmarkId} (${executionId})`);
+
+      const pollExecution = async () => {
+        try {
+          // Get execution status from backend
+          const executionsList = await apiClient.getExecutions();
+          const updatedExecution = executionsList.find(
+            (exec: any) => exec.id === executionId,
+          );
+
+          if (updatedExecution) {
+            console.log(
+              `Polled update for ${benchmarkId}:`,
+              updatedExecution.status,
+            );
+            setExecutions((prev) => {
+              const updated = new Map(prev);
+              updated.set(benchmarkId, updatedExecution);
+              return updated;
+            });
+
+            // Stop polling if execution is completed or failed
+            if (
+              updatedExecution.status === "Completed" ||
+              updatedExecution.status === "Failed"
+            ) {
+              console.log(
+                `Stopping polling for ${benchmarkId} - execution completed`,
+              );
+              stopPolling(benchmarkId);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to poll execution ${executionId}:`, error);
+        }
+      };
+
+      // Start polling every 2 seconds
+      const intervalId = setInterval(pollExecution, 2000);
+      pollingIntervals.current.set(benchmarkId, intervalId);
+
+      // Poll immediately once
+      pollExecution();
+    },
+    [],
+  );
+
+  const stopPolling = useCallback((benchmarkId: string) => {
+    const intervalId = pollingIntervals.current.get(benchmarkId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      pollingIntervals.current.delete(benchmarkId);
+      console.log(`Stopped polling for ${benchmarkId}`);
+    }
+  }, []);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      pollingIntervals.current.forEach((intervalId) => {
+        clearInterval(intervalId);
+      });
+      pollingIntervals.current.clear();
+    };
+  }, []);
+
   const clearExecutions = useCallback(() => {
+    // Stop all polling
+    pollingIntervals.current.forEach((intervalId) => {
+      clearInterval(intervalId);
+    });
+    pollingIntervals.current.clear();
+
     setExecutions(new Map());
   }, []);
 

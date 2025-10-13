@@ -345,11 +345,8 @@ export function BenchmarkList({
         const checkCompletion = () => {
           checkCount++;
 
-          // Look for execution by both benchmark_id and execution_id
-          const execution = Array.from(executions.values()).find(
-            (exec) =>
-              exec.benchmark_id === benchmark.id && exec.id === executionId,
-          );
+          // Look for execution using the proper key (benchmark_id)
+          const execution = executions.get(benchmark.id);
 
           console.log(
             `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
