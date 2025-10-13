@@ -13,9 +13,6 @@ interface BenchmarkListProps {
   onExecutionStart: (executionId: string) => void;
 }
 
-// All available agent types
-const ALL_AGENT_TYPES = ["deterministic", "local", "gemini", "glm-4.6"];
-
 export function BenchmarkList({
   selectedAgent,
   selectedBenchmark,
@@ -24,21 +21,22 @@ export function BenchmarkList({
   onExecutionStart,
 }: BenchmarkListProps) {
   const { benchmarks, loading, error, refetch } = useBenchmarkList();
-  // Track executions by benchmarkId+agentType key to distinguish runs per agent
+  // Track executions by benchmarkId for the selected agent
   const [executions, setExecutions] = useState<Map<string, any>>(new Map());
-  const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
+  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Poll for execution status updates
   useEffect(() => {
-    if (runningKeys.size === 0) return;
+    if (runningBenchmarks.size === 0) return;
 
     const interval = setInterval(async () => {
       const updates = new Map<string, any>();
       const stillRunning = new Set<string>();
 
-      for (const key of runningKeys) {
-        const [benchmarkId] = key.split("|");
-        const executionId = executions.get(key)?.execution_id;
+      for (const benchmarkId of runningBenchmarks) {
+        const executionId = executions.get(benchmarkId)?.execution_id;
         if (!executionId) continue;
 
         try {
@@ -46,84 +44,82 @@ export function BenchmarkList({
             benchmarkId,
             executionId,
           );
-          updates.set(key, status);
+          updates.set(benchmarkId, status);
 
           if (status.status === "Running") {
-            stillRunning.add(key);
+            stillRunning.add(benchmarkId);
           } else if (
             status.status === "Completed" ||
             status.status === "Failed"
           ) {
             // Execution completed or failed - update final status but keep polling a bit longer
             // Don't remove from running immediately to allow UI to show final state
-            if (!executions.get(key)?.finalUpdateShown) {
+            if (!executions.get(benchmarkId)?.finalUpdateShown) {
               // Mark that we've shown the final update
-              updates.set(key, { ...status, finalUpdateShown: true });
+              updates.set(benchmarkId, { ...status, finalUpdateShown: true });
               setTimeout(() => {
-                setRunningKeys((prev) => {
+                setRunningBenchmarks((prev) => {
                   const updated = new Set(prev);
-                  updated.delete(key);
+                  updated.delete(benchmarkId);
                   return updated;
                 });
               }, 2000); // Keep in "running" state for 2 more seconds to show final status
             }
           }
         } catch (error) {
-          console.error(`Failed to get status for ${key}:`, error);
+          console.error(`Failed to get status for ${benchmarkId}:`, error);
         }
       }
 
       setExecutions((prev) => {
         const updated = new Map(prev);
-        updates.forEach((status, key) => {
-          const current = updated.get(key) || {};
-          updated.set(key, { ...current, ...status });
+        updates.forEach((status, benchmarkId) => {
+          const current = updated.get(benchmarkId) || {};
+          updated.set(benchmarkId, { ...current, ...status });
         });
         return updated;
       });
 
-      setRunningKeys(stillRunning);
+      setRunningBenchmarks(stillRunning);
     }, 1000); // Poll every 1 second for more responsive updates
 
     return () => clearInterval(interval);
-  }, [runningKeys, executions, onExecutionStart]);
+  }, [runningBenchmarks, executions, onExecutionStart]);
 
   const handleRunBenchmark = useCallback(
-    async (benchmark: BenchmarkItem, agentType: string) => {
+    async (benchmark: BenchmarkItem) => {
       if (isRunning) return;
-
-      const key = `${benchmark.id}|${agentType}`;
 
       try {
         // Get agent configuration if needed
         let config;
-        if (agentType !== "deterministic") {
+        if (selectedAgent !== "deterministic") {
           try {
-            config = await apiClient.getAgentConfig(agentType);
+            config = await apiClient.getAgentConfig(selectedAgent);
           } catch {
             // No config found, that's okay for now
           }
         }
 
         const response = await apiClient.runBenchmark(benchmark.id, {
-          agent: agentType,
+          agent: selectedAgent,
           config,
         });
 
-        // Track this execution by benchmarkId+agentType
+        // Track this execution by benchmarkId
         setExecutions((prev) => {
           const updated = new Map(prev);
-          updated.set(key, {
+          updated.set(benchmark.id, {
             execution_id: response.execution_id,
             status: "Pending",
             progress: 0,
-            agentType,
+            agentType: selectedAgent,
             benchmarkId: benchmark.id,
           });
           return updated;
         });
 
-        setRunningKeys((prev) => new Set(prev).add(key));
+        setRunningBenchmarks((prev) => new Set(prev).add(benchmark.id));
         onExecutionStart(response.execution_id);
 
         // Refresh benchmark list to update status
@@ -135,7 +131,7 @@ export function BenchmarkList({
         );
       }
     },
-    [isRunning, onExecutionStart, refetch],
+    [selectedAgent, isRunning, onExecutionStart, refetch],
   );
 
   const handleRunAllBenchmarks = useCallback(async () => {
@@ -148,24 +144,23 @@ export function BenchmarkList({
     }
   }, [benchmarks, isRunning, handleRunBenchmark]);
 
-  const getExecutionStatus = useCallback(
-    (benchmarkId: string, agentType: string): any => {
-      const key = `${benchmarkId}|${agentType}`;
-      return executions.get(key);
+  const getBenchmarkStatus = useCallback(
+    (benchmarkId: string): any => {
+      return executions.get(benchmarkId);
     },
     [executions],
   );
 
   const getBenchmarkScore = useCallback(
-    (benchmarkId: string, agentType: string): number => {
-      const execution = getExecutionStatus(benchmarkId, agentType);
+    (benchmarkId: string): number => {
+      const execution = getBenchmarkStatus(benchmarkId);
       if (execution && execution.status === "Completed") {
         // For now, return a mock score
         return 1.0;
       }
       return 0;
     },
-    [getExecutionStatus],
+    [getBenchmarkStatus],
   );
 
   const getStatusIcon = useCallback((status: ExecutionStatus) => {
@@ -259,10 +254,26 @@ export function BenchmarkList({
         </div>
       </div>
 
-      {/* Benchmark List with Agent Grid */}
+      {/* Selected Agent Header */}
+      <div className="p-4 border-b bg-gray-50">
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+          <h3 className="font-medium text-gray-900 capitalize">
+            {selectedAgent} Agent
+          </h3>
+          <span className="text-sm text-gray-500">
+            ({benchmarks?.benchmarks.length || 0} benchmarks)
+          </span>
+        </div>
+      </div>
+
+      {/* Benchmark List */}
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y">
           {benchmarks.benchmarks.map((benchmark) => {
+            const execution = getBenchmarkStatus(benchmark.id);
+            const status = execution?.status || null;
+            const score = getBenchmarkScore(benchmark.id);
             const isSelected = selectedBenchmark === benchmark.id;
 
             return (
@@ -273,106 +284,73 @@ export function BenchmarkList({
                 }`}
                 onClick={() => onBenchmarkSelect(benchmark.id)}
               >
-                {/* Benchmark Header */}
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {benchmark.name}
-                    </div>
-                    <div className="text-sm text-gray-500">{benchmark.id}</div>
-                  </div>
-                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {/* Status Icon */}
+                    <span
+                      className={`font-mono text-sm ${getStatusColor(status)}`}
+                    >
+                      {getStatusIcon(status)}
+                    </span>
 
-                {/* Agent Status Grid */}
-                <div className="grid grid-cols-4 gap-2">
-                  {ALL_AGENT_TYPES.map((agentType) => {
-                    const execution = getExecutionStatus(
-                      benchmark.id,
-                      agentType,
-                    );
-                    const status = execution?.status || null;
-                    const score = getBenchmarkScore(benchmark.id, agentType);
-                    const isCurrentlyRunning = runningKeys.has(
-                      `${benchmark.id}|${agentType}`,
-                    );
+                    {/* Score */}
+                    <span
+                      className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
+                    >
+                      {status === "Completed" ? formatScore(score) : "000%"}
+                    </span>
 
-                    return (
-                      <div
-                        key={agentType}
-                        className="border rounded p-2 text-center"
-                      >
-                        {/* Agent Type Name */}
-                        <div className="text-xs font-medium text-gray-600 mb-1 capitalize">
-                          {agentType}
-                        </div>
-
-                        {/* Status Box */}
-                        <div
-                          className={`h-8 w-full rounded flex items-center justify-center text-xs font-mono font-medium ${
-                            status === "Running"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : status === "Completed"
-                                ? "bg-green-100 text-green-800"
-                                : status === "Failed"
-                                  ? "bg-red-100 text-red-800"
-                                  : status === "Pending"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-gray-100 text-gray-400"
-                          }`}
-                        >
-                          {status === "Running" && "[…]"}
-                          {status === "Completed" && "[✔]"}
-                          {status === "Failed" && "[✗]"}
-                          {status === "Pending" && "[⏳]"}
-                          {!status && "[ ]"}
-                        </div>
-
-                        {/* Score */}
-                        <div className="text-xs text-gray-600 mt-1 font-mono">
-                          {status === "Completed" ? formatScore(score) : "---"}
-                        </div>
-
-                        {/* Run Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRunBenchmark(benchmark, agentType);
-                          }}
-                          disabled={isRunning || isCurrentlyRunning}
-                          className="mt-1 w-full px-1 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {isCurrentlyRunning ? "Run…" : "Run"}
-                        </button>
-
-                        {/* Progress Bar for Running */}
-                        {status === "Running" && (
-                          <div className="mt-1">
-                            <div className="w-full bg-gray-200 rounded-full h-1">
-                              <div
-                                className="bg-blue-600 h-1 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${execution?.progress || 0}%`,
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Completion Message */}
-                        {status === "Completed" && (
-                          <div className="text-xs text-green-600 mt-1">
-                            ✓ Done
-                          </div>
-                        )}
-                        {status === "Failed" && (
-                          <div className="text-xs text-red-600 mt-1">
-                            ✗ Failed
-                          </div>
-                        )}
+                    {/* Benchmark Name */}
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        {benchmark.name}
                       </div>
-                    );
-                  })}
+                      <div className="text-sm text-gray-500">
+                        {benchmark.id}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Run Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRunBenchmark(benchmark);
+                    }}
+                    disabled={isRunning || status === "Running"}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {status === "Running" ? "Running..." : "Run"}
+                  </button>
                 </div>
+
+                {/* Progress Bar for Running and Completed Benchmarks */}
+                {(status === "Running" || status === "Completed") && (
+                  <div className="mt-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          status === "Completed"
+                            ? "bg-green-600"
+                            : "bg-blue-600"
+                        }`}
+                        style={{
+                          width: `${executions.get(benchmark.id)?.progress || 0}%`,
+                        }}
+                      ></div>
+                    </div>
+                    {status === "Completed" && (
+                      <div className="text-xs text-green-600 mt-1 font-medium">
+                        ✓ Completed successfully
+                      </div>
+                    )}
+                    {status === "Failed" && (
+                      <div className="text-xs text-red-600 mt-1 font-medium">
+                        ✗ Failed
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
