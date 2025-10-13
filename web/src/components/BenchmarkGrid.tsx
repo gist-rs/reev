@@ -156,6 +156,24 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
+        {/* Legend - Moved to Top */}
+        <div className="mb-4 p-2 bg-gray-50 rounded border">
+          <div className="flex items-center justify-center space-x-4 text-xs text-gray-600">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
+              <span>Perfect (100%)</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
+              <span>Partial (25-99%)</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
+              <span>Poor (&lt;25%)</span>
+            </div>
+          </div>
+        </div>
+
         {/* Agent Sections */}
         <div className="space-y-6">
           {data.map((agent) => (
@@ -209,24 +227,6 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Legend */}
-        <div className="mt-6 p-4 bg-white rounded-lg shadow-sm border">
-          <div className="flex items-center justify-center space-x-6 text-sm text-gray-600">
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
-              <span>Perfect (100%)</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-yellow-500 rounded mr-2"></div>
-              <span>Partial (25-99%)</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-red-500 rounded mr-2"></div>
-              <span>Poor (&lt;25%)</span>
-            </div>
-          </div>
         </div>
       </main>
 
