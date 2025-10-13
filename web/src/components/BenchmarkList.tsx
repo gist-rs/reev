@@ -312,11 +312,32 @@ export function BenchmarkList({
     if (isRunning || !benchmarks) return;
 
     for (const benchmark of benchmarks.benchmarks) {
+      // Start the benchmark
       await handleRunBenchmark(benchmark);
-      // Small delay between starting benchmarks
-      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Wait for the benchmark to complete before starting the next one
+      await new Promise<void>((resolve) => {
+        const checkCompletion = () => {
+          const execution = Array.from(executions.values()).find(
+            (exec) => exec.benchmark_id === benchmark.id,
+          );
+
+          if (
+            execution &&
+            (execution.status === "Completed" || execution.status === "Failed")
+          ) {
+            resolve();
+          } else {
+            // Check again in 1 second
+            setTimeout(checkCompletion, 1000);
+          }
+        };
+
+        // Start checking after a short delay
+        setTimeout(checkCompletion, 1000);
+      });
     }
-  }, [benchmarks, isRunning, handleRunBenchmark]);
+  }, [benchmarks, isRunning, handleRunBenchmark, executions]);
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
