@@ -786,7 +786,22 @@ async fn get_flow_log(
     info!("Getting YML flow logs for benchmark: {}", benchmark_id);
 
     match state.db.get_yml_flow_logs(&benchmark_id).await {
-        Ok(yml_logs) => Json(yml_logs).into_response(),
+        Ok(yml_logs) => {
+            info!(
+                "Found {} YML logs for benchmark: {}",
+                yml_logs.len(),
+                benchmark_id
+            );
+            for (i, log) in yml_logs.iter().enumerate() {
+                info!(
+                    "YML log {}: length={}, preview={}",
+                    i,
+                    log.len(),
+                    &log[..log.len().min(100)]
+                );
+            }
+            Json(yml_logs).into_response()
+        }
         Err(e) => {
             error!("Failed to get YML flow logs: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow logs").into_response()
