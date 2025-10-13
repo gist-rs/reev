@@ -7,10 +7,10 @@ import {
   PaginatedResponse,
   ResultsQuery,
   HealthResponse,
-  ErrorResponse
-} from '../types/benchmark';
+  ErrorResponse,
+} from "../types/benchmark";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 class ApiClient {
   private baseUrl: string;
@@ -21,13 +21,13 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     const config: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
       ...options,
@@ -42,7 +42,9 @@ class ApiClient {
           message: `HTTP ${response.status}: ${response.statusText}`,
           timestamp: new Date().toISOString(),
         }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`,
+        );
       }
 
       return await response.json();
@@ -54,37 +56,45 @@ class ApiClient {
 
   // Health check
   async getHealth(): Promise<HealthResponse> {
-    return this.request<HealthResponse>('/api/v1/health');
+    return this.request<HealthResponse>("/api/v1/health");
   }
 
   // Benchmarks
   async listBenchmarks(): Promise<string[]> {
-    return this.request<string[]>('/api/v1/benchmarks');
+    return this.request<string[]>("/api/v1/benchmarks");
   }
 
   async getBenchmark(benchmarkId: string): Promise<Record<string, any>> {
-    return this.request<Record<string, any>>(`/api/v1/benchmarks/${benchmarkId}`);
+    return this.request<Record<string, any>>(
+      `/api/v1/benchmarks/${benchmarkId}`,
+    );
   }
 
   // Agents
   async listAgents(): Promise<string[]> {
-    return this.request<string[]>('/api/v1/agents');
+    return this.request<string[]>("/api/v1/agents");
   }
 
   // Results
-  async listResults(query?: ResultsQuery): Promise<PaginatedResponse<BenchmarkResult>> {
+  async listResults(
+    query?: ResultsQuery,
+  ): Promise<PaginatedResponse<BenchmarkResult>> {
     const params = new URLSearchParams();
 
-    if (query?.agent) params.append('agent', query.agent);
-    if (query?.min_score !== undefined) params.append('min_score', query.min_score.toString());
-    if (query?.max_score !== undefined) params.append('max_score', query.max_score.toString());
-    if (query?.start_date) params.append('start_date', query.start_date);
-    if (query?.end_date) params.append('end_date', query.end_date);
-    if (query?.page) params.append('page', query.page.toString());
-    if (query?.limit) params.append('limit', query.limit.toString());
+    if (query?.agent) params.append("agent", query.agent);
+    if (query?.min_score !== undefined)
+      params.append("min_score", query.min_score.toString());
+    if (query?.max_score !== undefined)
+      params.append("max_score", query.max_score.toString());
+    if (query?.start_date) params.append("start_date", query.start_date);
+    if (query?.end_date) params.append("end_date", query.end_date);
+    if (query?.page) params.append("page", query.page.toString());
+    if (query?.limit) params.append("limit", query.limit.toString());
 
     const queryString = params.toString();
-    const endpoint = queryString ? `/api/v1/results?${queryString}` : '/api/v1/results';
+    const endpoint = queryString
+      ? `/api/v1/results?${queryString}`
+      : "/api/v1/results";
 
     return this.request<PaginatedResponse<BenchmarkResult>>(endpoint);
   }
@@ -100,7 +110,7 @@ class ApiClient {
 
   // Agent performance
   async getAgentPerformance(): Promise<AgentPerformanceSummary[]> {
-    return this.request<AgentPerformanceSummary[]>('/api/v1/agent-performance');
+    return this.request<AgentPerformanceSummary[]>("/api/v1/agent-performance");
   }
 
   // Utility method to check API availability
@@ -115,7 +125,22 @@ class ApiClient {
 }
 
 // Export singleton instance
-export const apiClient = new ApiClient();
+const apiClientInstance = new ApiClient();
+
+// Export methods bound to the instance to avoid 'this' context issues
+export const apiClient = {
+  getHealth: () => apiClientInstance.getHealth(),
+  listBenchmarks: () => apiClientInstance.listBenchmarks(),
+  getBenchmark: (benchmarkId: string) =>
+    apiClientInstance.getBenchmark(benchmarkId),
+  listAgents: () => apiClientInstance.listAgents(),
+  listResults: (query?: ResultsQuery) => apiClientInstance.listResults(query),
+  getBenchmarkResults: (benchmarkId: string) =>
+    apiClientInstance.getBenchmarkResults(benchmarkId),
+  getFlowLog: (sessionId: string) => apiClientInstance.getFlowLog(sessionId),
+  getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
+  isAvailable: () => apiClientInstance.isAvailable(),
+};
 
 // Export class for custom instances if needed
 export { ApiClient };

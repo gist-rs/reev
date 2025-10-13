@@ -38,10 +38,7 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
   // Remove mock data to use real API data
 
   // Get agent performance data
-  const { data: agentData, loading, error } = useAgentPerformance();
-
-  // Use real API data
-  const data = agentData || [];
+  const { data, loading, error } = useAgentPerformance();
   const isLoading = loading;
 
   const handleBenchmarkClick = useCallback((result: BenchmarkResult) => {
@@ -161,7 +158,7 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
       <main className="max-w-7xl mx-auto p-4">
         {/* Agent Sections */}
         <div className="space-y-6">
-          {agentData.map((agent) => (
+          {data.map((agent) => (
             <div
               key={agent.agent_type}
               className="bg-white rounded-lg shadow-sm border p-4"
