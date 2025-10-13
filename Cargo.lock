@@ -3695,6 +3695,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "project-root",
  "reev-lib",
  "reev-runner",
  "serde",

@@ -111,6 +111,20 @@ async fn main() -> Result<()> {
         .route("/api/v1/benchmarks", get(list_benchmarks))
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agent-performance", get(get_agent_performance))
+        // Benchmark execution endpoints
+        .route("/api/v1/benchmarks/{id}/run", post(run_benchmark))
+        .route(
+            "/api/v1/benchmarks/{id}/status/{execution_id}",
+            get(get_execution_status),
+        )
+        .route(
+            "/api/v1/benchmarks/{id}/stop/{execution_id}",
+            post(stop_benchmark),
+        )
+        // Agent configuration endpoints
+        .route("/api/v1/agents/config", post(save_agent_config))
+        .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
+        .route("/api/v1/agents/test", post(test_agent_connection))
         // Test endpoint without JSON
         .route("/api/v1/test", get(test_endpoint))
         // Test POST endpoint without JSON
@@ -121,9 +135,9 @@ async fn main() -> Result<()> {
 
     // Start server
     let port = std::env::var("PORT")
-        .unwrap_or_else(|_| "3000".to_string())
+        .unwrap_or_else(|_| "3001".to_string()) // Changed from 3000 to 3001 to avoid macOS Apple services conflict
         .parse()
-        .unwrap_or(3000);
+        .unwrap_or(3001); // Changed from 3000 to 3001
 
     let addr = format!("0.0.0.0:{port}");
     info!("Starting API server on {}", addr);
@@ -202,17 +216,12 @@ async fn test_post_endpoint() -> impl IntoResponse {
     Json(serde_json::json!({"status": "POST test working"}))
 }
 
-/// OPTIONS handler for CORS preflight
-async fn options_handler() -> impl IntoResponse {
-    StatusCode::OK
-}
-
 /// Run a benchmark
 async fn run_benchmark(
     State(state): State<ApiState>,
+    Path(benchmark_id): Path<String>,
     Json(request): Json<BenchmarkExecutionRequest>,
 ) -> impl IntoResponse {
-    let benchmark_id = "001-sol-transfer".to_string(); // Hardcoded for testing
     let execution_id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now();
 
@@ -266,7 +275,7 @@ async fn run_benchmark(
 /// Get execution status
 async fn get_execution_status(
     State(state): State<ApiState>,
-    Path(execution_id): Path<String>,
+    Path((_benchmark_id, execution_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     let executions = state.executions.lock().await;
 
@@ -279,7 +288,7 @@ async fn get_execution_status(
 /// Stop a running benchmark
 async fn stop_benchmark(
     State(state): State<ApiState>,
-    Path(execution_id): Path<String>,
+    Path((_benchmark_id, execution_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     let mut executions = state.executions.lock().await;
 
