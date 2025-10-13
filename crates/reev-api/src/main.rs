@@ -441,6 +441,15 @@ async fn execute_benchmark_background(
         }
     }
 
+    // Update progress - starting dependencies
+    {
+        let mut executions = state.executions.lock().await;
+        if let Some(execution) = executions.get_mut(&execution_id) {
+            execution.progress = 40;
+            execution.trace.push_str("Initializing dependencies...\n");
+        }
+    }
+
     // Execute the benchmark using the real runner
     let execution_result = match reev_runner::run_benchmarks(benchmark_path.clone(), &agent).await {
         Ok(mut results) => {
@@ -453,8 +462,30 @@ async fn execute_benchmark_background(
         Err(e) => Err(e),
     };
 
+    // Update progress - benchmark execution complete
+    {
+        let mut executions = state.executions.lock().await;
+        if let Some(execution) = executions.get_mut(&execution_id) {
+            execution.progress = 80;
+            execution
+                .trace
+                .push_str("Benchmark execution completed, processing results...\n");
+        }
+    }
+
     match execution_result {
         Ok(test_result) => {
+            // Update progress - generating results
+            {
+                let mut executions = state.executions.lock().await;
+                if let Some(execution) = executions.get_mut(&execution_id) {
+                    execution.progress = 90;
+                    execution
+                        .trace
+                        .push_str("Generating execution trace and logs...\n");
+                }
+            }
+
             // Generate ASCII tree trace from the actual result
             let ascii_trace = reev_runner::renderer::render_result_as_tree(&test_result);
 
@@ -669,7 +700,7 @@ async fn store_flow_log_from_result(
 
     // Store the actual TestResult as YML in database
     let yml_content = serde_yaml::to_string(&test_result)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize TestResult to YML: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to serialize TestResult to YML: {e}"))?;
 
     // Store YML directly in database
     db.insert_yml_flow_log(benchmark_id, &yml_content).await?;

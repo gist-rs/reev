@@ -86,15 +86,20 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
     }
 
     // Initialize dependency management system
+    info!("Starting dependency initialization...");
     let _dependency_guard = init_dependencies()
         .await
         .context("Failed to initialize dependencies")?;
+    info!("Dependency initialization completed successfully");
 
+    info!("Initializing database...");
     let db = Arc::new(db::Db::new("db/reev_results.db").await?);
+    info!("Database initialization completed");
     let mut results = vec![];
 
     for path in benchmark_paths {
         info!(path = %path.display(), "Running benchmark");
+        info!("Loading benchmark configuration...");
         let f = fs::File::open(&path)?;
         let test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
