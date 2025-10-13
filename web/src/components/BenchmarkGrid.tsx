@@ -219,13 +219,28 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
 
               {/* Benchmark Grid */}
               <div className="flex flex-wrap gap-1">
-                {agent.results.map((result) => (
-                  <BenchmarkBox
-                    key={`${agent.agent_type}-${result.benchmark_id}`}
-                    result={result}
-                    onClick={handleBenchmarkClick}
-                  />
-                ))}
+                {(() => {
+                  // Group results by benchmark_id and keep only the latest/most recent result
+                  const uniqueBenchmarks = new Map();
+                  agent.results.forEach((result) => {
+                    const benchmarkId = result.benchmark_id;
+                    const existing = uniqueBenchmarks.get(benchmarkId);
+                    if (
+                      !existing ||
+                      new Date(result.timestamp) > new Date(existing.timestamp)
+                    ) {
+                      uniqueBenchmarks.set(benchmarkId, result);
+                    }
+                  });
+
+                  return Array.from(uniqueBenchmarks.values()).map((result) => (
+                    <BenchmarkBox
+                      key={`${agent.agent_type}-${result.benchmark_id}`}
+                      result={result}
+                      onClick={handleBenchmarkClick}
+                    />
+                  ));
+                })()}
               </div>
             </div>
           ))}
