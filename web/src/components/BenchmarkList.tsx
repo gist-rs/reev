@@ -47,9 +47,23 @@ export function BenchmarkList({
 
           if (status.status === "Running") {
             stillRunning.add(benchmarkId);
-          } else {
-            // Execution completed or failed
-            onExecutionStart(executionId); // Notify parent of completion
+          } else if (
+            status.status === "Completed" ||
+            status.status === "Failed"
+          ) {
+            // Execution completed or failed - update final status but keep polling a bit longer
+            // Don't remove from running immediately to allow UI to show final state
+            if (!executions.get(benchmarkId)?.finalUpdateShown) {
+              // Mark that we've shown the final update
+              updates.set(benchmarkId, { ...status, finalUpdateShown: true });
+              setTimeout(() => {
+                setRunningBenchmarks((prev) => {
+                  const updated = new Set(prev);
+                  updated.delete(benchmarkId);
+                  return updated;
+                });
+              }, 2000); // Keep in "running" state for 2 more seconds to show final status
+            }
           }
         } catch (error) {
           console.error(`Failed to get status for ${benchmarkId}:`, error);
@@ -59,13 +73,14 @@ export function BenchmarkList({
       setExecutions((prev) => {
         const updated = new Map(prev);
         updates.forEach((status, benchmarkId) => {
-          updated.set(benchmarkId, status);
+          const current = updated.get(benchmarkId) || {};
+          updated.set(benchmarkId, { ...current, ...status });
         });
         return updated;
       });
 
       setRunningBenchmarks(stillRunning);
-    }, 2000); // Poll every 2 seconds
+    }, 1000); // Poll every 1 second for more responsive updates
 
     return () => clearInterval(interval);
   }, [runningBenchmarks, executions, onExecutionStart]);
@@ -296,17 +311,31 @@ export function BenchmarkList({
                   </button>
                 </div>
 
-                {/* Progress Bar for Running Benchmarks */}
-                {status === "Running" && (
+                {/* Progress Bar for Running and Completed Benchmarks */}
+                {(status === "Running" || status === "Completed") && (
                   <div className="mt-2">
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          status === "Completed"
+                            ? "bg-green-600"
+                            : "bg-blue-600"
+                        }`}
                         style={{
                           width: `${executions.get(benchmark.id)?.progress || 0}%`,
                         }}
                       ></div>
                     </div>
+                    {status === "Completed" && (
+                      <div className="text-xs text-green-600 mt-1 font-medium">
+                        ✓ Completed successfully
+                      </div>
+                    )}
+                    {status === "Failed" && (
+                      <div className="text-xs text-red-600 mt-1 font-medium">
+                        ✗ Failed
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
