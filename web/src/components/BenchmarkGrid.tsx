@@ -1,7 +1,9 @@
 // BenchmarkGrid component for main dashboard display
 
-import { useState, useCallback } from "preact/hooks";
+import { useState, useCallback, useEffect } from "preact/hooks";
 import { useAgentPerformance } from "../hooks/useApiData";
+import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
+import { apiClient } from "../services/api";
 import { BenchmarkBox } from "./BenchmarkBox";
 
 // Temporary types to avoid import issues
@@ -35,11 +37,27 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
     null,
   );
 
-  // Remove mock data to use real API data
-
-  // Get agent performance data
+  // Get benchmark list and agent performance data
+  const { benchmarks } = useBenchmarkList();
   const { data, loading, error } = useAgentPerformance();
-  const isLoading = loading;
+  const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load all benchmarks from API
+  useEffect(() => {
+    const loadBenchmarks = async () => {
+      try {
+        const benchmarkList = await apiClient.listBenchmarks();
+        setAllBenchmarks(benchmarkList);
+      } catch (error) {
+        console.error("Failed to load benchmarks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadBenchmarks();
+  }, []);
 
   const handleBenchmarkClick = useCallback((result: BenchmarkResult) => {
     setSelectedResult(result);
@@ -156,7 +174,7 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
-        {/* Legend - Moved to Top */}
+        {/* Legend - Updated to include untested */}
         <div className="mb-4 p-2 bg-gray-50 rounded border">
           <div className="flex justify-center">
             <div className="flex items-center space-x-4 text-xs text-gray-600">
@@ -171,6 +189,10 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
                 <span>Poor (&lt;25%)</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
+                <span>Not Tested</span>
               </div>
             </div>
           </div>
@@ -217,29 +239,57 @@ export function BenchmarkGrid({ className = "" }: BenchmarkGridProps) {
                 </div>
               </div>
 
-              {/* Benchmark Grid */}
+              {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
               <div className="flex flex-wrap gap-1">
                 {(() => {
-                  // Group results by benchmark_id and keep only the latest/most recent result
-                  const uniqueBenchmarks = new Map();
+                  // Create a map of all benchmark results for this agent
+                  const resultsMap = new Map();
                   agent.results.forEach((result) => {
                     const benchmarkId = result.benchmark_id;
-                    const existing = uniqueBenchmarks.get(benchmarkId);
+                    const existing = resultsMap.get(benchmarkId);
                     if (
                       !existing ||
                       new Date(result.timestamp) > new Date(existing.timestamp)
                     ) {
-                      uniqueBenchmarks.set(benchmarkId, result);
+                      resultsMap.set(benchmarkId, result);
                     }
                   });
 
-                  return Array.from(uniqueBenchmarks.values()).map((result) => (
-                    <BenchmarkBox
-                      key={`${agent.agent_type}-${result.benchmark_id}`}
-                      result={result}
-                      onClick={handleBenchmarkClick}
-                    />
-                  ));
+                  // Show all benchmarks, creating grey boxes for untested ones
+                  return allBenchmarks.map((benchmarkId) => {
+                    const result = resultsMap.get(benchmarkId);
+
+                    if (result) {
+                      // Tested benchmark - show actual result
+                      return (
+                        <BenchmarkBox
+                          key={`${agent.agent_type}-${benchmarkId}`}
+                          result={result}
+                          onClick={handleBenchmarkClick}
+                        />
+                      );
+                    } else {
+                      // Untested benchmark - create grey placeholder result
+                      const placeholderResult: BenchmarkResult = {
+                        id: `placeholder-${agent.agent_type}-${benchmarkId}`,
+                        benchmark_id: benchmarkId,
+                        agent_type: agent.agent_type,
+                        score: 0,
+                        final_status: "Not Tested",
+                        execution_time_ms: 0,
+                        timestamp: new Date().toISOString(),
+                        color_class: "gray",
+                      };
+
+                      return (
+                        <BenchmarkBox
+                          key={`${agent.agent_type}-${benchmarkId}`}
+                          result={placeholderResult}
+                          onClick={handleBenchmarkClick}
+                        />
+                      );
+                    }
+                  });
                 })()}
               </div>
             </div>
