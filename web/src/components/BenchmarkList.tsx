@@ -183,8 +183,12 @@ export function BenchmarkList({
         const checkCompletion = () => {
           checkCount++;
 
-          // Look for execution using the proper key (benchmark_id)
-          const execution = executions.get(benchmark.id);
+          // Look for execution using the hook state directly
+          // This prevents stale reference issues in the completion check
+          const execution = Array.from(executions.values()).find(
+            (exec) =>
+              exec.benchmark_id === benchmark.id && exec.id === executionId,
+          );
 
           console.log(
             `Check ${checkCount}: ${benchmark.id} (${executionId}) status: ${execution?.status || "not found"}`,
