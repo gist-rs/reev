@@ -190,28 +190,26 @@ export function BenchmarkGrid({
                 {data.length} agents
               </span>
             </div>
-            <div className="mb-4 p-2 bg-gray-50 rounded border">
-              <div className="flex justify-center">
-                {/* Legend - Updated to include untested */}
-                <div className="mb-4 p-2 bg-gray-50 rounded border">
-                  <div className="flex justify-center">
-                    <div className="flex items-center space-x-4 text-xs text-gray-600">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
-                        <span>Perfect (100%)</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
-                        <span>Partial (25-99%)</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
-                        <span>Poor (&lt;25%)</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
-                        <span>Not Tested</span>
-                      </div>
+            <div className="flex justify-center">
+              {/* Legend - Updated to include untested */}
+              <div className="mb-4 p-2 bg-gray-50 rounded border">
+                <div className="flex justify-center">
+                  <div className="flex items-center space-x-4 text-xs text-gray-600">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
+                      <span>Perfect (100%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
+                      <span>Partial (25-99%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
+                      <span>Poor (&lt;25%)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
+                      <span>Not Tested</span>
                     </div>
                   </div>
                 </div>
@@ -224,128 +222,124 @@ export function BenchmarkGrid({
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
         {/* Agent Sections */}
-        <div className="flex justify-center">
-          <div className="flex flex-wrap gap-4">
-            {ALL_AGENT_TYPES.map((agentType) => {
-              // Find the agent data from the API results, or create placeholder
-              const agentData = data.find(
-                (a) => a.agent_type === agentType,
-              ) || {
-                agent_type: agentType,
-                total_benchmarks: 0,
-                average_score: 0,
-                success_rate: 0,
-                best_benchmarks: [],
-                worst_benchmarks: [],
-                results: [],
-              };
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 justify-items-center">
+          {ALL_AGENT_TYPES.map((agentType) => {
+            // Find the agent data from the API results, or create placeholder
+            const agentData = data.find((a) => a.agent_type === agentType) || {
+              agent_type: agentType,
+              total_benchmarks: 0,
+              average_score: 0,
+              success_rate: 0,
+              best_benchmarks: [],
+              worst_benchmarks: [],
+              results: [],
+            };
 
-              return (
-                <div
-                  key={agentType}
-                  className="bg-white rounded-lg shadow-sm border p-4 w-80 flex-shrink-0"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">{agentType}</h3>
-                    <div className="text-sm text-gray-600">
-                      <span className="mr-4">
-                        Avg:{" "}
-                        <span
-                          className={
-                            agentData.average_score >= 1.0
-                              ? "text-green-600"
-                              : agentData.average_score >= 0.25
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                          }
-                        >
-                          {(agentData.average_score * 100).toFixed(1)}%
-                        </span>
-                      </span>
-                      <span>
-                        Success:{" "}
-                        <span
-                          className={
-                            agentData.success_rate >= 0.9
-                              ? "text-green-600"
-                              : agentData.success_rate >= 0.7
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                          }
-                        >
-                          {(agentData.success_rate * 100).toFixed(1)}%
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
-                  <div className="flex flex-wrap gap-1">
-                    {(() => {
-                      // Create a map of all benchmark results for this agent
-                      const resultsMap = new Map();
-                      agentData.results.forEach((result) => {
-                        const benchmarkId = result.benchmark_id;
-                        const existing = resultsMap.get(benchmarkId);
-                        if (
-                          !existing ||
-                          new Date(result.timestamp) >
-                            new Date(existing.timestamp)
-                        ) {
-                          resultsMap.set(benchmarkId, result);
+            return (
+              <div
+                key={agentType}
+                className="bg-white rounded-lg shadow-sm border p-4 w-80 flex-shrink-0"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">{agentType}</h3>
+                  <div className="text-sm text-gray-600">
+                    <span className="mr-4">
+                      Avg:{" "}
+                      <span
+                        className={
+                          agentData.average_score >= 1.0
+                            ? "text-green-600"
+                            : agentData.average_score >= 0.25
+                              ? "text-yellow-600"
+                              : "text-red-600"
                         }
-                      });
-
-                      // Show all benchmarks except failure test ones (003, 004), creating grey boxes for untested ones
-                      return allBenchmarks
-                        .filter((benchmarkId) => {
-                          // Filter out failure test benchmarks (003, 004) from web interface
-                          // Keep only happy path benchmarks for web testing
-                          return (
-                            !benchmarkId.includes("003") &&
-                            !benchmarkId.includes("004")
-                          );
-                        })
-                        .map((benchmarkId) => {
-                          const result = resultsMap.get(benchmarkId);
-
-                          if (result) {
-                            // Tested benchmark - show actual result
-                            return (
-                              <BenchmarkBox
-                                key={`${agentType}-${benchmarkId}`}
-                                result={result}
-                                onClick={handleBenchmarkClick}
-                              />
-                            );
-                          } else {
-                            // Untested benchmark - create grey placeholder result
-                            const placeholderResult: BenchmarkResult = {
-                              id: `placeholder-${agentType}-${benchmarkId}`,
-                              benchmark_id: benchmarkId,
-                              agent_type: agentType,
-                              score: 0,
-                              final_status: "Not Tested",
-                              execution_time_ms: 0,
-                              timestamp: new Date().toISOString(),
-                              color_class: "gray",
-                            };
-
-                            return (
-                              <BenchmarkBox
-                                key={`${agentType}-${benchmarkId}`}
-                                result={placeholderResult}
-                                onClick={handleBenchmarkClick}
-                              />
-                            );
-                          }
-                        });
-                    })()}
+                      >
+                        {(agentData.average_score * 100).toFixed(1)}%
+                      </span>
+                    </span>
+                    <span>
+                      Success:{" "}
+                      <span
+                        className={
+                          agentData.success_rate >= 0.9
+                            ? "text-green-600"
+                            : agentData.success_rate >= 0.7
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                        }
+                      >
+                        {(agentData.success_rate * 100).toFixed(1)}%
+                      </span>
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
+                <div className="flex flex-wrap gap-1">
+                  {(() => {
+                    // Create a map of all benchmark results for this agent
+                    const resultsMap = new Map();
+                    agentData.results.forEach((result) => {
+                      const benchmarkId = result.benchmark_id;
+                      const existing = resultsMap.get(benchmarkId);
+                      if (
+                        !existing ||
+                        new Date(result.timestamp) >
+                          new Date(existing.timestamp)
+                      ) {
+                        resultsMap.set(benchmarkId, result);
+                      }
+                    });
+
+                    // Show all benchmarks except failure test ones (003, 004), creating grey boxes for untested ones
+                    return allBenchmarks
+                      .filter((benchmarkId) => {
+                        // Filter out failure test benchmarks (003, 004) from web interface
+                        // Keep only happy path benchmarks for web testing
+                        return (
+                          !benchmarkId.includes("003") &&
+                          !benchmarkId.includes("004")
+                        );
+                      })
+                      .map((benchmarkId) => {
+                        const result = resultsMap.get(benchmarkId);
+
+                        if (result) {
+                          // Tested benchmark - show actual result
+                          return (
+                            <BenchmarkBox
+                              key={`${agentType}-${benchmarkId}`}
+                              result={result}
+                              onClick={handleBenchmarkClick}
+                            />
+                          );
+                        } else {
+                          // Untested benchmark - create grey placeholder result
+                          const placeholderResult: BenchmarkResult = {
+                            id: `placeholder-${agentType}-${benchmarkId}`,
+                            benchmark_id: benchmarkId,
+                            agent_type: agentType,
+                            score: 0,
+                            final_status: "Not Tested",
+                            execution_time_ms: 0,
+                            timestamp: new Date().toISOString(),
+                            color_class: "gray",
+                          };
+
+                          return (
+                            <BenchmarkBox
+                              key={`${agentType}-${benchmarkId}`}
+                              result={placeholderResult}
+                              onClick={handleBenchmarkClick}
+                            />
+                          );
+                        }
+                      });
+                  })()}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </main>
 
