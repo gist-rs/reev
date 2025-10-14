@@ -101,7 +101,7 @@ export function BenchmarkList({
   // This prevents state inconsistency issues between hook state and component state
 
   const handleRunBenchmark = useCallback(
-    async (benchmark: BenchmarkItem) => {
+    async (benchmark: BenchmarkItem, isRunAll: boolean = false) => {
       if (isRunning) return;
 
       try {
@@ -147,7 +147,7 @@ export function BenchmarkList({
         onExecutionStart(response.execution_id);
 
         // Only set completion callback for individual benchmark runs (not Run All)
-        if (!isRunningAll) {
+        if (!isRunAll) {
           setCompletionCallback((benchmarkId: string, execution: any) => {
             console.log(
               "🎯 Individual benchmark completion callback:",
@@ -206,7 +206,7 @@ export function BenchmarkList({
     );
 
     try {
-      await handleRunBenchmark(firstBenchmark);
+      await handleRunBenchmark(firstBenchmark, true); // Pass isRunAll=true
     } catch (error) {
       console.error(`Failed to start benchmark ${firstBenchmark.id}:`, error);
       // Continue to next one even on failure
