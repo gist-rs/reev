@@ -126,6 +126,10 @@ export function BenchmarkList({
           benchmark.id,
           response.execution_id,
         );
+
+        // Select the benchmark for Execution Details display
+        onBenchmarkSelect(benchmark.id);
+
         updateExecution(benchmark.id, {
           id: response.execution_id,
           benchmark_id: benchmark.id,
