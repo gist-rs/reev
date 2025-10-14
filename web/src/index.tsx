@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useState, useCallback, useEffect, useRef } from "preact/hooks";
 import { AgentSelector } from "./components/AgentSelector";
-import { AgentConfig } from "./components/AgentConfig";
+
 import { BenchmarkList } from "./components/BenchmarkList";
 import { ExecutionTrace } from "./components/ExecutionTrace";
 import { TransactionLog } from "./components/TransactionLog";
@@ -457,17 +457,6 @@ export function App() {
               loading={loading}
               error={error}
               refetch={refetch}
-            />
-          </div>
-
-          {/* Agent Configuration */}
-          <div className="border-t">
-            <AgentConfig
-              selectedAgent={selectedAgent}
-              isRunning={isRunning}
-              onConfigSaved={() => {
-                // Refresh or notify as needed
-              }}
             />
           </div>
         </div>
