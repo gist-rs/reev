@@ -157,18 +157,18 @@ export function AgentSelector({
     const isDisabled = agent.disabled || isRunning;
 
     if (isDisabled) {
-      return `${baseClasses} text-gray-400 border-gray-300 cursor-not-allowed`;
+      return `${baseClasses} text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-700 cursor-not-allowed`;
     }
 
     if (isSelected) {
-      return `${baseClasses} text-blue-600 border-blue-600 bg-blue-50`;
+      return `${baseClasses} text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20`;
     }
 
-    return `${baseClasses} text-gray-600 border-gray-300 hover:text-gray-800 hover:border-gray-400 cursor-pointer`;
+    return `${baseClasses} text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:text-gray-800 dark:hover:text-gray-100 hover:border-gray-400 dark:hover:border-gray-600 cursor-pointer`;
   };
 
   return (
-    <div className="bg-white shadow-sm border-b">
+    <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
       <div className="mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Agent Tabs */}
@@ -196,13 +196,13 @@ export function AgentSelector({
               ?.requiresConfig && (
               <button
                 onClick={() => setShowConfig(!showConfig)}
-                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 disabled={isRunning}
               >
                 {showConfig ? "Hide Config" : "Configure Agent"}
               </button>
             )}
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               {isRunning ? "Running..." : "Ready"}
             </span>
           </div>
@@ -212,9 +212,9 @@ export function AgentSelector({
         {showConfig &&
           AGENT_TABS.find((tab) => tab.id === selectedAgent)
             ?.requiresConfig && (
-            <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-4">
               <div className="max-w-2xl">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Configure{" "}
                   {
                     AGENT_TABS.find((tab) => tab.id === selectedAgent)
@@ -226,7 +226,7 @@ export function AgentSelector({
                 <div className="mb-4">
                   <label
                     htmlFor="api-url"
-                    className="block text-sm font-medium text-gray-700 mb-1"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                   >
                     API URL
                   </label>
@@ -238,7 +238,7 @@ export function AgentSelector({
                       handleConfigChange("api_url", e.currentTarget.value)
                     }
                     placeholder="https://api.example.com/v1"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     disabled={configLoading}
                   />
                 </div>
@@ -247,7 +247,7 @@ export function AgentSelector({
                 <div className="mb-4">
                   <label
                     htmlFor="api-key"
-                    className="block text-sm font-medium text-gray-700 mb-1"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                   >
                     API Key
                   </label>
@@ -259,14 +259,14 @@ export function AgentSelector({
                       handleConfigChange("api_key", e.currentTarget.value)
                     }
                     placeholder="Enter your API key"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     disabled={configLoading}
                   />
                 </div>
 
                 {/* Error Message */}
                 {configError && (
-                  <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md">
+                  <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-md">
                     {configError}
                   </div>
                 )}
@@ -276,8 +276,8 @@ export function AgentSelector({
                   <div
                     className={`mb-4 p-3 rounded-md border ${
                       testResult.status === "success"
-                        ? "bg-green-100 border-green-300 text-green-700"
-                        : "bg-red-100 border-red-300 text-red-700"
+                        ? "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
+                        : "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400"
                     }`}
                   >
                     {testResult.message}

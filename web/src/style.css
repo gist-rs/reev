@@ -66,9 +66,6 @@ main {
     }
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        color: #ccc;
-        background-color: #1a1a1a;
-    }
-}
+/* Dark mode is now managed via ThemeContext and Tailwind dark: variants */
+
+/* Dark mode is now managed via ThemeContext and Tailwind dark: variants */

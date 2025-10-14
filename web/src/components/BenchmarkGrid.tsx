@@ -112,7 +112,9 @@ export function BenchmarkGrid({
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading benchmark results...</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Loading benchmark results...
+          </p>
         </div>
       </div>
     );
@@ -123,7 +125,7 @@ export function BenchmarkGrid({
     return (
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center max-w-md">
-          <div className="text-red-500 mb-4">
+          <div className="text-red-500 dark:text-red-400 mb-4">
             <svg
               class="w-16 h-16 mx-auto"
               fill="none"
@@ -158,7 +160,7 @@ export function BenchmarkGrid({
     return (
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center">
-          <div className="text-gray-400 mb-4">
+          <div className="text-gray-400 dark:text-gray-500 mb-4">
             <svg
               class="w-16 h-16 mx-auto"
               fill="none"
@@ -187,7 +189,7 @@ export function BenchmarkGrid({
   // Remove health check for now to focus on basic functionality
 
   return (
-    <div className={`bg-gray-50 ${className}`}>
+    <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
         {/* Agent Sections */}
@@ -233,20 +235,22 @@ export function BenchmarkGrid({
               return (
                 <div
                   key={agentType}
-                  className="bg-white rounded-lg shadow-sm border p-4 w-96 max-w-md m-2"
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 w-96 max-w-md m-2"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">{agentType}</h3>
-                    <div className="text-sm text-gray-600">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                      {agentType}
+                    </h3>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       <span
                         className={
                           lastThreePercentage >= 0.9
-                            ? "text-green-600"
+                            ? "text-green-600 dark:text-green-400"
                             : lastThreePercentage >= 0.7
-                              ? "text-yellow-600"
+                              ? "text-yellow-600 dark:text-yellow-400"
                               : lastThreePercentage == 0.0
-                                ? "text-gray-400"
-                                : "text-red-600"
+                                ? "text-gray-400 dark:text-gray-500"
+                                : "text-red-600 dark:text-red-400"
                         }
                       >
                         {(lastThreePercentage * 100).toFixed(1)}%
@@ -307,7 +311,7 @@ export function BenchmarkGrid({
                                 key={index}
                                 className="flex items-center space-x-2 text-sm"
                               >
-                                <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
+                                <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
                                   {date}
                                 </span>
                                 <div className="flex flex-wrap gap-1">
@@ -364,7 +368,7 @@ export function BenchmarkGrid({
                                 key={index}
                                 className="flex items-center space-x-2 text-sm"
                               >
-                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
+                                <span className="text-gray-400 dark:text-gray-500 font-mono text-xs whitespace-nowrap">
                                   XXXX-XX-XX
                                 </span>
                                 <div className="flex flex-wrap gap-1">
@@ -413,13 +417,15 @@ export function BenchmarkGrid({
       {/* Result Detail Modal */}
       {selectedResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Benchmark Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Benchmark Details
+                </h3>
                 <button
                   onClick={handleCloseModal}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <svg
                     class="w-6 h-6"
@@ -451,26 +457,30 @@ export function BenchmarkGrid({
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900">Score:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    Score:
+                  </span>
                   <span
                     className={`ml-2 font-semibold ${
                       selectedResult.color_class === "green"
-                        ? "text-green-600"
+                        ? "text-green-600 dark:text-green-400"
                         : selectedResult.color_class === "yellow"
-                          ? "text-yellow-600"
-                          : "text-red-600"
+                          ? "text-yellow-600 dark:text-yellow-400"
+                          : "text-red-600 dark:text-red-400"
                     }`}
                   >
                     {(selectedResult.score * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900">Status:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    Status:
+                  </span>
                   <span
                     className={`ml-2 ${
                       selectedResult.final_status === "Succeeded"
-                        ? "text-green-600"
-                        : "text-red-600"
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
                     }`}
                   >
                     {selectedResult.final_status}

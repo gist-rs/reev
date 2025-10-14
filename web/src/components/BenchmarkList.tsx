@@ -278,9 +278,9 @@ export function BenchmarkList({
   }, []);
 
   const getScoreColor = useCallback((score: number) => {
-    if (score >= 1.0) return "text-green-600";
-    if (score >= 0.25) return "text-yellow-600";
-    return "text-red-600";
+    if (score >= 1.0) return "text-green-600 dark:text-green-400";
+    if (score >= 0.25) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
   }, []);
 
   const formatScore = useCallback((score: number) => {
@@ -298,7 +298,7 @@ export function BenchmarkList({
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-red-500 text-center">
+        <div className="text-red-500 dark:text-red-400 text-center">
           <p className="font-semibold">Failed to load benchmarks</p>
           <p className="text-sm">{error}</p>
           <button
@@ -315,7 +315,7 @@ export function BenchmarkList({
   if (!benchmarks || benchmarks.benchmarks.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 text-center">
+        <div className="text-gray-500 dark:text-gray-400 text-center">
           <p>No benchmarks found</p>
         </div>
       </div>
@@ -325,8 +325,10 @@ export function BenchmarkList({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-lg font-semibold">Benchmarks</h2>
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Benchmarks
+        </h2>
         <div className="flex space-x-2">
           <button
             onClick={handleRunAllBenchmarks}
@@ -339,25 +341,25 @@ export function BenchmarkList({
       </div>
 
       {/* Selected Agent Header */}
-      <div className="p-4 border-b bg-gray-50">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-            <h3 className="font-medium text-gray-900 capitalize">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100 capitalize">
               {selectedAgent} Agent
             </h3>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
               ({benchmarks?.benchmarks.length || 0} benchmarks)
             </span>
           </div>
           <button
             onClick={() => setShowAgentConfig(!showAgentConfig)}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             title="Agent Configuration"
           >
             {showAgentConfig ? (
               <svg
-                className="w-5 h-5 text-gray-600"
+                className="w-5 h-5 text-gray-600 dark:text-gray-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -371,7 +373,7 @@ export function BenchmarkList({
               </svg>
             ) : (
               <svg
-                className="w-5 h-5 text-gray-600"
+                className="w-5 h-5 text-gray-600 dark:text-gray-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -396,7 +398,7 @@ export function BenchmarkList({
 
       {/* Expandable Agent Configuration */}
       {showAgentConfig && (
-        <div className="border-b border-gray-200">
+        <div className="border-b border-gray-200 dark:border-gray-700">
           <AgentConfig
             selectedAgent={selectedAgent}
             isRunning={isRunning}
@@ -410,7 +412,7 @@ export function BenchmarkList({
 
       {/* Benchmark List */}
       <div className="flex-1 overflow-y-auto">
-        <div className="divide-y">
+        <div className="divide-y divide-gray-200 dark:divide-gray-700">
           {benchmarks.benchmarks
             .filter((benchmark) => {
               // Filter out failure test benchmarks (003, 004) from web interface
@@ -435,8 +437,10 @@ export function BenchmarkList({
               return (
                 <div
                   key={benchmark.id}
-                  className={`p-3 hover:bg-gray-50 cursor-pointer transition-colors ${
-                    isSelected ? "bg-blue-50 border-l-4 border-blue-500" : ""
+                  className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400"
+                      : ""
                   }`}
                   onClick={() => onBenchmarkSelect(benchmark.id)}
                 >
@@ -460,10 +464,10 @@ export function BenchmarkList({
 
                       {/* Benchmark Name */}
                       <div>
-                        <div className="font-medium text-gray-900">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">
                           {benchmark.name}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                           {benchmark.id}
                         </div>
                       </div>
@@ -487,7 +491,7 @@ export function BenchmarkList({
                   {/* Progress Bar for Running and Completed Benchmarks */}
                   {(status === "Running" || status === "Completed") && (
                     <div className="mt-2">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all duration-300 ${
                             status === "Completed"
@@ -500,12 +504,12 @@ export function BenchmarkList({
                         ></div>
                       </div>
                       {status === "Completed" && (
-                        <div className="text-xs text-green-600 mt-1 font-medium">
+                        <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
                           ✓ Completed successfully
                         </div>
                       )}
                       {status === "Failed" && (
-                        <div className="text-xs text-red-600 mt-1 font-medium">
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
                           ✗ Failed
                         </div>
                       )}

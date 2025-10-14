@@ -1,6 +1,8 @@
 import { render } from "preact";
 import { useState, useCallback, useEffect, useRef } from "preact/hooks";
 import { AgentSelector } from "./components/AgentSelector";
+import { DarkModeToggle } from "./components/DarkModeToggle";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 import { BenchmarkList } from "./components/BenchmarkList";
 import { ExecutionTrace } from "./components/ExecutionTrace";
@@ -491,23 +493,28 @@ export function App() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Performance Overview - Top Section (shows all agents) */}
-      <div className="border-b bg-white">
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         {/* Overview Header */}
-        <div className="p-4 border-b bg-white">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Performance Overview</h2>
+            <div className="flex items-center space-x-3">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Performance Overview
+              </h2>
+              <DarkModeToggle />
+            </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {totalResults || 0} total results
               </span>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {testedAgents || 0}/{totalAgents || 0} agents
               </span>
 
               {/* Legend */}
-              <div className="flex items-center space-x-4 text-xs text-gray-600 p-2 bg-gray-50 rounded border">
+              <div className="flex items-center space-x-4 text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-700 rounded border dark:border-gray-700">
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
                   <span>Perfect (100%)</span>
@@ -551,7 +558,7 @@ export function App() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Benchmark List and Config */}
-        <div className="w-1/3 border-r bg-white flex flex-col">
+        <div className="w-1/3 border-r bg-white dark:bg-gray-800 flex flex-col">
           {/* Benchmark List */}
           <div className="flex-1 overflow-hidden">
             <BenchmarkList
@@ -580,9 +587,9 @@ export function App() {
         {/* Right Panel - Execution Trace */}
         <div className="flex-1 flex flex-col">
           {/* Details Header */}
-          <div className="p-4 border-b bg-white">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {selectedBenchmark
                   ? `Benchmark: ${selectedBenchmark}`
                   : "Execution Details"}
@@ -603,13 +610,13 @@ export function App() {
           {/* Right Panel Content */}
           <div className="flex-1 flex flex-col">
             {/* Tab Navigation */}
-            <div className="flex border-b bg-white">
+            <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
               <button
                 onClick={() => setShowTransactionLog(false)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                   !showTransactionLog
-                    ? "border-blue-500 text-blue-600 bg-blue-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 }`}
               >
                 Execution Trace
@@ -618,8 +625,8 @@ export function App() {
                 onClick={() => setShowTransactionLog(true)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                   showTransactionLog
-                    ? "border-blue-500 text-blue-600 bg-blue-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 }`}
               >
                 Transaction Log
@@ -657,4 +664,9 @@ export function App() {
   );
 }
 
-render(<App />, document.getElementById("app"));
+render(
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>,
+  document.getElementById("app"),
+);

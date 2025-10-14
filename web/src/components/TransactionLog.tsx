@@ -84,13 +84,13 @@ export function TransactionLog({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "success":
-        return "text-green-600 bg-green-50 border-green-200";
+        return "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700";
       case "failed":
-        return "text-red-600 bg-red-50 border-red-200";
+        return "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700";
       case "pending":
-        return "text-yellow-600 bg-yellow-50 border-yellow-200";
+        return "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700";
       default:
-        return "text-gray-600 bg-gray-50 border-gray-200";
+        return "text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700";
     }
   };
 
@@ -221,11 +221,13 @@ export function TransactionLog({
 
   if (!benchmarkId) {
     return (
-      <div className="p-4 bg-white border rounded-lg">
-        <h3 className="text-lg font-semibold mb-3">Transaction Log</h3>
-        <div className="text-gray-500 text-center py-8">
+      <div className="p-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+          Transaction Log
+        </h3>
+        <div className="text-gray-500 dark:text-gray-400 text-center py-8">
           <svg
-            class="w-12 h-12 mx-auto mb-3 text-gray-300"
+            class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -244,13 +246,15 @@ export function TransactionLog({
   }
 
   return (
-    <div className="p-4 bg-white border rounded-lg w-full min-w-0">
+    <div className="p-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg w-full min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Transaction Log</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Transaction Log
+        </h3>
         <div className="flex items-center space-x-2">
           {isRunning && (
-            <div className="flex items-center text-xs text-green-600">
+            <div className="flex items-center text-xs text-green-600 dark:text-green-400">
               <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
               Live
             </div>
@@ -259,8 +263,8 @@ export function TransactionLog({
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`px-2 py-1 text-xs rounded ${
               autoRefresh
-                ? "bg-green-100 text-green-700 border border-green-200"
-                : "bg-gray-100 text-gray-700 border border-gray-200"
+                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
             }`}
           >
             Auto-refresh
@@ -270,36 +274,36 @@ export function TransactionLog({
 
       {/* Controls */}
       <div className="flex items-center space-x-2 mb-4">
-        <div className="flex-1 text-sm text-gray-600">
+        <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
           Flow Log YAML/ASCII Tree
         </div>
         <button
           onClick={clearLogs}
-          className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+          className="px-3 py-1 text-sm bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/30 transition-colors"
         >
           Clear
         </button>
         <button
           onClick={exportLogs}
           disabled={!flowLog}
-          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Export
         </button>
       </div>
 
       {/* Transaction List */}
-      <div className="border rounded-lg w-full flex-1 flex flex-col min-h-0">
+      <div className="border dark:border-gray-700 rounded-lg w-full flex-1 flex flex-col min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               Loading transactions...
             </span>
           </div>
         ) : error ? (
           <div className="p-4 text-center">
-            <div className="text-red-500 mb-2">
+            <div className="text-red-500 dark:text-red-400 mb-2">
               <svg
                 class="w-8 h-8 mx-auto"
                 fill="none"
@@ -314,10 +318,10 @@ export function TransactionLog({
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
               Failed to load flow logs
             </h3>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
             <button
               onClick={loadFlowLog}
               className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
@@ -326,26 +330,26 @@ export function TransactionLog({
             </button>
           </div>
         ) : !flowLog ? (
-          <div className="p-4 text-center text-gray-500">
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             No flow log data available for this execution
           </div>
         ) : (
           <div className="p-4 flex flex-col flex-1 min-h-0">
-            <div className="text-xs font-medium text-gray-700 mb-2 flex-shrink-0">
+            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
               Transaction Log (Real-time):
               {isRunning && (
-                <span className="ml-2 text-green-600 animate-pulse">
+                <span className="ml-2 text-green-600 dark:text-green-400 animate-pulse">
                   ● Live
                 </span>
               )}
             </div>
-            <div className="overflow-auto border border-gray-300 rounded min-w-0 flex-1">
-              <pre className="text-xs bg-gray-900 text-green-400 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
+            <div className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1">
+              <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 dark:text-green-300 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
                 {formatFlowLog(flowLog)}
               </pre>
             </div>
             {isRunning && (
-              <div className="mt-2 text-xs text-blue-400 text-center flex-shrink-0">
+              <div className="mt-2 text-xs text-blue-400 dark:text-blue-300 text-center flex-shrink-0">
                 Executing: {benchmarkId} - Progress: {execution?.progress || 0}%
               </div>
             )}

@@ -294,6 +294,7 @@ WebSocket /ws/benchmarks/{id}         // Real-time updates
 - **Error pattern** detection
 
 #### 3.3 User Experience Enhancements
+- ✅ **Dark theme** with toggle button beside Performance Overview
 - **Saved configurations** for different setups
 - **Benchmark favorites** and quick access
 - **Advanced filtering** and search
@@ -315,6 +316,7 @@ WebSocket /ws/benchmarks/{id}         // Real-time updates
 - [x] API key and configuration management
 - [x] Mobile-responsive design
 - [x] Error handling and user feedback
+- [x] Dark theme with device preference detection and toggle control
 
 ### ❌ **Phase 3 Success Targets - NOT STARTED**
 - [ ] Production deployment ready
