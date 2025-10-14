@@ -184,39 +184,30 @@ impl Db {
     }
 
     /// Inserts agent performance data into the database
-    pub async fn insert_agent_performance(
-        &self,
-        benchmark_id: &str,
-        agent_type: &str,
-        score: f64,
-        final_status: &str,
-        execution_time_ms: u64,
-        timestamp: &str,
-        flow_log_id: Option<i64>,
-    ) -> Result<()> {
+    pub async fn insert_agent_performance(&self, performance: &AgentPerformanceData) -> Result<()> {
         let insert_query = "
-            INSERT INTO agent_performance (
-                benchmark_id,
-                agent_type,
-                score,
-                final_status,
-                execution_time_ms,
-                timestamp,
-                flow_log_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
-        ";
+                    INSERT INTO agent_performance (
+                        benchmark_id,
+                        agent_type,
+                        score,
+                        final_status,
+                        execution_time_ms,
+                        timestamp,
+                        flow_log_id
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+                ";
 
         self.conn
             .execute(
                 insert_query,
                 [
-                    benchmark_id,
-                    agent_type,
-                    &score.to_string(),
-                    final_status,
-                    &execution_time_ms.to_string(),
-                    timestamp,
-                    &flow_log_id.map(|id| id.to_string()).unwrap_or_default(),
+                    performance.benchmark_id.as_str(),
+                    performance.agent_type.as_str(),
+                    &performance.score.to_string(),
+                    performance.final_status.as_str(),
+                    &performance.execution_time_ms.to_string(),
+                    performance.timestamp.as_str(),
+                    &performance.flow_log_id.unwrap_or_default().to_string(),
                 ],
             )
             .await
@@ -224,7 +215,7 @@ impl Db {
 
         info!(
             "[DB] Saved agent performance for '{}' agent on benchmark '{}'.",
-            agent_type, benchmark_id
+            performance.agent_type, performance.benchmark_id
         );
         Ok(())
     }
@@ -595,6 +586,17 @@ impl Db {
 
         Ok(benchmarks)
     }
+}
+
+/// Data structure for agent performance data
+pub struct AgentPerformanceData {
+    pub benchmark_id: String,
+    pub agent_type: String,
+    pub score: f64,
+    pub final_status: String,
+    pub execution_time_ms: u64,
+    pub timestamp: String,
+    pub flow_log_id: Option<i64>,
 }
 
 /// Helper function to determine color class based on score

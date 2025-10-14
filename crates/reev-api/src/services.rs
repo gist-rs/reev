@@ -260,19 +260,17 @@ pub async fn store_benchmark_result(
     agent: &str,
     score: f64,
 ) -> Result<()> {
-    let timestamp = chrono::Utc::now().to_rfc3339();
-    let execution_time_ms = 5000; // Mock execution time
-
-    db.insert_agent_performance(
-        benchmark_id,
-        agent,
+    let performance_data = reev_runner::db::AgentPerformanceData {
+        benchmark_id: benchmark_id.to_string(),
+        agent_type: agent.to_string(),
         score,
-        "Succeeded",
-        execution_time_ms,
-        &timestamp,
-        None,
-    )
-    .await?;
+        final_status: "Succeeded".to_string(),
+        flow_log_id: Some(chrono::Utc::now().timestamp()),
+        execution_time_ms: 0,
+        timestamp: chrono::Utc::now().timestamp().to_string(),
+    };
+
+    db.insert_agent_performance(&performance_data).await?;
 
     Ok(())
 }

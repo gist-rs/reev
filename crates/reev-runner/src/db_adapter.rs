@@ -5,6 +5,8 @@ use reev_lib::flow::{FlowError, FlowLogDatabase};
 use std::sync::Arc;
 use tracing::{debug, error};
 
+use crate::db;
+
 use super::db::Db;
 
 /// Database adapter for FlowLogger
@@ -51,16 +53,18 @@ impl FlowLogDatabase for FlowLogDatabaseAdapter {
             "Inserting agent performance into database"
         );
 
+        let performance_data = db::AgentPerformanceData {
+            benchmark_id: benchmark_id.to_string(),
+            agent_type: agent_type.to_string(),
+            score,
+            final_status: final_status.to_string(),
+            execution_time_ms,
+            timestamp: timestamp.to_string(),
+            flow_log_id,
+        };
+
         self.db
-            .insert_agent_performance(
-                benchmark_id,
-                agent_type,
-                score,
-                final_status,
-                execution_time_ms,
-                timestamp,
-                flow_log_id,
-            )
+            .insert_agent_performance(&performance_data)
             .await
             .map_err(|e| {
                 error!("Failed to insert agent performance: {}", e);
