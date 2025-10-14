@@ -22,18 +22,26 @@ Successfully implemented a comprehensive dark theme system for the web interface
 - Removed automatic CSS media query in favor of JavaScript control
 - Applied consistent dark theme colors across components
 
+#### **Border Color Resolution**
+- Identified and fixed Tailwind's default `border-color: #e5e7eb` causing white borders in dark mode
+- Added CSS override for dark mode: `.dark { border-color: rgb(55 65 81) !important; }`
+- Fixed all `divide-y` and `border-b` classes with explicit light/dark variants
+- Resolved border visibility issues across all components
+
 ### 📊 **Impact Achieved**
 #### **User Experience**
 - Enhanced accessibility with system preference detection
 - Improved readability in low-light environments
 - Professional appearance with smooth theme transitions
 - Consistent visual hierarchy maintained across themes
+- Complete elimination of white border artifacts in dark mode
 
 #### **Technical Quality**
 - Clean separation of concerns with context provider pattern
 - Maintainable theme system using Tailwind CSS variants
 - Zero build errors or TypeScript warnings
 - Backward compatible with existing functionality
+- Solved CSS specificity issues with Tailwind defaults
 
 ### 🎓 **Lessons Learned**
 #### **Theme Management Best Practices**
@@ -42,11 +50,18 @@ Successfully implemented a comprehensive dark theme system for the web interface
 - Device preference detection should be default behavior
 - Icon-based toggles provide intuitive theme switching
 
+#### **CSS Specificity Challenges**
+- Tailwind's CSS reset can override theme-specific border colors
+- Global CSS overrides needed for comprehensive dark mode coverage
+- Border styling requires both explicit classes and global overrides
+- Testing across all UI elements essential for theme completeness
+
 #### **Implementation Strategy**
 - Start with infrastructure (Tailwind config, context)
 - Update main containers first, then detailed components
 - Test both themes throughout development process
 - Maintain consistent color schemes and contrast ratios
+- Address CSS framework defaults early in implementation
 
 ### 🚀 **Current Status**
 ✅ **Dark theme implementation complete and production ready**
@@ -54,6 +69,7 @@ Successfully implemented a comprehensive dark theme system for the web interface
 - Toggle button functional and accessible
 - Device preference detection working correctly
 - Zero technical debt introduced
+- All border color issues resolved
 
 ### 🎯 **Future Enhancements**
 - Theme persistence in localStorage
