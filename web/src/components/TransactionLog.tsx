@@ -244,7 +244,7 @@ export function TransactionLog({
   }
 
   return (
-    <div className="p-4 bg-white border rounded-lg">
+    <div className="p-4 bg-white border rounded-lg w-full min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Transaction Log</h3>
@@ -289,7 +289,7 @@ export function TransactionLog({
       </div>
 
       {/* Transaction List */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-hidden w-full">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
@@ -336,9 +336,11 @@ export function TransactionLog({
                 </span>
               )}
             </div>
-            <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded border overflow-x-auto font-mono leading-relaxed">
-              {formatFlowLog(flowLog)}
-            </pre>
+            <div className="overflow-x-auto border border-gray-300 rounded min-w-0">
+              <pre className="text-xs bg-gray-900 text-green-400 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
+                {formatFlowLog(flowLog)}
+              </pre>
+            </div>
             {isRunning && (
               <div className="mt-2 text-xs text-blue-400 text-center">
                 Executing: {benchmarkId} - Progress: {execution?.progress || 0}%
