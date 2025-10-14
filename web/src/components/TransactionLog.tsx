@@ -289,7 +289,7 @@ export function TransactionLog({
       </div>
 
       {/* Transaction List */}
-      <div className="border rounded-lg overflow-hidden w-full">
+      <div className="border rounded-lg w-full">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
@@ -336,7 +336,7 @@ export function TransactionLog({
                 </span>
               )}
             </div>
-            <div className="overflow-x-auto border border-gray-300 rounded min-w-0">
+            <div className="overflow-auto border border-gray-300 rounded min-w-0 max-h-[60vh]">
               <pre className="text-xs bg-gray-900 text-green-400 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
                 {formatFlowLog(flowLog)}
               </pre>
