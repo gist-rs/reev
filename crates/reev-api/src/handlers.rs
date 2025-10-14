@@ -300,12 +300,12 @@ pub async fn get_flow_log(
                 benchmark_id
             );
             for (i, log) in yml_logs.iter().enumerate() {
-                info!(
-                    "YML log {}: length={}, preview={}",
-                    i,
-                    log.len(),
-                    &log[..log.len().min(100)]
-                );
+                let preview = if log.is_empty() {
+                    "<empty>".to_string()
+                } else {
+                    log[..log.len().min(100)].to_string()
+                };
+                info!("YML log {}: length={}, preview={}", i, log.len(), preview);
             }
             Json(yml_logs).into_response()
         }

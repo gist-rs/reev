@@ -350,10 +350,15 @@ impl Db {
             .await
             .map_err(|e| anyhow::anyhow!("Row iteration error: {e}"))?
         {
-            let yml_content: String = row
-                .get(0)
-                .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
-            yml_logs.push(yml_content);
+            // Safe column access with proper error handling
+            let yml_content_result: Result<String, _> = row.get(0);
+            let yml_content =
+                yml_content_result.map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
+
+            // Validate string content before adding to results
+            if !yml_content.is_empty() {
+                yml_logs.push(yml_content);
+            }
         }
 
         Ok(yml_logs)
