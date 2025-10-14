@@ -107,16 +107,16 @@ export function TransactionLog({
               const parsed = JSON.parse(item);
 
               // Extract key information from JSON flow log
-              let result = `╭── Flow Log Entry ${index + 1} ──╮\n`;
+              let result = `📊 Flow Log Entry ${index + 1}\n`;
 
               if (parsed.session_id) {
-                result += `│ Session: ${parsed.session_id}\n`;
+                result += `  Session: ${parsed.session_id}\n`;
               }
               if (parsed.benchmark_id) {
-                result += `│ Benchmark: ${parsed.benchmark_id}\n`;
+                result += `  Benchmark: ${parsed.benchmark_id}\n`;
               }
               if (parsed.agent_type) {
-                result += `│ Agent: ${parsed.agent_type}\n`;
+                result += `  Agent: ${parsed.agent_type}\n`;
               }
               if (parsed.start_time && parsed.end_time) {
                 const start = new Date(
@@ -124,21 +124,21 @@ export function TransactionLog({
                 );
                 const end = new Date(parsed.end_time.secs_since_epoch * 1000);
                 const duration = (end.getTime() - start.getTime()) / 1000;
-                result += `│ Duration: ${duration.toFixed(2)}s\n`;
+                result += `  Duration: ${duration.toFixed(2)}s\n`;
               }
               if (parsed.final_result) {
-                result += `│ Status: ${parsed.final_result.success ? "✅ Success" : "❌ Failed"}\n`;
-                result += `│ Score: ${(parsed.final_result.score * 100).toFixed(1)}%\n`;
+                result += `  Status: ${parsed.final_result.success ? "✅ Success" : "❌ Failed"}\n`;
+                result += `  Score: ${(parsed.final_result.score * 100).toFixed(1)}%\n`;
                 if (parsed.final_result.statistics) {
-                  result += `│ LLM Calls: ${parsed.final_result.statistics.total_llm_calls || 0}\n`;
-                  result += `│ Tool Calls: ${parsed.final_result.statistics.total_tool_calls || 0}\n`;
+                  result += `  LLM Calls: ${parsed.final_result.statistics.total_llm_calls || 0}\n`;
+                  result += `  Tool Calls: ${parsed.final_result.statistics.total_tool_calls || 0}\n`;
                 }
               }
-              result += `╰────────────────────────────────╮\n`;
+              result += ``;
               return result;
             } catch {
               // If parsing fails, treat as raw string but format it
-              return `╭── Entry ${index + 1} (Parse Error) ──╮\n${item.substring(0, 200)}...\n╰────────────────────────────────────╯\n`;
+              return `⚠️ Entry ${index + 1} (Parse Error)\n${item.substring(0, 200)}...\n`;
             }
           }
 
@@ -185,15 +185,15 @@ export function TransactionLog({
             }
 
             // Otherwise format as a simple entry
-            return `╭── Entry ${index + 1} ──────────────╮\n${item}\n╰────────────────────────────────────╯\n`;
+            return `📄 Entry ${index + 1}\n${item}\n`;
           }
 
           // If it's an object, format it
           if (typeof item === "object") {
-            return `╭── Object Entry ${index + 1} ─────╮\n${JSON.stringify(item, null, 2)}\n╰────────────────────────────────────╯\n`;
+            return `📋 Object Entry ${index + 1}\n${JSON.stringify(item, null, 2)}\n`;
           }
 
-          return `╭── Entry ${index + 1} ──────────────╮\n${String(item)}\n╰────────────────────────────────────╯\n`;
+          return `📝 Entry ${index + 1}\n${String(item)}\n`;
         })
         .join("\n");
     }

@@ -393,29 +393,31 @@ export function BenchmarkGrid({
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t space-y-3">
-                <button
-                  onClick={() => {
-                    if (onRunBenchmark && !isRunning) {
-                      onRunBenchmark(selectedResult.benchmark_id);
-                      handleCloseModal();
-                    }
-                  }}
-                  disabled={isRunning || !onRunBenchmark}
-                  className={`w-full px-4 py-2 rounded transition-colors ${
-                    isRunning || !onRunBenchmark
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  {isRunning ? "Running..." : "Run Benchmark"}
-                </button>
-                <button
-                  onClick={handleCloseModal}
-                  className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                >
-                  Close
-                </button>
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      if (onRunBenchmark && !isRunning) {
+                        onRunBenchmark(selectedResult.benchmark_id);
+                        handleCloseModal();
+                      }
+                    }}
+                    disabled={isRunning || !onRunBenchmark}
+                    className={`flex-1 px-4 py-2 rounded transition-colors ${
+                      isRunning || !onRunBenchmark
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}
+                  >
+                    {isRunning ? "Running..." : "Run Benchmark"}
+                  </button>
+                  <button
+                    onClick={handleCloseModal}
+                    className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
