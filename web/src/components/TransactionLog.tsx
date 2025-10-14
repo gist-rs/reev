@@ -152,30 +152,29 @@ export function TransactionLog({
             ) {
               // Parse YAML-like content for better formatting
               const lines = item.split("\n");
-              let result = `╭── Execution Trace ${index + 1} ──────╮\n`;
+              let result = `🔍 Execution Trace ${index + 1}\n`;
 
               for (const line of lines) {
                 if (line.startsWith("id:")) {
-                  result += `│ 📋 ${line}\n`;
+                  result += `  📋 ${line}\n`;
                 } else if (line.startsWith("prompt:")) {
-                  result += `│ 💭 ${line}\n`;
+                  result += `  💭 ${line}\n`;
                 } else if (line.startsWith("final_status:")) {
-                  result += `│ 🏁 ${line}\n`;
+                  result += `  🏁 ${line}\n`;
                 } else if (line.startsWith("score:")) {
-                  result += `│ 📊 ${line}\n`;
+                  result += `  📊 ${line}\n`;
                 } else if (line.startsWith("trace:")) {
-                  result += `│ 🔍 ${line}\n`;
+                  result += `  🔍 ${line}\n`;
                 } else if (line.startsWith("  steps:")) {
-                  result += `│ 📝 ${line}\n`;
+                  result += `  📝 ${line}\n`;
                 } else if (line.startsWith("    -")) {
-                  result += `│   ${line}\n`;
+                  result += `    ${line}\n`;
                 } else if (line.startsWith("      ")) {
-                  result += `│    ${line}\n`;
+                  result += `     ${line}\n`;
                 } else if (line.trim()) {
-                  result += `│ ${line}\n`;
+                  result += `  ${line}\n`;
                 }
               }
-              result += `╰────────────────────────────────────────╮\n`;
               return result;
             }
 
