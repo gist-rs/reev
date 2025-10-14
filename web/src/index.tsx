@@ -6,6 +6,7 @@ import { BenchmarkList } from "./components/BenchmarkList";
 import { ExecutionTrace } from "./components/ExecutionTrace";
 import { TransactionLog } from "./components/TransactionLog";
 import { BenchmarkGrid } from "./components/BenchmarkGrid";
+import { useAgentPerformance } from "./hooks/useApiData";
 import { useBenchmarkExecution } from "./hooks/useBenchmarkExecution";
 import { apiClient } from "./services/api";
 import { BenchmarkItem } from "./types/configuration";
@@ -36,6 +37,20 @@ export function App() {
   // State for performance overview refresh
   const [performanceOverviewRefresh, setPerformanceOverviewRefresh] =
     useState(0);
+
+  // Get performance data for header stats
+  const {
+    refetch: refetchAgentPerformance,
+    totalResults,
+    totalAgents,
+  } = useAgentPerformance();
+
+  // Refresh performance data when a benchmark completes
+  useEffect(() => {
+    if (performanceOverviewRefresh > 0) {
+      refetchAgentPerformance();
+    }
+  }, [performanceOverviewRefresh, refetchAgentPerformance]);
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
@@ -413,6 +428,34 @@ export function App() {
         <div className="p-4 border-b bg-white">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Performance Overview</h2>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {totalResults || 0} total results
+              </span>
+              <span className="text-sm text-gray-600">
+                {totalAgents || 0} agents
+              </span>
+
+              {/* Legend */}
+              <div className="flex items-center space-x-4 text-xs text-gray-600 p-2 bg-gray-50 rounded border">
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
+                  <span>Perfect (100%)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-yellow-500 rounded mr-1"></div>
+                  <span>Partial (25-99%)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
+                  <span>Poor (&lt;25%)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-gray-400 rounded mr-1"></div>
+                  <span>Not Tested</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 // Custom hook for API data fetching with loading and error states
 
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
 import { apiClient } from "../services/api";
 
 interface ApiState<T> {
@@ -115,7 +115,24 @@ export function useResults(initialQuery: ResultsQuery = {}) {
 
 // Hook for agent performance data
 export function useAgentPerformance() {
-  return useApiData(apiClient.getAgentPerformance, []);
+  const { data, loading, error, refetch } = useApiData(
+    apiClient.getAgentPerformance,
+    [],
+  );
+
+  const stats = useMemo(() => {
+    if (!data) {
+      return { totalResults: 0, totalAgents: 0 };
+    }
+    const totalResults = data.reduce(
+      (sum, agent) => sum + agent.results.length,
+      0,
+    );
+    const totalAgents = data.length;
+    return { totalResults, totalAgents };
+  }, [data]);
+
+  return { data, loading, error, refetch, ...stats };
 }
 
 // Hook for benchmarks list
