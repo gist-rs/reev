@@ -23,9 +23,6 @@ export function TransactionLog({
   const loadFlowLog = useCallback(async () => {
     if (!benchmarkId) return;
 
-    // Prevent unnecessary reloads if we already have data for running executions
-    if (isRunning && flowLog) return;
-
     setLoading(true);
     setError(null);
 
@@ -39,36 +36,34 @@ export function TransactionLog({
     } finally {
       setLoading(false);
     }
-  }, [benchmarkId, isRunning, flowLog]);
+  }, [benchmarkId]);
 
   // Update flow log from execution state when running
   useEffect(() => {
-    if (isRunning && execution?.trace) {
-      // During execution, show the current trace
-      setFlowLog(execution.trace);
-    } else if (!isRunning && execution?.trace) {
-      // When execution completes, load the full flow log from database
-      loadFlowLog();
+    if (isRunning && execution?.logs) {
+      setFlowLog({
+        events: execution.logs.split("\n").filter((line) => line.trim() !== ""),
+        final_result: {
+          status: execution.status,
+          progress: execution.progress,
+          trace: execution.trace,
+        },
+      });
     }
-  }, [isRunning, execution, loadFlowLog]);
+  }, [isRunning, execution]);
 
-  // Auto-refresh for running executions - optimized to prevent full refresh
+  // Auto-refresh for running executions
   useEffect(() => {
     if (!autoRefresh || !isRunning || !benchmarkId) return;
 
-    const interval = setInterval(() => {
-      // Only refresh if we have new data, not on every interval
-      loadFlowLog();
-    }, 3000); // Increased interval to reduce refresh frequency
+    const interval = setInterval(loadFlowLog, 2000);
     return () => clearInterval(interval);
-  }, [autoRefresh, isRunning, benchmarkId, loadFlowLog]);
+  }, [autoRefresh, isRunning, execution, loadFlowLog]);
 
-  // Load on mount and when benchmark changes, but not on every render
+  // Load on mount and when execution changes
   useEffect(() => {
-    if (benchmarkId) {
-      loadFlowLog();
-    }
-  }, [benchmarkId]); // Removed loadFlowLog dependency to prevent refresh loops
+    loadFlowLog();
+  }, [loadFlowLog]);
 
   const clearLogs = useCallback(() => {
     setFlowLog(null);
@@ -102,58 +97,103 @@ export function TransactionLog({
   const formatFlowLog = (logData: any) => {
     if (!logData) return "";
 
-    // If it's already a formatted string (from execution trace), return it
-    if (
-      typeof logData === "string" &&
-      logData.includes("└─") &&
-      logData.includes("ACTION:")
-    ) {
-      return logData;
-    }
-
     // Handle array of mixed JSON strings and YAML strings
     if (Array.isArray(logData)) {
       return logData
         .map((item, index) => {
-          // If it's a JSON string, parse and format it
+          // If it's a JSON string, parse and extract readable information
           if (typeof item === "string" && item.startsWith("{")) {
             try {
               const parsed = JSON.parse(item);
-              if (parsed.final_result && parsed.final_result.trace) {
-                // This is a flow log with trace data
-                return `╭───────── Execution ${index + 1} ─────────╮\n${parsed.final_result.trace}\n╰─────────────────────────────────────╯\n`;
+
+              // Extract key information from JSON flow log
+              let result = `╭── Flow Log Entry ${index + 1} ──╮\n`;
+
+              if (parsed.session_id) {
+                result += `│ Session: ${parsed.session_id}\n`;
               }
-              return `╭───────── Entry ${index + 1} ──────────╮\n${JSON.stringify(parsed, null, 2)}\n╰─────────────────────────────────────╯\n`;
+              if (parsed.benchmark_id) {
+                result += `│ Benchmark: ${parsed.benchmark_id}\n`;
+              }
+              if (parsed.agent_type) {
+                result += `│ Agent: ${parsed.agent_type}\n`;
+              }
+              if (parsed.start_time && parsed.end_time) {
+                const start = new Date(
+                  parsed.start_time.secs_since_epoch * 1000,
+                );
+                const end = new Date(parsed.end_time.secs_since_epoch * 1000);
+                const duration = (end.getTime() - start.getTime()) / 1000;
+                result += `│ Duration: ${duration.toFixed(2)}s\n`;
+              }
+              if (parsed.final_result) {
+                result += `│ Status: ${parsed.final_result.success ? "✅ Success" : "❌ Failed"}\n`;
+                result += `│ Score: ${(parsed.final_result.score * 100).toFixed(1)}%\n`;
+                if (parsed.final_result.statistics) {
+                  result += `│ LLM Calls: ${parsed.final_result.statistics.total_llm_calls || 0}\n`;
+                  result += `│ Tool Calls: ${parsed.final_result.statistics.total_tool_calls || 0}\n`;
+                }
+              }
+              result += `╰────────────────────────────────╮\n`;
+              return result;
             } catch {
-              // If parsing fails, treat as raw string
-              return `╭───────── Entry ${index + 1} ──────────╮\n${item}\n╰─────────────────────────────────────╯\n`;
+              // If parsing fails, treat as raw string but format it
+              return `╭── Entry ${index + 1} (Parse Error) ──╮\n${item.substring(0, 200)}...\n╰────────────────────────────────────╯\n`;
             }
           }
 
-          // If it's a YAML/formatted string with id/prompt structure, format it nicely
+          // If it's a YAML/formatted string with trace data, format it nicely
           if (typeof item === "string") {
-            // Check if it's the YAML trace format
+            // Check if it's the YAML trace format with prompt/steps
             if (
               item.includes("id:") &&
               item.includes("prompt:") &&
               item.includes("trace:")
             ) {
-              return `╭───────── Execution Trace ${index + 1} ─────────╮\n${item}\n╰──────────────────────────────────────────╯\n`;
+              // Parse YAML-like content for better formatting
+              const lines = item.split("\n");
+              let result = `╭── Execution Trace ${index + 1} ──────╮\n`;
+
+              for (const line of lines) {
+                if (line.startsWith("id:")) {
+                  result += `│ 📋 ${line}\n`;
+                } else if (line.startsWith("prompt:")) {
+                  result += `│ 💭 ${line}\n`;
+                } else if (line.startsWith("final_status:")) {
+                  result += `│ 🏁 ${line}\n`;
+                } else if (line.startsWith("score:")) {
+                  result += `│ 📊 ${line}\n`;
+                } else if (line.startsWith("trace:")) {
+                  result += `│ 🔍 ${line}\n`;
+                } else if (line.startsWith("  steps:")) {
+                  result += `│ 📝 ${line}\n`;
+                } else if (line.startsWith("    -")) {
+                  result += `│   ${line}\n`;
+                } else if (line.startsWith("      ")) {
+                  result += `│    ${line}\n`;
+                } else if (line.trim()) {
+                  result += `│ ${line}\n`;
+                }
+              }
+              result += `╰────────────────────────────────────────╮\n`;
+              return result;
             }
+
             // If it's already formatted with separators, keep it
-            if (item.includes("---") || item.includes("╭")) {
+            if (item.includes("---")) {
               return item;
             }
+
             // Otherwise format as a simple entry
-            return `╭───────── Entry ${index + 1} ──────────╮\n${item}\n╰─────────────────────────────────────╯\n`;
+            return `╭── Entry ${index + 1} ──────────────╮\n${item}\n╰────────────────────────────────────╯\n`;
           }
 
           // If it's an object, format it
           if (typeof item === "object") {
-            return `╭───────── Entry ${index + 1} ──────────╮\n${JSON.stringify(item, null, 2)}\n╰─────────────────────────────────────╯\n`;
+            return `╭── Object Entry ${index + 1} ─────╮\n${JSON.stringify(item, null, 2)}\n╰────────────────────────────────────╯\n`;
           }
 
-          return `╭───────── Entry ${index + 1} ──────────╮\n${String(item)}\n╰─────────────────────────────────────╯\n`;
+          return `╭── Entry ${index + 1} ──────────────╮\n${String(item)}\n╰────────────────────────────────────╯\n`;
         })
         .join("\n");
     }
@@ -163,25 +203,21 @@ export function TransactionLog({
       try {
         const parsed = JSON.parse(logData);
         if (parsed.final_result && parsed.final_result.trace) {
-          return `╭───────── Execution Trace ─────────╮\n${parsed.final_result.trace}\n╰──────────────────────────────────╯\n`;
+          return parsed.final_result.trace;
         }
-        return `╭───────── Parsed Data ─────────────╮\n${JSON.stringify(parsed, null, 2)}\n╰─────────────────────────────────────╯\n`;
+        return JSON.stringify(parsed, null, 2);
       } catch {
-        return `╭───────── Raw Data ───────────────╮\n${logData}\n╰─────────────────────────────────────╯\n`;
-      }
-    }
-
-    // If it's a plain string, format it nicely
-    if (typeof logData === "string") {
-      // Check if it's already formatted
-      if (logData.includes("╭") && logData.includes("╰")) {
         return logData;
       }
-      return `╭───────── Transaction Log ─────────╮\n${logData}\n╰─────────────────────────────────────╯\n`;
     }
 
-    // Fallback to JSON format with nice formatting
-    return `╭───────── Formatted Data ───────────╮\n${JSON.stringify(logData, null, 2)}\n╰─────────────────────────────────────╯\n`;
+    // If it's a plain string, return it
+    if (typeof logData === "string") {
+      return logData;
+    }
+
+    // Fallback to JSON format
+    return JSON.stringify(logData, null, 2);
   };
 
   if (!benchmarkId) {
@@ -301,19 +337,9 @@ export function TransactionLog({
                 </span>
               )}
             </div>
-            <div className="bg-gray-900 rounded border overflow-hidden">
-              <div className="text-xs font-medium text-gray-400 px-4 py-2 border-b border-gray-700">
-                Transaction Log Output
-                {isRunning && (
-                  <span className="ml-2 text-green-400 animate-pulse">
-                    ● Live
-                  </span>
-                )}
-              </div>
-              <pre className="text-xs text-green-400 p-4 overflow-x-auto font-mono leading-relaxed max-h-96 overflow-y-auto">
-                {formatFlowLog(flowLog)}
-              </pre>
-            </div>
+            <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded border overflow-x-auto font-mono leading-relaxed">
+              {formatFlowLog(flowLog)}
+            </pre>
             {isRunning && (
               <div className="mt-2 text-xs text-blue-400 text-center">
                 Executing: {benchmarkId} - Progress: {execution?.progress || 0}%
