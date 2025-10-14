@@ -163,8 +163,19 @@ pub async fn execute_benchmark_background(
 
             // Store result in database - serialize access to avoid SQLite locking
             // Store result in database sequentially (no concurrent access)
-            if let Err(e) =
-                store_benchmark_result(&state.db, &benchmark_id, &agent, test_result.score).await
+            let final_status = match test_result.final_status {
+                reev_lib::results::FinalStatus::Succeeded => "Succeeded",
+                reev_lib::results::FinalStatus::Failed => "Failed",
+            };
+
+            if let Err(e) = store_benchmark_result(
+                &state.db,
+                &benchmark_id,
+                &agent,
+                test_result.score,
+                Some(final_status),
+            )
+            .await
             {
                 error!("Failed to store benchmark result: {}", e);
             }
@@ -259,21 +270,25 @@ pub async fn store_benchmark_result(
     benchmark_id: &str,
     agent: &str,
     score: f64,
+    final_status: Option<&str>,
 ) -> Result<()> {
     // Use RFC 3339 format for consistent timestamp ordering with existing data
     let now = chrono::Utc::now();
     let timestamp_str = now.to_rfc3339();
 
+    // Determine status from test result or default to "Succeeded" for backwards compatibility
+    let status = final_status.unwrap_or("Succeeded");
+
     info!(
-        "🔄 [STORAGE] Storing benchmark result: {} by {} with score {} at {}",
-        benchmark_id, agent, score, timestamp_str
+        "🔄 [STORAGE] Storing benchmark result: {} by {} with score {} and status {} at {}",
+        benchmark_id, agent, score, status, timestamp_str
     );
 
     let performance_data = reev_runner::db::AgentPerformanceData {
         benchmark_id: benchmark_id.to_string(),
         agent_type: agent.to_string(),
         score,
-        final_status: "Succeeded".to_string(),
+        final_status: status.to_string(),
         flow_log_id: None, // Remove fake flow_log_id to avoid foreign key issues
         execution_time_ms: 0,
         timestamp: timestamp_str.clone(), // RFC 3339 format for proper ordering

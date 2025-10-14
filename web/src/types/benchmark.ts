@@ -69,6 +69,12 @@ export interface HealthResponse {
   version: string;
 }
 
+export interface BenchmarkDetails {
+  id: string;
+  description: string;
+  tags: string[];
+}
+
 export interface ErrorResponse {
   error: string;
   message: string;

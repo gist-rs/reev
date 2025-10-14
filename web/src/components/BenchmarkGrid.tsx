@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "preact/hooks";
 import { useAgentPerformance } from "../hooks/useApiData";
 import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
+import { useBenchmarkDetails } from "../hooks/useBenchmarkDetails";
 import { apiClient } from "../services/api";
 import { BenchmarkBox } from "./BenchmarkBox";
 
@@ -35,6 +36,7 @@ interface BenchmarkGridProps {
   selectedAgent?: string;
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
+  runningBenchmarkIds?: string[];
 }
 
 export function BenchmarkGrid({
@@ -44,6 +46,7 @@ export function BenchmarkGrid({
   selectedAgent = "deterministic",
   isRunning = false,
   onRunBenchmark,
+  runningBenchmarkIds = [],
 }: BenchmarkGridProps) {
   const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
     null,
@@ -52,8 +55,37 @@ export function BenchmarkGrid({
   // Get benchmark list and agent performance data
   const { benchmarks } = useBenchmarkList();
   const { data, loading, error, refetch } = useAgentPerformance();
+  const { preloadBenchmarkDetails } = useBenchmarkDetails();
   const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
+    new Set(runningBenchmarkIds),
+  );
+
+  // Update running benchmarks when prop changes
+  useEffect(() => {
+    setRunningBenchmarks(new Set(runningBenchmarkIds));
+  }, [runningBenchmarkIds]);
+
+  // Track running benchmarks
+  const handleRunBenchmark = useCallback(
+    (benchmarkId: string, agentType?: string) => {
+      if (onRunBenchmark) {
+        setRunningBenchmarks((prev) => new Set(prev).add(benchmarkId));
+        onRunBenchmark(benchmarkId, agentType);
+
+        // Remove from running after a timeout (in case completion event doesn't fire)
+        setTimeout(() => {
+          setRunningBenchmarks((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(benchmarkId);
+            return newSet;
+          });
+        }, 60000); // 1 minute timeout
+      }
+    },
+    [onRunBenchmark],
+  );
 
   // All agent types that should be displayed
   const ALL_AGENT_TYPES = [
@@ -69,6 +101,8 @@ export function BenchmarkGrid({
       try {
         const benchmarkList = await apiClient.listBenchmarks();
         setAllBenchmarks(benchmarkList);
+        // Preload benchmark details after loading benchmark list
+        preloadBenchmarkDetails(benchmarkList);
       } catch (error) {
         console.error("Failed to load benchmarks:", error);
       } finally {
@@ -77,7 +111,7 @@ export function BenchmarkGrid({
     };
 
     loadBenchmarks();
-  }, []);
+  }, [preloadBenchmarkDetails]);
 
   // Refetch performance data when refreshTrigger changes
   useEffect(() => {
@@ -334,6 +368,9 @@ export function BenchmarkGrid({
                                             key={benchmarkId}
                                             result={benchmarkResult}
                                             onClick={handleBenchmarkClick}
+                                            isRunning={runningBenchmarks.has(
+                                              benchmarkId,
+                                            )}
                                           />
                                         );
                                       } else {
@@ -354,6 +391,9 @@ export function BenchmarkGrid({
                                             key={benchmarkId}
                                             result={placeholderResult}
                                             onClick={handleBenchmarkClick}
+                                            isRunning={runningBenchmarks.has(
+                                              benchmarkId,
+                                            )}
                                           />
                                         );
                                       }
@@ -397,6 +437,9 @@ export function BenchmarkGrid({
                                           key={benchmarkId}
                                           result={placeholderResult}
                                           onClick={handleBenchmarkClick}
+                                          isRunning={runningBenchmarks.has(
+                                            benchmarkId,
+                                          )}
                                         />
                                       );
                                     })}
@@ -507,7 +550,7 @@ export function BenchmarkGrid({
                   <button
                     onClick={() => {
                       if (onRunBenchmark && !isRunning) {
-                        onRunBenchmark(
+                        handleRunBenchmark(
                           selectedResult.benchmark_id,
                           selectedResult.agent_type,
                         );

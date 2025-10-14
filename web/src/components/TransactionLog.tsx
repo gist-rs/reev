@@ -1,6 +1,6 @@
 // TransactionLog component for detailed transaction log viewing
 
-import { useState, useCallback, useEffect } from "preact/hooks";
+import { useState, useCallback, useEffect, useRef } from "preact/hooks";
 import { apiClient } from "../services/api";
 
 interface TransactionLogProps {
@@ -18,6 +18,8 @@ export function TransactionLog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(true);
 
   // Load flow logs from database and execution state
   const loadFlowLog = useCallback(async () => {
@@ -41,16 +43,56 @@ export function TransactionLog({
   // Update flow log from execution state when running
   useEffect(() => {
     if (isRunning && execution?.logs) {
-      setFlowLog({
-        events: execution.logs.split("\n").filter((line) => line.trim() !== ""),
-        final_result: {
-          status: execution.status,
-          progress: execution.progress,
-          trace: execution.trace,
-        },
+      const newLogs = execution.logs
+        .split("\n")
+        .filter((line) => line.trim() !== "");
+      setFlowLog((prev) => {
+        // Append new logs instead of replacing
+        if (prev && prev.events) {
+          const existingEvents = prev.events;
+          const newEvents = newLogs.filter(
+            (log) => !existingEvents.includes(log),
+          );
+          return {
+            ...prev,
+            events: [...existingEvents, ...newEvents],
+            final_result: {
+              status: execution.status,
+              progress: execution.progress,
+              trace: execution.trace,
+            },
+          };
+        }
+        return {
+          events: newLogs,
+          final_result: {
+            status: execution.status,
+            progress: execution.progress,
+            trace: execution.trace,
+          },
+        };
       });
     }
   }, [isRunning, execution]);
+
+  // Auto-scroll to bottom when new content is added
+  useEffect(() => {
+    if (shouldScrollToBottom && logContainerRef.current) {
+      const container = logContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [flowLog, shouldScrollToBottom]);
+
+  // Handle scroll to detect if user is manually scrolling
+  const handleScroll = useCallback(() => {
+    if (logContainerRef.current) {
+      const container = logContainerRef.current;
+      const isAtBottom =
+        container.scrollHeight - container.scrollTop <=
+        container.clientHeight + 10;
+      setShouldScrollToBottom(isAtBottom);
+    }
+  }, []);
 
   // Auto-refresh for running executions
   useEffect(() => {
@@ -334,7 +376,7 @@ export function TransactionLog({
             No flow log data available for this execution
           </div>
         ) : (
-          <div className="p-4 flex flex-col flex-1 min-h-0">
+          <div className="p-4 flex flex-col flex-1 min-h-0 max-h-96">
             <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
               Transaction Log (Real-time):
               {isRunning && (
@@ -342,8 +384,20 @@ export function TransactionLog({
                   ● Live
                 </span>
               )}
+              <button
+                onClick={() => setShouldScrollToBottom(true)}
+                className="ml-2 text-blue-500 hover:text-blue-600 text-xs"
+              >
+                {shouldScrollToBottom
+                  ? "📌 Auto-scroll"
+                  : "📌 Scroll to bottom"}
+              </button>
             </div>
-            <div className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1">
+            <div
+              ref={logContainerRef}
+              onScroll={handleScroll}
+              className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1 max-h-96"
+            >
               <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 dark:text-green-300 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
                 {formatFlowLog(flowLog)}
               </pre>
