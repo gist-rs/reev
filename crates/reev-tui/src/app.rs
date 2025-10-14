@@ -37,7 +37,7 @@ impl SelectedAgent {
     pub fn to_agent_name(self) -> &'static str {
         match self {
             SelectedAgent::Deterministic => "deterministic",
-            SelectedAgent::Gemini => "gemini-2.5-pro",
+            SelectedAgent::Gemini => "gemini-2.5-flash-lite",
             SelectedAgent::Local => "local",
             SelectedAgent::Glm46 => "glm-4.6",
         }

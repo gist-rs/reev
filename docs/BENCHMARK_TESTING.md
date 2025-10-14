@@ -137,7 +137,7 @@ RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-depo
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local
 
 # Gemini tests (requires API key)
-GEMINI_API_KEY=your_key cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
+GEMINI_API_KEY=your_key cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-flash-lite
 ```
 
 ## 🔍 Validation Procedures
@@ -334,14 +334,14 @@ cargo run -p reev-runner -- benchmarks/ --agent deterministic | grep "Score:" | 
 sqlite3 db/reev_results.db
 
 -- View recent test results
-SELECT benchmark_id, score, timestamp 
-FROM benchmark_results 
-ORDER BY timestamp DESC 
+SELECT benchmark_id, score, timestamp
+FROM benchmark_results
+ORDER BY timestamp DESC
 LIMIT 10;
 
 -- Analyze score distribution
-SELECT 
-  CASE 
+SELECT
+  CASE
     WHEN score = 0 THEN '0%'
     WHEN score < 60 THEN '~50%'
     WHEN score < 90 THEN '~75%'
@@ -349,8 +349,8 @@ SELECT
   END as score_range,
   COUNT(*) as count,
   ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM benchmark_results), 1) as percentage
-FROM benchmark_results 
-GROUP BY score_range 
+FROM benchmark_results
+GROUP BY score_range
 ORDER BY score_range;
 ```
 
@@ -366,25 +366,25 @@ on: [push, pull_request]
 jobs:
   test-benchmarks:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v2
-    
+
     - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-        
+
     - name: Run benchmark tests
       run: |
         # Test scoring validation
         cargo run -p reev-runner -- benchmarks/003-spl-transfer-fail.yml --agent deterministic
         cargo run -p reev-runner -- benchmarks/004-partial-score-spl-transfer.yml --agent deterministic
         cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
-        
+
         # Test Jupiter integration
         cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent deterministic
-        
+
     - name: Validate scores
       run: |
         # Add score validation logic here
@@ -406,10 +406,10 @@ declare -A expected_scores=(
 
 for benchmark in "${!expected_scores[@]}"; do
   expected=${expected_scores[$benchmark]}
-  
+
   # Run test and extract score
   result=$(cargo run -p reev-runner -- benchmarks/$benchmark.yml --agent deterministic 2>/dev/null | grep "Score:" | sed 's/.*Score: \([0-9.]*\)%/\1/')
-  
+
   # Validate score
   if [[ $benchmark == "003-spl-transfer-fail" ]]; then
     if [[ $result -eq 0 ]]; then

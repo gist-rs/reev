@@ -21,7 +21,11 @@ const AGENT_TABS: AgentTab[] = [
   { id: "deterministic", displayName: "Deterministic" },
   { id: "local", displayName: "Local (Qwen3)", requiresConfig: true },
   { id: "glm-4.6", displayName: "GLM 4.6", requiresConfig: true },
-  { id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", requiresConfig: true },
+  {
+    id: "gemini-2.5-flash-lite",
+    displayName: "Gemini 2.5 Flash Lite",
+    requiresConfig: true,
+  },
 ];
 
 export function AgentSelector({

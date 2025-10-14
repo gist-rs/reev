@@ -4,7 +4,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 pub struct Cli {
     /// The agent to use for the API call.
-    /// Can be 'deterministic', 'local', or a specific model name (e.g., 'gemini-2.5-pro').
+    /// Can be 'deterministic', 'local', or a specific model name (e.g., 'gemini-2.5-flash-lite').
     #[arg(long, default_value = "deterministic")]
     pub agent: String,
 }

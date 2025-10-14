@@ -98,7 +98,7 @@ cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent loca
 
 **Gemini Agent:**
 ```bash
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-pro
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-flash-lite
 ```
 
 ### 🎮 Interactive TUI

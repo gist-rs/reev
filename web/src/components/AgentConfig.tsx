@@ -15,7 +15,7 @@ interface AgentConfigProps {
 
 // Default API URLs for each agent type
 const DEFAULT_API_URLS: Record<string, string> = {
-  gemini: "https://generativelanguage.googleapis.com/v1beta",
+  "gemini-2.5-flash-lite": "https://generativelanguage.googleapis.com/v1beta",
   "glm-4.6": "https://open.bigmodel.cn/api/paas/v4",
   local: "http://localhost:8080/api",
   deterministic: "",

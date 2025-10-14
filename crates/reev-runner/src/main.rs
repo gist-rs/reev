@@ -19,7 +19,7 @@ struct Cli {
     path: PathBuf,
 
     /// The agent to run the benchmarks with.
-    /// Can be 'deterministic', 'local', or a specific model name like 'gemini-2.5-pro'.
+    /// Can be 'deterministic', 'local', or a specific model name like 'gemini-2.5-flash-lite'.
     #[arg(long, default_value = "deterministic")]
     agent: String,
 

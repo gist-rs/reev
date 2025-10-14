@@ -56,7 +56,12 @@ export function BenchmarkGrid({
   const [isLoading, setIsLoading] = useState(true);
 
   // All agent types that should be displayed
-  const ALL_AGENT_TYPES = ["deterministic", "local", "gemini", "glm-4.6"];
+  const ALL_AGENT_TYPES = [
+    "deterministic",
+    "local",
+    "gemini-2.5-flash-lite",
+    "glm-4.6",
+  ];
 
   // Load all benchmarks from API
   useEffect(() => {

@@ -66,7 +66,7 @@ You can also specify which agent model to use with the `--agent` flag.
 cargo run -p reev-agent --example 001-sol-transfer
 
 # Run with the Gemini agent (requires a GEMINI_API_KEY in your .env file)
-cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-pro
+cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-flash-lite
 ```
 
 **Available Examples:**
@@ -89,7 +89,7 @@ cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
 
 This example demonstrates:
 - ✅ **Real AI agent integration** with local LLM servers or Gemini
-- ✅ **Real surfpool forked mainnet execution** 
+- ✅ **Real surfpool forked mainnet execution**
 - ✅ **Real Jupiter API calls** for swaps and lending
 - ✅ **Multi-step workflow orchestration** (2 steps)
 - ✅ **RAG-based tool selection and discovery**
@@ -135,7 +135,7 @@ flow:
   - step: 1
     description: "Swap 0.5 SOL to USDC using Jupiter"
     prompt: "Swap 0.5 SOL from my wallet to USDC using Jupiter"
-    
+
   - step: 2
     description: "Deposit received USDC into Jupiter lending"
     prompt: "Deposit all the USDC I just received into Jupiter lending"
@@ -173,7 +173,7 @@ flow:
     description: "First operation"
     prompt: "Execute the first action"
     critical: true
-    
+
   - step: 2
     description: "Second operation"
     prompt: "Execute the second action"
@@ -242,7 +242,7 @@ The FlowAgent uses keyword-based RAG simulation to find relevant tools:
 async fn find_relevant_tools(&self, prompt: &str) -> Result<Vec<String>> {
     let mut relevant_tools = Vec::new();
     let prompt_lower = prompt.to_lowercase();
-    
+
     if prompt_lower.contains("swap") {
         relevant_tools.push("jupiter_swap".to_string());
     }
@@ -416,7 +416,7 @@ cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
 
 #### **5. Real Integration Status:**
 - ✅ **Real Jupiter Swap API** - Successfully generates 6+ Solana instructions
-- ✅ **Real Jupiter Lend Deposit API** - Successfully generates lending instructions  
+- ✅ **Real Jupiter Lend Deposit API** - Successfully generates lending instructions
 - ✅ **Real Surfpool Integration** - Executes on forked mainnet with 150+ account preloading
 - ✅ **Real LLM Integration** - Works with local models (LM Studio, Ollama) and Gemini
 - ✅ **Real Transaction Generation** - No simulations - authentic on-chain execution

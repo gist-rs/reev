@@ -6,8 +6,8 @@ This document outlines the comprehensive plan to build a modern web interface fo
 
 ## 📋 Project Status
 
-**Date**: 2025-10-13  
-**Last Updated**: 2025-10-13 - Axum 0.8 Compatibility Issue RESOLVED  
+**Date**: 2025-10-13
+**Last Updated**: 2025-10-13 - Axum 0.8 Compatibility Issue RESOLVED
 **Overall Status**: ✅ Core functionality complete, 🌐 Web interface 100% operational
 
 ---
@@ -36,7 +36,7 @@ This document outlines the comprehensive plan to build a modern web interface fo
 - ✅ **Architecture Fixed**: Moved from mixed Rust/JS to pure Preact/TypeScript
 - ✅ **Frontend Structure**: Clean separation - `reev-web` crate removed, `/web/` folder contains pure frontend
 - ✅ **Dependencies**: Preact + TypeScript + Tailwind CSS + Vite
-- ✅ **Components Migrated**: 
+- ✅ **Components Migrated**:
   - ✅ `BenchmarkBox.tsx` - 16x16 colored boxes (green/yellow/red)
   - ✅ `BenchmarkGrid.tsx` - Main dashboard component
   - ✅ `types/benchmark.ts` - TypeScript interfaces
@@ -65,7 +65,7 @@ This document outlines the comprehensive plan to build a modern web interface fo
 - ✅ Moved all handlers to main.rs for cleaner axum 0.8 compatibility
 - ✅ **API server now compiles and runs successfully**
 
-**Current Status**: 
+**Current Status**:
 - ✅ API server running on http://localhost:3000
 - ✅ All endpoints functional: `/api/v1/health`, `/api/v1/agents`, `/api/v1/benchmarks`, `/api/v1/agent-performance`
 - ✅ Real data flowing from database through API to frontend
@@ -77,7 +77,7 @@ This document outlines the comprehensive plan to build a modern web interface fo
 reev/
 ├── crates/                    # Rust workspace
 │   ├── reev-lib/            # Core library ✅
-│   ├── reev-agent/         # Agent server ✅  
+│   ├── reev-agent/         # Agent server ✅
 │   ├── reev-runner/        # Benchmark runner ✅
 │   ├── reev-api/           # API server ✅
 │   └── reev-tui/           # TUI interface ✅
@@ -108,7 +108,7 @@ reev/
 
 ### ✅ **Completed Infrastructure**
 - **Database**: SQLite (`reev_results.db`) with benchmark results table ✅
-- **Flow Logging**: YML files stored in `logs/flows/` directory ✅  
+- **Flow Logging**: YML files stored in `logs/flows/` directory ✅
 - **API Foundation**: Rust backend with Turso/SQLite integration ✅
 - **Data Model**: Structured results with scores, timestamps, agent types ✅
 - **Agent Support**: Deterministic, Local, GLM 4.6, and Gemini agents ✅
@@ -129,7 +129,7 @@ reev/
 
 ### ✅ **Phase 1.1: Database Integration - 100% COMPLETE**
 - ✅ Enhanced database schema with flow logs and agent performance tables
-- ✅ Database adapters for flow logging  
+- ✅ Database adapters for flow logging
 - ✅ Sample data populated and working
 - ✅ API integration with performance metrics
 
@@ -160,7 +160,7 @@ reev/
 
 **Components to Create**:
 - **AgentSelector.tsx**: Tabbed interface for agent selection
-  - Agents: Deterministic, Local (Qwen3), GLM 4.6, Gemini 2.5 Pro
+  - Agents: Deterministic, Local (Qwen3), GLM 4.6, Gemini 2.5 Flash Lite
   - Visual tabs with disabled state during execution
   - Current agent highlighting
 - **AgentConfig.tsx**: Configuration panel for LLM agents
@@ -244,7 +244,7 @@ WebSocket /ws/benchmarks/{id}         // Real-time updates
 **Goal**: Implement benchmark execution and real-time monitoring
 
 **Tasks**:
-- **Benchmark Runner Service**: 
+- **Benchmark Runner Service**:
   - Integrate with existing `reev-runner` functionality
   - Start/stop benchmark execution via API
   - Manage concurrent executions
@@ -403,7 +403,7 @@ src/
 
 ### ✅ **COMPLETED (95%)**
 - ✅ **Phase 1**: Database Integration - 100% COMPLETE
-- ✅ **Phase 2**: REST API Development - 100% COMPLETE  
+- ✅ **Phase 2**: REST API Development - 100% COMPLETE
 - ✅ **Phase 3**: Web Frontend Development - 90% COMPLETE
 - ✅ **Agent Selection & Configuration** - 100% COMPLETE
 - ✅ **Benchmark Execution** - 100% COMPLETE (including Run All sequential execution)
@@ -429,7 +429,7 @@ src/
 // Benchmark Execution API
 POST /api/v1/benchmarks/{id}/run
 {
-  "agent": "gemini-2.5-pro",
+  "agent": "gemini-2.5-flash-lite",
   "config": {
     "api_url": "...",
     "api_key": "..."
@@ -439,7 +439,7 @@ POST /api/v1/benchmarks/{id}/run
 → Response: { "execution_id": "uuid", "status": "started" }
 
 GET /api/v1/benchmarks/{id}/status/{execution_id}
-→ Response: { 
+→ Response: {
   "status": "running|completed|failed",
   "progress": 0-100,
   "trace": "...",
@@ -449,7 +449,7 @@ GET /api/v1/benchmarks/{id}/status/{execution_id}
 // Configuration API
 POST /api/v1/agents/config
 {
-  "agent_type": "gemini-2.5-pro",
+  "agent_type": "gemini-2.5-flash-lite",
   "api_url": "...",
   "api_key": "..."
 }
@@ -460,7 +460,7 @@ GET /api/v1/agents/config/{agent_type}
 
 ### 🎮 **Keyboard Shortcuts**
 - `Tab`: Switch between agents
-- `↑↓`: Navigate benchmark list  
+- `↑↓`: Navigate benchmark list
 - `Enter`: Run selected benchmark
 - `Ctrl+A`: Run all benchmarks
 - `Ctrl+S`: Stop execution
@@ -515,12 +515,12 @@ GET /api/v1/agents/config/{agent_type}
 ### 📋 **Server Management**
 - **Web Server**: User will run manually (`npm run dev` in `/web/`)
 - **API Server**: Must be started programmatically via code
-- **Agent Server**: Must be started programmatically via code  
+- **Agent Server**: Must be started programmatically via code
 - **Benchmark Runner**: Should start all dependencies automatically
 - **All Services**: Should be managed through the runner for proper orchestration
 
 ### 🎯 **Agent Requirements**
-- **Agent Types**: Deterministic, Local (Qwen3), GLM 4.6, Gemini 2.5 Pro
+- **Agent Types**: Deterministic, Local (Qwen3), GLM 4.6, Gemini 2.5 Flash Lite
 - **Configuration**: Web interface for API URL and API Key input
 - **Validation**: Connection testing and configuration persistence
 - **Security**: API keys should be handled securely
