@@ -1,6 +1,6 @@
 // BenchmarkGrid component for main dashboard display
 
-import { useState, useCallback, useEffect } from "preact/hooks";
+import { useState, useCallback, useEffect, useMemo } from "preact/hooks";
 import { useAgentPerformance } from "../hooks/useApiData";
 import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
 import { apiClient } from "../services/api";
@@ -207,89 +207,164 @@ export function BenchmarkGrid({
                 results: [],
               };
 
+              // Calculate percentage from last 3 tests only
+              const lastThreePercentage = useMemo(() => {
+                if (agentData.results.length === 0) return 0;
+                const totalScore = agentData.results.reduce(
+                  (sum, result) => sum + result.score,
+                  0,
+                );
+                return totalScore / agentData.results.length;
+              }, [agentData.results]);
+
               return (
                 <div
                   key={agentType}
-                  className="bg-white rounded-lg shadow-sm border p-4 w-80 max-w-sm m-2"
+                  className="bg-white rounded-lg shadow-sm border p-4 w-96 max-w-md m-2"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold">{agentType}</h3>
                     <div className="text-sm text-gray-600">
                       <span
                         className={
-                          agentData.success_rate >= 0.9
+                          lastThreePercentage >= 0.9
                             ? "text-green-600"
-                            : agentData.success_rate >= 0.7
+                            : lastThreePercentage >= 0.7
                               ? "text-yellow-600"
-                              : agentData.success_rate == 0.0
+                              : lastThreePercentage == 0.0
                                 ? "text-gray-400"
                                 : "text-red-600"
                         }
                       >
-                        {(agentData.success_rate * 100).toFixed(1)}%
+                        {(lastThreePercentage * 100).toFixed(1)}%
                       </span>
                     </div>
                   </div>
 
-                  {/* Benchmark Grid - Shows all benchmarks (tested + untested) */}
-                  <div className="flex flex-wrap gap-1">
+                  {/* Last 3 Test Results with Date */}
+                  <div className="space-y-2">
                     {(() => {
-                      // Create a map of all benchmark results for this agent
-                      const resultsMap = new Map();
-                      agentData.results.forEach((result) => {
-                        const benchmarkId = result.benchmark_id;
-                        const existing = resultsMap.get(benchmarkId);
-                        const resultDate = new Date(result.timestamp);
-                        const existingDate = existing
-                          ? new Date(existing.timestamp)
-                          : null;
+                      // Group results by date to get daily test runs
+                      const testRuns = agentData.results.reduce(
+                        (runs, result) => {
+                          const date = result.timestamp.substring(0, 10); // Group by date YYYY-MM-DD
+                          if (!runs[date]) {
+                            runs[date] = [];
+                          }
+                          runs[date].push(result);
+                          return runs;
+                        },
+                        {} as Record<string, typeof agentData.results>,
+                      );
 
-                        if (!existing || resultDate > existingDate) {
-                          resultsMap.set(benchmarkId, result);
-                        }
-                      });
+                      // Get last 3 daily runs by date
+                      const lastThreeRuns = Object.entries(testRuns)
+                        .sort(([a], [b]) => b.localeCompare(a))
+                        .slice(0, 3);
 
-                      // Show all benchmarks except failure test ones (003, 004), creating grey boxes for untested ones
-                      return allBenchmarks
-                        .filter((benchmarkId) => {
-                          // Filter out failure test benchmarks (003, 004) from web interface
-                          // Keep only happy path benchmarks for web testing
-                          return (
-                            !benchmarkId.includes("003") &&
-                            !benchmarkId.includes("004")
-                          );
-                        })
-                        .map((benchmarkId) => {
-                          const result = resultsMap.get(benchmarkId);
+                      return [...lastThreeRuns, ...Array(3).fill(null)]
+                        .slice(0, 3)
+                        .map((run, index) => {
+                          if (run) {
+                            const [date, results] = run;
+                            const runDate = results[0].timestamp;
 
-                          if (result) {
-                            // Tested benchmark - show actual result
                             return (
-                              <BenchmarkBox
-                                key={`${agentType}-${benchmarkId}`}
-                                result={result}
-                                onClick={handleBenchmarkClick}
-                              />
+                              <div
+                                key={index}
+                                className="flex items-center space-x-2 text-sm"
+                              >
+                                <span className="text-gray-500 font-mono text-xs whitespace-nowrap">
+                                  {date}
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {allBenchmarks
+                                    .filter((benchmarkId) => {
+                                      // Filter out failure test benchmarks (003, 004)
+                                      return (
+                                        !benchmarkId.includes("003") &&
+                                        !benchmarkId.includes("004")
+                                      );
+                                    })
+                                    .map((benchmarkId) => {
+                                      const benchmarkResult = results.find(
+                                        (r) => r.benchmark_id === benchmarkId,
+                                      );
+                                      if (benchmarkResult) {
+                                        // Real result - use BenchmarkBox for clicking
+                                        return (
+                                          <BenchmarkBox
+                                            key={benchmarkId}
+                                            result={benchmarkResult}
+                                            onClick={handleBenchmarkClick}
+                                          />
+                                        );
+                                      } else {
+                                        // Missing result - gray placeholder
+                                        const placeholderResult: BenchmarkResult =
+                                          {
+                                            id: `placeholder-${agentType}-${benchmarkId}`,
+                                            benchmark_id: benchmarkId,
+                                            agent_type: agentType,
+                                            score: 0,
+                                            final_status: "Not Tested",
+                                            execution_time_ms: 0,
+                                            timestamp: runDate,
+                                            color_class: "gray",
+                                          };
+                                        return (
+                                          <BenchmarkBox
+                                            key={benchmarkId}
+                                            result={placeholderResult}
+                                            onClick={handleBenchmarkClick}
+                                          />
+                                        );
+                                      }
+                                    })}
+                                </div>
+                              </div>
                             );
                           } else {
-                            // Untested benchmark - create grey placeholder result
-                            const placeholderResult: BenchmarkResult = {
-                              id: `placeholder-${agentType}-${benchmarkId}`,
-                              benchmark_id: benchmarkId,
-                              agent_type: agentType,
-                              score: 0,
-                              final_status: "Not Tested",
-                              execution_time_ms: 0,
-                              timestamp: new Date().toISOString(),
-                              color_class: "gray",
-                            };
-
+                            // Placeholder for missing test
                             return (
-                              <BenchmarkBox
-                                key={`${agentType}-${benchmarkId}`}
-                                result={placeholderResult}
-                                onClick={handleBenchmarkClick}
-                              />
+                              <div
+                                key={index}
+                                className="flex items-center space-x-2 text-sm"
+                              >
+                                <span className="text-gray-400 font-mono text-xs whitespace-nowrap">
+                                  XXXX-XX-XX
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {allBenchmarks
+                                    .filter((benchmarkId) => {
+                                      // Filter out failure test benchmarks (003, 004)
+                                      return (
+                                        !benchmarkId.includes("003") &&
+                                        !benchmarkId.includes("004")
+                                      );
+                                    })
+                                    .map((benchmarkId) => {
+                                      const placeholderResult: BenchmarkResult =
+                                        {
+                                          id: `placeholder-${agentType}-${benchmarkId}`,
+                                          benchmark_id: benchmarkId,
+                                          agent_type: agentType,
+                                          score: 0,
+                                          final_status: "Not Tested",
+                                          execution_time_ms: 0,
+                                          timestamp: new Date().toISOString(),
+                                          color_class: "gray",
+                                        };
+                                      return (
+                                        <BenchmarkBox
+                                          key={benchmarkId}
+                                          result={placeholderResult}
+                                          onClick={handleBenchmarkClick}
+                                        />
+                                      );
+                                    })}
+                                </div>
+                              </div>
                             );
                           }
                         });
