@@ -34,7 +34,7 @@ interface BenchmarkGridProps {
   onBenchmarkSelect?: (benchmarkId: string) => void;
   selectedAgent?: string;
   isRunning?: boolean;
-  onRunBenchmark?: (benchmarkId: string) => void;
+  onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
 }
 
 export function BenchmarkGrid({
@@ -210,33 +210,18 @@ export function BenchmarkGrid({
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold">{agentType}</h3>
                     <div className="text-sm text-gray-600">
-                      <span className="mr-4">
-                        Avg:{" "}
-                        <span
-                          className={
-                            agentData.average_score >= 1.0
-                              ? "text-green-600"
-                              : agentData.average_score >= 0.25
-                                ? "text-yellow-600"
+                      <span
+                        className={
+                          agentData.success_rate >= 0.9
+                            ? "text-green-600"
+                            : agentData.success_rate >= 0.7
+                              ? "text-yellow-600"
+                              : agentData.success_rate == 0.0
+                                ? "text-gray-400"
                                 : "text-red-600"
-                          }
-                        >
-                          {(agentData.average_score * 100).toFixed(1)}%
-                        </span>
-                      </span>
-                      <span>
-                        Success:{" "}
-                        <span
-                          className={
-                            agentData.success_rate >= 0.9
-                              ? "text-green-600"
-                              : agentData.success_rate >= 0.7
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                          }
-                        >
-                          {(agentData.success_rate * 100).toFixed(1)}%
-                        </span>
+                        }
+                      >
+                        {(agentData.success_rate * 100).toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -253,21 +238,6 @@ export function BenchmarkGrid({
                         const existingDate = existing
                           ? new Date(existing.timestamp)
                           : null;
-
-                        // Debug logging for timestamp comparison
-                        if (benchmarkId === "116-jup-lend-redeem-usdc") {
-                          console.log(`🔍 [TIMESTAMP] ${benchmarkId}:`, {
-                            timestamp: result.timestamp,
-                            parsedDate: resultDate,
-                            score: result.score,
-                            status: result.final_status,
-                            existingTimestamp: existing?.timestamp,
-                            existingParsedDate: existingDate,
-                            isResultNewer: existing
-                              ? resultDate > existingDate
-                              : true,
-                          });
-                        }
 
                         if (!existing || resultDate > existingDate) {
                           resultsMap.set(benchmarkId, result);
@@ -414,7 +384,10 @@ export function BenchmarkGrid({
                   <button
                     onClick={() => {
                       if (onRunBenchmark && !isRunning) {
-                        onRunBenchmark(selectedResult.benchmark_id);
+                        onRunBenchmark(
+                          selectedResult.benchmark_id,
+                          selectedResult.agent_type,
+                        );
                         handleCloseModal();
                       }
                     }}

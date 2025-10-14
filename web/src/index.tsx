@@ -73,10 +73,6 @@ export function App() {
 
     if (selectedBenchmark && executions.has(selectedBenchmark)) {
       const execution = executions.get(selectedBenchmark);
-      console.log("=== Syncing currentExecution with executions map ===");
-      console.log("selectedBenchmark:", selectedBenchmark);
-      console.log("execution from map:", execution);
-      console.log("current currentExecution:", currentExecution);
 
       // Only update if the execution is different or has new data
       if (
@@ -337,22 +333,30 @@ export function App() {
   }, []);
 
   const handleRunBenchmark = useCallback(
-    async (benchmarkId: string) => {
+    async (benchmarkId: string, agentType?: string) => {
       if (isRunning) return;
+
+      // Use provided agent type or fall back to global selectedAgent
+      const agentToUse = agentType || selectedAgent;
+
+      // Update global selectedAgent if different agent type is being used
+      if (agentType && agentType !== selectedAgent) {
+        setSelectedAgent(agentType);
+      }
 
       try {
         // Get agent configuration if needed
         let config;
-        if (selectedAgent !== "deterministic") {
+        if (agentToUse !== "deterministic") {
           try {
-            config = await apiClient.getAgentConfig(selectedAgent);
+            config = await apiClient.getAgentConfig(agentToUse);
           } catch {
             // No config found, that's okay for now
           }
         }
 
         const response = await apiClient.runBenchmark(benchmarkId, {
-          agent: selectedAgent,
+          agent: agentToUse,
           config,
         });
 
@@ -368,7 +372,7 @@ export function App() {
         updateExecution(benchmarkId, {
           id: response.execution_id,
           benchmark_id: benchmarkId,
-          agent: selectedAgent,
+          agent: agentToUse,
           status: "Pending",
           progress: 0,
           start_time: new Date().toISOString(),
@@ -378,6 +382,14 @@ export function App() {
 
         setIsRunning(true);
         handleExecutionStart(response.execution_id);
+
+        // Set completion callback for modal execution
+        setCompletionCallback((benchmarkId: string, execution: any) => {
+          console.log("🎯 Modal execution completion callback:", benchmarkId);
+          handleExecutionComplete(benchmarkId, execution);
+          // Clear the completion callback
+          setCompletionCallback(() => () => {});
+        });
       } catch (error) {
         console.error("Failed to start benchmark:", error);
       }
@@ -388,6 +400,8 @@ export function App() {
       handleBenchmarkSelect,
       updateExecution,
       handleExecutionStart,
+      handleExecutionComplete,
+      setCompletionCallback,
     ],
   );
 

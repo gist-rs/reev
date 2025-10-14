@@ -1,5 +1,38 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-15: Frontend UI Agent Selection Bug Fix - Modal Execution Corrected
+### 🎯 **Problem Solved**
+When clicking "Run Benchmark" from the Benchmark Details modal, the system was executing benchmarks with the "deterministic" agent instead of the agent type shown in the modal (e.g., "local"), causing user confusion and incorrect benchmark execution.
+
+### 🔍 **Root Cause Analysis**
+The issue was in the frontend UI routing logic:
+- **Benchmark Details modal** shows results for a specific agent type
+- **"Run Benchmark" button** was only passing the benchmark ID to the execution handler
+- **Execution handler** was using the global `selectedAgent` state (defaulting to "deterministic")
+- **Missing agent context** - the modal didn't communicate which agent should be used
+
+### 🔧 **Solution Implemented**
+1. **Updated interface signature**: Changed `onRunBenchmark(benchmarkId: string)` to `onRunBenchmark(benchmarkId: string, agentType?: string)`
+2. **Enhanced modal logic**: Modified BenchmarkGrid to pass `selectedResult.agent_type` when calling the run handler
+3. **Improved handler logic**: Updated App component's `handleRunBenchmark` to use provided agent or fallback to global selection
+4. **Maintained backward compatibility**: Optional agent parameter ensures existing functionality remains intact
+
+### 📊 **Impact Achieved**
+- ✅ Modal execution now uses correct agent type matching the displayed result
+- ✅ User expectations aligned with actual execution behavior
+- ✅ No breaking changes to existing codebase
+- ✅ TypeScript compilation successful with zero errors
+- ✅ Complete end-to-end functionality restored
+
+### 🎓 **Lessons Learned**
+- **Context preservation is critical**: UI components must maintain context for user actions
+- **Optional parameters enhance flexibility**: Backward-compatible API design prevents breaking changes
+- **TypeScript interfaces matter**: Clear function signatures prevent ambiguous behavior
+- **User experience matters**: Small UI bugs can significantly impact user trust
+
+### 🚀 **Current Status**
+**COMPLETE RESOLUTION** - The Reev framework frontend UI now correctly handles agent selection from benchmark details modal, providing seamless user experience across all agent types.
+
 ## 2025-10-14: Database Persistence Issue Resolved - Critical Web UI Sync Fixed
 ### 🎯 **Problem Solved**
 Database results were not persisting correctly to the web UI, causing benchmark results to show stale data (Score: 0.0%, Status: Not Tested) despite successful execution (100% success rate).

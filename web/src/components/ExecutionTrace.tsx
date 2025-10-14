@@ -66,36 +66,17 @@ export function ExecutionTrace({
   // Auto-scroll to bottom when new content is added
   useEffect(() => {
     if (autoScroll && traceRef.current) {
-      console.log("=== AUTO-SCROLL: New trace content detected ===");
-      console.log("Trace length:", execution?.trace?.length || 0);
-      console.log("Auto-scroll enabled:", autoScroll);
       traceRef.current.scrollTop = traceRef.current.scrollHeight;
-      console.log(
-        "Scrolled to bottom, new scrollTop:",
-        traceRef.current.scrollTop,
-      );
     }
   }, [execution?.trace, autoScroll]);
 
   // Also auto-scroll when execution completes - more aggressive
   useEffect(() => {
     if (autoScroll && traceRef.current && execution?.status === "Completed") {
-      console.log("=== AUTO-SCROLL: Execution completed ===");
-      console.log("Status:", execution?.status);
-      console.log("Auto-scroll enabled:", autoScroll);
-      console.log("Trace length:", execution?.trace?.length || 0);
-
       // Multiple attempts to ensure scroll works
       const scrollToBottom = () => {
         if (traceRef.current) {
-          console.log("Scrolling to bottom...");
           traceRef.current.scrollTop = traceRef.current.scrollHeight;
-          console.log(
-            "Scroll completed, scrollTop:",
-            traceRef.current.scrollTop,
-            "scrollHeight:",
-            traceRef.current.scrollHeight,
-          );
         }
       };
 
