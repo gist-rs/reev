@@ -260,17 +260,37 @@ pub async fn store_benchmark_result(
     agent: &str,
     score: f64,
 ) -> Result<()> {
+    // Use RFC 3339 format for consistent timestamp ordering with existing data
+    let now = chrono::Utc::now();
+    let timestamp_str = now.to_rfc3339();
+
+    info!(
+        "🔄 [STORAGE] Storing benchmark result: {} by {} with score {} at {}",
+        benchmark_id, agent, score, timestamp_str
+    );
+
     let performance_data = reev_runner::db::AgentPerformanceData {
         benchmark_id: benchmark_id.to_string(),
         agent_type: agent.to_string(),
         score,
         final_status: "Succeeded".to_string(),
-        flow_log_id: Some(chrono::Utc::now().timestamp()),
+        flow_log_id: None, // Remove fake flow_log_id to avoid foreign key issues
         execution_time_ms: 0,
-        timestamp: chrono::Utc::now().timestamp().to_string(),
+        timestamp: timestamp_str.clone(), // RFC 3339 format for proper ordering
     };
 
-    db.insert_agent_performance(&performance_data).await?;
+    match db.insert_agent_performance(&performance_data).await {
+        Ok(_) => {
+            info!(
+                "✅ [STORAGE] Successfully stored benchmark result for {} by {} at {}",
+                benchmark_id, agent, timestamp_str
+            );
+        }
+        Err(e) => {
+            error!("❌ [STORAGE] Failed to store benchmark result: {}", e);
+            return Err(e);
+        }
+    }
 
     Ok(())
 }

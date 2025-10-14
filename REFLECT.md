@@ -1,5 +1,37 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-14: Database Persistence Issue Resolved - Critical Web UI Sync Fixed
+### 🎯 **Problem Solved**
+Database results were not persisting correctly to the web UI, causing benchmark results to show stale data (Score: 0.0%, Status: Not Tested) despite successful execution (100% success rate).
+
+### 🔍 **Root Cause Analysis**
+The issue was a timestamp format inconsistency causing incorrect SQL sorting:
+- **Existing entries**: RFC 3339 format (`2025-10-14T05:56:38.917224+00:00`)
+- **New entries**: ISO 8601 format (`2025-10-14 05:56:38.952`)
+- **SQL ORDER BY timestamp DESC** was sorting lexicographically, putting space-format timestamps after T-format timestamps
+
+### 🔧 **Solution Implemented**
+1. **Fixed timestamp format**: Changed storage to use RFC 3339 format consistently (`chrono::Utc::now().to_rfc3339()`)
+2. **Fixed foreign key issues**: Removed fake `flow_log_id` (set to `None`) to avoid constraint violations
+3. **Enhanced database insertion**: Split query logic for proper NULL vs non-NULL `flow_log_id` handling
+4. **Database cleanup**: Removed inconsistent timestamp entries to ensure clean sorting
+
+### 📊 **Impact Achieved**
+- ✅ Web UI now updates immediately with latest benchmark results
+- ✅ Score displays correctly (100% instead of 0.0%)
+- ✅ Status updates to "Succeeded" instead of "Not Tested"
+- ✅ Manual refresh works correctly
+- ✅ Latest results appear first in overview
+
+### 🎓 **Lessons Learned**
+- **Timestamp consistency is critical**: Mixed timestamp formats break database ordering
+- **Foreign key constraints matter**: Fake IDs cause silent database insertion failures
+- **SQL string sorting nuances**: Lexicographic sorting differs from chronological sorting
+- **Debugging importance**: Direct database inspection revealed the root cause
+
+### 🚀 **Current Status**
+**COMPLETELY RESOLVED** - Database persistence and web UI sync now working perfectly.
+
 ## 2025-10-13: Run All Sequential Execution Fix - Critical Web Feature Resolved
 
 ### 🎯 **Problem Solved**

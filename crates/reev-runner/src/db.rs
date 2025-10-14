@@ -185,7 +185,10 @@ impl Db {
 
     /// Inserts agent performance data into the database
     pub async fn insert_agent_performance(&self, performance: &AgentPerformanceData) -> Result<()> {
-        let insert_query = "
+        // Use different queries based on whether flow_log_id is present
+        match performance.flow_log_id {
+            Some(flow_log_id) => {
+                let insert_query = "
                     INSERT INTO agent_performance (
                         benchmark_id,
                         agent_type,
@@ -197,25 +200,55 @@ impl Db {
                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
                 ";
 
-        self.conn
-            .execute(
-                insert_query,
-                [
-                    performance.benchmark_id.as_str(),
-                    performance.agent_type.as_str(),
-                    &performance.score.to_string(),
-                    performance.final_status.as_str(),
-                    &performance.execution_time_ms.to_string(),
-                    performance.timestamp.as_str(),
-                    &performance.flow_log_id.unwrap_or_default().to_string(),
-                ],
-            )
-            .await
-            .context("Failed to insert agent performance into database")?;
+                self.conn
+                    .execute(
+                        insert_query,
+                        [
+                            performance.benchmark_id.as_str(),
+                            performance.agent_type.as_str(),
+                            &performance.score.to_string(),
+                            performance.final_status.as_str(),
+                            &performance.execution_time_ms.to_string(),
+                            performance.timestamp.as_str(),
+                            &flow_log_id.to_string(),
+                        ],
+                    )
+                    .await
+                    .context("Failed to insert agent performance into database")?;
+            }
+            None => {
+                let insert_query = "
+                    INSERT INTO agent_performance (
+                        benchmark_id,
+                        agent_type,
+                        score,
+                        final_status,
+                        execution_time_ms,
+                        timestamp,
+                        flow_log_id
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL);
+                ";
+
+                self.conn
+                    .execute(
+                        insert_query,
+                        [
+                            performance.benchmark_id.as_str(),
+                            performance.agent_type.as_str(),
+                            &performance.score.to_string(),
+                            performance.final_status.as_str(),
+                            &performance.execution_time_ms.to_string(),
+                            performance.timestamp.as_str(),
+                        ],
+                    )
+                    .await
+                    .context("Failed to insert agent performance into database")?;
+            }
+        }
 
         info!(
-            "[DB] Saved agent performance for '{}' agent on benchmark '{}'.",
-            performance.agent_type, performance.benchmark_id
+            "[DB] Saved agent performance for '{}' agent on benchmark '{}' with score {}.",
+            performance.agent_type, performance.benchmark_id, performance.score
         );
         Ok(())
     }
@@ -464,6 +497,11 @@ impl Db {
             ORDER BY timestamp DESC;
         ";
 
+        info!(
+            "🔍 [DB_QUERY] Retrieving agent results for '{}' with ORDER BY timestamp DESC",
+            agent_type
+        );
+
         let mut stmt = self
             .conn
             .prepare(query)
@@ -476,11 +514,13 @@ impl Db {
             .context("Failed to execute agent results query")?;
 
         let mut results = Vec::new();
+        let mut count = 0;
         while let Some(row) = rows
             .next()
             .await
             .map_err(|e| anyhow::anyhow!("Row iteration error: {e}"))?
         {
+            count += 1;
             let benchmark_id: String = row
                 .get(0)
                 .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
@@ -511,6 +551,20 @@ impl Db {
                 color_class: get_color_class(score),
             });
         }
+
+        info!(
+            "📊 [DB_QUERY] Retrieved {} results for agent '{}', first timestamp: {}, last timestamp: {}",
+            count,
+            agent_type,
+            results
+                .first()
+                .map(|r| &r.timestamp)
+                .unwrap_or(&"None".to_string()),
+            results
+                .last()
+                .map(|r| &r.timestamp)
+                .unwrap_or(&"None".to_string())
+        );
 
         Ok(results)
     }

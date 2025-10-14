@@ -75,7 +75,24 @@ pub async fn get_agent_performance(State(state): State<ApiState>) -> impl IntoRe
     info!("Getting agent performance summary");
 
     match state.db.get_agent_performance().await {
-        Ok(summaries) => Json(summaries).into_response(),
+        Ok(summaries) => {
+            // Debug logging for specific benchmark
+            for summary in &summaries {
+                if summary.agent_type == "deterministic" {
+                    let latest_result = summary
+                        .results
+                        .iter()
+                        .filter(|r| r.benchmark_id == "116-jup-lend-redeem-usdc")
+                        .max_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+                    if let Some(result) = latest_result {
+                        info!("🔍 [API_DEBUG] Latest 116-jup-lend-redeem-usdc result: score={}, status={}, timestamp={}",
+                              result.score, result.final_status, result.timestamp);
+                    }
+                }
+            }
+            Json(summaries).into_response()
+        }
         Err(e) => {
             error!("Failed to get agent performance: {}", e);
             (

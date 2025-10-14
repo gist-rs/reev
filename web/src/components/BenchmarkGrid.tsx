@@ -249,11 +249,27 @@ export function BenchmarkGrid({
                       agentData.results.forEach((result) => {
                         const benchmarkId = result.benchmark_id;
                         const existing = resultsMap.get(benchmarkId);
-                        if (
-                          !existing ||
-                          new Date(result.timestamp) >
-                            new Date(existing.timestamp)
-                        ) {
+                        const resultDate = new Date(result.timestamp);
+                        const existingDate = existing
+                          ? new Date(existing.timestamp)
+                          : null;
+
+                        // Debug logging for timestamp comparison
+                        if (benchmarkId === "116-jup-lend-redeem-usdc") {
+                          console.log(`🔍 [TIMESTAMP] ${benchmarkId}:`, {
+                            timestamp: result.timestamp,
+                            parsedDate: resultDate,
+                            score: result.score,
+                            status: result.final_status,
+                            existingTimestamp: existing?.timestamp,
+                            existingParsedDate: existingDate,
+                            isResultNewer: existing
+                              ? resultDate > existingDate
+                              : true,
+                          });
+                        }
+
+                        if (!existing || resultDate > existingDate) {
                           resultsMap.set(benchmarkId, result);
                         }
                       });
