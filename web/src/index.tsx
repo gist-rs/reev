@@ -42,6 +42,7 @@ export function App() {
   const {
     refetch: refetchAgentPerformance,
     totalResults,
+    testedAgents,
     totalAgents,
   } = useAgentPerformance();
 
@@ -433,7 +434,7 @@ export function App() {
                 {totalResults || 0} total results
               </span>
               <span className="text-sm text-gray-600">
-                {totalAgents || 0} agents
+                {testedAgents || 0}/{totalAgents || 0} agents
               </span>
 
               {/* Legend */}

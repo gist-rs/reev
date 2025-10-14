@@ -122,14 +122,15 @@ export function useAgentPerformance() {
 
   const stats = useMemo(() => {
     if (!data) {
-      return { totalResults: 0, totalAgents: 0 };
+      return { totalResults: 0, testedAgents: 0, totalAgents: 4 };
     }
     const totalResults = data.reduce(
       (sum, agent) => sum + agent.results.length,
       0,
     );
-    const totalAgents = data.length;
-    return { totalResults, totalAgents };
+    const testedAgents = data.length;
+    const totalAgents = 4; // Total available agent types
+    return { totalResults, testedAgents, totalAgents };
   }, [data]);
 
   return { data, loading, error, refetch, ...stats };
