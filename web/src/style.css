@@ -68,4 +68,17 @@ main {
 
 /* Dark mode is now managed via ThemeContext and Tailwind dark: variants */
 
+/* Override Tailwind's default border color in dark mode */
+.dark,
+.dark *,
+.dark ::before,
+.dark ::after {
+    border-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+/* But preserve explicit border colors */
+.dark [class*="border-"] {
+    border-color: inherit !important;
+}
+
 /* Dark mode is now managed via ThemeContext and Tailwind dark: variants */

@@ -502,7 +502,7 @@ export function BenchmarkGrid({
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t">
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex space-x-3">
                   <button
                     onClick={() => {
