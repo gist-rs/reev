@@ -32,12 +32,18 @@ interface BenchmarkGridProps {
   className?: string;
   refreshTrigger?: number;
   onBenchmarkSelect?: (benchmarkId: string) => void;
+  selectedAgent?: string;
+  isRunning?: boolean;
+  onRunBenchmark?: (benchmarkId: string) => void;
 }
 
 export function BenchmarkGrid({
   className = "",
   refreshTrigger = 0,
   onBenchmarkSelect,
+  selectedAgent = "deterministic",
+  isRunning = false,
+  onRunBenchmark,
 }: BenchmarkGridProps) {
   const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
     null,
@@ -334,15 +340,19 @@ export function BenchmarkGrid({
 
               <div className="space-y-3">
                 <div>
-                  <span className="font-medium">Benchmark:</span>
-                  <span className="ml-2">{selectedResult.benchmark_id}</span>
+                  <span className="font-medium text-gray-900">Benchmark:</span>
+                  <span className="ml-2 text-gray-800">
+                    {selectedResult.benchmark_id}
+                  </span>
                 </div>
                 <div>
-                  <span className="font-medium">Agent:</span>
-                  <span className="ml-2">{selectedResult.agent_type}</span>
+                  <span className="font-medium text-gray-900">Agent:</span>
+                  <span className="ml-2 text-gray-800">
+                    {selectedResult.agent_type}
+                  </span>
                 </div>
                 <div>
-                  <span className="font-medium">Score:</span>
+                  <span className="font-medium text-gray-900">Score:</span>
                   <span
                     className={`ml-2 font-semibold ${
                       selectedResult.color_class === "green"
@@ -356,7 +366,7 @@ export function BenchmarkGrid({
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium">Status:</span>
+                  <span className="font-medium text-gray-900">Status:</span>
                   <span
                     className={`ml-2 ${
                       selectedResult.final_status === "Succeeded"
@@ -368,20 +378,38 @@ export function BenchmarkGrid({
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium">Execution Time:</span>
-                  <span className="ml-2">
+                  <span className="font-medium text-gray-900">
+                    Execution Time:
+                  </span>
+                  <span className="ml-2 text-gray-800">
                     {selectedResult.execution_time_ms}ms
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium">Timestamp:</span>
-                  <span className="ml-2">
+                  <span className="font-medium text-gray-900">Timestamp:</span>
+                  <span className="ml-2 text-gray-800">
                     {new Date(selectedResult.timestamp).toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t">
+              <div className="mt-6 pt-4 border-t space-y-3">
+                <button
+                  onClick={() => {
+                    if (onRunBenchmark && !isRunning) {
+                      onRunBenchmark(selectedResult.benchmark_id);
+                      handleCloseModal();
+                    }
+                  }}
+                  disabled={isRunning || !onRunBenchmark}
+                  className={`w-full px-4 py-2 rounded transition-colors ${
+                    isRunning || !onRunBenchmark
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
+                >
+                  {isRunning ? "Running..." : "Run Benchmark"}
+                </button>
                 <button
                   onClick={handleCloseModal}
                   className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"

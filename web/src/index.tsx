@@ -336,6 +336,61 @@ export function App() {
     // TODO: Add actual stop execution logic
   }, []);
 
+  const handleRunBenchmark = useCallback(
+    async (benchmarkId: string) => {
+      if (isRunning) return;
+
+      try {
+        // Get agent configuration if needed
+        let config;
+        if (selectedAgent !== "deterministic") {
+          try {
+            config = await apiClient.getAgentConfig(selectedAgent);
+          } catch {
+            // No config found, that's okay for now
+          }
+        }
+
+        const response = await apiClient.runBenchmark(benchmarkId, {
+          agent: selectedAgent,
+          config,
+        });
+
+        console.log(
+          "Starting benchmark execution from modal:",
+          benchmarkId,
+          response.execution_id,
+        );
+
+        // Select the benchmark for Execution Details display
+        handleBenchmarkSelect(benchmarkId);
+
+        updateExecution(benchmarkId, {
+          id: response.execution_id,
+          benchmark_id: benchmarkId,
+          agent: selectedAgent,
+          status: "Pending",
+          progress: 0,
+          start_time: new Date().toISOString(),
+          trace: "",
+          logs: "",
+        });
+
+        setIsRunning(true);
+        handleExecutionStart(response.execution_id);
+      } catch (error) {
+        console.error("Failed to start benchmark:", error);
+      }
+    },
+    [
+      isRunning,
+      selectedAgent,
+      handleBenchmarkSelect,
+      updateExecution,
+      handleExecutionStart,
+    ],
+  );
+
   // Run All completion callback - simplified approach
   const runAllCompletionCallback = useCallback(
     async (benchmarkId: string, execution: any) => {
@@ -465,6 +520,9 @@ export function App() {
           <BenchmarkGrid
             refreshTrigger={performanceOverviewRefresh}
             onBenchmarkSelect={handleBenchmarkSelect}
+            selectedAgent={selectedAgent}
+            isRunning={isRunning}
+            onRunBenchmark={handleRunBenchmark}
           />
         </div>
       </div>
