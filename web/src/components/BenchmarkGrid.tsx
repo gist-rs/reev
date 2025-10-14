@@ -293,41 +293,50 @@ export function BenchmarkGrid({
                       }
                     });
 
-                    // Show all benchmarks, creating grey boxes for untested ones
-                    return allBenchmarks.map((benchmarkId) => {
-                      const result = resultsMap.get(benchmarkId);
-
-                      if (result) {
-                        // Tested benchmark - show actual result
+                    // Show all benchmarks except failure test ones (003, 004), creating grey boxes for untested ones
+                    return allBenchmarks
+                      .filter((benchmarkId) => {
+                        // Filter out failure test benchmarks (003, 004) from web interface
+                        // Keep only happy path benchmarks for web testing
                         return (
-                          <BenchmarkBox
-                            key={`${agentType}-${benchmarkId}`}
-                            result={result}
-                            onClick={handleBenchmarkClick}
-                          />
+                          !benchmarkId.includes("003") &&
+                          !benchmarkId.includes("004")
                         );
-                      } else {
-                        // Untested benchmark - create grey placeholder result
-                        const placeholderResult: BenchmarkResult = {
-                          id: `placeholder-${agentType}-${benchmarkId}`,
-                          benchmark_id: benchmarkId,
-                          agent_type: agentType,
-                          score: 0,
-                          final_status: "Not Tested",
-                          execution_time_ms: 0,
-                          timestamp: new Date().toISOString(),
-                          color_class: "gray",
-                        };
+                      })
+                      .map((benchmarkId) => {
+                        const result = resultsMap.get(benchmarkId);
 
-                        return (
-                          <BenchmarkBox
-                            key={`${agentType}-${benchmarkId}`}
-                            result={placeholderResult}
-                            onClick={handleBenchmarkClick}
-                          />
-                        );
-                      }
-                    });
+                        if (result) {
+                          // Tested benchmark - show actual result
+                          return (
+                            <BenchmarkBox
+                              key={`${agentType}-${benchmarkId}`}
+                              result={result}
+                              onClick={handleBenchmarkClick}
+                            />
+                          );
+                        } else {
+                          // Untested benchmark - create grey placeholder result
+                          const placeholderResult: BenchmarkResult = {
+                            id: `placeholder-${agentType}-${benchmarkId}`,
+                            benchmark_id: benchmarkId,
+                            agent_type: agentType,
+                            score: 0,
+                            final_status: "Not Tested",
+                            execution_time_ms: 0,
+                            timestamp: new Date().toISOString(),
+                            color_class: "gray",
+                          };
+
+                          return (
+                            <BenchmarkBox
+                              key={`${agentType}-${benchmarkId}`}
+                              result={placeholderResult}
+                              onClick={handleBenchmarkClick}
+                            />
+                          );
+                        }
+                      });
                   })()}
                 </div>
               </div>

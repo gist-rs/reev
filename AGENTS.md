@@ -2,6 +2,7 @@
 - remove what done from to TOFIX.md, add what to fix in TOFIX.md
 - when fixed add reflect to REFLECT.md
 - keep all md under 200 lines, keep only important and use short word, less noise.
+- if any file biggger than 320 lines, ask user for refactor and separated them to smaller files.
 - ask user for commit when done impl or fixed and run success result without error and warning with git convesion e.g. `feat:...`, `fix:...`, `refactor:...` for each task, but wait for confirm first.
 - run `cargo clippy --fix --allow-dirty`  before commit.
 - don't add a test on each file, do add test to tests folder.
