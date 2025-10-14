@@ -31,11 +31,13 @@ interface AgentPerformanceSummary {
 interface BenchmarkGridProps {
   className?: string;
   refreshTrigger?: number;
+  onBenchmarkSelect?: (benchmarkId: string) => void;
 }
 
 export function BenchmarkGrid({
   className = "",
   refreshTrigger = 0,
+  onBenchmarkSelect,
 }: BenchmarkGridProps) {
   const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
     null,
@@ -76,10 +78,18 @@ export function BenchmarkGrid({
     }
   }, [refreshTrigger, refetch]);
 
-  const handleBenchmarkClick = useCallback((result: BenchmarkResult) => {
-    setSelectedResult(result);
-    console.log("Benchmark clicked:", result);
-  }, []);
+  const handleBenchmarkClick = useCallback(
+    (result: BenchmarkResult) => {
+      setSelectedResult(result);
+      console.log("Benchmark clicked:", result);
+
+      // Also select the benchmark for execution
+      if (onBenchmarkSelect) {
+        onBenchmarkSelect(result.benchmark_id);
+      }
+    },
+    [onBenchmarkSelect],
+  );
 
   const handleCloseModal = useCallback(() => {
     setSelectedResult(null);

@@ -418,7 +418,10 @@ export function App() {
 
         {/* Overview Content */}
         <div className="flex-1 overflow-auto">
-          <BenchmarkGrid refreshTrigger={performanceOverviewRefresh} />
+          <BenchmarkGrid
+            refreshTrigger={performanceOverviewRefresh}
+            onBenchmarkSelect={handleBenchmarkSelect}
+          />
         </div>
       </div>
 
