@@ -63,7 +63,7 @@ async fn test_agent_performance_timestamp_ordering() {
         .find(|summary| summary.agent_type == "deterministic")
         .map(|summary| &summary.results)
         .unwrap();
-    let mut results = deterministic_results.clone();
+    let results = deterministic_results.clone();
 
     // Should have 3 results
     assert_eq!(results.len(), 3);
