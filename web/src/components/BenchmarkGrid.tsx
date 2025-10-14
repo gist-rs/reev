@@ -207,14 +207,27 @@ export function BenchmarkGrid({
                 results: [],
               };
 
-              // Calculate percentage from last 3 tests only
+              // Calculate percentage from latest results per benchmark only
               const lastThreePercentage = useMemo(() => {
                 if (agentData.results.length === 0) return 0;
-                const totalScore = agentData.results.reduce(
+
+                // Get latest result per benchmark
+                const latestByBenchmark = new Map();
+                agentData.results.forEach((result) => {
+                  const existing = latestByBenchmark.get(result.benchmark_id);
+                  if (!existing || result.timestamp > existing.timestamp) {
+                    latestByBenchmark.set(result.benchmark_id, result);
+                  }
+                });
+
+                const latestResults = Array.from(latestByBenchmark.values());
+                if (latestResults.length === 0) return 0;
+
+                const totalScore = latestResults.reduce(
                   (sum, result) => sum + result.score,
                   0,
                 );
-                return totalScore / agentData.results.length;
+                return totalScore / latestResults.length;
               }, [agentData.results]);
 
               return (
@@ -244,22 +257,42 @@ export function BenchmarkGrid({
                   {/* Last 3 Test Results with Date */}
                   <div className="space-y-2">
                     {(() => {
-                      // Group results by date to get daily test runs
+                      // Group results by date, taking latest result per benchmark per day
                       const testRuns = agentData.results.reduce(
                         (runs, result) => {
                           const date = result.timestamp.substring(0, 10); // Group by date YYYY-MM-DD
                           if (!runs[date]) {
-                            runs[date] = [];
+                            runs[date] = {};
                           }
-                          runs[date].push(result);
+                          // Keep only the latest result for each benchmark on this day
+                          const existing = runs[date][result.benchmark_id];
+                          if (
+                            !existing ||
+                            result.timestamp > existing.timestamp
+                          ) {
+                            runs[date][result.benchmark_id] = result;
+                          }
                           return runs;
                         },
-                        {} as Record<string, typeof agentData.results>,
+                        {} as Record<
+                          string,
+                          Record<string, (typeof agentData.results)[0]>
+                        >,
+                      );
+
+                      // Convert to array format for frontend
+                      const testRunsArray = Object.entries(testRuns).map(
+                        ([date, benchmarks]) => [
+                          date,
+                          Object.values(benchmarks),
+                        ],
                       );
 
                       // Get last 3 daily runs by date
-                      const lastThreeRuns = Object.entries(testRuns)
-                        .sort(([a], [b]) => b.localeCompare(a))
+                      const lastThreeRuns = testRunsArray
+                        .sort(([a], [b]) =>
+                          (b as string).localeCompare(a as string),
+                        )
                         .slice(0, 3);
 
                       return [...lastThreeRuns, ...Array(3).fill(null)]

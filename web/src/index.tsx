@@ -493,7 +493,7 @@ export function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Performance Overview - Top Section (shows all agents) */}
-      <div className="h-96 border-b bg-white">
+      <div className="border-b bg-white">
         {/* Overview Header */}
         <div className="p-4 border-b bg-white">
           <div className="flex items-center justify-between">

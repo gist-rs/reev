@@ -488,12 +488,13 @@ impl Db {
         Ok(summaries)
     }
 
-    /// Gets detailed results for a specific agent
+    /// Gets detailed results for a specific agent (last 3 days only)
     async fn get_agent_results(&self, agent_type: &str) -> Result<Vec<BenchmarkResult>> {
         let query = "
             SELECT benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp
             FROM agent_performance
             WHERE agent_type = ?1
+            AND timestamp >= datetime('now', '-3 days')
             ORDER BY timestamp DESC;
         ";
 
