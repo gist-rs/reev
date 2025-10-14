@@ -289,7 +289,7 @@ export function TransactionLog({
       </div>
 
       {/* Transaction List */}
-      <div className="border rounded-lg w-full">
+      <div className="border rounded-lg w-full flex-1 flex flex-col min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
@@ -311,10 +311,13 @@ export function TransactionLog({
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
+                />
               </svg>
             </div>
-            <p className="text-sm text-red-600 mb-2">{error}</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Failed to load flow logs
+            </h3>
+            <p className="text-gray-600 mb-4">{error}</p>
             <button
               onClick={loadFlowLog}
               className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
@@ -327,8 +330,8 @@ export function TransactionLog({
             No flow log data available for this execution
           </div>
         ) : (
-          <div className="p-4">
-            <div className="text-xs font-medium text-gray-700 mb-2">
+          <div className="p-4 flex flex-col flex-1 min-h-0">
+            <div className="text-xs font-medium text-gray-700 mb-2 flex-shrink-0">
               Transaction Log (Real-time):
               {isRunning && (
                 <span className="ml-2 text-green-600 animate-pulse">
@@ -336,13 +339,13 @@ export function TransactionLog({
                 </span>
               )}
             </div>
-            <div className="overflow-auto border border-gray-300 rounded min-w-0 max-h-[60vh]">
+            <div className="overflow-auto border border-gray-300 rounded min-w-0 flex-1">
               <pre className="text-xs bg-gray-900 text-green-400 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
                 {formatFlowLog(flowLog)}
               </pre>
             </div>
             {isRunning && (
-              <div className="mt-2 text-xs text-blue-400 text-center">
+              <div className="mt-2 text-xs text-blue-400 text-center flex-shrink-0">
                 Executing: {benchmarkId} - Progress: {execution?.progress || 0}%
               </div>
             )}
