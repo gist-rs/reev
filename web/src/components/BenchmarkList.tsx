@@ -146,16 +146,18 @@ export function BenchmarkList({
         );
         onExecutionStart(response.execution_id);
 
-        // Set completion callback for individual benchmark runs
-        setCompletionCallback((benchmarkId: string, execution: any) => {
-          console.log(
-            "🎯 Individual benchmark completion callback:",
-            benchmarkId,
-          );
-          onExecutionComplete(benchmarkId, execution);
-          // Clear the completion callback
-          setCompletionCallback(() => () => {});
-        });
+        // Only set completion callback for individual benchmark runs (not Run All)
+        if (!isRunningAll) {
+          setCompletionCallback((benchmarkId: string, execution: any) => {
+            console.log(
+              "🎯 Individual benchmark completion callback:",
+              benchmarkId,
+            );
+            onExecutionComplete(benchmarkId, execution);
+            // Clear the completion callback
+            setCompletionCallback(() => () => {});
+          });
+        }
 
         // Return the response for Run All to use
         return response;
