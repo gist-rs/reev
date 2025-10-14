@@ -224,7 +224,7 @@ export function BenchmarkGrid({
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
         {/* Agent Sections */}
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 justify-center">
           {ALL_AGENT_TYPES.map((agentType) => {
             // Find the agent data from the API results, or create placeholder
             const agentData = data.find((a) => a.agent_type === agentType) || {
