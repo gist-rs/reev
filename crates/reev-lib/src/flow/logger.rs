@@ -5,20 +5,23 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 
+/// Agent performance data for database insertion
+#[derive(Debug, Clone)]
+pub struct AgentPerformanceData {
+    pub benchmark_id: String,
+    pub agent_type: String,
+    pub score: f64,
+    pub final_status: String,
+    pub execution_time_ms: u64,
+    pub timestamp: String,
+    pub flow_log_id: Option<i64>,
+}
+
 /// Database trait for flow logger dependency injection
 #[async_trait::async_trait]
 pub trait FlowLogDatabase: Send + Sync {
     async fn insert_flow_log(&self, flow_log: &FlowLog) -> Result<i64, FlowError>;
-    async fn insert_agent_performance(
-        &self,
-        benchmark_id: &str,
-        agent_type: &str,
-        score: f64,
-        final_status: &str,
-        execution_time_ms: u64,
-        timestamp: &str,
-        flow_log_id: Option<i64>,
-    ) -> Result<(), FlowError>;
+    async fn insert_agent_performance(&self, data: &AgentPerformanceData) -> Result<(), FlowError>;
 }
 
 /// Main flow logger interface
@@ -200,18 +203,17 @@ impl FlowLogger {
                         "Failed"
                     };
 
-                    if let Err(e) = database
-                        .insert_agent_performance(
-                            &flow_log.benchmark_id,
-                            &flow_log.agent_type,
-                            score,
-                            final_status,
-                            execution_time_ms,
-                            &timestamp,
-                            Some(flow_log_id),
-                        )
-                        .await
-                    {
+                    let performance_data = AgentPerformanceData {
+                        benchmark_id: flow_log.benchmark_id.clone(),
+                        agent_type: flow_log.agent_type.clone(),
+                        score,
+                        final_status: final_status.to_string(),
+                        execution_time_ms,
+                        timestamp,
+                        flow_log_id: Some(flow_log_id),
+                    };
+
+                    if let Err(e) = database.insert_agent_performance(&performance_data).await {
                         warn!(
                             "Failed to insert agent performance for session {}: {}",
                             self.session_id, e

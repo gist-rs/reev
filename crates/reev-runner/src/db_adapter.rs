@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use reev_lib::flow::types::FlowLog;
-use reev_lib::flow::{FlowError, FlowLogDatabase};
+use reev_lib::flow::{AgentPerformanceData, FlowError, FlowLogDatabase};
 use std::sync::Arc;
 use tracing::{debug, error};
 
@@ -36,31 +36,22 @@ impl FlowLogDatabase for FlowLogDatabaseAdapter {
         })
     }
 
-    async fn insert_agent_performance(
-        &self,
-        benchmark_id: &str,
-        agent_type: &str,
-        score: f64,
-        final_status: &str,
-        execution_time_ms: u64,
-        timestamp: &str,
-        flow_log_id: Option<i64>,
-    ) -> Result<(), FlowError> {
+    async fn insert_agent_performance(&self, data: &AgentPerformanceData) -> Result<(), FlowError> {
         debug!(
-            benchmark_id = %benchmark_id,
-            agent_type = %agent_type,
-            score = %score,
+            benchmark_id = %data.benchmark_id,
+            agent_type = %data.agent_type,
+            score = %data.score,
             "Inserting agent performance into database"
         );
 
         let performance_data = db::AgentPerformanceData {
-            benchmark_id: benchmark_id.to_string(),
-            agent_type: agent_type.to_string(),
-            score,
-            final_status: final_status.to_string(),
-            execution_time_ms,
-            timestamp: timestamp.to_string(),
-            flow_log_id,
+            benchmark_id: data.benchmark_id.clone(),
+            agent_type: data.agent_type.clone(),
+            score: data.score,
+            final_status: data.final_status.clone(),
+            execution_time_ms: data.execution_time_ms,
+            timestamp: data.timestamp.clone(),
+            flow_log_id: data.flow_log_id,
         };
 
         self.db
