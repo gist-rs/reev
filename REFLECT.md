@@ -63,6 +63,31 @@ Fixed critical browser crash on refresh due to 132+ repeated API calls from useB
 - Proper data flow from parent to child components
 - Scalable solution for hundreds of benchmark boxes
 
+## 2025-10-15: Layout & Scrolling Issues Fixed - User Experience Enhancement Complete
+### 🎯 **Problem Solved**
+Fixed critical layout issues causing content cutoff and non-scrollable execution trace panels.
+
+### 🔍 **Root Cause Analysis**
+**Issue**: Overflow containers constraining content visibility
+- **Symptom**: Main view content cut off requiring browser window extension
+- **Symptom**: Execution Trace panel could not scroll to view full content
+- **Impact**: Poor user experience, content not accessible
+- **Root Cause**: `overflow-hidden` constraints and `height: "0"` preventing proper scrolling
+
+### 🛠 **Fix Applied**
+- Removed `overflow-hidden` from main layout container to allow natural scrolling
+- Added `min-h-screen` and `overflow-x-auto` to BenchmarkGrid for responsive scrolling
+- Fixed ExecutionTrace scrolling by removing `height: "0"` constraint
+- Added proper overflow handling for both horizontal and vertical scrolling
+- Fixed dark text colors in Benchmark Details modal for better dark mode visibility
+
+### 📊 **Impact Achieved**
+- Main content now accessible without browser window extension
+- Execution Trace fully scrollable with proper overflow handling
+- Better responsive design for different screen sizes
+- Improved dark mode readability in modal dialogs
+- Natural browser scrolling behavior restored
+
 ## 2025-10-15: Runtime Error Fixes - API Compatibility Issues Resolved
 ### 🎯 **Problem Solved**
 Fixed TypeError "Cannot read properties of undefined (reading 'replace')" and "Cannot read properties of undefined (reading 'includes')" in BenchmarkGrid component.

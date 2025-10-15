@@ -8,6 +8,17 @@ All critical issues resolved. Framework fully operational with benchmark managem
 
 ## ✅ RECENTLY FIXED
 
+### Layout & Scrolling Issues ✅ **RESOLVED** (2025-10-15)
+**Component**: Main Layout & ExecutionTrace  
+**Issue**: Content cutoff and non-scrollable execution trace
+
+#### 🔧 **Fix Applied**
+- ✅ Removed `overflow-hidden` from main layout container
+- ✅ Added `min-h-screen` and `overflow-x-auto` to BenchmarkGrid
+- ✅ Fixed ExecutionTrace scrolling by removing `height: "0"` constraint
+- ✅ Added proper overflow handling for both horizontal and vertical scrolling
+- ✅ Fixed dark text colors in Benchmark Details modal for better visibility
+
 ### Browser Crash on Refresh ✅ **RESOLVED** (2025-10-15)
 **Component**: BenchmarkBox Performance  
 **Issue**: 132 API calls causing browser crash on refresh

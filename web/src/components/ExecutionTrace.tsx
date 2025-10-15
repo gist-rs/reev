@@ -258,7 +258,6 @@ export function ExecutionTrace({
         style={{
           minHeight: "200px",
           maxHeight: "calc(100vh - 400px)",
-          height: "0", // Important: allows flex child to shrink properly
         }}
       >
         {traceLines.length === 0 ? (

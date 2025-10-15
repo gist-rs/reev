@@ -212,7 +212,7 @@ export function BenchmarkGrid({
   return (
     <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4 overflow-x-auto">
         {/* Agent Sections */}
         <div className="flex justify-center">
           <div className="flex flex-wrap" style={{ width: "fit-content" }}>
@@ -494,14 +494,18 @@ export function BenchmarkGrid({
 
               <div className="space-y-3">
                 <div>
-                  <span className="font-medium text-gray-900">Benchmark:</span>
-                  <span className="ml-2 text-gray-800">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    Benchmark:
+                  </span>
+                  <span className="ml-2 text-gray-800 dark:text-gray-200">
                     {selectedResult.benchmark_id}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900">Agent:</span>
-                  <span className="ml-2 text-gray-800">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    Agent:
+                  </span>
+                  <span className="ml-2 text-gray-800 dark:text-gray-200">
                     {selectedResult.agent_type}
                   </span>
                 </div>
@@ -536,16 +540,18 @@ export function BenchmarkGrid({
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
                     Execution Time:
                   </span>
-                  <span className="ml-2 text-gray-800">
+                  <span className="ml-2 text-gray-800 dark:text-gray-200">
                     {selectedResult.execution_time_ms}ms
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-900">Timestamp:</span>
-                  <span className="ml-2 text-gray-800">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    Timestamp:
+                  </span>
+                  <span className="ml-2 text-gray-800 dark:text-gray-200">
                     {new Date(selectedResult.timestamp).toLocaleString()}
                   </span>
                 </div>
