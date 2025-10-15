@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use reev_runner::db::Db;
+use reev_lib::db::{DatabaseConfig, DatabaseWriter};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -34,7 +34,8 @@ async fn main() -> Result<()> {
         std::env::var("DATABASE_PATH").unwrap_or_else(|_| "db/reev_results.db".to_string());
     info!("Connecting to database at: {}", db_path);
 
-    let db = Arc::new(Db::new(&db_path).await?);
+    let db_config = DatabaseConfig::new(&db_path);
+    let db = Arc::new(DatabaseWriter::new(db_config).await?);
     info!("Database connection established");
 
     // Create API state

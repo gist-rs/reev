@@ -3738,6 +3738,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-opentelemetry",
+ "turso",
  "uuid",
 ]
 

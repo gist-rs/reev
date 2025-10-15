@@ -11,6 +11,8 @@ pub mod logger;
 pub mod otel;
 pub mod renderer;
 pub mod types;
+pub mod utils;
+pub mod website_exporter;
 
 // Re-export commonly used types for convenience
 pub use types::{
@@ -21,8 +23,9 @@ pub use types::{
 };
 
 pub use error::{FlowError, FlowResult};
-pub use logger::{AgentPerformanceData, FlowLogDatabase, FlowLogger, WebsiteExporter};
+pub use logger::{AgentPerformanceData, FlowLogDatabase, FlowLogger};
 pub use renderer::render_flow_file_as_ascii_tree;
+pub use website_exporter::WebsiteExporter;
 
 use std::path::Path;
 
@@ -72,21 +75,7 @@ pub fn create_flow_logger(
     FlowLogger::new(benchmark_id, agent_type, output_path)
 }
 
-/// Check if flow logging is enabled
-/// Defaults to true unless explicitly set to "false" or "0"
-pub fn is_flow_logging_enabled() -> bool {
-    match std::env::var("REEV_ENABLE_FLOW_LOGGING") {
-        Ok(val) => {
-            let val_lower = val.to_lowercase();
-            val_lower != "false" && val_lower != "0"
-        }
-        Err(_) => true, // Default to true when not set
-    }
-}
-
-/// Get the default flow log output path
-pub fn get_default_flow_log_path() -> std::path::PathBuf {
-    std::env::var("REEV_FLOW_LOG_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("logs/flows"))
-}
+// Re-export utility functions
+pub use utils::{
+    calculate_execution_statistics, get_default_flow_log_path, is_flow_logging_enabled,
+};

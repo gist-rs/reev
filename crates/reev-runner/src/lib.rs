@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
+    db::{DatabaseConfig, DatabaseWriter},
     env::GymEnv,
     flow::{ExecutionResult, FlowLogger},
     llm_agent::LlmAgent,
@@ -19,10 +20,6 @@ use std::{
     time::SystemTime,
 };
 use tracing::{info, instrument, warn};
-
-mod db_adapter;
-
-pub mod db;
 pub mod dependency;
 pub mod renderer;
 
@@ -93,7 +90,8 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
     info!("Dependency initialization completed successfully");
 
     info!("Initializing database...");
-    let db = Arc::new(db::Db::new("db/reev_results.db").await?);
+    let db_config = DatabaseConfig::new("db/reev_results.db");
+    let db = Arc::new(DatabaseWriter::new(db_config).await?);
     info!("Database initialization completed");
     let mut results = vec![];
 
@@ -131,12 +129,11 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             let path = PathBuf::from(output_path);
             std::fs::create_dir_all(&path)?;
 
-            let db_adapter = Arc::new(db_adapter::FlowLogDatabaseAdapter::new(Arc::clone(&db)));
             Some(FlowLogger::new_with_database(
                 test_case.id.clone(),
                 agent_name.to_string(),
                 path,
-                db_adapter,
+                Arc::clone(&db),
             ))
         } else {
             None
@@ -319,7 +316,7 @@ async fn run_flow_benchmark(
     flow_steps: &[FlowStep],
     agent_name: &str,
     _benchmark_path: &str,
-    db: Arc<db::Db>,
+    db: Arc<DatabaseWriter>,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -334,12 +331,11 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        let db_adapter = Arc::new(db_adapter::FlowLogDatabaseAdapter::new(Arc::clone(&db)));
         Some(FlowLogger::new_with_database(
             test_case.id.clone(),
             agent_name.to_string(),
             path,
-            db_adapter,
+            Arc::clone(&db),
         ))
     } else {
         None

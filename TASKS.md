@@ -512,6 +512,49 @@ GET /api/v1/agents/config/{agent_type}
 
 ---
 
+## 🔄 **PHASE 22: DATABASE CONSOLIDATION**
+
+### 🎯 **Objective**: Consolidate database write functionality into shared reev-lib module
+
+### 📋 **Current State Analysis**
+- `reev-runner/src/db.rs` contains database write functions (insert_result, insert_flow_log, insert_agent_performance, etc.)
+- `reev-runner/src/db_adapter.rs` provides adapter layer for flow logger
+- Both web and TUI paths need database access but currently use different implementations
+
+### 📋 **Tasks**
+#### 22.1 Create Shared Database Module ✅ COMPLETED
+- [x] Create `reev-lib/src/db/mod.rs` with shared database interface
+- [x] Move write functions from `reev-runner/src/db.rs` to `reev-lib/src/db/writer.rs`
+- [x] Create unified database trait for both web and TUI paths
+
+#### 22.2 Update Flow Logger Integration ✅ COMPLETED
+- [x] Modify `reev-lib/src/flow/logger.rs` to use shared database functions
+- [x] Remove dependency on `reev-runner/src/db_adapter.rs`
+- [x] Ensure backward compatibility with existing flow logging
+
+#### 22.3 Update Dependencies ✅ COMPLETED
+- [x] Add `turso` dependency to `reev-lib/Cargo.toml`
+- [x] Update `reev-runner` to use shared database functions
+- [x] Update `reev-api` to use shared database functions
+
+#### 22.4 Cleanup ✅ COMPLETED
+- [x] Remove duplicate database code from `reev-runner`
+- [x] Update imports and references
+- [x] Run tests to ensure functionality preserved
+
+### 🎯 **Expected Architecture**
+```
+web -> reev-api -> reev-lib -> shared writer fn -> db
+tui -> reev-runner -> reev-lib -> shared writer fn -> db
+```
+
+### ✅ **Success Criteria - ALL ACHIEVED**
+- ✅ Single source of truth for database write operations
+- ✅ Both web and TUI use same database functions
+- ✅ No regression in existing functionality
+- ✅ All tests pass
+- ✅ Database consolidation completed successfully
+
 ## 🚀 **IMPLEMENTATION CONSTRAINTS & FYI**
 
 ### 📋 **Server Management**

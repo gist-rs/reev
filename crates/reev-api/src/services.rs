@@ -1,10 +1,10 @@
 use crate::types::*;
 use anyhow::Result;
+use reev_lib::db::DatabaseWriter;
 use reev_lib::flow::types::{
     EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType, FlowLog,
 };
 use reev_lib::results::TestResult;
-use reev_runner::db::Db;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use tracing::{debug, error, info};
@@ -266,7 +266,7 @@ pub async fn update_execution_failed(state: &ApiState, execution_id: &str, error
 
 /// Store benchmark result in database
 pub async fn store_benchmark_result(
-    db: &Db,
+    db: &DatabaseWriter,
     benchmark_id: &str,
     agent: &str,
     score: f64,
@@ -284,7 +284,7 @@ pub async fn store_benchmark_result(
         benchmark_id, agent, score, status, timestamp_str
     );
 
-    let performance_data = reev_runner::db::AgentPerformanceData {
+    let performance_data = reev_lib::db::AgentPerformanceData {
         benchmark_id: benchmark_id.to_string(),
         agent_type: agent.to_string(),
         score,
@@ -312,7 +312,7 @@ pub async fn store_benchmark_result(
 
 /// Store flow log in database from test result
 pub async fn store_flow_log_from_result(
-    db: &Db,
+    db: &DatabaseWriter,
     benchmark_id: &str,
     test_result: &TestResult,
 ) -> Result<()> {
@@ -376,7 +376,11 @@ pub async fn store_flow_log_from_result(
 
 /// Store flow log in database (legacy method for trace string)
 #[allow(dead_code)]
-pub async fn store_flow_log(db: &Db, benchmark_id: &str, trace_data: &str) -> Result<()> {
+pub async fn store_flow_log(
+    db: &DatabaseWriter,
+    benchmark_id: &str,
+    trace_data: &str,
+) -> Result<()> {
     let flow_log = FlowLog {
         session_id: Uuid::new_v4().to_string(),
         benchmark_id: benchmark_id.to_string(),
@@ -416,7 +420,7 @@ pub async fn store_flow_log(db: &Db, benchmark_id: &str, trace_data: &str) -> Re
 
 /// Store YML TestResult in database for historical access
 pub async fn store_yml_testresult(
-    db: &Db,
+    db: &DatabaseWriter,
     benchmark_id: &str,
     agent: &str,
     test_result: &TestResult,

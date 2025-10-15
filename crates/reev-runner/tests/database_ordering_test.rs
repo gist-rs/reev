@@ -1,6 +1,6 @@
 // Test to verify database timestamp ordering fix
 
-use reev_runner::db::{AgentPerformanceData, Db};
+use reev_lib::db::{AgentPerformanceData, DatabaseConfig, DatabaseWriter};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -8,7 +8,11 @@ async fn test_agent_performance_timestamp_ordering() {
     // Create a temporary database
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
-    let db = Db::new(&db_path.to_string_lossy()).await.unwrap();
+    let db_config = DatabaseConfig::new(db_path.to_string_lossy());
+    let db = DatabaseWriter::new(db_config).await.unwrap();
+
+    // Debug: Check if database was created and schema initialized
+    println!("Database created at: {}", db_path.display());
 
     // Insert test results with different timestamps
     let base_time = chrono::Utc::now();
@@ -95,7 +99,11 @@ async fn test_flow_log_id_null_handling() {
     // Create a temporary database
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
-    let db = Db::new(&db_path.to_string_lossy()).await.unwrap();
+    let db_config = DatabaseConfig::new(db_path.to_string_lossy());
+    let db = DatabaseWriter::new(db_config).await.unwrap();
+
+    // Debug: Check if database was created and schema initialized
+    println!("Database created at: {}", db_path.display());
 
     // Insert result with NULL flow_log_id
     let result = AgentPerformanceData {

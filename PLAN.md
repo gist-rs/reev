@@ -63,7 +63,32 @@
 - ✅ Accessible toggle with sun/moon icons
 - ✅ Updated all main UI components to support dark mode
 
-### 🔄 Phase 22: Advanced Multi-Agent Collaboration (FUTURE)
+### ✅ Phase 22: Database Consolidation - COMPLETED
+**Objective**: Consolidate database write functionality into shared reev-lib module
+
+**✅ Achievements**:
+- ✅ Analyzed current database structure
+- ✅ Created shared database module in `reev-lib/src/db/`
+- ✅ Moved write functions from `reev-runner` to `reev-lib`
+- ✅ Updated flow logger to use shared database functions
+- ✅ Updated dependencies and imports
+- ✅ Removed duplicate code (`reev-runner/src/db.rs` and `reev-runner/src/db_adapter.rs`)
+
+**✅ New Architecture**:
+```
+web -> reev-api -> reev-lib -> shared writer fn -> db
+tui -> reev-runner -> reev-lib -> shared writer fn -> db
+```
+
+**✅ Files Created/Modified**:
+- `crates/reev-lib/src/db/mod.rs` - Module definition
+- `crates/reev-lib/src/db/types.rs` - Shared database types
+- `crates/reev-lib/src/db/writer.rs` - Write operations (336 lines)
+- `crates/reev-lib/src/db/reader.rs` - Read operations (244 lines)
+- Updated `reev-runner` and `reev-api` to use shared database
+- Removed old database files from `reev-runner`
+
+### 🔄 Phase 23: Advanced Multi-Agent Collaboration (FUTURE)
 
 Now that all technical debt is resolved, focus shifts to advanced agent capabilities:
 - Agent orchestration and specialization
