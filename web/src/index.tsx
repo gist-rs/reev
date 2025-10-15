@@ -529,7 +529,6 @@ export function App() {
           <BenchmarkGrid
             refreshTrigger={performanceOverviewRefresh}
             onBenchmarkSelect={handleBenchmarkSelect}
-            selectedAgent={selectedAgent}
             isRunning={isRunning}
             onRunBenchmark={handleRunBenchmark}
             agentPerformanceData={agentPerformanceData}

@@ -1,12 +1,6 @@
 // BenchmarkList component for interactive benchmark navigation and execution
 
-import {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-} from "preact/hooks";
+import { useState, useCallback, useEffect } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
 import { AgentConfig } from "./AgentConfig";
@@ -111,7 +105,9 @@ export function BenchmarkList({
 
   const handleRunBenchmark = useCallback(
     async (benchmark: BenchmarkItem, isRunAll: boolean = false) => {
-      if (isRunning) return;
+      if (isRunning) {
+        return;
+      }
 
       try {
         // Get agent configuration if needed
@@ -130,11 +126,6 @@ export function BenchmarkList({
         });
 
         // Update shared execution state for parent components
-        console.log(
-          "Starting benchmark execution:",
-          benchmark.id,
-          response.execution_id,
-        );
 
         // Select the benchmark for Execution Details display
         onBenchmarkSelect(benchmark.id);
@@ -158,10 +149,6 @@ export function BenchmarkList({
         // Only set completion callback for individual benchmark runs (not Run All)
         if (!isRunAll) {
           setCompletionCallback((benchmarkId: string, execution: any) => {
-            console.log(
-              "🎯 Individual benchmark completion callback:",
-              benchmarkId,
-            );
             onExecutionComplete(benchmarkId, execution);
             // Clear the completion callback
             setCompletionCallback(() => () => {});
@@ -171,7 +158,7 @@ export function BenchmarkList({
         // Return the response for Run All to use
         return response;
       } catch (error) {
-        console.error("Failed to run benchmark:", error);
+        console.error("❌ Failed to run benchmark:", error);
         alert(
           `Failed to run benchmark: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
@@ -184,20 +171,14 @@ export function BenchmarkList({
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
-    console.log("🎯 Starting Run All Benchmarks");
     setIsRunningAll(true);
 
     // Set up completion callback (from App component)
-    console.log("🔧 BenchmarkList: Setting up completion callback for Run All");
     setCompletionCallback(runAllCompletionCallback);
 
     // Auto-select the first benchmark for Execution Details display
     if (benchmarks.benchmarks.length > 0 && !selectedBenchmark) {
       const firstBenchmark = benchmarks.benchmarks[0];
-      console.log(
-        "Auto-selecting first benchmark for Run All:",
-        firstBenchmark.id,
-      );
       onBenchmarkSelect(firstBenchmark.id);
     }
 
@@ -210,9 +191,6 @@ export function BenchmarkList({
 
     // Start first benchmark
     const firstBenchmark = runAllQueue.current[0];
-    console.log(
-      `🚀 Starting benchmark 1/${runAllQueue.current.length}: ${firstBenchmark.id}`,
-    );
 
     try {
       await handleRunBenchmark(firstBenchmark, true); // Pass isRunAll=true
@@ -233,19 +211,41 @@ export function BenchmarkList({
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
-      return Array.from(executions.values()).find(
+      // First check current executions
+      const execution = Array.from(executions.values()).find(
         (exec) => exec.benchmark_id === benchmarkId,
       );
+
+      // If no current execution, check historical results
+      if (!execution) {
+        const historicalResult = historicalResults.get(benchmarkId);
+        if (historicalResult) {
+          // Map historical result status to execution status format
+          return {
+            ...historicalResult,
+            status:
+              historicalResult.final_status === "succeeded" ||
+              historicalResult.final_status === "Succeeded"
+                ? "Completed"
+                : historicalResult.final_status === "failed" ||
+                    historicalResult.final_status === "Failed"
+                  ? "Failed"
+                  : historicalResult.final_status,
+            progress: 100,
+          };
+        }
+      }
+
+      return execution;
     },
-    [executions],
+    [executions, historicalResults],
   );
 
   const getBenchmarkScore = useCallback(
     (benchmarkId: string): number => {
       const execution = getBenchmarkStatus(benchmarkId);
-      if (execution && execution.status === "Completed") {
-        // For now, return a mock score
-        return 1.0;
+      if (execution?.status === "Completed") {
+        return execution.score || 1.0;
       }
       return 0;
     },
@@ -428,14 +428,12 @@ export function BenchmarkList({
             })
             .map((benchmark) => {
               const execution = getBenchmarkStatus(benchmark.id);
-              const historicalResult = historicalResults.get(benchmark.id);
-              const status =
-                execution?.status || historicalResult?.status || null;
+              const status = execution?.status || null;
               const score =
                 execution?.status === "Completed"
                   ? getBenchmarkScore(benchmark.id)
-                  : historicalResult?.final_status === "Succeeded"
-                    ? historicalResult.score || 1.0
+                  : execution?.status === "Completed"
+                    ? execution.score || 1.0
                     : 0;
               const isSelected = selectedBenchmark === benchmark.id;
 
@@ -494,7 +492,9 @@ export function BenchmarkList({
                   </div>
 
                   {/* Progress Bar for Running and Completed Benchmarks */}
-                  {(status === "Running" || status === "Completed") && (
+                  {(status === "Running" ||
+                    status === "Completed" ||
+                    status === "Completed") && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
