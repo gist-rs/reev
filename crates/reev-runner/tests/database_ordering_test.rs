@@ -28,6 +28,7 @@ async fn test_agent_performance_timestamp_ordering() {
         timestamp: (base_time - chrono::Duration::minutes(5))
             .format("%Y-%m-%d %H:%M:%S%.3f")
             .to_string(),
+        prompt_md5: None,
     };
 
     db.insert_agent_performance(&older_result).await.unwrap();
@@ -41,6 +42,7 @@ async fn test_agent_performance_timestamp_ordering() {
         flow_log_id: None,
         execution_time_ms: 800,
         timestamp: base_time.format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+        prompt_md5: None,
     };
 
     db.insert_agent_performance(&newer_result).await.unwrap();
@@ -56,6 +58,7 @@ async fn test_agent_performance_timestamp_ordering() {
         timestamp: (base_time - chrono::Duration::minutes(2))
             .format("%Y-%m-%d %H:%M:%S%.3f")
             .to_string(),
+        prompt_md5: None,
     };
 
     db.insert_agent_performance(&other_result).await.unwrap();
@@ -116,6 +119,7 @@ async fn test_flow_log_id_null_handling() {
         timestamp: chrono::Utc::now()
             .format("%Y-%m-%d %H:%M:%S%.3f")
             .to_string(),
+        prompt_md5: None,
     };
 
     // This should not fail due to foreign key constraint

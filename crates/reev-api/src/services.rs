@@ -292,6 +292,7 @@ pub async fn store_benchmark_result(
         flow_log_id: None, // Remove fake flow_log_id to avoid foreign key issues
         execution_time_ms: 0,
         timestamp: timestamp_str.clone(), // RFC 3339 format for proper ordering
+        prompt_md5: None,                 // Will be calculated when needed
     };
 
     match db.insert_agent_performance(&performance_data).await {

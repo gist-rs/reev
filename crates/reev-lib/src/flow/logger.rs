@@ -233,6 +233,7 @@ impl FlowLogger {
                         execution_time_ms,
                         timestamp,
                         flow_log_id: Some(flow_log_id),
+                        prompt_md5: None,
                     };
 
                     if let Err(e) = database.insert_agent_performance(&performance_data).await {
@@ -282,6 +283,7 @@ impl FlowLogger {
                         execution_time_ms,
                         timestamp,
                         flow_log_id: Some(flow_log_id),
+                        prompt_md5: None,
                     };
 
                     if let Err(e) = legacy_database

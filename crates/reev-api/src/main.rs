@@ -38,6 +38,18 @@ async fn main() -> Result<()> {
     let db = Arc::new(DatabaseWriter::new(db_config).await?);
     info!("Database connection established");
 
+    // Sync benchmarks to database on startup
+    let benchmarks_dir = "benchmarks";
+    info!("Syncing benchmarks from directory: {}", benchmarks_dir);
+    let synced_count = db
+        .sync_benchmarks_to_db(benchmarks_dir)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to sync benchmarks: {e}"))?;
+    info!(
+        "Successfully synced {} benchmarks to database",
+        synced_count
+    );
+
     // Create API state
     let state = ApiState {
         db,
@@ -74,6 +86,8 @@ async fn main() -> Result<()> {
             post(parse_yml_to_testresult),
         )
         .route("/api/v1/render-ascii-tree", post(render_ascii_tree))
+        // Benchmark management endpoints
+        .route("/api/v1/upsert-yml", post(upsert_yml))
         // YML TestResult endpoints for historical access (removed - use ascii-tree endpoint instead)
         .route(
             "/api/v1/ascii-tree/{benchmark_id}/{agent_type}",

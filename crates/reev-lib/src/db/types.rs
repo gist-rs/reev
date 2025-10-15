@@ -12,6 +12,7 @@ pub struct AgentPerformanceData {
     pub execution_time_ms: u64,
     pub timestamp: String,
     pub flow_log_id: Option<i64>,
+    pub prompt_md5: Option<String>,
 }
 
 /// Database connection configuration
@@ -34,6 +35,7 @@ pub struct BenchmarkResult {
     pub timestamp: String,
     pub final_status: String,
     pub score: f64,
+    pub prompt_md5: Option<String>,
 }
 
 /// Agent performance summary

@@ -148,7 +148,7 @@ export function BenchmarkGrid({
         <div className="text-center max-w-md">
           <div className="text-red-500 dark:text-red-400 mb-4">
             <svg
-              class="w-16 h-16 mx-auto"
+              className="w-16 h-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -161,10 +161,12 @@ export function BenchmarkGrid({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
             Failed to load data
           </h3>
-          <p className="text-gray-600 mb-4">{agentPerformanceError}</p>
+          <p className="text-red-500 dark:text-red-400 mb-4">
+            {agentPerformanceError}
+          </p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -183,7 +185,7 @@ export function BenchmarkGrid({
         <div className="text-center">
           <div className="text-gray-400 dark:text-gray-500 mb-4">
             <svg
-              class="w-16 h-16 mx-auto"
+              className="w-16 h-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -196,10 +198,10 @@ export function BenchmarkGrid({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
             No benchmark data available
           </h3>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Run some benchmarks to see results here.
           </p>
         </div>
@@ -227,15 +229,17 @@ export function BenchmarkGrid({
                 success_rate: 0,
                 best_benchmarks: [],
                 worst_benchmarks: [],
+                results: [],
               };
 
               // Calculate percentage from latest results per benchmark only
               const lastThreePercentage = useMemo(() => {
-                if (agentData.results.length === 0) return 0;
+                if (!agentData.results || agentData.results.length === 0)
+                  return 0;
 
                 // Get latest result per benchmark
                 const latestByBenchmark = new Map();
-                agentData.results.forEach((result) => {
+                agentData.results?.forEach((result) => {
                   const existing = latestByBenchmark.get(result.benchmark_id);
                   if (!existing || result.timestamp > existing.timestamp) {
                     latestByBenchmark.set(result.benchmark_id, result);
@@ -282,7 +286,7 @@ export function BenchmarkGrid({
                   <div className="space-y-2">
                     {(() => {
                       // Group results by date, taking latest result per benchmark per day
-                      const testRuns = agentData.results.reduce(
+                      const testRuns = (agentData.results || []).reduce(
                         (runs, result) => {
                           const date = result.timestamp.substring(0, 10); // Group by date YYYY-MM-DD
                           if (!runs[date]) {
@@ -298,10 +302,7 @@ export function BenchmarkGrid({
                           }
                           return runs;
                         },
-                        {} as Record<
-                          string,
-                          Record<string, (typeof agentData.results)[0]>
-                        >,
+                        {} as Record<string, Record<string, BenchmarkResult>>,
                       );
 
                       // Convert to array format for frontend

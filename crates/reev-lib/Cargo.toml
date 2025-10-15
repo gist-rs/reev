@@ -36,6 +36,7 @@ tracing-opentelemetry = { workspace = true }
 
 # Database dependencies
 turso = "0.1.5"
+md5 = "0.7.0"
 
 [dev-dependencies]
 tempfile = { workspace = true }

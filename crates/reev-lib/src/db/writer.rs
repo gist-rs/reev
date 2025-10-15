@@ -8,6 +8,7 @@ use crate::agent::AgentObservation;
 use crate::flow::types::FlowLog;
 use crate::results::FinalStatus;
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use turso::{Builder, Connection};
 
@@ -36,7 +37,15 @@ impl DatabaseWriter {
     /// Initialize database schema with all required tables
     async fn initialize_schema(conn: &Connection) -> Result<()> {
         // Create tables one by one for better error handling
-        let tables = ["CREATE TABLE IF NOT EXISTS results (
+        let tables = [
+            "CREATE TABLE IF NOT EXISTS benchmarks (
+                id TEXT PRIMARY KEY,  -- MD5 of prompt
+                prompt TEXT NOT NULL,
+                content TEXT NOT NULL, -- Full YML content
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )",
+            "CREATE TABLE IF NOT EXISTS results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 benchmark_id TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
@@ -44,7 +53,9 @@ impl DatabaseWriter {
                 generated_instruction TEXT NOT NULL,
                 final_on_chain_state TEXT NOT NULL,
                 final_status TEXT NOT NULL,
-                score REAL NOT NULL
+                score REAL NOT NULL,
+                prompt_md5 TEXT,
+                FOREIGN KEY (prompt_md5) REFERENCES benchmarks (id)
             )",
             "CREATE TABLE IF NOT EXISTS flow_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +77,9 @@ impl DatabaseWriter {
                 execution_time_ms INTEGER,
                 timestamp TEXT NOT NULL,
                 flow_log_id INTEGER,
-                FOREIGN KEY (flow_log_id) REFERENCES flow_logs (id)
+                prompt_md5 TEXT,
+                FOREIGN KEY (flow_log_id) REFERENCES flow_logs (id),
+                FOREIGN KEY (prompt_md5) REFERENCES benchmarks (id)
             )",
             "CREATE TABLE IF NOT EXISTS yml_testresults (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +87,8 @@ impl DatabaseWriter {
                 agent_type TEXT NOT NULL,
                 yml_content TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )"];
+            )",
+        ];
 
         for table in tables.iter() {
             conn.execute(table, ())
@@ -86,7 +100,9 @@ impl DatabaseWriter {
         let indexes = ["CREATE INDEX IF NOT EXISTS idx_flow_logs_benchmark_agent ON flow_logs(benchmark_id, agent_type)",
             "CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score)",
             "CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp)",
-            "CREATE INDEX IF NOT EXISTS idx_yml_testresults_benchmark_agent ON yml_testresults(benchmark_id, agent_type)"];
+            "CREATE INDEX IF NOT EXISTS idx_yml_testresults_benchmark_agent ON yml_testresults(benchmark_id, agent_type)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5)",
+            "CREATE INDEX IF NOT EXISTS idx_results_prompt_md5 ON results(prompt_md5)"];
 
         for index in indexes.iter() {
             conn.execute(index, ())
@@ -112,6 +128,7 @@ impl DatabaseWriter {
         let final_on_chain_state = serde_json::to_string(&final_observation.account_states)
             .context("Failed to serialize final state to JSON")?;
         let final_status_str = format!("{final_status:?}");
+        let prompt_md5 = format!("{:x}", md5::compute(prompt.as_bytes()));
 
         let insert_query = "
             INSERT INTO results (
@@ -121,8 +138,9 @@ impl DatabaseWriter {
                 generated_instruction,
                 final_on_chain_state,
                 final_status,
-                score
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+                score,
+                prompt_md5
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
         ";
 
         self.conn
@@ -136,6 +154,7 @@ impl DatabaseWriter {
                     &final_on_chain_state,
                     &final_status_str,
                     &score.to_string(),
+                    &prompt_md5,
                 ],
             )
             .await
@@ -204,8 +223,8 @@ impl DatabaseWriter {
 
     /// Inserts agent performance data into the database
     pub async fn insert_agent_performance(&self, performance: &AgentPerformanceData) -> Result<()> {
-        match performance.flow_log_id {
-            Some(flow_log_id) => {
+        match (&performance.flow_log_id, &performance.prompt_md5) {
+            (Some(flow_log_id), Some(prompt_md5)) => {
                 let insert_query = "
                     INSERT INTO agent_performance (
                         benchmark_id,
@@ -214,8 +233,40 @@ impl DatabaseWriter {
                         final_status,
                         execution_time_ms,
                         timestamp,
-                        flow_log_id
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+                        flow_log_id,
+                        prompt_md5
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
+                ";
+
+                self.conn
+                    .execute(
+                        insert_query,
+                        [
+                            performance.benchmark_id.as_str(),
+                            performance.agent_type.as_str(),
+                            &performance.score.to_string(),
+                            performance.final_status.as_str(),
+                            &performance.execution_time_ms.to_string(),
+                            performance.timestamp.as_str(),
+                            &flow_log_id.to_string(),
+                            prompt_md5.as_str(),
+                        ],
+                    )
+                    .await
+                    .context("Failed to insert agent performance into database")?;
+            }
+            (Some(flow_log_id), None) => {
+                let insert_query = "
+                    INSERT INTO agent_performance (
+                        benchmark_id,
+                        agent_type,
+                        score,
+                        final_status,
+                        execution_time_ms,
+                        timestamp,
+                        flow_log_id,
+                        prompt_md5
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL);
                 ";
 
                 self.conn
@@ -234,7 +285,7 @@ impl DatabaseWriter {
                     .await
                     .context("Failed to insert agent performance into database")?;
             }
-            None => {
+            (None, Some(prompt_md5)) => {
                 let insert_query = "
                     INSERT INTO agent_performance (
                         benchmark_id,
@@ -243,8 +294,39 @@ impl DatabaseWriter {
                         final_status,
                         execution_time_ms,
                         timestamp,
-                        flow_log_id
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL);
+                        flow_log_id,
+                        prompt_md5
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7);
+                ";
+
+                self.conn
+                    .execute(
+                        insert_query,
+                        [
+                            performance.benchmark_id.as_str(),
+                            performance.agent_type.as_str(),
+                            &performance.score.to_string(),
+                            performance.final_status.as_str(),
+                            &performance.execution_time_ms.to_string(),
+                            performance.timestamp.as_str(),
+                            prompt_md5.as_str(),
+                        ],
+                    )
+                    .await
+                    .context("Failed to insert agent performance into database")?;
+            }
+            (None, None) => {
+                let insert_query = "
+                    INSERT INTO agent_performance (
+                        benchmark_id,
+                        agent_type,
+                        score,
+                        final_status,
+                        execution_time_ms,
+                        timestamp,
+                        flow_log_id,
+                        prompt_md5
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, NULL);
                 ";
 
                 self.conn
@@ -337,4 +419,155 @@ impl DatabaseWriter {
         );
         Ok(())
     }
+
+    /// Upsert a benchmark into the database
+    pub async fn upsert_benchmark(&self, prompt: &str, content: &str) -> Result<String> {
+        let prompt_md5 = format!("{:x}", md5::compute(prompt.as_bytes()));
+        let timestamp = chrono::Utc::now().to_rfc3339();
+
+        let query = "
+            INSERT INTO benchmarks (id, prompt, content, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(id) DO UPDATE SET
+                prompt = excluded.prompt,
+                content = excluded.content,
+                updated_at = excluded.updated_at;
+        ";
+
+        self.conn
+            .execute(
+                query,
+                [&prompt_md5, prompt, content, &timestamp, &timestamp],
+            )
+            .await
+            .context("Failed to upsert benchmark into database")?;
+
+        info!(
+            "[DB] Upserted benchmark with MD5 '{}' (prompt: {:.50}...)",
+            prompt_md5, prompt
+        );
+        Ok(prompt_md5)
+    }
+
+    /// Sync all benchmark files from the benchmarks directory to the database
+    pub async fn sync_benchmarks_to_db(&self, benchmarks_dir: &str) -> Result<usize> {
+        let mut synced_count = 0;
+
+        // Read all YAML files from benchmarks directory
+        let mut entries = tokio::fs::read_dir(benchmarks_dir)
+            .await
+            .with_context(|| format!("Failed to read benchmarks directory: {benchmarks_dir}"))?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("yml") {
+                match self.sync_single_benchmark(&path).await {
+                    Ok(_) => {
+                        synced_count += 1;
+                        info!("[DB] Synced benchmark: {:?}", path.file_name());
+                    }
+                    Err(e) => {
+                        tracing::error!("[DB] Failed to sync benchmark {:?}: {}", path, e);
+                    }
+                }
+            }
+        }
+
+        info!("[DB] Synced {} benchmarks to database", synced_count);
+        Ok(synced_count)
+    }
+
+    /// Sync a single benchmark file to the database
+    async fn sync_single_benchmark(&self, path: &std::path::Path) -> Result<()> {
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .context("Failed to read benchmark file")?;
+
+        // Parse YAML to extract prompt
+        let benchmark_data: BenchmarkYml =
+            serde_yaml::from_str(&content).context("Failed to parse benchmark YAML")?;
+
+        // Upsert to database
+        self.upsert_benchmark(&benchmark_data.prompt, &content)
+            .await?;
+        Ok(())
+    }
+
+    /// Get benchmark content by MD5 ID
+    pub async fn get_benchmark_by_id(&self, prompt_md5: &str) -> Result<Option<BenchmarkData>> {
+        let query = "
+            SELECT id, prompt, content, created_at, updated_at
+            FROM benchmarks
+            WHERE id = ?1;
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, [prompt_md5])
+            .await
+            .context("Failed to query benchmark by ID")?;
+
+        if let Some(row) = rows.next().await? {
+            let benchmark = BenchmarkData {
+                id: row.get(0).context("Failed to get benchmark id")?,
+                prompt: row.get(1).context("Failed to get benchmark prompt")?,
+                content: row.get(2).context("Failed to get benchmark content")?,
+                created_at: row.get(3).context("Failed to get benchmark created_at")?,
+                updated_at: row.get(4).context("Failed to get benchmark updated_at")?,
+            };
+            Ok(Some(benchmark))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get all benchmarks from database
+    pub async fn get_all_benchmarks(&self) -> Result<Vec<BenchmarkData>> {
+        let query = "
+            SELECT id, prompt, content, created_at, updated_at
+            FROM benchmarks
+            ORDER BY created_at;
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, ())
+            .await
+            .context("Failed to query all benchmarks")?;
+
+        let mut benchmarks = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let benchmark = BenchmarkData {
+                id: row.get(0).context("Failed to get benchmark id")?,
+                prompt: row.get(1).context("Failed to get benchmark prompt")?,
+                content: row.get(2).context("Failed to get benchmark content")?,
+                created_at: row.get(3).context("Failed to get benchmark created_at")?,
+                updated_at: row.get(4).context("Failed to get benchmark updated_at")?,
+            };
+            benchmarks.push(benchmark);
+        }
+
+        Ok(benchmarks)
+    }
+}
+
+/// Benchmark data structure for YAML parsing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkYml {
+    pub id: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub prompt: String,
+    pub initial_state: Vec<serde_yaml::Value>,
+    pub ground_truth: serde_yaml::Value,
+}
+
+/// Benchmark data structure from database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkData {
+    pub id: String,
+    pub prompt: String,
+    pub content: String,
+    pub created_at: String,
+    pub updated_at: String,
 }

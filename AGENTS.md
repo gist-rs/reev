@@ -8,4 +8,4 @@
 - don't add a test on each file, do add test to tests folder.
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
-- don't run server and get stuck, do run server in background, use cargo watch so server will reflect the latest code.
+- don't run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api" > logs/reev-api.log 2>&1 &` so server will reflect the latest code.

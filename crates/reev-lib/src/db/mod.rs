@@ -8,5 +8,6 @@ pub mod types;
 pub mod writer;
 
 // Re-export commonly used types
+pub use reader::AgentPerformanceWithPrompt;
 pub use types::*;
-pub use writer::DatabaseWriter;
+pub use writer::{BenchmarkData, BenchmarkYml, DatabaseWriter};
