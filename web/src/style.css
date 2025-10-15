@@ -37,7 +37,6 @@
 
 .animate-blink-fade {
     animation: blink-fade 1.5s ease-in-out infinite;
-    background-color: #9945ff !important;
 }
 
 :root {
