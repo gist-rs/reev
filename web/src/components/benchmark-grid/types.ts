@@ -13,7 +13,7 @@ export interface AgentPerformanceSummary {
 export interface BenchmarkGridProps {
   className?: string;
   refreshTrigger?: number;
-  onBenchmarkSelect?: (benchmarkId: string) => void;
+  onBenchmarkSelect?: (benchmarkId: string, agentType?: string) => void;
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
   runningBenchmarkIds?: string[];
@@ -22,6 +22,7 @@ export interface BenchmarkGridProps {
     { agent: string; status: string; progress: number }
   >;
   selectedBenchmark?: string | null;
+  selectedAgent?: string;
   executions?: Map<string, any>;
   agentPerformanceData?: any;
   agentPerformanceLoading?: boolean;

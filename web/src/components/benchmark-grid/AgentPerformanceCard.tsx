@@ -8,12 +8,13 @@ interface AgentPerformanceCardProps {
   agentData?: AgentPerformanceSummary;
   allBenchmarks: any[];
   runningBenchmarks: Set<string>;
-  onBenchmarkClick: (result: BenchmarkResult) => void;
+  onBenchmarkClick: (result: BenchmarkResult, agentType: string) => void;
   runningBenchmarkExecutions?: Map<
     string,
     { agent: string; status: string; progress: number }
   >;
   selectedBenchmark?: string | null;
+  selectedAgent?: string;
 }
 
 export function AgentPerformanceCard({
@@ -24,6 +25,7 @@ export function AgentPerformanceCard({
   onBenchmarkClick,
   runningBenchmarkExecutions,
   selectedBenchmark,
+  selectedAgent,
 }: AgentPerformanceCardProps) {
   const finalAgentData = useMemo(
     () =>
@@ -71,22 +73,19 @@ export function AgentPerformanceCard({
     benchmark: any,
     benchmarkResult?: BenchmarkResult,
     isRunning = false,
+    isSelected = false,
   ) => {
     const result =
       benchmarkResult ||
       createPlaceholderResult(benchmark.id, new Date().toISOString());
 
-    if (benchmark.id.includes("200")) {
-      console.log(result);
-    }
-
     return (
       <BenchmarkBox
         key={benchmark.id}
         result={result}
-        onClick={onBenchmarkClick}
+        onClick={(result) => onBenchmarkClick(result, agentType)}
         isRunning={isRunning}
-        isSelected={selectedBenchmark === benchmark.id}
+        isSelected={isSelected}
       />
     );
   };
@@ -164,24 +163,32 @@ export function AgentPerformanceCard({
                     runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
                       agentType;
 
-                  const isSelected = selectedBenchmark === benchmark.id;
+                  const isSelected =
+                    isMostRecentRun &&
+                    selectedBenchmark === benchmark.id &&
+                    selectedAgent === agentType;
 
                   if (benchmarkResult) {
                     return renderBenchmarkBox(
                       benchmark,
                       benchmarkResult,
                       isRunning,
+                      isSelected,
                     );
                   } else {
                     const placeholderResult = createPlaceholderResult(
                       benchmark.id,
                       runDate,
                     );
-                    const isSelected = selectedBenchmark === benchmark.id;
+                    const isSelected =
+                      isMostRecentRun &&
+                      selectedBenchmark === benchmark.id &&
+                      selectedAgent === agentType;
                     return renderBenchmarkBox(
                       benchmark,
                       placeholderResult,
                       isRunning,
+                      isSelected,
                     );
                   }
                 })}
@@ -200,11 +207,12 @@ export function AgentPerformanceCard({
                     benchmark.id,
                     new Date().toISOString(),
                   );
-                  const isSelected = selectedBenchmark === benchmark.id;
+                  const isSelected = false; // Never show selection in placeholder rows
                   return renderBenchmarkBox(
                     benchmark,
                     placeholderResult,
                     false,
+                    isSelected,
                   );
                 })}
               </div>

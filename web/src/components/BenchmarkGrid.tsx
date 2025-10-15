@@ -21,6 +21,7 @@ export function BenchmarkGrid({
   benchmarksError,
   refetchBenchmarks,
   selectedBenchmark,
+  selectedAgent,
 }: BenchmarkGridProps) {
   const ALL_AGENT_TYPES = [
     "deterministic",
@@ -50,9 +51,10 @@ export function BenchmarkGrid({
                   runningBenchmarks={runningBenchmarks}
                   runningBenchmarkExecutions={executions}
                   selectedBenchmark={selectedBenchmark}
+                  selectedAgent={selectedAgent}
                   onBenchmarkClick={(result) => {
                     if (onBenchmarkSelect) {
-                      onBenchmarkSelect(result.benchmark_id);
+                      onBenchmarkSelect(result.benchmark_id, agentType);
                     }
                   }}
                 />

@@ -102,12 +102,19 @@ export function App() {
   }, [executions, selectedBenchmark]);
 
   const handleBenchmarkSelect = useCallback(
-    async (benchmarkId: string) => {
+    async (benchmarkId: string, agentType?: string) => {
       console.log("=== BENCHMARK SELECTED ===");
       console.log("benchmarkId:", benchmarkId);
+      console.log("agentType:", agentType);
       console.log("Previous selectedBenchmark:", selectedBenchmark);
       setSelectedBenchmark(benchmarkId);
       console.log("Set selectedBenchmark to:", benchmarkId);
+
+      // Update selected agent if provided
+      if (agentType) {
+        console.log("Setting selectedAgent to:", agentType);
+        setSelectedAgent(agentType);
+      }
 
       // Update current execution if we have one for this benchmark
       const execution = Array.from(executions.values()).find(
@@ -130,8 +137,9 @@ export function App() {
                 "No execution found, loading flow logs from database...",
               );
             }
+            const agentToUse = agentType || selectedAgent || "deterministic";
             const response = await fetch(
-              `/api/v1/ascii-tree/${benchmarkId}/deterministic`,
+              `/api/v1/ascii-tree/${benchmarkId}/${agentToUse}`,
             );
 
             if (response.ok) {
@@ -561,6 +569,7 @@ export function App() {
             benchmarksError={benchmarksError}
             refetchBenchmarks={refetchBenchmarks}
             selectedBenchmark={selectedBenchmark}
+            selectedAgent={selectedAgent}
           />
         </div>
       </div>
