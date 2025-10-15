@@ -32,9 +32,6 @@ pub struct BenchmarkResult {
     pub id: Option<i64>,
     pub benchmark_id: String,
     pub timestamp: String,
-    pub prompt: String,
-    pub generated_instruction: String,
-    pub final_on_chain_state: String,
     pub final_status: String,
     pub score: f64,
 }

@@ -230,9 +230,6 @@ impl super::DatabaseWriter {
                 id: Some(id),
                 benchmark_id,
                 timestamp,
-                prompt: String::new(),
-                generated_instruction: String::new(),
-                final_on_chain_state: String::new(),
                 final_status,
                 score,
             };

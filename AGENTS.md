@@ -8,3 +8,4 @@
 - don't add a test on each file, do add test to tests folder.
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
+- don't run server and get stuck, do run server in background, use cargo watch so server will reflect the latest code.

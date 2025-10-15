@@ -88,7 +88,61 @@ tui -> reev-runner -> reev-lib -> shared writer fn -> db
 - Updated `reev-runner` and `reev-api` to use shared database
 - Removed old database files from `reev-runner`
 
-### 🔄 Phase 23: Advanced Multi-Agent Collaboration (FUTURE)
+### 🔄 Phase 23: Benchmark Management System - PLANNED
+**Objective**: Create centralized benchmark management with database-backed storage
+
+**Current Issue**: 
+- Benchmarks stored as files only
+- No database linkage between test results and benchmark content
+- No runtime benchmark management capabilities
+
+**Proposed Architecture**:
+1. **Benchmark Content Storage**
+   - Create `benchmarks` table with `id = md5(prompt)` and `content = yml_content`
+   - Store MD5 hash of prompt as primary key for efficient lookup
+   - Upsert benchmark files on startup to keep DB in sync
+
+2. **Test Result Enhancement** 
+   - Add `prompt_md5` field to `agent_performance` and `results` tables
+   - Store MD5 hash instead of full prompt to save disk space
+   - Maintain ability to map back to full prompt content via benchmark table
+
+3. **Runtime API Management**
+   - Implement `/upsert_yml` endpoint for dynamic benchmark updates
+   - All benchmark reads at runtime from database (not filesystem)
+   - Future UI integration for YML editing capabilities
+
+4. **Database Schema Updates**
+   ```sql
+   CREATE TABLE benchmarks (
+       id TEXT PRIMARY KEY,  -- MD5 of prompt
+       prompt TEXT NOT NULL,
+       content TEXT NOT NULL, -- Full YML content
+       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+   );
+   
+   ALTER TABLE agent_performance ADD COLUMN prompt_md5 TEXT;
+   ALTER TABLE results ADD COLUMN prompt_md5 TEXT;
+   CREATE INDEX idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5);
+   ```
+
+**Implementation Tasks**:
+- [ ] Create benchmark upsert functions for startup sync
+- [ ] Update database schema with new tables and indexes
+- [ ] Modify test result storage to include prompt MD5
+- [ ] Implement `/upsert_yml` API endpoint
+- [ ] Update API responses to include prompt content when available
+- [ ] Add benchmark content caching for performance
+
+**Expected Benefits**:
+- Single source of truth for benchmark content
+- Efficient storage using MD5 hashes
+- Runtime benchmark management capabilities
+- Foundation for future UI-based editing
+- Improved test result traceability
+
+### 🔄 Phase 24: Advanced Multi-Agent Collaboration (FUTURE)
 
 Now that all technical debt is resolved, focus shifts to advanced agent capabilities:
 - Agent orchestration and specialization
@@ -96,13 +150,13 @@ Now that all technical debt is resolved, focus shifts to advanced agent capabili
 - Distributed problem solving
 - Enhanced performance optimization
 
-### 🔄 Phase 23: Enterprise Features (FUTURE)
+### 🔄 Phase 25: Enterprise Features (FUTURE)
 - Role-based access control
 - Advanced security features
 - Custom benchmark creation tools
 - Performance analytics dashboard
 
-### 🔄 Phase 24: Ecosystem Expansion (FUTURE)
+### 🔄 Phase 26: Ecosystem Expansion (FUTURE)
 - Additional blockchain support
 - More DeFi protocol integrations
 - Community contribution framework
