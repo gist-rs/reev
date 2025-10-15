@@ -292,7 +292,6 @@ impl super::DatabaseWriter {
                 ap.final_status,
                 ap.execution_time_ms,
                 ap.timestamp,
-                ap.prompt_md5,
                 b.prompt,
                 b.content
             FROM agent_performance ap
@@ -335,9 +334,6 @@ impl super::DatabaseWriter {
             let timestamp: String = row
                 .get(5)
                 .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
-            let prompt_md5: Option<String> = row
-                .get(6)
-                .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
             let prompt: Option<String> = row
                 .get(7)
                 .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
@@ -352,7 +348,6 @@ impl super::DatabaseWriter {
                 final_status,
                 execution_time_ms,
                 timestamp,
-                prompt_md5,
                 prompt,
                 content,
             };
@@ -372,7 +367,6 @@ pub struct AgentPerformanceWithPrompt {
     pub final_status: String,
     pub execution_time_ms: u64,
     pub timestamp: String,
-    pub prompt_md5: Option<String>,
     pub prompt: Option<String>,
     pub content: Option<String>,
 }
