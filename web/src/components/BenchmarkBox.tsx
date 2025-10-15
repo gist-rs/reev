@@ -1,7 +1,6 @@
 // BenchmarkBox component for individual 16x16 result display
 
-import { BenchmarkResult, BenchmarkInfo } from "../types/benchmark";
-import { Tooltip } from "./ui/Tooltip";
+import { BenchmarkResult } from "../types/benchmark";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -9,7 +8,6 @@ interface BenchmarkBoxProps {
   onClick?: (result: BenchmarkResult) => void;
   className?: string;
   isRunning?: boolean;
-  benchmarkInfo: BenchmarkInfo | null;
 }
 
 export function BenchmarkBox({
@@ -18,7 +16,6 @@ export function BenchmarkBox({
   onClick,
   className = "",
   isRunning = false,
-  benchmarkInfo,
 }: BenchmarkBoxProps) {
   const getColorClass = (result: BenchmarkResult): string => {
     // Use color_class if specified, otherwise fall back to score-based logic
@@ -56,69 +53,23 @@ export function BenchmarkBox({
     borderRadius: "2px",
   };
 
-  const tooltipContent = (
-    <div className="text-center">
-      <div className="font-semibold text-white mb-1">{result.benchmark_id}</div>
-      {benchmarkInfo ? (
-        <>
-          <div className="text-gray-300 text-xs mb-2 max-w-xs">
-            {benchmarkInfo.description}
-          </div>
-          {benchmarkInfo.tags && benchmarkInfo.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 justify-center mb-2">
-              {benchmarkInfo.tags.slice(0, 3).map((tag, index) => (
-                <span
-                  key={index}
-                  className="bg-blue-600 text-white text-xs px-2 py-1 rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-              {benchmarkInfo.tags.length > 3 && (
-                <span className="text-gray-400 text-xs">
-                  +{benchmarkInfo.tags.length - 3} more
-                </span>
-              )}
-            </div>
-          )}
-          <div className="text-white font-medium">
-            Score: {(result.score * 100).toFixed(1)}%
-          </div>
-          <div className="text-gray-300 text-xs">
-            Agent: {result.agent_type}
-          </div>
-          <div className="text-gray-400 text-xs">
-            Status: {result.final_status}
-          </div>
-        </>
-      ) : (
-        <div className="text-gray-300 text-xs">Loading benchmark info...</div>
-      )}
-    </div>
-  );
-
   return (
-    <Tooltip content={tooltipContent} delay={300} position="top">
-      <div
-        className={`${baseClasses} ${className} ${getAnimationClass()} relative group active:scale-95 transition-transform`}
-        style={{
-          ...styleProps,
-          minWidth: "20px", // Larger touch target
-          minHeight: "20px", // Larger touch target
-          ...(isRunning && {
-            background:
-              "linear-gradient(90deg, #9945FF 0%, #00D18C 50%, #9945FF 100%)",
-            backgroundSize: "200% 100%",
-            animation: "shimmer 2s ease-in-out infinite",
-          }),
-        }}
-        onClick={handleClick}
-      >
-        {/* Mobile touch indicator - subtle pulse effect */}
-        <div className="absolute inset-0 rounded-sm opacity-0 group-hover:opacity-20 group-active:opacity-30 bg-white transition-opacity duration-200"></div>
-        {/* Touch feedback ring */}
-        <div className="absolute -inset-1 rounded-sm border-2 border-transparent group-hover:border-gray-400 group-active:border-gray-600 transition-colors duration-150"></div>
-      </div>
-    </Tooltip>
+    <div
+      className={`${baseClasses} ${className} ${getAnimationClass()} relative group active:scale-95 transition-transform`}
+      style={{
+        ...styleProps,
+        minWidth: "20px", // Larger touch target
+        minHeight: "20px", // Larger touch target
+        ...(isRunning && {
+          background:
+            "linear-gradient(90deg, #9945FF 0%, #00D18C 50%, #9945FF 100%)",
+          backgroundSize: "200% 100%",
+          animation: "shimmer 2s ease-in-out infinite",
+        }),
+      }}
+      onClick={() => onClick && onClick(result)}
+    >
+      <div className="absolute -inset-1 rounded-sm border-2 border-transparent group-hover:border-gray-400 group-active:border-gray-600 transition-colors duration-150"></div>
+    </div>
   );
 }
