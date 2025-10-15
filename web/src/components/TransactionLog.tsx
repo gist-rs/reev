@@ -25,6 +25,25 @@ export function TransactionLog({
   const loadFlowLog = useCallback(async () => {
     if (!benchmarkId) return;
 
+    // When running, use live execution data and clear previous logs
+    if (isRunning && execution?.logs) {
+      const newLogs = execution.logs
+        .split("\n")
+        .filter((line) => line.trim() !== "");
+
+      // Clear previous logs and show current execution logs
+      setFlowLog({
+        events: newLogs,
+        final_result: {
+          status: execution.status,
+          progress: execution.progress,
+          trace: execution.trace,
+        },
+      });
+      return;
+    }
+
+    // For completed runs or when no execution data, load from database
     setLoading(true);
     setError(null);
 
@@ -34,59 +53,61 @@ export function TransactionLog({
       setFlowLog(logData);
     } catch (err) {
       // If database fails, try to get from current execution state
-      setError(err instanceof Error ? err.message : "Failed to load flow log");
-    } finally {
-      setLoading(false);
-    }
-  }, [benchmarkId]);
-
-  // Update flow log from execution state when running
-  useEffect(() => {
-    if (isRunning && execution?.logs) {
-      const newLogs = execution.logs
-        .split("\n")
-        .filter((line) => line.trim() !== "");
-      setFlowLog((prev) => {
-        // Append new logs instead of replacing
-        if (prev && prev.events) {
-          const existingEvents = prev.events;
-          const newEvents = newLogs.filter(
-            (log) => !existingEvents.includes(log),
-          );
-          return {
-            ...prev,
-            events: [...existingEvents, ...newEvents],
-            final_result: {
-              status: execution.status,
-              progress: execution.progress,
-              trace: execution.trace,
-            },
-          };
-        }
-        return {
+      if (execution?.logs) {
+        const newLogs = execution.logs
+          .split("\n")
+          .filter((line) => line.trim() !== "");
+        setFlowLog({
           events: newLogs,
           final_result: {
             status: execution.status,
             progress: execution.progress,
             trace: execution.trace,
           },
-        };
-      });
+        });
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Failed to load flow log",
+        );
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [isRunning, execution]);
+  }, [benchmarkId, isRunning, execution]);
 
-  // Auto-refresh for running executions
+  // Clear logs when benchmark changes
+  useEffect(() => {
+    setFlowLog(null);
+  }, [benchmarkId]);
+
+  // Auto-refresh for running executions - use live data instead of database polling
   useEffect(() => {
     if (!autoRefresh || !isRunning || !benchmarkId) return;
 
-    const interval = setInterval(loadFlowLog, 2000);
+    // During execution, update from live execution data instead of polling database
+    const interval = setInterval(() => {
+      if (execution?.logs) {
+        const newLogs = execution.logs
+          .split("\n")
+          .filter((line) => line.trim() !== "");
+
+        setFlowLog({
+          events: newLogs,
+          final_result: {
+            status: execution.status,
+            progress: execution.progress,
+            trace: execution.trace,
+          },
+        });
+      }
+    }, 1000); // More frequent updates for real-time feel
     return () => {
       clearInterval(interval);
       if (import.meta.env.DEV) {
-        console.log("Cleared TransactionLog polling interval");
+        console.log("Cleared TransactionLog real-time interval");
       }
     };
-  }, [autoRefresh, isRunning, benchmarkId, loadFlowLog]);
+  }, [autoRefresh, isRunning, benchmarkId, execution]);
 
   // Auto-scroll to bottom when new content is added
   useEffect(() => {
