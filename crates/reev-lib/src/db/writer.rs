@@ -9,7 +9,7 @@ use crate::flow::types::FlowLog;
 use crate::results::FinalStatus;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use turso::{Builder, Connection};
 
 /// Shared database writer for all database operations
@@ -425,19 +425,23 @@ impl DatabaseWriter {
         Ok(())
     }
 
-    /// Upsert a benchmark into the database
+    /// Upsert a benchmark into the database using proper INSERT ON CONFLICT pattern
     pub async fn upsert_benchmark(
         &self,
         benchmark_name: &str,
         prompt: &str,
         content: &str,
     ) -> Result<String> {
-        let prompt_md5 = format!("{:x}", md5::compute(prompt.as_bytes()));
+        let prompt_md5 = format!(
+            "{:x}",
+            md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes())
+        );
         let timestamp = chrono::Utc::now().to_rfc3339();
 
+        // Use INSERT ... ON CONFLICT DO UPDATE pattern from Firebase examples
         let query = "
             INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 benchmark_name = excluded.benchmark_name,
                 prompt = excluded.prompt,
@@ -448,13 +452,13 @@ impl DatabaseWriter {
         self.conn
             .execute(
                 query,
-                [
-                    &prompt_md5,
+                turso::params![
+                    prompt_md5.clone(),
                     benchmark_name,
                     prompt,
                     content,
-                    &timestamp,
-                    &timestamp,
+                    timestamp.clone(),
+                    timestamp.clone()
                 ],
             )
             .await
@@ -471,7 +475,8 @@ impl DatabaseWriter {
     pub async fn sync_benchmarks_to_db(&self, benchmarks_dir: &str) -> Result<usize> {
         let mut synced_count = 0;
 
-        // Read all YAML files from benchmarks directory
+        // Read all YAML files from benchmarks directory first
+        let mut yaml_files = Vec::new();
         let mut entries = tokio::fs::read_dir(benchmarks_dir)
             .await
             .with_context(|| format!("Failed to read benchmarks directory: {benchmarks_dir}"))?;
@@ -479,14 +484,24 @@ impl DatabaseWriter {
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("yml") {
-                match self.sync_single_benchmark(&path).await {
-                    Ok(_) => {
-                        synced_count += 1;
-                        info!("[DB] Synced benchmark: {:?}", path.file_name());
-                    }
-                    Err(e) => {
-                        tracing::error!("[DB] Failed to sync benchmark {:?}: {}", path, e);
-                    }
+                yaml_files.push(path);
+            }
+        }
+
+        // Sort files for consistent processing order
+        yaml_files.sort();
+
+        // Process benchmarks one by one (sequentially) without explicit transaction
+        // Let each upsert handle its own atomicity
+        for path in yaml_files {
+            match self.sync_single_benchmark(&path).await {
+                Ok(_) => {
+                    synced_count += 1;
+                    info!("[DB] Synced benchmark: {:?}", path.file_name());
+                }
+                Err(e) => {
+                    tracing::error!("[DB] Failed to sync benchmark {:?}: {}", path, e);
+                    // Continue with other benchmarks even if one fails
                 }
             }
         }
@@ -505,13 +520,7 @@ impl DatabaseWriter {
         let benchmark_data: BenchmarkYml =
             serde_yaml::from_str(&content).context("Failed to parse benchmark YAML")?;
 
-        // Upsert to database
-        info!(
-            "[DB] Syncing benchmark '{}' from file: {:?}",
-            benchmark_data.id,
-            path.file_name()
-        );
-
+        // Upsert to database using the upsert_benchmark function
         let prompt_md5 = self
             .upsert_benchmark(&benchmark_data.id, &benchmark_data.prompt, &content)
             .await?;
@@ -521,32 +530,25 @@ impl DatabaseWriter {
             benchmark_data.id, prompt_md5
         );
 
-        // Verify the lookup works immediately
-        match self
-            .get_prompt_md5_by_benchmark_name(&benchmark_data.id)
-            .await
-        {
-            Ok(Some(found_md5)) => {
-                info!(
-                    "[DB] ✓ Verified lookup: '{}' -> {}",
-                    benchmark_data.id, found_md5
-                );
-            }
-            Ok(None) => {
-                warn!(
-                    "[DB] ✗ Lookup failed immediately after sync: '{}'",
-                    benchmark_data.id
-                );
-            }
-            Err(e) => {
-                error!(
-                    "[DB] ✗ Lookup error immediately after sync for '{}': {}",
-                    benchmark_data.id, e
-                );
-            }
-        }
-
         Ok(())
+    }
+
+    /// Get total count of benchmarks in database
+    pub async fn get_all_benchmark_count(&self) -> Result<i64> {
+        let query = "SELECT COUNT(*) FROM benchmarks;";
+
+        let mut rows = self
+            .conn
+            .query(query, ())
+            .await
+            .context("Failed to query benchmark count")?;
+
+        if let Some(row) = rows.next().await? {
+            let count: i64 = row.get(0).context("Failed to get benchmark count")?;
+            Ok(count)
+        } else {
+            Ok(0)
+        }
     }
 
     /// Get benchmark content by MD5 ID
