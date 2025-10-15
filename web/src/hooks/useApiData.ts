@@ -258,7 +258,7 @@ export function useAgentPerformance() {
   }, [transformedData, error, mockData]);
 
   return {
-    data: error || !transformedData ? mockData : transformedData,
+    data: transformedData, // Use real data only, no mock fallback
     loading: loading && !error,
     error,
     refetch,

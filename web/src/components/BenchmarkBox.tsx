@@ -55,11 +55,11 @@ export function BenchmarkBox({
 
   return (
     <div
-      className={`${baseClasses} ${className} ${getAnimationClass()} relative group active:scale-95 transition-transform`}
+      className={`${baseClasses} ${className} ${getAnimationClass()} relative group active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600`}
       style={{
         ...styleProps,
-        minWidth: "20px", // Larger touch target
-        minHeight: "20px", // Larger touch target
+        minWidth: "16px",
+        minHeight: "16px",
         ...(isRunning && {
           background:
             "linear-gradient(90deg, #9945FF 0%, #00D18C 50%, #9945FF 100%)",
@@ -68,8 +68,6 @@ export function BenchmarkBox({
         }),
       }}
       onClick={() => onClick && onClick(result)}
-    >
-      <div className="absolute -inset-1 rounded-sm border-2 border-transparent group-hover:border-gray-400 group-active:border-gray-600 transition-colors duration-150"></div>
-    </div>
+    />
   );
 }
