@@ -295,6 +295,7 @@ WebSocket /ws/benchmarks/{id}         // Real-time updates
 
 #### 3.3 User Experience Enhancements
 - ✅ **Dark theme** with toggle button beside Performance Overview
+- ✅ **Tab selection visual feedback** with blue ring indicator for selected benchmarks
 - **Saved configurations** for different setups
 - **Benchmark favorites** and quick access
 - **Advanced filtering** and search
