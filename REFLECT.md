@@ -16,6 +16,53 @@ TypeScript compilation errors in BenchmarkGrid.tsx and api.ts resolved through p
 - Fixed `getBenchmarkList()` to handle BenchmarkInfo objects correctly
 - Added proper imports for BenchmarkInfo type
 
+## 2025-10-15: YAML Description Loading Fixed - API Enhancement Complete
+### 🎯 **Problem Solved**
+Fixed tooltips showing "No description" instead of actual descriptions from YAML benchmark files.
+
+### 🔍 **Root Cause Analysis**
+**Issue**: API endpoint returning only strings instead of full YAML data
+- **Symptom**: Tooltips show "No description" despite rich YAML data available
+- **Impact**: Poor user experience, missing benchmark context
+- **Root Cause**: Backend `list_benchmarks` only returning benchmark IDs, not parsing YAML content
+
+### 🛠 **Fix Applied**
+- Added BenchmarkInfo type to backend with description, tags, prompt fields
+- Modified `list_benchmarks` handler to parse YAML files and extract full data
+- Updated API to return structured BenchmarkInfo objects from YAML parsing
+- Simplified frontend to handle proper BenchmarkInfo objects
+- Tooltips now display real descriptions and tags from YAML files
+
+### 📊 **Impact Achieved**
+- Rich tooltip content with actual benchmark descriptions
+- Proper tag display from YAML metadata
+- Full prompt information available for future features
+- Eliminated "No description" fallback messages
+
+## 2025-10-15: Browser Crash Performance Fix - API Call Optimization Complete
+### 🎯 **Problem Solved**
+Fixed critical browser crash on refresh due to 132+ repeated API calls from useBenchmarkInfo hook.
+
+### 🔍 **Root Cause Analysis**
+**Issue**: Each BenchmarkBox component calling useBenchmarkInfo independently
+- **Symptom**: 132 API calls on page refresh causing browser crash
+- **Impact**: Complete browser failure, blocking all functionality
+- **Root Cause**: Every BenchmarkBox (hundreds on grid) was calling API separately
+
+### 🛠 **Fix Applied**
+- Removed useBenchmarkInfo from BenchmarkBox to prevent duplicate API calls
+- Made benchmarkInfo prop required to ensure data is passed down properly
+- Eliminated cascade effect where each BenchmarkBox was calling API independently
+- Reduced API calls from 132+ to 1 initial call from BenchmarkGrid
+- Browser refresh now works without crashing
+
+### 📊 **Impact Achieved**
+- 99% reduction in API calls (132+ → 1)
+- Browser refresh no longer crashes
+- Improved page load performance dramatically
+- Proper data flow from parent to child components
+- Scalable solution for hundreds of benchmark boxes
+
 ## 2025-10-15: Runtime Error Fixes - API Compatibility Issues Resolved
 ### 🎯 **Problem Solved**
 Fixed TypeError "Cannot read properties of undefined (reading 'replace')" and "Cannot read properties of undefined (reading 'includes')" in BenchmarkGrid component.

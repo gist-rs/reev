@@ -2,7 +2,6 @@
 
 import { BenchmarkResult, BenchmarkInfo } from "../types/benchmark";
 import { Tooltip } from "./ui/Tooltip";
-import { useBenchmarkInfo } from "../hooks/useBenchmarkInfo";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -10,6 +9,7 @@ interface BenchmarkBoxProps {
   onClick?: (result: BenchmarkResult) => void;
   className?: string;
   isRunning?: boolean;
+  benchmarkInfo: BenchmarkInfo | null;
 }
 
 export function BenchmarkBox({
@@ -18,10 +18,8 @@ export function BenchmarkBox({
   onClick,
   className = "",
   isRunning = false,
+  benchmarkInfo,
 }: BenchmarkBoxProps) {
-  const { getBenchmarkInfo } = useBenchmarkInfo();
-  const benchmarkInfo = getBenchmarkInfo(result.benchmark_id);
-
   const getColorClass = (result: BenchmarkResult): string => {
     // Use color_class if specified, otherwise fall back to score-based logic
     if (result.color_class === "gray") return "bg-gray-400";

@@ -8,6 +8,28 @@ All critical issues resolved. Framework fully operational with benchmark managem
 
 ## ✅ RECENTLY FIXED
 
+### Browser Crash on Refresh ✅ **RESOLVED** (2025-10-15)
+**Component**: BenchmarkBox Performance  
+**Issue**: 132 API calls causing browser crash on refresh
+
+#### 🔧 **Fix Applied**
+- ✅ Removed useBenchmarkInfo from BenchmarkBox to prevent duplicate API calls
+- ✅ Made benchmarkInfo prop required to ensure data is passed down properly
+- ✅ Eliminated cascade effect where each BenchmarkBox was calling API independently
+- ✅ Reduced API calls from 132+ to 1 initial call from BenchmarkGrid
+- ✅ Browser refresh now works without crashing
+
+### Benchmark Description Loading ✅ **RESOLVED** (2025-10-15)
+**Component**: Backend API & Frontend  
+**Issue**: Tooltips showing "No description" instead of YAML data
+
+#### 🔧 **Fix Applied**
+- ✅ Fixed backend `list_benchmarks` to parse YAML files and return full BenchmarkInfo
+- ✅ Added BenchmarkInfo type to backend with description, tags, prompt
+- ✅ Updated API to return real data from YAML files instead of just IDs
+- ✅ Simplified frontend to handle proper BenchmarkInfo objects
+- ✅ Tooltips now show real descriptions and tags from YAML files
+
 ### TypeScript Compilation Errors ✅ **RESOLVED** (2025-10-15)
 **Component**: BenchmarkGrid.tsx & api.ts  
 **Issue**: Type mismatches between BenchmarkInfo[] and string[]
@@ -22,8 +44,8 @@ All critical issues resolved. Framework fully operational with benchmark managem
 ---
 
 ## 📊 **Architecture Summary**
-- **Data Management**: Single API call with Map-based storage
-- **Performance**: 40x reduction in API calls, instant UI
+- **Data Management**: YAML-driven benchmark info with proper API parsing
+- **Performance**: Real descriptions from YAML files, rich tooltip content
 - **Mobile Ready**: Touch-enabled responsive design
 - **Error Handling**: Graceful fallbacks throughout
 

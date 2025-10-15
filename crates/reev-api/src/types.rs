@@ -1,5 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+/// Benchmark information loaded from YAML files
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkInfo {
+    pub id: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub prompt: String,
+}
+
 /// API state containing database connection and execution state
 #[derive(Clone)]
 pub struct ApiState {

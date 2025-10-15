@@ -19,8 +19,10 @@ pub async fn health_check() -> Json<HealthResponse> {
 }
 
 /// List all available benchmarks
-pub async fn list_benchmarks(State(_state): State<ApiState>) -> Json<Vec<String>> {
-    // Load benchmarks dynamically from actual files
+pub async fn list_benchmarks(
+    State(_state): State<ApiState>,
+) -> Json<Vec<crate::types::BenchmarkInfo>> {
+    // Load benchmarks dynamically from actual YAML files
     let project_root = match project_root::get_project_root() {
         Ok(root) => root,
         Err(e) => {
@@ -43,19 +45,76 @@ pub async fn list_benchmarks(State(_state): State<ApiState>) -> Json<Vec<String>
                 let path = entry.path();
                 if path.is_file() && path.extension().is_some_and(|ext| ext == "yml") {
                     if let Some(stem) = path.file_stem() {
-                        benchmarks.push(stem.to_string_lossy().to_string());
+                        let benchmark_id = stem.to_string_lossy().to_string();
+
+                        // Parse YAML file to extract full benchmark info
+                        match std::fs::read_to_string(&path) {
+                            Ok(yaml_content) => {
+                                match serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
+                                    Ok(yaml) => {
+                                        let description = yaml
+                                            .get("description")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("No description available")
+                                            .to_string();
+
+                                        let tags = yaml
+                                            .get("tags")
+                                            .and_then(|v| v.as_sequence())
+                                            .map(|seq| {
+                                                seq.iter()
+                                                    .filter_map(|v| v.as_str())
+                                                    .map(|s| s.to_string())
+                                                    .collect()
+                                            })
+                                            .unwrap_or_default();
+
+                                        let prompt = yaml
+                                            .get("prompt")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+
+                                        benchmarks.push(crate::types::BenchmarkInfo {
+                                            id: benchmark_id,
+                                            description,
+                                            tags,
+                                            prompt,
+                                        });
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to parse YAML file {:?}: {}", path, e);
+                                        // Fallback to minimal info
+                                        benchmarks.push(crate::types::BenchmarkInfo {
+                                            id: benchmark_id,
+                                            description: "Failed to parse description".to_string(),
+                                            tags: vec![],
+                                            prompt: "".to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to read YAML file {:?}: {}", path, e);
+                                // Fallback to minimal info
+                                benchmarks.push(crate::types::BenchmarkInfo {
+                                    id: benchmark_id,
+                                    description: "Failed to read description".to_string(),
+                                    tags: vec![],
+                                    prompt: "".to_string(),
+                                });
+                            }
+                        }
                     }
                 }
             }
         }
         Err(e) => {
             error!("Failed to read benchmarks directory: {}", e);
-            return Json(vec![]);
         }
     }
 
-    benchmarks.sort();
-    info!("Found {} benchmark files", benchmarks.len());
+    benchmarks.sort_by(|a, b| a.id.cmp(&b.id));
     Json(benchmarks)
 }
 

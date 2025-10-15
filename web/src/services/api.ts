@@ -186,24 +186,14 @@ class ApiClient {
   async getBenchmarkList(): Promise<BenchmarkList> {
     const benchmarks = await this.listBenchmarks();
     return {
-      benchmarks: benchmarks
-        .map((benchmark) => {
-          // Handle both string and object formats
-          const id = typeof benchmark === "string" ? benchmark : benchmark?.id;
-          if (!id) {
-            console.warn("Invalid benchmark item:", benchmark);
-            return null;
-          }
-          return {
-            id,
-            name: id
-              .replace(/-/g, " ")
-              .replace(/\b\w/g, (l) => l.toUpperCase()),
-            file_path: `benchmarks/${id}.yml`,
-            status: "Pending" as const,
-          };
-        })
-        .filter(Boolean) as BenchmarkItem[],
+      benchmarks: benchmarks.map((benchmark) => ({
+        id: benchmark.id,
+        name: benchmark.id
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase()),
+        file_path: `benchmarks/${benchmark.id}.yml`,
+        status: "Pending" as const,
+      })),
       total: benchmarks.length,
     };
   }

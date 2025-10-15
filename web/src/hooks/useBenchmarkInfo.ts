@@ -19,19 +19,8 @@ export function useBenchmarkInfo() {
       const infoMap = new Map<string, BenchmarkInfo>();
 
       benchmarks.forEach((benchmark) => {
-        // Handle both string and object responses from API
-        if (typeof benchmark === "string") {
-          // Fallback for string responses
-          infoMap.set(benchmark, {
-            id: benchmark,
-            description: "No description available",
-            tags: [],
-            prompt: "",
-          });
-        } else {
-          // Full BenchmarkInfo object
-          infoMap.set(benchmark.id, benchmark);
-        }
+        // API now returns full BenchmarkInfo objects from YAML files
+        infoMap.set(benchmark.id, benchmark);
       });
 
       setBenchmarkInfo(infoMap);

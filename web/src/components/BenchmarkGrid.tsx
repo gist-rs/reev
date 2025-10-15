@@ -88,22 +88,8 @@ export function BenchmarkGrid({
     const loadBenchmarks = async () => {
       try {
         const benchmarkList = await apiClient.listBenchmarks();
-        // Handle both string and object formats from API
-        const normalizedBenchmarks = benchmarkList.map((benchmark) => {
-          if (typeof benchmark === "string") {
-            // Convert string to BenchmarkInfo format
-            return {
-              id: benchmark,
-              description: "",
-              tags: [],
-              prompt: "",
-            };
-          }
-          return benchmark;
-        });
-        setAllBenchmarks(normalizedBenchmarks);
-        // Removed aggressive preloading - will fetch details on user interaction
-        // preloadBenchmarkDetails(normalizedBenchmarks);
+        // API now returns full BenchmarkInfo objects from YAML files
+        setAllBenchmarks(benchmarkList);
       } catch (error) {
         console.error("Failed to load benchmarks:", error);
       } finally {
@@ -380,6 +366,7 @@ export function BenchmarkGrid({
                                             isRunning={runningBenchmarks.has(
                                               benchmark.id,
                                             )}
+                                            benchmarkInfo={benchmark}
                                           />
                                         );
                                       } else {
@@ -403,6 +390,7 @@ export function BenchmarkGrid({
                                             isRunning={runningBenchmarks.has(
                                               benchmark.id,
                                             )}
+                                            benchmarkInfo={benchmark}
                                           />
                                         );
                                       }
@@ -457,6 +445,7 @@ export function BenchmarkGrid({
                                           isRunning={runningBenchmarks.has(
                                             benchmark.id,
                                           )}
+                                          benchmarkInfo={benchmark}
                                         />
                                       );
                                     })}
