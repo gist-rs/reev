@@ -37,14 +37,6 @@ export function BenchmarkBox({
     return "";
   };
 
-  // No need for API calls - all info is in memory
-
-  const handleClick = () => {
-    if (onClick) {
-      onClick(result);
-    }
-  };
-
   const baseClasses = `${getColorClass(result)} hover:opacity-80 transition-opacity cursor-pointer`;
   const styleProps = {
     width: `${size}px`,
