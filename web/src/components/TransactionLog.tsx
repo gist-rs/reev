@@ -406,9 +406,9 @@ export function TransactionLog({
             No flow log data available for this execution
           </div>
         ) : (
-          <div className="p-4 flex flex-col flex-1 min-h-0 max-h-96">
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
-              Transaction Log (Real-time):
+          <div className="p-4 flex flex-col flex-1 min-h-0">
+            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0 flex-wrap">
+              <span className="break-words">Transaction Log (Real-time):</span>
               {isRunning && (
                 <span className="ml-2 text-green-600 dark:text-green-400 animate-pulse">
                   ● Live
@@ -416,7 +416,7 @@ export function TransactionLog({
               )}
               <button
                 onClick={() => setShouldScrollToBottom(true)}
-                className="ml-2 text-blue-500 hover:text-blue-600 text-xs"
+                className="ml-2 text-blue-500 hover:text-blue-600 text-xs whitespace-nowrap"
               >
                 {shouldScrollToBottom
                   ? "📌 Auto-scroll"
@@ -426,7 +426,7 @@ export function TransactionLog({
             <div
               ref={logContainerRef}
               onScroll={handleScroll}
-              className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1 max-h-96"
+              className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1"
             >
               <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 dark:text-green-300 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
                 {formatFlowLog(flowLog)}
