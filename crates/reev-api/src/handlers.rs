@@ -736,6 +736,44 @@ pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoRespons
     }
 }
 
+/// Sync benchmarks from filesystem to database
+pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse {
+    let db = &state.db;
+    let benchmarks_dir = "benchmarks";
+
+    info!(
+        "Starting manual benchmark sync from directory: {}",
+        benchmarks_dir
+    );
+
+    match db.sync_benchmarks_to_db(benchmarks_dir).await {
+        Ok(synced_count) => {
+            info!(
+                "Successfully synced {} benchmarks to database",
+                synced_count
+            );
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "synced_count": synced_count,
+                    "message": format!("Successfully synced {} benchmarks from {}", synced_count, benchmarks_dir)
+                })),
+            )
+        }
+        Err(e) => {
+            error!("Failed to sync benchmarks: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to sync benchmarks: {}", e)
+                })),
+            )
+        }
+    }
+}
+
 /// Manual test endpoint to test prompt MD5 lookup
 pub async fn test_prompt_md5_lookup(
     State(state): State<ApiState>,

@@ -94,6 +94,7 @@ async fn main() -> Result<()> {
         .route("/api/v1/render-ascii-tree", post(render_ascii_tree))
         // Benchmark management endpoints
         .route("/api/v1/upsert-yml", post(upsert_yml))
+        .route("/api/v1/sync", post(sync_benchmarks))
         // YML TestResult endpoints for historical access (removed - use ascii-tree endpoint instead)
         .route(
             "/api/v1/ascii-tree/{benchmark_id}/{agent_type}",
