@@ -104,7 +104,7 @@ export function Tooltip({
     setIsVisible(false);
   };
 
-  const handleMouseEnter = (e: React.MouseEvent) => {
+  const handleMouseEnter = (e: any) => {
     showTooltip();
   };
 
@@ -112,13 +112,13 @@ export function Tooltip({
     hideTooltip();
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: any) => {
     e.preventDefault(); // Prevent mouse events from firing
     const touch = e.touches[0];
     showTooltip(touch.clientX, touch.clientY);
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchEnd = (e: any) => {
     e.preventDefault();
     // Auto-hide after 3 seconds on touch
     touchTimeoutRef.current = setTimeout(() => {

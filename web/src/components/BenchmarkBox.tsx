@@ -18,6 +18,7 @@ export function BenchmarkBox({
   size = 16,
   onClick,
   className = "",
+  isRunning = false,
 }: BenchmarkBoxProps) {
   const { fetchBenchmarkDetails, getCachedDetails } = useBenchmarkDetails();
   const [isLoading, setIsLoading] = useState(false);
