@@ -163,7 +163,7 @@ pub async fn execute_benchmark_background(
 
             // Agent performance is stored by FlowLogger::complete() in the runner
             // to avoid duplicates and maintain proper execution tracking
-            let final_status = match test_result.final_status {
+            let _final_status = match test_result.final_status {
                 reev_lib::results::FinalStatus::Succeeded => "Succeeded",
                 reev_lib::results::FinalStatus::Failed => "Failed",
             };
