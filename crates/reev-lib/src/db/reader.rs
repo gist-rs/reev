@@ -240,9 +240,8 @@ impl super::DatabaseWriter {
             // Throw error if prompt_md5 is null - this should never happen with proper data
             if prompt_md5.is_none() {
                 return Err(anyhow::anyhow!(
-                    "CRITICAL: prompt_md5 is null for agent performance record id={}, benchmark_id={}. \
-                    This indicates a data integrity issue - all records should have a prompt_md5 value.",
-                    id, benchmark_id
+                    "CRITICAL: prompt_md5 is null for agent performance record id={id}, benchmark_id={benchmark_id}. \
+                    This indicates a data integrity issue - all records should have a prompt_md5 value."
                 ));
             }
 

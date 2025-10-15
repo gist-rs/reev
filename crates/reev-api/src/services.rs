@@ -7,7 +7,7 @@ use reev_lib::flow::types::{
 use reev_lib::results::TestResult;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 /// Background task to execute benchmark
