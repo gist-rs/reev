@@ -35,6 +35,12 @@ export function App() {
     error,
     refetch,
   } = useBenchmarkExecution();
+  const {
+    benchmarks: benchmarkList,
+    loading: benchmarksLoading,
+    error: benchmarksError,
+    refetch: refetchBenchmarks,
+  } = useBenchmarks();
 
   // State for performance overview refresh
   const [performanceOverviewRefresh, setPerformanceOverviewRefresh] =
@@ -531,9 +537,9 @@ export function App() {
             agentPerformanceError={agentPerformanceError}
             refetchAgentPerformance={refetchAgentPerformance}
             benchmarks={benchmarks}
-            benchmarksLoading={loading}
-            benchmarksError={error}
-            refetchBenchmarks={refetch}
+            benchmarksLoading={benchmarksLoading}
+            benchmarksError={benchmarksError}
+            refetchBenchmarks={refetchBenchmarks}
           />
         </div>
       </div>

@@ -57,10 +57,9 @@ export function BenchmarkGrid({
   );
 
   // Use shared benchmark data passed as props instead of duplicate API call
-  // Use shared benchmark data passed as props instead of duplicate API call
 
-  const [allBenchmarks, setAllBenchmarks] = useState<BenchmarkInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const allBenchmarks = benchmarks || [];
+  const isLoading = benchmarksLoading;
   const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
     new Set(runningBenchmarkIds),
   );
