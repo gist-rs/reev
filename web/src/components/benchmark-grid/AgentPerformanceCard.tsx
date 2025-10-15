@@ -37,6 +37,57 @@ export function AgentPerformanceCard({
     [agentData, agentType],
   );
 
+  const filteredBenchmarks = useMemo(() => {
+    return Array.isArray(allBenchmarks)
+      ? allBenchmarks.filter((benchmark) => {
+          if (!benchmark?.id) {
+            console.warn("Invalid benchmark:", benchmark);
+            return false;
+          }
+          return !benchmark.id.includes("003") && !benchmark.id.includes("004");
+        })
+      : [];
+  }, [allBenchmarks]);
+
+  const createPlaceholderResult = (
+    benchmarkId: string,
+    timestamp: string,
+  ): BenchmarkResult => {
+    return {
+      id: `placeholder-${agentType}-${benchmarkId}`,
+      benchmark_id: benchmarkId,
+      agent_type: agentType,
+      score: 0,
+      final_status: "Not Tested",
+      execution_time_ms: 0,
+      timestamp,
+      color_class: "gray" as const,
+    };
+  };
+
+  const renderBenchmarkBox = (
+    benchmark: any,
+    benchmarkResult?: BenchmarkResult,
+    isRunning = false,
+  ) => {
+    const result =
+      benchmarkResult ||
+      createPlaceholderResult(benchmark.id, new Date().toISOString());
+
+    if (benchmark.id.includes("200")) {
+      console.log(result);
+    }
+
+    return (
+      <BenchmarkBox
+        key={benchmark.id}
+        result={result}
+        onClick={onBenchmarkClick}
+        isRunning={isRunning}
+      />
+    );
+  };
+
   const lastThreePercentage = useMemo(() => {
     if (!finalAgentData.results || finalAgentData.results.length === 0)
       return 0;
@@ -99,64 +150,35 @@ export function AgentPerformanceCard({
                 {date}
               </span>
               <div className="flex flex-wrap gap-1">
-                {Array.isArray(allBenchmarks) &&
-                  allBenchmarks
-                    .filter((benchmark) => {
-                      if (!benchmark?.id) {
-                        console.warn("Invalid benchmark:", benchmark);
-                        return false;
-                      }
-                      return (
-                        !benchmark.id.includes("003") &&
-                        !benchmark.id.includes("004")
-                      );
-                    })
-                    .map((benchmark) => {
-                      const benchmarkResult = results.find(
-                        (r) => r.benchmark_id === benchmark.id,
-                      );
-                      if (benchmarkResult) {
-                        const isRunning =
-                          isMostRecentRun &&
-                          runningBenchmarks.has(benchmark.id) &&
-                          runningBenchmarkExecutions?.get(benchmark.id)
-                            ?.agent === agentType;
+                {filteredBenchmarks.map((benchmark) => {
+                  const benchmarkResult = results.find(
+                    (r) => r.benchmark_id === benchmark.id,
+                  );
 
-                        return (
-                          <BenchmarkBox
-                            key={benchmark.id}
-                            result={benchmarkResult}
-                            onClick={onBenchmarkClick}
-                            isRunning={isRunning}
-                          />
-                        );
-                      } else {
-                        const placeholderResult: BenchmarkResult = {
-                          id: `placeholder-${agentType}-${benchmark.id}`,
-                          benchmark_id: benchmark.id,
-                          agent_type: agentType,
-                          score: 0,
-                          final_status: "Not Tested",
-                          execution_time_ms: 0,
-                          timestamp: runDate,
-                          color_class: "gray" as const,
-                        };
-                        const isRunning =
-                          isMostRecentRun &&
-                          runningBenchmarks.has(benchmark.id) &&
-                          runningBenchmarkExecutions?.get(benchmark.id)
-                            ?.agent === agentType;
+                  const isRunning =
+                    isMostRecentRun &&
+                    runningBenchmarks.has(benchmark.id) &&
+                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
+                      agentType;
 
-                        return (
-                          <BenchmarkBox
-                            key={benchmark.id}
-                            result={placeholderResult}
-                            onClick={onBenchmarkClick}
-                            isRunning={isRunning}
-                          />
-                        );
-                      }
-                    })}
+                  if (benchmarkResult) {
+                    return renderBenchmarkBox(
+                      benchmark,
+                      benchmarkResult,
+                      isRunning,
+                    );
+                  } else {
+                    const placeholderResult = createPlaceholderResult(
+                      benchmark.id,
+                      runDate,
+                    );
+                    return renderBenchmarkBox(
+                      benchmark,
+                      placeholderResult,
+                      isRunning,
+                    );
+                  }
+                })}
               </div>
             </div>
           );
@@ -167,41 +189,17 @@ export function AgentPerformanceCard({
                 XXXX-XX-XX
               </span>
               <div className="flex flex-wrap gap-1">
-                {Array.isArray(allBenchmarks) &&
-                  allBenchmarks
-                    .filter((benchmark) => {
-                      if (!benchmark?.id) {
-                        console.warn("Invalid benchmark:", benchmark);
-                        return false;
-                      }
-                      return (
-                        !benchmark.id.includes("003") &&
-                        !benchmark.id.includes("004")
-                      );
-                    })
-                    .map((benchmark) => {
-                      const placeholderResult: BenchmarkResult = {
-                        id: `placeholder-${agentType}-${benchmark.id}`,
-                        benchmark_id: benchmark.id,
-                        agent_type: agentType,
-                        score: 0,
-                        final_status: "Not Tested",
-                        execution_time_ms: 0,
-                        timestamp: new Date().toISOString(),
-                        color_class: "gray",
-                      };
-                      // This is a placeholder row (no actual run), so never running
-                      const isRunning = false;
-
-                      return (
-                        <BenchmarkBox
-                          key={benchmark.id}
-                          result={placeholderResult}
-                          onClick={onBenchmarkClick}
-                          isRunning={isRunning}
-                        />
-                      );
-                    })}
+                {filteredBenchmarks.map((benchmark) => {
+                  const placeholderResult = createPlaceholderResult(
+                    benchmark.id,
+                    new Date().toISOString(),
+                  );
+                  return renderBenchmarkBox(
+                    benchmark,
+                    placeholderResult,
+                    false,
+                  );
+                })}
               </div>
             </div>
           );

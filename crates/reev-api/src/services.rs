@@ -161,24 +161,17 @@ pub async fn execute_benchmark_background(
                 }
             }
 
-            // Store result in database - serialize access to avoid SQLite locking
-            // Store result in database sequentially (no concurrent access)
+            // Benchmark result is already stored by FlowLogger::complete() to avoid duplicates
+            // The FlowLogger provides more detailed information including actual execution time
             let final_status = match test_result.final_status {
                 reev_lib::results::FinalStatus::Succeeded => "Succeeded",
                 reev_lib::results::FinalStatus::Failed => "Failed",
             };
 
-            if let Err(e) = store_benchmark_result(
-                &state.db,
-                &benchmark_id,
-                &agent,
-                test_result.score,
-                Some(final_status),
-            )
-            .await
-            {
-                error!("Failed to store benchmark result: {}", e);
-            }
+            debug!(
+                "Benchmark result storage handled by FlowLogger: {} by {} with score {} and status {}",
+                benchmark_id, agent, test_result.score, final_status
+            );
 
             // Store flow log in database
             if let Err(e) = store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await
@@ -265,52 +258,8 @@ pub async fn update_execution_failed(state: &ApiState, execution_id: &str, error
 }
 
 /// Store benchmark result in database
-pub async fn store_benchmark_result(
-    db: &DatabaseWriter,
-    benchmark_id: &str,
-    agent: &str,
-    score: f64,
-    final_status: Option<&str>,
-) -> Result<()> {
-    // Use RFC 3339 format for consistent timestamp ordering with existing data
-    let now = chrono::Utc::now();
-    let timestamp_str = now.to_rfc3339();
-
-    // Determine status from test result or default to "Succeeded" for backwards compatibility
-    let status = final_status.unwrap_or("Succeeded");
-
-    info!(
-        "🔄 [STORAGE] Storing benchmark result: {} by {} with score {} and status {} at {}",
-        benchmark_id, agent, score, status, timestamp_str
-    );
-
-    let performance_data = reev_lib::db::AgentPerformanceData {
-        benchmark_id: benchmark_id.to_string(),
-        agent_type: agent.to_string(),
-        score,
-        final_status: status.to_string(),
-        flow_log_id: None, // Remove fake flow_log_id to avoid foreign key issues
-        execution_time_ms: 0,
-        timestamp: timestamp_str.clone(), // RFC 3339 format for proper ordering
-        prompt_md5: None,                 // Will be calculated when needed
-    };
-
-    match db.insert_agent_performance(&performance_data).await {
-        Ok(_) => {
-            info!(
-                "✅ [STORAGE] Successfully stored benchmark result for {} by {} at {}",
-                benchmark_id, agent, timestamp_str
-            );
-        }
-        Err(e) => {
-            error!("❌ [STORAGE] Failed to store benchmark result: {}", e);
-            return Err(e);
-        }
-    }
-
-    Ok(())
-}
-
+// Benchmark result storage is now handled by FlowLogger::complete() to avoid duplicates
+// This function has been removed to prevent duplicate entries in agent_performance table
 /// Store flow log in database from test result
 pub async fn store_flow_log_from_result(
     db: &DatabaseWriter,
