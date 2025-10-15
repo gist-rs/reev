@@ -36,7 +36,7 @@ export function App() {
     refetch,
   } = useBenchmarkExecution();
   const {
-    benchmarks: benchmarkList,
+    data: benchmarkData,
     loading: benchmarksLoading,
     error: benchmarksError,
     refetch: refetchBenchmarks,
@@ -536,7 +536,7 @@ export function App() {
             agentPerformanceLoading={agentPerformanceLoading}
             agentPerformanceError={agentPerformanceError}
             refetchAgentPerformance={refetchAgentPerformance}
-            benchmarks={benchmarks}
+            benchmarks={Array.isArray(benchmarkData) ? benchmarkData : []}
             benchmarksLoading={benchmarksLoading}
             benchmarksError={benchmarksError}
             refetchBenchmarks={refetchBenchmarks}

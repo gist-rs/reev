@@ -29,7 +29,7 @@ interface BenchmarkGridProps {
   agentPerformanceLoading?: boolean;
   agentPerformanceError?: string | null;
   refetchAgentPerformance?: () => Promise<void>;
-  benchmarks?: BenchmarkList | null;
+  benchmarks?: BenchmarkInfo[] | null;
   benchmarksLoading?: boolean;
   benchmarksError?: string | null;
   refetchBenchmarks?: () => Promise<void>;
@@ -335,63 +335,65 @@ export function BenchmarkGrid({
                                   {date}
                                 </span>
                                 <div className="flex flex-wrap gap-1">
-                                  {allBenchmarks
-                                    .filter((benchmark) => {
-                                      // Safety check for undefined benchmark
-                                      if (!benchmark?.id) {
-                                        console.warn(
-                                          "Invalid benchmark:",
-                                          benchmark,
-                                        );
-                                        return false;
-                                      }
-                                      // Filter out failure test benchmarks (003, 004)
-                                      return (
-                                        !benchmark.id.includes("003") &&
-                                        !benchmark.id.includes("004")
-                                      );
-                                    })
-                                    .map((benchmark) => {
-                                      const benchmarkResult = results.find(
-                                        (r) => r.benchmark_id === benchmark.id,
-                                      );
-                                      if (benchmarkResult) {
-                                        // Real result - use BenchmarkBox for clicking
+                                  {Array.isArray(allBenchmarks) &&
+                                    allBenchmarks
+                                      .filter((benchmark) => {
+                                        // Safety check for undefined benchmark
+                                        if (!benchmark?.id) {
+                                          console.warn(
+                                            "Invalid benchmark:",
+                                            benchmark,
+                                          );
+                                          return false;
+                                        }
+                                        // Filter out failure test benchmarks (003, 004)
                                         return (
-                                          <BenchmarkBox
-                                            key={benchmark.id}
-                                            result={benchmarkResult}
-                                            onClick={handleBenchmarkClick}
-                                            isRunning={runningBenchmarks.has(
-                                              benchmark.id,
-                                            )}
-                                          />
+                                          !benchmark.id.includes("003") &&
+                                          !benchmark.id.includes("004")
                                         );
-                                      } else {
-                                        // Missing result - gray placeholder
-                                        const placeholderResult: BenchmarkResult =
-                                          {
-                                            id: `placeholder-${agentType}-${benchmark.id}`,
-                                            benchmark_id: benchmark.id,
-                                            agent_type: agentType,
-                                            score: 0,
-                                            final_status: "Not Tested",
-                                            execution_time_ms: 0,
-                                            timestamp: runDate,
-                                            color_class: "gray" as const,
-                                          };
-                                        return (
-                                          <BenchmarkBox
-                                            key={benchmark.id}
-                                            result={placeholderResult}
-                                            onClick={handleBenchmarkClick}
-                                            isRunning={runningBenchmarks.has(
-                                              benchmark.id,
-                                            )}
-                                          />
+                                      })
+                                      .map((benchmark) => {
+                                        const benchmarkResult = results.find(
+                                          (r) =>
+                                            r.benchmark_id === benchmark.id,
                                         );
-                                      }
-                                    })}
+                                        if (benchmarkResult) {
+                                          // Real result - use BenchmarkBox for clicking
+                                          return (
+                                            <BenchmarkBox
+                                              key={benchmark.id}
+                                              result={benchmarkResult}
+                                              onClick={handleBenchmarkClick}
+                                              isRunning={runningBenchmarks.has(
+                                                benchmark.id,
+                                              )}
+                                            />
+                                          );
+                                        } else {
+                                          // Missing result - gray placeholder
+                                          const placeholderResult: BenchmarkResult =
+                                            {
+                                              id: `placeholder-${agentType}-${benchmark.id}`,
+                                              benchmark_id: benchmark.id,
+                                              agent_type: agentType,
+                                              score: 0,
+                                              final_status: "Not Tested",
+                                              execution_time_ms: 0,
+                                              timestamp: runDate,
+                                              color_class: "gray" as const,
+                                            };
+                                          return (
+                                            <BenchmarkBox
+                                              key={benchmark.id}
+                                              result={placeholderResult}
+                                              onClick={handleBenchmarkClick}
+                                              isRunning={runningBenchmarks.has(
+                                                benchmark.id,
+                                              )}
+                                            />
+                                          );
+                                        }
+                                      })}
                                 </div>
                               </div>
                             );
@@ -406,45 +408,46 @@ export function BenchmarkGrid({
                                   XXXX-XX-XX
                                 </span>
                                 <div className="flex flex-wrap gap-1">
-                                  {allBenchmarks
-                                    .filter((benchmark) => {
-                                      // Safety check for undefined benchmark
-                                      if (!benchmark?.id) {
-                                        console.warn(
-                                          "Invalid benchmark:",
-                                          benchmark,
+                                  {Array.isArray(allBenchmarks) &&
+                                    allBenchmarks
+                                      .filter((benchmark) => {
+                                        // Safety check for undefined benchmark
+                                        if (!benchmark?.id) {
+                                          console.warn(
+                                            "Invalid benchmark:",
+                                            benchmark,
+                                          );
+                                          return false;
+                                        }
+                                        // Filter out failure test benchmarks (003, 004)
+                                        return (
+                                          !benchmark.id.includes("003") &&
+                                          !benchmark.id.includes("004")
                                         );
-                                        return false;
-                                      }
-                                      // Filter out failure test benchmarks (003, 004)
-                                      return (
-                                        !benchmark.id.includes("003") &&
-                                        !benchmark.id.includes("004")
-                                      );
-                                    })
-                                    .map((benchmark) => {
-                                      const placeholderResult: BenchmarkResult =
-                                        {
-                                          id: `placeholder-${agentType}-${benchmark.id}`,
-                                          benchmark_id: benchmark.id,
-                                          agent_type: agentType,
-                                          score: 0,
-                                          final_status: "Not Tested",
-                                          execution_time_ms: 0,
-                                          timestamp: new Date().toISOString(),
-                                          color_class: "gray",
-                                        };
-                                      return (
-                                        <BenchmarkBox
-                                          key={benchmark.id}
-                                          result={placeholderResult}
-                                          onClick={handleBenchmarkClick}
-                                          isRunning={runningBenchmarks.has(
-                                            benchmark.id,
-                                          )}
-                                        />
-                                      );
-                                    })}
+                                      })
+                                      .map((benchmark) => {
+                                        const placeholderResult: BenchmarkResult =
+                                          {
+                                            id: `placeholder-${agentType}-${benchmark.id}`,
+                                            benchmark_id: benchmark.id,
+                                            agent_type: agentType,
+                                            score: 0,
+                                            final_status: "Not Tested",
+                                            execution_time_ms: 0,
+                                            timestamp: new Date().toISOString(),
+                                            color_class: "gray",
+                                          };
+                                        return (
+                                          <BenchmarkBox
+                                            key={benchmark.id}
+                                            result={placeholderResult}
+                                            onClick={handleBenchmarkClick}
+                                            isRunning={runningBenchmarks.has(
+                                              benchmark.id,
+                                            )}
+                                          />
+                                        );
+                                      })}
                                 </div>
                               </div>
                             );
