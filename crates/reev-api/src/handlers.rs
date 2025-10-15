@@ -633,7 +633,11 @@ pub async fn upsert_yml(
 
     // Upsert to database
     let prompt_md5 = match db_writer
-        .upsert_benchmark(&benchmark_data.prompt, &payload.yml_content)
+        .upsert_benchmark(
+            &benchmark_data.id,
+            &benchmark_data.prompt,
+            &payload.yml_content,
+        )
         .await
     {
         Ok(id) => id,

@@ -225,6 +225,13 @@ impl FlowLogger {
                         "Failed"
                     };
 
+                    // Look up prompt MD5 by benchmark name
+                    let prompt_md5 = database
+                        .get_prompt_md5_by_benchmark_name(&flow_log.benchmark_id)
+                        .await
+                        .ok()
+                        .flatten();
+
                     let performance_data = DbAgentPerformanceData {
                         benchmark_id: flow_log.benchmark_id.clone(),
                         agent_type: flow_log.agent_type.clone(),
@@ -233,7 +240,7 @@ impl FlowLogger {
                         execution_time_ms,
                         timestamp,
                         flow_log_id: Some(flow_log_id),
-                        prompt_md5: None,
+                        prompt_md5,
                     };
 
                     if let Err(e) = database.insert_agent_performance(&performance_data).await {
@@ -275,6 +282,8 @@ impl FlowLogger {
                         "Failed"
                     };
 
+                    // Note: Legacy database doesn't have prompt MD5 lookup
+                    // This could be enhanced if needed for legacy support
                     let performance_data = AgentPerformanceData {
                         benchmark_id: flow_log.benchmark_id.clone(),
                         agent_type: flow_log.agent_type.clone(),

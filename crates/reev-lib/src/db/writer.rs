@@ -9,7 +9,7 @@ use crate::flow::types::FlowLog;
 use crate::results::FinalStatus;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{debug, info, warn};
 use turso::{Builder, Connection};
 
 /// Shared database writer for all database operations
@@ -40,6 +40,7 @@ impl DatabaseWriter {
         let tables = [
             "CREATE TABLE IF NOT EXISTS benchmarks (
                 id TEXT PRIMARY KEY,  -- MD5 of prompt
+                benchmark_name TEXT NOT NULL,  -- e.g., 001-sol-transfer
                 prompt TEXT NOT NULL,
                 content TEXT NOT NULL, -- Full YML content
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -102,13 +103,28 @@ impl DatabaseWriter {
             "CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_yml_testresults_benchmark_agent ON yml_testresults(benchmark_id, agent_type)",
             "CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5)",
-            "CREATE INDEX IF NOT EXISTS idx_results_prompt_md5 ON results(prompt_md5)"];
+            "CREATE INDEX IF NOT EXISTS idx_results_prompt_md5 ON results(prompt_md5)",
+            "CREATE INDEX IF NOT EXISTS idx_benchmarks_name ON benchmarks(benchmark_name)"];
 
         for index in indexes.iter() {
             conn.execute(index, ())
                 .await
                 .context("Failed to create index")?;
         }
+
+        // Add benchmark_name column if it doesn't exist (migration)
+        if let Err(e) = conn
+            .execute("ALTER TABLE benchmarks ADD COLUMN benchmark_name TEXT", ())
+            .await
+        {
+            // Column might already exist, which is fine
+            debug!("[DB] benchmark_name column migration skipped: {}", e);
+        }
+
+        // Populate benchmark_name for existing records (migration)
+        // This will be handled by the application layer when benchmarks are synced
+        // For now, just log that migration is needed
+        info!("[DB] benchmark_name column added. Existing records will be updated when benchmarks are synced.");
 
         info!("[DB] Database schema initialized with flow logs support.");
         Ok(())
@@ -421,14 +437,20 @@ impl DatabaseWriter {
     }
 
     /// Upsert a benchmark into the database
-    pub async fn upsert_benchmark(&self, prompt: &str, content: &str) -> Result<String> {
+    pub async fn upsert_benchmark(
+        &self,
+        benchmark_name: &str,
+        prompt: &str,
+        content: &str,
+    ) -> Result<String> {
         let prompt_md5 = format!("{:x}", md5::compute(prompt.as_bytes()));
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         let query = "
-            INSERT INTO benchmarks (id, prompt, content, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5)
+            INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             ON CONFLICT(id) DO UPDATE SET
+                benchmark_name = excluded.benchmark_name,
                 prompt = excluded.prompt,
                 content = excluded.content,
                 updated_at = excluded.updated_at;
@@ -437,14 +459,21 @@ impl DatabaseWriter {
         self.conn
             .execute(
                 query,
-                [&prompt_md5, prompt, content, &timestamp, &timestamp],
+                [
+                    &prompt_md5,
+                    benchmark_name,
+                    prompt,
+                    content,
+                    &timestamp,
+                    &timestamp,
+                ],
             )
             .await
             .context("Failed to upsert benchmark into database")?;
 
         info!(
-            "[DB] Upserted benchmark with MD5 '{}' (prompt: {:.50}...)",
-            prompt_md5, prompt
+            "[DB] Upserted benchmark '{}' with MD5 '{}' (prompt: {:.50}...)",
+            benchmark_name, prompt_md5, prompt
         );
         Ok(prompt_md5)
     }
@@ -488,8 +517,14 @@ impl DatabaseWriter {
             serde_yaml::from_str(&content).context("Failed to parse benchmark YAML")?;
 
         // Upsert to database
-        self.upsert_benchmark(&benchmark_data.prompt, &content)
+        let prompt_md5 = self
+            .upsert_benchmark(&benchmark_data.id, &benchmark_data.prompt, &content)
             .await?;
+
+        info!(
+            "[DB] Synced benchmark '{}' with prompt MD5: {}",
+            benchmark_data.id, prompt_md5
+        );
         Ok(())
     }
 
@@ -519,6 +554,55 @@ impl DatabaseWriter {
         } else {
             Ok(None)
         }
+    }
+
+    /// Get prompt MD5 by benchmark name (e.g., "001-sol-transfer")
+    pub async fn get_prompt_md5_by_benchmark_name(
+        &self,
+        benchmark_name: &str,
+    ) -> Result<Option<String>> {
+        let query = "
+            SELECT id
+            FROM benchmarks
+            WHERE benchmark_name = ?1;
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, [benchmark_name])
+            .await
+            .context("Failed to query prompt MD5 by benchmark name")?;
+
+        if let Some(row) = rows.next().await? {
+            let prompt_md5: String = row.get(0).context("Failed to get prompt MD5")?;
+            Ok(Some(prompt_md5))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Test prompt MD5 lookup by benchmark name (for debugging)
+    pub async fn test_prompt_md5_lookup(&self, benchmark_name: &str) -> Result<()> {
+        match self
+            .get_prompt_md5_by_benchmark_name(benchmark_name)
+            .await?
+        {
+            Some(prompt_md5) => {
+                info!(
+                    "[DB] Found prompt MD5 for '{}': {}",
+                    benchmark_name, prompt_md5
+                );
+
+                // Also get the benchmark details
+                if let Some(benchmark) = self.get_benchmark_by_id(&prompt_md5).await? {
+                    info!("[DB] Benchmark prompt: {:.50}...", benchmark.prompt);
+                }
+            }
+            None => {
+                warn!("[DB] No prompt MD5 found for benchmark: {}", benchmark_name);
+            }
+        }
+        Ok(())
     }
 
     /// Get all benchmarks from database
