@@ -264,11 +264,7 @@ export function ExecutionTrace({
       {/* Trace Display */}
       <div
         ref={traceRef}
-        className="flex-1 bg-gray-900 dark:bg-black font-mono text-sm p-4 overflow-auto border border-gray-700 dark:border-gray-600"
-        style={{
-          minHeight: "200px",
-          maxHeight: "calc(100vh - 400px)",
-        }}
+        className="flex-1 bg-gray-900 dark:bg-black font-mono text-sm p-4 overflow-auto border border-gray-700 dark:border-gray-600 min-h-0"
       >
         {traceLines.length === 0 ? (
           <div className="text-gray-500 dark:text-gray-400 text-center py-8">
@@ -391,13 +387,10 @@ function TraceDisplay({
 
   if (useVirtualScroll) {
     return (
-      <div
-        ref={containerRef}
-        className="relative overflow-auto"
-        style={{ height: "400px" }}
-      >
+      <div ref={containerRef} className="relative overflow-auto flex-1 min-h-0">
         <div
           ref={scrollElementRef}
+          className="min-h-full"
           style={{
             height: `${limitedTraceLines.length * VIRTUAL_ITEM_HEIGHT}px`,
           }}
