@@ -9,3 +9,4 @@
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
 - don't run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api" > logs/reev-api.log 2>&1 &` so server will reflect the latest code.
+- always diag!

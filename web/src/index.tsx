@@ -8,7 +8,7 @@ import { BenchmarkList } from "./components/BenchmarkList";
 import { ExecutionTrace } from "./components/ExecutionTrace";
 import { TransactionLog } from "./components/TransactionLog";
 import { BenchmarkGrid } from "./components/BenchmarkGrid";
-import { useAgentPerformance } from "./hooks/useApiData";
+import { useAgentPerformance, useBenchmarks } from "./hooks/useApiData";
 import { useBenchmarkExecution } from "./hooks/useBenchmarkExecution";
 import { apiClient } from "./services/api";
 import { BenchmarkItem } from "./types/configuration";
