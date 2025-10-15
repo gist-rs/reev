@@ -574,7 +574,10 @@ export function App() {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Left Panel - Benchmark List and Config */}
-        <div className="w-1/3 border-r bg-white dark:bg-gray-800 flex flex-col">
+        <div
+          className="w-1/3 border-r bg-white dark:bg-gray-800 flex flex-col"
+          style="min-width: 490px;"
+        >
           {/* Benchmark List */}
           <div className="flex-1 overflow-hidden">
             <BenchmarkList
