@@ -75,6 +75,14 @@ export function TransactionLog({
     }
   }, [isRunning, execution]);
 
+  // Auto-refresh for running executions
+  useEffect(() => {
+    if (!autoRefresh || !isRunning || !benchmarkId) return;
+
+    const interval = setInterval(loadFlowLog, 2000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, isRunning, execution, loadFlowLog]);
+
   // Auto-scroll to bottom when new content is added
   useEffect(() => {
     if (shouldScrollToBottom && logContainerRef.current) {
@@ -93,14 +101,6 @@ export function TransactionLog({
       setShouldScrollToBottom(isAtBottom);
     }
   }, []);
-
-  // Auto-refresh for running executions
-  useEffect(() => {
-    if (!autoRefresh || !isRunning || !benchmarkId) return;
-
-    const interval = setInterval(loadFlowLog, 2000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, isRunning, execution, loadFlowLog]);
 
   // Load on mount and when execution changes
   useEffect(() => {
