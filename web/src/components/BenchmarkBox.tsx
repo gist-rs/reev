@@ -1,9 +1,8 @@
 // BenchmarkBox component for individual 16x16 result display
 
-import { useState } from "react";
-import { BenchmarkResult, BenchmarkDetails } from "../types/benchmark";
+import { BenchmarkResult, BenchmarkInfo } from "../types/benchmark";
 import { Tooltip } from "./ui/Tooltip";
-import { useBenchmarkDetails } from "../hooks/useBenchmarkDetails";
+import { useBenchmarkInfo } from "../hooks/useBenchmarkInfo";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -20,9 +19,8 @@ export function BenchmarkBox({
   className = "",
   isRunning = false,
 }: BenchmarkBoxProps) {
-  const { fetchBenchmarkDetails, getCachedDetails } = useBenchmarkDetails();
-  const [isLoading, setIsLoading] = useState(false);
-  const benchmarkDetails = getCachedDetails(result.benchmark_id);
+  const { getBenchmarkInfo } = useBenchmarkInfo();
+  const benchmarkInfo = getBenchmarkInfo(result.benchmark_id);
 
   const getColorClass = (result: BenchmarkResult): string => {
     // Use color_class if specified, otherwise fall back to score-based logic
@@ -44,34 +42,7 @@ export function BenchmarkBox({
     return "";
   };
 
-  const handleMouseEnter = () => {
-    // Only fetch if we don't have details and haven't tried before
-    if (!benchmarkDetails && !isLoading) {
-      setIsLoading(true);
-      fetchBenchmarkDetails(result.benchmark_id)
-        .then((details) => {
-          if (details && details.description !== "Failed to load description") {
-            console.log(`Loaded details for ${result.benchmark_id}:`, details);
-          }
-        })
-        .catch((error) => {
-          // Silently handle 404 errors since the endpoint doesn't exist yet
-          if (error.message.includes("404")) {
-            console.log(
-              `Benchmark details not available for ${result.benchmark_id} (API endpoint missing)`,
-            );
-          } else {
-            console.error(
-              `Failed to load details for ${result.benchmark_id}:`,
-              error,
-            );
-          }
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-  };
+  // No need for API calls - all info is in memory
 
   const handleClick = () => {
     if (onClick) {
@@ -90,25 +61,14 @@ export function BenchmarkBox({
   const tooltipContent = (
     <div className="text-center">
       <div className="font-semibold text-white mb-1">{result.benchmark_id}</div>
-      {isLoading ? (
-        <div className="text-gray-300 text-xs">Loading...</div>
-      ) : benchmarkDetails ? (
+      {benchmarkInfo ? (
         <>
           <div className="text-gray-300 text-xs mb-2 max-w-xs">
-            {benchmarkDetails.description === "Failed to load description" ? (
-              <div>
-                <div className="text-yellow-400">Details Unavailable</div>
-                <div className="text-gray-400">
-                  Benchmark information temporarily unavailable
-                </div>
-              </div>
-            ) : (
-              benchmarkDetails.description
-            )}
+            {benchmarkInfo.description}
           </div>
-          {benchmarkDetails.tags && benchmarkDetails.tags.length > 0 && (
+          {benchmarkInfo.tags && benchmarkInfo.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-center mb-2">
-              {benchmarkDetails.tags.slice(0, 3).map((tag, index) => (
+              {benchmarkInfo.tags.slice(0, 3).map((tag, index) => (
                 <span
                   key={index}
                   className="bg-blue-600 text-white text-xs px-2 py-1 rounded"
@@ -116,9 +76,9 @@ export function BenchmarkBox({
                   {tag}
                 </span>
               ))}
-              {benchmarkDetails.tags.length > 3 && (
+              {benchmarkInfo.tags.length > 3 && (
                 <span className="text-gray-400 text-xs">
-                  +{benchmarkDetails.tags.length - 3} more
+                  +{benchmarkInfo.tags.length - 3} more
                 </span>
               )}
             </div>
@@ -134,9 +94,7 @@ export function BenchmarkBox({
           </div>
         </>
       ) : (
-        <div className="text-gray-300 text-xs">
-          Hover for benchmark details...
-        </div>
+        <div className="text-gray-300 text-xs">Loading benchmark info...</div>
       )}
     </div>
   );
@@ -157,7 +115,6 @@ export function BenchmarkBox({
           }),
         }}
         onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
       >
         {/* Mobile touch indicator - subtle pulse effect */}
         <div className="absolute inset-0 rounded-sm opacity-0 group-hover:opacity-20 group-active:opacity-30 bg-white transition-opacity duration-200"></div>

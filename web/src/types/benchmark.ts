@@ -80,3 +80,10 @@ export interface ErrorResponse {
   message: string;
   timestamp: string;
 }
+
+export interface BenchmarkInfo {
+  id: string;
+  description: string;
+  tags: string[];
+  prompt: string;
+}

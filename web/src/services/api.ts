@@ -72,8 +72,8 @@ class ApiClient {
   }
 
   // Benchmarks
-  async listBenchmarks(): Promise<string[]> {
-    return this.request<string[]>("/api/v1/benchmarks");
+  async listBenchmarks(): Promise<BenchmarkInfo[]> {
+    return this.request<BenchmarkInfo[]>("/api/v1/benchmarks");
   }
 
   async getBenchmark(benchmarkId: string): Promise<Record<string, any>> {
