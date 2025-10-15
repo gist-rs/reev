@@ -79,26 +79,6 @@ export function App() {
         (execution.progress !== undefined && execution.progress < 100),
     );
 
-    if (import.meta.env.DEV) {
-      console.log("🔄 App - Running benchmarks derived:", {
-        totalExecutions: executions.size,
-        runningEntries: runningEntries.map(([id, exec]) => ({
-          benchmarkId: id,
-          agent: exec.agent,
-          status: exec.status,
-          progress: exec.progress,
-        })),
-        runningCount: runningEntries.length,
-        runningByAgent: runningEntries.reduce(
-          (acc, [id, exec]) => {
-            acc[exec.agent] = (acc[exec.agent] || 0) + 1;
-            return acc;
-          },
-          {} as Record<string, number>,
-        ),
-      });
-    }
-
     // Return just benchmark IDs for now - we'll handle agent-specific logic in the components
     return runningEntries.map(([benchmarkId, _]) => benchmarkId);
   }, [executions]);

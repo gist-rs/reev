@@ -51,18 +51,9 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
   const updateExecution = useCallback(
     (benchmarkId: string, execution: ExecutionState) => {
-      console.log("useBenchmarkExecution.updateExecution called:", {
-        benchmarkId,
-        executionId: execution.id,
-        status: execution.status,
-      });
       setExecutions((prev) => {
         const updated = new Map(prev);
         updated.set(benchmarkId, execution);
-        console.log(
-          "Executions map after update:",
-          Array.from(updated.entries()),
-        );
         return updated;
       });
 
@@ -82,8 +73,6 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
       // Clear any existing polling for this benchmark
       stopPolling(benchmarkId);
 
-      console.log(`Starting polling for ${benchmarkId} (${executionId})`);
-
       const pollExecution = async () => {
         try {
           // Get execution status from backend
@@ -92,49 +81,25 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
             executionId,
           );
 
-          console.log(`API response for ${benchmarkId}:`, updatedExecution);
-
           if (updatedExecution) {
-            console.log(
-              `✅ Polled update for ${benchmarkId}:`,
-              updatedExecution.status,
-            );
             setExecutions((prev) => {
               const updated = new Map(prev);
               updated.set(benchmarkId, updatedExecution);
-              console.log(
-                `Updated executions map for ${benchmarkId}:`,
-                Array.from(updated.entries()),
-              );
               return updated;
             });
 
-            // Stop polling if execution is completed or failed
+            // Stop polling if execution is completed
             if (
               updatedExecution.status === "Completed" ||
               updatedExecution.status === "Failed"
             ) {
-              console.log(
-                `Stopping polling for ${benchmarkId} - execution completed`,
-              );
               stopPolling(benchmarkId);
 
               // Call completion callback if set
-              console.log(
-                `🔍 Checking completion callback for ${benchmarkId}:`,
-                !!completionCallback.current,
-              );
               if (completionCallback.current) {
-                console.log(
-                  `🎯 Calling completion callback for ${benchmarkId}`,
-                );
                 completionCallback.current(benchmarkId, updatedExecution);
-              } else {
-                console.log(`❌ No completion callback set for ${benchmarkId}`);
               }
             }
-          } else {
-            console.log(`❌ No execution data returned for ${benchmarkId}`);
           }
         } catch (error) {
           console.error(`Failed to poll execution ${executionId}:`, error);
@@ -159,9 +124,6 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     if (intervalId) {
       clearInterval(intervalId);
       pollingIntervals.current.delete(benchmarkId);
-      if (import.meta.env.DEV) {
-        console.log(`Stopped polling for ${benchmarkId}`);
-      }
     }
   }, []);
 
@@ -197,7 +159,6 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
   const setCompletionCallback = useCallback(
     (callback: (benchmarkId: string, execution: ExecutionState) => void) => {
-      console.log("🔧 Setting completion callback:", !!callback);
       completionCallback.current = callback;
     },
     [],

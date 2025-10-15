@@ -1,7 +1,6 @@
 // BenchmarkBox component for individual 16x16 result display
 
 import { BenchmarkResult } from "../types/benchmark";
-import { useEffect } from "preact/hooks";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -18,15 +17,6 @@ export function BenchmarkBox({
   className = "",
   isRunning = false,
 }: BenchmarkBoxProps) {
-  // Log running state changes
-  // useEffect(() => {
-  //   console.log(`🎯 BenchmarkBox - Running state changed:`, {
-  //     benchmarkId: result.benchmark_id,
-  //     isRunning,
-  //     agentType: result.agent_type,
-  //     timestamp: new Date().toISOString(),
-  //   });
-  // }, [isRunning, result.benchmark_id, result.agent_type]);
   const getColorClass = (result: BenchmarkResult): string => {
     // If running, don't apply static background color - animation will handle it
     if (isRunning) return "";
@@ -45,10 +35,6 @@ export function BenchmarkBox({
 
   const getAnimationClass = () => {
     if (isRunning) {
-      console.log(
-        `✨ BenchmarkBox - Applying animation to:`,
-        result.benchmark_id,
-      );
       return "animate-blink-fade";
     }
     return "";
@@ -63,12 +49,6 @@ export function BenchmarkBox({
   };
 
   const animationClass = getAnimationClass();
-  // console.log(`🎨 BenchmarkBox - Final classes for ${result.benchmark_id}:`, {
-  //   baseClasses,
-  //   className,
-  //   animationClass,
-  //   finalClasses: `${baseClasses} ${className} ${animationClass}`,
-  // });
 
   return (
     <div

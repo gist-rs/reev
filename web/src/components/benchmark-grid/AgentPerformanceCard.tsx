@@ -37,34 +37,6 @@ export function AgentPerformanceCard({
     [agentData, agentType],
   );
 
-  // // Log running benchmarks state changes
-  // useEffect(() => {
-  //   console.log(
-  //     `🔄 AgentPerformanceCard[${agentType}] - Running benchmarks state:`,
-  //     {
-  //       runningBenchmarks: Array.from(runningBenchmarks),
-  //       totalRunning: runningBenchmarks.size,
-  //       allBenchmarksCount: allBenchmarks.length,
-  //       runningExecutions: runningBenchmarkExecutions
-  //         ? Array.from(runningBenchmarkExecutions.entries()).map(
-  //             ([id, exec]) => ({
-  //               benchmarkId: id,
-  //               agent: exec.agent,
-  //               status: exec.status,
-  //               progress: exec.progress,
-  //             }),
-  //           )
-  //         : [],
-  //       timestamp: new Date().toISOString(),
-  //     },
-  //   );
-  // }, [
-  //   runningBenchmarks,
-  //   allBenchmarks.length,
-  //   agentType,
-  //   runningBenchmarkExecutions,
-  // ]);
-
   const lastThreePercentage = useMemo(() => {
     if (!finalAgentData.results || finalAgentData.results.length === 0)
       return 0;

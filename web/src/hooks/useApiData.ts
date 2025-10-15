@@ -122,9 +122,7 @@ export function useAgentPerformance() {
 
   // Transform API data to match BenchmarkResult interface
   const transformedData = useMemo(() => {
-    console.log("🔍 useAgentPerformance - Raw API data:", data);
     if (!data) {
-      console.log("❌ useAgentPerformance - No data received");
       return null;
     }
 
@@ -158,7 +156,6 @@ export function useAgentPerformance() {
       };
     });
 
-    console.log("✅ useAgentPerformance - Transformed data:", transformed);
     return transformed;
   }, [data]);
 
@@ -275,17 +272,11 @@ export function useAgentPerformance() {
     return { totalResults, testedAgents, totalAgents };
   }, [transformedData, error, mockData]);
 
-  console.log("🎯 useAgentPerformance - Final return:", {
-    data: transformedData,
-    loading: loading && !error,
-    error,
-    hasData: !!transformedData,
-  });
-
   return {
     data: transformedData, // Use real data only, no mock fallback
     loading: loading && !error,
     error,
+    hasData: !!transformedData,
     refetch,
     ...stats,
   };

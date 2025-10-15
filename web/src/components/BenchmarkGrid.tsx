@@ -30,16 +30,6 @@ export function BenchmarkGrid({
   const allBenchmarks = benchmarks || [];
   const runningBenchmarks = new Set<string>(runningBenchmarkIds);
 
-  // Log running state changes
-  useEffect(() => {
-    console.log("🔄 BenchmarkGrid - Running state changed:", {
-      runningBenchmarkIds,
-      runningBenchmarksCount: runningBenchmarks.size,
-      benchmarksCount: allBenchmarks.length,
-      timestamp: new Date().toISOString(),
-    });
-  }, [runningBenchmarkIds, runningBenchmarks.size, allBenchmarks.length]);
-
   return (
     <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
       <main className="max-w-7xl mx-auto p-4 overflow-x-auto">
@@ -59,7 +49,6 @@ export function BenchmarkGrid({
                   runningBenchmarks={runningBenchmarks}
                   runningBenchmarkExecutions={executions}
                   onBenchmarkClick={(result) => {
-                    console.log("Benchmark clicked:", result);
                     if (onBenchmarkSelect) {
                       onBenchmarkSelect(result.benchmark_id);
                     }
