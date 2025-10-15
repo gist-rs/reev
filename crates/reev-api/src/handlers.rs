@@ -694,3 +694,82 @@ pub fn create_error_response(
     };
     (status, Json(response))
 }
+
+/// Debug endpoint to check benchmarks table
+pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoResponse {
+    let db = &state.db;
+
+    // Get all benchmarks from database
+    match db.get_all_benchmarks().await {
+        Ok(benchmarks) => {
+            let debug_info: Vec<serde_json::Value> = benchmarks
+                .into_iter()
+                .map(|b| {
+                    serde_json::json!({
+                        "id": b.id,
+                        "prompt_preview": b.prompt.chars().take(50).collect::<String>(),
+                        "benchmark_name": b.benchmark_name,
+                        "created_at": b.created_at,
+                    })
+                })
+                .collect();
+
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "count": debug_info.len(),
+                    "benchmarks": debug_info
+                })),
+            )
+        }
+        Err(e) => {
+            error!("Failed to get benchmarks: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Failed to get benchmarks: {}", e)
+                })),
+            )
+        }
+    }
+}
+
+/// Manual test endpoint to test prompt MD5 lookup
+pub async fn test_prompt_md5_lookup(
+    State(state): State<ApiState>,
+    Json(request): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = &state.db;
+
+    if let Some(benchmark_name) = request.get("benchmark_name").and_then(|v| v.as_str()) {
+        match db.test_prompt_md5_lookup(benchmark_name).await {
+            Ok(_) => (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": format!("Test completed for benchmark: {}", benchmark_name)
+                })),
+            ),
+            Err(e) => {
+                error!("Failed to test prompt MD5 lookup: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": format!("Failed to test prompt MD5 lookup: {}", e)
+                    })),
+                )
+            }
+        }
+    } else {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Missing 'benchmark_name' field in request"
+            })),
+        )
+    }
+}

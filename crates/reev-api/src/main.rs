@@ -78,6 +78,12 @@ async fn main() -> Result<()> {
         // Agent configuration endpoints
         .route("/api/v1/agents/config", post(save_agent_config))
         .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
+        // Debug endpoints
+        .route("/api/v1/debug/benchmarks", get(debug_benchmarks))
+        .route(
+            "/api/v1/debug/test-prompt-lookup",
+            post(test_prompt_md5_lookup),
+        )
         .route("/api/v1/agents/test", post(test_agent_connection))
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))

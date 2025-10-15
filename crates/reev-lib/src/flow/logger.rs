@@ -5,17 +5,10 @@ use crate::db::{AgentPerformanceData as DbAgentPerformanceData, DatabaseWriter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 // Re-export for backward compatibility
 pub use crate::db::AgentPerformanceData;
-
-// Database trait for backward compatibility - deprecated, use DatabaseWriter directly
-#[async_trait::async_trait]
-pub trait FlowLogDatabase: Send + Sync {
-    async fn insert_flow_log(&self, flow_log: &FlowLog) -> Result<i64, FlowError>;
-    async fn insert_agent_performance(&self, data: &AgentPerformanceData) -> Result<(), FlowError>;
-}
 
 /// Main flow logger interface
 pub struct FlowLogger {
@@ -26,7 +19,6 @@ pub struct FlowLogger {
     events: Vec<FlowEvent>,
     output_path: PathBuf,
     database: Option<Arc<DatabaseWriter>>,
-    legacy_database: Option<Arc<dyn FlowLogDatabase>>,
 }
 
 impl FlowLogger {
@@ -50,7 +42,6 @@ impl FlowLogger {
             events: Vec::new(),
             output_path,
             database: None,
-            legacy_database: None,
         }
     }
 
@@ -79,36 +70,6 @@ impl FlowLogger {
             events: Vec::new(),
             output_path,
             database: Some(database),
-            legacy_database: None,
-        }
-    }
-
-    /// Create a new flow logger with legacy database support (deprecated)
-    pub fn new_with_legacy_database(
-        benchmark_id: String,
-        agent_type: String,
-        output_path: PathBuf,
-        database: Arc<dyn FlowLogDatabase>,
-    ) -> Self {
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let start_time = SystemTime::now();
-
-        info!(
-            session_id = %session_id,
-            benchmark_id = %benchmark_id,
-            agent_type = %agent_type,
-            "Initializing flow logger with legacy database support (deprecated)"
-        );
-
-        Self {
-            session_id,
-            benchmark_id,
-            agent_type,
-            start_time,
-            events: Vec::new(),
-            output_path,
-            database: None,
-            legacy_database: Some(database),
         }
     }
 
@@ -203,6 +164,10 @@ impl FlowLogger {
 
         // Save to shared database if available
         if let Some(database) = &self.database {
+            info!(
+                "[FLOW] 🎯 Using PRIMARY database path for session: {}",
+                self.session_id
+            );
             match database.insert_flow_log(&flow_log).await {
                 Ok(flow_log_id) => {
                     // Insert agent performance data
@@ -226,11 +191,42 @@ impl FlowLogger {
                     };
 
                     // Look up prompt MD5 by benchmark name
-                    let prompt_md5 = database
+                    info!(
+                        "[FLOW] 🔍 Looking up prompt MD5 for benchmark_id: {}",
+                        flow_log.benchmark_id
+                    );
+
+                    let prompt_md5 = match database
                         .get_prompt_md5_by_benchmark_name(&flow_log.benchmark_id)
                         .await
-                        .ok()
-                        .flatten();
+                    {
+                        Ok(Some(md5)) => {
+                            info!(
+                                "[FLOW] ✅ Found prompt MD5 for {}: {}",
+                                flow_log.benchmark_id, md5
+                            );
+                            Some(md5)
+                        }
+                        Ok(None) => {
+                            warn!(
+                                "[FLOW] ❌ No prompt MD5 found for benchmark: {}",
+                                flow_log.benchmark_id
+                            );
+                            None
+                        }
+                        Err(e) => {
+                            error!(
+                                "[FLOW] 💥 Error looking up prompt MD5 for {}: {}",
+                                flow_log.benchmark_id, e
+                            );
+                            None
+                        }
+                    };
+
+                    info!(
+                        "[FLOW] 📝 Storing agent performance with prompt_md5: {:?}",
+                        prompt_md5
+                    );
 
                     let performance_data = DbAgentPerformanceData {
                         benchmark_id: flow_log.benchmark_id.clone(),
@@ -240,78 +236,35 @@ impl FlowLogger {
                         execution_time_ms,
                         timestamp,
                         flow_log_id: Some(flow_log_id),
-                        prompt_md5,
+                        prompt_md5: prompt_md5.clone(),
                     };
 
                     if let Err(e) = database.insert_agent_performance(&performance_data).await {
-                        warn!(
-                            "Failed to insert agent performance for session {}: {}",
+                        error!(
+                            "💥 Failed to insert agent performance for session {}: {}",
                             self.session_id, e
+                        );
+                    } else {
+                        info!(
+                            "✅ Successfully inserted agent performance for session {} with prompt_md5: {:?}",
+                            self.session_id, prompt_md5
                         );
                     }
                 }
                 Err(e) => {
-                    warn!(
-                        "Failed to save flow log to database for session {}: {}",
+                    error!(
+                        "💥 Failed to save flow log to database for session {}: {}",
                         self.session_id, e
                     );
                 }
             }
         }
-        // Fallback to legacy database if available
-        else if let Some(legacy_database) = &self.legacy_database {
-            match legacy_database.insert_flow_log(&flow_log).await {
-                Ok(flow_log_id) => {
-                    // Insert agent performance data
-                    let timestamp = chrono::Utc::now().to_rfc3339();
-                    // Use a reasonable default execution time since total_time_ms doesn't exist in TestResult
-                    let execution_time_ms = 5000u64; // 5 seconds default execution time
-                    let score = flow_log
-                        .final_result
-                        .as_ref()
-                        .map(|r| r.score)
-                        .unwrap_or(0.0);
-                    let final_status = if flow_log
-                        .final_result
-                        .as_ref()
-                        .map(|r| r.success)
-                        .unwrap_or(false)
-                    {
-                        "Succeeded"
-                    } else {
-                        "Failed"
-                    };
-
-                    // Note: Legacy database doesn't have prompt MD5 lookup
-                    // This could be enhanced if needed for legacy support
-                    let performance_data = AgentPerformanceData {
-                        benchmark_id: flow_log.benchmark_id.clone(),
-                        agent_type: flow_log.agent_type.clone(),
-                        score,
-                        final_status: final_status.to_string(),
-                        execution_time_ms,
-                        timestamp,
-                        flow_log_id: Some(flow_log_id),
-                        prompt_md5: None,
-                    };
-
-                    if let Err(e) = legacy_database
-                        .insert_agent_performance(&performance_data)
-                        .await
-                    {
-                        warn!(
-                            "Failed to insert agent performance for session {}: {}",
-                            self.session_id, e
-                        );
-                    }
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to save flow log to legacy database for session {}: {}",
-                        self.session_id, e
-                    );
-                }
-            }
+        // No database available - just log to file
+        else {
+            warn!(
+                "[FLOW] ⚠️ No database available for session: {} - logging to file only",
+                self.session_id
+            );
         }
 
         // Still save YML file for debugging if enabled

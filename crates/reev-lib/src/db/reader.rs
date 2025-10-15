@@ -5,6 +5,7 @@
 use super::types::*;
 use crate::flow::types::FlowLog;
 use anyhow::{Context, Result};
+use tracing::info;
 
 impl super::DatabaseWriter {
     /// Retrieves all flow logs for a specific benchmark
@@ -184,7 +185,8 @@ impl super::DatabaseWriter {
                 timestamp,
                 score,
                 final_status,
-                execution_time_ms
+                execution_time_ms,
+                prompt_md5
             FROM agent_performance
             WHERE agent_type = ?1
             ORDER BY timestamp DESC;
@@ -225,6 +227,24 @@ impl super::DatabaseWriter {
             let _execution_time_ms: u64 = row
                 .get(5)
                 .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
+            let prompt_md5: Option<String> = row
+                .get(6)
+                .map_err(|e| anyhow::anyhow!("Column access error: {e}"))?;
+
+            // Debug logging to check what we're actually reading
+            info!(
+                "[DB] Reading agent performance result: id={}, benchmark_id={}, prompt_md5={:?}",
+                id, benchmark_id, prompt_md5
+            );
+
+            // Throw error if prompt_md5 is null - this should never happen with proper data
+            if prompt_md5.is_none() {
+                return Err(anyhow::anyhow!(
+                    "CRITICAL: prompt_md5 is null for agent performance record id={}, benchmark_id={}. \
+                    This indicates a data integrity issue - all records should have a prompt_md5 value.",
+                    id, benchmark_id
+                ));
+            }
 
             let result = BenchmarkResult {
                 id: Some(id),
@@ -232,7 +252,7 @@ impl super::DatabaseWriter {
                 timestamp,
                 final_status,
                 score,
-                prompt_md5: None,
+                prompt_md5,
             };
             results.push(result);
         }

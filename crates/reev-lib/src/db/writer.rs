@@ -9,7 +9,7 @@ use crate::flow::types::FlowLog;
 use crate::results::FinalStatus;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{error, info, warn};
 use turso::{Builder, Connection};
 
 /// Shared database writer for all database operations
@@ -112,19 +112,8 @@ impl DatabaseWriter {
                 .context("Failed to create index")?;
         }
 
-        // Add benchmark_name column if it doesn't exist (migration)
-        if let Err(e) = conn
-            .execute("ALTER TABLE benchmarks ADD COLUMN benchmark_name TEXT", ())
-            .await
-        {
-            // Column might already exist, which is fine
-            debug!("[DB] benchmark_name column migration skipped: {}", e);
-        }
-
-        // Populate benchmark_name for existing records (migration)
-        // This will be handled by the application layer when benchmarks are synced
-        // For now, just log that migration is needed
-        info!("[DB] benchmark_name column added. Existing records will be updated when benchmarks are synced.");
+        // No migration needed - we always start with fresh database
+        info!("[DB] Database initialized with benchmark_name column");
 
         info!("[DB] Database schema initialized with flow logs support.");
         Ok(())
@@ -517,6 +506,12 @@ impl DatabaseWriter {
             serde_yaml::from_str(&content).context("Failed to parse benchmark YAML")?;
 
         // Upsert to database
+        info!(
+            "[DB] Syncing benchmark '{}' from file: {:?}",
+            benchmark_data.id,
+            path.file_name()
+        );
+
         let prompt_md5 = self
             .upsert_benchmark(&benchmark_data.id, &benchmark_data.prompt, &content)
             .await?;
@@ -525,13 +520,39 @@ impl DatabaseWriter {
             "[DB] Synced benchmark '{}' with prompt MD5: {}",
             benchmark_data.id, prompt_md5
         );
+
+        // Verify the lookup works immediately
+        match self
+            .get_prompt_md5_by_benchmark_name(&benchmark_data.id)
+            .await
+        {
+            Ok(Some(found_md5)) => {
+                info!(
+                    "[DB] ✓ Verified lookup: '{}' -> {}",
+                    benchmark_data.id, found_md5
+                );
+            }
+            Ok(None) => {
+                warn!(
+                    "[DB] ✗ Lookup failed immediately after sync: '{}'",
+                    benchmark_data.id
+                );
+            }
+            Err(e) => {
+                error!(
+                    "[DB] ✗ Lookup error immediately after sync for '{}': {}",
+                    benchmark_data.id, e
+                );
+            }
+        }
+
         Ok(())
     }
 
     /// Get benchmark content by MD5 ID
     pub async fn get_benchmark_by_id(&self, prompt_md5: &str) -> Result<Option<BenchmarkData>> {
         let query = "
-            SELECT id, prompt, content, created_at, updated_at
+            SELECT id, benchmark_name, prompt, content, created_at, updated_at
             FROM benchmarks
             WHERE id = ?1;
         ";
@@ -545,10 +566,11 @@ impl DatabaseWriter {
         if let Some(row) = rows.next().await? {
             let benchmark = BenchmarkData {
                 id: row.get(0).context("Failed to get benchmark id")?,
-                prompt: row.get(1).context("Failed to get benchmark prompt")?,
-                content: row.get(2).context("Failed to get benchmark content")?,
-                created_at: row.get(3).context("Failed to get benchmark created_at")?,
-                updated_at: row.get(4).context("Failed to get benchmark updated_at")?,
+                benchmark_name: row.get(1).context("Failed to get benchmark name")?,
+                prompt: row.get(2).context("Failed to get benchmark prompt")?,
+                content: row.get(3).context("Failed to get benchmark content")?,
+                created_at: row.get(4).context("Failed to get benchmark created_at")?,
+                updated_at: row.get(5).context("Failed to get benchmark updated_at")?,
             };
             Ok(Some(benchmark))
         } else {
@@ -561,8 +583,13 @@ impl DatabaseWriter {
         &self,
         benchmark_name: &str,
     ) -> Result<Option<String>> {
+        info!(
+            "[DB] Looking up prompt MD5 for benchmark_name: '{}'",
+            benchmark_name
+        );
+
         let query = "
-            SELECT id
+            SELECT id, benchmark_name
             FROM benchmarks
             WHERE benchmark_name = ?1;
         ";
@@ -575,8 +602,34 @@ impl DatabaseWriter {
 
         if let Some(row) = rows.next().await? {
             let prompt_md5: String = row.get(0).context("Failed to get prompt MD5")?;
+            let stored_name: String = row.get(1).context("Failed to get benchmark name")?;
+
+            info!(
+                "[DB] Found prompt MD5 '{}' for benchmark_name '{}' (stored as '{}')",
+                prompt_md5, benchmark_name, stored_name
+            );
             Ok(Some(prompt_md5))
         } else {
+            warn!(
+                "[DB] No prompt MD5 found for benchmark_name: '{}'",
+                benchmark_name
+            );
+
+            // Debug: List all available benchmark names
+            let list_query = "SELECT benchmark_name, id FROM benchmarks LIMIT 10;";
+            let mut list_rows = self
+                .conn
+                .query(list_query, ())
+                .await
+                .context("Failed to list benchmarks")?;
+
+            info!("[DB] Available benchmarks in database:");
+            while let Some(list_row) = list_rows.next().await? {
+                let name: String = list_row.get(0).context("Failed to get name")?;
+                let id: String = list_row.get(1).context("Failed to get id")?;
+                info!("[DB]   - '{}': {}", name, id);
+            }
+
             Ok(None)
         }
     }
@@ -608,7 +661,7 @@ impl DatabaseWriter {
     /// Get all benchmarks from database
     pub async fn get_all_benchmarks(&self) -> Result<Vec<BenchmarkData>> {
         let query = "
-            SELECT id, prompt, content, created_at, updated_at
+            SELECT id, benchmark_name, prompt, content, created_at, updated_at
             FROM benchmarks
             ORDER BY created_at;
         ";
@@ -623,10 +676,11 @@ impl DatabaseWriter {
         while let Some(row) = rows.next().await? {
             let benchmark = BenchmarkData {
                 id: row.get(0).context("Failed to get benchmark id")?,
-                prompt: row.get(1).context("Failed to get benchmark prompt")?,
-                content: row.get(2).context("Failed to get benchmark content")?,
-                created_at: row.get(3).context("Failed to get benchmark created_at")?,
-                updated_at: row.get(4).context("Failed to get benchmark updated_at")?,
+                benchmark_name: row.get(1).context("Failed to get benchmark name")?,
+                prompt: row.get(2).context("Failed to get benchmark prompt")?,
+                content: row.get(3).context("Failed to get benchmark content")?,
+                created_at: row.get(4).context("Failed to get benchmark created_at")?,
+                updated_at: row.get(5).context("Failed to get benchmark updated_at")?,
             };
             benchmarks.push(benchmark);
         }
@@ -650,6 +704,7 @@ pub struct BenchmarkYml {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkData {
     pub id: String,
+    pub benchmark_name: String,
     pub prompt: String,
     pub content: String,
     pub created_at: String,

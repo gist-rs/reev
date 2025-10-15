@@ -7,7 +7,7 @@ use reev_lib::flow::types::{
 use reev_lib::results::TestResult;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Background task to execute benchmark
@@ -161,17 +161,12 @@ pub async fn execute_benchmark_background(
                 }
             }
 
-            // Benchmark result is already stored by FlowLogger::complete() to avoid duplicates
-            // The FlowLogger provides more detailed information including actual execution time
+            // Agent performance is stored by FlowLogger::complete() in the runner
+            // to avoid duplicates and maintain proper execution tracking
             let final_status = match test_result.final_status {
                 reev_lib::results::FinalStatus::Succeeded => "Succeeded",
                 reev_lib::results::FinalStatus::Failed => "Failed",
             };
-
-            debug!(
-                "Benchmark result storage handled by FlowLogger: {} by {} with score {} and status {}",
-                benchmark_id, agent, test_result.score, final_status
-            );
 
             // Store flow log in database
             if let Err(e) = store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await

@@ -23,7 +23,7 @@ pub use types::{
 };
 
 pub use error::{FlowError, FlowResult};
-pub use logger::{AgentPerformanceData, FlowLogDatabase, FlowLogger};
+pub use logger::{AgentPerformanceData, FlowLogger};
 pub use renderer::render_flow_file_as_ascii_tree;
 pub use website_exporter::WebsiteExporter;
 
