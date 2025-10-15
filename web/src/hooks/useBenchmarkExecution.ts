@@ -142,6 +142,9 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         }
       };
 
+      // Clear any existing polling for this benchmark first
+      stopPolling(benchmarkId);
+
       // Start polling every 2 seconds
       const intervalId = setInterval(pollExecution, 2000);
       pollingIntervals.current.set(benchmarkId, intervalId);
@@ -157,11 +160,23 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     if (intervalId) {
       clearInterval(intervalId);
       pollingIntervals.current.delete(benchmarkId);
-      console.log(`Stopped polling for ${benchmarkId}`);
+      if (import.meta.env.DEV) {
+        console.log(`Stopped polling for ${benchmarkId}`);
+      }
     }
   }, []);
 
   // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      pollingIntervals.current.forEach((intervalId) => {
+        clearInterval(intervalId);
+      });
+      pollingIntervals.current.clear();
+    };
+  }, []);
+
+  // Additional cleanup when benchmarks change
   useEffect(() => {
     return () => {
       pollingIntervals.current.forEach((intervalId) => {

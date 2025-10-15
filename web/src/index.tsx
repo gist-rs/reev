@@ -40,12 +40,15 @@ export function App() {
   const [performanceOverviewRefresh, setPerformanceOverviewRefresh] =
     useState(0);
 
-  // Get performance data for header stats
+  // Get performance data for header stats and shared with components
   const {
     refetch: refetchAgentPerformance,
     totalResults,
     testedAgents,
     totalAgents,
+    data: agentPerformanceData,
+    loading: agentPerformanceLoading,
+    error: agentPerformanceError,
   } = useAgentPerformance();
 
   // Refresh performance data when a benchmark completes
@@ -57,22 +60,6 @@ export function App() {
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
-    console.log("=== EXECUTION SYNC CHECK ===");
-    console.log("selectedBenchmark:", selectedBenchmark);
-    console.log(
-      "executions.has(selectedBenchmark):",
-      executions.has(selectedBenchmark),
-    );
-    console.log("executions map keys:", Array.from(executions.keys()));
-    console.log(
-      "executions map values:",
-      Array.from(executions.values()).map((e) => ({
-        id: e.id,
-        benchmark_id: e.benchmark_id,
-        status: e.status,
-      })),
-    );
-
     if (selectedBenchmark && executions.has(selectedBenchmark)) {
       const execution = executions.get(selectedBenchmark);
 
@@ -84,23 +71,10 @@ export function App() {
         currentExecution.status !== execution?.status ||
         currentExecution.progress !== execution?.progress
       ) {
-        console.log("Updating currentExecution to match executions map");
-
-        // Add debugging for trace data when execution completes
-        if (execution?.status === "Completed" && execution.trace) {
-          console.log("=== EXECUTION COMPLETED WITH TRACE ===");
-          console.log("Trace length:", execution.trace.length);
-          console.log(
-            "First 200 chars of trace:",
-            execution.trace.substring(0, 200),
-          );
-          console.log("Last 200 chars of trace:", execution.trace.slice(-200));
-        }
-
         setCurrentExecution(execution);
       }
     }
-  }, [executions, selectedBenchmark, currentExecution]);
+  }, [executions, selectedBenchmark]);
 
   const handleBenchmarkSelect = useCallback(
     async (benchmarkId: string) => {
@@ -116,34 +90,30 @@ export function App() {
       );
 
       // Debug log to help with troubleshooting
-      console.log("=== App.handleBenchmarkSelect ===");
-      console.log("Benchmark selected:", benchmarkId);
-      console.log("Available executions:", Array.from(executions.entries()));
-      console.log(
-        "Available execution values:",
-        Array.from(executions.values()),
-      );
-      console.log("Found execution:", execution);
-      console.log("Current currentExecution before update:", currentExecution);
+      if (import.meta.env.DEV) {
+        console.log("=== App.handleBenchmarkSelect ===");
+        console.log("Benchmark selected:", benchmarkId);
+        console.log("Found execution:", execution);
+      }
 
       // If no current execution, try to load flow logs from database
       if (!execution) {
         (async () => {
           try {
-            console.log(
-              "No execution found, loading flow logs from database...",
-            );
-            // Get ASCII tree directly from database (single API call)
-            console.log("Loading ASCII tree from database...");
+            if (import.meta.env.DEV) {
+              console.log(
+                "No execution found, loading flow logs from database...",
+              );
+            }
             const response = await fetch(
               `/api/v1/ascii-tree/${benchmarkId}/deterministic`,
             );
 
             if (response.ok) {
               const asciiTree = await response.text();
-              console.log("ASCII tree loaded:", asciiTree);
-
-              // Create execution from historical data
+              if (import.meta.env.DEV) {
+                console.log("ASCII tree loaded:", asciiTree);
+              }
               const historicalExecution = {
                 id: `historical-${benchmarkId}-${Date.now()}`,
                 benchmark_id: benchmarkId,
@@ -157,10 +127,17 @@ export function App() {
                 score: 0, // We don't have score in this simple approach
               };
 
-              console.log("Created historical execution:", historicalExecution);
+              if (import.meta.env.DEV) {
+                console.log(
+                  "Created historical execution:",
+                  historicalExecution,
+                );
+              }
               setCurrentExecution(historicalExecution);
             } else if (response.status === 404) {
-              console.log("No ASCII tree found for benchmark:", benchmarkId);
+              if (import.meta.env.DEV) {
+                console.log("No ASCII tree found for benchmark:", benchmarkId);
+              }
               setCurrentExecution(null);
             } else {
               console.error("Failed to get ASCII tree:", response.statusText);
@@ -174,11 +151,6 @@ export function App() {
       } else {
         setCurrentExecution(execution);
       }
-
-      // Log after state update (in next tick)
-      setTimeout(() => {
-        console.log("Current currentExecution after update:", currentExecution);
-      }, 0);
     },
     [executions, currentExecution],
   );
@@ -271,10 +243,11 @@ export function App() {
 
   const handleExecutionStart = useCallback(
     (executionId: string) => {
-      console.log("=== EXECUTION START ===");
-      console.log("executionId:", executionId);
-      console.log("selectedBenchmark:", selectedBenchmark);
-      console.log("executions map before:", Array.from(executions.entries()));
+      if (import.meta.env.DEV) {
+        console.log("=== EXECUTION START ===");
+        console.log("executionId:", executionId);
+        console.log("selectedBenchmark:", selectedBenchmark);
+      }
       setIsRunning(true);
 
       // Trigger performance overview refresh for execution start
@@ -285,17 +258,22 @@ export function App() {
         (exec) => exec.id === executionId,
       );
 
-      console.log("=== App.handleExecutionStart ===");
-      console.log("Execution started with ID:", executionId);
-      console.log("Found execution:", execution);
-      console.log("Available executions:", Array.from(executions.entries()));
+      if (import.meta.env.DEV) {
+        console.log("=== App.handleExecutionStart ===");
+        console.log("Execution started with ID:", executionId);
+        console.log("Found execution:", execution);
+      }
 
       if (execution) {
         setCurrentExecution(execution);
         updateExecution(execution.benchmark_id, execution);
-        console.log("Set current execution to:", execution);
+        if (import.meta.env.DEV) {
+          console.log("Set current execution to:", execution);
+        }
       } else {
-        console.log("No execution found for ID:", executionId);
+        if (import.meta.env.DEV) {
+          console.log("No execution found for ID:", executionId);
+        }
       }
     },
     [
@@ -468,17 +446,21 @@ export function App() {
         }
       } else {
         // All benchmarks completed
-        console.log("✅ App: All benchmarks completed, refreshing overview");
+        if (import.meta.env.DEV) {
+          console.log("✅ App: All benchmarks completed, refreshing overview");
+        }
         setIsRunningAll(false);
         runAllQueue.current = [];
         currentRunAllIndex.current = 0;
 
         // Clear the completion callback after a delay
         setTimeout(() => {
-          console.log(
-            "🧹 App: Clearing completion callback after Run All completion",
-          );
-          setCompletionCallback(() => () => {});
+          if (import.meta.env.DEV) {
+            console.log(
+              "🧹 App: Clearing completion callback after Run All completion",
+            );
+          }
+          setCompletionCallback(null);
         }, 1000);
       }
     },
@@ -544,6 +526,14 @@ export function App() {
             selectedAgent={selectedAgent}
             isRunning={isRunning}
             onRunBenchmark={handleRunBenchmark}
+            agentPerformanceData={agentPerformanceData}
+            agentPerformanceLoading={agentPerformanceLoading}
+            agentPerformanceError={agentPerformanceError}
+            refetchAgentPerformance={refetchAgentPerformance}
+            benchmarks={benchmarks}
+            benchmarksLoading={loading}
+            benchmarksError={error}
+            refetchBenchmarks={refetch}
           />
         </div>
       </div>
@@ -571,6 +561,9 @@ export function App() {
               executions={executions}
               updateExecution={updateExecution}
               isRunningAll={isRunningAll}
+              agentPerformanceData={agentPerformanceData}
+              agentPerformanceLoading={agentPerformanceLoading}
+              agentPerformanceError={agentPerformanceError}
               setIsRunningAll={setIsRunningAll}
               setCompletionCallback={setCompletionCallback}
               runAllCompletionCallback={runAllCompletionCallback}

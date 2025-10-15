@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect, useMemo } from "preact/hooks";
 import { useAgentPerformance } from "../hooks/useApiData";
-import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
 import { apiClient } from "../services/api";
 import { BenchmarkBox } from "./BenchmarkBox";
 import { BenchmarkInfo, BenchmarkResult } from "../types/benchmark";
+import { BenchmarkList } from "../types/configuration";
 
 interface AgentPerformanceSummary {
   agent_type: string;
@@ -25,6 +25,14 @@ interface BenchmarkGridProps {
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
   runningBenchmarkIds?: string[];
+  agentPerformanceData?: any;
+  agentPerformanceLoading?: boolean;
+  agentPerformanceError?: string | null;
+  refetchAgentPerformance?: () => Promise<void>;
+  benchmarks?: BenchmarkList | null;
+  benchmarksLoading?: boolean;
+  benchmarksError?: string | null;
+  refetchBenchmarks?: () => Promise<void>;
 }
 
 export function BenchmarkGrid({
@@ -35,14 +43,21 @@ export function BenchmarkGrid({
   isRunning = false,
   onRunBenchmark,
   runningBenchmarkIds = [],
+  agentPerformanceData,
+  agentPerformanceLoading,
+  agentPerformanceError,
+  refetchAgentPerformance,
+  benchmarks,
+  benchmarksLoading,
+  benchmarksError,
+  refetchBenchmarks,
 }: BenchmarkGridProps) {
   const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
     null,
   );
 
-  // Get benchmark list and agent performance data
-  const { benchmarks } = useBenchmarkList();
-  const { data, loading, error, refetch } = useAgentPerformance();
+  // Use shared benchmark data passed as props instead of duplicate API call
+  // Use shared benchmark data passed as props instead of duplicate API call
 
   const [allBenchmarks, setAllBenchmarks] = useState<BenchmarkInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,32 +98,17 @@ export function BenchmarkGrid({
     "glm-4.6",
   ];
 
-  // Load all benchmarks from API
-  useEffect(() => {
-    const loadBenchmarks = async () => {
-      try {
-        const benchmarkList = await apiClient.listBenchmarks();
-        // API now returns full BenchmarkInfo objects from YAML files
-        setAllBenchmarks(benchmarkList);
-      } catch (error) {
-        console.error("Failed to load benchmarks:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadBenchmarks();
-  }, []);
-
   // Refetch performance data when refreshTrigger changes
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log(
-        "🔄 Refreshing performance overview due to benchmark completion",
-      );
-      refetch();
+      if (import.meta.env.DEV) {
+        console.log(
+          "🔄 Refreshing performance overview due to benchmark completion",
+        );
+      }
+      refetchAgentPerformance?.();
     }
-  }, [refreshTrigger, refetch]);
+  }, [refreshTrigger, refetchAgentPerformance]);
 
   const handleBenchmarkClick = useCallback(
     (result: BenchmarkResult) => {
@@ -128,7 +128,7 @@ export function BenchmarkGrid({
   }, []);
 
   // Loading state
-  if (isLoading) {
+  if (benchmarksLoading || agentPerformanceLoading) {
     return (
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center">
@@ -142,7 +142,7 @@ export function BenchmarkGrid({
   }
 
   // Error state
-  if (error) {
+  if (benchmarksError || agentPerformanceError) {
     return (
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center max-w-md">
@@ -164,7 +164,7 @@ export function BenchmarkGrid({
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Failed to load data
           </h3>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4">{agentPerformanceError}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -177,7 +177,7 @@ export function BenchmarkGrid({
   }
 
   // No data state
-  if (!data || data.length === 0) {
+  if (!agentPerformanceData || agentPerformanceData.length === 0) {
     return (
       <div className={`flex items-center justify-center min-h-96 ${className}`}>
         <div className="text-center">
@@ -218,7 +218,7 @@ export function BenchmarkGrid({
           <div className="flex flex-wrap" style={{ width: "fit-content" }}>
             {ALL_AGENT_TYPES.map((agentType) => {
               // Find the agent data from the API results, or create placeholder
-              const agentData = data.find(
+              const agentData = agentPerformanceData.find(
                 (a) => a.agent_type === agentType,
               ) || {
                 agent_type: agentType,
@@ -227,7 +227,6 @@ export function BenchmarkGrid({
                 success_rate: 0,
                 best_benchmarks: [],
                 worst_benchmarks: [],
-                results: [],
               };
 
               // Calculate percentage from latest results per benchmark only

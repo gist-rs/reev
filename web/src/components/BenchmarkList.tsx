@@ -1,6 +1,12 @@
 // BenchmarkList component for interactive benchmark navigation and execution
 
-import { useState, useCallback, useEffect, useRef } from "preact/hooks";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
 import { AgentConfig } from "./AgentConfig";
@@ -26,6 +32,9 @@ interface BenchmarkListProps {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  agentPerformanceData?: any;
+  agentPerformanceLoading?: boolean;
+  agentPerformanceError?: string | null;
 }
 
 export function BenchmarkList({
@@ -47,6 +56,9 @@ export function BenchmarkList({
   loading,
   error,
   refetch,
+  agentPerformanceData,
+  agentPerformanceLoading,
+  agentPerformanceError,
 }: BenchmarkListProps) {
   // Track running benchmarks and their execution IDs for polling
   const [runningBenchmarks, setRunningBenchmarks] = useState<
@@ -59,47 +71,40 @@ export function BenchmarkList({
   // State for expand/collapse agent configuration
   const [showAgentConfig, setShowAgentConfig] = useState(false);
 
-  // Load historical benchmark results on component mount
+  // Use agent performance data passed as props instead of duplicate API call
+
+  // Process shared data into results map
   useEffect(() => {
-    const loadHistoricalResults = async () => {
-      try {
-        const results = await apiClient.getAgentPerformance();
-        const resultsMap = new Map();
+    if (agentPerformanceData) {
+      const resultsMap = new Map();
 
-        // Group results by benchmarkId for the selected agent
-        results.forEach((agentSummary) => {
-          if (agentSummary.agent_type === selectedAgent) {
-            agentSummary.results.forEach((result) => {
-              const key = `${result.benchmark_id}`;
-              if (
-                !resultsMap.has(key) ||
-                new Date(result.timestamp) >
-                  new Date(resultsMap.get(key).timestamp)
-              ) {
-                resultsMap.set(key, {
-                  ...result,
-                  status:
-                    result.final_status === "Succeeded"
-                      ? "Completed"
-                      : "Failed",
-                  progress: 100,
-                  execution_id: result.id,
-                  agentType: result.agent_type,
-                  benchmarkId: result.benchmark_id,
-                });
-              }
-            });
-          }
-        });
+      // Group results by benchmarkId for the selected agent
+      agentPerformanceData.forEach((agentSummary) => {
+        if (agentSummary.agent_type === selectedAgent) {
+          agentSummary.results.forEach((result) => {
+            const key = `${result.benchmark_id}`;
+            if (
+              !resultsMap.has(key) ||
+              new Date(result.timestamp) >
+                new Date(resultsMap.get(key).timestamp)
+            ) {
+              resultsMap.set(key, {
+                ...result,
+                status:
+                  result.final_status === "Succeeded" ? "Completed" : "Failed",
+                progress: 100,
+                execution_id: result.id,
+                agentType: result.agent_type,
+                benchmarkId: result.benchmark_id,
+              });
+            }
+          });
+        }
+      });
 
-        setHistoricalResults(resultsMap);
-      } catch (error) {
-        console.error("Failed to load historical results:", error);
-      }
-    };
-
-    loadHistoricalResults();
-  }, [selectedAgent]);
+      setHistoricalResults(resultsMap);
+    }
+  }, [agentPerformanceData, selectedAgent]);
 
   // Polling is now handled by useBenchmarkExecution hook - removed duplicate polling
   // This prevents state inconsistency issues between hook state and component state
