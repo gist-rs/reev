@@ -208,10 +208,16 @@ export function AgentPerformanceCard({
                     new Date().toISOString(),
                   );
                   const isSelected = false; // Never show selection in placeholder rows
+                  // Check if this benchmark is running even in placeholder rows
+                  const isRunning =
+                    index === 0 && // Only check running state in first placeholder row
+                    runningBenchmarks.has(benchmark.id) &&
+                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
+                      agentType;
                   return renderBenchmarkBox(
                     benchmark,
                     placeholderResult,
-                    false,
+                    isRunning,
                     isSelected,
                   );
                 })}
