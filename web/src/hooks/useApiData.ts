@@ -122,26 +122,48 @@ export function useAgentPerformance() {
 
   // Transform API data to match BenchmarkResult interface
   const transformedData = useMemo(() => {
-    if (!data) return null;
+    console.log("🔍 useAgentPerformance - Raw API data:", data);
+    if (!data) {
+      console.log("❌ useAgentPerformance - No data received");
+      return null;
+    }
 
-    return data.map((agent: any) => ({
-      ...agent,
-      results: agent.results.map((result: any) => ({
-        id: result.id.toString(),
-        benchmark_id: result.benchmark_id,
-        agent_type: agent.agent_type,
-        score: result.score,
-        final_status: result.final_status?.toLowerCase() || "unknown",
-        execution_time_ms: 1000, // Default value since API doesn't provide this
-        timestamp: result.timestamp,
-        color_class:
-          result.score >= 1.0
-            ? "green"
-            : result.score >= 0.25
-              ? "yellow"
-              : ("red" as const),
-      })),
-    }));
+    const transformed = data.map((agent: any) => {
+      console.log(`🔍 Transforming agent: ${agent.agent_type}`, {
+        total_benchmarks: agent.total_benchmarks,
+        average_score: agent.average_score,
+        success_rate: agent.success_rate,
+        results_count: agent.results?.length,
+      });
+
+      return {
+        ...agent,
+        results: agent.results.map((result: any) => {
+          console.log(`🔍 Transforming result for ${result.benchmark_id}:`, {
+            score: result.score,
+            final_status: result.final_status,
+          });
+          return {
+            id: result.id.toString(),
+            benchmark_id: result.benchmark_id,
+            agent_type: agent.agent_type,
+            score: result.score,
+            final_status: result.final_status?.toLowerCase() || "unknown",
+            execution_time_ms: 1000, // Default value since API doesn't provide this
+            timestamp: result.timestamp,
+            color_class:
+              result.score >= 1.0
+                ? "green"
+                : result.score >= 0.25
+                  ? "yellow"
+                  : ("red" as const),
+          };
+        }),
+      };
+    });
+
+    console.log("✅ useAgentPerformance - Transformed data:", transformed);
+    return transformed;
   }, [data]);
 
   // Mock data fallback when backend is not available
@@ -256,6 +278,13 @@ export function useAgentPerformance() {
     const totalAgents = 4; // Total available agent types
     return { totalResults, testedAgents, totalAgents };
   }, [transformedData, error, mockData]);
+
+  console.log("🎯 useAgentPerformance - Final return:", {
+    data: transformedData,
+    loading: loading && !error,
+    error,
+    hasData: !!transformedData,
+  });
 
   return {
     data: transformedData, // Use real data only, no mock fallback

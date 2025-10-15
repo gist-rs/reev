@@ -221,24 +221,34 @@ export function BenchmarkGrid({
               // Find the agent data from the API results, or create placeholder
               const agentData = agentPerformanceData.find(
                 (a) => a.agent_type === agentType,
-              ) || {
-                agent_type: agentType,
-                total_benchmarks: 0,
-                average_score: 0,
-                success_rate: 0,
-                best_benchmarks: [],
-                worst_benchmarks: [],
-                results: [],
-              };
+              );
+
+              const finalAgentData = useMemo(
+                () =>
+                  agentData || {
+                    agent_type: agentType,
+                    total_benchmarks: 0,
+                    average_score: 0,
+                    success_rate: 0,
+                    best_benchmarks: [],
+                    worst_benchmarks: [],
+                    results: [],
+                  },
+                [agentData, agentType],
+              );
 
               // Calculate percentage from latest results per benchmark only
               const lastThreePercentage = useMemo(() => {
-                if (!agentData.results || agentData.results.length === 0)
+                console.log("finalAgentData:", finalAgentData);
+                if (
+                  !finalAgentData.results ||
+                  finalAgentData.results.length === 0
+                )
                   return 0;
 
                 // Get latest result per benchmark
                 const latestByBenchmark = new Map();
-                agentData.results?.forEach((result) => {
+                finalAgentData.results?.forEach((result) => {
                   const existing = latestByBenchmark.get(result.benchmark_id);
                   if (!existing || result.timestamp > existing.timestamp) {
                     latestByBenchmark.set(result.benchmark_id, result);
@@ -253,7 +263,19 @@ export function BenchmarkGrid({
                   0,
                 );
                 return totalScore / latestResults.length;
-              }, [agentData.results]);
+              }, [finalAgentData.results?.length]);
+
+              // Infinite call bug
+              // // Only log when percentage changes
+              // useEffect(() => {
+              //   console.log(
+              //     `🎯 ${agentType} percentage: ${lastThreePercentage} (results: ${finalAgentData.results?.length})`,
+              //   );
+              // }, [
+              //   lastThreePercentage,
+              //   agentType,
+              //   finalAgentData.results?.length,
+              // ]);
 
               return (
                 <div
@@ -285,7 +307,7 @@ export function BenchmarkGrid({
                   <div className="space-y-2">
                     {(() => {
                       // Group results by date, taking latest result per benchmark per day
-                      const testRuns = (agentData.results || []).reduce(
+                      const testRuns = (finalAgentData.results || []).reduce(
                         (runs, result) => {
                           const date = result.timestamp.substring(0, 10); // Group by date YYYY-MM-DD
                           if (!runs[date]) {
