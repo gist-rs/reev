@@ -1,11 +1,7 @@
-import { useState, useCallback, useEffect } from "preact/hooks";
 import {
-  BenchmarkDetailsModal,
-  LoadingStates,
   AgentPerformanceCard,
   type BenchmarkGridProps,
 } from "./benchmark-grid";
-import { BenchmarkResult } from "../types/benchmark";
 
 export function BenchmarkGrid({
   className = "",
@@ -23,85 +19,28 @@ export function BenchmarkGrid({
   benchmarksError,
   refetchBenchmarks,
 }: BenchmarkGridProps) {
-  const [selectedResult, setSelectedResult] = useState<BenchmarkResult | null>(
-    null,
-  );
-  const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
-    new Set(runningBenchmarkIds),
-  );
-
-  const allBenchmarks = benchmarks || [];
-
-  useEffect(() => {
-    setRunningBenchmarks(new Set(runningBenchmarkIds));
-  }, [runningBenchmarkIds]);
-
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      if (import.meta.env.DEV) {
-        console.log(
-          "🔄 Refreshing performance overview due to benchmark completion",
-        );
-      }
-      refetchAgentPerformance?.();
-    }
-  }, [refreshTrigger, refetchAgentPerformance]);
-
-  const handleRunBenchmark = useCallback(
-    (benchmarkId: string, agentType?: string) => {
-      if (onRunBenchmark) {
-        setRunningBenchmarks((prev) => new Set(prev).add(benchmarkId));
-        onRunBenchmark(benchmarkId, agentType);
-
-        setTimeout(() => {
-          setRunningBenchmarks((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(benchmarkId);
-            return newSet;
-          });
-        }, 60000);
-      }
-    },
-    [onRunBenchmark],
-  );
-
-  const handleBenchmarkClick = useCallback(
-    (result: BenchmarkResult) => {
-      setSelectedResult(result);
-      console.log("Benchmark clicked:", result);
-
-      if (onBenchmarkSelect) {
-        onBenchmarkSelect(result.benchmark_id);
-      }
-    },
-    [onBenchmarkSelect],
-  );
-
-  const handleCloseModal = useCallback(() => {
-    setSelectedResult(null);
-  }, []);
-
   const ALL_AGENT_TYPES = [
     "deterministic",
     "local",
     "gemini-2.5-flash-lite",
     "glm-4.6",
   ];
+  const allBenchmarks = benchmarks || [];
+  const runningBenchmarks = new Set<string>(runningBenchmarkIds);
 
-  const loadingStates = (
-    <LoadingStates
-      className={className}
-      benchmarksLoading={benchmarksLoading}
-      agentPerformanceLoading={agentPerformanceLoading}
-      benchmarksError={benchmarksError}
-      agentPerformanceError={agentPerformanceError}
-      agentPerformanceData={agentPerformanceData}
-      benchmarks={allBenchmarks}
-    />
-  );
-
-  if (loadingStates) {
-    return loadingStates;
+  // Trace the real data before rendering (only when not loading)
+  if (!benchmarksLoading && !agentPerformanceLoading) {
+    console.log("🔍 BenchmarkGrid - Real Data Trace:");
+    console.log("  - benchmarks:", benchmarks);
+    console.log("  - benchmarks length:", benchmarks?.length);
+    console.log("  - agentPerformanceData:", agentPerformanceData);
+    console.log(
+      "  - agentPerformanceData length:",
+      agentPerformanceData?.length,
+    );
+    console.log("  - benchmarksLoading:", benchmarksLoading);
+    console.log("  - agentPerformanceLoading:", agentPerformanceLoading);
+    console.log("  - runningBenchmarkIds:", runningBenchmarkIds);
   }
 
   return (
@@ -121,21 +60,18 @@ export function BenchmarkGrid({
                   agentData={agentData}
                   allBenchmarks={allBenchmarks}
                   runningBenchmarks={runningBenchmarks}
-                  onBenchmarkClick={handleBenchmarkClick}
+                  onBenchmarkClick={(result) => {
+                    console.log("Benchmark clicked:", result);
+                    if (onBenchmarkSelect) {
+                      onBenchmarkSelect(result.benchmark_id);
+                    }
+                  }}
                 />
               );
             })}
           </div>
         </div>
       </main>
-
-      <BenchmarkDetailsModal
-        selectedResult={selectedResult}
-        onClose={handleCloseModal}
-        onRunBenchmark={onRunBenchmark}
-        isRunning={isRunning}
-        handleRunBenchmark={handleRunBenchmark}
-      />
     </div>
   );
 }
