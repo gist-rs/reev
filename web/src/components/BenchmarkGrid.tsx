@@ -5,18 +5,7 @@ import { useAgentPerformance } from "../hooks/useApiData";
 import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
 import { apiClient } from "../services/api";
 import { BenchmarkBox } from "./BenchmarkBox";
-
-// Temporary types to avoid import issues
-interface BenchmarkResult {
-  id: string;
-  benchmark_id: string;
-  agent_type: string;
-  score: number;
-  final_status: string;
-  execution_time_ms: number;
-  timestamp: string;
-  color_class: "green" | "yellow" | "red" | "gray";
-}
+import { BenchmarkInfo, BenchmarkResult } from "../types/benchmark";
 
 interface AgentPerformanceSummary {
   agent_type: string;
@@ -55,7 +44,7 @@ export function BenchmarkGrid({
   const { benchmarks } = useBenchmarkList();
   const { data, loading, error, refetch } = useAgentPerformance();
 
-  const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
+  const [allBenchmarks, setAllBenchmarks] = useState<BenchmarkInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
     new Set(runningBenchmarkIds),
@@ -99,9 +88,22 @@ export function BenchmarkGrid({
     const loadBenchmarks = async () => {
       try {
         const benchmarkList = await apiClient.listBenchmarks();
-        setAllBenchmarks(benchmarkList);
+        // Handle both string and object formats from API
+        const normalizedBenchmarks = benchmarkList.map((benchmark) => {
+          if (typeof benchmark === "string") {
+            // Convert string to BenchmarkInfo format
+            return {
+              id: benchmark,
+              description: "",
+              tags: [],
+              prompt: "",
+            };
+          }
+          return benchmark;
+        });
+        setAllBenchmarks(normalizedBenchmarks);
         // Removed aggressive preloading - will fetch details on user interaction
-        // preloadBenchmarkDetails(benchmarkList);
+        // preloadBenchmarkDetails(normalizedBenchmarks);
       } catch (error) {
         console.error("Failed to load benchmarks:", error);
       } finally {
@@ -349,26 +351,34 @@ export function BenchmarkGrid({
                                 </span>
                                 <div className="flex flex-wrap gap-1">
                                   {allBenchmarks
-                                    .filter((benchmarkId) => {
+                                    .filter((benchmark) => {
+                                      // Safety check for undefined benchmark
+                                      if (!benchmark?.id) {
+                                        console.warn(
+                                          "Invalid benchmark:",
+                                          benchmark,
+                                        );
+                                        return false;
+                                      }
                                       // Filter out failure test benchmarks (003, 004)
                                       return (
-                                        !benchmarkId.includes("003") &&
-                                        !benchmarkId.includes("004")
+                                        !benchmark.id.includes("003") &&
+                                        !benchmark.id.includes("004")
                                       );
                                     })
-                                    .map((benchmarkId) => {
+                                    .map((benchmark) => {
                                       const benchmarkResult = results.find(
-                                        (r) => r.benchmark_id === benchmarkId,
+                                        (r) => r.benchmark_id === benchmark.id,
                                       );
                                       if (benchmarkResult) {
                                         // Real result - use BenchmarkBox for clicking
                                         return (
                                           <BenchmarkBox
-                                            key={benchmarkId}
+                                            key={benchmark.id}
                                             result={benchmarkResult}
                                             onClick={handleBenchmarkClick}
                                             isRunning={runningBenchmarks.has(
-                                              benchmarkId,
+                                              benchmark.id,
                                             )}
                                           />
                                         );
@@ -376,22 +386,22 @@ export function BenchmarkGrid({
                                         // Missing result - gray placeholder
                                         const placeholderResult: BenchmarkResult =
                                           {
-                                            id: `placeholder-${agentType}-${benchmarkId}`,
-                                            benchmark_id: benchmarkId,
+                                            id: `placeholder-${agentType}-${benchmark.id}`,
+                                            benchmark_id: benchmark.id,
                                             agent_type: agentType,
                                             score: 0,
                                             final_status: "Not Tested",
                                             execution_time_ms: 0,
                                             timestamp: runDate,
-                                            color_class: "gray",
+                                            color_class: "gray" as const,
                                           };
                                         return (
                                           <BenchmarkBox
-                                            key={benchmarkId}
+                                            key={benchmark.id}
                                             result={placeholderResult}
                                             onClick={handleBenchmarkClick}
                                             isRunning={runningBenchmarks.has(
-                                              benchmarkId,
+                                              benchmark.id,
                                             )}
                                           />
                                         );
@@ -412,18 +422,26 @@ export function BenchmarkGrid({
                                 </span>
                                 <div className="flex flex-wrap gap-1">
                                   {allBenchmarks
-                                    .filter((benchmarkId) => {
+                                    .filter((benchmark) => {
+                                      // Safety check for undefined benchmark
+                                      if (!benchmark?.id) {
+                                        console.warn(
+                                          "Invalid benchmark:",
+                                          benchmark,
+                                        );
+                                        return false;
+                                      }
                                       // Filter out failure test benchmarks (003, 004)
                                       return (
-                                        !benchmarkId.includes("003") &&
-                                        !benchmarkId.includes("004")
+                                        !benchmark.id.includes("003") &&
+                                        !benchmark.id.includes("004")
                                       );
                                     })
-                                    .map((benchmarkId) => {
+                                    .map((benchmark) => {
                                       const placeholderResult: BenchmarkResult =
                                         {
-                                          id: `placeholder-${agentType}-${benchmarkId}`,
-                                          benchmark_id: benchmarkId,
+                                          id: `placeholder-${agentType}-${benchmark.id}`,
+                                          benchmark_id: benchmark.id,
                                           agent_type: agentType,
                                           score: 0,
                                           final_status: "Not Tested",
@@ -433,11 +451,11 @@ export function BenchmarkGrid({
                                         };
                                       return (
                                         <BenchmarkBox
-                                          key={benchmarkId}
+                                          key={benchmark.id}
                                           result={placeholderResult}
                                           onClick={handleBenchmarkClick}
                                           isRunning={runningBenchmarks.has(
-                                            benchmarkId,
+                                            benchmark.id,
                                           )}
                                         />
                                       );

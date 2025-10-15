@@ -9,6 +9,7 @@ import {
   ResultsQuery,
   HealthResponse,
   ErrorResponse,
+  BenchmarkInfo,
 } from "../types/benchmark";
 
 import {
@@ -185,12 +186,24 @@ class ApiClient {
   async getBenchmarkList(): Promise<BenchmarkList> {
     const benchmarks = await this.listBenchmarks();
     return {
-      benchmarks: benchmarks.map((id, index) => ({
-        id,
-        name: id.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-        file_path: `benchmarks/${id}.yml`,
-        status: "Pending" as const,
-      })),
+      benchmarks: benchmarks
+        .map((benchmark) => {
+          // Handle both string and object formats
+          const id = typeof benchmark === "string" ? benchmark : benchmark?.id;
+          if (!id) {
+            console.warn("Invalid benchmark item:", benchmark);
+            return null;
+          }
+          return {
+            id,
+            name: id
+              .replace(/-/g, " ")
+              .replace(/\b\w/g, (l) => l.toUpperCase()),
+            file_path: `benchmarks/${id}.yml`,
+            status: "Pending" as const,
+          };
+        })
+        .filter(Boolean) as BenchmarkItem[],
       total: benchmarks.length,
     };
   }
