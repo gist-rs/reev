@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useMemo } from "preact/hooks";
 import { useAgentPerformance } from "../hooks/useApiData";
 import { useBenchmarkList } from "../hooks/useBenchmarkExecution";
-import { useBenchmarkDetails } from "../hooks/useBenchmarkDetails";
 import { apiClient } from "../services/api";
 import { BenchmarkBox } from "./BenchmarkBox";
 
@@ -55,7 +54,7 @@ export function BenchmarkGrid({
   // Get benchmark list and agent performance data
   const { benchmarks } = useBenchmarkList();
   const { data, loading, error, refetch } = useAgentPerformance();
-  const { preloadBenchmarkDetails } = useBenchmarkDetails();
+
   const [allBenchmarks, setAllBenchmarks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [runningBenchmarks, setRunningBenchmarks] = useState<Set<string>>(
@@ -101,8 +100,8 @@ export function BenchmarkGrid({
       try {
         const benchmarkList = await apiClient.listBenchmarks();
         setAllBenchmarks(benchmarkList);
-        // Preload benchmark details after loading benchmark list
-        preloadBenchmarkDetails(benchmarkList);
+        // Removed aggressive preloading - will fetch details on user interaction
+        // preloadBenchmarkDetails(benchmarkList);
       } catch (error) {
         console.error("Failed to load benchmarks:", error);
       } finally {
@@ -111,7 +110,7 @@ export function BenchmarkGrid({
     };
 
     loadBenchmarks();
-  }, [preloadBenchmarkDetails]);
+  }, []);
 
   // Refetch performance data when refreshTrigger changes
   useEffect(() => {

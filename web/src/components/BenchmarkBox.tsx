@@ -45,19 +45,27 @@ export function BenchmarkBox({
   };
 
   const handleMouseEnter = () => {
+    // Only fetch if we don't have details and haven't tried before
     if (!benchmarkDetails && !isLoading) {
       setIsLoading(true);
       fetchBenchmarkDetails(result.benchmark_id)
         .then((details) => {
-          if (details) {
+          if (details && details.description !== "Failed to load description") {
             console.log(`Loaded details for ${result.benchmark_id}:`, details);
           }
         })
         .catch((error) => {
-          console.error(
-            `Failed to load details for ${result.benchmark_id}:`,
-            error,
-          );
+          // Silently handle 404 errors since the endpoint doesn't exist yet
+          if (error.message.includes("404")) {
+            console.log(
+              `Benchmark details not available for ${result.benchmark_id} (API endpoint missing)`,
+            );
+          } else {
+            console.error(
+              `Failed to load details for ${result.benchmark_id}:`,
+              error,
+            );
+          }
         })
         .finally(() => {
           setIsLoading(false);
@@ -89,16 +97,16 @@ export function BenchmarkBox({
           <div className="text-gray-300 text-xs mb-2 max-w-xs">
             {benchmarkDetails.description === "Failed to load description" ? (
               <div>
-                <div className="text-red-400">API Error</div>
+                <div className="text-yellow-400">Details Unavailable</div>
                 <div className="text-gray-400">
-                  Check benchmark YAML structure
+                  Benchmark information temporarily unavailable
                 </div>
               </div>
             ) : (
               benchmarkDetails.description
             )}
           </div>
-          {benchmarkDetails.tags.length > 0 && (
+          {benchmarkDetails.tags && benchmarkDetails.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-center mb-2">
               {benchmarkDetails.tags.slice(0, 3).map((tag, index) => (
                 <span
@@ -126,7 +134,9 @@ export function BenchmarkBox({
           </div>
         </>
       ) : (
-        <div className="text-gray-300 text-xs">Hover to load details...</div>
+        <div className="text-gray-300 text-xs">
+          Hover for benchmark details...
+        </div>
       )}
     </div>
   );

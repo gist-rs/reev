@@ -1,5 +1,38 @@
 # 🪸 Reev TOFIX Issues
 
+## 🚨 **CURRENT ISSUE** - Missing Benchmark API Endpoint **IN PROGRESS**
+
+### Issue: Missing Individual Benchmark API Endpoint
+**Status**: In Progress  
+**Component**: API Backend  
+**Last Updated**: 2025-10-15
+
+#### 🎯 **Problem**
+Frontend is making API calls to `/api/v1/benchmarks/{benchmarkId}` endpoint that doesn't exist, causing 404 errors on page load.
+
+#### 🔧 **Root Cause Analysis**
+**Issue**: Missing API endpoint for individual benchmark details
+- **Symptom**: Multiple 404 errors when loading web interface
+- **Impact**: Poor user experience, excessive failed API calls
+- **Root Cause**: Frontend preloads benchmark details but API endpoint doesn't exist
+
+**Evidence from Logs**:
+```
+GET http://localhost:3001/api/v1/benchmarks/003-spl-transfer-fail 404 (Not Found)
+GET http://localhost:3001/api/v1/benchmarks/004-partial-score-spl-transfer 404 (Not Found)
+GET http://localhost:3001/api/v1/benchmarks/001-sol-transfer 404 (Not Found)
+```
+
+**Required Fix**:
+- [ ] Add `/api/v1/benchmarks/{id}` endpoint to return benchmark YAML details
+- [ ] OR modify frontend to only fetch on user interaction (preferred)
+- [ ] Reduce aggressive preloading behavior
+- [ ] Implement proper error handling for missing endpoints
+
+**Suggested Approach**: Instead of preloading all benchmark details, modify frontend to fetch details only when user hovers/clicks on benchmark boxes.
+
+---
+
 ### Issue 1: Tooltip "Failed to load description" Error ✅ **FIXED**
 **Status**: Fixed  
 **Component**: Tooltip Component  
