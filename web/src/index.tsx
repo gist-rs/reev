@@ -1,5 +1,11 @@
 import { render } from "preact";
-import { useState, useCallback, useEffect, useRef } from "preact/hooks";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "preact/hooks";
 import { AgentSelector } from "./components/AgentSelector";
 import { DarkModeToggle } from "./components/DarkModeToggle";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -63,6 +69,39 @@ export function App() {
       refetchAgentPerformance();
     }
   }, [performanceOverviewRefresh, refetchAgentPerformance]);
+
+  // Derive running benchmarks by benchmark ID and agent type
+  const runningBenchmarkIds = useMemo(() => {
+    const runningEntries = Array.from(executions.entries()).filter(
+      ([_, execution]) =>
+        execution.status === "Running" ||
+        execution.status === "Pending" ||
+        (execution.progress !== undefined && execution.progress < 100),
+    );
+
+    if (import.meta.env.DEV) {
+      console.log("🔄 App - Running benchmarks derived:", {
+        totalExecutions: executions.size,
+        runningEntries: runningEntries.map(([id, exec]) => ({
+          benchmarkId: id,
+          agent: exec.agent,
+          status: exec.status,
+          progress: exec.progress,
+        })),
+        runningCount: runningEntries.length,
+        runningByAgent: runningEntries.reduce(
+          (acc, [id, exec]) => {
+            acc[exec.agent] = (acc[exec.agent] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>,
+        ),
+      });
+    }
+
+    // Return just benchmark IDs for now - we'll handle agent-specific logic in the components
+    return runningEntries.map(([benchmarkId, _]) => benchmarkId);
+  }, [executions]);
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
@@ -531,6 +570,8 @@ export function App() {
             onBenchmarkSelect={handleBenchmarkSelect}
             isRunning={isRunning}
             onRunBenchmark={handleRunBenchmark}
+            runningBenchmarkIds={runningBenchmarkIds}
+            executions={executions}
             agentPerformanceData={agentPerformanceData}
             agentPerformanceLoading={agentPerformanceLoading}
             agentPerformanceError={agentPerformanceError}
@@ -641,13 +682,6 @@ export function App() {
                 />
               ) : (
                 <>
-                  {/* Debug info */}
-                  {console.log("=== Rendering ExecutionTrace ===")}
-                  {console.log("currentExecution:", currentExecution)}
-                  {console.log("isRunning:", isRunning)}
-                  {currentExecution?.status === "Completed" &&
-                    currentExecution?.trace &&
-                    console.log("=== ABOUT TO RENDER COMPLETED EXECUTION ===")}
                   <ExecutionTrace
                     execution={currentExecution}
                     isRunning={isRunning}

@@ -17,11 +17,16 @@ export interface BenchmarkGridProps {
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
   runningBenchmarkIds?: string[];
+  runningBenchmarkExecutions?: Map<
+    string,
+    { agent: string; status: string; progress: number }
+  >;
+  executions?: Map<string, any>;
   agentPerformanceData?: any;
   agentPerformanceLoading?: boolean;
   agentPerformanceError?: string | null;
   refetchAgentPerformance?: () => Promise<void>;
-  benchmarks?: any[] | null;
+  benchmarks?: any[];
   benchmarksLoading?: boolean;
   benchmarksError?: string | null;
   refetchBenchmarks?: () => Promise<void>;

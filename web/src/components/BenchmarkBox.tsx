@@ -1,6 +1,7 @@
 // BenchmarkBox component for individual 16x16 result display
 
 import { BenchmarkResult } from "../types/benchmark";
+import { useEffect } from "preact/hooks";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -17,7 +18,19 @@ export function BenchmarkBox({
   className = "",
   isRunning = false,
 }: BenchmarkBoxProps) {
+  // Log running state changes
+  // useEffect(() => {
+  //   console.log(`🎯 BenchmarkBox - Running state changed:`, {
+  //     benchmarkId: result.benchmark_id,
+  //     isRunning,
+  //     agentType: result.agent_type,
+  //     timestamp: new Date().toISOString(),
+  //   });
+  // }, [isRunning, result.benchmark_id, result.agent_type]);
   const getColorClass = (result: BenchmarkResult): string => {
+    // If running, don't apply static background color - animation will handle it
+    if (isRunning) return "";
+
     // Use color_class if specified, otherwise fall back to score-based logic
     if (result.color_class === "gray") return "bg-gray-400";
     if (result.color_class === "green") return "bg-green-500";
@@ -32,7 +45,11 @@ export function BenchmarkBox({
 
   const getAnimationClass = () => {
     if (isRunning) {
-      return "animate-pulse bg-gradient-to-r from-[#9945FF] to-[#00D18C] bg-size-200 bg-pos-0";
+      console.log(
+        `✨ BenchmarkBox - Applying animation to:`,
+        result.benchmark_id,
+      );
+      return "animate-blink-fade";
     }
     return "";
   };
@@ -45,19 +62,21 @@ export function BenchmarkBox({
     borderRadius: "2px",
   };
 
+  const animationClass = getAnimationClass();
+  // console.log(`🎨 BenchmarkBox - Final classes for ${result.benchmark_id}:`, {
+  //   baseClasses,
+  //   className,
+  //   animationClass,
+  //   finalClasses: `${baseClasses} ${className} ${animationClass}`,
+  // });
+
   return (
     <div
-      className={`${baseClasses} ${className} ${getAnimationClass()} relative group active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600`}
+      className={`${baseClasses} ${className} ${animationClass} relative group active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600`}
       style={{
         ...styleProps,
         minWidth: "16px",
         minHeight: "16px",
-        ...(isRunning && {
-          background:
-            "linear-gradient(90deg, #9945FF 0%, #00D18C 50%, #9945FF 100%)",
-          backgroundSize: "200% 100%",
-          animation: "shimmer 2s ease-in-out infinite",
-        }),
       }}
       onClick={() => onClick && onClick(result)}
     />

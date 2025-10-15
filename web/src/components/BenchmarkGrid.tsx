@@ -2,6 +2,7 @@ import {
   AgentPerformanceCard,
   type BenchmarkGridProps,
 } from "./benchmark-grid";
+import { useEffect } from "preact/hooks";
 
 export function BenchmarkGrid({
   className = "",
@@ -10,6 +11,7 @@ export function BenchmarkGrid({
   isRunning = false,
   onRunBenchmark,
   runningBenchmarkIds = [],
+  executions,
   agentPerformanceData,
   agentPerformanceLoading,
   agentPerformanceError,
@@ -28,20 +30,15 @@ export function BenchmarkGrid({
   const allBenchmarks = benchmarks || [];
   const runningBenchmarks = new Set<string>(runningBenchmarkIds);
 
-  // Trace the real data before rendering (only when not loading)
-  if (!benchmarksLoading && !agentPerformanceLoading) {
-    console.log("🔍 BenchmarkGrid - Real Data Trace:");
-    console.log("  - benchmarks:", benchmarks);
-    console.log("  - benchmarks length:", benchmarks?.length);
-    console.log("  - agentPerformanceData:", agentPerformanceData);
-    console.log(
-      "  - agentPerformanceData length:",
-      agentPerformanceData?.length,
-    );
-    console.log("  - benchmarksLoading:", benchmarksLoading);
-    console.log("  - agentPerformanceLoading:", agentPerformanceLoading);
-    console.log("  - runningBenchmarkIds:", runningBenchmarkIds);
-  }
+  // Log running state changes
+  useEffect(() => {
+    console.log("🔄 BenchmarkGrid - Running state changed:", {
+      runningBenchmarkIds,
+      runningBenchmarksCount: runningBenchmarks.size,
+      benchmarksCount: allBenchmarks.length,
+      timestamp: new Date().toISOString(),
+    });
+  }, [runningBenchmarkIds, runningBenchmarks.size, allBenchmarks.length]);
 
   return (
     <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
@@ -60,6 +57,7 @@ export function BenchmarkGrid({
                   agentData={agentData}
                   allBenchmarks={allBenchmarks}
                   runningBenchmarks={runningBenchmarks}
+                  runningBenchmarkExecutions={executions}
                   onBenchmarkClick={(result) => {
                     console.log("Benchmark clicked:", result);
                     if (onBenchmarkSelect) {

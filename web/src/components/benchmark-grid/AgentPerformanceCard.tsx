@@ -1,4 +1,4 @@
-import { useMemo } from "preact/hooks";
+import { useMemo, useEffect } from "preact/hooks";
 import { BenchmarkBox } from "../BenchmarkBox";
 import { BenchmarkResult } from "../../types/benchmark";
 import { AgentPerformanceSummary } from "./types";
@@ -9,6 +9,10 @@ interface AgentPerformanceCardProps {
   allBenchmarks: any[];
   runningBenchmarks: Set<string>;
   onBenchmarkClick: (result: BenchmarkResult) => void;
+  runningBenchmarkExecutions?: Map<
+    string,
+    { agent: string; status: string; progress: number }
+  >;
 }
 
 export function AgentPerformanceCard({
@@ -17,6 +21,7 @@ export function AgentPerformanceCard({
   allBenchmarks,
   runningBenchmarks,
   onBenchmarkClick,
+  runningBenchmarkExecutions,
 }: AgentPerformanceCardProps) {
   const finalAgentData = useMemo(
     () =>
@@ -32,8 +37,37 @@ export function AgentPerformanceCard({
     [agentData, agentType],
   );
 
+  // // Log running benchmarks state changes
+  // useEffect(() => {
+  //   console.log(
+  //     `🔄 AgentPerformanceCard[${agentType}] - Running benchmarks state:`,
+  //     {
+  //       runningBenchmarks: Array.from(runningBenchmarks),
+  //       totalRunning: runningBenchmarks.size,
+  //       allBenchmarksCount: allBenchmarks.length,
+  //       runningExecutions: runningBenchmarkExecutions
+  //         ? Array.from(runningBenchmarkExecutions.entries()).map(
+  //             ([id, exec]) => ({
+  //               benchmarkId: id,
+  //               agent: exec.agent,
+  //               status: exec.status,
+  //               progress: exec.progress,
+  //             }),
+  //           )
+  //         : [],
+  //       timestamp: new Date().toISOString(),
+  //     },
+  //   );
+  // }, [
+  //   runningBenchmarks,
+  //   allBenchmarks.length,
+  //   agentType,
+  //   runningBenchmarkExecutions,
+  // ]);
+
   const lastThreePercentage = useMemo(() => {
-    if (!finalAgentData.results || finalAgentData.results.length === 0) return 0;
+    if (!finalAgentData.results || finalAgentData.results.length === 0)
+      return 0;
 
     const latestByBenchmark = new Map();
     finalAgentData.results?.forEach((result) => {
@@ -84,6 +118,8 @@ export function AgentPerformanceCard({
         if (run) {
           const [date, results] = run;
           const runDate = results[0].timestamp;
+          // Only apply running animation to the most recent run (index 0)
+          const isMostRecentRun = index === 0;
 
           return (
             <div key={index} className="flex items-center space-x-2 text-sm">
@@ -108,12 +144,18 @@ export function AgentPerformanceCard({
                         (r) => r.benchmark_id === benchmark.id,
                       );
                       if (benchmarkResult) {
+                        const isRunning =
+                          isMostRecentRun &&
+                          runningBenchmarks.has(benchmark.id) &&
+                          runningBenchmarkExecutions?.get(benchmark.id)
+                            ?.agent === agentType;
+
                         return (
                           <BenchmarkBox
                             key={benchmark.id}
                             result={benchmarkResult}
                             onClick={onBenchmarkClick}
-                            isRunning={runningBenchmarks.has(benchmark.id)}
+                            isRunning={isRunning}
                           />
                         );
                       } else {
@@ -127,12 +169,18 @@ export function AgentPerformanceCard({
                           timestamp: runDate,
                           color_class: "gray" as const,
                         };
+                        const isRunning =
+                          isMostRecentRun &&
+                          runningBenchmarks.has(benchmark.id) &&
+                          runningBenchmarkExecutions?.get(benchmark.id)
+                            ?.agent === agentType;
+
                         return (
                           <BenchmarkBox
                             key={benchmark.id}
                             result={placeholderResult}
                             onClick={onBenchmarkClick}
-                            isRunning={runningBenchmarks.has(benchmark.id)}
+                            isRunning={isRunning}
                           />
                         );
                       }
@@ -170,12 +218,15 @@ export function AgentPerformanceCard({
                         timestamp: new Date().toISOString(),
                         color_class: "gray",
                       };
+                      // This is a placeholder row (no actual run), so never running
+                      const isRunning = false;
+
                       return (
                         <BenchmarkBox
                           key={benchmark.id}
                           result={placeholderResult}
                           onClick={onBenchmarkClick}
-                          isRunning={runningBenchmarks.has(benchmark.id)}
+                          isRunning={isRunning}
                         />
                       );
                     })}
