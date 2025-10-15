@@ -8,6 +8,7 @@ interface BenchmarkBoxProps {
   onClick?: (result: BenchmarkResult) => void;
   className?: string;
   isRunning?: boolean;
+  isSelected?: boolean;
 }
 
 export function BenchmarkBox({
@@ -16,6 +17,7 @@ export function BenchmarkBox({
   onClick,
   className = "",
   isRunning = false,
+  isSelected = false,
 }: BenchmarkBoxProps) {
   const getColorClass = (result: BenchmarkResult): string => {
     // If running, don't apply static background color - animation will handle it
@@ -40,7 +42,7 @@ export function BenchmarkBox({
     return "";
   };
 
-  const baseClasses = `${getColorClass(result)} hover:opacity-80 transition-opacity cursor-pointer`;
+  const baseClasses = `${getColorClass(result)} hover:opacity-80 transition-opacity cursor-pointer ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,

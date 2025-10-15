@@ -560,6 +560,7 @@ export function App() {
             benchmarksLoading={benchmarksLoading}
             benchmarksError={benchmarksError}
             refetchBenchmarks={refetchBenchmarks}
+            selectedBenchmark={selectedBenchmark}
           />
         </div>
       </div>

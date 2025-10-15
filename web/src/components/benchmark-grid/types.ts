@@ -21,6 +21,7 @@ export interface BenchmarkGridProps {
     string,
     { agent: string; status: string; progress: number }
   >;
+  selectedBenchmark?: string | null;
   executions?: Map<string, any>;
   agentPerformanceData?: any;
   agentPerformanceLoading?: boolean;

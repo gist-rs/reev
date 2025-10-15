@@ -13,6 +13,7 @@ interface AgentPerformanceCardProps {
     string,
     { agent: string; status: string; progress: number }
   >;
+  selectedBenchmark?: string | null;
 }
 
 export function AgentPerformanceCard({
@@ -22,6 +23,7 @@ export function AgentPerformanceCard({
   runningBenchmarks,
   onBenchmarkClick,
   runningBenchmarkExecutions,
+  selectedBenchmark,
 }: AgentPerformanceCardProps) {
   const finalAgentData = useMemo(
     () =>
@@ -84,6 +86,7 @@ export function AgentPerformanceCard({
         result={result}
         onClick={onBenchmarkClick}
         isRunning={isRunning}
+        isSelected={selectedBenchmark === benchmark.id}
       />
     );
   };
@@ -161,6 +164,8 @@ export function AgentPerformanceCard({
                     runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
                       agentType;
 
+                  const isSelected = selectedBenchmark === benchmark.id;
+
                   if (benchmarkResult) {
                     return renderBenchmarkBox(
                       benchmark,
@@ -172,6 +177,7 @@ export function AgentPerformanceCard({
                       benchmark.id,
                       runDate,
                     );
+                    const isSelected = selectedBenchmark === benchmark.id;
                     return renderBenchmarkBox(
                       benchmark,
                       placeholderResult,
@@ -194,6 +200,7 @@ export function AgentPerformanceCard({
                     benchmark.id,
                     new Date().toISOString(),
                   );
+                  const isSelected = selectedBenchmark === benchmark.id;
                   return renderBenchmarkBox(
                     benchmark,
                     placeholderResult,
