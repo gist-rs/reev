@@ -42,11 +42,11 @@ async fn main() -> Result<()> {
     let benchmarks_dir = "benchmarks";
     info!("Syncing benchmarks from directory: {}", benchmarks_dir);
     let synced_count = db
-        .sync_benchmarks_to_db(benchmarks_dir)
+        .sync_benchmarks_from_dir(benchmarks_dir)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to sync benchmarks: {e}"))?;
     info!(
-        "Successfully synced {} benchmarks to database",
+        "Successfully synced {:?} benchmarks to database",
         synced_count
     );
 

@@ -1,5 +1,6 @@
 use crate::types::*;
 use anyhow::Result;
+use reev_db::shared::flow::FlowLogConverter;
 use reev_lib::db::DatabaseWriter;
 use reev_lib::flow::types::{
     EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType, FlowLog,
@@ -359,7 +360,12 @@ pub async fn store_flow_log(
         }),
     };
 
-    db.insert_flow_log(&flow_log).await?;
+    // Convert reev-lib FlowLog to shared FlowLog
+    let shared_flow_log = flow_log
+        .to_flow_log()
+        .map_err(|e| anyhow::anyhow!("Failed to convert FlowLog: {e}"))?;
+
+    db.insert_flow_log(&shared_flow_log).await?;
     Ok(())
 }
 

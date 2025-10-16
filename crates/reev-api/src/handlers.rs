@@ -152,7 +152,7 @@ pub async fn get_agent_performance(State(state): State<ApiState>) -> impl IntoRe
                     }
                 }
             }
-            Json(summaries).into_response()
+            Json::<Vec<reev_db::AgentPerformanceSummary>>(summaries).into_response()
         }
         Err(e) => {
             error!("Failed to get agent performance: {}", e);
@@ -354,21 +354,20 @@ pub async fn get_flow_log(
     info!("Getting YML flow logs for benchmark: {}", benchmark_id);
 
     match state.db.get_yml_flow_logs(&benchmark_id).await {
-        Ok(yml_logs) => {
-            info!(
-                "Found {} YML logs for benchmark: {}",
-                yml_logs.len(),
-                benchmark_id
-            );
-            for (i, log) in yml_logs.iter().enumerate() {
-                let preview = if log.is_empty() {
-                    "<empty>".to_string()
-                } else {
-                    log[..log.len().min(100)].to_string()
-                };
-                info!("YML log {}: length={}, preview={}", i, log.len(), preview);
-            }
+        Ok(Some(yml_logs)) => {
+            info!("Found YML logs for benchmark: {}", benchmark_id);
+            let preview = if yml_logs.is_empty() {
+                "<empty>".to_string()
+            } else {
+                yml_logs[..yml_logs.len().min(100)].to_string()
+            };
+            info!("YML log: length={}, preview={}", yml_logs.len(), preview);
+
             Json(yml_logs).into_response()
+        }
+        Ok(None) => {
+            info!("No YML logs found for benchmark: {}", benchmark_id);
+            Json("No logs found").into_response()
         }
         Err(e) => {
             error!("Failed to get YML flow logs: {}", e);
@@ -394,6 +393,7 @@ pub async fn get_ascii_tree_direct(
         .await
     {
         Ok(Some(yml_content)) => {
+            let yml_content: String = yml_content;
             info!("Found YML TestResult for benchmark: {}", benchmark_id);
 
             // Parse YML to TestResult
@@ -738,8 +738,6 @@ pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoRespons
 
 /// Test ON CONFLICT behavior with simple data
 pub async fn test_on_conflict(State(state): State<ApiState>) -> impl IntoResponse {
-    
-
     let db = &state.db;
 
     // Test 1: Insert first record using existing upsert function
@@ -791,10 +789,10 @@ pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse
         benchmarks_dir
     );
 
-    match db.sync_benchmarks_to_db(benchmarks_dir).await {
+    match db.sync_benchmarks_from_dir(benchmarks_dir).await {
         Ok(synced_count) => {
             info!(
-                "Successfully synced {} benchmarks to database",
+                "Successfully synced {:?} benchmarks to database",
                 synced_count
             );
             (
@@ -802,7 +800,7 @@ pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse
                 Json(serde_json::json!({
                     "success": true,
                     "synced_count": synced_count,
-                    "message": format!("Successfully synced {} benchmarks from {}", synced_count, benchmarks_dir)
+                    "message": format!("Successfully synced {:?} benchmarks from {}", synced_count, benchmarks_dir)
                 })),
             )
         }
