@@ -738,7 +738,7 @@ pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoRespons
 
 /// Test ON CONFLICT behavior with simple data
 pub async fn test_on_conflict(State(state): State<ApiState>) -> impl IntoResponse {
-    use chrono::Utc;
+    
 
     let db = &state.db;
 

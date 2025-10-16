@@ -442,7 +442,7 @@ impl DatabaseWriter {
     ) -> Result<String> {
         let prompt_md5 = format!(
             "{:x}",
-            md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes())
+            md5::compute(format!("{benchmark_name}:{prompt}").as_bytes())
         );
         let timestamp = chrono::Utc::now().to_rfc3339();
 
