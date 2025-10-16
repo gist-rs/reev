@@ -52,12 +52,12 @@ async fn test_sync_benchmarks() -> Result<(), Box<dyn std::error::Error>> {
 
     fs::write(
         &benchmark1,
-        "id: 001-test\nprompt: Test 1\ncontent: Test content 1\n",
+        "id: 001-test\ndescription: Test benchmark 1\ntags: [\"test\"]\ninitial_state:\n  - pubkey: \"USER_WALLET_PUBKEY\"\n    owner: \"11111111111111111111111111111111\"\n    lamports: 1000000000\nprompt: Test 1\nground_truth:\n  final_state_assertions: []\n  expected_instructions: []\n",
     )
     .await?;
     fs::write(
         &benchmark2,
-        "id: 002-test\nprompt: Test 2\ncontent: Test content 2\n",
+        "id: 002-test\ndescription: Test benchmark 2\ntags: [\"test\"]\ninitial_state:\n  - pubkey: \"USER_WALLET_PUBKEY\"\n    owner: \"11111111111111111111111111111111\"\n    lamports: 1000000000\nprompt: Test 2\nground_truth:\n  final_state_assertions: []\n  expected_instructions: []\n",
     )
     .await?;
 

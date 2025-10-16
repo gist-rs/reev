@@ -33,7 +33,8 @@ fn test_batch_result() {
     assert_eq!(result.failure_count, 1);
     assert_eq!(result.total_count(), 3);
     assert!(!result.is_complete_success());
-    assert_eq!(result.success_rate(), 66.66666666666667);
+    let success_rate = result.success_rate();
+    assert!((success_rate - 66.66666666666667).abs() < 0.0001);
 }
 
 #[test]

@@ -22,8 +22,8 @@
 //!     let db = DatabaseWriter::new(config).await?;
 //!
 //!     // Sync benchmarks from directory
-//!     let count = db.sync_benchmarks_from_dir("benchmarks").await?;
-//!     println!("Synced {} benchmarks", count);
+//!     let result = db.sync_benchmarks_from_dir("benchmarks").await?;
+//!     println!("Synced {} benchmarks", result.processed_count);
 //!
 //!     // Check for duplicates
 //!     let duplicates = db.check_for_duplicates().await?;
