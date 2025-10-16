@@ -90,9 +90,9 @@ async fn test_sequential_processing() -> Result<()> {
     // Create a larger set of test data
     let test_data: Vec<_> = (0..20)
         .map(|i| {
-            let name = format!("seq-{:03}", i);
-            let prompt = format!("Sequential prompt {}", i);
-            let content = format!("Sequential content {}", i);
+            let name = format!("seq-{i:03}");
+            let prompt = format!("Sequential prompt {i}");
+            let content = format!("Sequential content {i}");
             (name, prompt, content)
         })
         .collect();
@@ -142,9 +142,9 @@ async fn test_concurrency_limits() -> Result<()> {
     // Test with moderate concurrency (10 items)
     let test_data: Vec<_> = (0..10)
         .map(|i| {
-            let name = format!("conc-{:03}", i);
-            let prompt = format!("Concurrent prompt {}", i);
-            let content = format!("Concurrent content {}", i);
+            let name = format!("conc-{i:03}");
+            let prompt = format!("Concurrent prompt {i}");
+            let content = format!("Concurrent content {i}");
             (name, prompt, content)
         })
         .collect();
@@ -190,7 +190,7 @@ async fn test_concurrency_limits() -> Result<()> {
     let unique_md5s: HashSet<_> = results.iter().collect();
 
     println!("   📊 Results: {} records, {} unique MD5s", count, unique_md5s.len());
-    println!("   📊 Success: {}, Errors: {}", success_count, error_count);
+    println!("   📊 Success: {success_count}, Errors: {error_count}");
 
     if count == 10 && unique_md5s.len() == 10 && error_count == 0 {
         println!("   ✅ PASS: Moderate concurrency works");
@@ -214,9 +214,9 @@ async fn test_high_concurrency_stress() -> Result<()> {
     // Test with high concurrency (20 items)
     let test_data: Vec<_> = (0..20)
         .map(|i| {
-            let name = format!("stress-{:03}", i);
-            let prompt = format!("Stress test prompt {}", i);
-            let content = format!("Stress test content {}", i);
+            let name = format!("stress-{i:03}");
+            let prompt = format!("Stress test prompt {i}");
+            let content = format!("Stress test content {i}");
             (name, prompt, content)
         })
         .collect();
@@ -267,7 +267,7 @@ async fn test_high_concurrency_stress() -> Result<()> {
     let unique_md5s: HashSet<_> = results.iter().collect();
 
     println!("   📊 Results: {} records, {} unique MD5s", count, unique_md5s.len());
-    println!("   📊 Success: {}, Errors: {}", success_count, error_count);
+    println!("   📊 Success: {success_count}, Errors: {error_count}");
 
     if error_count > 0 {
         println!("   ✅ EXPECTED: High concurrency shows limitations");
@@ -339,7 +339,7 @@ async fn upsert_benchmark(
     prompt: &str,
     content: &str,
 ) -> Result<String> {
-    let prompt_md5 = format!("{:x}", md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes()));
+    let prompt_md5 = format!("{:x}", md5::compute(format!("{benchmark_name}:{prompt}").as_bytes()));
     let timestamp = Utc::now().to_rfc3339();
 
     let query = "

@@ -38,11 +38,11 @@ async fn main() -> Result<()> {
     ) -> Result<String> {
         let prompt_md5 = format!(
             "{:x}",
-            md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes())
+            md5::compute(format!("{benchmark_name}:{prompt}").as_bytes())
         );
         let timestamp = Utc::now().to_rfc3339();
 
-        println!("🔢 Calculated MD5: {} for {}:{:50}", prompt_md5, benchmark_name, prompt);
+        println!("🔢 Calculated MD5: {prompt_md5} for {benchmark_name}:{prompt:50}");
 
         // Use INSERT ... ON CONFLICT DO UPDATE pattern from our implementation
         let query = "
@@ -69,18 +69,15 @@ async fn main() -> Result<()> {
         .await?;
 
         println!(
-            "[DB] Upserted benchmark '{}' with MD5 '{}' (prompt: {:.50}...) - Result: {:?}",
-            benchmark_name, prompt_md5, prompt, result
+            "[DB] Upserted benchmark '{benchmark_name}' with MD5 '{prompt_md5}' (prompt: {prompt:.50}...) - Result: {result:?}"
         );
         Ok(prompt_md5)
     }
 
     // Test Data - simulate the problematic scenario
-    let test_cases = vec![
-        ("001-spl-transfer", "Transfer 1 SOL to recipient", "content: spl transfer"),
+    let test_cases = [("001-spl-transfer", "Transfer 1 SOL to recipient", "content: spl transfer"),
         ("002-spl-transfer-fail", "Transfer 1 SOL to recipient (should fail)", "content: spl transfer fail"),
-        ("003-spl-transfer-fail", "Transfer 1 SOL to recipient (should fail)", "content: spl transfer fail"),
-    ];
+        ("003-spl-transfer-fail", "Transfer 1 SOL to recipient (should fail)", "content: spl transfer fail")];
 
     println!("\n🔄 Phase 1: First sync (create all records)");
     let mut first_sync_md5s = Vec::new();
@@ -94,7 +91,7 @@ async fn main() -> Result<()> {
         let mut rows = conn.query("SELECT COUNT(*) FROM benchmarks", ()).await?;
         if let Some(row) = rows.next().await? {
             let count: i64 = row.get(0)?;
-            println!("   Current record count: {}", count);
+            println!("   Current record count: {count}");
         }
     }
 
@@ -108,7 +105,7 @@ async fn main() -> Result<()> {
         let name: String = row.get(1)?;
         let prompt_preview: String = row.get(2)?;
         let created_at: String = row.get(3)?;
-        println!("   {} | {} | {}... | {}", id, name, prompt_preview, created_at);
+        println!("   {id} | {name} | {prompt_preview}... | {created_at}");
     }
 
     println!("\n🔄 Phase 2: Second sync (simulate duplicate issue)");
@@ -123,7 +120,7 @@ async fn main() -> Result<()> {
         let mut rows = conn.query("SELECT COUNT(*) FROM benchmarks", ()).await?;
         if let Some(row) = rows.next().await? {
             let count: i64 = row.get(0)?;
-            println!("   Current record count: {}", count);
+            println!("   Current record count: {count}");
         }
     }
 
@@ -136,7 +133,7 @@ async fn main() -> Result<()> {
 
     println!("\n🎯 Final Analysis:");
     println!("   Test cases: {}", test_cases.len());
-    println!("   Final record count: {}", final_count);
+    println!("   Final record count: {final_count}");
 
     if final_count == test_cases.len() as i64 {
         println!("✅ SUCCESS: No duplicates created! ON CONFLICT works correctly");
@@ -153,18 +150,18 @@ async fn main() -> Result<()> {
             let prompt_preview: String = row.get(2)?;
             let created_at: String = row.get(3)?;
             let updated_at: String = row.get(4)?;
-            println!("   {} | {} | {}... | Created: {} | Updated: {}", id, name, prompt_preview, created_at, updated_at);
+            println!("   {id} | {name} | {prompt_preview}... | Created: {created_at} | Updated: {updated_at}");
         }
 
         // Group by ID to see duplicates
         println!("\n🔍 Grouped by ID:");
-        let mut grouped: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        let grouped: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
         let mut rows = conn.query("SELECT id, benchmark_name, COUNT(*) as count FROM benchmarks GROUP BY id, benchmark_name ORDER BY id", ()).await?;
         while let Some(row) = rows.next().await? {
             let id: String = row.get(0)?;
             let name: String = row.get(1)?;
             let count: i64 = row.get(2)?;
-            println!("   ID: {} | Name: {} | Count: {}", id, name, count);
+            println!("   ID: {id} | Name: {name} | Count: {count}");
             if count > 1 {
                 println!("      ⚠️  DUPLICATE DETECTED!");
             }

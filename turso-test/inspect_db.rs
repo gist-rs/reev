@@ -1,5 +1,5 @@
 use anyhow::Result;
-use turso::{Builder, Connection};
+use turso::Builder;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
     let mut rows = conn.query("SELECT COUNT(*) FROM benchmarks", ()).await?;
     if let Some(row) = rows.next().await? {
         let count: i64 = row.get(0)?;
-        println!("📊 Total benchmark records: {}", count);
+        println!("📊 Total benchmark records: {count}");
     }
 
     // Show all records grouped by ID to detect duplicates
@@ -32,15 +32,15 @@ async fn main() -> Result<()> {
 
         if count > 1 {
             duplicate_count += 1;
-            println!("   ❌ DUPLICATE: {} | {} | Count: {}", id, name, count);
+            println!("   ❌ DUPLICATE: {id} | {name} | Count: {count}");
         } else {
-            println!("   ✅ OK: {} | {} | Count: {}", id, name, count);
+            println!("   ✅ OK: {id} | {name} | Count: {count}");
         }
     }
 
     println!("\n🎯 Summary:");
-    println!("   Unique benchmark IDs: {}", total_records);
-    println!("   Duplicates detected: {}", duplicate_count);
+    println!("   Unique benchmark IDs: {total_records}");
+    println!("   Duplicates detected: {duplicate_count}");
 
     if duplicate_count > 0 {
         println!("   ⚠️  ISSUE CONFIRMED: Duplicates exist in database");
@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
 
             if id != last_id {
                 if !last_id.is_empty() && record_count > 1 {
-                    println!("   ⚠️  {} has {} records", last_id, record_count);
+                    println!("   ⚠️  {last_id} has {record_count} records");
                 }
                 last_id = id.clone();
                 record_count = 1;
@@ -69,12 +69,11 @@ async fn main() -> Result<()> {
                 record_count += 1;
             }
 
-            println!("      {} | {} | {}... | Created: {} | Updated: {}",
-                id, name, prompt_preview, created_at, updated_at);
+            println!("      {id} | {name} | {prompt_preview}... | Created: {created_at} | Updated: {updated_at}");
         }
 
         if !last_id.is_empty() && record_count > 1 {
-            println!("   ⚠️  {} has {} records", last_id, record_count);
+            println!("   ⚠️  {last_id} has {record_count} records");
         }
     } else {
         println!("   ✅ No duplicates found");
@@ -88,7 +87,7 @@ async fn main() -> Result<()> {
         let id: String = row.get(0)?;
         let name: String = row.get(1)?;
         let prompt: String = row.get(2)?;
-        println!("   {} | {} | {}", id, name, prompt);
+        println!("   {id} | {name} | {prompt}");
     }
 
     Ok(())

@@ -23,13 +23,13 @@ async fn main() -> Result<()> {
         "INSERT INTO test_table (id, name) VALUES (?, ?)",
         ["same-id", "first-name"]
     ).await?;
-    println!("✅ First insert result: {:?}", result1);
+    println!("✅ First insert result: {result1:?}");
 
     // Check count after first insert
     let mut rows = conn.query("SELECT COUNT(*) FROM test_table", ()).await?;
     if let Some(row) = rows.next().await? {
         let count: i64 = row.get(0)?;
-        println!("📊 Record count after first insert: {}", count);
+        println!("📊 Record count after first insert: {count}");
     }
 
     println!("\n📝 Test 2: Insert second record with SAME ID using ON CONFLICT");
@@ -38,13 +38,13 @@ async fn main() -> Result<()> {
          ON CONFLICT(id) DO UPDATE SET name = excluded.name",
         ["same-id", "second-name"]
     ).await?;
-    println!("✅ Second insert result: {:?}", result2);
+    println!("✅ Second insert result: {result2:?}");
 
     // Check final count
     let mut rows = conn.query("SELECT COUNT(*) FROM test_table", ()).await?;
     if let Some(row) = rows.next().await? {
         let count: i64 = row.get(0)?;
-        println!("📊 Final record count: {}", count);
+        println!("📊 Final record count: {count}");
 
         if count == 1 {
             println!("✅ SUCCESS: ON CONFLICT worked correctly - only 1 record exists");
@@ -54,10 +54,10 @@ async fn main() -> Result<()> {
             while let Some(row) = rows.next().await? {
                 let id: String = row.get(0)?;
                 let name: String = row.get(1)?;
-                println!("📋 Final record: {} -> {}", id, name);
+                println!("📋 Final record: {id} -> {name}");
             }
         } else {
-            println!("❌ FAILURE: ON CONFLICT failed - {} records exist (should be 1)", count);
+            println!("❌ FAILURE: ON CONFLICT failed - {count} records exist (should be 1)");
 
             // Show all records
             println!("📋 All records:");
@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
             while let Some(row) = rows.next().await? {
                 let id: String = row.get(0)?;
                 let name: String = row.get(1)?;
-                println!("  - {} -> {}", id, name);
+                println!("  - {id} -> {name}");
             }
         }
     }

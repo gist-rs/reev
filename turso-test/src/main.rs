@@ -5,10 +5,10 @@ use turso::Builder;
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("🧪 Testing Turso ON CONFLICT behavior...");
-    
+
     // Create in-memory database
-    let conn = Builder::new_local().build()?.connect()?;
-    
+    let conn = Builder::new_local(":memory:").build().await?.connect()?;
+
     // Create test table
     conn.execute(
         "CREATE TABLE test_table (
@@ -19,24 +19,24 @@ async fn main() -> Result<()> {
         )",
         (),
     ).await?;
-    
+
     let timestamp = Utc::now().to_rfc3339();
-    
+
     println!("
 📝 Test 1: Insert first record");
     let result1 = conn.execute(
         "INSERT INTO test_table (id, name, value, updated_at) VALUES (?, ?, ?, ?)",
         ["test-id", "name1", "value1", &timestamp]
     ).await?;
-    println!("✅ First insert result: {:?}", result1);
-    
+    println!("✅ First insert result: {result1:?}");
+
     // Check count after first insert
     let mut rows = conn.query("SELECT COUNT(*) FROM test_table", ()).await?;
     if let Some(row) = rows.next().await? {
         let count: i64 = row.get(0)?;
-        println!("📊 Record count after first insert: {}", count);
+        println!("📊 Record count after first insert: {count}");
     }
-    
+
     println!("
 📝 Test 2: Insert second record with SAME ID using ON CONFLICT");
     let result2 = conn.execute(
@@ -47,21 +47,21 @@ async fn main() -> Result<()> {
              updated_at = excluded.updated_at",
         ["test-id", "name2-updated", "value2-updated", &timestamp]
     ).await?;
-    println!("✅ Second insert result: {:?}", result2);
-    
+    println!("✅ Second insert result: {result2:?}");
+
     // Check final count
     let mut rows = conn.query("SELECT COUNT(*) FROM test_table", ()).await?;
     if let Some(row) = rows.next().await? {
         let count: i64 = row.get(0)?;
-        println!("📊 Final record count: {}", count);
-        
+        println!("📊 Final record count: {count}");
+
         if count == 1 {
             println!("✅ SUCCESS: ON CONFLICT worked correctly - only 1 record exists");
         } else {
-            println!("❌ FAILURE: ON CONFLICT failed - {} records exist (should be 1)", count);
+            println!("❌ FAILURE: ON CONFLICT failed - {count} records exist (should be 1)");
         }
     }
-    
+
     // Show actual data
     println!("
 📋 Actual records in database:");
@@ -70,8 +70,8 @@ async fn main() -> Result<()> {
         let id: String = row.get(0)?;
         let name: String = row.get(1)?;
         let value: String = row.get(2)?;
-        println!("  - {}: {} | {}", id, name, value);
+        println!("  - {id}: {name} | {value}");
     }
-    
+
     Ok(())
 }
