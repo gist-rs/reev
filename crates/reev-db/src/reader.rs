@@ -5,7 +5,7 @@
 
 use crate::{
     error::{DatabaseError, Result},
-    types::{AgentPerformance, FlowLog, QueryFilter, TestResult, YmlTestResult},
+    types::{AgentPerformance, DBFlowLog, QueryFilter, TestResult, YmlTestResult},
 };
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
@@ -222,7 +222,7 @@ impl DatabaseReader {
     }
 
     /// Get flow logs for a specific benchmark
-    pub async fn get_flow_logs(&self, benchmark_id: &str) -> Result<Vec<FlowLog>> {
+    pub async fn get_flow_logs(&self, benchmark_id: &str) -> Result<Vec<DBFlowLog>> {
         let query = "
             SELECT id, session_id, benchmark_id, agent_type, start_time, end_time,
                    final_result, flow_data, created_at
@@ -251,7 +251,7 @@ impl DatabaseReader {
             .await
             .map_err(|e| DatabaseError::query("Failed to iterate flow logs", e))?
         {
-            logs.push(FlowLog {
+            logs.push(DBFlowLog {
                 id: Some(
                     row.get(0).map_err(|e| {
                         DatabaseError::generic_with_source("Failed to get log ID", e)

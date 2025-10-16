@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // Re-export shared types for backward compatibility
-pub use crate::shared::flow::{ExecutionResult, FlowLog};
+pub use crate::shared::flow::{ExecutionResult, DBFlowLog};
 
 /// Benchmark data structure from YAML files
 #[derive(Debug, Clone, Serialize, Deserialize)]

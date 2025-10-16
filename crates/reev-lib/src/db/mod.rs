@@ -31,7 +31,7 @@ pub use reev_db::{
 };
 
 // Re-export shared types for clarity
-pub use reev_db::shared::flow::FlowLog as SharedFlowLog;
+pub use reev_db::shared::flow::DBFlowLog as SharedFlowLog;
 pub use reev_db::shared::performance::AgentPerformance as SharedPerformanceMetrics;
 
 // Compatibility type for backward compatibility

@@ -36,10 +36,10 @@ use serde_json;
 /// to enable conversion to/from the shared FlowLog type.
 pub trait FlowLogConverter<T> {
     /// Convert from domain type to shared FlowLog
-    fn to_flow_log(&self) -> Result<FlowLog, ConversionError>;
+    fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError>;
 
     /// Convert from shared FlowLog to domain type
-    fn from_flow_log(flow_log: &FlowLog) -> Result<T, ConversionError>;
+    fn from_flow_log(flow_log: &DBFlowLog) -> Result<T, ConversionError>;
 }
 
 /// Generic conversion utilities for common patterns
@@ -76,8 +76,8 @@ impl FlowConverter {
         benchmark_id: String,
         agent_type: String,
         start_time: &str,
-    ) -> FlowLog {
-        FlowLog {
+    ) -> DBFlowLog {
+        DBFlowLog {
             session_id,
             benchmark_id,
             agent_type,
@@ -92,10 +92,10 @@ impl FlowConverter {
 
     /// Update FlowLog with completion data
     pub fn mark_completed(
-        mut flow_log: FlowLog,
+        mut flow_log: DBFlowLog,
         end_time: Option<&str>,
         final_result: Option<String>,
-    ) -> FlowLog {
+    ) -> DBFlowLog {
         flow_log.end_time = end_time.map(|s| s.to_string());
         flow_log.final_result = final_result;
         flow_log
@@ -225,7 +225,7 @@ mod tests {
     }
 
     impl FlowLogConverter<TestFlowLog> for TestFlowLog {
-        fn to_flow_log(&self) -> Result<FlowLog, ConversionError> {
+        fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError> {
             let mut flow_log = FlowConverter::create_flow_log(
                 self.session_id.clone(),
                 self.benchmark_id.clone(),
@@ -276,7 +276,7 @@ mod tests {
             Ok(flow_log)
         }
 
-        fn from_flow_log(flow_log: &FlowLog) -> Result<TestFlowLog, ConversionError> {
+        fn from_flow_log(flow_log: &DBFlowLog) -> Result<TestFlowLog, ConversionError> {
             let events = FlowLogUtils::deserialize_events(&flow_log.flow_data)?;
             let test_events: Result<Vec<_>, ConversionError> = events
                 .iter()

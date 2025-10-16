@@ -6,11 +6,11 @@
 
 use crate::flow::types::*;
 use reev_db::shared::flow::ConversionError;
-use reev_db::shared::flow::{FlowLog, FlowLogConverter, FlowLogUtils};
+use reev_db::shared::flow::{DBFlowLog, FlowLogConverter, FlowLogUtils};
 
 /// Converter for reev-lib FlowLog to shared FlowLog
 impl FlowLogConverter<crate::flow::types::FlowLog> for crate::flow::types::FlowLog {
-    fn to_flow_log(&self) -> Result<FlowLog, ConversionError> {
+    fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError> {
         // Convert SystemTime to RFC3339 string
         let start_time_str = FlowLogUtils::system_time_to_rfc3339(self.start_time)?;
         let end_time_str = self
@@ -30,7 +30,7 @@ impl FlowLogConverter<crate::flow::types::FlowLog> for crate::flow::types::FlowL
             .map(convert_reev_lib_result)
             .transpose()?;
 
-        Ok(FlowLog {
+        Ok(DBFlowLog {
             session_id: self.session_id.clone(),
             benchmark_id: self.benchmark_id.clone(),
             agent_type: self.agent_type.clone(),
@@ -43,7 +43,7 @@ impl FlowLogConverter<crate::flow::types::FlowLog> for crate::flow::types::FlowL
         })
     }
 
-    fn from_flow_log(flow_log: &FlowLog) -> Result<crate::flow::types::FlowLog, ConversionError> {
+    fn from_flow_log(flow_log: &DBFlowLog) -> Result<crate::flow::types::FlowLog, ConversionError> {
         let start_time = FlowLogUtils::rfc3339_to_system_time(&flow_log.start_time)?;
         let end_time = flow_log
             .end_time

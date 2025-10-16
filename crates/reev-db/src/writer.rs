@@ -8,7 +8,7 @@ use crate::{
     error::{DatabaseError, Result},
     shared::performance::AgentPerformance,
     types::{
-        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, FlowLog, SyncError,
+        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, DBFlowLog, SyncError,
         SyncResult, SyncedBenchmark,
     },
     AgentPerformanceSummary,
@@ -704,7 +704,7 @@ impl DatabaseWriter {
     }
 
     /// Insert flow log data into the database
-    pub async fn insert_flow_log(&self, data: &FlowLog) -> Result<i64> {
+    pub async fn insert_flow_log(&self, data: &DBFlowLog) -> Result<i64> {
         let query = "
             INSERT INTO flow_logs (
                 session_id, benchmark_id, agent_type, start_time, end_time,
@@ -914,7 +914,7 @@ impl DatabaseWriter {
 
     /// Insert YML flow log
     pub async fn insert_yml_flow_log(&self, benchmark_id: &str, yml_content: &str) -> Result<i64> {
-        let flow_log = FlowLog {
+        let flow_log = DBFlowLog {
             id: None,
             session_id: format!("yml-import-{}", uuid::Uuid::new_v4()),
             benchmark_id: benchmark_id.to_string(),

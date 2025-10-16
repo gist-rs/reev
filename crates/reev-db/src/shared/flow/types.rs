@@ -18,7 +18,7 @@ use std::collections::HashMap;
 ///
 /// For domain-specific operations, create conversion traits to/from this type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FlowLog {
+pub struct DBFlowLog {
     /// Unique session identifier for grouping related logs
     pub session_id: String,
     /// Benchmark identifier
@@ -130,10 +130,10 @@ pub struct ScoringBreakdown {
 /// to convert to/from the shared FlowLog type.
 pub trait FlowLogConverter<T> {
     /// Convert from domain type to shared FlowLog
-    fn to_flow_log(&self) -> Result<FlowLog, ConversionError>;
+    fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError>;
 
     /// Convert from shared FlowLog to domain type
-    fn from_flow_log(flow_log: &FlowLog) -> Result<T, ConversionError>;
+    fn from_flow_log(flow_log: &DBFlowLog) -> Result<T, ConversionError>;
 }
 
 /// Conversion error types
@@ -182,9 +182,9 @@ pub struct FlowLogUtils;
 
 impl FlowLogUtils {
     /// Create a new FlowLog with current timestamp
-    pub fn create(session_id: String, benchmark_id: String, agent_type: String) -> FlowLog {
+    pub fn create(session_id: String, benchmark_id: String, agent_type: String) -> DBFlowLog {
         let now = chrono::Utc::now().to_rfc3339();
-        FlowLog {
+        DBFlowLog {
             session_id,
             benchmark_id,
             agent_type,
@@ -239,7 +239,7 @@ impl FlowLogUtils {
 
     /// Calculate execution duration
     pub fn calculate_duration(
-        flow_log: &FlowLog,
+        flow_log: &DBFlowLog,
     ) -> Result<Option<std::time::Duration>, ConversionError> {
         match &flow_log.end_time {
             Some(end_time) => {
@@ -256,7 +256,7 @@ impl FlowLogUtils {
 
     /// Mark FlowLog as completed
     pub fn mark_completed(
-        flow_log: &mut FlowLog,
+        flow_log: &mut DBFlowLog,
         result: Option<ExecutionResult>,
     ) -> Result<(), ConversionError> {
         flow_log.end_time = Some(chrono::Utc::now().to_rfc3339());
@@ -267,7 +267,7 @@ impl FlowLogUtils {
     }
 
     /// Add event to flow log
-    pub fn add_event(flow_log: &mut FlowLog, event: FlowEvent) -> Result<(), ConversionError> {
+    pub fn add_event(flow_log: &mut DBFlowLog, event: FlowEvent) -> Result<(), ConversionError> {
         let mut events = Self::deserialize_events(&flow_log.flow_data)?;
         events.push(event);
         flow_log.flow_data = Self::serialize_events(&events)?;
@@ -275,12 +275,12 @@ impl FlowLogUtils {
     }
 
     /// Get all events from flow log
-    pub fn get_events(flow_log: &FlowLog) -> Result<Vec<FlowEvent>, ConversionError> {
+    pub fn get_events(flow_log: &DBFlowLog) -> Result<Vec<FlowEvent>, ConversionError> {
         Self::deserialize_events(&flow_log.flow_data)
     }
 
     /// Get execution result from flow log
-    pub fn get_result(flow_log: &FlowLog) -> Result<Option<ExecutionResult>, ConversionError> {
+    pub fn get_result(flow_log: &DBFlowLog) -> Result<Option<ExecutionResult>, ConversionError> {
         match &flow_log.final_result {
             Some(json) => Ok(Some(Self::deserialize_result(json)?)),
             None => Ok(None),
