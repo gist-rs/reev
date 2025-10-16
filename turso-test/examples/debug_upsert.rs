@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
 
         // Group by ID to see duplicates
         println!("\n🔍 Grouped by ID:");
-        let grouped: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        let _grouped: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
         let mut rows = conn.query("SELECT id, benchmark_name, COUNT(*) as count FROM benchmarks GROUP BY id, benchmark_name ORDER BY id", ()).await?;
         while let Some(row) = rows.next().await? {
             let id: String = row.get(0)?;
