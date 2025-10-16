@@ -36,6 +36,11 @@ impl Default for FlowTracer {
 }
 
 impl FlowTracer {
+    /// Check if tracing is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// Trace a complete flow log (simplified)
     pub fn trace_flow(&self, flow: &FlowLog) {
         if !self.enabled {
@@ -205,65 +210,4 @@ pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Flow tracing initialization completed");
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::SystemTime;
-
-    #[test]
-    fn test_flow_tracer_creation() {
-        std::env::set_var("REEV_OTEL_ENABLED", "false");
-        let tracer = FlowTracer::new();
-        assert!(!tracer.enabled);
-    }
-
-    #[test]
-    fn test_flow_tracing_disabled() {
-        std::env::set_var("REEV_OTEL_ENABLED", "false");
-        let tracer = FlowTracer::new();
-
-        let event = FlowEvent {
-            timestamp: SystemTime::now(),
-            event_type: FlowEventType::LlmRequest,
-            depth: 1,
-            content: EventContent {
-                data: serde_json::to_value(LlmRequestContent {
-                    prompt: "test".to_string(),
-                    context_tokens: 100,
-                    model: "test-model".to_string(),
-                    request_id: "test-123".to_string(),
-                })
-                .unwrap(),
-                metadata: std::collections::HashMap::new(),
-            },
-        };
-
-        // Should not panic when disabled
-        tracer.trace_flow_event(&event);
-    }
-
-    #[test]
-    fn test_flow_tracing_enabled() {
-        std::env::set_var("REEV_OTEL_ENABLED", "true");
-        let tracer = FlowTracer::new();
-        assert!(tracer.enabled);
-
-        let event = FlowEvent {
-            timestamp: SystemTime::now(),
-            event_type: FlowEventType::ToolCall,
-            depth: 2,
-            content: EventContent {
-                data: serde_json::json!({
-                    "tool_name": "test_tool",
-                    "execution_time_ms": 1500
-                }),
-                metadata: std::collections::HashMap::new(),
-            },
-        };
-
-        // Should not panic when enabled
-        tracer.trace_flow_event(&event);
-    }
 }

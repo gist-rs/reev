@@ -25,3 +25,6 @@ async-trait = { workspace = true }
 [features]
 default = ["database"]
 database = []
+
+[dev-dependencies]
+serial_test = { workspace = true }
