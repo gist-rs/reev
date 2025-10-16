@@ -47,7 +47,7 @@ path = "tests/withdraw_test.rs"
 anyhow = { version = "1.0", default-features = false }
 serde_json = { version = "1.0", default-features = false }
 solana-client = { version = "2.3", default-features = false }
-solana-sdk = { version = "2.3", default-features = false }
+solana-sdk = { version = "2.3" }
 spl-associated-token-account = { version = "7.0.0", default-features = false }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1", default-features = false }
