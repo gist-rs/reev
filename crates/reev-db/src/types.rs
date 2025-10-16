@@ -2,9 +2,15 @@
 //!
 //! Defines common data structures used throughout the database operations
 //! including benchmark data, results, flow logs, and performance metrics.
+//!
+//! Note: FlowLog and related types are now in the `shared` module to enable
+//! reuse across projects and eliminate duplication.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+// Re-export shared types for backward compatibility
+pub use crate::shared::flow::{ExecutionResult, FlowLog};
 
 /// Benchmark data structure from YAML files
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,27 +73,32 @@ pub struct TestResult {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
-/// Agent execution flow log entry
+// FlowLog is now imported from shared module
+// This comment marks the location where FlowLog was previously defined
+// The shared FlowLog type provides the same functionality with better structure
+
+/// Agent performance summary for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FlowLog {
-    /// Unique identifier
-    pub id: Option<i64>,
-    /// Session identifier for grouping related logs
-    pub session_id: String,
-    /// Benchmark identifier
-    pub benchmark_id: String,
-    /// Type of agent that generated this log
+pub struct AgentPerformanceSummary {
+    /// Agent type
     pub agent_type: String,
-    /// When the execution started
-    pub start_time: String,
-    /// When the execution ended (if completed)
-    pub end_time: Option<String>,
-    /// Final result of the execution
-    pub final_result: Option<String>,
-    /// Detailed flow data (JSON)
-    pub flow_data: String,
-    /// When this log was created
-    pub created_at: String,
+    /// Number of executions
+    pub execution_count: i64,
+    /// Average score
+    pub avg_score: f64,
+    /// Latest timestamp
+    pub latest_timestamp: String,
+    /// Recent results (simplified for API)
+    pub results: Vec<PerformanceResult>,
+}
+
+/// Simplified performance result for API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceResult {
+    pub benchmark_id: String,
+    pub score: f64,
+    pub final_status: String,
+    pub timestamp: String,
 }
 
 /// Agent performance metrics

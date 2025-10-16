@@ -38,6 +38,7 @@
 pub mod config;
 pub mod error;
 pub mod reader;
+pub mod shared;
 pub mod types;
 pub mod writer;
 
@@ -45,7 +46,13 @@ pub mod writer;
 pub use config::DatabaseConfig;
 pub use error::{DatabaseError, Result};
 pub use reader::DatabaseReader;
-pub use types::*;
+// Import shared types first, then legacy types for backward compatibility
+pub use shared::prelude::*;
+// Legacy types - re-export only ones not in shared module to avoid ambiguity
+pub use types::{
+    AgentPerformanceSummary, BatchError, BatchResult, DatabaseStats, DuplicateRecord,
+    PerformanceResult, QueryFilter, SyncError, SyncResult, SyncedBenchmark,
+};
 pub use writer::DatabaseWriter;
 
 /// Current library version

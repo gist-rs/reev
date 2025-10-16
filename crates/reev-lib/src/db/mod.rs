@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 // Re-export all database functionality from reev-db
 pub use reev_db::{
     // Types
-    AgentPerformance,
+    AgentPerformance as DbAgentPerformance, // Legacy types from reev-db/types
     BatchError,
     BatchResult,
     BenchmarkData,
@@ -19,7 +19,6 @@ pub use reev_db::{
     DatabaseStats,
     DatabaseWriter,
     DuplicateRecord,
-    FlowLog,
     QueryFilter,
     Result,
     SyncError,
@@ -30,6 +29,10 @@ pub use reev_db::{
     // Convenience functions
     VERSION,
 };
+
+// Re-export shared types for clarity
+pub use reev_db::shared::flow::FlowLog as SharedFlowLog;
+pub use reev_db::shared::performance::AgentPerformance as SharedPerformanceMetrics;
 
 // Compatibility type for backward compatibility
 // This matches the old AgentPerformanceData structure from reev-lib
@@ -45,9 +48,9 @@ pub struct AgentPerformanceData {
     pub prompt_md5: Option<String>,
 }
 
-impl From<AgentPerformanceData> for reev_db::AgentPerformance {
+impl From<AgentPerformanceData> for DbAgentPerformance {
     fn from(data: AgentPerformanceData) -> Self {
-        Self {
+        DbAgentPerformance {
             id: None,
             benchmark_id: data.benchmark_id,
             agent_type: data.agent_type,

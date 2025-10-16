@@ -6,10 +6,12 @@
 use crate::{
     config::DatabaseConfig,
     error::{DatabaseError, Result},
+    shared::performance::AgentPerformance,
     types::{
-        AgentPerformance, BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, FlowLog,
-        SyncError, SyncResult, SyncedBenchmark,
+        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, FlowLog, SyncError,
+        SyncResult, SyncedBenchmark,
     },
+    AgentPerformanceSummary,
 };
 use chrono::Utc;
 use std::path::Path;
@@ -710,7 +712,8 @@ impl DatabaseWriter {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ";
 
-        self.conn
+        let _result = self
+            .conn
             .execute(
                 query,
                 [
@@ -721,11 +724,11 @@ impl DatabaseWriter {
                     data.end_time.clone().unwrap_or_default(),
                     data.final_result.clone().unwrap_or_default(),
                     data.flow_data.clone(),
-                    data.created_at.clone(),
+                    data.created_at.clone().unwrap_or_default(),
                 ],
             )
             .await
-            .map_err(|e| DatabaseError::query("Failed to insert flow log", e))?;
+            .map_err(|e| DatabaseError::generic_with_source("Failed to insert flow log", e))?;
 
         // Get the ID of the inserted row
         let mut rows = self.conn.query("SELECT last_insert_rowid()", ()).await?;
@@ -737,6 +740,46 @@ impl DatabaseWriter {
         } else {
             Err(DatabaseError::generic("Failed to get flow log ID"))
         }
+    }
+
+    /// Insert test result data into the database
+    pub async fn insert_result(
+        &self,
+        benchmark_id: &str,
+        prompt: &str,
+        generated_instruction: &str,
+        final_on_chain_state: &str,
+        final_status: &str,
+        score: f64,
+    ) -> Result<()> {
+        let timestamp = Utc::now().to_rfc3339();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        let query = "
+            INSERT INTO results (
+                id, benchmark_id, timestamp, prompt, generated_instruction,
+                final_on_chain_state, final_status, score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+
+        self.conn
+            .execute(
+                query,
+                [
+                    id,
+                    benchmark_id.to_string(),
+                    timestamp,
+                    prompt.to_string(),
+                    generated_instruction.to_string(),
+                    final_on_chain_state.to_string(),
+                    final_status.to_string(),
+                    score.to_string(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::generic_with_source("Failed to insert test result", e))?;
+
+        Ok(())
     }
 
     /// Get prompt MD5 by benchmark name
@@ -766,6 +809,142 @@ impl DatabaseWriter {
         } else {
             Ok(None)
         }
+    }
+
+    /// Get agent performance summaries
+    pub async fn get_agent_performance(&self) -> Result<Vec<AgentPerformanceSummary>> {
+        let query = "
+            SELECT
+                agent_type,
+                COUNT(*) as execution_count,
+                AVG(score) as avg_score,
+                MAX(timestamp) as latest_timestamp
+            FROM agent_performance
+            GROUP BY agent_type
+            ORDER BY agent_type
+        ";
+
+        let mut rows =
+            self.conn.query(query, ()).await.map_err(|e| {
+                DatabaseError::query("Failed to get agent performance summaries", e)
+            })?;
+
+        let mut summaries = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let agent_type: String = row.get(0)?;
+            let execution_count: i64 = row.get(1)?;
+            let avg_score: f64 = row.get(2)?;
+            let latest_timestamp: String = row.get(3)?;
+
+            summaries.push(AgentPerformanceSummary {
+                agent_type: agent_type.clone(),
+                execution_count,
+                avg_score,
+                latest_timestamp,
+                results: Vec::new(), // TODO: Populate with actual results if needed
+            });
+        }
+
+        Ok(summaries)
+    }
+
+    /// Get YML flow logs for a benchmark
+    pub async fn get_yml_flow_logs(&self, benchmark_id: &str) -> Result<Option<String>> {
+        let query = "
+            SELECT flow_data
+            FROM flow_logs
+            WHERE benchmark_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, [benchmark_id])
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get YML flow logs", e))?;
+
+        if let Some(row) = rows.next().await? {
+            let flow_data: String = row.get(0)?;
+            Ok(Some(flow_data))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get YML test result for a benchmark and agent
+    pub async fn get_yml_testresult(
+        &self,
+        benchmark_id: &str,
+        agent_type: &str,
+    ) -> Result<Option<String>> {
+        let query = "
+            SELECT generated_instruction, final_on_chain_state, final_status, score
+            FROM results
+            WHERE benchmark_id = ? AND prompt LIKE ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, (benchmark_id, format!("%{agent_type}%")))
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get YML test result", e))?;
+
+        if let Some(row) = rows.next().await? {
+            let instruction: String = row.get(0)?;
+            let state: String = row.get(1)?;
+            let status: String = row.get(2)?;
+            let score: f64 = row.get(3)?;
+
+            let yml_content = format!(
+                "generated_instruction: {instruction}\nfinal_on_chain_state: {state}\nfinal_status: {status}\nscore: {score}"
+            );
+            Ok(Some(yml_content))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Test prompt MD5 lookup
+    pub async fn test_prompt_md5_lookup(&self, benchmark_name: &str) -> Result<Option<String>> {
+        self.get_prompt_md5_by_benchmark_name(benchmark_name).await
+    }
+
+    /// Insert YML flow log
+    pub async fn insert_yml_flow_log(&self, benchmark_id: &str, yml_content: &str) -> Result<i64> {
+        let flow_log = FlowLog {
+            id: None,
+            session_id: format!("yml-import-{}", uuid::Uuid::new_v4()),
+            benchmark_id: benchmark_id.to_string(),
+            agent_type: "yml-import".to_string(),
+            start_time: chrono::Utc::now().to_rfc3339(),
+            end_time: Some(chrono::Utc::now().to_rfc3339()),
+            flow_data: yml_content.to_string(),
+            final_result: None,
+            created_at: Some(chrono::Utc::now().to_rfc3339()),
+        };
+
+        self.insert_flow_log(&flow_log).await
+    }
+
+    /// Insert YML test result
+    pub async fn insert_yml_testresult(
+        &self,
+        benchmark_id: &str,
+        agent_type: &str,
+        yml_content: &str,
+    ) -> Result<()> {
+        self.insert_result(
+            benchmark_id,
+            &format!("YML import for {agent_type}"),
+            yml_content,
+            "YML imported",
+            "Completed",
+            1.0,
+        )
+        .await
     }
 
     /// Get the underlying connection (for advanced operations)

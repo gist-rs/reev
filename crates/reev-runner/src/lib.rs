@@ -284,12 +284,23 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             // Serialize the Vec<AgentAction> to a JSON string for database storage.
             let action_json = serde_json::to_string(&step.action)
                 .context("Failed to serialize action vector to JSON for DB insertion")?;
+
+            // Serialize AgentObservation to JSON string for database storage
+            let observation_json = serde_json::to_string(&final_observation)
+                .context("Failed to serialize final observation to JSON for DB insertion")?;
+
+            // Convert FinalStatus to string
+            let status_str = match final_status {
+                FinalStatus::Succeeded => "Succeeded",
+                FinalStatus::Failed => "Failed",
+            };
+
             db.insert_result(
                 &test_case.id,
                 &test_case.prompt,
                 &action_json,
-                &final_observation,
-                final_status,
+                &observation_json,
+                status_str,
                 score,
             )
             .await?;

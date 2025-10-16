@@ -2,6 +2,7 @@ use super::error::{FlowError, FlowResult};
 use super::types::*;
 use super::utils::calculate_execution_statistics;
 use crate::db::{AgentPerformanceData, DatabaseWriter};
+use reev_db::shared::flow::FlowLogConverter;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -165,7 +166,12 @@ impl FlowLogger {
                 "[FLOW] 🎯 Using PRIMARY database path for session: {}",
                 self.session_id
             );
-            match database.insert_flow_log(&flow_log).await {
+            // Convert reev-lib FlowLog to shared FlowLog
+            let shared_flow_log = flow_log.to_flow_log().map_err(|e| {
+                FlowError::serialization(format!("Failed to convert FlowLog: {e}"))
+            })?;
+
+            match database.insert_flow_log(&shared_flow_log).await {
                 Ok(flow_log_id) => {
                     // Insert agent performance data
                     let timestamp = chrono::Utc::now().to_rfc3339();
@@ -237,7 +243,7 @@ impl FlowLogger {
                     };
 
                     // Convert to reev-db AgentPerformance and insert
-                    let agent_perf = reev_db::AgentPerformance::from(performance_data);
+                    let agent_perf = crate::db::DbAgentPerformance::from(performance_data);
                     if let Err(e) = database.insert_agent_performance(&agent_perf).await {
                         error!(
                             "💥 Failed to insert agent performance for session {}: {}",

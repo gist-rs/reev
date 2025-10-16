@@ -3711,6 +3711,7 @@ dependencies = [
  "axum",
  "chrono",
  "project-root",
+ "reev-db",
  "reev-lib",
  "reev-runner",
  "serde",
@@ -3742,6 +3743,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "turso 0.2.2",
+ "uuid",
 ]
 
 [[package]]

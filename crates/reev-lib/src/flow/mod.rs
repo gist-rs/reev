@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 use tracing::info;
 
+pub mod converter;
 pub mod error;
 pub mod logger;
 pub mod otel;
@@ -22,8 +23,9 @@ pub use types::{
     TransactionExecutionContent, WebsiteData,
 };
 
+pub use crate::db::AgentPerformanceData;
 pub use error::{FlowError, FlowResult};
-pub use logger::{AgentPerformanceData, FlowLogger};
+pub use logger::FlowLogger;
 pub use renderer::render_flow_file_as_ascii_tree;
 pub use website_exporter::WebsiteExporter;
 

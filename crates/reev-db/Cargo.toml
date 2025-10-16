@@ -24,6 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 md5 = "0.7"
 thiserror = "1.0"
 tracing = "0.1"
+uuid = { version = "1.0", features = ["v4"] }
 
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }
