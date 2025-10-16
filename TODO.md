@@ -30,4 +30,6 @@
 - ready to change the number randomly from tempate e.g.
   - user: "Swap ___ [SOL] for [USDC]" → agent: "Done! You now have 222 USDC" // This met required params
   - user: "Sell ___ [SOL]" → agent: "To ___?" // This missing target token so agent ask to fillfilments
--
+
+- when poll for update progress the `Transaction Log`, the view keep re-render whole view
+- Transaction Log (Real-time): show nothing when run, only when finish we see the output

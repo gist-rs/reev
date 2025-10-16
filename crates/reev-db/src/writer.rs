@@ -4,12 +4,12 @@
 //! duplicate prevention, and comprehensive monitoring capabilities.
 
 use crate::{
+    config::DatabaseConfig,
     error::{DatabaseError, Result},
     types::{
-        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, SyncError, SyncResult,
-        SyncedBenchmark,
+        AgentPerformance, BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, FlowLog,
+        SyncError, SyncResult, SyncedBenchmark,
     },
-    DatabaseConfig,
 };
 use chrono::Utc;
 use std::path::Path;
@@ -670,6 +670,102 @@ impl DatabaseWriter {
 
         info!("[DB] Cleaned up {} duplicate records", cleaned_count);
         Ok(cleaned_count)
+    }
+
+    /// Insert agent performance data into the database
+    pub async fn insert_agent_performance(&self, data: &AgentPerformance) -> Result<()> {
+        let query = "
+            INSERT INTO agent_performance (
+                benchmark_id, agent_type, score, final_status,
+                execution_time_ms, timestamp, flow_log_id, prompt_md5
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+
+        self.conn
+            .execute(
+                query,
+                [
+                    data.benchmark_id.clone(),
+                    data.agent_type.clone(),
+                    data.score.to_string(),
+                    data.final_status.clone(),
+                    data.execution_time_ms.unwrap_or(0).to_string(),
+                    data.timestamp.clone(),
+                    data.flow_log_id.unwrap_or(0).to_string(),
+                    data.prompt_md5.clone().unwrap_or_default(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to insert agent performance", e))?;
+
+        Ok(())
+    }
+
+    /// Insert flow log data into the database
+    pub async fn insert_flow_log(&self, data: &FlowLog) -> Result<i64> {
+        let query = "
+            INSERT INTO flow_logs (
+                session_id, benchmark_id, agent_type, start_time, end_time,
+                final_result, flow_data, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+
+        self.conn
+            .execute(
+                query,
+                [
+                    data.session_id.clone(),
+                    data.benchmark_id.clone(),
+                    data.agent_type.clone(),
+                    data.start_time.clone(),
+                    data.end_time.clone().unwrap_or_default(),
+                    data.final_result.clone().unwrap_or_default(),
+                    data.flow_data.clone(),
+                    data.created_at.clone(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to insert flow log", e))?;
+
+        // Get the ID of the inserted row
+        let mut rows = self.conn.query("SELECT last_insert_rowid()", ()).await?;
+        if let Some(row) = rows.next().await? {
+            let id: i64 = row
+                .get(0)
+                .map_err(|_| DatabaseError::generic("Failed to get flow log ID"))?;
+            Ok(id)
+        } else {
+            Err(DatabaseError::generic("Failed to get flow log ID"))
+        }
+    }
+
+    /// Get prompt MD5 by benchmark name
+    pub async fn get_prompt_md5_by_benchmark_name(
+        &self,
+        benchmark_name: &str,
+    ) -> Result<Option<String>> {
+        let query = "
+            SELECT prompt_md5
+            FROM benchmarks
+            WHERE benchmark_name = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, [benchmark_name])
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get prompt MD5 by benchmark name", e))?;
+
+        if let Some(row) = rows.next().await? {
+            let prompt_md5: Option<String> = row
+                .get(0)
+                .map_err(|_| DatabaseError::generic("Failed to get prompt MD5"))?;
+            Ok(prompt_md5)
+        } else {
+            Ok(None)
+        }
     }
 
     /// Get the underlying connection (for advanced operations)

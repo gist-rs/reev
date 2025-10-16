@@ -1,67 +1,67 @@
-# 🪸 Reev TOFIX Tasks - Current Issues
+# TOFIX - Turso 0.2.2 Migration Status
 
-## 🐛 **SYNC ENDPOINT DUPLICATE CREATION ISSUE**
+## ✅ Completed
+- **Turso Test Suite**: Successfully migrated 0.1.5 → 0.2.2
+  - All examples working, tests passing (8/8)
+  - Documented behavior change: UPSERT UPDATE returns 1 instead of 2
+  - Concurrency limitations preserved (expected BorrowMutError)
 
-### Current Status ✅ RESOLVED
-After extensive testing and analysis, the duplicate creation issue has been **RESOLVED**.
+- **reev-db**: Successfully migrated to Turso 0.2.2
+  - Updated Cargo.toml dependency
+  - All tests passing, functionality preserved
 
-### Investigation Results ✅
-**Date**: 2025-10-15  
-**Testing Method**: Step-by-step reproduction testing + Real API testing
+## 🚧 In Progress - reev-lib Migration
+- **Dependency**: Changed from `turso = "0.1.5"` to `reev-db = { path = "../reev-db" }`
+- **Database Module**: Replaced local implementation with reev-db re-exports
+- **Files Removed**: `src/db/writer.rs`, `src/db/reader.rs`, `src/db/types.rs`
 
-#### Key Findings:
-1. **ON CONFLICT Works Correctly**: ✅ 
-   - Pure SQLite ON CONFLICT: Works (proven with minimal test)
-   - Our Turso implementation: Works (proven with comprehensive testing)
+## 🛠️ Current Blockers
+1. **Type Conflicts**: reev-lib FlowLog vs reev-db FlowLog
+2. **Missing Methods**: Need conversion layers for:
+   - `insert_flow_log()` - SystemTime → String conversion
+   - `get_prompt_md5_by_benchmark_name()` 
+   - `insert_agent_performance()` - type conversion needed
 
-2. **No MD5 Collision**: ✅
-   - `002-spl-transfer` MD5: `458e237daa79f06aabab9a6d5ea0a79d`
-   - `003-spl-transfer-fail` MD5: `9a29539db450bbe9c7c22822537d8f70`
-   - Different prompts generate different MD5s as expected
+## 📋 Handover Tasks
 
-3. **Current Implementation Works**: ✅
-   - Multiple sync calls: No duplicates created
-   - 13 benchmark files: 13 unique records in database
-   - Sequential processing: Updates existing records correctly
+### 1. Resolve Type Conflicts
+**File**: `reev/crates/reev-lib/src/flow/types.rs`
+Add conversion from reev-lib FlowLog to reev-db FlowLog:
+- Convert SystemTime → RFC3339 strings
+- Serialize events to JSON for flow_data field
+- Serialize final_result to JSON String
 
-### Test Results Summary:
+### 2. Complete Database Methods
+**File**: `reev/crates/reev-db/src/writer.rs`
+Add missing methods with proper type compatibility between reev-lib and reev-db types.
+
+### 3. Update Flow Logger 
+**File**: `reev/crates/reev-lib/src/flow/logger.rs`
+Fix import paths and method calls to use reev-db types with conversion.
+
+### 4. Test & Validate
+- Run `cargo build` in reev-lib
+- Run `cargo test` in reev-lib and reev-runner
+- Ensure database ordering test passes
+
+## 🔧 Type Mapping Needed
 ```
-📊 Database State After Multiple Syncs:
-- Unique benchmark IDs: 13
-- Duplicates detected: 0
-- All ON CONFLICT operations: Working correctly
+reev_lib::FlowLog → reev_db::FlowLog
+- session_id: String → String ✓
+- benchmark_id: String → String ✓
+- agent_type: String → String ✓
+- start_time: SystemTime → String (RFC3339)
+- end_time: Option<SystemTime> → Option<String>
+- events: Vec<FlowEvent> → flow_data: String (JSON)
+- final_result: Option<ExecutionResult> → final_result: Option<String> (JSON)
 ```
 
-### Root Cause Analysis:
-The issue appears to have been resolved in a recent update. Possible previous causes:
-- Database connection handling improvements
-- Transaction boundary fixes
-- Sequential processing implementation
-
-### Remaining Improvements (Optional):
-While the core issue is resolved, consider these robustness improvements:
-1. Enhanced logging for database operations
-2. Connection pooling for better performance
-3. Duplicate detection monitoring
-4. Automated testing for sync endpoint
-
-### Priority: RESOLVED ✅
-- Core functionality works correctly
-- No data integrity issues
-- System is performing as expected
+## 🎯 Expected Outcome
+- reev-lib uses reev-db for all database operations
+- No duplicate database codebase
+- Single source of truth for database logic
+- All existing functionality preserved
+- Comprehensive test coverage maintained
 
 ---
-
-## 📋 **CLEANUP TASKS**
-
-### Remove from TOFIX:
-- ✅ SYNC ENDPOINT DUPLICATE CREATION ISSUE - RESOLVED
-
-### Notes for Future Development:
-- The sync endpoint is stable and reliable
-- Database operations are working correctly
-- ON CONFLICT DO UPDATE pattern is functioning as expected
-- MD5 collision prevention is working properly
-
-**Last Updated**: 2025-10-15  
-**Status**: Core issues resolved - system stable
+**Status**: Ready for handover - core infrastructure in place, need type resolution completion

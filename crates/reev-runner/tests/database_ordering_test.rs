@@ -31,7 +31,9 @@ async fn test_agent_performance_timestamp_ordering() {
         prompt_md5: None,
     };
 
-    db.insert_agent_performance(&older_result).await.unwrap();
+    db.insert_agent_performance(&reev_lib::db::AgentPerformance::from(older_result))
+        .await
+        .unwrap();
 
     // Insert newer result second
     let newer_result = AgentPerformanceData {
@@ -45,7 +47,9 @@ async fn test_agent_performance_timestamp_ordering() {
         prompt_md5: None,
     };
 
-    db.insert_agent_performance(&newer_result).await.unwrap();
+    db.insert_agent_performance(&reev_lib::db::AgentPerformance::from(newer_result))
+        .await
+        .unwrap();
 
     // Insert another result with different benchmark
     let other_result = AgentPerformanceData {
@@ -61,7 +65,9 @@ async fn test_agent_performance_timestamp_ordering() {
         prompt_md5: None,
     };
 
-    db.insert_agent_performance(&other_result).await.unwrap();
+    db.insert_agent_performance(&reev_lib::db::AgentPerformance::from(other_result))
+        .await
+        .unwrap();
 
     // Retrieve results and verify ordering using public API
     let performance_summaries = db.get_agent_performance().await.unwrap();
@@ -123,7 +129,9 @@ async fn test_flow_log_id_null_handling() {
     };
 
     // This should not fail due to foreign key constraint
-    db.insert_agent_performance(&result).await.unwrap();
+    db.insert_agent_performance(&reev_lib::db::AgentPerformance::from(result))
+        .await
+        .unwrap();
 
     // Verify it was inserted correctly using public API
     let performance_summaries = db.get_agent_performance().await.unwrap();

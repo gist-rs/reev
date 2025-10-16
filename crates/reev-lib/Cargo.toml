@@ -35,8 +35,7 @@ opentelemetry_sdk = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 
 # Database dependencies
-turso = "0.1.5"
-md5 = "0.7.0"
+reev-db = { path = "../reev-db" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

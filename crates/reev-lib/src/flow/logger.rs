@@ -1,14 +1,11 @@
 use super::error::{FlowError, FlowResult};
 use super::types::*;
 use super::utils::calculate_execution_statistics;
-use crate::db::{AgentPerformanceData as DbAgentPerformanceData, DatabaseWriter};
+use crate::db::{AgentPerformanceData, DatabaseWriter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, warn};
-
-// Re-export for backward compatibility
-pub use crate::db::AgentPerformanceData;
 
 /// Main flow logger interface
 pub struct FlowLogger {
@@ -228,7 +225,7 @@ impl FlowLogger {
                         prompt_md5
                     );
 
-                    let performance_data = DbAgentPerformanceData {
+                    let performance_data = AgentPerformanceData {
                         benchmark_id: flow_log.benchmark_id.clone(),
                         agent_type: flow_log.agent_type.clone(),
                         score,
@@ -239,7 +236,9 @@ impl FlowLogger {
                         prompt_md5: prompt_md5.clone(),
                     };
 
-                    if let Err(e) = database.insert_agent_performance(&performance_data).await {
+                    // Convert to reev-db AgentPerformance and insert
+                    let agent_perf = reev_db::AgentPerformance::from(performance_data);
+                    if let Err(e) = database.insert_agent_performance(&agent_perf).await {
                         error!(
                             "💥 Failed to insert agent performance for session {}: {}",
                             self.session_id, e
