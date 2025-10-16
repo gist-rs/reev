@@ -16,7 +16,7 @@ fn main() {
         .expect("Failed to run sqlite3");
 
     let result = String::from_utf8_lossy(&output.stdout);
-    println!("SQLite result: {}", result);
+    println!("SQLite result: {result}");
 
     if result.lines().any(|l| l.trim() == "1") && result.contains("same-id|second") {
         println!("✅ SUCCESS: Pure SQLite ON CONFLICT works - 1 record with updated name");

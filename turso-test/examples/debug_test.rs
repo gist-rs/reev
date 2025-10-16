@@ -12,16 +12,16 @@ fn main() {
         .expect("Failed to run sqlite3");
 
     let result = String::from_utf8_lossy(&output.stdout);
-    println!("Raw result: {:?}", result);
+    println!("Raw result: {result:?}");
     
     let lines: Vec<&str> = result.lines().collect();
-    println!("Lines: {:?}", lines);
+    println!("Lines: {lines:?}");
     
     let has_count_one = lines.iter().any(|l| l.trim() == "1");
     let has_updated_record = result.contains("same-id|second");
     
-    println!("Has count 1: {}", has_count_one);
-    println!("Has updated record: {}", has_updated_record);
+    println!("Has count 1: {has_count_one}");
+    println!("Has updated record: {has_updated_record}");
     
     if has_count_one && has_updated_record {
         println!("✅ SUCCESS: Pure SQLite ON CONFLICT works");

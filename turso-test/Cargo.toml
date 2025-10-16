@@ -11,42 +11,30 @@ chrono = { version = "0.4", features = ["serde"] }
 md5 = "0.7"
 
 [[bin]]
-name = "simple_test"
-path = "src/simple_test.rs"
+name = "main"
+path = "src/main.rs"
 
+# Example binaries
 [[bin]]
-name = "debug_upsert"
-path = "debug_upsert.rs"
-
-[[bin]]
-name = "inspect_db"
-path = "inspect_db.rs"
-
-# Step-by-step tutorial binaries (commented out - incompatible API)
-# [[bin]]
-# name = "step1_connection"
-# path = "step_by_step/tests/step1_connection.rs"
-
-# [[bin]]
-# name = "step2_basic_insert"
-# path = "step_by_step/tests/step2_basic_insert.rs"
-
-# [[bin]]
-# name = "step3_on_conflict"
-# path = "step_by_step/tests/step3_on_conflict.rs"
-
-# [[bin]]
-# name = "step4_upsert_benchmark"
-# path = "step_by_step/tests/step4_upsert_benchmark.rs"
-
-# [[bin]]
-# name = "step5_rapid_calls"
-# path = "step_by_step/tests/step5_rapid_calls.rs"
+name = "turso_upsert_concurrency_test"
+path = "examples/step_by_step/turso_upsert_concurrency_test.rs"
 
 [[bin]]
 name = "step6_reproduce_original_issue"
-path = "step_by_step/tests/step6_reproduce_original_issue.rs"
+path = "examples/step_by_step/step6_reproduce_original_issue.rs"
 
 [[bin]]
-name = "turso_upsert_concurrency_test"
-path = "step_by_step/tests/turso_upsert_concurrency_test.rs"
+name = "debug_test"
+path = "examples/debug_test.rs"
+
+[[bin]]
+name = "debug_upsert"
+path = "examples/debug_upsert.rs"
+
+[[bin]]
+name = "inspect_db"
+path = "examples/inspect_db.rs"
+
+[[bin]]
+name = "minimal_test"
+path = "examples/minimal_test.rs"

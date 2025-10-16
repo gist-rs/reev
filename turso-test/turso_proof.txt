@@ -1,8 +1,0 @@
-Proof of Turso ON CONFLICT issue:
-
-1. First sync creates 13 benchmark records ✅
-2. Second sync should update existing records but creates 13 more (total 26) ❌
-3. Our test route shows identical MD5s still create duplicates
-4. Pure SQLite ON CONFLICT works fine
-
-Conclusion: Turso library has a bug in ON CONFLICT DO UPDATE implementation.
