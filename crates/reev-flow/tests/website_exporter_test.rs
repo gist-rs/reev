@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 #[test]
 fn test_website_exporter_creation() {
-    let exporter = WebsiteExporter::new(PathBuf::from("/tmp"));
+    let _exporter = WebsiteExporter::new(PathBuf::from("/tmp"));
     // Test that exporter can be created successfully
     // We can't directly access output_path as it's private
 }
