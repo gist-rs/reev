@@ -6,7 +6,6 @@
 use std::path::PathBuf;
 use tracing::info;
 
-pub mod converter;
 pub mod error;
 pub mod logger;
 pub mod otel;

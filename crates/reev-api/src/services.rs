@@ -1,9 +1,9 @@
 use crate::types::*;
 use anyhow::Result;
 use reev_lib::db::DatabaseWriter;
-use reev_lib::flow::converter::FlowLogDbExt;
 use reev_lib::flow::types::{
     EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType, FlowLog,
+    FlowLogDbExt,
 };
 use reev_lib::results::TestResult;
 use std::path::PathBuf;

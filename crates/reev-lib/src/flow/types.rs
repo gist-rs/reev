@@ -19,3 +19,7 @@ pub use reev_flow::{FlowSummary, FlowUtils};
 pub use reev_flow::database::{
     DBFlowLog, DBFlowLogConverter, DBStorageFormat, FlowLogDB, FlowLogQuery,
 };
+
+// Re-export conversion trait
+#[cfg(feature = "database")]
+pub use reev_flow::FlowLogDbExt;

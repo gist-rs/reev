@@ -1,9 +1,9 @@
-use super::converter::FlowLogDbExt;
 use super::error::{FlowError, FlowResult};
 use super::types::*;
 use super::utils::calculate_execution_statistics;
 use crate::db::{AgentPerformanceData, DatabaseWriter};
 
+use reev_flow::FlowLogDbExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

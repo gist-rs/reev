@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
+#[cfg(feature = "database")]
+use crate::database::DBFlowLog;
+
 /// Main flow log structure for complete benchmark execution tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowLog {
@@ -240,4 +243,25 @@ pub struct AgentBehaviorAnalysis {
     pub common_tool_sequences: Vec<Vec<String>>,
     pub average_decision_time_ms: u64,
     pub error_recovery_rate: f64,
+}
+
+/// Simple conversion methods for FlowLog
+#[cfg(feature = "database")]
+pub trait FlowLogDbExt {
+    /// Convert to database-friendly format
+    fn to_db_flow_log(self) -> DBFlowLog;
+
+    /// Convert from database-friendly format
+    fn from_db_flow_log(db_flow_log: DBFlowLog) -> Self;
+}
+
+#[cfg(feature = "database")]
+impl FlowLogDbExt for FlowLog {
+    fn to_db_flow_log(self) -> DBFlowLog {
+        DBFlowLog::new(self)
+    }
+
+    fn from_db_flow_log(db_flow_log: DBFlowLog) -> Self {
+        db_flow_log.flow
+    }
 }
