@@ -1,8 +1,9 @@
+use super::converter::FlowLogDbExt;
 use super::error::{FlowError, FlowResult};
 use super::types::*;
 use super::utils::calculate_execution_statistics;
 use crate::db::{AgentPerformanceData, DatabaseWriter};
-use reev_db::shared::flow::FlowLogConverter;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -166,12 +167,10 @@ impl FlowLogger {
                 "[FLOW] 🎯 Using PRIMARY database path for session: {}",
                 self.session_id
             );
-            // Convert reev-lib FlowLog to shared FlowLog
-            let shared_flow_log = flow_log.to_flow_log().map_err(|e| {
-                FlowError::serialization(format!("Failed to convert FlowLog: {e}"))
-            })?;
+            // Convert reev-lib FlowLog to database FlowLog
+            let db_flow_log = flow_log.clone().to_db_flow_log();
 
-            match database.insert_flow_log(&shared_flow_log).await {
+            match database.insert_flow_log(&db_flow_log).await {
                 Ok(flow_log_id) => {
                     // Insert agent performance data
                     let timestamp = chrono::Utc::now().to_rfc3339();

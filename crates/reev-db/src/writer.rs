@@ -8,12 +8,13 @@ use crate::{
     error::{DatabaseError, Result},
     shared::performance::AgentPerformance,
     types::{
-        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, DBFlowLog, SyncError,
+        BenchmarkData, BenchmarkYml, DBFlowLog, DatabaseStats, DuplicateRecord, SyncError,
         SyncResult, SyncedBenchmark,
     },
     AgentPerformanceSummary,
 };
 use chrono::Utc;
+use reev_flow::database::DBFlowLogConverter;
 use std::path::Path;
 use tokio::fs;
 use tracing::{debug, error, info, warn};
@@ -717,13 +718,15 @@ impl DatabaseWriter {
             .execute(
                 query,
                 [
-                    data.session_id.clone(),
-                    data.benchmark_id.clone(),
-                    data.agent_type.clone(),
-                    data.start_time.clone(),
-                    data.end_time.clone().unwrap_or_default(),
-                    data.final_result.clone().unwrap_or_default(),
-                    data.flow_data.clone(),
+                    data.session_id().to_string(),
+                    data.benchmark_id().to_string(),
+                    data.agent_type().to_string(),
+                    data.start_time().unwrap_or_default(),
+                    data.end_time().unwrap_or_default().unwrap_or_default(),
+                    data.final_result_json()
+                        .unwrap_or_default()
+                        .unwrap_or_default(),
+                    data.events_json().unwrap_or_default(),
                     data.created_at.clone().unwrap_or_default(),
                 ],
             )
@@ -913,20 +916,62 @@ impl DatabaseWriter {
     }
 
     /// Insert YML flow log
-    pub async fn insert_yml_flow_log(&self, benchmark_id: &str, yml_content: &str) -> Result<i64> {
-        let flow_log = DBFlowLog {
-            id: None,
-            session_id: format!("yml-import-{}", uuid::Uuid::new_v4()),
-            benchmark_id: benchmark_id.to_string(),
-            agent_type: "yml-import".to_string(),
-            start_time: chrono::Utc::now().to_rfc3339(),
-            end_time: Some(chrono::Utc::now().to_rfc3339()),
-            flow_data: yml_content.to_string(),
-            final_result: None,
-            created_at: Some(chrono::Utc::now().to_rfc3339()),
-        };
+    pub async fn insert_yml_flow_log(&self, benchmark_id: &str, _yml_content: &str) -> Result<i64> {
+        let flow_log = reev_flow::database::FlowLogDB::create(
+            format!("yml-import-{}", uuid::Uuid::new_v4()),
+            benchmark_id.to_string(),
+            "yml-import".to_string(),
+        );
 
-        self.insert_flow_log(&flow_log).await
+        let storage_format = flow_log
+            .to_db_storage()
+            .map_err(|e| DatabaseError::generic_with_source("Failed to convert flow log", e))?;
+
+        self.insert_flow_log_storage(&storage_format).await
+    }
+
+    /// Insert flow log from storage format
+    async fn insert_flow_log_storage(
+        &self,
+        data: &reev_flow::database::DBStorageFormat,
+    ) -> Result<i64> {
+        let query = "
+            INSERT INTO flow_logs (
+                session_id, benchmark_id, agent_type, start_time, end_time,
+                final_result, flow_data, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+
+        let _result = self
+            .conn
+            .execute(
+                query,
+                [
+                    data.session_id.clone(),
+                    data.benchmark_id.clone(),
+                    data.agent_type.clone(),
+                    data.start_time.clone(),
+                    data.end_time.clone().unwrap_or_default(),
+                    data.final_result.clone().unwrap_or_default(),
+                    data.flow_data.clone(),
+                    data.created_at.clone().unwrap_or_default(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::generic_with_source("Failed to insert flow log", e))?;
+
+        // Get the ID of the inserted row
+        let mut rows = self.conn.query("SELECT last_insert_rowid()", ()).await?;
+        if let Some(row) = rows.next().await? {
+            let id: i64 = row.get(0).map_err(|e| {
+                DatabaseError::generic_with_source("Failed to get inserted flow log ID", e)
+            })?;
+            Ok(id)
+        } else {
+            Err(DatabaseError::generic(
+                "Failed to retrieve inserted flow log ID",
+            ))
+        }
     }
 
     /// Insert YML test result

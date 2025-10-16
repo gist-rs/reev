@@ -33,3 +33,7 @@
 
 - when poll for update progress the `Transaction Log`, the view keep re-render whole view
 - Transaction Log (Real-time): show nothing when run, only when finish we see the output
+
+## Refactor
+
+add `pub updated_at: Option<String>,`

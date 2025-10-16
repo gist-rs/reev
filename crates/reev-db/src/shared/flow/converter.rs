@@ -5,29 +5,29 @@
 //!
 //! ## Usage
 //!
-//! ```rust
-//! use reev_db::shared::flow::converter::FlowLogConverter;
-//! use reev_db::shared::flow::ConversionError;
-//! use reev_db::shared::flow::{FlowLog, FlowLogUtils};
-//!
-//! // For domain-specific types, implement the FlowLogConverter trait
-//! struct MyDomainFlowLog { /* ... */ }
-//!
-//! impl FlowLogConverter<MyDomainFlowLog> for MyDomainFlowLog {
-//!     fn to_flow_log(&self) -> Result<FlowLog, ConversionError> {
-//!         // Convert your domain type to shared FlowLog
-//!         todo!("Implement conversion")
-//!     }
-//!
-//!     fn from_flow_log(flow_log: &FlowLog) -> Result<MyDomainFlowLog, ConversionError> {
-//!         // Convert shared FlowLog to your domain type
-//!         todo!("Implement conversion")
-//!     }
-//! }
-//! ```
-
-use super::types::*;
+/// ```rust
+/// use reev_db::shared::flow::converter::FlowLogConverter;
+/// use reev_db::shared::flow::ConversionError;
+/// use reev_db::shared::flow::FlowLogUtils;
+/// use reev_flow::database::DBFlowLog;
+///
+/// // For domain-specific types, implement the FlowLogConverter trait
+/// struct MyDomainFlowLog { /* ... */ }
+///
+/// impl FlowLogConverter<MyDomainFlowLog> for MyDomainFlowLog {
+///     fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError> {
+///         // Convert your domain type to shared FlowLog
+///         todo!("Implement conversion")
+///     }
+///
+///     fn from_flow_log(flow_log: &DBFlowLog) -> Result<MyDomainFlowLog, ConversionError> {
+///         // Convert shared FlowLog to your domain type
+///         todo!("Implement conversion")
+///     }
+/// }
+/// ```
 use crate::shared::flow::ConversionError;
+use reev_flow::database::DBFlowLog;
 use serde_json;
 
 /// Conversion trait for FlowLog types
@@ -70,35 +70,43 @@ impl FlowConverter {
         serde_json::from_str(json).map_err(Into::into)
     }
 
-    /// Create a FlowLog from basic components
-    pub fn create_flow_log(
+    /// Create a basic FlowLog for testing/simple cases
+    pub fn create_basic_flow_log(
         session_id: String,
         benchmark_id: String,
         agent_type: String,
-        start_time: &str,
+        start_time: chrono::DateTime<chrono::Utc>,
     ) -> DBFlowLog {
-        DBFlowLog {
-            session_id,
-            benchmark_id,
-            agent_type,
-            start_time: start_time.to_string(),
-            end_time: None,
-            flow_data: serde_json::to_string(&Vec::<FlowEvent>::new()).unwrap(),
-            final_result: None,
-            id: None,
-            created_at: Some(start_time.to_string()),
-        }
+        let flow = reev_flow::FlowUtils::create_flow_log(
+            session_id.clone(),
+            benchmark_id.clone(),
+            agent_type.clone(),
+        );
+
+        let mut db_flow = DBFlowLog::new(flow);
+        db_flow.created_at = Some(start_time.to_rfc3339());
+        db_flow
     }
 
-    /// Update FlowLog with completion data
-    pub fn mark_completed(
+    /// Add end time to a FlowLog
+    pub fn complete_flow_log(
         mut flow_log: DBFlowLog,
-        end_time: Option<&str>,
+        end_time: Option<String>,
         final_result: Option<String>,
-    ) -> DBFlowLog {
-        flow_log.end_time = end_time.map(|s| s.to_string());
-        flow_log.final_result = final_result;
-        flow_log
+    ) -> Result<DBFlowLog, ConversionError> {
+        if let Some(end_time) = end_time {
+            let system_time = reev_flow::FlowUtils::rfc3339_to_system_time(&end_time)
+                .map_err(|e| ConversionError::TimestampError(e.to_string()))?;
+            flow_log.flow.end_time = Some(system_time);
+        }
+
+        if let Some(final_result) = final_result {
+            let result = serde_json::from_str(&final_result)
+                .map_err(|e| ConversionError::JsonError(e.to_string()))?;
+            flow_log.flow.final_result = Some(result);
+        }
+
+        Ok(flow_log)
     }
 }
 
@@ -197,6 +205,7 @@ pub mod reev_lib_compat {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reev_flow::{EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType};
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
@@ -226,11 +235,15 @@ mod tests {
 
     impl FlowLogConverter<TestFlowLog> for TestFlowLog {
         fn to_flow_log(&self) -> Result<DBFlowLog, ConversionError> {
-            let mut flow_log = FlowConverter::create_flow_log(
+            let start_time = chrono::DateTime::parse_from_rfc3339(&self.start_time)
+                .map_err(|e| ConversionError::TimestampError(e.to_string()))?
+                .with_timezone(&chrono::Utc);
+
+            let mut flow_log = FlowConverter::create_basic_flow_log(
                 self.session_id.clone(),
                 self.benchmark_id.clone(),
                 self.agent_type.clone(),
-                &self.start_time,
+                start_time,
             );
 
             // Convert test events to shared events
@@ -238,10 +251,12 @@ mod tests {
                 .events
                 .iter()
                 .map(|e| {
+                    let system_time = std::time::SystemTime::UNIX_EPOCH
+                        + std::time::Duration::from_secs(e.timestamp.parse::<u64>().unwrap_or(0));
                     Ok(FlowEvent {
-                        timestamp: e.timestamp.clone(),
+                        timestamp: system_time,
                         event_type: FlowEventType::LlmRequest, // Simplified for test
-                        depth: 1,
+                        depth: 0,
                         content: EventContent {
                             data: e.data.clone(),
                             metadata: HashMap::new(),
@@ -250,10 +265,13 @@ mod tests {
                 })
                 .collect();
 
-            flow_log.flow_data = FlowLogUtils::serialize_events(&shared_events?)?;
+            // Update the flow log with events and completion data
+            flow_log.flow.events = shared_events?;
 
             if let Some(end_time) = &self.end_time {
-                flow_log.end_time = Some(end_time.clone());
+                let system_time = std::time::SystemTime::UNIX_EPOCH
+                    + std::time::Duration::from_secs(end_time.parse::<u64>().unwrap_or(0));
+                flow_log.flow.end_time = Some(system_time);
             }
 
             if let Some(result) = &self.result {
@@ -270,30 +288,27 @@ mod tests {
                     },
                     scoring_breakdown: None,
                 };
-                flow_log.final_result = Some(FlowLogUtils::serialize_result(&shared_result)?);
+                flow_log.flow.final_result = Some(shared_result);
             }
 
             Ok(flow_log)
         }
 
         fn from_flow_log(flow_log: &DBFlowLog) -> Result<TestFlowLog, ConversionError> {
-            let events = FlowLogUtils::deserialize_events(&flow_log.flow_data)?;
+            let events = flow_log.flow.events.clone();
             let test_events: Result<Vec<_>, ConversionError> = events
                 .iter()
                 .map(|e| {
                     Ok(TestEvent {
-                        timestamp: e.timestamp.clone(),
+                        timestamp: reev_flow::FlowUtils::system_time_to_rfc3339(e.timestamp)
+                            .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339()),
                         event_type: "llm_request".to_string(), // Simplified for test
                         data: e.content.data.clone(),
                     })
                 })
                 .collect();
 
-            let final_result = flow_log
-                .final_result
-                .as_ref()
-                .map(|fr| FlowLogUtils::deserialize_result(fr))
-                .transpose()?;
+            let final_result = flow_log.flow.final_result.clone();
 
             let test_result = final_result.map(|r| TestResult {
                 success: r.success,
@@ -301,11 +316,11 @@ mod tests {
             });
 
             Ok(TestFlowLog {
-                session_id: flow_log.session_id.clone(),
-                benchmark_id: flow_log.benchmark_id.clone(),
-                agent_type: flow_log.agent_type.clone(),
-                start_time: flow_log.start_time.clone(),
-                end_time: flow_log.end_time.clone(),
+                session_id: flow_log.session_id().to_string(),
+                benchmark_id: flow_log.benchmark_id().to_string(),
+                agent_type: flow_log.agent_type().to_string(),
+                start_time: flow_log.start_time().unwrap_or_default(),
+                end_time: flow_log.end_time().unwrap_or(None),
                 events: test_events?,
                 result: test_result,
             })
@@ -333,9 +348,9 @@ mod tests {
 
         // Convert to shared FlowLog
         let shared_flow = test_flow.to_flow_log().unwrap();
-        assert_eq!(shared_flow.session_id, test_flow.session_id);
-        assert_eq!(shared_flow.benchmark_id, test_flow.benchmark_id);
-        assert_eq!(shared_flow.agent_type, test_flow.agent_type);
+        assert_eq!(shared_flow.session_id(), test_flow.session_id);
+        assert_eq!(shared_flow.benchmark_id(), test_flow.benchmark_id);
+        assert_eq!(shared_flow.agent_type(), test_flow.agent_type);
 
         // Convert back to domain type
         let converted_back = TestFlowLog::from_flow_log(&shared_flow).unwrap();

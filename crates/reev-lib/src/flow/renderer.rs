@@ -2,10 +2,18 @@ use super::types::*;
 use ascii_tree::Tree;
 use std::path::Path;
 
-/// ASCII tree rendering for flow logs
-impl FlowLog {
+/// Trait for rendering flow logs as ASCII trees
+pub trait FlowLogRenderer {
     /// Render the flow log as an ASCII tree
-    pub fn render_as_ascii_tree(&self) -> String {
+    fn render_as_ascii_tree(&self) -> String;
+
+    /// Render an event as a tree node
+    fn render_event_as_tree_node(&self, index: usize, event: &FlowEvent, duration: &str) -> Tree;
+}
+
+impl FlowLogRenderer for FlowLog {
+    /// Render the flow log as an ASCII tree
+    fn render_as_ascii_tree(&self) -> String {
         let duration = if let Some(end) = self.end_time {
             match end.duration_since(self.start_time) {
                 Ok(d) => {
@@ -280,5 +288,5 @@ impl FlowLog {
 pub fn render_flow_file_as_ascii_tree(file_path: &Path) -> super::error::FlowResult<String> {
     let content = std::fs::read_to_string(file_path)?;
     let flow: FlowLog = serde_yaml::from_str(&content)?;
-    Ok(flow.render_as_ascii_tree())
+    Ok(FlowLogRenderer::render_as_ascii_tree(&flow))
 }

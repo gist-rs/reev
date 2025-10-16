@@ -3733,6 +3733,7 @@ dependencies = [
  "chrono",
  "clap",
  "md5",
+ "reev-flow",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -3744,6 +3745,16 @@ dependencies = [
  "tracing-subscriber",
  "turso 0.2.2",
  "uuid",
+]
+
+[[package]]
+name = "reev-flow"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3760,6 +3771,7 @@ dependencies = [
  "opentelemetry_sdk",
  "rand 0.8.5",
  "reev-db",
+ "reev-flow",
  "reqwest",
  "serde",
  "serde_json",

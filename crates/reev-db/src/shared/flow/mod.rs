@@ -17,14 +17,14 @@ pub mod types;
 pub use converter::{FlowConverter, FlowLogConverter};
 // Import types separately to avoid ambiguity
 pub use types::{
-    ConversionError, EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType,
-    DBFlowLog, FlowLogUtils, ScoringBreakdown,
+    ConversionError, DBFlowLog, EventContent, ExecutionResult, ExecutionStatistics, FlowEvent,
+    FlowEventType, FlowLogUtils, ScoringBreakdown,
 };
 
 /// Re-export commonly used types for convenience
 pub mod prelude {
     pub use super::{
-        ConversionError, EventContent, ExecutionResult, ExecutionStatistics, FlowEvent,
-        FlowEventType, DBFlowLog, FlowLogConverter, FlowLogUtils, ScoringBreakdown,
+        ConversionError, DBFlowLog, EventContent, ExecutionResult, ExecutionStatistics, FlowEvent,
+        FlowEventType, FlowLogConverter, FlowLogUtils, ScoringBreakdown,
     };
 }

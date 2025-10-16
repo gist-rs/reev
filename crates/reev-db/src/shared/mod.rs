@@ -52,8 +52,8 @@ mod tests {
             "test-agent".to_string(),
         );
 
-        assert_eq!(flow_log.session_id, "test-session");
-        assert_eq!(flow_log.benchmark_id, "test-benchmark");
-        assert_eq!(flow_log.agent_type, "test-agent");
+        assert_eq!(flow_log.session_id(), "test-session");
+        assert_eq!(flow_log.benchmark_id(), "test-benchmark");
+        assert_eq!(flow_log.agent_type(), "test-agent");
     }
 }

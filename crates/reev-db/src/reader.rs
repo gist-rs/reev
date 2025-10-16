@@ -5,8 +5,9 @@
 
 use crate::{
     error::{DatabaseError, Result},
-    types::{AgentPerformance, DBFlowLog, QueryFilter, TestResult, YmlTestResult},
+    types::{AgentPerformance, QueryFilter, TestResult, YmlTestResult},
 };
+use reev_flow::database::{DBFlowLog, DBFlowLogConverter};
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
 
@@ -251,33 +252,49 @@ impl DatabaseReader {
             .await
             .map_err(|e| DatabaseError::query("Failed to iterate flow logs", e))?
         {
-            logs.push(DBFlowLog {
-                id: Some(
-                    row.get(0).map_err(|e| {
-                        DatabaseError::generic_with_source("Failed to get log ID", e)
-                    })?,
-                ),
-                session_id: row.get(1).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get session ID", e)
-                })?,
-                benchmark_id: row.get(2).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get benchmark ID", e)
-                })?,
-                agent_type: row.get(3).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get agent type", e)
-                })?,
-                start_time: row.get(4).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get start time", e)
-                })?,
-                end_time: row.get(5).ok(),
-                final_result: row.get(6).ok(),
-                flow_data: row.get(7).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get flow data", e)
-                })?,
-                created_at: row.get(8).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get created_at", e)
-                })?,
-            });
+            // Extract database fields
+            let id = Some(
+                row.get(0)
+                    .map_err(|e| DatabaseError::generic_with_source("Failed to get log ID", e))?,
+            );
+            let session_id = row
+                .get(1)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get session ID", e))?;
+            let benchmark_id = row
+                .get(2)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get benchmark ID", e))?;
+            let agent_type = row
+                .get(3)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get agent type", e))?;
+            let start_time = row
+                .get(4)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get start time", e))?;
+            let end_time = row.get(5).ok();
+            let final_result = row.get(6).ok();
+            let flow_data = row
+                .get(7)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get flow data", e))?;
+            let created_at = row
+                .get(8)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to get created_at", e))?;
+
+            // Convert to new DBFlowLog structure
+            let params = reev_flow::database::DBStorageParams {
+                session_id,
+                benchmark_id,
+                agent_type,
+                start_time,
+                end_time,
+                flow_data,
+                final_result,
+                id,
+                created_at,
+            };
+
+            let db_flow_log = DBFlowLog::from_db_storage(params)
+                .map_err(|e| DatabaseError::generic_with_source("Failed to convert flow log", e))?;
+
+            logs.push(db_flow_log);
         }
 
         info!(
