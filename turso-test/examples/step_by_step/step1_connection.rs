@@ -1,39 +1,56 @@
-use turso::{Client, Config};
-use std::env;
+use anyhow::Result;
+use turso::Builder;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     println!("🧪 Step 1: Basic Turso Connection Test");
 
-    // Get database URL from environment
-    let db_url = env::var("TURSO_DATABASE_URL")
-        .unwrap_or_else(|_| "libsql://memory".to_string());
-
-    let auth_token = env::var("TURSO_AUTH_TOKEN").ok();
-
-    println!("📝 Connecting to: {}", if db_url.contains("memory") { "in-memory database" } else { "Turso database" });
-
-    // Create client
-    let config = Config::new(db_url.clone());
-    let client = match auth_token {
-        Some(token) => Client::new(config).auth_token(token),
-        None => Client::new(config),
-    };
-
-    // Connect
-    let conn = client.connect().await?;
+    // Create in-memory database for this example
+    let db = Builder::new_local(":memory:").build().await?;
+    let conn = db.connect()?;
     println!("✅ Connected successfully");
 
-    // Test basic query
-    let result = conn.execute("SELECT 1 as test", ()).await?;
-    println!("📊 Basic query result: {}", result);
+    // Test basic query - just count
+    let mut rows = conn.query("SELECT 1", ()).await?;
+    if let Some(row) = rows.next().await? {
+        let value: i64 = row.get(0)?;
+        println!("📊 Basic query result: {value}");
+    }
 
-    // Test connection persistence
-    let rows = conn.query("SELECT 1 as test", ()).await?;
-    let row = rows.next().await?.unwrap();
-    let value: i64 = row.get(0)?;
-    println!("📊 Query result: {}", value);
+    // Create a simple test table
+    conn.execute(
+        "CREATE TABLE test_connection (
+            id INTEGER PRIMARY KEY,
+            message TEXT
+        )",
+        (),
+    ).await?;
+    println!("✅ Test table created successfully");
 
-    println!("✅ Step 1 completed: Connection works");
+    // Insert a test record
+    let insert_result = conn.execute(
+        "INSERT INTO test_connection (message) VALUES (?)",
+        ["Connection test successful"]
+    ).await?;
+    println!("📊 Insert result: {insert_result} row(s) affected");
+
+    // Read back the test record
+    let mut rows = conn.query("SELECT id, message FROM test_connection", ()).await?;
+    if let Some(row) = rows.next().await? {
+        let id: i64 = row.get(0)?;
+        let message: String = row.get(1)?;
+        println!("📊 Test record: ID={id}, Message='{message}'");
+    }
+
+    // Verify count
+    let mut rows = conn.query("SELECT COUNT(*) FROM test_connection", ()).await?;
+    if let Some(row) = rows.next().await? {
+        let count: i64 = row.get(0)?;
+        println!("📊 Total records: {count}");
+    }
+
+    println!("✅ Step 1 completed: Connection and basic operations work");
+    println!("💡 Next step: Try step2_basic_insert to learn more about INSERT operations");
+
     Ok(())
 }

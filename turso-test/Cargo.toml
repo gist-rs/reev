@@ -23,26 +23,26 @@ path = "examples/step_by_step/turso_upsert_concurrency_test.rs"
 name = "step6_reproduce_original_issue"
 path = "examples/step_by_step/step6_reproduce_original_issue.rs"
 
-# Step-by-step tutorial examples (commented out - incompatible API with turso 0.1.5)
-# [[bin]]
-# name = "step1_connection"
-# path = "examples/step_by_step/step1_connection.rs"
+# Step-by-step tutorial examples (updated to compatible Turso 0.1.5 API)
+[[bin]]
+name = "step1_connection"
+path = "examples/step_by_step/step1_connection.rs"
 
-# [[bin]]
-# name = "step2_basic_insert"
-# path = "examples/step_by_step/step2_basic_insert.rs"
+[[bin]]
+name = "step2_basic_insert"
+path = "examples/step_by_step/step2_basic_insert.rs"
 
-# [[bin]]
-# name = "step3_on_conflict"
-# path = "examples/step_by_step/step3_on_conflict.rs"
+[[bin]]
+name = "step3_on_conflict"
+path = "examples/step_by_step/step3_on_conflict.rs"
 
-# [[bin]]
-# name = "step4_upsert_benchmark"
-# path = "examples/step_by_step/step4_upsert_benchmark.rs"
+[[bin]]
+name = "step4_upsert_benchmark"
+path = "examples/step_by_step/step4_upsert_benchmark.rs"
 
-# [[bin]]
-# name = "step5_rapid_calls"
-# path = "examples/step_by_step/step5_rapid_calls.rs"
+[[bin]]
+name = "step5_rapid_calls"
+path = "examples/step_by_step/step5_rapid_calls.rs"
 
 [[bin]]
 name = "debug_test"
