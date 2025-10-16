@@ -37,18 +37,15 @@ path = "tests/llm_agent_test.rs"
 reev-lib = { path = "../reev-lib" }
 reev-flow = { path = "../reev-flow" }
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
 clap = { version = "4.5.48", features = ["derive"] }
-turso = "0.1.5"
 tokio = { version = "1", features = ["full"] }
 dotenvy = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 project-root = "0.2.2"
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
-uuid = { workspace = true }
 
 # Observability
 tracing = { workspace = true }
@@ -59,7 +56,6 @@ opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
 chrono = "0.4.42"
 ascii_tree = "0.1.1"
 solana-sdk = { workspace = true }
-async-trait = "0.1"
 
 # Database dependencies
 reev-db = { path = "../reev-db" }
@@ -86,5 +82,4 @@ solana-client = { workspace = true }
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 chrono = "0.4.38"
 tokio = { version = "1", features = ["full"] }
-hex = "0.4.3"
 once_cell = "1.19"

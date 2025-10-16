@@ -15,7 +15,6 @@ tokio = { workspace = true, features = ["full"] }
 async-trait = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
-ascii_tree = "0.1.1"
 rand = { workspace = true }
 chrono = { workspace = true }
 
@@ -25,14 +24,8 @@ solana-sdk = { workspace = true }
 spl-associated-token-account = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"] }
 solana-program = { workspace = true }
-solana-transaction-status = { workspace = true }
 solana-system-interface = { workspace = true }
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
-
-# OpenTelemetry dependencies for flow tracing
-opentelemetry = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-tracing-opentelemetry = { workspace = true }
 
 # Database dependencies
 reev-db = { path = "../reev-db" }
@@ -45,4 +38,3 @@ default = []
 database = ["reev-flow/database"]
 
 [dev-dependencies]
-tempfile = { workspace = true }

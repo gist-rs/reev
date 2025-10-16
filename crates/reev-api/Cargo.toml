@@ -16,7 +16,6 @@ reev-runner = { path = "../reev-runner" }
 reev-flow = { path = "../reev-flow", features = ["database"] }
 axum = "0.8.4"
 tokio = { workspace = true, features = ["full"] }
-tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

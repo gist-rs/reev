@@ -3,16 +3,6 @@
 version = 4
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-dependencies = [
- "lazy_static",
- "regex",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -99,17 +89,6 @@ dependencies = [
  "solana-pubkey",
  "solana-sha256-hasher",
  "solana-svm-feature-set",
-]
-
-[[package]]
-name = "agave-reserved-account-keys"
-version = "2.3.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02596b8863e2ccaca31295af0bd58473958d406a75ce509a3fc3b570d3538436"
-dependencies = [
- "agave-feature-set",
- "solana-pubkey",
- "solana-sdk-ids",
 ]
 
 [[package]]
@@ -534,7 +513,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
- "tower 0.5.2",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -2553,16 +2532,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kaigan"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ba15de5aeb137f0f65aa3bf82187647f1285abfe5b20c80c2c37f7007ad519a"
-dependencies = [
- "borsh 0.10.4",
- "serde",
-]
-
-[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3689,12 +3658,9 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "serial_test",
- "solana-account-decoder",
  "solana-client",
- "solana-pubkey",
  "solana-sdk",
  "solana-system-interface",
- "solana-transaction-status",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
  "thiserror 1.0.69",
@@ -3720,7 +3686,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tokio",
- "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
@@ -3742,10 +3707,9 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
- "tokio-test",
  "tracing",
  "tracing-subscriber",
- "turso 0.2.2",
+ "turso",
  "uuid",
 ]
 
@@ -3756,15 +3720,11 @@ dependencies = [
  "ascii_tree",
  "async-trait",
  "chrono",
- "opentelemetry",
- "opentelemetry_sdk",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror 1.0.69",
- "tokio",
  "tracing",
- "tracing-opentelemetry",
  "uuid",
 ]
 
@@ -3773,13 +3733,10 @@ name = "reev-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "ascii_tree",
  "async-trait",
  "bs58",
  "chrono",
  "jup-sdk",
- "opentelemetry",
- "opentelemetry_sdk",
  "rand 0.8.5",
  "reev-db",
  "reev-flow",
@@ -3791,14 +3748,11 @@ dependencies = [
  "solana-program",
  "solana-sdk",
  "solana-system-interface",
- "solana-transaction-status",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
- "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "tracing-opentelemetry",
  "uuid",
 ]
 
@@ -3808,13 +3762,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ascii_tree",
- "async-trait",
  "chrono",
  "clap",
  "dotenvy",
  "flate2",
  "glob",
- "hex",
  "jup-sdk",
  "libc",
  "once_cell",
@@ -3826,7 +3778,6 @@ dependencies = [
  "reev-lib",
  "reqwest",
  "rstest",
- "serde",
  "serde_json",
  "serde_yaml",
  "sha2 0.10.9",
@@ -3843,8 +3794,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "turso 0.1.5",
- "uuid",
  "zip",
 ]
 
@@ -3956,7 +3905,7 @@ dependencies = [
  "tokio-native-tls",
  "tokio-rustls 0.26.4",
  "tokio-util",
- "tower 0.5.2",
+ "tower",
  "tower-http 0.6.6",
  "tower-service",
  "url",
@@ -4681,49 +4630,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-account-decoder"
-version = "2.3.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c3417bbd4927e3e086b4abb7edbe4298b6fd9390cbe2039d9b30feaf45786dc"
-dependencies = [
- "Inflector",
- "base64 0.22.1",
- "bincode",
- "bs58",
- "bv",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account",
- "solana-account-decoder-client-types",
- "solana-address-lookup-table-interface",
- "solana-clock",
- "solana-config-program-client",
- "solana-epoch-schedule",
- "solana-fee-calculator",
- "solana-instruction",
- "solana-loader-v3-interface",
- "solana-nonce",
- "solana-program-option",
- "solana-program-pack",
- "solana-pubkey",
- "solana-rent",
- "solana-sdk-ids",
- "solana-slot-hashes",
- "solana-slot-history",
- "solana-stake-interface",
- "solana-sysvar",
- "solana-vote-interface",
- "spl-generic-token",
- "spl-token 8.0.0",
- "spl-token-2022 8.0.1",
- "spl-token-group-interface 0.6.0",
- "spl-token-metadata-interface 0.7.0",
- "thiserror 2.0.16",
- "zstd",
-]
-
-[[package]]
 name = "solana-account-decoder-client-types"
 version = "2.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4949,19 +4855,6 @@ dependencies = [
  "serde_derive",
  "solana-instruction",
  "solana-sdk-ids",
-]
-
-[[package]]
-name = "solana-config-program-client"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53aceac36f105fd4922e29b4f0c1f785b69d7b3e7e387e384b8985c8e0c3595e"
-dependencies = [
- "bincode",
- "borsh 0.10.4",
- "kaigan",
- "serde",
- "solana-program",
 ]
 
 [[package]]
@@ -6601,50 +6494,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-transaction-status"
-version = "2.3.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d5d2bfd7220485851eeb6521caa05bae6f4542aabf0b7d65d44db649f1017eb"
-dependencies = [
- "Inflector",
- "agave-reserved-account-keys",
- "base64 0.22.1",
- "bincode",
- "borsh 1.5.7",
- "bs58",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account-decoder",
- "solana-address-lookup-table-interface",
- "solana-clock",
- "solana-hash",
- "solana-instruction",
- "solana-loader-v2-interface",
- "solana-loader-v3-interface",
- "solana-message",
- "solana-program-option",
- "solana-pubkey",
- "solana-reward-info",
- "solana-sdk-ids",
- "solana-signature",
- "solana-stake-interface",
- "solana-system-interface",
- "solana-transaction",
- "solana-transaction-error",
- "solana-transaction-status-client-types",
- "solana-vote-interface",
- "spl-associated-token-account 7.0.0",
- "spl-memo 6.0.0",
- "spl-token 8.0.0",
- "spl-token-2022 8.0.1",
- "spl-token-group-interface 0.6.0",
- "spl-token-metadata-interface 0.7.0",
- "thiserror 2.0.16",
-]
-
-[[package]]
 name = "solana-transaction-status-client-types"
 version = "2.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7702,19 +7551,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-test"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
-dependencies = [
- "async-stream",
- "bytes",
- "futures-core",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
 name = "tokio-tungstenite"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7783,17 +7619,6 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.4.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
-dependencies = [
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
@@ -7838,7 +7663,7 @@ dependencies = [
  "http-body",
  "iri-string",
  "pin-project-lite",
- "tower 0.5.2",
+ "tower",
  "tower-layer",
  "tower-service",
 ]
@@ -7962,68 +7787,12 @@ dependencies = [
 
 [[package]]
 name = "turso"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0de35f5541a6259f0fd7d6d3d8e90ec712aaed45f422d847082794d9941e026"
-dependencies = [
- "thiserror 2.0.16",
- "turso_core 0.1.5",
-]
-
-[[package]]
-name = "turso"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e6ac76127c62dd5750701c70a15205bbcd6e5e1b4c7e7fac14df77b6f862b8"
 dependencies = [
  "thiserror 2.0.16",
- "turso_core 0.2.2",
-]
-
-[[package]]
-name = "turso_core"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "506e8e258afe712da84c41f6e83af9311c52d53d9ec948f0d35d861205915af8"
-dependencies = [
- "aegis",
- "aes",
- "aes-gcm",
- "bitflags",
- "built",
- "bytemuck",
- "cfg_block",
- "chrono",
- "crossbeam-skiplist",
- "fallible-iterator",
- "getrandom 0.2.16",
- "hex",
- "io-uring",
- "julian_day_converter",
- "libc",
- "libloading",
- "libm",
- "miette",
- "pack1",
- "parking_lot",
- "paste",
- "polling",
- "rand 0.8.5",
- "regex",
- "regex-syntax",
- "rustix 1.1.2",
- "ryu",
- "strum",
- "strum_macros",
- "tempfile",
- "thiserror 1.0.69",
- "tracing",
- "turso_ext 0.1.5",
- "turso_macros 0.1.5",
- "turso_parser 0.1.5",
- "turso_sqlite3_parser",
- "uncased",
- "uuid",
+ "turso_core",
 ]
 
 [[package]]
@@ -8065,23 +7834,12 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.16",
  "tracing",
- "turso_ext 0.2.2",
- "turso_macros 0.2.2",
- "turso_parser 0.2.2",
+ "turso_ext",
+ "turso_macros",
+ "turso_parser",
  "twox-hash",
  "uncased",
  "uuid",
-]
-
-[[package]]
-name = "turso_ext"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4607d2af3061fec7cff72ee93d1d046b14939607f44d448e291163c4074d7e56"
-dependencies = [
- "chrono",
- "getrandom 0.3.3",
- "turso_macros 0.1.5",
 ]
 
 [[package]]
@@ -8092,18 +7850,7 @@ checksum = "3fad6b0643d60caa84e3f46bc67f3c4e079f4399831e58333219570372099e7b"
 dependencies = [
  "chrono",
  "getrandom 0.3.3",
- "turso_macros 0.2.2",
-]
-
-[[package]]
-name = "turso_macros"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b402e44f599a123582fa65c42ae22b9b452cb3503b0b25cb4e8ccab81f03e8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.106",
+ "turso_macros",
 ]
 
 [[package]]
@@ -8119,20 +7866,6 @@ dependencies = [
 
 [[package]]
 name = "turso_parser"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a54c455952a322829230b8b00be80def858e08bea1ecbf7cff9680098a98b84f"
-dependencies = [
- "bitflags",
- "miette",
- "strum",
- "strum_macros",
- "thiserror 1.0.69",
- "turso_macros 0.1.5",
-]
-
-[[package]]
-name = "turso_parser"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfafbfb62c14b8d4ff851abf2559dda504caeb59958cfff936c1fbfd66248569"
@@ -8142,25 +7875,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror 2.0.16",
- "turso_macros 0.2.2",
-]
-
-[[package]]
-name = "turso_sqlite3_parser"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9202f9e26319269c450bd9404ad36dfef53e626894c0f0991da7feec6a55a6a"
-dependencies = [
- "bitflags",
- "cc",
- "fallible-iterator",
- "indexmap",
- "log",
- "memchr",
- "miette",
- "smallvec",
- "strum",
- "strum_macros",
+ "turso_macros",
 ]
 
 [[package]]

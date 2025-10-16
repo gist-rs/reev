@@ -37,12 +37,9 @@ chrono = { workspace = true, features = ["serde"] }
 dotenvy = { workspace = true }
 async-trait = { workspace = true }
 solana-client = { workspace = true }
-solana-account-decoder = "2.0"
-solana-transaction-status = "2.0"
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 rig-core = { version = "0.20.0" }
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
-solana-pubkey = "2.0"
 hex = "0.4.3"
 uuid = { workspace = true }
 
