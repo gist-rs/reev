@@ -3752,10 +3752,19 @@ dependencies = [
 name = "reev-flow"
 version = "0.1.0"
 dependencies = [
+ "ascii_tree",
+ "async-trait",
  "chrono",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "serde",
  "serde_json",
+ "serde_yaml",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "uuid",
 ]
 
 [[package]]
@@ -3812,6 +3821,7 @@ dependencies = [
  "opentelemetry_sdk",
  "project-root",
  "reev-db",
+ "reev-flow",
  "reev-lib",
  "reqwest",
  "rstest",

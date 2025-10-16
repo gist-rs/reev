@@ -12,8 +12,19 @@ categories.workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+
+# Add new dependencies for migrated modules
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+uuid = { workspace = true, features = ["v4"] }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+tracing-opentelemetry = { workspace = true }
+ascii_tree = "0.1.1"
+async-trait = { workspace = true }
 
 [features]
 default = ["database"]

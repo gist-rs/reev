@@ -1,13 +1,45 @@
+//! Flow logging functionality
+//!
+//! This module provides the main FlowLogger interface for tracking agent execution flows.
+//! It supports both file-based logging and database integration through the reev-db crate.
+
 use super::error::{FlowError, FlowResult};
 use super::types::*;
 use super::utils::calculate_execution_statistics;
-use crate::db::{AgentPerformanceData, DatabaseWriter};
-
-use reev_flow::FlowLogDbExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, warn};
+
+/// Database writer trait for integration with reev-db
+#[async_trait::async_trait]
+pub trait DatabaseWriter: Send + Sync {
+    /// Insert a flow log into the database
+    async fn insert_flow_log(&self, flow_log: &super::database::DBFlowLog) -> FlowResult<i64>;
+
+    /// Insert agent performance data
+    async fn insert_agent_performance(&self, performance: &AgentPerformanceData)
+        -> FlowResult<i64>;
+
+    /// Get prompt MD5 by benchmark name
+    async fn get_prompt_md5_by_benchmark_name(
+        &self,
+        benchmark_id: &str,
+    ) -> FlowResult<Option<String>>;
+}
+
+/// Agent performance data for database storage
+#[derive(Debug, Clone)]
+pub struct AgentPerformanceData {
+    pub benchmark_id: String,
+    pub agent_type: String,
+    pub score: f64,
+    pub final_status: String,
+    pub execution_time_ms: u64,
+    pub timestamp: String,
+    pub flow_log_id: Option<i64>,
+    pub prompt_md5: Option<String>,
+}
 
 /// Main flow logger interface
 pub struct FlowLogger {
@@ -17,7 +49,7 @@ pub struct FlowLogger {
     start_time: SystemTime,
     events: Vec<FlowEvent>,
     output_path: PathBuf,
-    database: Option<Arc<DatabaseWriter>>,
+    database: Option<Arc<dyn DatabaseWriter>>,
 }
 
 impl FlowLogger {
@@ -44,12 +76,12 @@ impl FlowLogger {
         }
     }
 
-    /// Create a new flow logger with shared database support
+    /// Create a new flow logger with database support
     pub fn new_with_database(
         benchmark_id: String,
         agent_type: String,
         output_path: PathBuf,
-        database: Arc<DatabaseWriter>,
+        database: Arc<dyn DatabaseWriter>,
     ) -> Self {
         let session_id = uuid::Uuid::new_v4().to_string();
         let start_time = SystemTime::now();
@@ -58,7 +90,7 @@ impl FlowLogger {
             session_id = %session_id,
             benchmark_id = %benchmark_id,
             agent_type = %agent_type,
-            "Initializing flow logger with shared database support"
+            "Initializing flow logger with database support"
         );
 
         Self {
@@ -161,21 +193,19 @@ impl FlowLogger {
             final_result: Some(result),
         };
 
-        // Save to shared database if available
+        // Save to database if available
         if let Some(database) = &self.database {
-            info!(
-                "[FLOW] 🎯 Using PRIMARY database path for session: {}",
-                self.session_id
-            );
-            // Convert reev-lib FlowLog to database FlowLog
-            let db_flow_log = flow_log.clone().to_db_flow_log();
+            info!("[FLOW] 🎯 Using database for session: {}", self.session_id);
+
+            let db_flow_log = super::database::DBFlowLog::new(flow_log.clone());
 
             match database.insert_flow_log(&db_flow_log).await {
                 Ok(flow_log_id) => {
                     // Insert agent performance data
                     let timestamp = chrono::Utc::now().to_rfc3339();
-                    // Use a reasonable default execution time since total_time_ms doesn't exist in TestResult
-                    let execution_time_ms = 5000u64; // 5 seconds default execution time
+                    let execution_time_ms = super::utils::FlowUtils::calculate_duration(&flow_log)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(5000u64); // 5 seconds default
                     let score = flow_log
                         .final_result
                         .as_ref()
@@ -241,9 +271,7 @@ impl FlowLogger {
                         prompt_md5: prompt_md5.clone(),
                     };
 
-                    // Convert to reev-db AgentPerformance and insert
-                    let agent_perf = crate::db::DbAgentPerformance::from(performance_data);
-                    if let Err(e) = database.insert_agent_performance(&agent_perf).await {
+                    if let Err(e) = database.insert_agent_performance(&performance_data).await {
                         error!(
                             "💥 Failed to insert agent performance for session {}: {}",
                             self.session_id, e
@@ -262,9 +290,7 @@ impl FlowLogger {
                     );
                 }
             }
-        }
-        // No database available - just log to file
-        else {
+        } else {
             warn!(
                 "[FLOW] ⚠️ No database available for session: {} - logging to file only",
                 self.session_id
@@ -308,4 +334,12 @@ impl FlowLogger {
     pub fn get_current_statistics(&self) -> ExecutionStatistics {
         calculate_execution_statistics(&self.events)
     }
+}
+
+/// Initialize flow tracing with OpenTelemetry
+pub fn init_flow_tracing(service_name: &str) -> FlowResult<()> {
+    // Note: This is a simplified initialization
+    // Full OpenTelemetry integration can be added later
+    info!("Flow tracing initialized for service: {}", service_name);
+    Ok(())
 }

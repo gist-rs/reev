@@ -1,12 +1,17 @@
-use crate::flow::{FlowEvent, FlowLog};
+//! OpenTelemetry integration for flow tracing
+//!
+//! This module provides simplified flow tracing capabilities with OpenTelemetry support.
+//! It can be extended to include full OpenTelemetry integration as needed.
+
+use super::types::*;
 use tracing::{debug, info, warn};
 
 /// Simplified flow tracer for logging (OpenTelemetry integration disabled for now)
-pub struct OtelFlowTracer {
+pub struct FlowTracer {
     enabled: bool,
 }
 
-impl OtelFlowTracer {
+impl FlowTracer {
     /// Create a new simplified flow tracer
     pub fn new() -> Self {
         let enabled = std::env::var("REEV_OTEL_ENABLED")
@@ -24,13 +29,13 @@ impl OtelFlowTracer {
     }
 }
 
-impl Default for OtelFlowTracer {
+impl Default for FlowTracer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl OtelFlowTracer {
+impl FlowTracer {
     /// Trace a complete flow log (simplified)
     pub fn trace_flow(&self, flow: &FlowLog) {
         if !self.enabled {
@@ -67,12 +72,12 @@ impl OtelFlowTracer {
         }
 
         let event_name = match &event.event_type {
-            crate::flow::FlowEventType::LlmRequest => "LLM Request",
-            crate::flow::FlowEventType::ToolCall => "Tool Call",
-            crate::flow::FlowEventType::ToolResult => "Tool Result",
-            crate::flow::FlowEventType::TransactionExecution => "Transaction",
-            crate::flow::FlowEventType::Error => "Error",
-            crate::flow::FlowEventType::BenchmarkStateChange => "State Change",
+            FlowEventType::LlmRequest => "LLM Request",
+            FlowEventType::ToolCall => "Tool Call",
+            FlowEventType::ToolResult => "Tool Result",
+            FlowEventType::TransactionExecution => "Transaction",
+            FlowEventType::Error => "Error",
+            FlowEventType::BenchmarkStateChange => "State Change",
         };
 
         debug!(
@@ -82,7 +87,7 @@ impl OtelFlowTracer {
 
         // Log event-specific details
         match &event.event_type {
-            crate::flow::FlowEventType::LlmRequest => {
+            FlowEventType::LlmRequest => {
                 if let Some(model) = event.content.data.get("model").and_then(|v| v.as_str()) {
                     debug!("  - Model: {}", model);
                 }
@@ -95,7 +100,7 @@ impl OtelFlowTracer {
                     debug!("  - Context tokens: {}", tokens);
                 }
             }
-            crate::flow::FlowEventType::ToolCall => {
+            FlowEventType::ToolCall => {
                 if let Some(tool_name) =
                     event.content.data.get("tool_name").and_then(|v| v.as_str())
                 {
@@ -110,7 +115,7 @@ impl OtelFlowTracer {
                     debug!("  - Execution time: {}ms", exec_time);
                 }
             }
-            crate::flow::FlowEventType::Error => {
+            FlowEventType::Error => {
                 if let Some(error_message) =
                     event.content.data.get("message").and_then(|v| v.as_str())
                 {
@@ -205,20 +210,19 @@ pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::flow::{EventContent, FlowEventType, LlmRequestContent};
     use std::time::SystemTime;
 
     #[test]
     fn test_flow_tracer_creation() {
         std::env::set_var("REEV_OTEL_ENABLED", "false");
-        let tracer = OtelFlowTracer::new();
+        let tracer = FlowTracer::new();
         assert!(!tracer.enabled);
     }
 
     #[test]
     fn test_flow_tracing_disabled() {
         std::env::set_var("REEV_OTEL_ENABLED", "false");
-        let tracer = OtelFlowTracer::new();
+        let tracer = FlowTracer::new();
 
         let event = FlowEvent {
             timestamp: SystemTime::now(),
@@ -243,7 +247,7 @@ mod tests {
     #[test]
     fn test_flow_tracing_enabled() {
         std::env::set_var("REEV_OTEL_ENABLED", "true");
-        let tracer = OtelFlowTracer::new();
+        let tracer = FlowTracer::new();
         assert!(tracer.enabled);
 
         let event = FlowEvent {

@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
-    db::{DatabaseConfig, DatabaseWriter},
+    db::{DatabaseConfig, DatabaseWriter, FlowDatabaseWriter},
     env::GymEnv,
     flow::{ExecutionResult, FlowLogger},
     llm_agent::LlmAgent,
@@ -91,7 +91,8 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
 
     info!("Initializing database...");
     let db_config = DatabaseConfig::new("db/reev_results.db");
-    let db = Arc::new(DatabaseWriter::new(db_config).await?);
+    let db_writer = DatabaseWriter::new(db_config).await?;
+    let db = Arc::new(FlowDatabaseWriter::new(db_writer));
     info!("Database initialization completed");
     let mut results = vec![];
 
@@ -133,7 +134,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 test_case.id.clone(),
                 agent_name.to_string(),
                 path,
-                Arc::clone(&db),
+                Arc::clone(&db) as Arc<dyn reev_flow::logger::DatabaseWriter>,
             ))
         } else {
             None
@@ -327,7 +328,7 @@ async fn run_flow_benchmark(
     flow_steps: &[FlowStep],
     agent_name: &str,
     _benchmark_path: &str,
-    db: Arc<DatabaseWriter>,
+    db: Arc<FlowDatabaseWriter>,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -346,7 +347,7 @@ async fn run_flow_benchmark(
             test_case.id.clone(),
             agent_name.to_string(),
             path,
-            Arc::clone(&db),
+            Arc::clone(&db) as Arc<dyn reev_flow::logger::DatabaseWriter>,
         ))
     } else {
         None

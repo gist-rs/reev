@@ -3,8 +3,8 @@
 //! This module provides functionality to export flow data for website consumption,
 //! including visualization data, tool usage statistics, and performance metrics.
 
+use super::error::{FlowError, FlowResult};
 use super::types::*;
-use anyhow::Result;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -20,7 +20,7 @@ impl WebsiteExporter {
     }
 
     /// Export flow data for website consumption
-    pub fn export_for_website(&self, flows: &[FlowLog]) -> Result<WebsiteData> {
+    pub fn export_for_website(&self, flows: &[FlowLog]) -> FlowResult<WebsiteData> {
         let website_data = WebsiteData {
             flows: flows.to_vec(),
             flow_visualization: self.build_flow_graph(flows),
@@ -31,11 +31,10 @@ impl WebsiteExporter {
 
         // Write website data
         let json_content = serde_json::to_string_pretty(&website_data)
-            .map_err(|e| super::error::FlowError::serialization(e.to_string()))?;
+            .map_err(|e| FlowError::serialization(e.to_string()))?;
 
         let file_path = self.output_path.join("website_data.json");
-        std::fs::write(&file_path, json_content)
-            .map_err(|e| super::error::FlowError::file(e.to_string()))?;
+        std::fs::write(&file_path, json_content).map_err(|e| FlowError::file(e.to_string()))?;
 
         info!("Website data exported to {}", file_path.display());
         Ok(website_data)
@@ -161,5 +160,46 @@ impl WebsiteExporter {
             average_decision_time_ms: 1500,
             error_recovery_rate: 0.85,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_website_exporter_creation() {
+        let exporter = WebsiteExporter::new(PathBuf::from("/tmp"));
+        assert_eq!(exporter.output_path, PathBuf::from("/tmp"));
+    }
+
+    #[test]
+    fn test_export_empty_flows() {
+        let exporter = WebsiteExporter::new(PathBuf::from("/tmp"));
+        let flows = vec![];
+
+        // This should not panic even with empty flows
+        let result = exporter.export_for_website(&flows);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_calculate_tool_usage_stats() {
+        let exporter = WebsiteExporter::new(PathBuf::from("/tmp"));
+        let flows = vec![FlowLog {
+            session_id: "test".to_string(),
+            benchmark_id: "test".to_string(),
+            agent_type: "test".to_string(),
+            start_time: SystemTime::now(),
+            end_time: Some(SystemTime::now()),
+            events: vec![],
+            final_result: None,
+        }];
+
+        let stats = exporter.calculate_tool_usage_stats(&flows);
+        assert!(stats.total_usage.is_empty());
+        assert!(stats.success_rates.is_empty());
+        assert!(stats.average_execution_times.is_empty());
     }
 }

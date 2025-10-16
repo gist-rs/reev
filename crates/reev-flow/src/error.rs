@@ -34,6 +34,10 @@ pub enum FlowError {
     /// Database error
     #[error("Database error: {0}")]
     DatabaseError(String),
+
+    /// Timestamp parsing error
+    #[error("Timestamp error: {0}")]
+    TimestampError(String),
 }
 
 impl FlowError {
@@ -60,6 +64,11 @@ impl FlowError {
     /// Create a new database error
     pub fn database(msg: impl Into<String>) -> Self {
         Self::DatabaseError(msg.into())
+    }
+
+    /// Create a new timestamp error
+    pub fn timestamp(msg: impl Into<String>) -> Self {
+        Self::TimestampError(msg.into())
     }
 }
 

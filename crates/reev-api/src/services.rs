@@ -1,10 +1,10 @@
 use crate::types::*;
 use anyhow::Result;
-use reev_lib::db::DatabaseWriter;
-use reev_lib::flow::types::{
+use reev_flow::{
     EventContent, ExecutionResult, ExecutionStatistics, FlowEvent, FlowEventType, FlowLog,
     FlowLogDbExt,
 };
+use reev_lib::db::DatabaseWriter;
 use reev_lib::results::TestResult;
 use std::path::PathBuf;
 use std::time::SystemTime;

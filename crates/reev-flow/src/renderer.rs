@@ -1,3 +1,9 @@
+//! ASCII tree rendering for flow logs
+//!
+//! This module provides functionality to render flow logs as ASCII trees,
+//! making it easy to visualize the execution flow and identify patterns.
+
+use super::error::{FlowError, FlowResult};
 use super::types::*;
 use ascii_tree::Tree;
 use std::path::Path;
@@ -285,8 +291,63 @@ impl FlowLogRenderer for FlowLog {
 }
 
 /// Load and render a flow log from file as ASCII tree
-pub fn render_flow_file_as_ascii_tree(file_path: &Path) -> super::error::FlowResult<String> {
-    let content = std::fs::read_to_string(file_path)?;
-    let flow: FlowLog = serde_yaml::from_str(&content)?;
+pub fn render_flow_file_as_ascii_tree(file_path: &Path) -> FlowResult<String> {
+    let content = std::fs::read_to_string(file_path).map_err(|e| FlowError::file(e.to_string()))?;
+    let flow: FlowLog =
+        serde_yaml::from_str(&content).map_err(|e| FlowError::serialization(e.to_string()))?;
     Ok(FlowLogRenderer::render_as_ascii_tree(&flow))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_render_basic_flow() {
+        let flow = FlowLog {
+            session_id: "test-session".to_string(),
+            benchmark_id: "test-benchmark".to_string(),
+            agent_type: "test-agent".to_string(),
+            start_time: SystemTime::now(),
+            end_time: Some(SystemTime::now()),
+            events: vec![],
+            final_result: None,
+        };
+
+        let rendered = flow.render_as_ascii_tree();
+        assert!(rendered.contains("test-benchmark"));
+        assert!(rendered.contains("test-agent"));
+        assert!(rendered.contains("RUNNING"));
+    }
+
+    #[test]
+    fn test_render_flow_with_events() {
+        let flow = FlowLog {
+            session_id: "test-session".to_string(),
+            benchmark_id: "test-benchmark".to_string(),
+            agent_type: "test-agent".to_string(),
+            start_time: SystemTime::now(),
+            end_time: Some(SystemTime::now()),
+            events: vec![FlowEvent {
+                timestamp: SystemTime::now(),
+                event_type: FlowEventType::LlmRequest,
+                depth: 1,
+                content: EventContent {
+                    data: serde_json::json!({
+                        "model": "test-model",
+                        "context_tokens": 100,
+                        "prompt": "test prompt"
+                    }),
+                    metadata: std::collections::HashMap::new(),
+                },
+            }],
+            final_result: None,
+        };
+
+        let rendered = flow.render_as_ascii_tree();
+        assert!(rendered.contains("LLM Request"));
+        assert!(rendered.contains("test-model"));
+        assert!(rendered.contains("100 tokens"));
+    }
 }

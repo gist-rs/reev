@@ -54,6 +54,12 @@ impl From<FlowError> for ConversionError {
             FlowError::JsonError(e) => Self::JsonError(e.to_string()),
             FlowError::TimestampError(e) => Self::TimestampError(e.to_string()),
             FlowError::InvalidData(e) => Self::InvalidFormat(e),
+            FlowError::SerializationError(e) => Self::JsonError(e),
+            FlowError::FileError(e) => Self::JsonError(e),
+            FlowError::ConfigError(e) => Self::JsonError(e),
+            FlowError::IoError(e) => Self::JsonError(e.to_string()),
+            FlowError::YamlError(e) => Self::JsonError(e.to_string()),
+            FlowError::DatabaseError(e) => Self::JsonError(e),
         }
     }
 }
@@ -115,9 +121,7 @@ impl FlowLogUtils {
     pub fn calculate_duration(
         flow_log: &DBFlowLog,
     ) -> Result<Option<std::time::Duration>, ConversionError> {
-        Ok(flow_log
-            .duration_ms()
-            .map(std::time::Duration::from_millis))
+        Ok(flow_log.duration_ms().map(std::time::Duration::from_millis))
     }
 
     /// Mark FlowLog as completed

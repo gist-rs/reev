@@ -3,8 +3,9 @@
 //! This module provides database-friendly versions of the flow types,
 //! conversion utilities, and helper functions for database operations.
 
+use crate::error::FlowError;
 use crate::types::*;
-use crate::utils::{FlowError, FlowUtils};
+use crate::utils::FlowUtils;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
