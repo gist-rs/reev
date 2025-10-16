@@ -17,6 +17,14 @@ pub struct DatabaseWriter {
     pub conn: Connection,
 }
 
+/// Database statistics for monitoring
+#[derive(Debug, Clone)]
+pub struct DatabaseStats {
+    pub total_benchmarks: i64,
+    pub duplicate_count: i64,
+    pub duplicate_details: Vec<(String, String, i64)>,
+}
+
 impl DatabaseWriter {
     /// Creates a new database writer with the given configuration
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
@@ -464,9 +472,11 @@ impl DatabaseWriter {
             .await
             .context("Failed to upsert benchmark into database")?;
 
-        info!(
+        tracing::info!(
             "[DB] Upserted benchmark '{}' with MD5 '{}' (prompt: {:.50}...)",
-            benchmark_name, prompt_md5, prompt
+            benchmark_name,
+            prompt_md5,
+            prompt
         );
         Ok(prompt_md5)
     }
@@ -474,6 +484,18 @@ impl DatabaseWriter {
     /// Sync all benchmark files from the benchmarks directory to the database
     pub async fn sync_benchmarks_to_db(&self, benchmarks_dir: &str) -> Result<usize> {
         let mut synced_count = 0;
+
+        tracing::info!(
+            "[DB] Starting benchmark sync from directory: {}",
+            benchmarks_dir
+        );
+
+        // Check database state before sync
+        let initial_count = self.get_all_benchmark_count().await.unwrap_or(0);
+        tracing::info!(
+            "[DB] Initial benchmark count in database: {}",
+            initial_count
+        );
 
         // Read all YAML files from benchmarks directory first
         let mut yaml_files = Vec::new();
@@ -490,28 +512,69 @@ impl DatabaseWriter {
 
         // Sort files for consistent processing order
         yaml_files.sort();
+        tracing::info!("[DB] Found {} benchmark files to process", yaml_files.len());
 
         // Process benchmarks one by one (sequentially) without explicit transaction
         // Let each upsert handle its own atomicity
-        for path in yaml_files {
-            match self.sync_single_benchmark(&path).await {
-                Ok(_) => {
+        for (index, path) in yaml_files.iter().enumerate() {
+            match self.sync_single_benchmark(path).await {
+                Ok(md5) => {
                     synced_count += 1;
-                    info!("[DB] Synced benchmark: {:?}", path.file_name());
+                    tracing::info!(
+                        "[DB] [{}/{}] Synced benchmark: {:?} -> MD5: {}",
+                        index + 1,
+                        yaml_files.len(),
+                        path.file_name(),
+                        md5
+                    );
                 }
                 Err(e) => {
-                    tracing::error!("[DB] Failed to sync benchmark {:?}: {}", path, e);
+                    tracing::error!(
+                        "[DB] [{}/{}] Failed to sync benchmark {:?}: {}",
+                        index + 1,
+                        yaml_files.len(),
+                        path,
+                        e
+                    );
                     // Continue with other benchmarks even if one fails
                 }
             }
         }
 
-        info!("[DB] Synced {} benchmarks to database", synced_count);
+        // Check database state after sync
+        let final_count = self.get_all_benchmark_count().await.unwrap_or(0);
+        tracing::info!("[DB] Final benchmark count in database: {}", final_count);
+
+        // Log summary
+        if final_count > initial_count {
+            tracing::info!(
+                "[DB] Sync completed: {} new benchmarks added ({} -> {})",
+                final_count - initial_count,
+                initial_count,
+                final_count
+            );
+        } else if final_count == initial_count {
+            tracing::info!(
+                "[DB] Sync completed: {} benchmarks updated (no new records)",
+                synced_count
+            );
+        } else {
+            tracing::warn!("[DB] Sync completed with unexpected count change: {} -> {} (some records may have been removed)",
+                   initial_count, final_count);
+        }
+
+        // Check for potential duplicates (should not happen with ON CONFLICT)
+        if final_count != initial_count && (final_count - initial_count) != synced_count as i64 {
+            tracing::warn!("[DB] Potential duplicate detection: Expected {} new records, but count changed by {}",
+                   synced_count, final_count - initial_count);
+        }
+
+        tracing::info!("[DB] Synced {} benchmarks to database", synced_count);
         Ok(synced_count)
     }
 
     /// Sync a single benchmark file to the database
-    async fn sync_single_benchmark(&self, path: &std::path::Path) -> Result<()> {
+    async fn sync_single_benchmark(&self, path: &std::path::Path) -> Result<String> {
         let content = tokio::fs::read_to_string(path)
             .await
             .context("Failed to read benchmark file")?;
@@ -525,12 +588,13 @@ impl DatabaseWriter {
             .upsert_benchmark(&benchmark_data.id, &benchmark_data.prompt, &content)
             .await?;
 
-        info!(
+        tracing::info!(
             "[DB] Synced benchmark '{}' with prompt MD5: {}",
-            benchmark_data.id, prompt_md5
+            benchmark_data.id,
+            prompt_md5
         );
 
-        Ok(())
+        Ok(prompt_md5)
     }
 
     /// Get total count of benchmarks in database
@@ -606,13 +670,15 @@ impl DatabaseWriter {
             let prompt_md5: String = row.get(0).context("Failed to get prompt MD5")?;
             let stored_name: String = row.get(1).context("Failed to get benchmark name")?;
 
-            info!(
+            tracing::info!(
                 "[DB] Found prompt MD5 '{}' for benchmark_name '{}' (stored as '{}')",
-                prompt_md5, benchmark_name, stored_name
+                prompt_md5,
+                benchmark_name,
+                stored_name
             );
             Ok(Some(prompt_md5))
         } else {
-            warn!(
+            tracing::warn!(
                 "[DB] No prompt MD5 found for benchmark_name: '{}'",
                 benchmark_name
             );
@@ -625,11 +691,11 @@ impl DatabaseWriter {
                 .await
                 .context("Failed to list benchmarks")?;
 
-            info!("[DB] Available benchmarks in database:");
+            tracing::info!("[DB] Available benchmarks in database:");
             while let Some(list_row) = list_rows.next().await? {
                 let name: String = list_row.get(0).context("Failed to get name")?;
                 let id: String = list_row.get(1).context("Failed to get id")?;
-                info!("[DB]   - '{}': {}", name, id);
+                tracing::info!("[DB]   - '{}': {}", name, id);
             }
 
             Ok(None)
@@ -676,18 +742,73 @@ impl DatabaseWriter {
 
         let mut benchmarks = Vec::new();
         while let Some(row) = rows.next().await? {
-            let benchmark = BenchmarkData {
+            benchmarks.push(BenchmarkData {
                 id: row.get(0).context("Failed to get benchmark id")?,
                 benchmark_name: row.get(1).context("Failed to get benchmark name")?,
                 prompt: row.get(2).context("Failed to get benchmark prompt")?,
                 content: row.get(3).context("Failed to get benchmark content")?,
                 created_at: row.get(4).context("Failed to get benchmark created_at")?,
                 updated_at: row.get(5).context("Failed to get benchmark updated_at")?,
-            };
-            benchmarks.push(benchmark);
+            });
         }
 
         Ok(benchmarks)
+    }
+
+    /// Check for duplicate benchmark records (for monitoring/debugging)
+    pub async fn check_for_duplicates(&self) -> Result<Vec<(String, String, i64)>> {
+        let query = "
+                SELECT id, benchmark_name, COUNT(*) as count
+                FROM benchmarks
+                GROUP BY id, benchmark_name
+                HAVING COUNT(*) > 1
+                ORDER BY id
+            ";
+
+        let mut rows = self
+            .conn
+            .query(query, ())
+            .await
+            .context("Failed to check for duplicates")?;
+
+        let mut duplicates = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let id: String = row.get(0).context("Failed to get id")?;
+            let benchmark_name: String = row.get(1).context("Failed to get benchmark name")?;
+            let count: i64 = row.get(2).context("Failed to get count")?;
+            duplicates.push((id, benchmark_name, count));
+        }
+
+        if !duplicates.is_empty() {
+            tracing::warn!(
+                "[DB] Found {} duplicate benchmark records in database",
+                duplicates.len()
+            );
+            for (id, name, count) in &duplicates {
+                tracing::warn!(
+                    "[DB] Duplicate detected: ID '{}' - '{}' appears {} times",
+                    id,
+                    name,
+                    count
+                );
+            }
+        } else {
+            tracing::info!("[DB] No duplicate benchmark records found");
+        }
+
+        Ok(duplicates)
+    }
+
+    /// Get database statistics for monitoring
+    pub async fn get_database_stats(&self) -> Result<DatabaseStats> {
+        let total_count = self.get_all_benchmark_count().await?;
+        let duplicates = self.check_for_duplicates().await?;
+
+        Ok(DatabaseStats {
+            total_benchmarks: total_count,
+            duplicate_count: duplicates.len() as i64,
+            duplicate_details: duplicates,
+        })
     }
 }
 
