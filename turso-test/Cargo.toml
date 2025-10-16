@@ -3,7 +3,12 @@ name = "turso-test"
 version = "0.1.0"
 edition = "2021"
 
-[workspace]
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+turso = "0.1.5"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+md5 = "0.7"
 
 [[bin]]
 name = "simple_test"
@@ -14,20 +19,34 @@ name = "debug_upsert"
 path = "debug_upsert.rs"
 
 [[bin]]
+name = "inspect_db"
+path = "inspect_db.rs"
+
+# Step-by-step tutorial binaries (commented out - incompatible API)
+# [[bin]]
+# name = "step1_connection"
+# path = "step_by_step/tests/step1_connection.rs"
+
+# [[bin]]
+# name = "step2_basic_insert"
+# path = "step_by_step/tests/step2_basic_insert.rs"
+
+# [[bin]]
+# name = "step3_on_conflict"
+# path = "step_by_step/tests/step3_on_conflict.rs"
+
+# [[bin]]
+# name = "step4_upsert_benchmark"
+# path = "step_by_step/tests/step4_upsert_benchmark.rs"
+
+# [[bin]]
+# name = "step5_rapid_calls"
+# path = "step_by_step/tests/step5_rapid_calls.rs"
+
+[[bin]]
 name = "step6_reproduce_original_issue"
 path = "step_by_step/tests/step6_reproduce_original_issue.rs"
 
 [[bin]]
 name = "turso_upsert_concurrency_test"
 path = "step_by_step/tests/turso_upsert_concurrency_test.rs"
-
-[[bin]]
-name = "inspect_db"
-path = "inspect_db.rs"
-
-[dependencies]
-tokio = { version = "1.0", features = ["full"] }
-turso = "0.1.5"
-anyhow = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-md5 = "0.7"

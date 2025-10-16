@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Utc;
+
 use turso::Builder;
 
 #[tokio::main]
@@ -7,7 +7,7 @@ async fn main() -> Result<()> {
     println!("🧪 Simple Turso ON CONFLICT Test (No MD5)");
 
     // Create in-memory database
-    let conn = Builder::new_local().build()?.connect()?;
+    let conn = Builder::new_local(":memory:").build().await?.connect()?;
 
     // Create simple test table
     conn.execute(
