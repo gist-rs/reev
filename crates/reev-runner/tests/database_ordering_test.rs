@@ -1,5 +1,6 @@
 // Test to verify database timestamp ordering fix
 
+use reev_db::{DatabaseReader, QueryFilter};
 use reev_lib::db::{AgentPerformanceData, DatabaseConfig, DatabaseWriter};
 use tempfile::TempDir;
 
@@ -69,16 +70,27 @@ async fn test_agent_performance_timestamp_ordering() {
         .await
         .unwrap();
 
-    // Retrieve results and verify ordering using public API
-    // Note: get_agent_performance method doesn't exist in DatabaseWriter
-    // Using a placeholder for now - this test may need to be updated
-    let performance_summaries: Vec<reev_db::AgentPerformanceSummary> = Vec::new(); // Placeholder
-    let deterministic_results = performance_summaries
-        .iter()
-        .find(|summary| summary.agent_type == "deterministic")
-        .map(|summary| &summary.results)
+    // Retrieve results using DatabaseReader
+    let reader = DatabaseReader::from_config(db.config.clone())
+        .await
         .unwrap();
-    let results = deterministic_results.clone();
+
+    let performance_results = reader
+        .get_agent_performance(Some(QueryFilter {
+            agent_type: Some("deterministic".to_string()),
+            benchmark_name: None,
+            min_score: None,
+            max_score: None,
+            date_from: None,
+            date_to: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_direction: Some("desc".to_string()),
+        }))
+        .await
+        .unwrap();
+    let results = performance_results;
 
     // Should have 3 results
     assert_eq!(results.len(), 3);
@@ -135,18 +147,28 @@ async fn test_flow_log_id_null_handling() {
         .await
         .unwrap();
 
-    // Verify it was inserted correctly using public API
-    // Note: get_agent_performance method doesn't exist in DatabaseWriter
-    // Using a placeholder for now - this test may need to be updated
-    let performance_summaries: Vec<reev_db::AgentPerformanceSummary> = Vec::new(); // Placeholder
-    let deterministic_results = performance_summaries
-        .iter()
-        .find(|summary| summary.agent_type == "deterministic")
-        .map(|summary| &summary.results)
+    // Verify it was inserted correctly using DatabaseReader
+    let reader = DatabaseReader::from_config(db.config.clone())
+        .await
         .unwrap();
-    let results = deterministic_results;
-    assert_eq!(results.len(), 1);
-    assert_eq!(results[0].score, 1.0);
+
+    let performance_results = reader
+        .get_agent_performance(Some(QueryFilter {
+            agent_type: Some("deterministic".to_string()),
+            benchmark_name: None,
+            min_score: None,
+            max_score: None,
+            date_from: None,
+            date_to: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_direction: Some("desc".to_string()),
+        }))
+        .await
+        .unwrap();
+    assert_eq!(performance_results.len(), 1);
+    assert_eq!(performance_results[0].score, 1.0);
 
     println!("✅ Flow log ID NULL handling test passed!");
 }

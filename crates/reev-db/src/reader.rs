@@ -360,11 +360,48 @@ impl DatabaseReader {
                 DatabaseError::query("Failed to prepare agent performance query", e)
             })?;
 
-        // Simplify by not using dynamic parameters for now
-        let mut rows = stmt
-            .query(())
-            .await
-            .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?;
+        // Handle dynamic parameters based on count
+        let mut rows = match params.len() {
+            0 => stmt
+                .query(())
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            1 => stmt
+                .query([params[0].as_str()])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            2 => stmt
+                .query([params[0].as_str(), params[1].as_str()])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            3 => stmt
+                .query([params[0].as_str(), params[1].as_str(), params[2].as_str()])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            4 => stmt
+                .query([
+                    params[0].as_str(),
+                    params[1].as_str(),
+                    params[2].as_str(),
+                    params[3].as_str(),
+                ])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            5 => stmt
+                .query([
+                    params[0].as_str(),
+                    params[1].as_str(),
+                    params[2].as_str(),
+                    params[3].as_str(),
+                    params[4].as_str(),
+                ])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+            _ => stmt
+                .query(params)
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query agent performance", e))?,
+        };
 
         let mut performances = Vec::new();
         while let Some(row) = rows

@@ -38,3 +38,4 @@ default = []
 database = ["reev-flow/database"]
 
 [dev-dependencies]
+serial_test = { workspace = true }
