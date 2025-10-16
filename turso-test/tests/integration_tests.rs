@@ -108,7 +108,7 @@ async fn test_upsert_functionality() -> Result<()> {
              updated_at = excluded.updated_at",
         ["upsert-001", "updated-name", "updated-value", &timestamp]
     ).await?;
-    assert_eq!(result2, 2, "UPSERT should update existing record");
+    assert_eq!(result2, 1, "UPSERT should update existing record (Turso 0.2.2+ returns 1)");
 
     // Verify only one record exists
     let mut rows = conn.query("SELECT COUNT(*) FROM test_table WHERE id = 'upsert-001'", ()).await?;
