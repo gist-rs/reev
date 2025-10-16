@@ -113,10 +113,10 @@ impl reev_flow::logger::DatabaseWriter for FlowDatabaseWriter {
         &self,
         flow_log: &reev_flow::database::DBFlowLog,
     ) -> reev_flow::error::FlowResult<i64> {
-        self.inner
-            .insert_flow_log(flow_log)
-            .await
-            .map_err(|e| reev_flow::error::FlowError::database(e.to_string()))
+        self.inner.insert_flow_log(flow_log).await.map_err(|e| {
+            let error_msg = format!("Failed to insert flow log: {e}");
+            reev_flow::error::FlowError::database(error_msg)
+        })
     }
 
     async fn insert_agent_performance(
@@ -147,11 +147,16 @@ impl reev_flow::logger::DatabaseWriter for FlowDatabaseWriter {
 
     async fn get_prompt_md5_by_benchmark_name(
         &self,
-        benchmark_id: &str,
+        benchmark_name: &str,
     ) -> reev_flow::error::FlowResult<Option<String>> {
         self.inner
-            .get_prompt_md5_by_benchmark_name(benchmark_id)
+            .get_prompt_md5_by_benchmark_name(benchmark_name)
             .await
-            .map_err(|e| reev_flow::error::FlowError::database(e.to_string()))
+            .map_err(|e| {
+                let error_msg = format!(
+                    "Failed to get prompt MD5 for benchmark '{benchmark_name}': {e}"
+                );
+                reev_flow::error::FlowError::database(error_msg)
+            })
     }
 }

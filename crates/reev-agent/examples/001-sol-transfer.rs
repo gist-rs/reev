@@ -10,7 +10,7 @@ use tracing::{debug, info};
 // Include the common CLI parsing module.
 mod common;
 
-use crate::common::helpers::ExampleConfig;
+use crate::common::helpers::{sync_benchmarks_to_database, ExampleConfig};
 
 /// A minimal representation of the benchmark file for deserialization.
 #[derive(Debug, Deserialize)]
@@ -86,6 +86,11 @@ async fn main() -> Result<()> {
             }
         }
     }
+
+    // 3. Sync benchmarks to database before running examples
+    sync_benchmarks_to_database()
+        .await
+        .context("Failed to sync benchmarks to database")?;
 
     // 4. Load the benchmark file.
     let benchmark_path = PathBuf::from("benchmarks/001-sol-transfer.yml");

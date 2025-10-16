@@ -36,10 +36,8 @@ async fn main() -> Result<()> {
         prompt: &str,
         content: &str,
     ) -> Result<String> {
-        let prompt_md5 = format!(
-            "{:x}",
-            md5::compute(format!("{benchmark_name}:{prompt}").as_bytes())
-        );
+        let prompt_md5 =
+            reev_db::shared::benchmark::BenchmarkUtils::generate_md5(&benchmark_name, &prompt);
         let timestamp = Utc::now().to_rfc3339();
 
         println!("🔢 Calculated MD5: {prompt_md5} for {benchmark_name}:{prompt:50}");

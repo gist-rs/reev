@@ -92,8 +92,27 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
     info!("Initializing database...");
     let db_config = DatabaseConfig::new("db/reev_results.db");
     let db_writer = DatabaseWriter::new(db_config).await?;
+
+    // Sync benchmarks to database before wrapping
+    info!("Syncing benchmarks to database...");
+    match db_writer.sync_benchmarks_from_dir("benchmarks").await {
+        Ok(sync_result) => {
+            info!(
+                "✅ Successfully synced {} benchmarks to database (new: {}, updated: {})",
+                sync_result.processed_count, sync_result.new_count, sync_result.updated_count
+            );
+        }
+        Err(e) => {
+            warn!(
+                "⚠️ Failed to sync benchmarks to database: {}. Continuing without sync...",
+                e
+            );
+        }
+    }
+
     let db = Arc::new(FlowDatabaseWriter::new(db_writer));
     info!("Database initialization completed");
+
     let mut results = vec![];
 
     for path in benchmark_paths {

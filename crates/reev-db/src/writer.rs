@@ -15,9 +15,10 @@ use crate::{
 };
 use chrono::Utc;
 use reev_flow::database::DBFlowLogConverter;
+use std::error::Error;
 use std::path::Path;
 use tokio::fs;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use turso::{Builder, Connection};
 
 /// Database writer for atomic operations with duplicate prevention
@@ -50,8 +51,11 @@ impl DatabaseWriter {
 
         info!("[DB] Database connection established");
 
-        // Initialize database schema
+        // Initialize database schema first
         Self::initialize_schema(&conn).await?;
+
+        // Check database health for corruption issues
+        Self::check_database_health(&conn).await?;
 
         Ok(Self { conn, config })
     }
@@ -150,16 +154,14 @@ impl DatabaseWriter {
         prompt: &str,
         content: &str,
     ) -> Result<String> {
-        // Generate MD5 based only on name and prompt (not timestamp!)
-        let prompt_md5 = format!(
-            "{:x}",
-            md5::compute(format!("{benchmark_name}:{prompt}").as_bytes())
-        );
+        // Generate MD5 using the utility function for consistency
+        let prompt_md5 =
+            crate::shared::benchmark::BenchmarkUtils::generate_md5(benchmark_name, prompt);
 
         // Use fixed timestamp for consistent content
         let timestamp = Utc::now().to_rfc3339();
 
-        debug!(
+        info!(
             "[DB] Upserting benchmark '{}' with MD5 '{}'",
             benchmark_name, prompt_md5
         );
@@ -266,14 +268,25 @@ impl DatabaseWriter {
             match self.sync_single_benchmark(path).await {
                 Ok((benchmark_name, md5, operation, processing_time)) => {
                     sync_result.processed_count += 1;
+                    info!(
+                        "[DB] Synced benchmark '{}' with MD5 '{}' ({})",
+                        benchmark_name, md5, operation
+                    );
 
                     // Determine if this is new or updated
                     if let Some(existing_md5) = initial_benchmarks.get(&benchmark_name) {
                         if existing_md5 != &md5 {
                             sync_result.updated_count += 1;
+                            info!(
+                                "[DB] Updated benchmark '{}' MD5: {} -> {}",
+                                benchmark_name, existing_md5, md5
+                            );
+                        } else {
+                            info!("[DB] Benchmark '{}' MD5 unchanged: {}", benchmark_name, md5);
                         }
                     } else {
                         sync_result.new_count += 1;
+                        info!("[DB] New benchmark '{}' with MD5: {}", benchmark_name, md5);
                     }
 
                     sync_result.processed_benchmarks.push(SyncedBenchmark {
@@ -731,7 +744,14 @@ impl DatabaseWriter {
                 ],
             )
             .await
-            .map_err(|e| DatabaseError::generic_with_source("Failed to insert flow log", e))?;
+            .map_err(|e| {
+                let error_msg = format!(
+                    "Failed to insert flow log. SQLite error: {}. Source: {:?}",
+                    e,
+                    e.source()
+                );
+                DatabaseError::generic_with_source(error_msg, e)
+            })?;
 
         // Get the ID of the inserted row
         let mut rows = self.conn.query("SELECT last_insert_rowid()", ()).await?;
@@ -790,24 +810,32 @@ impl DatabaseWriter {
         &self,
         benchmark_name: &str,
     ) -> Result<Option<String>> {
+        info!(
+            "[DB] Looking up prompt MD5 for benchmark_name: '{}'",
+            benchmark_name
+        );
+
         let query = "
-            SELECT prompt_md5
+            SELECT id
             FROM benchmarks
             WHERE benchmark_name = ?
             ORDER BY created_at DESC
             LIMIT 1
         ";
-
         let mut rows = self
             .conn
             .query(query, [benchmark_name])
             .await
-            .map_err(|e| DatabaseError::query("Failed to get prompt MD5 by benchmark name", e))?;
+            .map_err(|e| {
+                error!("[DB] Query failed: {} - Full error: {:?}", e, e.source());
+                DatabaseError::query("Failed to get prompt MD5 by benchmark name", e)
+            })?;
 
         if let Some(row) = rows.next().await? {
             let prompt_md5: Option<String> = row
                 .get(0)
-                .map_err(|_| DatabaseError::generic("Failed to get prompt MD5"))?;
+                .map_err(|e| DatabaseError::generic_with_source("Failed to parse prompt MD5", e))?;
+
             Ok(prompt_md5)
         } else {
             Ok(None)
@@ -908,6 +936,37 @@ impl DatabaseWriter {
         } else {
             Ok(None)
         }
+    }
+
+    /// Check database health for corruption issues
+    async fn check_database_health(conn: &Connection) -> Result<()> {
+        info!("[DB] Checking database health...");
+
+        // Test inserting into a table with AUTOINCREMENT to detect sqlite_sequence issues
+        match conn.execute(
+            "INSERT INTO flow_logs (session_id, benchmark_id, agent_type, start_time, flow_data) VALUES (?, ?, ?, ?, ?)",
+            ["health_check", "health_check", "health_check", "2025-01-01T00:00:00Z", "[]"]
+        ).await {
+            Ok(_) => {
+                info!("[DB] AUTOINCREMENT test passed");
+                // Clean up the test record
+                let _ = conn.execute("DELETE FROM flow_logs WHERE session_id = ?", ["health_check"]).await;
+            }
+            Err(e) => {
+                error!("[DB] AUTOINCREMENT test failed: {}", e);
+                error!("[DB] Database has sqlite_sequence corruption");
+                error!("[DB] SOLUTION: Remove the database file and let it recreate");
+                error!("[DB] Command: rm db/reev_results.db");
+
+                return Err(DatabaseError::generic_with_source(
+                    "Database corruption detected: sqlite_sequence table missing or corrupted. \
+                    Please delete the database file and restart the application.",
+                    e
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     /// Test prompt MD5 lookup

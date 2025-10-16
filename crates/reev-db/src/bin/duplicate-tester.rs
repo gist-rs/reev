@@ -238,7 +238,8 @@ async fn run_parallel_processing_test(db: &DatabaseWriter, verbose: bool) -> Res
         join_set.spawn(async move {
             info!("  Parallel task {}: Processing {}", i + 1, name);
             let timestamp = chrono::Utc::now().to_rfc3339();
-            let prompt_md5 = format!("{:x}", md5::compute(format!("{name}:{prompt}").as_bytes()));
+            let prompt_md5 =
+                reev_db::shared::benchmark::BenchmarkUtils::generate_md5(name, prompt);
 
             let query = "
                 INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
