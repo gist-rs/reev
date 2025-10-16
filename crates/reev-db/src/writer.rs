@@ -1,0 +1,823 @@
+//! Database writer module for reev-db
+//!
+//! Provides robust database write operations with atomic upserts,
+//! duplicate prevention, and comprehensive monitoring capabilities.
+
+use crate::{
+    error::{DatabaseError, Result},
+    types::{
+        BatchResult, BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, SyncError,
+        SyncResult, SyncedBenchmark,
+    },
+    DatabaseConfig,
+};
+use chrono::Utc;
+use std::path::Path;
+use tokio::fs;
+use tracing::{debug, error, info, warn};
+use turso::{Builder, Connection};
+
+/// Database writer for atomic operations with duplicate prevention
+pub struct DatabaseWriter {
+    conn: Connection,
+    config: DatabaseConfig,
+}
+
+impl DatabaseWriter {
+    /// Create a new database writer with the given configuration
+    pub async fn new(config: DatabaseConfig) -> Result<Self> {
+        info!(
+            "[DB] Creating database connection to: {}",
+            config.database_type()
+        );
+
+        let db = match config.is_remote() {
+            true => {
+                let builder = Builder::new(config.path.as_str());
+                let client = match config.auth_token.as_ref() {
+                    Some(token) => builder.auth_token(token.clone()),
+                    None => builder,
+                };
+                client.build().await.map_err(|e| {
+                    DatabaseError::connection_with_source(
+                        format!("Failed to connect to remote database: {}", config.path),
+                        e,
+                    )
+                })?
+            }
+            false => Builder::new_local(&config.path)
+                .build()
+                .await
+                .map_err(|e| {
+                    DatabaseError::connection_with_source(
+                        format!("Failed to create local database: {}", config.path),
+                        e,
+                    )
+                })?,
+        };
+
+        let conn = db.connect().map_err(|e| {
+            DatabaseError::connection_with_source("Failed to establish database connection", e)
+        })?;
+
+        info!("[DB] Database connection established");
+
+        // Initialize database schema
+        Self::initialize_schema(&conn).await?;
+
+        Ok(Self { conn, config })
+    }
+
+    /// Initialize database schema with all necessary tables and indexes
+    async fn initialize_schema(conn: &Connection) -> Result<()> {
+        info!("[DB] Initializing database schema");
+
+        // Create tables
+        let tables = [
+            "CREATE TABLE IF NOT EXISTS benchmarks (
+                id TEXT PRIMARY KEY,
+                benchmark_name TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )",
+            "CREATE TABLE IF NOT EXISTS results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                benchmark_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                generated_instruction TEXT NOT NULL,
+                final_on_chain_state TEXT NOT NULL,
+                final_status TEXT NOT NULL,
+                score REAL NOT NULL,
+                prompt_md5 TEXT,
+                FOREIGN KEY (prompt_md5) REFERENCES benchmarks (id)
+            )",
+            "CREATE TABLE IF NOT EXISTS flow_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                benchmark_id TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                end_time TEXT,
+                final_result TEXT,
+                flow_data TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )",
+            "CREATE TABLE IF NOT EXISTS agent_performance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                benchmark_id TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                score REAL NOT NULL,
+                final_status TEXT NOT NULL,
+                execution_time_ms INTEGER,
+                timestamp TEXT NOT NULL,
+                flow_log_id INTEGER,
+                prompt_md5 TEXT,
+                FOREIGN KEY (flow_log_id) REFERENCES flow_logs (id),
+                FOREIGN KEY (prompt_md5) REFERENCES benchmarks (id)
+            )",
+            "CREATE TABLE IF NOT EXISTS yml_testresults (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                benchmark_id TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                yml_content TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )",
+        ];
+
+        for table in tables.iter() {
+            conn.execute(table, ())
+                .await
+                .map_err(|e| DatabaseError::schema("Failed to create table", e))?;
+        }
+
+        // Create indexes
+        let indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_benchmarks_name ON benchmarks(benchmark_name)",
+            "CREATE INDEX IF NOT EXISTS idx_results_prompt_md5 ON results(prompt_md5)",
+            "CREATE INDEX IF NOT EXISTS idx_results_timestamp ON results(timestamp)",
+            "CREATE INDEX IF NOT EXISTS idx_flow_logs_benchmark_agent ON flow_logs(benchmark_id, agent_type)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp)",
+            "CREATE INDEX IF NOT EXISTS idx_yml_testresults_benchmark_agent ON yml_testresults(benchmark_id, agent_type)",
+        ];
+
+        for index in indexes.iter() {
+            conn.execute(index, ())
+                .await
+                .map_err(|e| DatabaseError::schema("Failed to create index", e))?;
+        }
+
+        info!("[DB] Database schema initialized successfully");
+        Ok(())
+    }
+
+    /// Upsert a benchmark with atomic conflict resolution
+    pub async fn upsert_benchmark(
+        &self,
+        benchmark_name: &str,
+        prompt: &str,
+        content: &str,
+    ) -> Result<String> {
+        // Generate MD5 based only on name and prompt (not timestamp!)
+        let prompt_md5 = format!(
+            "{:x}",
+            md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes())
+        );
+
+        // Use fixed timestamp for consistent content
+        let timestamp = Utc::now().to_rfc3339();
+
+        debug!(
+            "[DB] Upserting benchmark '{}' with MD5 '{}'",
+            benchmark_name, prompt_md5
+        );
+
+        // Atomic upsert with proper ON CONFLICT handling
+        let query = "
+            INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                benchmark_name = excluded.benchmark_name,
+                prompt = excluded.prompt,
+                content = excluded.content,
+                updated_at = excluded.updated_at;
+        ";
+
+        self.conn
+            .execute(
+                query,
+                [
+                    prompt_md5.clone(),
+                    benchmark_name.to_string(),
+                    prompt.to_string(),
+                    content.to_string(),
+                    timestamp.clone(),
+                    timestamp,
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to upsert benchmark with ON CONFLICT", e))?;
+
+        info!(
+            "[DB] Upserted benchmark '{}' with MD5 '{}' (prompt: {:.50}...)",
+            benchmark_name, prompt_md5, prompt
+        );
+
+        Ok(prompt_md5)
+    }
+
+    /// Sync all benchmark files from a directory to the database
+    pub async fn sync_benchmarks_from_dir<P: AsRef<Path>>(
+        &self,
+        benchmarks_dir: P,
+    ) -> Result<SyncResult> {
+        let start_time = std::time::Instant::now();
+        let benchmarks_dir = benchmarks_dir.as_ref();
+
+        info!(
+            "[DB] Starting benchmark sync from directory: {}",
+            benchmarks_dir.display()
+        );
+
+        // Check database state before sync
+        let initial_count = self.get_all_benchmark_count().await.unwrap_or(0);
+        info!(
+            "[DB] Initial benchmark count in database: {}",
+            initial_count
+        );
+
+        // Read all YAML files from benchmarks directory
+        let mut yaml_files = Vec::new();
+        let mut entries = fs::read_dir(benchmarks_dir)
+            .await
+            .map_err(|e| DatabaseError::filesystem(benchmarks_dir.display().to_string(), e))?;
+
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|e| DatabaseError::filesystem(benchmarks_dir.display().to_string(), e))?
+        {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("yml") {
+                yaml_files.push(path);
+            }
+        }
+
+        // Sort files for consistent processing order
+        yaml_files.sort();
+        info!("[DB] Found {} benchmark files to process", yaml_files.len());
+
+        // Process benchmarks sequentially (avoid race conditions)
+        let mut sync_result = SyncResult {
+            processed_count: 0,
+            new_count: 0,
+            updated_count: 0,
+            error_count: 0,
+            duration_ms: 0,
+            processed_benchmarks: Vec::new(),
+            errors: Vec::new(),
+        };
+
+        // Get initial benchmark mapping for comparison
+        let initial_benchmarks = self
+            .get_all_benchmarks()
+            .await
+            .map(|benchmarks| {
+                benchmarks
+                    .into_iter()
+                    .map(|b| (b.benchmark_name.clone(), b.id.clone()))
+                    .collect::<std::collections::HashMap<String, String>>()
+            })
+            .unwrap_or_default();
+
+        for (index, path) in yaml_files.iter().enumerate() {
+            match self.sync_single_benchmark(path).await {
+                Ok((benchmark_name, md5, operation, processing_time)) => {
+                    sync_result.processed_count += 1;
+
+                    // Determine if this is new or updated
+                    if let Some(existing_md5) = initial_benchmarks.get(&benchmark_name) {
+                        if existing_md5 != &md5 {
+                            sync_result.updated_count += 1;
+                        }
+                    } else {
+                        sync_result.new_count += 1;
+                    }
+
+                    sync_result.processed_benchmarks.push(SyncedBenchmark {
+                        name: benchmark_name,
+                        md5,
+                        operation,
+                        processing_time_ms: processing_time,
+                    });
+
+                    info!(
+                        "[DB] [{}/{}] Synced benchmark: {:?} -> {} ({})",
+                        index + 1,
+                        yaml_files.len(),
+                        path.file_name(),
+                        md5,
+                        operation
+                    );
+                }
+                Err(e) => {
+                    sync_result.error_count += 1;
+                    let error_msg = format!("Failed to sync benchmark: {}", e);
+                    error!("[DB] [{}/{}] {}", index + 1, yaml_files.len(), error_msg);
+
+                    sync_result.errors.push(SyncError {
+                        file_path: path.display().to_string(),
+                        error_message: error_msg.clone(),
+                        error_type: "sync_error".to_string(),
+                        timestamp: Utc::now().to_rfc3339(),
+                    });
+                }
+            }
+        }
+
+        sync_result.duration_ms = start_time.elapsed().as_millis() as u64;
+
+        // Check database state after sync
+        let final_count = self.get_all_benchmark_count().await.unwrap_or(0);
+        info!("[DB] Final benchmark count in database: {}", final_count);
+
+        // Log summary
+        if final_count > initial_count {
+            info!(
+                "[DB] Sync completed: {} new benchmarks added ({} -> {})",
+                final_count - initial_count,
+                initial_count,
+                final_count
+            );
+        } else if final_count == initial_count {
+            info!(
+                "[DB] Sync completed: {} benchmarks updated (no new records)",
+                sync_result.processed_count
+            );
+        } else {
+            warn!(
+                "[DB] Sync completed with unexpected count change: {} -> {} (some records may have been removed)",
+                initial_count,
+                final_count
+            );
+        }
+
+        // Check for potential duplicates
+        if final_count != initial_count
+            && (final_count - initial_count) != sync_result.new_count as i64
+        {
+            warn!(
+                "[DB] Potential duplicate detection: Expected {} new records, but count changed by {}",
+                sync_result.new_count,
+                final_count - initial_count
+            );
+        }
+
+        info!(
+            "[DB] Sync completed in {}ms: {} processed, {} new, {} updated, {} errors",
+            sync_result.duration_ms,
+            sync_result.processed_count,
+            sync_result.new_count,
+            sync_result.updated_count,
+            sync_result.error_count
+        );
+
+        Ok(sync_result)
+    }
+
+    /// Sync a single benchmark file to the database
+    async fn sync_single_benchmark(&self, path: &Path) -> Result<(String, String, String, u64)> {
+        let start_time = std::time::Instant::now();
+
+        let content = fs::read_to_string(path)
+            .await
+            .map_err(|e| DatabaseError::filesystem(path.display().to_string(), e))?;
+
+        // Parse YAML to extract benchmark data
+        let benchmark_data: BenchmarkYml = serde_yaml::from_str(&content)
+            .map_err(|e| DatabaseError::yaml("Failed to parse benchmark YAML", e))?;
+
+        // Check if benchmark already exists
+        let existing_benchmark = self.get_benchmark_by_name(&benchmark_data.id).await?;
+
+        // Upsert to database
+        let prompt_md5 = self
+            .upsert_benchmark(&benchmark_data.id, &benchmark_data.prompt, &content)
+            .await?;
+
+        let operation = if existing_benchmark.is_some() {
+            "updated"
+        } else {
+            "created"
+        };
+
+        let processing_time = start_time.elapsed().as_millis() as u64;
+
+        info!(
+            "[DB] Synced benchmark '{}' with prompt MD5: {} ({})",
+            benchmark_data.id, prompt_md5, operation
+        );
+
+        Ok((
+            benchmark_data.id,
+            prompt_md5,
+            operation.to_string(),
+            processing_time,
+        ))
+    }
+
+    /// Get total count of benchmarks in database
+    pub async fn get_all_benchmark_count(&self) -> Result<i64> {
+        let mut rows = self
+            .conn
+            .query("SELECT COUNT(*) FROM benchmarks", ())
+            .await
+            .map_err(|e| DatabaseError::query("Failed to count benchmarks", e))?;
+
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get count result", e))?
+        {
+            let count: i64 = row
+                .get(0)
+                .map_err(|e| DatabaseError::generic("Failed to parse count", e))?;
+            Ok(count)
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Get a benchmark by its name
+    pub async fn get_benchmark_by_name(&self, name: &str) -> Result<Option<BenchmarkData>> {
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                 FROM benchmarks WHERE benchmark_name = ?",
+                [name],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to query benchmark by name", e))?;
+
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get benchmark result", e))?
+        {
+            let benchmark = BenchmarkData {
+                id: row
+                    .get(0)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
+                benchmark_name: row
+                    .get(1)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
+                prompt: row
+                    .get(2)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
+                content: row
+                    .get(3)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
+                created_at: row
+                    .get(4)
+                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
+                updated_at: row
+                    .get(5)
+                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+            };
+            Ok(Some(benchmark))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get a benchmark by its ID (MD5)
+    pub async fn get_benchmark_by_id(&self, id: &str) -> Result<Option<BenchmarkData>> {
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                 FROM benchmarks WHERE id = ?",
+                [id],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to query benchmark by ID", e))?;
+
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get benchmark result", e))?
+        {
+            let benchmark = BenchmarkData {
+                id: row
+                    .get(0)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
+                benchmark_name: row
+                    .get(1)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
+                prompt: row
+                    .get(2)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
+                content: row
+                    .get(3)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
+                created_at: row
+                    .get(4)
+                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
+                updated_at: row
+                    .get(5)
+                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+            };
+            Ok(Some(benchmark))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get all benchmarks from database
+    pub async fn get_all_benchmarks(&self) -> Result<Vec<BenchmarkData>> {
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                 FROM benchmarks ORDER BY created_at DESC",
+                (),
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to query all benchmarks", e))?;
+
+        let mut benchmarks = Vec::new();
+        while let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to iterate benchmarks", e))?
+        {
+            benchmarks.push(BenchmarkData {
+                id: row
+                    .get(0)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
+                benchmark_name: row
+                    .get(1)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
+                prompt: row
+                    .get(2)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
+                content: row
+                    .get(3)
+                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
+                created_at: row
+                    .get(4)
+                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
+                updated_at: row
+                    .get(5)
+                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+            });
+        }
+
+        Ok(benchmarks)
+    }
+
+    /// Check for duplicate benchmark records
+    pub async fn check_for_duplicates(&self) -> Result<Vec<DuplicateRecord>> {
+        let query = "
+            SELECT id, benchmark_name, COUNT(*) as count,
+                   MIN(created_at) as first_created_at,
+                   MAX(updated_at) as last_updated_at
+            FROM benchmarks
+            GROUP BY id, benchmark_name
+            HAVING COUNT(*) > 1
+            ORDER BY id
+        ";
+
+        let mut rows = self
+            .conn
+            .query(query, ())
+            .await
+            .map_err(|e| DatabaseError::query("Failed to check for duplicates", e))?;
+
+        let mut duplicates = Vec::new();
+        while let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to iterate duplicate results", e))?
+        {
+            let duplicate = DuplicateRecord {
+                id: row
+                    .get(0)
+                    .map_err(|e| DatabaseError::generic("Failed to get duplicate ID", e))?,
+                benchmark_name: row
+                    .get(1)
+                    .map_err(|e| DatabaseError::generic("Failed to get duplicate name", e))?,
+                count: row
+                    .get(2)
+                    .map_err(|e| DatabaseError::generic("Failed to get duplicate count", e))?,
+                first_created_at: row
+                    .get(3)
+                    .map_err(|e| DatabaseError::generic("Failed to get first created_at", e))?,
+                last_updated_at: row
+                    .get(4)
+                    .map_err(|e| DatabaseError::generic("Failed to get last updated_at", e))?,
+            };
+            duplicates.push(duplicate);
+        }
+
+        if !duplicates.is_empty() {
+            warn!(
+                "[DB] Found {} duplicate benchmark records in database",
+                duplicates.len()
+            );
+            for duplicate in &duplicates {
+                warn!(
+                    "[DB] Duplicate detected: ID '{}' - '{}' appears {} times",
+                    duplicate.id, duplicate.benchmark_name, duplicate.count
+                );
+            }
+        } else {
+            info!("[DB] No duplicate benchmark records found");
+        }
+
+        Ok(duplicates)
+    }
+
+    /// Get comprehensive database statistics
+    pub async fn get_database_stats(&self) -> Result<DatabaseStats> {
+        let total_benchmarks = self.get_all_benchmark_count().await?;
+        let duplicates = self.check_for_duplicates().await?;
+
+        // Get table counts
+        let total_results = self.get_table_count("results").await.unwrap_or(0);
+        let total_flow_logs = self.get_table_count("flow_logs").await.unwrap_or(0);
+        let total_performance_records =
+            self.get_table_count("agent_performance").await.unwrap_or(0);
+
+        // Get database size if available
+        let database_size_bytes = self.get_database_size().await.ok();
+
+        let stats = DatabaseStats {
+            total_benchmarks,
+            duplicate_count: duplicates.len() as i64,
+            duplicate_details: duplicates
+                .into_iter()
+                .map(|d| (d.id.clone(), d.benchmark_name.clone(), d.count))
+                .collect(),
+            total_results,
+            total_flow_logs,
+            total_performance_records,
+            database_size_bytes,
+            last_updated: Utc::now().to_rfc3339(),
+        };
+
+        Ok(stats)
+    }
+
+    /// Get count of records in a specific table
+    async fn get_table_count(&self, table_name: &str) -> Result<i64> {
+        let mut rows = self
+            .conn
+            .query(&format!("SELECT COUNT(*) FROM {}", table_name), ())
+            .await
+            .map_err(|e| {
+                DatabaseError::query(
+                    format!("Failed to count records in table {}", table_name),
+                    e,
+                )
+            })?;
+
+        if let Some(row) = rows.next().await.map_err(|e| {
+            DatabaseError::query(
+                format!("Failed to get count result from table {}", table_name),
+                e,
+            )
+        })? {
+            let count: i64 = row
+                .get(0)
+                .map_err(|e| DatabaseError::generic("Failed to parse count", e))?;
+            Ok(count)
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Get database size in bytes
+    async fn get_database_size(&self) -> Result<i64> {
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()",
+                (),
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get database size", e))?;
+
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get size result", e))?
+        {
+            let size: i64 = row
+                .get(0)
+                .map_err(|e| DatabaseError::generic("Failed to parse database size", e))?;
+            Ok(size)
+        } else {
+            Err(DatabaseError::generic("Could not determine database size"))
+        }
+    }
+
+    /// Clean up duplicate records (keep the most recent one)
+    pub async fn cleanup_duplicates(&self) -> Result<usize> {
+        let duplicates = self.check_for_duplicates().await?;
+        let mut cleaned_count = 0;
+
+        for duplicate in duplicates {
+            info!(
+                "[DB] Cleaning up duplicates for ID '{}': {} records",
+                duplicate.id, duplicate.count
+            );
+
+            // Keep the most recent record, delete older ones
+            let delete_query = "
+                DELETE FROM benchmarks
+                WHERE id = ? AND rowid NOT IN (
+                    SELECT rowid FROM benchmarks
+                    WHERE id = ?
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                )
+            ";
+
+            let result = self
+                .conn
+                .execute(delete_query, [&duplicate.id, &duplicate.id])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to cleanup duplicates", e))?;
+
+            cleaned_count += result;
+        }
+
+        info!("[DB] Cleaned up {} duplicate records", cleaned_count);
+        Ok(cleaned_count)
+    }
+
+    /// Get the underlying connection (for advanced operations)
+    pub fn connection(&self) -> &Connection {
+        &self.conn
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_database_writer_creation() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db_path = temp_dir.path().join("test.db");
+        let config = DatabaseConfig::new(db_path.to_string_lossy());
+
+        let writer = DatabaseWriter::new(config).await?;
+        assert_eq!(writer.get_all_benchmark_count().await?, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_no_duplicates() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db_path = temp_dir.path().join("test.db");
+        let config = DatabaseConfig::new(db_path.to_string_lossy());
+
+        let writer = DatabaseWriter::new(config).await?;
+
+        // First upsert
+        let md5_1 = writer
+            .upsert_benchmark("test-benchmark", "Test prompt", "Test content")
+            .await?;
+
+        // Second upsert (should update, not create duplicate)
+        let md5_2 = writer
+            .upsert_benchmark("test-benchmark", "Test prompt", "Test content")
+            .await?;
+
+        assert_eq!(md5_1, md5_2);
+        assert_eq!(writer.get_all_benchmark_count().await?, 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_sync_benchmarks() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let benchmarks_dir = temp_dir.path().join("benchmarks");
+        fs::create_dir(&benchmarks_dir).await?;
+
+        // Create test benchmark files
+        let benchmark1 = benchmarks_dir.join("001-test.yml");
+        let benchmark2 = benchmarks_dir.join("002-test.yml");
+
+        fs::write(&benchmark1, "id: 001-test\nprompt: Test 1\n").await?;
+        fs::write(&benchmark2, "id: 002-test\nprompt: Test 2\n").await?;
+
+        let db_path = temp_dir.path().join("test.db");
+        let config = DatabaseConfig::new(db_path.to_string_lossy());
+        let writer = DatabaseWriter::new(config).await?;
+
+        // First sync
+        let result1 = writer.sync_benchmarks_from_dir(&benchmarks_dir).await?;
+        assert_eq!(result1.processed_count, 2);
+        assert_eq!(result1.new_count, 2);
+        assert_eq!(result1.updated_count, 0);
+
+        // Second sync (should update existing records)
+        let result2 = writer.sync_benchmarks_from_dir(&benchmarks_dir).await?;
+        assert_eq!(result2.processed_count, 2);
+        assert_eq!(result2.new_count, 0);
+        assert_eq!(result2.updated_count, 0); // No changes since content is same
+
+        Ok(())
+    }
+}

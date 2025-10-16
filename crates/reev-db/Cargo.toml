@@ -1,0 +1,54 @@
+[package]
+name = "reev-db"
+version = "0.1.0"
+edition = "2021"
+authors = ["Reev Developers"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gist-rs/reev"
+description = "Reusable database utilities for SQLite/Turso with robust sync and duplicate prevention"
+keywords = ["database", "sqlite", "turso", "sync", "benchmark"]
+categories = ["database", "development-tools"]
+
+[dependencies]
+# Database
+turso = "0.1.5"
+anyhow = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+md5 = "0.7"
+thiserror = "1.0"
+tracing = "0.1"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# CLI utilities
+clap = { version = "4.0", features = ["derive"] }
+
+# Logging
+tracing-subscriber = "0.3"
+
+# For binary utilities
+tracing = "0.1"
+
+# For CLI parameter handling
+anyhow = "1.0"
+
+# Testing utilities (dev dependencies)
+[dev-dependencies]
+tempfile = "3.0"
+tokio-test = "0.4"
+
+[[bin]]
+name = "db-inspector"
+path = "src/bin/db-inspector.rs"
+
+[[bin]]
+name = "duplicate-tester"
+path = "src/bin/duplicate-tester.rs"

@@ -29,3 +29,7 @@ path = "tests/step4_upsert_benchmark.rs"
 [[bin]]
 name = "step5_rapid_calls"
 path = "tests/step5_rapid_calls.rs"
+
+[[bin]]
+name = "step6_reproduce_original_issue"
+path = "tests/step6_reproduce_original_issue.rs"
