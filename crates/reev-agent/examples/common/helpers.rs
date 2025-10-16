@@ -94,6 +94,7 @@ mod tests {
 ///
 /// This function ensures the benchmarks table is populated with YML files
 /// so that prompt MD5 lookups will work during flow logging.
+#[allow(unused)]
 pub async fn sync_benchmarks_to_database() -> Result<()> {
     info!("🔄 Syncing benchmarks to database...");
 
@@ -142,6 +143,7 @@ pub async fn sync_benchmarks_to_database() -> Result<()> {
 ///
 /// This function performs a verification query to ensure the benchmarks
 /// table was populated correctly during the sync operation.
+#[allow(unused)]
 async fn assert_benchmarks_exist_in_database() -> Result<()> {
     info!("🔍 Verifying benchmarks exist in database...");
 
