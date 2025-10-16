@@ -16,10 +16,12 @@
 //! impl FlowLogConverter<MyDomainFlowLog> for MyDomainFlowLog {
 //!     fn to_flow_log(&self) -> Result<FlowLog, ConversionError> {
 //!         // Convert your domain type to shared FlowLog
+//!         todo!("Implement conversion")
 //!     }
 //!
 //!     fn from_flow_log(flow_log: &FlowLog) -> Result<MyDomainFlowLog, ConversionError> {
 //!         // Convert shared FlowLog to your domain type
+//!         todo!("Implement conversion")
 //!     }
 //! }
 //! ```
