@@ -35,10 +35,10 @@ pub fn create_flow_logger(
             .unwrap_or_else(|_| PathBuf::from("logs/flows"))
     });
 
-    reev_flow::FlowLogger::new(benchmark_id, agent_type, output_path)
+    FlowLogger::new(benchmark_id, agent_type, output_path)
 }
 
 /// Quick render function for the most common use case
 pub fn render_flow_as_ascii_tree(file_path: &Path) -> FlowResult<String> {
-    reev_flow::render_flow_file_as_ascii_tree(file_path)
+    render_flow_file_as_ascii_tree(file_path)
 }

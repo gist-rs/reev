@@ -26,6 +26,7 @@ bs58 = { workspace = true }
 reev-lib = { path = "../reev-lib" }
 anyhow = { workspace = true }
 solana-system-interface = { workspace = true }
+serial_test = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 serde_yaml = { workspace = true }

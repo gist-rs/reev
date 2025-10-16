@@ -1,14 +1,14 @@
-//! Programmatic mock data generator for testing and benchmarks
+//! Core mock data generator for testing and benchmarks
 //!
-//! This module provides utilities to generate realistic mock data for testing
-//! financial transactions, account states, and other blockchain-related data.
+//! This module provides the core MockGenerator struct and basic generation methods.
+//! Complex types and scenarios are moved to separate modules for better organization.
 
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 
+use super::financial_types::{AccountState, MarketDepth, MarketOrder};
+use super::jupiter_types::{JupiterLendingPosition, JupiterSwapQuote};
 use crate::agent::RawAccountMeta;
-use crate::constants::{sol_mint, usdc_mint};
 
 /// Mock data generator for creating realistic test data
 pub struct MockGenerator {
@@ -50,385 +50,135 @@ impl MockGenerator {
         self.rng.gen_range(min..=max)
     }
 
-    /// Generate a random USDC amount (1-1000 USDC)
+    /// Generate a random USDC amount (1-10,000 USDC)
     pub fn random_usdc_amount(&mut self) -> u64 {
-        let usdc_amount = self.random_amount(1_000_000, 1_000_000_000); // 1-1000 USDC with 6 decimals
-                                                                        // Round to nearest multiple of 1000 for cleaner amounts
-        (usdc_amount / 1000) * 1000
+        self.random_amount(1_000_000, 10_000_000_000) // USDC has 6 decimals
     }
 
     /// Generate a random SOL amount (0.001-10 SOL)
     pub fn random_sol_amount(&mut self) -> u64 {
-        self.random_amount(1_000_000, 10_000_000_000) // 0.001-10 SOL with 9 decimals
+        self.random_amount(1_000_000, 10_000_000_000) // SOL has 9 decimals
     }
 
-    /// Generate a random slippage percentage (1-20%)
+    /// Generate a random slippage basis points (10-1000 bps = 0.1%-10%)
     pub fn random_slippage_bps(&mut self) -> u16 {
-        self.rng.gen_range(100..=2000) // 1-20% in basis points
+        self.rng.gen_range(10..=1000)
     }
 
-    /// Generate a random price with reasonable decimal places
+    /// Generate a random price within a range
     pub fn random_price(&mut self, min: f64, max: f64) -> f64 {
-        let price = self.rng.gen_range(min..=max);
-        (price * 100.0).round() / 100.0 // Round to 2 decimal places
+        self.rng.gen_range(min..=max)
     }
 
-    /// Generate mock raw account metadata
+    /// Generate a raw account meta structure
     pub fn raw_account_meta(
         &mut self,
-        pubkey: Pubkey,
+        pubkey: Option<Pubkey>,
         is_writable: bool,
-        is_signer: bool,
     ) -> RawAccountMeta {
+        let pubkey_str = match pubkey {
+            Some(pk) => pk.to_string(),
+            None => self.random_pubkey().to_string(),
+        };
+
         RawAccountMeta {
-            pubkey: pubkey.to_string(),
-            is_signer,
+            pubkey: pubkey_str,
             is_writable,
+            is_signer: self.rng.gen_bool(0.3),
         }
     }
 
-    /// Generate mock Jupiter swap quote data
-    pub fn jupiter_swap_quote(
-        &mut self,
-        input_amount: u64,
-        input_mint: Pubkey,
-        output_mint: Pubkey,
-    ) -> JupiterSwapQuote {
-        let output_amount = if input_mint == sol_mint() {
-            // SOL to USDC with some price impact
-            let usdc_price = self.random_price(50.0, 150.0); // 1 SOL = 50-150 USDC
-            (input_amount as f64 * usdc_price / 1_000_000_000.0) as u64
-        } else {
-            // USDC to SOL
-            let sol_price = self.random_price(0.007, 0.015); // 1 USDC = 0.007-0.015 SOL
-            (input_amount as f64 * sol_price) as u64
-        };
-
-        let price_impact = self.random_price(0.1, 5.0); // 0.1-5% price impact
+    /// Generate a Jupiter swap quote
+    pub fn jupiter_swap_quote(&mut self, input_mint: &str, output_mint: &str) -> JupiterSwapQuote {
+        let input_amount = self.random_usdc_amount();
+        let output_amount = self.random_sol_amount();
+        let price_impact = self.rng.gen_range(0.001..0.05); // 0.1-5% price impact
 
         JupiterSwapQuote {
             input_mint: input_mint.to_string(),
             output_mint: output_mint.to_string(),
             input_amount,
             output_amount,
-            price_impact_pct: price_impact,
+            price_impact_pct: price_impact * 100.0,
             slippage_bps: self.random_slippage_bps(),
-            routes: vec![],
-            fee_amount: self.random_amount(1000, 10000), // Small fee
-            fee_pct: price_impact * 0.1,                 // Fee as percentage of price impact
+            routes: vec![format!("route_{}", self.rng.gen_range(0..100))],
+            fee_amount: input_amount / 1000, // 0.1% fee
+            fee_pct: 0.1,
         }
     }
 
-    /// Generate mock Jupiter lending position data
+    /// Generate a Jupiter lending position
     pub fn jupiter_lending_position(
         &mut self,
-        user_pubkey: Pubkey,
-        mint: Pubkey,
-        deposit_amount: u64,
+        user_pubkey: &str,
+        mint: &str,
     ) -> JupiterLendingPosition {
-        let current_price = if mint == usdc_mint() {
-            1.0 // USDC stable coin
-        } else {
-            self.random_price(0.95, 1.05) // Slight variation around 1.0
-        };
-
-        let apy = self.random_price(0.5, 15.0); // 0.5-15% APY
-        let accrued_interest = deposit_amount as f64 * (apy / 100.0) * 0.1; // Approximate for ~36 days
+        let deposit_amount = self.random_usdc_amount();
+        let apy = self.rng.gen_range(2.0..15.0);
+        let days_elapsed = self.rng.gen_range(30..365);
 
         JupiterLendingPosition {
             user_pubkey: user_pubkey.to_string(),
             mint: mint.to_string(),
             deposit_amount,
-            current_amount: deposit_amount,
-            value_usd: deposit_amount as f64 * current_price,
+            current_amount: deposit_amount
+                + (deposit_amount as f64 * apy / 100.0 * days_elapsed as f64 / 365.0) as u64,
+            value_usd: deposit_amount as f64 / 1_000_000.0,
             apy,
-            accrued_interest: accrued_interest as u64,
+            accrued_interest: (deposit_amount as f64 * apy / 100.0 * days_elapsed as f64 / 365.0)
+                as u64,
             last_updated: chrono::Utc::now(),
         }
     }
 
-    /// Generate mock account state for testing
-    pub fn account_state(
-        &mut self,
-        pubkey: Pubkey,
-        lamports: u64,
-        owner: Option<Pubkey>,
-        data: Option<Vec<u8>>,
-    ) -> AccountState {
+    /// Generate an account state
+    pub fn account_state(&mut self) -> AccountState {
         AccountState {
-            pubkey: pubkey.to_string(),
-            lamports,
-            owner: owner.map(|p| p.to_string()),
-            data: data.unwrap_or_default(),
-            executable: false,
+            pubkey: self.random_pubkey().to_string(),
+            lamports: self.random_amount(1_000_000, 10_000_000_000), // 0.001-10 SOL
+            owner: Some(self.random_pubkey().to_string()),
+            data: vec![0u8; self.random_amount(0, 1024) as usize],
+            executable: self.rng.gen_bool(0.1), // 10% chance of being executable
         }
     }
 
-    /// Generate a sequence of mock transaction amounts for testing
-    pub fn transaction_sequence(
-        &mut self,
-        count: usize,
-        min_amount: u64,
-        max_amount: u64,
-    ) -> Vec<u64> {
-        (0..count)
-            .map(|_| self.random_amount(min_amount, max_amount))
+    /// Generate a transaction sequence
+    pub fn transaction_sequence(&mut self, num_transactions: usize) -> Vec<String> {
+        (0..num_transactions)
+            .map(|i| format!("transaction_{i}"))
             .collect()
     }
 
-    /// Generate mock market depth data
-    pub fn market_depth(&mut self, base_price: f64, levels: usize) -> MarketDepth {
+    /// Generate market depth
+    pub fn market_depth(&mut self, base_price: f64, spread: f64, levels: usize) -> MarketDepth {
         let mut bids = Vec::new();
         let mut asks = Vec::new();
 
         for i in 0..levels {
-            let price_offset = (i + 1) as f64 * 0.001; // 0.1% price increments
-            let amount = self.random_amount(1000000, 10000000); // 1-10 USDC amounts
+            let bid_price = base_price - (i as f64 * spread * 0.1);
+            let ask_price = base_price + (i as f64 * spread * 0.1);
 
-            // Bids (below base price)
             bids.push(MarketOrder {
-                price: base_price * (1.0 - price_offset),
-                amount,
+                price: bid_price,
+                amount: self.random_amount(100, 1000),
                 is_bid: true,
             });
 
-            // Asks (above base price)
             asks.push(MarketOrder {
-                price: base_price * (1.0 + price_offset),
-                amount,
+                price: ask_price,
+                amount: self.random_amount(100, 1000),
                 is_bid: false,
             });
         }
 
         MarketDepth { bids, asks }
     }
-}
 
-/// Mock Jupiter swap quote data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterSwapQuote {
-    pub input_mint: String,
-    pub output_mint: String,
-    pub input_amount: u64,
-    pub output_amount: u64,
-    pub price_impact_pct: f64,
-    pub slippage_bps: u16,
-    pub routes: Vec<String>, // Simplified for mock
-    pub fee_amount: u64,
-    pub fee_pct: f64,
-}
-
-/// Mock Jupiter lending position data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterLendingPosition {
-    pub user_pubkey: String,
-    pub mint: String,
-    pub deposit_amount: u64,
-    pub current_amount: u64,
-    pub value_usd: f64,
-    pub apy: f64,
-    pub accrued_interest: u64,
-    pub last_updated: chrono::DateTime<chrono::Utc>,
-}
-
-/// Mock account state data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccountState {
-    pub pubkey: String,
-    pub lamports: u64,
-    pub owner: Option<String>,
-    pub data: Vec<u8>,
-    pub executable: bool,
-}
-
-/// Mock market order data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketOrder {
-    pub price: f64,
-    pub amount: u64,
-    pub is_bid: bool,
-}
-
-/// Mock market depth data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketDepth {
-    pub bids: Vec<MarketOrder>,
-    pub asks: Vec<MarketOrder>,
-}
-
-/// Mock financial data scenarios
-pub struct FinancialScenarios;
-
-impl FinancialScenarios {
-    /// Generate a realistic DeFi trading scenario
-    pub fn defi_trading_scenario() -> Vec<FinancialTransaction> {
-        vec![
-            FinancialTransaction {
-                id: "swap-1".to_string(),
-                transaction_type: "swap".to_string(),
-                input_mint: sol_mint().to_string(),
-                output_mint: usdc_mint().to_string(),
-                input_amount: 100_000_000, // 0.1 SOL
-                output_amount: 13_500_000, // ~13.5 USDC
-                price_usd: 135.0,
-                timestamp: chrono::Utc::now(),
-            },
-            FinancialTransaction {
-                id: "lend-1".to_string(),
-                transaction_type: "lend".to_string(),
-                input_mint: usdc_mint().to_string(),
-                output_mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(), // jUSDC
-                input_amount: 10_000_000,                                                // 10 USDC
-                output_amount: 10_050_000, // ~10.05 jUSDC (with interest)
-                price_usd: 10.0,
-                timestamp: chrono::Utc::now(),
-            },
-        ]
-    }
-
-    /// Generate a high-frequency trading scenario
-    pub fn high_frequenc_trading_scenario() -> Vec<FinancialTransaction> {
-        let mut transactions = Vec::new();
-        let mut generator = MockGenerator::new();
-
-        for i in 0..100 {
-            let amount = generator.random_amount(1_000_000, 100_000_000);
-            transactions.push(FinancialTransaction {
-                id: format!("arb-{i}"),
-                transaction_type: "arbitrage".to_string(),
-                input_mint: usdc_mint().to_string(),
-                output_mint: sol_mint().to_string(),
-                input_amount: amount,
-                output_amount: (amount as f64 * 0.0075) as u64, // Rough exchange rate
-                price_usd: 1.0,
-                timestamp: chrono::Utc::now(),
-            });
-        }
-
-        transactions
-    }
-}
-
-/// Mock financial transaction data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FinancialTransaction {
-    pub id: String,
-    pub transaction_type: String,
-    pub input_mint: String,
-    pub output_mint: String,
-    pub input_amount: u64,
-    pub output_amount: u64,
-    pub price_usd: f64,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-}
-
-/// Mock Jupiter position token data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterToken {
-    pub symbol: String,
-    pub name: String,
-    pub address: String,
-    pub asset_address: String,
-    pub decimals: u8,
-}
-
-/// Mock Jupiter position asset data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterAsset {
-    pub symbol: String,
-    pub name: String,
-    pub price: String,
-    pub logo_url: String,
-}
-
-/// Mock Jupiter position position data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterPositionData {
-    pub shares: String,
-    pub underlying_assets: String,
-    pub underlying_balance: String,
-    pub underlying_balance_decimal: f64,
-    pub usd_value: f64,
-    pub allowance: String,
-}
-
-/// Mock Jupiter position rates data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterRates {
-    pub supply_rate_pct: f64,
-    pub total_rate_pct: f64,
-    pub rewards_rate: String,
-}
-
-/// Mock Jupiter position liquidity data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterLiquidity {
-    pub total_assets: String,
-    pub withdrawable: String,
-    pub withdrawal_limit: String,
-}
-
-/// Mock Jupiter position summary item
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterPositionSummary {
-    pub token: JupiterToken,
-    pub asset: JupiterAsset,
-    pub position: JupiterPositionData,
-    pub rates: JupiterRates,
-    pub liquidity: JupiterLiquidity,
-}
-
-/// Mock Jupiter position earnings data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterPositionEarnings {
-    pub raw: String,
-    pub decimal: f64,
-}
-
-/// Mock Jupiter position balance data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterPositionBalance {
-    pub raw: String,
-    pub decimal: f64,
-}
-
-/// Mock Jupiter position item
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JupiterPositionItem {
-    pub position_address: String,
-    pub owner_address: String,
-    pub earnings: JupiterPositionEarnings,
-    pub deposits: JupiterPositionBalance,
-    pub withdraws: JupiterPositionBalance,
-    pub current_balance: JupiterPositionBalance,
-    pub total_assets: String,
-    pub slot: u64,
-}
-
-/// Mock raw Jupiter earnings data
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RawJupiterEarnings {
-    #[serde(rename = "address")]
-    pub address: String,
-    #[serde(rename = "ownerAddress")]
-    pub owner_address: String,
-    #[serde(rename = "totalDeposits")]
-    pub total_deposits: String,
-    #[serde(rename = "totalWithdraws")]
-    pub total_withdraws: String,
-    #[serde(rename = "totalBalance")]
-    pub total_balance: String,
-    #[serde(rename = "totalAssets")]
-    pub total_assets: String,
-    #[serde(rename = "earnings")]
-    pub earnings: String,
-    #[serde(rename = "slot")]
-    pub slot: u64,
-}
-
-impl MockGenerator {
     /// Generate mock Jupiter position summary
-    pub fn jupiter_position_summary(&mut self, has_balance: bool) -> JupiterPositionSummary {
+    pub fn jupiter_position_summary(
+        &mut self,
+        has_balance: bool,
+    ) -> super::jupiter_types::JupiterPositionSummary {
         let shares = if has_balance {
             self.random_amount(100_000_000, 1_000_000_000).to_string()
         } else {
@@ -447,15 +197,15 @@ impl MockGenerator {
             0.0
         };
 
-        JupiterPositionSummary {
-            token: JupiterToken {
+        super::jupiter_types::JupiterPositionSummary {
+            token: super::jupiter_types::JupiterToken {
                 symbol: "jlUSDC".to_string(),
                 name: "jupiter lend USDC".to_string(),
                 address: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(),
                 asset_address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
                 decimals: 6,
             },
-            asset: JupiterAsset {
+            asset: super::jupiter_types::JupiterAsset {
                 symbol: "USDC".to_string(),
                 name: "USD Coin".to_string(),
                 price: format!("{:.8}", self.random_price(0.99, 1.01)),
@@ -463,7 +213,7 @@ impl MockGenerator {
                     "https://coin-images.coingecko.com/coins/images/6319/large/usdc.png?1696506694"
                         .to_string(),
             },
-            position: JupiterPositionData {
+            position: super::jupiter_types::JupiterPositionData {
                 shares,
                 underlying_assets,
                 underlying_balance: "0".to_string(),
@@ -471,12 +221,12 @@ impl MockGenerator {
                 usd_value: underlying_balance_decimal * self.random_price(0.99, 1.01),
                 allowance: "0".to_string(),
             },
-            rates: JupiterRates {
+            rates: super::jupiter_types::JupiterRates {
                 supply_rate_pct: self.random_price(3.0, 8.0),
                 total_rate_pct: self.random_price(6.0, 12.0),
                 rewards_rate: self.random_amount(300, 500).to_string(),
             },
-            liquidity: JupiterLiquidity {
+            liquidity: super::jupiter_types::JupiterLiquidity {
                 total_assets: self
                     .random_amount(300_000_000_000_000, 400_000_000_000_000)
                     .to_string(),
@@ -495,7 +245,7 @@ impl MockGenerator {
         &mut self,
         user_pubkey: &str,
         has_balance: bool,
-    ) -> JupiterPositionItem {
+    ) -> super::jupiter_types::JupiterPositionItem {
         let deposits_raw = if has_balance {
             self.random_amount(1_000_000_000, 5_000_000_000).to_string()
         } else {
@@ -514,22 +264,22 @@ impl MockGenerator {
             "0".to_string()
         };
 
-        JupiterPositionItem {
+        super::jupiter_types::JupiterPositionItem {
             position_address: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(),
             owner_address: user_pubkey.to_string(),
-            earnings: JupiterPositionEarnings {
+            earnings: super::jupiter_types::JupiterPositionEarnings {
                 raw: self.random_amount(1_000_000, 10_000_000).to_string(),
                 decimal: self.random_amount(1_000_000, 10_000_000) as f64,
             },
-            deposits: JupiterPositionBalance {
+            deposits: super::jupiter_types::JupiterPositionBalance {
                 raw: deposits_raw.clone(),
                 decimal: deposits_raw.parse::<f64>().unwrap_or(0.0),
             },
-            withdraws: JupiterPositionBalance {
+            withdraws: super::jupiter_types::JupiterPositionBalance {
                 raw: withdraws_raw.clone(),
                 decimal: withdraws_raw.parse::<f64>().unwrap_or(0.0),
             },
-            current_balance: JupiterPositionBalance {
+            current_balance: super::jupiter_types::JupiterPositionBalance {
                 raw: current_balance_raw.clone(),
                 decimal: current_balance_raw.parse::<f64>().unwrap_or(0.0),
             },
@@ -543,7 +293,7 @@ impl MockGenerator {
         &mut self,
         user_pubkey: &str,
         has_balance: bool,
-    ) -> RawJupiterEarnings {
+    ) -> super::jupiter_types::RawJupiterEarnings {
         let total_deposits = if has_balance {
             self.random_amount(1_000_000_000, 5_000_000_000).to_string()
         } else {
@@ -562,7 +312,7 @@ impl MockGenerator {
             "0".to_string()
         };
 
-        RawJupiterEarnings {
+        super::jupiter_types::RawJupiterEarnings {
             address: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D".to_string(),
             owner_address: user_pubkey.to_string(),
             total_deposits,

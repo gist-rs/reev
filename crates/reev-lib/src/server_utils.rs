@@ -24,7 +24,7 @@ use tracing::{info, warn};
 /// use reev_lib::server_utils::kill_existing_reev_agent;
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Clean up port 9090 before starting a new server
 ///     kill_existing_reev_agent(9090).await?;
 ///     // Now it's safe to start a new server on port 9090
@@ -89,7 +89,7 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
 /// use reev_lib::server_utils::kill_existing_surfpool;
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<()> {
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     // Kill any existing surfpool processes on port 8899
 ///     kill_existing_surfpool(8899).await?;
 ///

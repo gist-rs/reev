@@ -35,8 +35,6 @@ pub use reev_db::{
 pub use reev_db::shared::flow::DBFlowLog as SharedFlowLog;
 pub use reev_db::shared::performance::AgentPerformance as SharedPerformanceMetrics;
 
-// Export our wrapper
-
 // Compatibility type for backward compatibility
 // This matches the old AgentPerformanceData structure from reev-lib
 #[derive(Debug, Clone, Serialize, Deserialize)]

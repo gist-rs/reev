@@ -6,6 +6,7 @@
 use std::env;
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_flow_tracking_integration() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
@@ -111,13 +112,14 @@ async fn test_flow_tracking_integration() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_flow_tracking_disabled() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     reev_agent::flow::GlobalFlowTracker::reset();
 
     // Ensure flow logging is disabled for this test
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
+    env::set_var("REEV_ENABLE_FLOW_LOGGING", "false");
 
     // Record a tool call (should be ignored when logging is disabled)
     reev_agent::flow::GlobalFlowTracker::record_tool_call(
@@ -131,6 +133,9 @@ async fn test_flow_tracking_disabled() {
             depth: 1,
         },
     );
+
+    // Clean up environment after test
+    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
 
     // Extract flow data
     let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
@@ -153,10 +158,22 @@ async fn test_flow_tracking_disabled() {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn test_llm_response_with_flows() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     reev_agent::flow::GlobalFlowTracker::reset();
+
+    // Double-check the tracker is empty
+    let initial_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
+    let tool_count = initial_data
+        .as_ref()
+        .map(|d| d.total_tool_calls)
+        .unwrap_or(0);
+    assert_eq!(
+        tool_count, 0,
+        "Global tracker should be empty at start of test, but got {tool_count} tool calls"
+    );
 
     // Enable flow logging for this test
     env::set_var("REEV_ENABLE_FLOW_LOGGING", "1");
@@ -174,6 +191,9 @@ async fn test_llm_response_with_flows() {
         error_message: None,
         depth: 1,
     });
+
+    // Clean up environment after test
+    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
 
     // Extract flow data and verify it matches expected format
     let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
