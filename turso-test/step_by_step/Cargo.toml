@@ -3,6 +3,8 @@ name = "step-by-step-turso-test"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
 turso = "0.10.0"
 tokio = { version = "1.0", features = ["full"] }
@@ -33,3 +35,7 @@ path = "tests/step5_rapid_calls.rs"
 [[bin]]
 name = "step6_reproduce_original_issue"
 path = "tests/step6_reproduce_original_issue.rs"
+
+[[bin]]
+name = "turso_upsert_concurrency_test"
+path = "tests/turso_upsert_concurrency_test.rs"

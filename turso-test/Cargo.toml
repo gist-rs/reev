@@ -18,6 +18,10 @@ name = "step6_reproduce_original_issue"
 path = "step_by_step/tests/step6_reproduce_original_issue.rs"
 
 [[bin]]
+name = "turso_upsert_concurrency_test"
+path = "step_by_step/tests/turso_upsert_concurrency_test.rs"
+
+[[bin]]
 name = "inspect_db"
 path = "inspect_db.rs"
 
