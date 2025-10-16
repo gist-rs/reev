@@ -3,12 +3,13 @@
 //! A command-line tool for inspecting and analyzing reev database contents.
 //! Provides detailed information about database structure, statistics, and health.
 
+use std::io::Write;
+
 use anyhow::Result;
 use clap::{Arg, Command};
 use reev_db::{DatabaseConfig, DatabaseWriter};
-use serde_json;
-use std::path::PathBuf;
-use tracing::{info, warn};
+
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -93,7 +94,7 @@ async fn main() -> Result<()> {
         && !matches.get_flag("benchmarks")
         && !matches.get_flag("cleanup")
     {
-        show_overview(&db, format).await?;
+        show_overview(&db, format, db_path).await?;
     }
 
     Ok(())
@@ -118,7 +119,7 @@ async fn check_duplicates(db: &DatabaseWriter, format: &str) -> Result<()> {
             );
             println!("{}", "-".repeat(120));
 
-            for duplicate in duplicates {
+            for duplicate in &duplicates {
                 println!(
                     "{:<40} {:<20} {:<10} {:<20} {:<20}",
                     duplicate.id,
@@ -148,7 +149,7 @@ async fn show_statistics(db: &DatabaseWriter, format: &str) -> Result<()> {
         if !stats.duplicate_details.is_empty() {
             println!("  Duplicate Details:");
             for (id, name, count) in &stats.duplicate_details {
-                println!("    {} ({}): {} records", id, name, count);
+                println!("    {id} ({name}): {count} records");
             }
         }
 
@@ -190,7 +191,7 @@ async fn list_benchmarks(db: &DatabaseWriter, format: &str) -> Result<()> {
         );
         println!("{}", "-".repeat(130));
 
-        for benchmark in benchmarks {
+        for benchmark in &benchmarks {
             let prompt_preview = if benchmark.prompt.len() > 47 {
                 format!("{}...", &benchmark.prompt[..47])
             } else {
@@ -238,7 +239,7 @@ async fn cleanup_duplicates(db: &DatabaseWriter) -> Result<()> {
     let duplicates_after = db.check_for_duplicates().await?;
 
     println!("\n✅ Cleanup completed:");
-    println!("  Records cleaned: {}", cleaned_count);
+    println!("  Records cleaned: {cleaned_count}");
     println!("  Duplicates remaining: {}", duplicates_after.len());
 
     if duplicates_after.is_empty() {
@@ -250,7 +251,7 @@ async fn cleanup_duplicates(db: &DatabaseWriter) -> Result<()> {
     Ok(())
 }
 
-async fn show_overview(db: &DatabaseWriter, format: &str) -> Result<()> {
+async fn show_overview(db: &DatabaseWriter, format: &str, _db_path: &str) -> Result<()> {
     println!("🪸 Reev Database Overview\n");
 
     let stats = db.get_database_stats().await?;

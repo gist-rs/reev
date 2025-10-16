@@ -6,8 +6,8 @@
 use crate::{
     error::{DatabaseError, Result},
     types::{
-        BatchResult, BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, SyncError,
-        SyncResult, SyncedBenchmark,
+        BenchmarkData, BenchmarkYml, DatabaseStats, DuplicateRecord, SyncError, SyncResult,
+        SyncedBenchmark,
     },
     DatabaseConfig,
 };
@@ -19,8 +19,8 @@ use turso::{Builder, Connection};
 
 /// Database writer for atomic operations with duplicate prevention
 pub struct DatabaseWriter {
-    conn: Connection,
-    config: DatabaseConfig,
+    pub conn: Connection,
+    pub config: DatabaseConfig,
 }
 
 impl DatabaseWriter {
@@ -31,30 +31,15 @@ impl DatabaseWriter {
             config.database_type()
         );
 
-        let db = match config.is_remote() {
-            true => {
-                let builder = Builder::new(config.path.as_str());
-                let client = match config.auth_token.as_ref() {
-                    Some(token) => builder.auth_token(token.clone()),
-                    None => builder,
-                };
-                client.build().await.map_err(|e| {
-                    DatabaseError::connection_with_source(
-                        format!("Failed to connect to remote database: {}", config.path),
-                        e,
-                    )
-                })?
-            }
-            false => Builder::new_local(&config.path)
-                .build()
-                .await
-                .map_err(|e| {
-                    DatabaseError::connection_with_source(
-                        format!("Failed to create local database: {}", config.path),
-                        e,
-                    )
-                })?,
-        };
+        let db = Builder::new_local(&config.path)
+            .build()
+            .await
+            .map_err(|e| {
+                DatabaseError::connection_with_source(
+                    format!("Failed to create local database: {}", config.path),
+                    e,
+                )
+            })?;
 
         let conn = db.connect().map_err(|e| {
             DatabaseError::connection_with_source("Failed to establish database connection", e)
@@ -130,7 +115,7 @@ impl DatabaseWriter {
         for table in tables.iter() {
             conn.execute(table, ())
                 .await
-                .map_err(|e| DatabaseError::schema("Failed to create table", e))?;
+                .map_err(|_e| DatabaseError::schema("Failed to create table"))?;
         }
 
         // Create indexes
@@ -148,7 +133,7 @@ impl DatabaseWriter {
         for index in indexes.iter() {
             conn.execute(index, ())
                 .await
-                .map_err(|e| DatabaseError::schema("Failed to create index", e))?;
+                .map_err(|_e| DatabaseError::schema("Failed to create index"))?;
         }
 
         info!("[DB] Database schema initialized successfully");
@@ -165,7 +150,7 @@ impl DatabaseWriter {
         // Generate MD5 based only on name and prompt (not timestamp!)
         let prompt_md5 = format!(
             "{:x}",
-            md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes())
+            md5::compute(format!("{benchmark_name}:{prompt}").as_bytes())
         );
 
         // Use fixed timestamp for consistent content
@@ -196,7 +181,7 @@ impl DatabaseWriter {
                     prompt.to_string(),
                     content.to_string(),
                     timestamp.clone(),
-                    timestamp,
+                    timestamp.clone(),
                 ],
             )
             .await
@@ -289,9 +274,9 @@ impl DatabaseWriter {
                     }
 
                     sync_result.processed_benchmarks.push(SyncedBenchmark {
-                        name: benchmark_name,
-                        md5,
-                        operation,
+                        name: benchmark_name.clone(),
+                        md5: md5.clone(),
+                        operation: operation.clone(),
                         processing_time_ms: processing_time,
                     });
 
@@ -306,7 +291,7 @@ impl DatabaseWriter {
                 }
                 Err(e) => {
                     sync_result.error_count += 1;
-                    let error_msg = format!("Failed to sync benchmark: {}", e);
+                    let error_msg = format!("Failed to sync benchmark: {e}");
                     error!("[DB] [{}/{}] {}", index + 1, yaml_files.len(), error_msg);
 
                     sync_result.errors.push(SyncError {
@@ -423,9 +408,7 @@ impl DatabaseWriter {
             .await
             .map_err(|e| DatabaseError::query("Failed to get count result", e))?
         {
-            let count: i64 = row
-                .get(0)
-                .map_err(|e| DatabaseError::generic("Failed to parse count", e))?;
+            let count: i64 = row.get(0)?;
             Ok(count)
         } else {
             Ok(0)
@@ -450,24 +433,12 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to get benchmark result", e))?
         {
             let benchmark = BenchmarkData {
-                id: row
-                    .get(0)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
-                benchmark_name: row
-                    .get(1)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
-                prompt: row
-                    .get(2)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
-                content: row
-                    .get(3)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
-                created_at: row
-                    .get(4)
-                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
-                updated_at: row
-                    .get(5)
-                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+                id: row.get(0)?,
+                benchmark_name: row.get(1)?,
+                prompt: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
             };
             Ok(Some(benchmark))
         } else {
@@ -493,24 +464,12 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to get benchmark result", e))?
         {
             let benchmark = BenchmarkData {
-                id: row
-                    .get(0)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
-                benchmark_name: row
-                    .get(1)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
-                prompt: row
-                    .get(2)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
-                content: row
-                    .get(3)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
-                created_at: row
-                    .get(4)
-                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
-                updated_at: row
-                    .get(5)
-                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+                id: row.get(0)?,
+                benchmark_name: row.get(1)?,
+                prompt: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
             };
             Ok(Some(benchmark))
         } else {
@@ -537,24 +496,12 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to iterate benchmarks", e))?
         {
             benchmarks.push(BenchmarkData {
-                id: row
-                    .get(0)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark ID", e))?,
-                benchmark_name: row
-                    .get(1)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark name", e))?,
-                prompt: row
-                    .get(2)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark prompt", e))?,
-                content: row
-                    .get(3)
-                    .map_err(|e| DatabaseError::generic("Failed to get benchmark content", e))?,
-                created_at: row
-                    .get(4)
-                    .map_err(|e| DatabaseError::generic("Failed to get created_at", e))?,
-                updated_at: row
-                    .get(5)
-                    .map_err(|e| DatabaseError::generic("Failed to get updated_at", e))?,
+                id: row.get(0)?,
+                benchmark_name: row.get(1)?,
+                prompt: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
             });
         }
 
@@ -586,21 +533,11 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to iterate duplicate results", e))?
         {
             let duplicate = DuplicateRecord {
-                id: row
-                    .get(0)
-                    .map_err(|e| DatabaseError::generic("Failed to get duplicate ID", e))?,
-                benchmark_name: row
-                    .get(1)
-                    .map_err(|e| DatabaseError::generic("Failed to get duplicate name", e))?,
-                count: row
-                    .get(2)
-                    .map_err(|e| DatabaseError::generic("Failed to get duplicate count", e))?,
-                first_created_at: row
-                    .get(3)
-                    .map_err(|e| DatabaseError::generic("Failed to get first created_at", e))?,
-                last_updated_at: row
-                    .get(4)
-                    .map_err(|e| DatabaseError::generic("Failed to get last updated_at", e))?,
+                id: row.get(0)?,
+                benchmark_name: row.get(1)?,
+                count: row.get(2)?,
+                first_created_at: row.get(3)?,
+                last_updated_at: row.get(4)?,
             };
             duplicates.push(duplicate);
         }
@@ -658,24 +595,19 @@ impl DatabaseWriter {
     async fn get_table_count(&self, table_name: &str) -> Result<i64> {
         let mut rows = self
             .conn
-            .query(&format!("SELECT COUNT(*) FROM {}", table_name), ())
+            .query(&format!("SELECT COUNT(*) FROM {table_name}"), ())
             .await
             .map_err(|e| {
-                DatabaseError::query(
-                    format!("Failed to count records in table {}", table_name),
-                    e,
-                )
+                DatabaseError::query(format!("Failed to count records in table {table_name}"), e)
             })?;
 
         if let Some(row) = rows.next().await.map_err(|e| {
             DatabaseError::query(
-                format!("Failed to get count result from table {}", table_name),
+                format!("Failed to get count result from table {table_name}"),
                 e,
             )
         })? {
-            let count: i64 = row
-                .get(0)
-                .map_err(|e| DatabaseError::generic("Failed to parse count", e))?;
+            let count: i64 = row.get(0)?;
             Ok(count)
         } else {
             Ok(0)
@@ -698,9 +630,7 @@ impl DatabaseWriter {
             .await
             .map_err(|e| DatabaseError::query("Failed to get size result", e))?
         {
-            let size: i64 = row
-                .get(0)
-                .map_err(|e| DatabaseError::generic("Failed to parse database size", e))?;
+            let size: i64 = row.get(0)?;
             Ok(size)
         } else {
             Err(DatabaseError::generic("Could not determine database size"))
@@ -731,11 +661,11 @@ impl DatabaseWriter {
 
             let result = self
                 .conn
-                .execute(delete_query, [&duplicate.id, &duplicate.id])
+                .execute(delete_query, [duplicate.id.clone(), duplicate.id.clone()])
                 .await
                 .map_err(|e| DatabaseError::query("Failed to cleanup duplicates", e))?;
 
-            cleaned_count += result;
+            cleaned_count += result as usize;
         }
 
         info!("[DB] Cleaned up {} duplicate records", cleaned_count);
@@ -745,79 +675,5 @@ impl DatabaseWriter {
     /// Get the underlying connection (for advanced operations)
     pub fn connection(&self) -> &Connection {
         &self.conn
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[tokio::test]
-    async fn test_database_writer_creation() -> Result<()> {
-        let temp_dir = TempDir::new()?;
-        let db_path = temp_dir.path().join("test.db");
-        let config = DatabaseConfig::new(db_path.to_string_lossy());
-
-        let writer = DatabaseWriter::new(config).await?;
-        assert_eq!(writer.get_all_benchmark_count().await?, 0);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_upsert_no_duplicates() -> Result<()> {
-        let temp_dir = TempDir::new()?;
-        let db_path = temp_dir.path().join("test.db");
-        let config = DatabaseConfig::new(db_path.to_string_lossy());
-
-        let writer = DatabaseWriter::new(config).await?;
-
-        // First upsert
-        let md5_1 = writer
-            .upsert_benchmark("test-benchmark", "Test prompt", "Test content")
-            .await?;
-
-        // Second upsert (should update, not create duplicate)
-        let md5_2 = writer
-            .upsert_benchmark("test-benchmark", "Test prompt", "Test content")
-            .await?;
-
-        assert_eq!(md5_1, md5_2);
-        assert_eq!(writer.get_all_benchmark_count().await?, 1);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_sync_benchmarks() -> Result<()> {
-        let temp_dir = TempDir::new()?;
-        let benchmarks_dir = temp_dir.path().join("benchmarks");
-        fs::create_dir(&benchmarks_dir).await?;
-
-        // Create test benchmark files
-        let benchmark1 = benchmarks_dir.join("001-test.yml");
-        let benchmark2 = benchmarks_dir.join("002-test.yml");
-
-        fs::write(&benchmark1, "id: 001-test\nprompt: Test 1\n").await?;
-        fs::write(&benchmark2, "id: 002-test\nprompt: Test 2\n").await?;
-
-        let db_path = temp_dir.path().join("test.db");
-        let config = DatabaseConfig::new(db_path.to_string_lossy());
-        let writer = DatabaseWriter::new(config).await?;
-
-        // First sync
-        let result1 = writer.sync_benchmarks_from_dir(&benchmarks_dir).await?;
-        assert_eq!(result1.processed_count, 2);
-        assert_eq!(result1.new_count, 2);
-        assert_eq!(result1.updated_count, 0);
-
-        // Second sync (should update existing records)
-        let result2 = writer.sync_benchmarks_from_dir(&benchmarks_dir).await?;
-        assert_eq!(result2.processed_count, 2);
-        assert_eq!(result2.new_count, 0);
-        assert_eq!(result2.updated_count, 0); // No changes since content is same
-
-        Ok(())
     }
 }

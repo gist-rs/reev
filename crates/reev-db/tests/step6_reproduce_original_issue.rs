@@ -68,15 +68,15 @@ async fn test_multiple_connections() -> Result<()> {
     let count1 = get_count(&conn1).await?;
     let count2 = get_count(&conn2).await?;
 
-    println!("   Connection 1: {} records, MD5: {}", count1, md5_1);
-    println!("   Connection 2: {} records, MD5: {}", count2, md5_2);
+    println!("   Connection 1: {count1} records, MD5: {md5_1}");
+    println!("   Connection 2: {count2} records, MD5: {md5_2}");
 
     if count1 == 1 && count2 == 1 && md5_1 == md5_2 {
         println!("   ✅ PASS: No duplicates with multiple connections");
     } else {
         println!("   ❌ FAIL: Multiple connections created inconsistent results");
         println!("   Expected: 1 record on each connection, same MD5");
-        println!("   Actual: {} records on conn1, {} records on conn2", count1, count2);
+        println!("   Actual: {count1} records on conn1, {count2} records on conn2");
     }
 
     Ok(())
@@ -106,7 +106,7 @@ async fn test_parallel_processing() -> Result<()> {
         let conn_clone = conn.clone();
         join_set.spawn(async move {
             println!("     Parallel task {}: Processing {}", i + 1, name);
-            upsert_benchmark(&conn_clone, &name, &prompt, &content).await
+            upsert_benchmark(&conn_clone, name, prompt, content).await
         });
     }
 
@@ -116,28 +116,28 @@ async fn test_parallel_processing() -> Result<()> {
             Ok(md5_result) => {
                 match md5_result {
                     Ok(md5) => {
-                        println!("     ✅ Parallel task completed: {}", md5);
+                        println!("     ✅ Parallel task completed: {md5}");
                         results.push(md5);
                     }
                     Err(e) => {
-                        println!("     ❌ Parallel task failed: {}", e);
+                        println!("     ❌ Parallel task failed: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("     ❌ Task join failed: {}", e);
+                println!("     ❌ Task join failed: {e}");
             }
         }
     }
 
     let final_count = get_count(&conn).await?;
-    println!("   Final record count: {}", final_count);
+    println!("   Final record count: {final_count}");
     println!("   Expected: 3 unique records");
 
     if final_count == 3 {
         println!("   ✅ PASS: Parallel processing handled correctly");
     } else {
-        println!("   ❌ FAIL: Parallel processing created {} records (expected 3)", final_count);
+        println!("   ❌ FAIL: Parallel processing created {final_count} records (expected 3)");
 
         // Show all records for debugging
         println!("   All records:");
@@ -145,7 +145,7 @@ async fn test_parallel_processing() -> Result<()> {
         while let Some(row) = rows.next().await? {
             let id: String = row.get(0)?;
             let name: String = row.get(1)?;
-            println!("     {} | {}", id, name);
+            println!("     {id} | {name}");
         }
     }
 
@@ -197,8 +197,8 @@ async fn test_transaction_boundaries() -> Result<()> {
 
     for i in 0..10 {
         let benchmark_name = format!("tx-test-{}", i % 3); // Create some duplicates
-        let prompt = format!("Prompt {}", i);
-        let content = format!("Content {}", i);
+        let prompt = format!("Prompt {i}");
+        let content = format!("Content {i}");
 
         let md5 = upsert_benchmark(&conn, &benchmark_name, &prompt, &content).await?;
         let count = get_count(&conn).await?;
@@ -207,14 +207,14 @@ async fn test_transaction_boundaries() -> Result<()> {
     }
 
     let final_count = get_count(&conn).await?;
-    println!("   Final record count: {}", final_count);
+    println!("   Final record count: {final_count}");
     println!("   Expected: 3 unique records (tx-test-0, tx-test-1, tx-test-2)");
 
     if final_count == 3 {
         println!("   ✅ PASS: Transaction boundaries handled correctly");
     } else {
         println!("   ❌ FAIL: Transaction boundary issues detected");
-        println!("   Expected 3 records, got {}", final_count);
+        println!("   Expected 3 records, got {final_count}");
     }
 
     Ok(())
@@ -243,7 +243,7 @@ async fn upsert_benchmark(
     prompt: &str,
     content: &str,
 ) -> Result<String> {
-    let prompt_md5 = format!("{:x}", md5::compute(format!("{}:{}", benchmark_name, prompt).as_bytes()));
+    let prompt_md5 = format!("{:x}", md5::compute(format!("{benchmark_name}:{prompt}").as_bytes()));
     let timestamp = Utc::now().to_rfc3339();
 
     // This is the original problematic query pattern
@@ -269,7 +269,7 @@ async fn upsert_benchmark(
         ],
     ).await?;
 
-    println!("[DB] Upserted benchmark '{}' with MD5 '{}'", benchmark_name, prompt_md5);
+    println!("[DB] Upserted benchmark '{benchmark_name}' with MD5 '{prompt_md5}'");
     Ok(prompt_md5)
 }
 

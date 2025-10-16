@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
             test_results.push(run_timestamp_variation_test(&db, verbose).await?);
         }
         _ => {
-            eprintln!("Unknown test: {}", test_name);
+            eprintln!("Unknown test: {test_name}");
             std::process::exit(1);
         }
     }
@@ -122,6 +122,7 @@ struct TestResult {
     passed: bool,
     message: String,
     duration_ms: u64,
+    #[allow(dead_code)]
     details: Vec<String>,
 }
 
@@ -135,18 +136,18 @@ async fn run_basic_upsert_test(db: &DatabaseWriter, verbose: bool) -> Result<Tes
     let md5_1 = db
         .upsert_benchmark("basic-test", "Test prompt", "Test content")
         .await?;
-    details.push(format!("First upsert MD5: {}", md5_1));
+    details.push(format!("First upsert MD5: {md5_1}"));
 
     let count_1 = db.get_all_benchmark_count().await?;
-    details.push(format!("Record count after first: {}", count_1));
+    details.push(format!("Record count after first: {count_1}"));
 
     let md5_2 = db
         .upsert_benchmark("basic-test", "Test prompt", "Test content")
         .await?;
-    details.push(format!("Second upsert MD5: {}", md5_2));
+    details.push(format!("Second upsert MD5: {md5_2}"));
 
     let count_2 = db.get_all_benchmark_count().await?;
-    details.push(format!("Record count after second: {}", count_2));
+    details.push(format!("Record count after second: {count_2}"));
 
     let passed = md5_1 == md5_2 && count_1 == 1 && count_2 == 1;
     let message = if passed {
@@ -170,7 +171,7 @@ async fn run_basic_upsert_test(db: &DatabaseWriter, verbose: bool) -> Result<Tes
     })
 }
 
-async fn run_multiple_connections_test(db: &DatabaseWriter, verbose: bool) -> Result<TestResult> {
+async fn run_multiple_connections_test(_db: &DatabaseWriter, verbose: bool) -> Result<TestResult> {
     let start_time = Instant::now();
     info!("🧪 Running multiple connections test...");
 
@@ -191,8 +192,8 @@ async fn run_multiple_connections_test(db: &DatabaseWriter, verbose: bool) -> Re
     let count_1 = db1.get_all_benchmark_count().await?;
     let count_2 = db2.get_all_benchmark_count().await?;
 
-    details.push(format!("Connection 1 MD5: {}, Count: {}", md5_1, count_1));
-    details.push(format!("Connection 2 MD5: {}, Count: {}", md5_2, count_2));
+    details.push(format!("Connection 1 MD5: {md5_1}, Count: {count_1}"));
+    details.push(format!("Connection 2 MD5: {md5_2}, Count: {count_2}"));
 
     let passed = md5_1 == md5_2 && count_1 == 1 && count_2 == 1;
     let message = if passed {
@@ -237,10 +238,7 @@ async fn run_parallel_processing_test(db: &DatabaseWriter, verbose: bool) -> Res
         join_set.spawn(async move {
             info!("  Parallel task {}: Processing {}", i + 1, name);
             let timestamp = chrono::Utc::now().to_rfc3339();
-            let prompt_md5 = format!(
-                "{:x}",
-                md5::compute(format!("{}:{}", name, prompt).as_bytes())
-            );
+            let prompt_md5 = format!("{:x}", md5::compute(format!("{name}:{prompt}").as_bytes()));
 
             let query = "
                 INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
@@ -272,7 +270,7 @@ async fn run_parallel_processing_test(db: &DatabaseWriter, verbose: bool) -> Res
                 }
                 Err(e) => {
                     error!("    ❌ Parallel task {} failed: {}", i + 1, e);
-                    Err(anyhow::anyhow!("Parallel task failed: {}", e))
+                    Err(anyhow::anyhow!("Parallel task failed: {e}"))
                 }
             }
         });
@@ -283,24 +281,24 @@ async fn run_parallel_processing_test(db: &DatabaseWriter, verbose: bool) -> Res
         match result {
             Ok(md5_result) => match md5_result {
                 Ok(md5) => {
-                    details.push(format!("Parallel task completed: {}", md5));
+                    details.push(format!("Parallel task completed: {md5}"));
                     results.push(md5);
                 }
                 Err(e) => {
-                    details.push(format!("Parallel task failed: {}", e));
+                    details.push(format!("Parallel task failed: {e}"));
                     warn!("  {}", e);
                 }
             },
             Err(e) => {
-                details.push(format!("Task join failed: {}", e));
+                details.push(format!("Task join failed: {e}"));
                 error!("  {}", e);
             }
         }
     }
 
     let final_count = db.get_all_benchmark_count().await?;
-    details.push(format!("Final record count: {}", final_count));
-    details.push(format!("Expected: 3 unique records"));
+    details.push(format!("Final record count: {final_count}"));
+    details.push("Expected: 3 unique records".to_string());
 
     let passed = final_count == 3;
     let message = if passed {
@@ -333,8 +331,8 @@ async fn run_transaction_boundaries_test(db: &DatabaseWriter, verbose: bool) -> 
     // Simulate rapid successive operations that might cause transaction boundary issues
     for i in 0..10 {
         let benchmark_name = format!("tx-test-{}", i % 3); // Create some duplicates
-        let prompt = format!("Prompt {}", i);
-        let content = format!("Content {}", i);
+        let prompt = format!("Prompt {i}");
+        let content = format!("Content {i}");
 
         let md5 = db
             .upsert_benchmark(&benchmark_name, &prompt, &content)
@@ -347,8 +345,8 @@ async fn run_transaction_boundaries_test(db: &DatabaseWriter, verbose: bool) -> 
     let final_count = db.get_all_benchmark_count().await?;
     let duplicates = db.check_for_duplicates().await?;
 
-    details.push(format!("Final record count: {}", final_count));
-    details.push(format!("Expected: 3 unique records"));
+    details.push(format!("Final record count: {final_count}"));
+    details.push("Expected: 3 unique records".to_string());
     details.push(format!("Duplicates found: {}", duplicates.len()));
 
     let passed = final_count == 3 && duplicates.is_empty();
@@ -373,7 +371,7 @@ async fn run_transaction_boundaries_test(db: &DatabaseWriter, verbose: bool) -> 
     })
 }
 
-async fn run_connection_pool_test(db: &DatabaseWriter, verbose: bool) -> Result<TestResult> {
+async fn run_connection_pool_test(_db: &DatabaseWriter, verbose: bool) -> Result<TestResult> {
     let start_time = Instant::now();
     info!("🧪 Running connection pool simulation test...");
 
@@ -441,9 +439,9 @@ async fn run_rapid_successive_test(db: &DatabaseWriter, verbose: bool) -> Result
         let count = db.get_all_benchmark_count().await?;
 
         if i == 0 {
-            details.push(format!("First operation: MD5 {}, Count {}", md5, count));
+            details.push(format!("First operation: MD5 {md5}, Count {count}"));
         } else if i == 49 {
-            details.push(format!("Last operation: MD5 {}, Count {}", md5, count));
+            details.push(format!("Last operation: MD5 {md5}, Count {count}"));
         }
 
         if count > 1 {
@@ -504,9 +502,9 @@ async fn run_timestamp_variation_test(db: &DatabaseWriter, verbose: bool) -> Res
 
     let count = db.get_all_benchmark_count().await?;
 
-    details.push(format!("First MD5: {}", md5_1));
-    details.push(format!("Second MD5: {}", md5_2));
-    details.push(format!("Record count: {}", count));
+    details.push(format!("First MD5: {md5_1}"));
+    details.push(format!("Second MD5: {md5_2}"));
+    details.push(format!("Record count: {count}"));
 
     let passed = md5_1 == md5_2 && count == 1;
     let message = if passed {
@@ -554,10 +552,7 @@ fn print_test_summary(results: &[TestResult]) {
     }
 
     println!("{}", "-".repeat(80));
-    println!(
-        "Summary: {}/{} tests passed in {}ms",
-        passed_count, total_count, total_duration
-    );
+    println!("Summary: {passed_count}/{total_count} tests passed in {total_duration}ms");
 
     if passed_count == total_count {
         println!("🎉 All tests passed! Database operations are working correctly.");

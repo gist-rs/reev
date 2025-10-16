@@ -34,12 +34,6 @@ clap = { version = "4.0", features = ["derive"] }
 # Logging
 tracing-subscriber = "0.3"
 
-# For binary utilities
-tracing = "0.1"
-
-# For CLI parameter handling
-anyhow = "1.0"
-
 # Testing utilities (dev dependencies)
 [dev-dependencies]
 tempfile = "3.0"
