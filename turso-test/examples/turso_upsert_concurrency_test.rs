@@ -50,7 +50,7 @@ async fn test_basic_upsert() -> Result<()> {
     init_schema(&conn).await?;
 
     // Test basic upsert operations
-    let test_cases = vec![
+    let test_cases = [
         ("001-basic", "Basic prompt", "Basic content"),
         ("002-basic", "Another prompt", "Another content"),
         ("001-basic", "Basic prompt", "Basic content"), // Should update, not duplicate
