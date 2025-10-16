@@ -1,6 +1,6 @@
 // Test to verify database timestamp ordering fix
 
-use reev_lib::db::{AgentPerformanceData, DatabaseConfig, DatabaseWriter, DbAgentPerformance};
+use reev_lib::db::{AgentPerformanceData, DatabaseConfig, DatabaseWriter};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -72,7 +72,7 @@ async fn test_agent_performance_timestamp_ordering() {
     // Retrieve results and verify ordering using public API
     // Note: get_agent_performance method doesn't exist in DatabaseWriter
     // Using a placeholder for now - this test may need to be updated
-    let performance_summaries = Vec::new(); // Placeholder
+    let performance_summaries: Vec<reev_db::AgentPerformanceSummary> = Vec::new(); // Placeholder
     let deterministic_results = performance_summaries
         .iter()
         .find(|summary| summary.agent_type == "deterministic")
@@ -138,7 +138,7 @@ async fn test_flow_log_id_null_handling() {
     // Verify it was inserted correctly using public API
     // Note: get_agent_performance method doesn't exist in DatabaseWriter
     // Using a placeholder for now - this test may need to be updated
-    let performance_summaries = Vec::new(); // Placeholder
+    let performance_summaries: Vec<reev_db::AgentPerformanceSummary> = Vec::new(); // Placeholder
     let deterministic_results = performance_summaries
         .iter()
         .find(|summary| summary.agent_type == "deterministic")

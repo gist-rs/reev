@@ -60,6 +60,9 @@ ascii_tree = "0.1.1"
 solana-sdk = { workspace = true }
 async-trait = "0.1"
 
+# Database dependencies
+reev-db = { path = "../reev-db" }
+
 # Dependency management
 flate2 = "1.0"
 tar = "0.4"

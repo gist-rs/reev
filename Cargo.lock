@@ -3798,6 +3798,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
  "project-root",
+ "reev-db",
  "reev-lib",
  "reqwest",
  "rstest",
