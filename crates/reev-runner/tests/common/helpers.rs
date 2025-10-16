@@ -30,16 +30,24 @@ pub async fn setup_env_for_benchmark(
 ) -> Result<(SolanaEnv, TestCase, AgentObservation)> {
     // HACK: Add a small delay and health check to mitigate race conditions
     // where the surfpool validator is not yet ready when the test starts.
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(1000));
     let rpc_client = RpcClient::new(LOCAL_RPC_URL.to_string());
-    for i in 0..20 {
-        if rpc_client.get_health().is_ok() {
-            break;
+    for i in 0..60 {
+        // Increased from 20 to 60 attempts (30 seconds total)
+        match rpc_client.get_health() {
+            Ok(_) => {
+                info!("✅ Validator is healthy after {} attempts", i + 1);
+                break;
+            }
+            Err(e) => {
+                if i == 59 {
+                    return Err(anyhow!(
+                        "Timed out waiting for validator to be healthy after 30 seconds. Last error: {e}"
+                    ));
+                }
+                thread::sleep(Duration::from_millis(500));
+            }
         }
-        if i == 19 {
-            return Err(anyhow!("Timed out waiting for validator to be healthy."));
-        }
-        thread::sleep(Duration::from_millis(500));
     }
 
     let f = fs::File::open(benchmark_path)?;

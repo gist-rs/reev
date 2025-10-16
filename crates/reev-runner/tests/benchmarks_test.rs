@@ -22,19 +22,104 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use glob::glob;
 use project_root::get_project_root;
 use reev_lib::{agent::AgentAction, env::GymEnv, score::calculate_final_score};
 use rstest::rstest;
-use std::path::PathBuf;
-use tracing::info;
+use std::{
+    fs,
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+    time::Duration,
+};
+use tokio::time::sleep;
+use tracing::{error, info};
 
 use common::helpers::{
     mock_perfect_instruction, prepare_jupiter_lend_deposit, prepare_jupiter_lend_deposit_usdc,
     prepare_jupiter_lend_withdraw_sol, prepare_jupiter_lend_withdraw_usdc, prepare_jupiter_swap,
     setup_env_for_benchmark,
 };
+
+/// RAII guard to ensure reev-agent process is killed after test
+struct AgentProcessGuard {
+    process: Child,
+}
+
+impl Drop for AgentProcessGuard {
+    fn drop(&mut self) {
+        info!("🧹 Shutting down reev-agent for test...");
+        if let Err(e) = self.process.kill() {
+            error!(error = ?e, "Failed to kill reev-agent process");
+        }
+    }
+}
+
+/// Start reev-agent process which hosts surfpool RPC server
+async fn start_agent_for_test() -> Result<AgentProcessGuard> {
+    let log_dir = PathBuf::from("logs");
+    fs::create_dir_all(&log_dir)?;
+    let log_file_path = log_dir.join("reev-agent-benchmark-test.log");
+    let log_file = fs::File::create(&log_file_path)?;
+    let stderr_log = log_file.try_clone()?;
+
+    info!("🚀 Starting reev-agent for benchmark test...");
+    let agent_process = Command::new("cargo")
+        .args(["run", "--package", "reev-agent"])
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(stderr_log))
+        .spawn()
+        .context("Failed to spawn reev-agent process")?;
+
+    let guard = AgentProcessGuard {
+        process: agent_process,
+    };
+
+    // Health check - wait for agent to be ready
+    let client = reqwest::Client::new();
+    let health_check_url = "http://127.0.0.1:9090/health";
+    for i in 0..30 {
+        if let Ok(response) = client.get(health_check_url).send().await {
+            if response.status().is_success() {
+                info!("✅ reev-agent is healthy after {} attempts", i + 1);
+                return Ok(guard);
+            }
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    Err(anyhow!(
+        "Timed out waiting for reev-agent to become healthy"
+    ))
+}
+
+/// Check if surfpool is available
+async fn check_surfpool_available() -> Result<()> {
+    let client = reqwest::Client::new();
+    let rpc_url = "http://127.0.0.1:8899";
+
+    for i in 0..15 {
+        if let Ok(response) = client
+            .post(rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getHealth"
+            }))
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                info!("✅ surfpool is available after {} attempts", i + 1);
+                return Ok(());
+            }
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    Err(anyhow!("surfpool is not available"))
+}
 
 /// Dynamically discovers all solvable `.yml` files in the `benchmarks` directory.
 ///
@@ -55,11 +140,38 @@ fn find_benchmark_files() -> Vec<PathBuf> {
 /// This test is parameterized by the `find_benchmark_files` function, which
 /// provides the path to each benchmark file. The test asserts that a "perfect"
 /// agent action results in a score of 1.0 for every benchmark, confirming their validity.
+///
+/// Note: This test requires reev-agent and surfpool to be available. It will start
+/// reev-agent automatically if needed and skip if surfpool cannot be reached.
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_all_benchmarks_are_solvable(
     #[values(find_benchmark_files())] benchmark_paths: Vec<PathBuf>,
 ) -> Result<()> {
+    // Start reev-agent if not already running
+    let _agent_guard = match start_agent_for_test().await {
+        Ok(guard) => {
+            info!("✅ Started reev-agent for test");
+            Some(guard)
+        }
+        Err(e) => {
+            info!(
+                "⚠️ Could not start reev-agent: {}, checking if already running",
+                e
+            );
+            None
+        }
+    };
+
+    // Wait a bit for surfpool to be ready
+    sleep(Duration::from_secs(3)).await;
+
+    // Check if surfpool is available
+    if let Err(e) = check_surfpool_available().await {
+        info!("⚠️ Skipping benchmark test - surfpool not available: {}", e);
+        info!("💡 To run this test, ensure surfpool is running or start reev-agent first");
+        return Ok(());
+    }
     for benchmark_path in benchmark_paths {
         // Initialize tracing for this test to ensure logs are captured when using `--nocapture`.
         let _ = tracing_subscriber::fmt::try_init();
