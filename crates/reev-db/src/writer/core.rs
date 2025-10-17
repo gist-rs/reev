@@ -205,8 +205,8 @@ impl DatabaseWriter {
 
         // Test inserting into a table with AUTOINCREMENT to detect sqlite_sequence issues
         match self.conn.execute(
-                "INSERT INTO execution_sessions (session_id, benchmark_id, agent_type, start_time, status) VALUES (?, ?, ?, ?, 'running')",
-                ["health_check", "health_check", "health_check", "2025-01-01T00:00:00Z"]
+                "INSERT INTO execution_sessions (session_id, benchmark_id, agent_type, interface, start_time, status) VALUES (?, ?, ?, ?, ?, 'running')",
+                ["health_check", "health_check", "health_check", "tui", "1234567890"]
             ).await {
             Ok(_) => {
                 info!("[DB] AUTOINCREMENT test passed");
