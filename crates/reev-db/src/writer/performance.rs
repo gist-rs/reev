@@ -73,7 +73,7 @@ impl DatabaseWriter {
 
             // Get recent results for this agent type
             let results_query = "
-                SELECT benchmark_id, score, final_status, timestamp
+                SELECT id, benchmark_id, score, final_status, timestamp
                 FROM agent_performance
                 WHERE agent_type = ?
                 ORDER BY timestamp DESC
@@ -91,12 +91,14 @@ impl DatabaseWriter {
 
             let mut results = Vec::new();
             while let Some(result_row) = results_rows.next().await? {
-                let benchmark_id: String = result_row.get(0)?;
-                let score: f64 = result_row.get(1)?;
-                let final_status: String = result_row.get(2)?;
-                let timestamp: String = result_row.get(3)?;
+                let id: i64 = result_row.get(0)?;
+                let benchmark_id: String = result_row.get(1)?;
+                let score: f64 = result_row.get(2)?;
+                let final_status: String = result_row.get(3)?;
+                let timestamp: String = result_row.get(4)?;
 
                 results.push(PerformanceResult {
+                    id: Some(id),
                     benchmark_id,
                     score,
                     final_status,

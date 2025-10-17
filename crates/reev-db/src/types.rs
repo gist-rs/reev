@@ -147,6 +147,7 @@ pub struct AgentPerformanceSummary {
 /// Simplified performance result for API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceResult {
+    pub id: Option<i64>,
     pub benchmark_id: String,
     pub score: f64,
     pub final_status: String,
@@ -248,8 +249,7 @@ pub struct DuplicateRecord {
 }
 
 /// Sync operation result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SyncResult {
     /// Number of benchmarks processed
     pub processed_count: usize,
@@ -266,7 +266,6 @@ pub struct SyncResult {
     /// List of errors encountered during sync
     pub errors: Vec<SyncError>,
 }
-
 
 /// Information about a synced benchmark
 #[derive(Debug, Clone, Serialize, Deserialize)]
