@@ -8,6 +8,7 @@ use axum::{
     Router,
 };
 use reev_lib::db::{DatabaseConfig, DatabaseWriter};
+use reev_lib::server_utils::kill_existing_api;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -28,6 +29,14 @@ async fn main() -> Result<()> {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+
+    // Clean up any existing API processes on the default port
+    let default_port = std::env::var("PORT")
+        .unwrap_or_else(|_| "3001".to_string())
+        .parse()
+        .unwrap_or(3001);
+
+    kill_existing_api(default_port).await?;
 
     // Initialize database
     let db_path =

@@ -198,3 +198,66 @@ pub async fn is_port_in_use(port: u16) -> bool {
         Err(_) => false,
     }
 }
+
+/// Kill existing API processes on the specified port
+///
+/// This function finds and forcefully terminates any processes using the specified port.
+/// It's useful for cleaning up leftover API instances before starting new ones.
+///
+/// # Arguments
+/// * `port` - The port to check for API processes (typically 3001)
+///
+/// # Returns
+/// `Ok(())` if cleanup was successful, `Err` if cleanup failed
+///
+/// # Example
+/// ```rust,no_run
+/// use reev_lib::server_utils::kill_existing_api;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Kill any existing API processes on port 3001
+///     kill_existing_api(3001).await?;
+///
+///     // Now it's safe to start a new API server
+///     Ok(())
+/// }
+/// ```
+pub async fn kill_existing_api(port: u16) -> Result<()> {
+    info!("🧹 Checking for existing API processes on port {}...", port);
+
+    // Try to kill any process using the specified port
+    match Command::new("lsof")
+        .args(["-ti", &format!(":{port}")])
+        .output()
+    {
+        Ok(output) => {
+            let pids = String::from_utf8_lossy(&output.stdout);
+            if !pids.trim().is_empty() {
+                info!("🔪 Found existing API processes: {}", pids.trim());
+                for pid in pids.trim().lines() {
+                    match Command::new("kill").args(["-9", pid.trim()]).output() {
+                        Ok(_) => {
+                            info!("✅ Killed process {}", pid.trim());
+                        }
+                        Err(e) => {
+                            warn!("⚠️  Failed to kill process {}: {}", pid.trim(), e);
+                        }
+                    }
+                }
+                // Give processes time to terminate
+                sleep(Duration::from_millis(500)).await;
+            } else {
+                info!("✅ No existing API processes found on port {}", port);
+            }
+        }
+        Err(e) => {
+            warn!(
+                "⚠️  Failed to check for existing API processes on port {}: {}",
+                port, e
+            );
+        }
+    }
+
+    Ok(())
+}
