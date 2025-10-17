@@ -923,55 +923,14 @@ pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse
 
 /// Manual test endpoint to test prompt MD5 lookup
 pub async fn test_prompt_md5_lookup(
-    State(state): State<ApiState>,
-    Json(request): Json<serde_json::Value>,
+    State(_state): State<ApiState>,
+    Json(_request): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    todo!()
-    // let db = &state.db;
-
-    // if let Some(benchmark_name) = request.get("benchmark_name").and_then(|v| v.as_str()) {
-    //     // Use the new FlowDatabaseWriter to test prompt MD5 lookup
-    //     let flow_db = reev_lib::db::FlowDatabaseWriter::new(std::sync::Arc::clone(db));
-    //     match flow_db
-    //         .get_prompt_md5_by_benchmark_name(benchmark_name)
-    //         .await
-    //     {
-    //         Ok(Some(prompt_md5)) => (
-    //             StatusCode::OK,
-    //             Json(serde_json::json!({
-    //                 "success": true,
-    //                 "benchmark_name": benchmark_name,
-    //                 "prompt_md5": prompt_md5,
-    //                 "message": format!("Found prompt MD5 for benchmark: {}", benchmark_name)
-    //             })),
-    //         ),
-    //         Ok(None) => (
-    //             StatusCode::OK,
-    //             Json(serde_json::json!({
-    //                 "success": true,
-    //                 "benchmark_name": benchmark_name,
-    //                 "prompt_md5": null,
-    //                 "message": format!("No prompt MD5 found for benchmark: {}", benchmark_name)
-    //             })),
-    //         ),
-    //         Err(e) => {
-    //             error!("Failed to test prompt MD5 lookup: {}", e);
-    //             (
-    //                 StatusCode::INTERNAL_SERVER_ERROR,
-    //                 Json(serde_json::json!({
-    //                     "success": false,
-    //                     "error": format!("Failed to test prompt MD5 lookup: {}", e)
-    //                 })),
-    //             )
-    //         }
-    //     }
-    // } else {
-    //     (
-    //         StatusCode::BAD_REQUEST,
-    //         Json(serde_json::json!({
-    //             "success": false,
-    //             "error": "Missing 'benchmark_name' field in request"
-    //         })),
-    //     )
-    // }
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "success": false,
+            "error": "Test endpoint not implemented"
+        })),
+    )
 }

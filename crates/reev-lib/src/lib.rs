@@ -13,6 +13,7 @@ pub mod mock;
 pub mod results;
 pub mod score;
 pub mod server_utils;
+pub mod session_logger;
 pub mod solana_env;
 pub mod test_scenarios;
 pub mod trace;

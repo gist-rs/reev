@@ -5,11 +5,12 @@ use reev_lib::{
     benchmark::{FlowStep, TestCase},
     db::{DatabaseConfig, DatabaseWriter, FlowDatabaseWriter},
     env::GymEnv,
-    flow::{ExecutionResult, FlowLogger},
+    flow::{ExecutionResult, FlowLogger, create_session_logger},
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
-    score::{calculate_detailed_score, calculate_final_score},
+    score::calculate_final_score,
     server_utils::{kill_existing_reev_agent, kill_existing_surfpool},
+    session_logger::ExecutionResult as SessionExecutionResult,
     solana_env::environment::SolanaEnv,
     test_scenarios,
     trace::ExecutionTrace,
@@ -143,24 +144,58 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             continue;
         }
 
-        // Initialize flow logging if enabled
-        let flow_logger = if reev_lib::flow::is_flow_logging_enabled() {
-            let output_path =
-                std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
-            let path = PathBuf::from(output_path);
+        // Initialize unified session logging if enabled
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session_logger = if reev_lib::flow::is_flow_logging_enabled() {
+            let log_path = std::env::var("REEV_SESSION_LOG_PATH")
+                .unwrap_or_else(|_| "logs/sessions".to_string());
+            let path = PathBuf::from(log_path);
             std::fs::create_dir_all(&path)?;
 
-            Some(FlowLogger::new_with_database(
+            Some(create_session_logger(
+                session_id.clone(),
                 test_case.id.clone(),
                 agent_name.to_string(),
-                path,
-                Arc::clone(&db) as Arc<dyn reev_flow::logger::DatabaseWriter>,
-            ))
+                Some(path),
+            )?)
         } else {
             None
         };
 
-        let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
+        // Create session in database
+        let start_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let session_info = reev_lib::db::SessionInfo {
+            session_id: session_id.clone(),
+            benchmark_id: test_case.id.clone(),
+            agent_type: agent_name.to_string(),
+            interface: "tui".to_string(),
+            start_time,
+            end_time: None,
+            status: "running".to_string(),
+            score: None,
+            final_status: None,
+        };
+
+        if let Err(e) = db.create_session(&session_info).await {
+            warn!(
+                benchmark_id = %test_case.id,
+                session_id = %session_id,
+                error = %e,
+                "Failed to create session in database"
+            );
+        } else {
+            info!(
+                benchmark_id = %test_case.id,
+                session_id = %session_id,
+                "Created session in database"
+            );
+        }
+
+        let mut agent = LlmAgent::new_with_flow_logging(agent_name, None)?;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
         let options = serde_json::to_value(&test_case)
@@ -193,8 +228,8 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             "Benchmark scoring completed"
         );
 
-        // Complete flow logging if enabled
-        if let Some(mut flow_logger) = agent.flow_logger.take() {
+        // Complete session logging if enabled
+        if let Some(session_logger) = session_logger {
             let start_time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -207,88 +242,63 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 - start_time)
                 * 1000;
 
-            let statistics = flow_logger.get_current_statistics();
             let final_status = if final_observation.last_transaction_status == "Success" {
                 FinalStatus::Succeeded
             } else {
                 FinalStatus::Failed
             };
 
-            // Calculate detailed scoring breakdown
-            let scoring_breakdown = calculate_detailed_score(
-                &test_case,
-                &actions,
-                &initial_observation,
-                &final_observation,
-            );
-
-            let execution_result = ExecutionResult {
+            // Create execution result for session logger
+            let execution_result = SessionExecutionResult {
                 success: final_status == FinalStatus::Succeeded,
                 score,
-                total_time_ms,
-                statistics,
-                scoring_breakdown: Some(scoring_breakdown),
+                status: final_status.to_string(),
+                execution_time_ms: total_time_ms,
+                data: serde_json::json!({
+                    "actions_count": actions.len(),
+                    "benchmark_id": test_case.id,
+                    "agent_type": agent.model_name(),
+                    "initial_observation": serde_json::to_value(&initial_observation).unwrap_or_default(),
+                    "final_observation": serde_json::to_value(&final_observation).unwrap_or_default(),
+                }),
             };
 
-            if let Err(e) = flow_logger.complete(execution_result).await {
-                warn!(
-                    benchmark_id = %test_case.id,
-                    error = %e,
-                    "Failed to complete flow logging"
-                );
-            } else {
-                // Successfully completed flow logging, render the flow as ASCII tree
-                info!(
-                    benchmark_id = %test_case.id,
-                    "Flow log completed, rendering as ASCII tree"
-                );
+            match session_logger.complete(execution_result) {
+                Ok(log_file) => {
+                    info!(
+                        benchmark_id = %test_case.id,
+                        log_file = %log_file.display(),
+                        "Session log completed successfully"
+                    );
 
-                // Find the most recent flow log file for this benchmark
-                let logs_path = if let Ok(flow_logs_dir) = std::env::var("REEV_FLOW_LOG_PATH") {
-                    std::path::PathBuf::from(flow_logs_dir)
-                } else {
-                    // Default to logs/flows directory
-                    std::path::PathBuf::from("logs/flows")
-                };
+                    // Store session log in database
+                    if let Ok(session_log) = reev_lib::session_logger::load_session_log(&log_file) {
+                        let log_content = serde_json::to_string(&session_log).unwrap_or_default();
 
-                if let Ok(entries) = std::fs::read_dir(&logs_path) {
-                    let mut latest_flow_file: Option<(std::path::PathBuf, std::time::SystemTime)> =
-                        None;
-
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                            if filename.contains(&test_case.id) && filename.contains("local") {
-                                if let Ok(metadata) = std::fs::metadata(&path) {
-                                    if let Ok(modified) = metadata.modified() {
-                                        match &latest_flow_file {
-                                            None => latest_flow_file = Some((path, modified)),
-                                            Some((_, latest_time)) => {
-                                                if modified > *latest_time {
-                                                    latest_flow_file = Some((path, modified));
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        if let Err(e) = db
+                            .store_complete_log(&session_log.session_id, &log_content)
+                            .await
+                        {
+                            warn!(
+                                benchmark_id = %test_case.id,
+                                error = %e,
+                                "Failed to store session log in database"
+                            );
+                        } else {
+                            info!(
+                                benchmark_id = %test_case.id,
+                                session_id = %session_log.session_id,
+                                "Session log stored in database"
+                            );
                         }
                     }
-
-                    if let Some((flow_file_path, _)) = latest_flow_file {
-                        match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
-                            Ok(tree_output) => {
-                                info!("\n🌊 Flow Execution Details:\n{tree_output}");
-                            }
-                            Err(e) => {
-                                warn!(
-                                    benchmark_id = %test_case.id,
-                                    error = %e,
-                                    "Failed to render flow log as ASCII tree"
-                                );
-                            }
-                        }
-                    }
+                }
+                Err(e) => {
+                    warn!(
+                        benchmark_id = %test_case.id,
+                        error = %e,
+                        "Failed to complete session logging"
+                    );
                 }
             }
         }
@@ -301,56 +311,34 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             FinalStatus::Failed
         };
 
-        // Create a session for this benchmark execution
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let start_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        let session_info = reev_lib::db::SessionInfo {
-            session_id: session_id.clone(),
-            benchmark_id: test_case.id.clone(),
-            agent_type: agent.model_name().to_string(),
-            interface: "tui".to_string(),
-            start_time: start_time as i64,
-            end_time: None,
-            status: "running".to_string(),
-            score: None,
-            final_status: None,
-        };
-
-        // Create session
-        db.create_session(&session_info)
-            .await
-            .context("Failed to create execution session")?;
-
-        // Store execution trace as session log
-        let log_content = serde_json::to_string(&trace)
-            .context("Failed to serialize execution trace for session log")?;
-
-        db.store_complete_log(&session_id, &log_content)
-            .await
-            .context("Failed to store execution trace")?;
-
-        // Complete session with results
+        // Complete session in database with results
         let end_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_secs();
+            .as_secs() as i64;
 
         let session_result = reev_lib::db::SessionResult {
-            end_time: end_time as i64,
+            end_time,
             score,
-            final_status: match final_status {
-                FinalStatus::Succeeded => "completed".to_string(),
-                FinalStatus::Failed => "failed".to_string(),
-            },
+            final_status: final_status.to_string(),
         };
 
-        db.complete_session(&session_id, &session_result)
-            .await
-            .context("Failed to complete execution session")?;
+        if let Err(e) = db.complete_session(&session_id, &session_result).await {
+            warn!(
+                benchmark_id = %test_case.id,
+                session_id = %session_id,
+                error = %e,
+                "Failed to complete session in database"
+            );
+        } else {
+            info!(
+                benchmark_id = %test_case.id,
+                session_id = %session_id,
+                score = %score,
+                final_status = %final_status,
+                "Completed session in database"
+            );
+        }
 
         // Store performance metrics
         let performance = reev_lib::db::AgentPerformanceData {
@@ -362,7 +350,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 FinalStatus::Succeeded => "completed".to_string(),
                 FinalStatus::Failed => "failed".to_string(),
             },
-            execution_time_ms: (end_time - start_time) * 1000,
+            execution_time_ms: (end_time - start_time) as u64,
             timestamp: chrono::Utc::now().to_rfc3339(),
             flow_log_id: None,
             prompt_md5: None,

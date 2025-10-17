@@ -40,7 +40,7 @@ reev-flow = { path = "../reev-flow", features = ["database"] }
 
 # Testing utilities (dev dependencies)
 [dev-dependencies]
-tempfile = "3.0"
+tempfile = { workspace = true }
 
 [[bin]]
 name = "db-inspector"

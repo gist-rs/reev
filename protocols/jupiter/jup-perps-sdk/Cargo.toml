@@ -37,7 +37,7 @@ thiserror = "1.0"
 solana-system-interface = "1.0"
 tracing = "0.1"
 rstest = "0.26.1"
-tempfile = "3.0"
+tempfile = "3.8"
 opentelemetry = "0.30.0"
 opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio"] }
 tracing-opentelemetry = { version = "0.31.0", default-features = false }
