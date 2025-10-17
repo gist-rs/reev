@@ -12,9 +12,9 @@ This document provides a comprehensive handover guide for the Reev framework dev
 - All compilation errors resolved
 - Session management tests passing
 - Database writer modules fixed for Turso compatibility
-- **NEW**: Unified SessionFileLogger with structured JSON logging implemented
-- **NEW**: File-based logs with database persistence fallback
-- **NEW**: Session logging consistency across all interfaces
+
+- **NEW**: Enhanced API with proper session_id inclusion
+- **NEW**: Per-day percentage calculations in web interface
 
 ---
 
@@ -34,8 +34,7 @@ This document provides a comprehensive handover guide for the Reev framework dev
 - **Database Persistence**: Complete session logs stored in session_logs table
 - **File Fallback**: Debug logs survive database failures
 - **Session Statistics**: Automatic calculation of session metrics
-- **Comprehensive Testing**: Unit tests passing (2/2)
-- **Integration**: Successfully integrated with reev-runner
+
 
 ### ✅ Code Organization Standards Achieved
 - **Line Limits**: All modules under 512 lines (average ~300 lines)
@@ -49,6 +48,26 @@ This document provides a comprehensive handover guide for the Reev framework dev
 - Real-time benchmark monitoring (TUI + Web)
 - Comprehensive performance analytics
 - Process automation and cleanup
+
+### 🚨 **CURRENT ISSUES**
+
+#### **ASCII Tree Generation Broken** - ACTIVE
+**Status**: 🔴 **CRITICAL** - ASCII tree endpoint shows "Failed" despite successful executions
+**Root Cause**: SessionFileLogger logs not formatted as proper ExecutionTrace objects
+**Impact**: Both TUI and Web interfaces cannot display ASCII tree results
+**Symptoms**: 
+- ASCII tree endpoint returns "❌ benchmark-name (Score: X%): Failed"
+- Error logs: "Failed to parse log as execution trace: missing field `prompt`"
+- Creates minimal trace objects that always show as "Failed"
+**Affected Components**: 
+- Web UI: Click on benchmark details
+- API: `/api/v1/ascii-tree/{benchmark_id}/{agent_type}` endpoint
+- TUI: ASCII tree display functionality
+**Required Action**: 
+- Fix SessionFileLogger to generate proper ExecutionTrace JSON format
+- Ensure session logs include all required fields: prompt, steps, observations
+- Add session_id linking to agent_performance records (completed)
+- Test ASCII tree generation for both TUI and Web interfaces
 - **NEW**: Unified SessionFileLogger with structured JSON logging
 - **NEW**: File-based session logs with database persistence
 - **NEW**: Session statistics and metadata tracking

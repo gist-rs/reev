@@ -43,12 +43,13 @@ impl DatabaseWriter {
         agent_type: &str,
         limit: Option<i32>,
     ) -> Result<Vec<PerformanceResult>> {
-        let limit_clause = limit.map(|l| format!(" LIMIT {l}")).unwrap_or_default();
+        let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
         let results_query = format!(
-            "SELECT id, benchmark_id, score, final_status, timestamp
+            "SELECT id, session_id, benchmark_id, score, final_status, timestamp
              FROM agent_performance
              WHERE agent_type = ?
-             ORDER BY timestamp DESC{limit_clause}"
+             ORDER BY timestamp DESC{}",
+            limit_clause
         );
 
         let mut results_rows = self
@@ -63,13 +64,15 @@ impl DatabaseWriter {
         let mut results = Vec::new();
         while let Some(result_row) = results_rows.next().await? {
             let id: i64 = result_row.get(0)?;
-            let benchmark_id: String = result_row.get(1)?;
-            let score: f64 = result_row.get(2)?;
-            let final_status: String = result_row.get(3)?;
-            let timestamp: String = result_row.get(4)?;
+            let session_id: String = result_row.get(1)?;
+            let benchmark_id: String = result_row.get(2)?;
+            let score: f64 = result_row.get(3)?;
+            let final_status: String = result_row.get(4)?;
+            let timestamp: String = result_row.get(5)?;
 
             results.push(PerformanceResult {
                 id: Some(id),
+                session_id,
                 benchmark_id,
                 score,
                 final_status,
@@ -136,7 +139,7 @@ impl DatabaseWriter {
             let avg_score: f64 = row.get(2)?;
             let latest_timestamp: String = row.get(3)?;
 
-            // Get all results for this agent type
+            // Get recent results for this agent type
             let results = self.get_agent_results(&agent_type, None).await?;
 
             summaries.push(AgentPerformanceSummary {

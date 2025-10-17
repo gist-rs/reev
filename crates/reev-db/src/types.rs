@@ -148,6 +148,7 @@ pub struct AgentPerformanceSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceResult {
     pub id: Option<i64>,
+    pub session_id: String,
     pub benchmark_id: String,
     pub score: f64,
     pub final_status: String,

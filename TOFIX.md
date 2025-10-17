@@ -55,6 +55,24 @@
 - Removed conflicting `DbAgentPerformance` conversion
 **Impact**: API agent-performance endpoint now properly reflects TUI usage
 **Verification**: Deterministic count increased from 16→17, timestamp updated correctly
+## 🚧 **MINOR REMAINING ISSUES**
+
+### 1. **ASCII Tree Generation Broken** - ACTIVE 🔴
+**Issue**: ASCII tree endpoint shows "Failed" despite successful benchmark executions
+**Status**: 🔴 **CRITICAL** - Both TUI and Web interfaces cannot display ASCII tree results
+**Root Cause**: SessionFileLogger logs not formatted as proper ExecutionTrace objects
+**Symptoms**: 
+- ASCII tree returns "❌ benchmark-name (Score: X%): Failed" 
+- Error: "Failed to parse log as execution trace: missing field `prompt`"
+- Creates minimal trace objects that always show as "Failed"
+**Impact**: 
+- Web UI: Clicking benchmark details shows no execution trace
+- API: `/api/v1/ascii-tree/{benchmark_id}/{agent_type}` endpoint broken
+- TUI: ASCII tree display functionality non-functional
+**Required Action**: 
+- Fix SessionFileLogger to generate proper ExecutionTrace JSON format
+- Ensure session logs include required fields: prompt, steps, observations
+- Test ASCII tree generation for both interfaces
 
 ### 2. **No Active Database Issues** - RESOLVED
 **Previous Issue**: Database schema initialization failure

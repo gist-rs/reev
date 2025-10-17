@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "preact/hooks";
+import { useMemo, useEffect, useCallback } from "preact/hooks";
 import { BenchmarkBox } from "../BenchmarkBox";
 import { BenchmarkResult, ExecutionStatus } from "../../types/benchmark";
 import { AgentPerformanceSummary } from "./types";
