@@ -10,7 +10,59 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // Re-export shared types for backward compatibility
-pub use crate::shared::flow::{ExecutionResult, DBFlowLog};
+pub use crate::shared::flow::{DBFlowLog, ExecutionResult};
+
+/// Session information for unified execution tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionInfo {
+    pub session_id: String,
+    pub benchmark_id: String,
+    pub agent_type: String,
+    pub interface: String, // 'tui' or 'web'
+    pub start_time: i64,   // Unix timestamp
+    pub end_time: Option<i64>,
+    pub status: String, // 'running', 'completed', 'failed'
+    pub score: Option<f64>,
+    pub final_status: Option<String>,
+}
+
+/// Result of a completed session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionResult {
+    pub end_time: i64,
+    pub score: f64,
+    pub final_status: String,
+}
+
+/// Filter for querying sessions
+#[derive(Debug, Clone, Default)]
+pub struct SessionFilter {
+    pub benchmark_id: Option<String>,
+    pub agent_type: Option<String>,
+    pub interface: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+}
+
+/// Log event for structured session logging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEvent {
+    pub timestamp: i64,     // Unix timestamp
+    pub event_type: String, // 'prompt', 'tool_call', 'transaction', 'result'
+    pub data: serde_json::Value,
+    pub metadata: HashMap<String, String>,
+}
+
+/// Complete session log structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionLog {
+    pub session_id: String,
+    pub benchmark_id: String,
+    pub agent_type: String,
+    pub interface: String,
+    pub start_time: i64,
+    pub events: Vec<LogEvent>,
+}
 
 /// Benchmark data structure from YAML files
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +194,7 @@ pub struct YmlTestResult {
 }
 
 /// Database statistics for monitoring
+/// Database statistics for monitoring and health checks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseStats {
     /// Total number of benchmarks
@@ -150,14 +203,14 @@ pub struct DatabaseStats {
     pub duplicate_count: i64,
     /// Details about duplicates (id, name, count)
     pub duplicate_details: Vec<(String, String, i64)>,
-    /// Total number of test results
+    /// Total number of execution sessions
     pub total_results: i64,
-    /// Total number of flow logs
+    /// Total number of session logs
     pub total_flow_logs: i64,
-    /// Total number of performance records
+    /// Total number of agent performance records
     pub total_performance_records: i64,
-    /// Database size in bytes (if available)
-    pub database_size_bytes: Option<i64>,
+    /// Database file size in bytes (if available)
+    pub database_size_bytes: Option<u64>,
     /// Last updated timestamp
     pub last_updated: String,
 }
@@ -205,10 +258,24 @@ pub struct SyncResult {
     pub error_count: usize,
     /// Duration of sync operation in milliseconds
     pub duration_ms: u64,
-    /// Details about processed benchmarks
-    pub processed_benchmarks: Vec<SyncedBenchmark>,
-    /// Errors encountered during sync
+    /// List of synced benchmarks with their details
+    pub synced_benchmarks: Vec<SyncedBenchmark>,
+    /// List of errors encountered during sync
     pub errors: Vec<SyncError>,
+}
+
+impl Default for SyncResult {
+    fn default() -> Self {
+        Self {
+            processed_count: 0,
+            new_count: 0,
+            updated_count: 0,
+            error_count: 0,
+            duration_ms: 0,
+            synced_benchmarks: Vec::new(),
+            errors: Vec::new(),
+        }
+    }
 }
 
 /// Information about a synced benchmark

@@ -1,0 +1,381 @@
+//! Agent performance tracking operations
+//!
+//! Provides storage and retrieval of agent performance metrics,
+//! execution times, and scoring data across sessions.
+
+use crate::{
+    error::{DatabaseError, Result},
+    shared::performance::AgentPerformance,
+    types::AgentPerformanceSummary,
+};
+use std::collections::HashMap;
+use tracing::info;
+
+use super::core::DatabaseWriter;
+
+impl DatabaseWriter {
+    /// Insert agent performance data
+    pub async fn insert_agent_performance(&self, performance: &AgentPerformance) -> Result<()> {
+        info!(
+            "[DB] Storing performance for agent: {} on benchmark: {}",
+            performance.agent_type, performance.benchmark_id
+        );
+
+        self.conn
+            .execute(
+                "INSERT INTO agent_performance
+                 (session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    performance.session_id.clone(),
+                    performance.benchmark_id.clone(),
+                    performance.agent_type.clone(),
+                    performance.score.to_string(),
+                    performance.final_status.clone(),
+                    performance.execution_time_ms.map(|t| t.to_string()).unwrap_or_default(),
+                    performance.timestamp.clone(),
+                    performance.prompt_md5.unwrap_or_default(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::operation("Failed to insert agent performance", e))?;
+
+        info!("[DB] Agent performance stored successfully");
+        Ok(())
+    }
+
+    /// Get agent performance summaries
+    pub async fn get_agent_performance(&self) -> Result<Vec<AgentPerformanceSummary>> {
+        info!("[DB] Getting agent performance summaries");
+
+        let query = "
+            SELECT
+                agent_type,
+                COUNT(*) as execution_count,
+                AVG(score) as avg_score,
+                MAX(timestamp) as latest_timestamp
+            FROM agent_performance
+            GROUP BY agent_type
+            ORDER BY agent_type
+        ";
+
+        let mut rows =
+            self.conn.query(query, ()).await.map_err(|e| {
+                DatabaseError::query("Failed to get agent performance summaries", e)
+            })?;
+
+        let mut summaries = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let agent_type: String = row.get(0)?;
+            let execution_count: i64 = row.get(1)?;
+            let avg_score: f64 = row.get(2)?;
+            let latest_timestamp: String = row.get(3)?;
+
+            summaries.push(AgentPerformanceSummary {
+                agent_type: agent_type.clone(),
+                execution_count,
+                avg_score,
+                latest_timestamp,
+                results: Vec::new(), // TODO: Populate with actual results if needed
+            });
+        }
+
+        info!(
+            "[DB] Retrieved {} agent performance summaries",
+            summaries.len()
+        );
+        Ok(summaries)
+    }
+
+    /// Get performance data for a specific agent
+    pub async fn get_agent_performance_by_type(
+        &self,
+        agent_type: &str,
+    ) -> Result<Vec<AgentPerformance>> {
+        info!("[DB] Getting performance data for agent: {}", agent_type);
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
+                 FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC",
+                [agent_type],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get agent performance by type", e))?;
+
+        let mut performances = Vec::new();
+        while let Some(row) = rows.next().await? {
+            performances.push(AgentPerformance {
+                id: None,
+                session_id: row.get(0)?,
+                benchmark_id: row.get(1)?,
+                agent_type: row.get(2)?,
+                score: row.get(3)?,
+                final_status: row.get(4)?,
+                execution_time_ms: row
+                    .get::<_, Option<String>>(5)?
+                    .and_then(|s| s.parse().ok()),
+                timestamp: row.get(6)?,
+                flow_log_id: None,
+                prompt_md5: row.get::<_, Option<String>>(7)?,
+                additional_metrics: HashMap::new(),
+            });
+        }
+
+        info!(
+            "[DB] Retrieved {} performance records for agent: {}",
+            performances.len(),
+            agent_type
+        );
+        Ok(performances)
+    }
+
+    /// Get performance data for a specific benchmark
+    pub async fn get_performance_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> Result<Vec<AgentPerformance>> {
+        info!(
+            "[DB] Getting performance data for benchmark: {}",
+            benchmark_id
+        );
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
+                 FROM agent_performance WHERE benchmark_id = ? ORDER BY timestamp DESC",
+                [benchmark_id],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get performance by benchmark", e))?;
+
+        let mut performances = Vec::new();
+        while let Some(row) = rows.next().await? {
+            performances.push(AgentPerformance {
+                id: None,
+                session_id: row.get(0)?,
+                benchmark_id: row.get(1)?,
+                agent_type: row.get(2)?,
+                score: row.get(3)?,
+                final_status: row.get(4)?,
+                execution_time_ms: row
+                    .get::<_, Option<String>>(5)?
+                    .and_then(|s| s.parse().ok()),
+                timestamp: row.get(6)?,
+                flow_log_id: None,
+                prompt_md5: row.get::<_, Option<String>>(7)?,
+                additional_metrics: HashMap::new(),
+            });
+        }
+
+        info!(
+            "[DB] Retrieved {} performance records for benchmark: {}",
+            performances.len(),
+            benchmark_id
+        );
+        Ok(performances)
+    }
+
+    /// Get performance data for a specific session
+    pub async fn get_performance_by_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<AgentPerformance>> {
+        info!("[DB] Getting performance data for session: {}", session_id);
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
+                 FROM agent_performance WHERE session_id = ?",
+                [session_id],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get performance by session", e))?;
+
+        if let Some(row) = rows.next().await? {
+            let performance = AgentPerformance {
+                id: None,
+                session_id: row.get(0)?,
+                benchmark_id: row.get(1)?,
+                agent_type: row.get(2)?,
+                score: row.get(3)?,
+                final_status: row.get(4)?,
+                execution_time_ms: row
+                    .get::<_, Option<String>>(5)?
+                    .and_then(|s| s.parse().ok()),
+                timestamp: row.get(6)?,
+                flow_log_id: None,
+                prompt_md5: row.get::<_, Option<String>>(7)?,
+                additional_metrics: HashMap::new(),
+            };
+            info!("[DB] Found performance data for session: {}", session_id);
+            Ok(Some(performance))
+        } else {
+            info!("[DB] No performance data found for session: {}", session_id);
+            Ok(None)
+        }
+    }
+
+    /// Get top performing agents by average score
+    pub async fn get_top_agents(&self, limit: i32) -> Result<Vec<AgentPerformanceSummary>> {
+        info!("[DB] Getting top {} performing agents", limit);
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT
+                     agent_type,
+                     COUNT(*) as execution_count,
+                     AVG(score) as avg_score,
+                     MAX(timestamp) as latest_timestamp
+                 FROM agent_performance
+                 GROUP BY agent_type
+                 HAVING execution_count >= 3
+                 ORDER BY avg_score DESC, execution_count DESC
+                 LIMIT ?",
+                [limit.to_string()],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get top agents", e))?;
+
+        let mut summaries = Vec::new();
+        while let Some(row) = rows.next().await? {
+            summaries.push(AgentPerformanceSummary {
+                agent_type: row.get(0)?,
+                execution_count: row.get(1)?,
+                avg_score: row.get(2)?,
+                latest_timestamp: row.get(3)?,
+                results: Vec::new(),
+            });
+        }
+
+        info!("[DB] Retrieved top {} performing agents", summaries.len());
+        Ok(summaries)
+    }
+
+    /// Get performance trend over time for an agent
+    pub async fn get_agent_performance_trend(
+        &self,
+        agent_type: &str,
+        limit: i32,
+    ) -> Result<Vec<AgentPerformance>> {
+        info!(
+            "[DB] Getting performance trend for agent: {} (limit: {})",
+            agent_type, limit
+        );
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
+                 FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC LIMIT ?",
+                [agent_type, limit.to_string()],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get agent performance trend", e))?;
+
+        let mut performances = Vec::new();
+        while let Some(row) = rows.next().await? {
+            performances.push(AgentPerformance {
+                id: None,
+                session_id: row.get(0)?,
+                benchmark_id: row.get(1)?,
+                agent_type: row.get(2)?,
+                score: row.get(3)?,
+                final_status: row.get(4)?,
+                execution_time_ms: row
+                    .get::<_, Option<String>>(5)?
+                    .and_then(|s| s.parse().ok()),
+                timestamp: row.get(6)?,
+                flow_log_id: None,
+                prompt_md5: row.get::<_, Option<String>>(7)?,
+                additional_metrics: HashMap::new(),
+            });
+        }
+
+        info!(
+            "[DB] Retrieved {} performance records for trend analysis",
+            performances.len()
+        );
+        Ok(performances)
+    }
+
+    /// Delete performance records for a session
+    pub async fn delete_performance_by_session(&self, session_id: &str) -> Result<()> {
+        info!(
+            "[DB] Deleting performance records for session: {}",
+            session_id
+        );
+
+        let rows_affected = self
+            .conn
+            .execute(
+                "DELETE FROM agent_performance WHERE session_id = ?",
+                [session_id],
+            )
+            .await
+            .map_err(|e| DatabaseError::operation("Failed to delete performance records", e))?;
+
+        info!(
+            "[DB] Deleted {} performance records for session: {}",
+            rows_affected, session_id
+        );
+        Ok(())
+    }
+
+    /// Get performance statistics for an agent
+    pub async fn get_agent_performance_stats(
+        &self,
+        agent_type: &str,
+    ) -> Result<HashMap<String, f64>> {
+        info!(
+            "[DB] Getting performance statistics for agent: {}",
+            agent_type
+        );
+
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT
+                     COUNT(*) as total_executions,
+                     AVG(score) as avg_score,
+                     MIN(score) as min_score,
+                     MAX(score) as max_score,
+                     AVG(execution_time_ms) as avg_execution_time,
+                     COUNT(CASE WHEN final_status = 'completed' THEN 1 END) as successful_executions
+                 FROM agent_performance WHERE agent_type = ?",
+                [agent_type],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to get agent performance stats", e))?;
+
+        let mut stats = HashMap::new();
+        if let Some(row) = rows.next().await? {
+            stats.insert("total_executions".to_string(), row.get::<_, i64>(0)? as f64);
+            stats.insert("avg_score".to_string(), row.get::<_, f64>(1)?);
+            stats.insert("min_score".to_string(), row.get::<_, f64>(2)?);
+            stats.insert("max_score".to_string(), row.get::<_, f64>(3)?);
+            stats.insert(
+                "avg_execution_time".to_string(),
+                row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+            );
+            let successful: i64 = row.get(5)?;
+            let total: i64 = row.get(0)?;
+            let success_rate = if total > 0 {
+                successful as f64 / total as f64
+            } else {
+                0.0
+            };
+            stats.insert("success_rate".to_string(), success_rate);
+        }
+
+        info!(
+            "[DB] Retrieved performance statistics for agent: {}",
+            agent_type
+        );
+        Ok(stats)
+    }
+}

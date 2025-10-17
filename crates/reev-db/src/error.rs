@@ -280,6 +280,39 @@ impl DatabaseError {
         }
     }
 
+    /// Create a new filesystem error with source
+    pub fn filesystem_with_source<
+        S: Into<String>,
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    >(
+        message: S,
+        _source: E,
+    ) -> Self {
+        Self::FilesystemError {
+            path: "unknown".to_string(),
+            source: std::io::Error::new(std::io::ErrorKind::Other, message.into()),
+        }
+    }
+
+    /// Create a new YAML error with source
+    pub fn yaml_with_source<S: Into<String>, E: Into<serde_yaml::Error>>(
+        message: S,
+        source: E,
+    ) -> Self {
+        Self::YamlError {
+            message: message.into(),
+            source: source.into(),
+        }
+    }
+
+    /// Create a new operation error
+    pub fn operation<S: Into<String>, E: Into<turso::Error>>(message: S, source: E) -> Self {
+        Self::QueryError {
+            query: message.into(),
+            source: source.into(),
+        }
+    }
+
     /// Check if this error is retryable
     pub fn is_retryable(&self) -> bool {
         match self {
