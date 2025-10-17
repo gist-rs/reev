@@ -19,6 +19,7 @@ import { useBenchmarkExecution } from "./hooks/useBenchmarkExecution";
 import { apiClient } from "./services/api";
 import { BenchmarkItem } from "./types/configuration";
 import "./style.css";
+import { ExecutionStatus } from "./types/benchmark";
 
 export function App() {
   const [selectedAgent, setSelectedAgent] = useState("deterministic");
@@ -386,11 +387,12 @@ export function App() {
           id: response.execution_id,
           benchmark_id: benchmarkId,
           agent: agentToUse,
-          status: "Pending",
+          status: ExecutionStatus.PENDING,
           progress: 0,
           start_time: new Date().toISOString(),
           trace: "",
           logs: "",
+          timestamp: "",
         });
 
         setIsRunning(true);
@@ -458,11 +460,12 @@ export function App() {
             id: response.execution_id,
             benchmark_id: nextBenchmark.id,
             agent: selectedAgent,
-            status: "Pending",
+            status: ExecutionStatus.PENDING,
             progress: 0,
             start_time: new Date().toISOString(),
             trace: "",
             logs: "",
+            timestamp: "",
           });
 
           handleExecutionStart(response.execution_id);

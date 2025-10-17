@@ -169,7 +169,6 @@ export function AgentPerformanceCard({
         if (run) {
           const [date, results] = run;
           const runDate = results[0].timestamp;
-          const dayPercentage = calculateDayPercentage(results);
           // Only apply running animation to the most recent run (index 0)
           const isMostRecentRun = index === 0;
 
@@ -177,19 +176,6 @@ export function AgentPerformanceCard({
             <div key={index} className="flex items-center space-x-2 text-sm">
               <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
                 {date}
-              </span>
-              <span
-                className={`font-mono text-sm font-medium min-w-[4rem] ${
-                  dayPercentage >= 0.9
-                    ? "text-green-600 dark:text-green-400"
-                    : dayPercentage >= 0.7
-                      ? "text-yellow-600 dark:text-yellow-400"
-                      : dayPercentage == 0.0
-                        ? "text-gray-400 dark:text-gray-500"
-                        : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {(dayPercentage * 100).toFixed(1)}%
               </span>
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
@@ -241,9 +227,6 @@ export function AgentPerformanceCard({
               <span className="text-gray-400 dark:text-gray-500 font-mono text-xs whitespace-nowrap">
                 XXXX-XX-XX
               </span>
-              <span className="font-mono text-sm font-medium min-w-[4rem] text-gray-400 dark:text-gray-500">
-                0.0%
-              </span>
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
                   const placeholderResult = createPlaceholderResult(
@@ -272,7 +255,7 @@ export function AgentPerformanceCard({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 w-96 max-w-md m-2">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
           {agentType}
