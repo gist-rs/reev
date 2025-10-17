@@ -94,6 +94,35 @@ const ONCHAIN_SCORE_WEIGHT: f64 = 0.25;
 /// ## Example
 ///
 /// ```rust
+/// use reev_lib::score::calculate_final_score;
+/// use reev_lib::benchmark::{TestCase, GroundTruth, InitialStateItem};
+/// use reev_lib::agent::{AgentAction, AgentObservation};
+/// use std::collections::HashMap;
+///
+/// let test_case = TestCase {
+///     id: "test".to_string(),
+///     description: "Test case".to_string(),
+///     tags: vec![],
+///     prompt: "Test prompt".to_string(),
+///     initial_state: vec![],
+///     flow: None,
+///     ground_truth: GroundTruth {
+///         transaction_status: "Success".to_string(),
+///         final_state_assertions: vec![],
+///         expected_instructions: vec![],
+///         skip_instruction_validation: false,
+///     },
+/// };
+/// let agent_actions = vec![];
+/// let initial_state = AgentObservation {
+///     last_transaction_status: "Success".to_string(),
+///     last_transaction_error: None,
+///     last_transaction_logs: vec![],
+///     account_states: HashMap::new(),
+///     key_map: HashMap::new(),
+/// };
+/// let final_state = initial_state.clone();
+///
 /// let score = calculate_final_score(
 ///     &test_case,
 ///     &agent_actions,

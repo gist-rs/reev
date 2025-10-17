@@ -43,16 +43,6 @@ use serde_json::Value;
 /// * `terminated` - True if the episode ended due to goal completion or unrecoverable failure
 /// * `truncated` - True if the episode was cut short by external conditions (timeouts, etc.)
 /// * `info` - Additional diagnostic data for debugging and analysis
-///
-/// ## Example
-///
-/// ```rust
-/// let step = env.step(actions, &ground_truth)?;
-/// println!("New state: {:?}", step.observation);
-/// if step.terminated {
-///     println!("Episode completed");
-/// }
-/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Step<Obs> {
     /// The observation of the environment's state after action execution.
@@ -120,26 +110,6 @@ pub struct Step<Obs> {
 /// 2. **Step**: Execute agent actions and observe results
 /// 3. **Render**: (Optional) Visualize current state
 /// 4. **Close**: Clean up resources and terminate
-///
-/// ## Example
-///
-/// ```rust
-/// // Initialize environment
-/// let mut env = SolanaEnv::new().await?;
-/// let initial_state = env.reset(Some(42), None).await?;
-///
-/// // Agent interaction loop
-/// let actions = agent.get_actions(&initial_state);
-/// let step_result = env.step(actions, &ground_truth)?;
-///
-/// // Process results
-/// if step_result.terminated {
-///     println!("Task completed!");
-/// }
-///
-/// // Cleanup
-/// env.close()?;
-/// ```
 pub trait GymEnv {
     /// The type of action the agent can take in the environment.
     ///
@@ -180,13 +150,7 @@ pub trait GymEnv {
     /// - The environment fails to connect to required services
     /// - Initial state setup encounters problems
     /// - Invalid configuration options are provided
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// let initial_state = env.reset(Some(12345), None).await?;
-    /// println!("Environment reset with {} accounts", initial_state.account_states.len());
-    /// ```
+
     fn reset(
         &mut self,
         seed: Option<u64>,
@@ -222,19 +186,7 @@ pub trait GymEnv {
     /// - Network connectivity issues occur
     /// - State corruption is detected
     /// - Resource constraints prevent execution
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// let actions = vec![AgentAction(instruction)];
-    /// let step_result = env.step(actions, &ground_truth)?;
-    ///
-    /// match step_result.observation.last_transaction_status.as_str() {
-    ///     "Success" => println!("Transaction executed successfully"),
-    ///     "Failure" => println!("Transaction failed: {:?}", step_result.observation.last_transaction_error),
-    ///     _ => println!("Unknown status"),
-    /// }
-    /// ```
+
     fn step(
         &mut self,
         actions: Vec<Self::Action>,
@@ -253,18 +205,6 @@ pub trait GymEnv {
     /// - **JSON Export**: Structured data for programmatic analysis
     /// - **GUI Display**: Visual representation for interactive debugging
     /// - **File Export**: Persistent state snapshots
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// // Print current state to console
-    /// env.render();
-    ///
-    /// // Or use in debugging contexts
-    /// if debug_mode {
-    ///     env.render(); // Show detailed state information
-    /// }
-    /// ```
     fn render(&self);
 
     /// Performs cleanup and resource release when the environment is no longer needed.
@@ -285,17 +225,5 @@ pub trait GymEnv {
     ///
     /// Returns an error if cleanup encounters issues, but the environment should
     /// make a best effort to clean up as much as possible even if some operations fail.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// // Use defer pattern for guaranteed cleanup
-    /// let mut env = SolanaEnv::new().await?;
-    ///
-    /// // ... use environment ...
-    ///
-    /// // Always cleanup when done
-    /// env.close()?;
-    /// ```
     fn close(&mut self) -> anyhow::Result<()>;
 }
