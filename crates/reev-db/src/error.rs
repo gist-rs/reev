@@ -177,6 +177,20 @@ impl DatabaseError {
         }
     }
 
+    /// Create a new schema error with source
+    pub fn schema_with_source<
+        S: Into<String>,
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    >(
+        message: S,
+        source: E,
+    ) -> Self {
+        Self::SchemaError {
+            message: message.into(),
+            source: Some(source.into()),
+        }
+    }
+
     /// Create a new validation error
     pub fn validation<F: Into<String>, M: Into<String>>(field: F, message: M) -> Self {
         Self::ValidationError {

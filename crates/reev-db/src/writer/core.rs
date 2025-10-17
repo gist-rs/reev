@@ -11,6 +11,9 @@ use tokio::fs;
 use tracing::{error, info};
 use turso::{Builder, Connection};
 
+/// Current database schema loaded from external file
+const CURRENT_SCHEMA: &str = include_str!("../../.schema/current_schema.sql");
+
 /// Main database writer for atomic operations with duplicate prevention
 pub struct DatabaseWriter {
     pub conn: Connection,
@@ -59,83 +62,37 @@ impl DatabaseWriter {
 
     /// Initialize database schema with all necessary tables and indexes
     async fn initialize_schema(&self) -> Result<()> {
-        info!("[DB] Initializing unified database schema");
+        info!("[DB] Initializing unified database schema from external file");
 
-        // Create tables - simplified architecture
-        let tables = [
-            "CREATE TABLE IF NOT EXISTS benchmarks (
-                id TEXT PRIMARY KEY,
-                benchmark_name TEXT NOT NULL,
-                prompt TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at INTEGER DEFAULT (strftime('%s', 'now')),
-                updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-            )",
-            "CREATE TABLE IF NOT EXISTS execution_sessions (
-                session_id TEXT PRIMARY KEY,
-                benchmark_id TEXT NOT NULL,
-                agent_type TEXT NOT NULL,
-                interface TEXT NOT NULL,
-                start_time INTEGER NOT NULL,
-                end_time INTEGER,
-                status TEXT NOT NULL DEFAULT 'running',
-                score REAL,
-                final_status TEXT,
-                log_file_path TEXT,
-                created_at INTEGER DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id)
-            )",
-            "CREATE TABLE IF NOT EXISTS session_logs (
-                session_id TEXT PRIMARY KEY,
-                content TEXT NOT NULL,
-                file_size INTEGER,
-                created_at INTEGER DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id)
-            )",
-            "CREATE TABLE IF NOT EXISTS agent_performance (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                benchmark_id TEXT NOT NULL,
-                agent_type TEXT NOT NULL,
-                score REAL NOT NULL,
-                final_status TEXT NOT NULL,
-                execution_time_ms INTEGER,
-                timestamp INTEGER NOT NULL,
-                prompt_md5 TEXT,
-                FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id),
-                FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id)
-            )",
-        ];
+        // Split schema into individual statements and filter out comments
+        let schema_string = CURRENT_SCHEMA
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty() && !line.starts_with("--"))
+            .collect::<Vec<&str>>()
+            .join(" ");
 
-        for table in tables.iter() {
-            self.conn
-                .execute(table, ())
-                .await
-                .map_err(|_e| DatabaseError::schema("Failed to create table"))?;
+        let statements: Vec<&str> = schema_string
+            .split(';')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        // Execute each statement
+        for statement in statements.iter() {
+            if statement.trim().is_empty() {
+                continue;
+            }
+
+            self.conn.execute(statement, ()).await.map_err(|e| {
+                DatabaseError::schema_with_source(
+                    format!("Failed to execute schema statement: {}", statement),
+                    e,
+                )
+            })?;
         }
 
-        // Create indexes for unified schema
-        let indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_benchmarks_name ON benchmarks(benchmark_name)",
-            "CREATE INDEX IF NOT EXISTS idx_execution_sessions_benchmark_agent ON execution_sessions(benchmark_id, agent_type)",
-            "CREATE INDEX IF NOT EXISTS idx_execution_sessions_interface ON execution_sessions(interface)",
-            "CREATE INDEX IF NOT EXISTS idx_execution_sessions_status ON execution_sessions(status)",
-            "CREATE INDEX IF NOT EXISTS idx_execution_sessions_start_time ON execution_sessions(start_time)",
-            "CREATE INDEX IF NOT EXISTS idx_session_logs_created_at ON session_logs(created_at)",
-            "CREATE INDEX IF NOT EXISTS idx_agent_performance_session_id ON agent_performance(session_id)",
-            "CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5)",
-            "CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score)",
-            "CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp)",
-        ];
-
-        for index in indexes.iter() {
-            self.conn
-                .execute(index, ())
-                .await
-                .map_err(|_e| DatabaseError::schema("Failed to create index"))?;
-        }
-
-        info!("[DB] Unified database schema initialized successfully");
+        info!("[DB] Unified database schema initialized successfully from external file");
         Ok(())
     }
 
