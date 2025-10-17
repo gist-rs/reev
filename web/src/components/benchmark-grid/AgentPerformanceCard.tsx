@@ -90,10 +90,10 @@ export function AgentPerformanceCard({
     );
   };
 
-  const lastThreePercentage = useMemo(() => {
-    if (!finalAgentData.results || finalAgentData.results.length === 0)
-      return 0;
+  const overallPercentage = useMemo(() => {
+    if (filteredBenchmarks.length === 0) return 0;
 
+    // Get the latest result for each benchmark
     const latestByBenchmark = new Map();
     finalAgentData.results?.forEach((result) => {
       const existing = latestByBenchmark.get(result.benchmark_id);
@@ -102,15 +102,15 @@ export function AgentPerformanceCard({
       }
     });
 
-    const latestResults = Array.from(latestByBenchmark.values());
-    if (latestResults.length === 0) return 0;
+    // Calculate total score including untested benchmarks (score 0)
+    let totalScore = 0;
+    filteredBenchmarks.forEach((benchmark) => {
+      const result = latestByBenchmark.get(benchmark.id);
+      totalScore += result?.score || 0; // Add score if tested, 0 if not tested
+    });
 
-    const totalScore = latestResults.reduce(
-      (sum, result) => sum + result.score,
-      0,
-    );
-    return totalScore / latestResults.length;
-  }, [finalAgentData.results?.length]);
+    return totalScore / filteredBenchmarks.length;
+  }, [finalAgentData.results?.length, filteredBenchmarks]);
 
   const renderTestRuns = () => {
     const testRuns = (finalAgentData.results || []).reduce(
@@ -237,16 +237,16 @@ export function AgentPerformanceCard({
         <div className="text-sm text-gray-600 dark:text-gray-400">
           <span
             className={
-              lastThreePercentage >= 0.9
+              overallPercentage >= 0.9
                 ? "text-green-600 dark:text-green-400"
-                : lastThreePercentage >= 0.7
+                : overallPercentage >= 0.7
                   ? "text-yellow-600 dark:text-yellow-400"
-                  : lastThreePercentage == 0.0
+                  : overallPercentage == 0.0
                     ? "text-gray-400 dark:text-gray-500"
                     : "text-red-600 dark:text-red-400"
             }
           >
-            {(lastThreePercentage * 100).toFixed(1)}%
+            {(overallPercentage * 100).toFixed(1)}%
           </span>
         </div>
       </div>
