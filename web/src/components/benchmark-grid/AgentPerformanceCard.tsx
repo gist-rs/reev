@@ -90,27 +90,53 @@ export function AgentPerformanceCard({
     );
   };
 
+  const calculateDayPercentage = useCallback(
+    (dayResults: BenchmarkResult[]) => {
+      if (filteredBenchmarks.length === 0) return 0;
+
+      // Calculate total score including untested benchmarks (score 0)
+      let totalScore = 0;
+      filteredBenchmarks.forEach((benchmark) => {
+        const result = dayResults.find((r) => r.benchmark_id === benchmark.id);
+        totalScore += result?.score || 0; // Add score if tested, 0 if not tested
+      });
+
+      return totalScore / filteredBenchmarks.length;
+    },
+    [filteredBenchmarks],
+  );
+
   const overallPercentage = useMemo(() => {
-    if (filteredBenchmarks.length === 0) return 0;
+    // Calculate average of daily percentages
+    const testRuns = (finalAgentData.results || []).reduce(
+      (runs, result) => {
+        const date = result.timestamp.substring(0, 10);
+        if (!runs[date]) {
+          runs[date] = {};
+        }
+        const existing = runs[date][result.benchmark_id];
+        if (!existing || result.timestamp > existing.timestamp) {
+          runs[date][result.benchmark_id] = result;
+        }
+        return runs;
+      },
+      {} as Record<string, Record<string, BenchmarkResult>>,
+    );
 
-    // Get the latest result for each benchmark
-    const latestByBenchmark = new Map();
-    finalAgentData.results?.forEach((result) => {
-      const existing = latestByBenchmark.get(result.benchmark_id);
-      if (!existing || result.timestamp > existing.timestamp) {
-        latestByBenchmark.set(result.benchmark_id, result);
-      }
-    });
+    const dailyPercentages = Object.values(testRuns).map((dayResults) =>
+      calculateDayPercentage(Object.values(dayResults)),
+    );
 
-    // Calculate total score including untested benchmarks (score 0)
-    let totalScore = 0;
-    filteredBenchmarks.forEach((benchmark) => {
-      const result = latestByBenchmark.get(benchmark.id);
-      totalScore += result?.score || 0; // Add score if tested, 0 if not tested
-    });
-
-    return totalScore / filteredBenchmarks.length;
-  }, [finalAgentData.results?.length, filteredBenchmarks]);
+    if (dailyPercentages.length === 0) return 0;
+    return (
+      dailyPercentages.reduce((sum, pct) => sum + pct, 0) /
+      dailyPercentages.length
+    );
+  }, [
+    finalAgentData.results?.length,
+    filteredBenchmarks,
+    calculateDayPercentage,
+  ]);
 
   const renderTestRuns = () => {
     const testRuns = (finalAgentData.results || []).reduce(
@@ -143,6 +169,7 @@ export function AgentPerformanceCard({
         if (run) {
           const [date, results] = run;
           const runDate = results[0].timestamp;
+          const dayPercentage = calculateDayPercentage(results);
           // Only apply running animation to the most recent run (index 0)
           const isMostRecentRun = index === 0;
 
@@ -150,6 +177,19 @@ export function AgentPerformanceCard({
             <div key={index} className="flex items-center space-x-2 text-sm">
               <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
                 {date}
+              </span>
+              <span
+                className={`font-mono text-sm font-medium min-w-[4rem] ${
+                  dayPercentage >= 0.9
+                    ? "text-green-600 dark:text-green-400"
+                    : dayPercentage >= 0.7
+                      ? "text-yellow-600 dark:text-yellow-400"
+                      : dayPercentage == 0.0
+                        ? "text-gray-400 dark:text-gray-500"
+                        : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {(dayPercentage * 100).toFixed(1)}%
               </span>
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
@@ -200,6 +240,9 @@ export function AgentPerformanceCard({
             <div key={index} className="flex items-center space-x-2 text-sm">
               <span className="text-gray-400 dark:text-gray-500 font-mono text-xs whitespace-nowrap">
                 XXXX-XX-XX
+              </span>
+              <span className="font-mono text-sm font-medium min-w-[4rem] text-gray-400 dark:text-gray-500">
+                0.0%
               </span>
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
