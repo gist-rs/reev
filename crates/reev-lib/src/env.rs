@@ -150,7 +150,6 @@ pub trait GymEnv {
     /// - The environment fails to connect to required services
     /// - Initial state setup encounters problems
     /// - Invalid configuration options are provided
-
     fn reset(
         &mut self,
         seed: Option<u64>,
@@ -186,7 +185,6 @@ pub trait GymEnv {
     /// - Network connectivity issues occur
     /// - State corruption is detected
     /// - Resource constraints prevent execution
-
     fn step(
         &mut self,
         actions: Vec<Self::Action>,
