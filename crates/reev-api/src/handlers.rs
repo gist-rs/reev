@@ -492,7 +492,9 @@ pub async fn get_ascii_tree_direct(
                                 },
                             },
                             match session.final_status.as_deref() {
-                                Some("completed") => reev_lib::results::FinalStatus::Succeeded,
+                                Some("completed") | Some("Succeeded") => {
+                                    reev_lib::results::FinalStatus::Succeeded
+                                }
                                 _ => reev_lib::results::FinalStatus::Failed,
                             },
                             session.score.unwrap_or(0.0),
