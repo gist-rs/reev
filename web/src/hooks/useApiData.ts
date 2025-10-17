@@ -138,7 +138,7 @@ export function useAgentPerformance() {
         ...agent,
         results: agent.results.map((result: any) => {
           return {
-            id: result.id.toString(),
+            id: `${result.benchmark_id}-${result.timestamp}-${agent.agent_type}`,
             benchmark_id: result.benchmark_id,
             agent_type: agent.agent_type,
             score: result.score,
