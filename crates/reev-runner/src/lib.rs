@@ -341,7 +341,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         }
 
         // Store performance metrics
-        let performance = reev_lib::db::AgentPerformanceData {
+        let performance_data = reev_lib::db::AgentPerformanceData {
             session_id: session_id.clone(),
             benchmark_id: test_case.id.clone(),
             agent_type: agent.model_name().to_string(),
@@ -356,8 +356,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             prompt_md5: None,
         };
 
-        let db_performance = reev_lib::db::DbAgentPerformance::from(performance);
-        db.insert_agent_performance(&db_performance)
+        // Convert to shared AgentPerformance type for database insertion
+        let shared_performance = reev_lib::db::SharedPerformanceMetrics::from(performance_data);
+        db.insert_agent_performance(&shared_performance)
             .await
             .context("Failed to store performance metrics")?;
 

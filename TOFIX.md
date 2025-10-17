@@ -43,7 +43,20 @@
 
 ## 🚧 **MINOR REMAINING ISSUES**
 
-### 1. **No Active Database Issues** - RESOLVED
+### 1. **Agent Performance Data Missing from TUI Sessions** - RESOLVED ✅
+**Issue**: TUI creates execution_sessions but not agent_performance records
+**Status**: ✅ **FIXED** - API now shows updated data from TUI sessions
+**Root Cause**: Type mismatch in reev-runner performance insertion
+- `insert_agent_performance` expects shared `AgentPerformance` type
+- Runner was converting to `DbAgentPerformance` and inserting wrong type
+**Solution**: 
+- Added conversion from `AgentPerformanceData` to shared `AgentPerformance` in reev-lib
+- Updated reev-runner to use correct shared type
+- Removed conflicting `DbAgentPerformance` conversion
+**Impact**: API agent-performance endpoint now properly reflects TUI usage
+**Verification**: Deterministic count increased from 16→17, timestamp updated correctly
+
+### 2. **No Active Database Issues** - RESOLVED
 **Previous Issue**: Database schema initialization failure
 **Status**: ✅ Fixed - Missing `interface` column in health check resolved
 **Impact**: Database now initializes and runs benchmarks successfully

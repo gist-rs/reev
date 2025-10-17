@@ -53,9 +53,11 @@ pub struct AgentPerformanceData {
     pub prompt_md5: Option<String>,
 }
 
-impl From<AgentPerformanceData> for DbAgentPerformance {
+// Removed conflicting DbAgentPerformance conversion - using shared AgentPerformance instead
+
+impl From<AgentPerformanceData> for SharedPerformanceMetrics {
     fn from(data: AgentPerformanceData) -> Self {
-        DbAgentPerformance {
+        SharedPerformanceMetrics {
             id: None,
             session_id: data.session_id,
             benchmark_id: data.benchmark_id,

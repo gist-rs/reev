@@ -1,5 +1,44 @@
 # 🪸 `reev` Project Reflections
 
+## 2025-10-17: Agent Performance Data Type Mismatch Fix - TUI/Web Integration Restored ✅
+
+### 🎯 **Critical Issue Resolved**
+Fixed missing agent performance data from TUI sessions in API responses. The API showed stale data despite active TUI usage due to type mismatch in performance data insertion.
+
+### 🔧 **Root Cause Analysis**
+#### **Problem Identification**
+- **Issue**: TUI creates `execution_sessions` but not `agent_performance` records
+- **Root Cause**: Type mismatch in reev-runner performance insertion
+- **Impact**: API agent-performance endpoint showed stale data despite TUI usage
+
+#### **Technical Details**
+- `insert_agent_performance` expected shared `AgentPerformance` type from `reev-db/shared/performance`
+- Runner was converting to `DbAgentPerformance` (legacy type from `reev-db/types`)
+- Conflicting `From` implementations caused compilation errors
+
+#### **Solution Implementation**
+- **Added**: Conversion from `AgentPerformanceData` to shared `AgentPerformance` in reev-lib
+- **Updated**: reev-runner to use correct shared type conversion
+- **Removed**: Conflicting `DbAgentPerformance` conversion to eliminate type conflicts
+
+#### **Verification Results**
+- Deterministic count increased from 16→17 executions
+- Latest timestamp updated correctly to `2025-10-17T12:05:42.013640+00:00`
+- API now properly reflects TUI session data
+
+### 🎓 **Lessons Learned**
+#### **Type System Complexity**
+- Multiple `AgentPerformance` types with same name caused confusion
+- Shared types should be preferred over legacy types
+- Type alias clarity is crucial for maintainability
+
+#### **Integration Testing**
+- End-to-end testing revealed disconnect between TUI and API
+- Database consistency between interfaces requires careful type management
+- Performance metrics tracking needs unified type system
+
+---
+
 ## 2025-10-17: Database Schema Health Check Fix - Production Readiness Restored ✅
 
 ### 🎯 **Critical Issue Resolved**

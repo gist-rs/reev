@@ -6,7 +6,7 @@
 use crate::{
     error::{DatabaseError, Result},
     shared::performance::AgentPerformance,
-    types::AgentPerformanceSummary,
+    types::{AgentPerformanceSummary, PerformanceResult},
 };
 use std::collections::HashMap;
 use tracing::info;
@@ -71,12 +71,45 @@ impl DatabaseWriter {
             let avg_score: f64 = row.get(2)?;
             let latest_timestamp: String = row.get(3)?;
 
+            // Get recent results for this agent type
+            let results_query = "
+                SELECT benchmark_id, score, final_status, timestamp
+                FROM agent_performance
+                WHERE agent_type = ?
+                ORDER BY timestamp DESC
+                LIMIT 10
+            ";
+
+            let mut results_rows = self
+                .conn
+                .prepare(results_query)
+                .await
+                .map_err(|e| DatabaseError::query("Failed to prepare results query", e))?
+                .query([agent_type.as_str()])
+                .await
+                .map_err(|e| DatabaseError::query("Failed to query results", e))?;
+
+            let mut results = Vec::new();
+            while let Some(result_row) = results_rows.next().await? {
+                let benchmark_id: String = result_row.get(0)?;
+                let score: f64 = result_row.get(1)?;
+                let final_status: String = result_row.get(2)?;
+                let timestamp: String = result_row.get(3)?;
+
+                results.push(PerformanceResult {
+                    benchmark_id,
+                    score,
+                    final_status,
+                    timestamp,
+                });
+            }
+
             summaries.push(AgentPerformanceSummary {
                 agent_type: agent_type.clone(),
                 execution_count,
                 avg_score,
                 latest_timestamp,
-                results: Vec::new(), // TODO: Populate with actual results if needed
+                results,
             });
         }
 
