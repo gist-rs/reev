@@ -43,13 +43,12 @@ impl DatabaseWriter {
         agent_type: &str,
         limit: Option<i32>,
     ) -> Result<Vec<PerformanceResult>> {
-        let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
+        let limit_clause = limit.map(|l| format!(" LIMIT {l}")).unwrap_or_default();
         let results_query = format!(
             "SELECT id, session_id, benchmark_id, score, final_status, timestamp
              FROM agent_performance
              WHERE agent_type = ?
-             ORDER BY timestamp DESC{}",
-            limit_clause
+             ORDER BY timestamp DESC{limit_clause}"
         );
 
         let mut results_rows = self
