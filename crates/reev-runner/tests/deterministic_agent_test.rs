@@ -53,6 +53,12 @@ fn find_benchmark_files() -> Vec<PathBuf> {
 async fn test_all_benchmarks_with_deterministic_agent(
     #[values(find_benchmark_files())] benchmark_paths: Vec<PathBuf>,
 ) -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
+
     // Initialize tracing for this test to ensure logs are captured when using `--nocapture`.
     let _ = tracing_subscriber::fmt::try_init();
 
@@ -207,6 +213,11 @@ async fn test_all_benchmarks_with_deterministic_agent(
 async fn test_deterministic_agent_jupiter_swap_integration(
     #[values(find_benchmark_files())] benchmark_paths: Vec<PathBuf>,
 ) -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
     // Find the Jupiter swap benchmark
     let jupiter_swap_path = benchmark_paths
         .iter()
@@ -247,4 +258,18 @@ async fn test_deterministic_agent_jupiter_swap_integration(
     env.close()?;
     info!("🎉 Jupiter swap deterministic test completed successfully!");
     Ok(())
+}
+
+/// Check if the Solana validator is available
+async fn is_validator_available() -> bool {
+    use std::time::Duration;
+
+    let client = reqwest::Client::new();
+    let url = "http://127.0.0.1:8899/";
+
+    // Try to connect with a short timeout
+    match client.get(url).timeout(Duration::from_secs(2)).send().await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
 }

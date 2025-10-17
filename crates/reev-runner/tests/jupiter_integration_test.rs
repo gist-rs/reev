@@ -3,6 +3,9 @@
 //! This test suite validates Jupiter protocol integration under various
 //! edge cases including insufficient liquidity, slippage protection,
 //! and error handling scenarios.
+//!
+//! These tests require a running Solana validator at http://127.0.0.1:8899
+//! They will be skipped if the validator is not available.
 
 use anyhow::Result;
 use reev_lib::{
@@ -19,6 +22,11 @@ use std::str::FromStr;
 /// Test Jupiter swap with insufficient SOL balance
 #[tokio::test(flavor = "multi_thread")]
 async fn test_jupiter_swap_insufficient_balance() -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
     let _ = tracing_subscriber::fmt::try_init();
 
     tracing::info!("🧪 Testing Jupiter swap with insufficient SOL balance");
@@ -103,6 +111,11 @@ async fn test_jupiter_swap_insufficient_balance() -> Result<()> {
 /// Test Jupiter swap with malformed instruction
 #[tokio::test(flavor = "multi_thread")]
 async fn test_jupiter_malformed_instruction() -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
     let _ = tracing_subscriber::fmt::try_init();
 
     tracing::info!("🧪 Testing Jupiter with malformed instruction data");
@@ -177,6 +190,11 @@ async fn test_jupiter_malformed_instruction() -> Result<()> {
 /// Test Jupiter with valid instruction but potential execution issues
 #[tokio::test(flavor = "multi_thread")]
 async fn test_jupiter_valid_instruction_execution() -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
     let _ = tracing_subscriber::fmt::try_init();
 
     tracing::info!("🧪 Testing Jupiter with valid instruction structure");
@@ -278,6 +296,11 @@ async fn test_jupiter_valid_instruction_execution() -> Result<()> {
 /// Test multiple Jupiter operations in sequence
 #[tokio::test(flavor = "multi_thread")]
 async fn test_jupiter_multiple_operations() -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
     let _ = tracing_subscriber::fmt::try_init();
 
     tracing::info!("🧪 Testing multiple Jupiter operations in sequence");
@@ -395,4 +418,18 @@ async fn test_jupiter_multiple_operations() -> Result<()> {
     env.close()?;
     tracing::info!("✅ Multiple operations test completed");
     Ok(())
+}
+
+/// Check if the Solana validator is available
+async fn is_validator_available() -> bool {
+    use std::time::Duration;
+
+    let client = reqwest::Client::new();
+    let url = "http://127.0.0.1:8899/";
+
+    // Try to connect with a short timeout
+    match client.get(url).timeout(Duration::from_secs(2)).send().await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
 }

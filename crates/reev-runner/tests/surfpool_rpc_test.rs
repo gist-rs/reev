@@ -14,6 +14,9 @@
 //! RPC "cheat code". The purpose is to prove that the cheat code works as expected
 //! by interacting directly with the `surfpool` RPC server, completely bypassing
 //! the `SolanaEnv` and its complex setup requirements.
+//!
+//! These tests require a running Solana validator at http://127.0.0.1:8899
+//! They will be skipped if the validator is not available.
 
 mod common;
 
@@ -89,6 +92,12 @@ async fn start_agent_for_test() -> Result<AgentProcessGuard> {
 /// the balance of an SPL token account on a local `surfpool` instance.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_set_usdc_balance_via_rpc() -> Result<()> {
+    // Skip test if validator is not available
+    if !is_validator_available().await {
+        println!("⚠️  Skipping test: Solana validator not available at http://127.0.0.1:8899");
+        return Ok(());
+    }
+
     // Initialize tracing to capture logs.
     let _ = tracing_subscriber::fmt::try_init();
 
@@ -141,4 +150,18 @@ async fn test_set_usdc_balance_via_rpc() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Check if the Solana validator is available
+async fn is_validator_available() -> bool {
+    use std::time::Duration;
+
+    let client = reqwest::Client::new();
+    let url = "http://127.0.0.1:8899/";
+
+    // Try to connect with a short timeout
+    match client.get(url).timeout(Duration::from_secs(2)).send().await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
 }
