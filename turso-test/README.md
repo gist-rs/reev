@@ -117,8 +117,8 @@ let prompt_md5 = format!("{:x}", md5::compute(format!("{}:{}", benchmark_name, p
 ```
 **Key Insight**: Different prompts for the same benchmark name create different records (as intended).
 
-### Dependencies (Turso 0.1.5)
-- `turso = "0.1.5"` - Database driver (current stable version)
+### Dependencies (Turso 0.2.2)
+- `turso = "0.2.2"` - Database driver (current stable version)
 - `tokio = { version = "1.0", features = ["full"] }` - Async runtime
 - `anyhow = "1.0"` - Error handling
 - `chrono = { version = "0.4", features = ["serde"] }` - Timestamps
