@@ -460,14 +460,12 @@ pub async fn get_ascii_tree_direct(
 
                 // Check execution status
                 match session.final_status.as_deref() {
-                    Some("Running") | Some("running") => {
-                        return (
-                            StatusCode::OK,
-                            [("Content-Type", "text/plain")],
-                            "⏳ Execution in progress...".to_string(),
-                        )
-                            .into_response();
-                    }
+                    Some("Running") | Some("running") => (
+                        StatusCode::OK,
+                        [("Content-Type", "text/plain")],
+                        "⏳ Execution in progress...".to_string(),
+                    )
+                        .into_response(),
                     Some("Completed") | Some("Succeeded") | Some("completed")
                     | Some("succeeded") => {
                         // Get the session log which contains the full execution output
@@ -521,12 +519,12 @@ pub async fn get_ascii_tree_direct(
                                             benchmark_id,
                                             ascii_tree.len()
                                         );
-                                        return (
+                                        (
                                             StatusCode::OK,
                                             [("Content-Type", "text/plain")],
                                             ascii_tree,
                                         )
-                                            .into_response();
+                                            .into_response()
                                     }
                                     Err(e) => {
                                         warn!("Failed to parse log as ExecutionTrace: {}", e);
@@ -536,23 +534,23 @@ pub async fn get_ascii_tree_direct(
                                             benchmark_id,
                                             log_content.len()
                                         );
-                                        return (
+                                        (
                                             StatusCode::OK,
                                             [("Content-Type", "text/plain")],
                                             log_content,
                                         )
-                                            .into_response();
+                                            .into_response()
                                     }
                                 }
                             }
                             Err(e) => {
                                 warn!("Failed to get session log: {}", e);
-                                return (
+                                (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve execution data".to_string(),
                                 )
-                                    .into_response();
+                                    .into_response()
                             }
                         }
                     }
@@ -608,12 +606,12 @@ pub async fn get_ascii_tree_direct(
                                             benchmark_id,
                                             ascii_tree.len()
                                         );
-                                        return (
+                                        (
                                             StatusCode::OK,
                                             [("Content-Type", "text/plain")],
-                                            format!("❌ Execution Failed\n\n{}", ascii_tree),
+                                            format!("❌ Execution Failed\n\n{ascii_tree}"),
                                         )
-                                            .into_response();
+                                            .into_response()
                                     }
                                     Err(e) => {
                                         warn!(
@@ -626,23 +624,23 @@ pub async fn get_ascii_tree_direct(
                                             benchmark_id,
                                             log_content.len()
                                         );
-                                        return (
+                                        (
                                             StatusCode::OK,
                                             [("Content-Type", "text/plain")],
-                                            format!("❌ Execution Failed\n\n{}", log_content),
+                                            format!("❌ Execution Failed\n\n{log_content}"),
                                         )
-                                            .into_response();
+                                            .into_response()
                                     }
                                 }
                             }
                             Err(e) => {
                                 warn!("Failed to get session log for failed execution: {}", e);
-                                return (
+                                (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve error details".to_string(),
                                 )
-                                    .into_response();
+                                    .into_response()
                             }
                         }
                     }
@@ -652,12 +650,12 @@ pub async fn get_ascii_tree_direct(
                             session.final_status.as_deref().unwrap_or("None"),
                             benchmark_id
                         );
-                        return (
+                        (
                             StatusCode::OK,
                             [("Content-Type", "text/plain")],
                             "❓ Unknown execution status".to_string(),
                         )
-                            .into_response();
+                            .into_response()
                     }
                 }
             } else {
@@ -665,22 +663,22 @@ pub async fn get_ascii_tree_direct(
                     "No sessions found for benchmark: {} by agent: {}",
                     benchmark_id, agent_type
                 );
-                return (
+                (
                     StatusCode::OK,
                     [("Content-Type", "text/plain")],
                     "📭 No execution data found".to_string(),
                 )
-                    .into_response();
+                    .into_response()
             }
         }
         Err(e) => {
             error!("Failed to list sessions: {}", e);
-            return (
+            (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 [("Content-Type", "text/plain")],
                 "❌ Database error".to_string(),
             )
-                .into_response();
+                .into_response()
         }
     }
 }
