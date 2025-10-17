@@ -435,11 +435,11 @@ pub async fn get_ascii_tree_direct(
     Path((benchmark_id, agent_type)): Path<(String, String)>,
 ) -> impl IntoResponse {
     info!(
-        "Getting ASCII tree for benchmark: {} by agent: {}",
+        "Getting execution log for benchmark: {} by agent: {}",
         benchmark_id, agent_type
     );
 
-    // Use session management to get performance data for this benchmark and agent
+    // Get the most recent session for this benchmark and agent
     let filter = reev_db::types::SessionFilter {
         benchmark_id: Some(benchmark_id.clone()),
         agent_type: Some(agent_type.clone()),
@@ -452,67 +452,107 @@ pub async fn get_ascii_tree_direct(
         Ok(sessions) => {
             if let Some(session) = sessions.first() {
                 info!(
-                    "Found session for benchmark: {} by agent: {}",
-                    benchmark_id, agent_type
+                    "Found session for benchmark: {} by agent: {} with status: {}",
+                    benchmark_id,
+                    agent_type,
+                    session.final_status.as_deref().unwrap_or("Unknown")
                 );
 
-                // Get the session log which contains the execution trace
-                match state.db.get_session_log(&session.session_id).await {
-                    Ok(log_content) => {
-                        // Try to parse the log content as an execution trace
-                        let trace: reev_lib::trace::ExecutionTrace =
-                            match serde_json::from_str(&log_content) {
-                                Ok(trace) => trace,
-                                Err(e) => {
-                                    warn!("Failed to parse log as execution trace: {}", e);
-                                    // Create a minimal trace for ASCII tree generation
-                                    reev_lib::trace::ExecutionTrace {
-                                        prompt: format!(
-                                            "Session trace for {benchmark_id} by {agent_type}"
-                                        ),
-                                        steps: vec![],
-                                    }
-                                }
-                            };
-
-                        // Create a TestResult from the trace
-                        let test_result = reev_lib::results::TestResult::new(
-                            &reev_lib::benchmark::TestCase {
-                                id: benchmark_id.clone(),
-                                description: format!("API generated test for {benchmark_id}"),
-                                tags: vec!["api".to_string()],
-                                initial_state: vec![],
-                                prompt: format!("API generated test for {benchmark_id}"),
-                                flow: None,
-                                ground_truth: reev_lib::benchmark::GroundTruth {
-                                    transaction_status: "unknown".to_string(),
-                                    final_state_assertions: vec![],
-                                    expected_instructions: vec![],
-                                    skip_instruction_validation: false,
-                                },
-                            },
-                            match session.final_status.as_deref() {
-                                Some("completed") | Some("Succeeded") => {
-                                    reev_lib::results::FinalStatus::Succeeded
-                                }
-                                _ => reev_lib::results::FinalStatus::Failed,
-                            },
-                            session.score.unwrap_or(0.0),
-                            trace,
-                        );
-
-                        // Render as ASCII tree
-                        let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
-
-                        info!(
-                            "Successfully rendered ASCII tree for benchmark: {}",
-                            benchmark_id
-                        );
-                        return (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree)
+                // Check execution status
+                match session.final_status.as_deref() {
+                    Some("Running") | Some("running") => {
+                        return (
+                            StatusCode::OK,
+                            [("Content-Type", "text/plain")],
+                            "⏳ Execution in progress...".to_string(),
+                        )
                             .into_response();
                     }
-                    Err(e) => {
-                        warn!("Failed to get session log: {}", e);
+                    Some("Completed") | Some("Succeeded") | Some("completed")
+                    | Some("succeeded") => {
+                        // Get the session log which contains the full execution output
+                        match state.db.get_session_log(&session.session_id).await {
+                            Ok(log_content) => {
+                                if log_content.trim().is_empty() {
+                                    return (
+                                        StatusCode::OK,
+                                        [("Content-Type", "text/plain")],
+                                        "📝 No execution data available".to_string(),
+                                    )
+                                        .into_response();
+                                }
+
+                                info!(
+                                    "Returning execution log for benchmark: {} ({} chars)",
+                                    benchmark_id,
+                                    log_content.len()
+                                );
+                                return (
+                                    StatusCode::OK,
+                                    [("Content-Type", "text/plain")],
+                                    log_content,
+                                )
+                                    .into_response();
+                            }
+                            Err(e) => {
+                                warn!("Failed to get session log: {}", e);
+                                return (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    [("Content-Type", "text/plain")],
+                                    "❌ Failed to retrieve execution data".to_string(),
+                                )
+                                    .into_response();
+                            }
+                        }
+                    }
+                    Some("Failed") | Some("failed") | Some("Error") | Some("error") => {
+                        // Get the session log even for failed executions to show error details
+                        match state.db.get_session_log(&session.session_id).await {
+                            Ok(log_content) => {
+                                if log_content.trim().is_empty() {
+                                    return (
+                                        StatusCode::OK,
+                                        [("Content-Type", "text/plain")],
+                                        "❌ Execution failed - No details available".to_string(),
+                                    )
+                                        .into_response();
+                                }
+
+                                info!(
+                                    "Returning failed execution log for benchmark: {} ({} chars)",
+                                    benchmark_id,
+                                    log_content.len()
+                                );
+                                return (
+                                    StatusCode::OK,
+                                    [("Content-Type", "text/plain")],
+                                    format!("❌ Execution Failed\n\n{}", log_content),
+                                )
+                                    .into_response();
+                            }
+                            Err(e) => {
+                                warn!("Failed to get session log for failed execution: {}", e);
+                                return (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    [("Content-Type", "text/plain")],
+                                    "❌ Failed to retrieve error details".to_string(),
+                                )
+                                    .into_response();
+                            }
+                        }
+                    }
+                    _ => {
+                        info!(
+                            "Unknown session status: {} for benchmark: {}",
+                            session.final_status.as_deref().unwrap_or("None"),
+                            benchmark_id
+                        );
+                        return (
+                            StatusCode::OK,
+                            [("Content-Type", "text/plain")],
+                            "❓ Unknown execution status".to_string(),
+                        )
+                            .into_response();
                     }
                 }
             } else {
@@ -520,75 +560,22 @@ pub async fn get_ascii_tree_direct(
                     "No sessions found for benchmark: {} by agent: {}",
                     benchmark_id, agent_type
                 );
+                return (
+                    StatusCode::OK,
+                    [("Content-Type", "text/plain")],
+                    "📭 No execution data found".to_string(),
+                )
+                    .into_response();
             }
         }
         Err(e) => {
             error!("Failed to list sessions: {}", e);
-        }
-    }
-
-    // Fallback: Get ASCII tree from current execution state
-    let executions = state.executions.lock().await;
-
-    // Find the most recent execution for this benchmark and agent
-    let mut matching_execution = None;
-    for execution in executions.values() {
-        if execution.benchmark_id == benchmark_id && execution.agent == agent_type {
-            match matching_execution {
-                None => matching_execution = Some(execution),
-                Some(current) => {
-                    if execution.start_time > current.start_time {
-                        matching_execution = Some(execution);
-                    }
-                }
-            }
-        }
-    }
-
-    match matching_execution {
-        Some(execution) => {
-            info!(
-                "Found execution with status: {}",
-                match execution.status {
-                    ExecutionStatus::Pending => "Pending",
-                    ExecutionStatus::Running => "Running",
-                    ExecutionStatus::Completed => "Completed",
-                    ExecutionStatus::Failed => "Failed",
-                }
-            );
-
-            if !execution.trace.is_empty() {
-                info!(
-                    "Returning ASCII tree trace from execution state ({} chars)",
-                    execution.trace.len()
-                );
-                (
-                    StatusCode::OK,
-                    [("Content-Type", "text/plain")],
-                    execution.trace.clone(),
-                )
-                    .into_response()
-            } else {
-                info!("No trace available in execution state");
-                (
-                    StatusCode::NOT_FOUND,
-                    [("Content-Type", "text/plain")],
-                    "No trace available".to_string(),
-                )
-                    .into_response()
-            }
-        }
-        None => {
-            info!(
-                "No execution found for benchmark: {} by agent: {}",
-                benchmark_id, agent_type
-            );
-            (
-                StatusCode::NOT_FOUND,
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
                 [("Content-Type", "text/plain")],
-                "No execution found".to_string(),
+                "❌ Database error".to_string(),
             )
-                .into_response()
+                .into_response();
         }
     }
 }

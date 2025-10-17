@@ -17,6 +17,32 @@ pub async fn execute_benchmark_background(
     benchmark_id: String,
     agent: String,
 ) {
+    // Create database session with Running status
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let session_info = reev_db::types::SessionInfo {
+        session_id: session_id.clone(),
+        benchmark_id: benchmark_id.clone(),
+        agent_type: agent.clone(),
+        interface: "Web".to_string(),
+        start_time: chrono::Utc::now().timestamp(),
+        end_time: None,
+        status: "running".to_string(),
+        score: None,
+        final_status: None,
+    };
+
+    match state.db.create_session(&session_info).await {
+        Ok(_) => {
+            info!(
+                "Created database session: {} for benchmark: {}",
+                session_id, benchmark_id
+            );
+        }
+        Err(e) => {
+            error!("Failed to create database session: {}", e);
+        }
+    }
+
     // Update status to running
     {
         let mut executions = state.executions.lock().await;
@@ -38,7 +64,13 @@ pub async fn execute_benchmark_background(
         Some(path) => path,
         None => {
             error!("Benchmark file not found: {}", benchmark_id);
-            update_execution_failed(&state, &execution_id, "Benchmark file not found").await;
+            update_execution_failed(
+                &state,
+                &execution_id,
+                &session_id,
+                "Benchmark file not found",
+            )
+            .await;
             return;
         }
     };
@@ -115,6 +147,51 @@ pub async fn execute_benchmark_background(
             // Calculate score as percentage
             let score_percentage = test_result.score * 100.0;
 
+            // Agent performance is stored by FlowLogger::complete() in the runner
+            // to avoid duplicates and maintain proper execution tracking
+            let final_status = match test_result.final_status {
+                reev_lib::results::FinalStatus::Succeeded => "Succeeded",
+                reev_lib::results::FinalStatus::Failed => "Failed",
+            };
+
+            // Update database session with final status and full execution log
+            let full_execution_log = format!(
+                "{}\nExecution completed with status: {}\nScore: {:.1}%\n\n{}",
+                ascii_trace,
+                final_status,
+                score_percentage,
+                transaction_logs.clone()
+            );
+
+            // Store the complete execution log
+            if let Err(e) = state
+                .db
+                .store_complete_log(&session_id, &full_execution_log)
+                .await
+            {
+                error!("Failed to store execution log: {}", e);
+            }
+
+            // Complete the session with results
+            let session_result = reev_db::types::SessionResult {
+                end_time: chrono::Utc::now().timestamp(),
+                score: test_result.score,
+                final_status: final_status.to_string(),
+            };
+
+            if let Err(e) = state
+                .db
+                .complete_session(&session_id, &session_result)
+                .await
+            {
+                error!("Failed to complete database session: {}", e);
+            } else {
+                info!(
+                    "Completed database session {} with final status: {}",
+                    session_id, final_status
+                );
+            }
+
             {
                 let mut executions = state.executions.lock().await;
                 if let Some(execution) = executions.get_mut(&execution_id) {
@@ -161,13 +238,6 @@ pub async fn execute_benchmark_background(
                 }
             }
 
-            // Agent performance is stored by FlowLogger::complete() in the runner
-            // to avoid duplicates and maintain proper execution tracking
-            let _final_status = match test_result.final_status {
-                reev_lib::results::FinalStatus::Succeeded => "Succeeded",
-                reev_lib::results::FinalStatus::Failed => "Failed",
-            };
-
             // Store flow log in database
             if let Err(e) = store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await
             {
@@ -176,7 +246,13 @@ pub async fn execute_benchmark_background(
         }
         Err(e) => {
             error!("Benchmark execution failed: {}", e);
-            update_execution_failed(&state, &execution_id, &format!("Execution failed: {e}")).await;
+            update_execution_failed(
+                &state,
+                &execution_id,
+                &session_id,
+                &format!("Execution failed: {e}"),
+            )
+            .await;
         }
     }
 
@@ -239,7 +315,12 @@ pub fn generate_transaction_logs(result: &TestResult) -> String {
 }
 
 /// Update execution as failed
-pub async fn update_execution_failed(state: &ApiState, execution_id: &str, error_message: &str) {
+pub async fn update_execution_failed(
+    state: &ApiState,
+    execution_id: &str,
+    session_id: &str,
+    error_message: &str,
+) {
     let mut executions = state.executions.lock().await;
     if let Some(execution) = executions.get_mut(execution_id) {
         execution.status = ExecutionStatus::Failed;
@@ -249,6 +330,22 @@ pub async fn update_execution_failed(state: &ApiState, execution_id: &str, error
         execution
             .trace
             .push_str(&format!("ERROR: {error_message}\n"));
+    }
+
+    // Update database session with failed status
+    if let Err(e) = state.db.update_session_status(session_id, "failed").await {
+        error!(
+            "Failed to update database session with failed status: {}",
+            e
+        );
+    } else {
+        info!("Updated database session {} with failed status", session_id);
+    }
+
+    // Store error log
+    let error_log = format!("Execution failed: {error_message}");
+    if let Err(e) = state.db.store_complete_log(session_id, &error_log).await {
+        error!("Failed to store error log: {}", e);
     }
 }
 
