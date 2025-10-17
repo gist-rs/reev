@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from "preact/hooks";
 import { BenchmarkBox } from "../BenchmarkBox";
-import { BenchmarkResult } from "../../types/benchmark";
+import { BenchmarkResult, ExecutionStatus } from "../../types/benchmark";
 import { AgentPerformanceSummary } from "./types";
 
 interface AgentPerformanceCardProps {
@@ -62,7 +62,7 @@ export function AgentPerformanceCard({
       benchmark_id: benchmarkId,
       agent_type: agentType,
       score: 0,
-      final_status: "Not Tested",
+      final_status: ExecutionStatus.UNKNOWN,
       execution_time_ms: 0,
       timestamp,
       color_class: "gray" as const,

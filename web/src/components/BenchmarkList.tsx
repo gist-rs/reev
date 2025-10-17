@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect } from "preact/hooks";
 import { apiClient } from "../services/api";
-import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
-import { ExecutionStatus as BenchmarkExecutionStatus } from "../types/benchmark";
+import { BenchmarkItem } from "../types/configuration";
+import { ExecutionStatus } from "../types/benchmark";
 import { AgentConfig } from "./AgentConfig";
 
 interface BenchmarkListProps {
@@ -237,7 +237,7 @@ export function BenchmarkList({
   const getBenchmarkScore = useCallback(
     (benchmarkId: string): number => {
       const execution = getBenchmarkStatus(benchmarkId);
-      if (execution?.status === BenchmarkExecutionStatus.COMPLETED) {
+      if (execution?.status === ExecutionStatus.COMPLETED) {
         return execution.score || 1.0;
       }
       return 0;
@@ -245,38 +245,30 @@ export function BenchmarkList({
     [getBenchmarkStatus],
   );
 
-  const getStatusIcon = useCallback((status: ExecutionStatus | string) => {
+  const getStatusIcon = useCallback((status: ExecutionStatus) => {
     switch (status) {
       case ExecutionStatus.PENDING:
-      case "Pending":
         return "[ ]";
       case ExecutionStatus.RUNNING:
-      case "Running":
         return "[…]";
       case ExecutionStatus.COMPLETED:
-      case "Completed":
         return "[✓]";
       case ExecutionStatus.FAILED:
-      case "Failed":
         return "[✗]";
       default:
         return "[?]";
     }
   }, []);
 
-  const getStatusColor = useCallback((status: ExecutionStatus | string) => {
+  const getStatusColor = useCallback((status: ExecutionStatus) => {
     switch (status) {
       case ExecutionStatus.PENDING:
-      case "Pending":
         return "text-gray-500";
       case ExecutionStatus.RUNNING:
-      case "Running":
         return "text-yellow-500";
       case ExecutionStatus.COMPLETED:
-      case "Completed":
         return "text-green-500";
       case ExecutionStatus.FAILED:
-      case "Failed":
         return "text-red-500";
       default:
         return "text-gray-500";
@@ -431,9 +423,9 @@ export function BenchmarkList({
               const execution = getBenchmarkStatus(benchmark.id);
               const status = execution?.status || null;
               const score =
-                execution?.status === BenchmarkExecutionStatus.COMPLETED
+                execution?.status === ExecutionStatus.COMPLETED
                   ? getBenchmarkScore(benchmark.id)
-                  : execution?.status === BenchmarkExecutionStatus.COMPLETED
+                  : execution?.status === ExecutionStatus.COMPLETED
                     ? execution.score || 1.0
                     : 0;
               const isSelected = selectedBenchmark === benchmark.id;
@@ -461,8 +453,8 @@ export function BenchmarkList({
                       <span
                         className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
                       >
-                        {status === BenchmarkExecutionStatus.COMPLETED ||
-                        status === BenchmarkExecutionStatus.FAILED
+                        {status === ExecutionStatus.COMPLETED ||
+                        status === ExecutionStatus.FAILED
                           ? formatScore(score)
                           : "000%"}
                       </span>
@@ -487,25 +479,25 @@ export function BenchmarkList({
                       disabled={
                         isRunning ||
                         isRunningAll ||
-                        status === BenchmarkExecutionStatus.RUNNING
+                        status === ExecutionStatus.RUNNING
                       }
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                     >
-                      {status === BenchmarkExecutionStatus.RUNNING
+                      {status === ExecutionStatus.RUNNING
                         ? "Running..."
                         : "Run"}
                     </button>
                   </div>
 
                   {/* Progress Bar for Running and Completed Benchmarks */}
-                  {(status === BenchmarkExecutionStatus.RUNNING ||
-                    status === BenchmarkExecutionStatus.COMPLETED ||
-                    status === BenchmarkExecutionStatus.COMPLETED) && (
+                  {(status === ExecutionStatus.RUNNING ||
+                    status === ExecutionStatus.COMPLETED ||
+                    status === ExecutionStatus.COMPLETED) && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all duration-300 ${
-                            status === BenchmarkExecutionStatus.COMPLETED
+                            status === ExecutionStatus.COMPLETED
                               ? "bg-green-600"
                               : "bg-blue-600"
                           }`}
@@ -514,12 +506,12 @@ export function BenchmarkList({
                           }}
                         ></div>
                       </div>
-                      {status === BenchmarkExecutionStatus.COMPLETED && (
+                      {status === ExecutionStatus.COMPLETED && (
                         <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
                           ✓ Completed successfully
                         </div>
                       )}
-                      {status === BenchmarkExecutionStatus.FAILED && (
+                      {status === ExecutionStatus.FAILED && (
                         <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
                           ✗ Failed
                         </div>

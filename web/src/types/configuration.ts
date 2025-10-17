@@ -1,5 +1,7 @@
 // Configuration types for agent management and API communication
 
+import { ExecutionStatus } from "./benchmark";
+
 export interface AgentConfig {
   agent_type: string;
   api_url?: string;
@@ -32,16 +34,6 @@ export interface ExecutionState {
   trace: string;
   logs: string;
   error?: string;
-}
-
-export type ExecutionStatus = "Pending" | "Running" | "Completed" | "Failed";
-
-export interface BenchmarkStatus {
-  id: string;
-  benchmark_id: string;
-  agent: string;
-  status: ExecutionStatus;
-  progress: number;
   score?: number;
   final_status?: string;
   execution_time_ms?: number;
