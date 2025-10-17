@@ -429,6 +429,138 @@ pub async fn get_flow_log(
     }
 }
 
+/// Get transaction logs for a benchmark
+pub async fn get_transaction_logs(
+    State(state): State<ApiState>,
+    Path(benchmark_id): Path<String>,
+) -> impl IntoResponse {
+    info!("Getting transaction logs for benchmark: {}", benchmark_id);
+
+    // Get the most recent session for this benchmark
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: Some(benchmark_id.clone()),
+        agent_type: None,
+        interface: None,
+        status: None,
+        limit: Some(1), // Get the most recent session
+    };
+
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            if let Some(session) = sessions.first() {
+                info!("Found session for benchmark: {}", benchmark_id);
+
+                // Get the session log which contains the execution trace
+                match state.db.get_session_log(&session.session_id).await {
+                    Ok(log_content) => {
+                        // Try to parse as ExecutionTrace and extract transaction logs
+                        match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&log_content)
+                        {
+                            Ok(trace) => {
+                                // Create a TestResult from the trace to use existing extraction logic
+                                let test_result = reev_lib::results::TestResult::new(
+                                    &reev_lib::benchmark::TestCase {
+                                        id: benchmark_id.clone(),
+                                        description: format!("Transaction logs for {benchmark_id}"),
+                                        tags: vec!["api".to_string()],
+                                        initial_state: vec![],
+                                        prompt: trace.prompt.clone(),
+                                        flow: None,
+                                        ground_truth: reev_lib::benchmark::GroundTruth {
+                                            transaction_status: "unknown".to_string(),
+                                            final_state_assertions: vec![],
+                                            expected_instructions: vec![],
+                                            skip_instruction_validation: false,
+                                        },
+                                    },
+                                    reev_lib::results::FinalStatus::Succeeded,
+                                    session.score.unwrap_or(1.0),
+                                    trace,
+                                );
+
+                                // Use existing backend transaction log extraction
+                                let transaction_logs =
+                                    crate::services::generate_transaction_logs(&test_result);
+
+                                info!(
+                                    "Extracted transaction logs for benchmark: {} ({} chars)",
+                                    benchmark_id,
+                                    transaction_logs.len()
+                                );
+
+                                if transaction_logs.trim().is_empty() {
+                                    return (
+                                        StatusCode::OK,
+                                        Json(json!({
+                                            "benchmark_id": benchmark_id,
+                                            "transaction_logs": "",
+                                            "message": "No transaction logs available"
+                                        })),
+                                    )
+                                        .into_response();
+                                }
+
+                                (
+                                    StatusCode::OK,
+                                    Json(json!({
+                                        "benchmark_id": benchmark_id,
+                                        "transaction_logs": transaction_logs,
+                                        "message": "Transaction logs extracted successfully"
+                                    })),
+                                )
+                                    .into_response()
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse log as ExecutionTrace: {}", e);
+                                (
+                                    StatusCode::OK,
+                                    Json(json!({
+                                        "benchmark_id": benchmark_id,
+                                        "transaction_logs": "",
+                                        "message": "No valid ExecutionTrace data found"
+                                    })),
+                                )
+                                    .into_response()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to get session log: {}", e);
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({
+                                "error": "Failed to retrieve session log"
+                            })),
+                        )
+                            .into_response()
+                    }
+                }
+            } else {
+                info!("No sessions found for benchmark: {}", benchmark_id);
+                (
+                    StatusCode::OK,
+                    Json(json!({
+                        "benchmark_id": benchmark_id,
+                        "transaction_logs": "",
+                        "message": "No execution data found"
+                    })),
+                )
+                    .into_response()
+            }
+        }
+        Err(e) => {
+            error!("Failed to list sessions: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "error": "Database error"
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
 /// Get ASCII tree directly from YML TestResult in database
 pub async fn get_ascii_tree_direct(
     State(state): State<ApiState>,

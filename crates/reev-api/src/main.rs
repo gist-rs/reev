@@ -97,6 +97,10 @@ async fn main() -> Result<()> {
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
         .route(
+            "/api/v1/transaction-logs/{benchmark_id}",
+            get(get_transaction_logs),
+        )
+        .route(
             "/api/v1/parse-yml-to-testresult",
             post(parse_yml_to_testresult),
         )

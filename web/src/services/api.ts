@@ -10,6 +10,7 @@ import {
   HealthResponse,
   ErrorResponse,
   BenchmarkInfo,
+  ExecutionStatus,
 } from "../types/benchmark";
 
 import {
@@ -121,6 +122,11 @@ class ApiClient {
     return this.request<FlowLogsResponse>(`/api/v1/flow-logs/${benchmarkId}`);
   }
 
+  // Transaction logs
+  async getTransactionLogs(benchmarkId: string): Promise<any> {
+    return this.request<any>(`/api/v1/transaction-logs/${benchmarkId}`);
+  }
+
   // Agent performance
   async getAgentPerformance(): Promise<AgentPerformanceSummary[]> {
     return this.request<AgentPerformanceSummary[]>("/api/v1/agent-performance");
@@ -192,7 +198,7 @@ class ApiClient {
           .replace(/-/g, " ")
           .replace(/\b\w/g, (l) => l.toUpperCase()),
         file_path: `benchmarks/${benchmark.id}.yml`,
-        status: "Pending" as const,
+        status: "Pending" as ExecutionStatus,
       })),
       total: benchmarks.length,
     };
@@ -224,6 +230,8 @@ export const apiClient = {
     apiClientInstance.getBenchmarkResults(benchmarkId),
   getFlowLog: (benchmarkId: string) =>
     apiClientInstance.getFlowLog(benchmarkId),
+  getTransactionLogs: (benchmarkId: string) =>
+    apiClientInstance.getTransactionLogs(benchmarkId),
   getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
   // New methods
   runBenchmark: (benchmarkId: string, request: BenchmarkExecutionRequest) =>

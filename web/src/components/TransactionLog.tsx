@@ -48,28 +48,14 @@ export function TransactionLog({
     setError(null);
 
     try {
-      // Try to get flow logs from database first
-      const logData = await apiClient.getFlowLog(benchmarkId);
-      setFlowLog(logData);
+      // Get transaction logs from backend endpoint
+      const transactionLogData =
+        await apiClient.getTransactionLogs(benchmarkId);
+      setFlowLog(transactionLogData);
     } catch (err) {
-      // If database fails, try to get from current execution state
-      if (execution?.logs) {
-        const newLogs = execution.logs
-          .split("\n")
-          .filter((line) => line.trim() !== "");
-        setFlowLog({
-          events: newLogs,
-          final_result: {
-            status: execution.status,
-            progress: execution.progress,
-            trace: execution.trace,
-          },
-        });
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Failed to load flow log",
-        );
-      }
+      setError(
+        err instanceof Error ? err.message : "Failed to load transaction logs",
+      );
     } finally {
       setLoading(false);
     }
@@ -162,154 +148,17 @@ export function TransactionLog({
     }
   };
 
-  const formatFlowLog = (logData: any) => {
-    if (!logData) return "";
+  const formatTransactionLogs = (logData: any) => {
+    if (!logData) return "No transaction logs available";
 
-    // Limit processing to prevent memory issues
-    const MAX_ITEMS = 100;
-    const MAX_STRING_LENGTH = 10000;
+    // Extract transaction logs from the response
+    const logs = logData.transaction_logs || "";
 
-    // Handle array of mixed JSON strings and YAML strings
-    if (Array.isArray(logData)) {
-      const limitedArray = logData.slice(0, MAX_ITEMS);
-      return (
-        limitedArray
-          .map((item, index) => {
-            // If it's a JSON string, parse and extract readable information
-            if (typeof item === "string" && item.startsWith("{")) {
-              try {
-                const parsed = JSON.parse(item);
-
-                // Extract key information from JSON flow log
-                let result = `📊 Flow Log Entry ${index + 1}\n`;
-
-                if (parsed.session_id) {
-                  result += `  Session: ${parsed.session_id}\n`;
-                }
-                if (parsed.benchmark_id) {
-                  result += `  Benchmark: ${parsed.benchmark_id}\n`;
-                }
-                if (parsed.agent_type) {
-                  result += `  Agent: ${parsed.agent_type}\n`;
-                }
-                if (parsed.start_time && parsed.end_time) {
-                  const start = new Date(
-                    parsed.start_time.secs_since_epoch * 1000,
-                  );
-                  const end = new Date(parsed.end_time.secs_since_epoch * 1000);
-                  const duration = (end.getTime() - start.getTime()) / 1000;
-                  result += `  Duration: ${duration.toFixed(2)}s\n`;
-                }
-                if (parsed.final_result) {
-                  result += `  Status: ${parsed.final_result.success ? "✅ Success" : "❌ Failed"}\n`;
-                  result += `  Score: ${(parsed.final_result.score * 100).toFixed(1)}%\n`;
-                  if (parsed.final_result.statistics) {
-                    result += `  LLM Calls: ${parsed.final_result.statistics.total_llm_calls || 0}\n`;
-                    result += `  Tool Calls: ${parsed.final_result.statistics.total_tool_calls || 0}\n`;
-                  }
-                }
-                result += ``;
-                return result;
-              } catch {
-                // If parsing fails, treat as raw string but limit length
-                const truncatedItem =
-                  item.length > MAX_STRING_LENGTH
-                    ? item.substring(0, MAX_STRING_LENGTH) + "... (truncated)"
-                    : item;
-                return `⚠️ Entry ${index + 1} (Parse Error)\n${truncatedItem.substring(0, 200)}...\n`;
-              }
-            }
-
-            // If it's a YAML/formatted string with trace data, format it nicely
-            if (typeof item === "string") {
-              const truncatedItem =
-                item.length > MAX_STRING_LENGTH
-                  ? item.substring(0, MAX_STRING_LENGTH) + "... (truncated)"
-                  : item;
-
-              // Check if it's the YAML trace format with prompt/steps
-              if (
-                item.includes("id:") &&
-                item.includes("prompt:") &&
-                item.includes("trace:")
-              ) {
-                // Parse YAML-like content for better formatting
-                const lines = truncatedItem.split("\n");
-                let result = `🔍 Execution Trace ${index + 1}\n`;
-
-                for (const line of lines) {
-                  if (line.startsWith("id:")) {
-                    result += `  📋 ${line}\n`;
-                  } else if (line.startsWith("prompt:")) {
-                    result += `  💭 ${line}\n`;
-                  } else if (line.startsWith("final_status:")) {
-                    result += `  🏁 ${line}\n`;
-                  } else if (line.startsWith("score:")) {
-                    result += `  📊 ${line}\n`;
-                  } else if (line.startsWith("trace:")) {
-                    result += `  🔍 ${line}\n`;
-                  } else if (line.startsWith("  steps:")) {
-                    result += `  📝 ${line}\n`;
-                  } else if (line.startsWith("    -")) {
-                    result += `    ${line}\n`;
-                  } else if (line.startsWith("      ")) {
-                    result += `     ${line}\n`;
-                  } else if (line.trim()) {
-                    result += `  ${line}\n`;
-                  }
-                }
-                return result;
-              }
-
-              // If it's already formatted with separators, keep it
-              if (item.includes("---")) {
-                return truncatedItem;
-              }
-
-              // Otherwise format as a simple entry
-              return `📄 Entry ${index + 1}\n${truncatedItem}\n`;
-            }
-
-            // If it's an object, format it with size limit
-            if (typeof item === "object") {
-              const jsonString = JSON.stringify(item, null, 2);
-              const truncatedJson =
-                jsonString.length > MAX_STRING_LENGTH
-                  ? jsonString.substring(0, MAX_STRING_LENGTH) +
-                    "... (truncated)"
-                  : jsonString;
-              return `📋 Object Entry ${index + 1}\n${truncatedJson}\n`;
-            }
-
-            return `📝 Entry ${index + 1}\n${String(item).substring(0, MAX_STRING_LENGTH)}\n`;
-          })
-          .join("\n") +
-        (logData.length > MAX_ITEMS
-          ? `\n\n... and ${logData.length - MAX_ITEMS} more entries (truncated for performance)`
-          : "")
-      );
+    if (!logs || logs.trim() === "") {
+      return "No transaction logs available";
     }
 
-    // If it's a single JSON string, try to parse it
-    if (typeof logData === "string" && logData.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(logData);
-        if (parsed.final_result && parsed.final_result.trace) {
-          return parsed.final_result.trace;
-        }
-        return JSON.stringify(parsed, null, 2);
-      } catch {
-        return logData;
-      }
-    }
-
-    // If it's a plain string, return it
-    if (typeof logData === "string") {
-      return logData;
-    }
-
-    // Fallback to JSON format
-    return JSON.stringify(logData, null, 2);
+    return logs;
   };
 
   if (!benchmarkId) {
@@ -450,7 +299,7 @@ export function TransactionLog({
               className="overflow-auto border border-gray-300 dark:border-gray-700 rounded min-w-0 flex-1"
             >
               <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 dark:text-green-300 p-4 font-mono leading-relaxed whitespace-pre min-w-max">
-                {formatFlowLog(flowLog)}
+                {formatTransactionLogs(flowLog)}
               </pre>
             </div>
             {isRunning && (
