@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkItem, ExecutionStatus } from "../types/configuration";
+import { ExecutionStatus as BenchmarkExecutionStatus } from "../types/benchmark";
 import { AgentConfig } from "./AgentConfig";
 
 interface BenchmarkListProps {
@@ -84,8 +85,7 @@ export function BenchmarkList({
             ) {
               resultsMap.set(key, {
                 ...result,
-                status:
-                  result.final_status === "Succeeded" ? "Completed" : "Failed",
+                status: result.final_status,
                 progress: 100,
                 execution_id: result.id,
                 agentType: result.agent_type,
@@ -223,14 +223,7 @@ export function BenchmarkList({
           // Map historical result status to execution status format
           return {
             ...historicalResult,
-            status:
-              historicalResult.final_status === "succeeded" ||
-              historicalResult.final_status === "Succeeded"
-                ? "Completed"
-                : historicalResult.final_status === "failed" ||
-                    historicalResult.final_status === "Failed"
-                  ? "Failed"
-                  : historicalResult.final_status,
+            status: historicalResult.final_status,
             progress: 100,
           };
         }
@@ -244,7 +237,7 @@ export function BenchmarkList({
   const getBenchmarkScore = useCallback(
     (benchmarkId: string): number => {
       const execution = getBenchmarkStatus(benchmarkId);
-      if (execution?.status === "Completed") {
+      if (execution?.status === BenchmarkExecutionStatus.COMPLETED) {
         return execution.score || 1.0;
       }
       return 0;
@@ -252,14 +245,18 @@ export function BenchmarkList({
     [getBenchmarkStatus],
   );
 
-  const getStatusIcon = useCallback((status: ExecutionStatus) => {
+  const getStatusIcon = useCallback((status: ExecutionStatus | string) => {
     switch (status) {
+      case ExecutionStatus.PENDING:
       case "Pending":
         return "[ ]";
+      case ExecutionStatus.RUNNING:
       case "Running":
         return "[…]";
+      case ExecutionStatus.COMPLETED:
       case "Completed":
-        return "[✔]";
+        return "[✓]";
+      case ExecutionStatus.FAILED:
       case "Failed":
         return "[✗]";
       default:
@@ -267,14 +264,18 @@ export function BenchmarkList({
     }
   }, []);
 
-  const getStatusColor = useCallback((status: ExecutionStatus) => {
+  const getStatusColor = useCallback((status: ExecutionStatus | string) => {
     switch (status) {
+      case ExecutionStatus.PENDING:
       case "Pending":
         return "text-gray-500";
+      case ExecutionStatus.RUNNING:
       case "Running":
         return "text-yellow-500";
+      case ExecutionStatus.COMPLETED:
       case "Completed":
         return "text-green-500";
+      case ExecutionStatus.FAILED:
       case "Failed":
         return "text-red-500";
       default:
@@ -430,9 +431,9 @@ export function BenchmarkList({
               const execution = getBenchmarkStatus(benchmark.id);
               const status = execution?.status || null;
               const score =
-                execution?.status === "Completed"
+                execution?.status === BenchmarkExecutionStatus.COMPLETED
                   ? getBenchmarkScore(benchmark.id)
-                  : execution?.status === "Completed"
+                  : execution?.status === BenchmarkExecutionStatus.COMPLETED
                     ? execution.score || 1.0
                     : 0;
               const isSelected = selectedBenchmark === benchmark.id;
@@ -460,7 +461,8 @@ export function BenchmarkList({
                       <span
                         className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
                       >
-                        {status === "Completed" || status === "Failed"
+                        {status === BenchmarkExecutionStatus.COMPLETED ||
+                        status === BenchmarkExecutionStatus.FAILED
                           ? formatScore(score)
                           : "000%"}
                       </span>
@@ -483,23 +485,27 @@ export function BenchmarkList({
                         handleRunBenchmark(benchmark);
                       }}
                       disabled={
-                        isRunning || isRunningAll || status === "Running"
+                        isRunning ||
+                        isRunningAll ||
+                        status === BenchmarkExecutionStatus.RUNNING
                       }
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                     >
-                      {status === "Running" ? "Running..." : "Run"}
+                      {status === BenchmarkExecutionStatus.RUNNING
+                        ? "Running..."
+                        : "Run"}
                     </button>
                   </div>
 
                   {/* Progress Bar for Running and Completed Benchmarks */}
-                  {(status === "Running" ||
-                    status === "Completed" ||
-                    status === "Completed") && (
+                  {(status === BenchmarkExecutionStatus.RUNNING ||
+                    status === BenchmarkExecutionStatus.COMPLETED ||
+                    status === BenchmarkExecutionStatus.COMPLETED) && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all duration-300 ${
-                            status === "Completed"
+                            status === BenchmarkExecutionStatus.COMPLETED
                               ? "bg-green-600"
                               : "bg-blue-600"
                           }`}
@@ -508,12 +514,12 @@ export function BenchmarkList({
                           }}
                         ></div>
                       </div>
-                      {status === "Completed" && (
+                      {status === BenchmarkExecutionStatus.COMPLETED && (
                         <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
                           ✓ Completed successfully
                         </div>
                       )}
-                      {status === "Failed" && (
+                      {status === BenchmarkExecutionStatus.FAILED && (
                         <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
                           ✗ Failed
                         </div>

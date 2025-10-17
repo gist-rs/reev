@@ -1,11 +1,19 @@
 // Benchmark data types for the Reev web interface
 
+export enum ExecutionStatus {
+  PENDING = "Pending",
+  RUNNING = "Running",
+  COMPLETED = "Completed",
+  FAILED = "Failed",
+  UNKNOWN = "Unknown",
+}
+
 export interface BenchmarkResult {
   id: string;
   benchmark_id: string;
   agent_type: string;
   score: number;
-  final_status: string;
+  final_status: ExecutionStatus;
   execution_time_ms: number;
   timestamp: string;
   color_class: "green" | "yellow" | "red" | "gray";

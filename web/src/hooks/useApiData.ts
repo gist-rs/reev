@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
 import { apiClient } from "../services/api";
+import { ExecutionStatus } from "../types/benchmark";
 
 interface ApiState<T> {
   data: T | null;
@@ -137,6 +138,24 @@ export function useAgentPerformance() {
       return {
         ...agent,
         results: agent.results.map((result: any) => {
+          // Map API status strings to ExecutionStatus enum
+          const mapStatusToEnum = (status: string): ExecutionStatus => {
+            const normalizedStatus = status.toLowerCase();
+            switch (normalizedStatus) {
+              case "completed":
+              case "succeeded":
+                return ExecutionStatus.COMPLETED;
+              case "failed":
+                return ExecutionStatus.FAILED;
+              case "running":
+                return ExecutionStatus.RUNNING;
+              case "pending":
+                return ExecutionStatus.PENDING;
+              default:
+                return ExecutionStatus.UNKNOWN;
+            }
+          };
+
           return {
             id:
               result.id?.toString() ||
@@ -144,7 +163,7 @@ export function useAgentPerformance() {
             benchmark_id: result.benchmark_id,
             agent_type: agent.agent_type,
             score: result.score,
-            final_status: result.final_status?.toLowerCase() || "unknown",
+            final_status: mapStatusToEnum(result.final_status || "unknown"),
             execution_time_ms: 1000, // Default value since API doesn't provide this
             timestamp: result.timestamp,
             color_class:
