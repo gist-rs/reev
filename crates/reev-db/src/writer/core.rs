@@ -86,7 +86,7 @@ impl DatabaseWriter {
 
             self.conn.execute(statement, ()).await.map_err(|e| {
                 DatabaseError::schema_with_source(
-                    format!("Failed to execute schema statement: {}", statement),
+                    format!("Failed to execute schema statement: {statement}"),
                     e,
                 )
             })?;
