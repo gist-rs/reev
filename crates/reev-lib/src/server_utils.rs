@@ -45,7 +45,14 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
         Ok(output) => {
             let pids = String::from_utf8_lossy(&output.stdout);
             if !pids.trim().is_empty() {
-                info!("🔪 Found existing reev-agent processes: {}", pids.trim());
+                warn!(
+                    "⚠️  WARNING: Found existing reev-agent processes on port {}: {}",
+                    port,
+                    pids.trim()
+                );
+                warn!(
+                    "⚠️  These processes will be forcefully terminated to prevent port conflicts!"
+                );
                 for pid in pids.trim().lines() {
                     match Command::new("kill").args(["-9", pid.trim()]).output() {
                         Ok(_) => {
@@ -58,6 +65,10 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
                 }
                 // Give processes time to terminate
                 sleep(Duration::from_millis(500)).await;
+                info!(
+                    "🧹 Port {} cleanup completed - ready for new reev-agent instance",
+                    port
+                );
             } else {
                 info!("✅ No existing reev-agent processes found on port {}", port);
             }
@@ -111,7 +122,14 @@ pub async fn kill_existing_surfpool(port: u16) -> Result<()> {
         Ok(output) => {
             let pids = String::from_utf8_lossy(&output.stdout);
             if !pids.trim().is_empty() {
-                info!("🔪 Found existing surfpool processes: {}", pids.trim());
+                warn!(
+                    "⚠️  WARNING: Found existing surfpool processes on port {}: {}",
+                    port,
+                    pids.trim()
+                );
+                warn!(
+                    "⚠️  These processes will be forcefully terminated to prevent port conflicts!"
+                );
                 for pid in pids.trim().lines() {
                     match Command::new("kill").args(["-9", pid.trim()]).output() {
                         Ok(_) => {
@@ -124,6 +142,10 @@ pub async fn kill_existing_surfpool(port: u16) -> Result<()> {
                 }
                 // Give processes time to terminate
                 sleep(Duration::from_millis(500)).await;
+                info!(
+                    "🧹 Port {} cleanup completed - ready for new surfpool instance",
+                    port
+                );
             } else {
                 info!("✅ No existing surfpool processes found on port {}", port);
             }
@@ -234,7 +256,14 @@ pub async fn kill_existing_api(port: u16) -> Result<()> {
         Ok(output) => {
             let pids = String::from_utf8_lossy(&output.stdout);
             if !pids.trim().is_empty() {
-                info!("🔪 Found existing API processes: {}", pids.trim());
+                warn!(
+                    "⚠️  WARNING: Found existing API processes on port {}: {}",
+                    port,
+                    pids.trim()
+                );
+                warn!(
+                    "⚠️  These processes will be forcefully terminated to prevent port conflicts!"
+                );
                 for pid in pids.trim().lines() {
                     match Command::new("kill").args(["-9", pid.trim()]).output() {
                         Ok(_) => {
@@ -247,6 +276,10 @@ pub async fn kill_existing_api(port: u16) -> Result<()> {
                 }
                 // Give processes time to terminate
                 sleep(Duration::from_millis(500)).await;
+                info!(
+                    "🧹 Port {} cleanup completed - ready for new API instance",
+                    port
+                );
             } else {
                 info!("✅ No existing API processes found on port {}", port);
             }
