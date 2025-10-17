@@ -14,11 +14,15 @@
 //! - Dynamic tool embedding and vector search
 //! - Context-aware prompt enrichment
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use reev_agent::flow::{FlowAgent, FlowBenchmark};
 use reqwest::Client;
 use std::fs;
 use tracing::{info, warn};
+
+mod common;
+
+use crate::common::helpers::sync_benchmarks_to_database;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,6 +47,11 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     println!("✅ LLM server is available");
+
+    // 3. Sync benchmarks to database before running examples
+    sync_benchmarks_to_database()
+        .await
+        .context("Failed to sync benchmarks to database")?;
 
     // Load the multi-step benchmark
     println!("📋 Loading flow benchmark...");
