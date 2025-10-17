@@ -10,6 +10,7 @@ pub struct Cli {
 }
 
 /// Parses the CLI arguments and returns the selected agent name.
+#[allow(unused)]
 pub fn get_agent_name() -> String {
     let cli = Cli::parse();
     cli.agent

@@ -9,6 +9,7 @@ use std::time::Duration;
 use tracing::info;
 
 /// Default configuration values for examples
+#[allow(unused)]
 pub mod config {
     /// Default reev-agent host
     pub const DEFAULT_HOST: &str = "127.0.0.1";
@@ -31,12 +32,14 @@ pub mod config {
 
 /// Example context and configuration
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct ExampleConfig {
     pub agent_url: String,
     pub health_url: String,
     pub client: Client,
 }
 
+#[allow(unused)]
 impl ExampleConfig {
     /// Create a new example configuration
     pub fn new(agent_name: &str) -> Self {
