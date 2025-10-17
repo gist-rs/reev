@@ -14,6 +14,71 @@ use tracing::info;
 use super::core::DatabaseWriter;
 
 impl DatabaseWriter {
+    /// Helper method to create AgentPerformance from database row
+    fn create_agent_performance_from_row(
+        &self,
+        row: &turso::Row,
+        id_offset: usize,
+    ) -> Result<AgentPerformance> {
+        Ok(AgentPerformance {
+            id: row.get::<Option<i64>>(id_offset)?,
+            session_id: row.get(id_offset + 1)?,
+            benchmark_id: row.get(id_offset + 2)?,
+            agent_type: row.get(id_offset + 3)?,
+            score: row.get(id_offset + 4)?,
+            final_status: row.get(id_offset + 5)?,
+            execution_time_ms: row
+                .get::<Option<String>>(id_offset + 6)?
+                .and_then(|s| s.parse().ok()),
+            timestamp: row.get(id_offset + 7)?,
+            flow_log_id: None,
+            prompt_md5: row.get::<Option<String>>(id_offset + 8)?,
+            additional_metrics: HashMap::new(),
+        })
+    }
+
+    /// Helper method to get results for an agent type
+    async fn get_agent_results(
+        &self,
+        agent_type: &str,
+        limit: Option<i32>,
+    ) -> Result<Vec<PerformanceResult>> {
+        let limit_clause = limit.map(|l| format!(" LIMIT {l}")).unwrap_or_default();
+        let results_query = format!(
+            "SELECT id, benchmark_id, score, final_status, timestamp
+             FROM agent_performance
+             WHERE agent_type = ?
+             ORDER BY timestamp DESC{limit_clause}"
+        );
+
+        let mut results_rows = self
+            .conn
+            .prepare(&results_query)
+            .await
+            .map_err(|e| DatabaseError::query("Failed to prepare results query", e))?
+            .query([agent_type])
+            .await
+            .map_err(|e| DatabaseError::query("Failed to query results", e))?;
+
+        let mut results = Vec::new();
+        while let Some(result_row) = results_rows.next().await? {
+            let id: i64 = result_row.get(0)?;
+            let benchmark_id: String = result_row.get(1)?;
+            let score: f64 = result_row.get(2)?;
+            let final_status: String = result_row.get(3)?;
+            let timestamp: String = result_row.get(4)?;
+
+            results.push(PerformanceResult {
+                id: Some(id),
+                benchmark_id,
+                score,
+                final_status,
+                timestamp,
+            });
+        }
+        Ok(results)
+    }
+
     /// Insert agent performance data
     pub async fn insert_agent_performance(&self, performance: &AgentPerformance) -> Result<()> {
         info!(
@@ -71,40 +136,8 @@ impl DatabaseWriter {
             let avg_score: f64 = row.get(2)?;
             let latest_timestamp: String = row.get(3)?;
 
-            // Get recent results for this agent type
-            let results_query = "
-                SELECT id, benchmark_id, score, final_status, timestamp
-                FROM agent_performance
-                WHERE agent_type = ?
-                ORDER BY timestamp DESC
-                LIMIT 10
-            ";
-
-            let mut results_rows = self
-                .conn
-                .prepare(results_query)
-                .await
-                .map_err(|e| DatabaseError::query("Failed to prepare results query", e))?
-                .query([agent_type.as_str()])
-                .await
-                .map_err(|e| DatabaseError::query("Failed to query results", e))?;
-
-            let mut results = Vec::new();
-            while let Some(result_row) = results_rows.next().await? {
-                let id: i64 = result_row.get(0)?;
-                let benchmark_id: String = result_row.get(1)?;
-                let score: f64 = result_row.get(2)?;
-                let final_status: String = result_row.get(3)?;
-                let timestamp: String = result_row.get(4)?;
-
-                results.push(PerformanceResult {
-                    id: Some(id),
-                    benchmark_id,
-                    score,
-                    final_status,
-                    timestamp,
-                });
-            }
+            // Get all results for this agent type
+            let results = self.get_agent_results(&agent_type, None).await?;
 
             summaries.push(AgentPerformanceSummary {
                 agent_type: agent_type.clone(),
@@ -141,19 +174,7 @@ impl DatabaseWriter {
 
         let mut performances = Vec::new();
         while let Some(row) = rows.next().await? {
-            performances.push(AgentPerformance {
-                id: None,
-                session_id: row.get(0)?,
-                benchmark_id: row.get(1)?,
-                agent_type: row.get(2)?,
-                score: row.get(3)?,
-                final_status: row.get(4)?,
-                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
-                timestamp: row.get(6)?,
-                flow_log_id: None,
-                prompt_md5: row.get::<Option<String>>(7)?,
-                additional_metrics: HashMap::new(),
-            });
+            performances.push(self.create_agent_performance_from_row(&row, 0)?);
         }
 
         info!(
@@ -186,19 +207,7 @@ impl DatabaseWriter {
 
         let mut performances = Vec::new();
         while let Some(row) = rows.next().await? {
-            performances.push(AgentPerformance {
-                id: None,
-                session_id: row.get(0)?,
-                benchmark_id: row.get(1)?,
-                agent_type: row.get(2)?,
-                score: row.get(3)?,
-                final_status: row.get(4)?,
-                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
-                timestamp: row.get(6)?,
-                flow_log_id: None,
-                prompt_md5: row.get::<Option<String>>(7)?,
-                additional_metrics: HashMap::new(),
-            });
+            performances.push(self.create_agent_performance_from_row(&row, 0)?);
         }
 
         info!(
@@ -227,19 +236,7 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to get performance by session", e))?;
 
         if let Some(row) = rows.next().await? {
-            let performance = AgentPerformance {
-                id: None,
-                session_id: row.get(0)?,
-                benchmark_id: row.get(1)?,
-                agent_type: row.get(2)?,
-                score: row.get(3)?,
-                final_status: row.get(4)?,
-                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
-                timestamp: row.get(6)?,
-                flow_log_id: None,
-                prompt_md5: row.get::<Option<String>>(7)?,
-                additional_metrics: HashMap::new(),
-            };
+            let performance = self.create_agent_performance_from_row(&row, 0)?;
             info!("[DB] Found performance data for session: {}", session_id);
             Ok(Some(performance))
         } else {
@@ -272,12 +269,20 @@ impl DatabaseWriter {
 
         let mut summaries = Vec::new();
         while let Some(row) = rows.next().await? {
+            let agent_type: String = row.get(0)?;
+            let execution_count: i64 = row.get(1)?;
+            let avg_score: f64 = row.get(2)?;
+            let latest_timestamp: String = row.get(3)?;
+
+            // Get all results for this top agent
+            let results = self.get_agent_results(&agent_type, None).await?;
+
             summaries.push(AgentPerformanceSummary {
-                agent_type: row.get(0)?,
-                execution_count: row.get(1)?,
-                avg_score: row.get(2)?,
-                latest_timestamp: row.get(3)?,
-                results: Vec::new(),
+                agent_type,
+                execution_count,
+                avg_score,
+                latest_timestamp,
+                results,
             });
         }
 
@@ -308,19 +313,7 @@ impl DatabaseWriter {
 
         let mut performances = Vec::new();
         while let Some(row) = rows.next().await? {
-            performances.push(AgentPerformance {
-                id: None,
-                session_id: row.get(0)?,
-                benchmark_id: row.get(1)?,
-                agent_type: row.get(2)?,
-                score: row.get(3)?,
-                final_status: row.get(4)?,
-                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
-                timestamp: row.get(6)?,
-                flow_log_id: None,
-                prompt_md5: row.get::<Option<String>>(7)?,
-                additional_metrics: HashMap::new(),
-            });
+            performances.push(self.create_agent_performance_from_row(&row, 0)?);
         }
 
         info!(
