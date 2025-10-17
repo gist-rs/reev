@@ -44,9 +44,10 @@ impl DatabaseReader {
     /// Get test results with optional filtering
     pub async fn get_test_results(&self, filter: Option<QueryFilter>) -> Result<Vec<TestResult>> {
         let mut query = "
-            SELECT id, benchmark_id, timestamp, prompt, generated_instruction,
-                   final_on_chain_state, final_status, score, prompt_md5
-            FROM results
+            SELECT ap.id, ap.benchmark_id, ap.timestamp, b.prompt, '' as generated_instruction,
+                   '' as final_on_chain_state, ap.final_status, ap.score, ap.prompt_md5, ap.execution_time_ms
+            FROM agent_performance ap
+            LEFT JOIN benchmarks b ON ap.benchmark_id = b.id
         "
         .to_string();
 
@@ -56,32 +57,32 @@ impl DatabaseReader {
         if let Some(f) = filter {
             // Build WHERE clause
             if let Some(benchmark_id) = f.benchmark_name {
-                where_clauses.push("benchmark_id LIKE ?");
+                where_clauses.push("ap.benchmark_id LIKE ?");
                 params.push(format!("%{benchmark_id}%"));
             }
 
             if let Some(agent_type) = f.agent_type {
-                where_clauses.push("final_status LIKE ?");
+                where_clauses.push("ap.agent_type LIKE ?");
                 params.push(format!("%{agent_type}%"));
             }
 
             if let Some(min_score) = f.min_score {
-                where_clauses.push("score >= ?");
+                where_clauses.push("ap.score >= ?");
                 params.push(min_score.to_string());
             }
 
             if let Some(max_score) = f.max_score {
-                where_clauses.push("score <= ?");
+                where_clauses.push("ap.score <= ?");
                 params.push(max_score.to_string());
             }
 
             if let Some(date_from) = f.date_from {
-                where_clauses.push("timestamp >= ?");
+                where_clauses.push("ap.timestamp >= ?");
                 params.push(date_from);
             }
 
             if let Some(date_to) = f.date_to {
-                where_clauses.push("timestamp <= ?");
+                where_clauses.push("ap.timestamp <= ?");
                 params.push(date_to);
             }
 
@@ -93,9 +94,9 @@ impl DatabaseReader {
             // Add ORDER BY
             if let Some(sort_by) = f.sort_by {
                 let direction = f.sort_direction.as_deref().unwrap_or("DESC");
-                query.push_str(&format!(" ORDER BY {sort_by} {direction}"));
+                query.push_str(&format!(" ORDER BY ap.{sort_by} {direction}"));
             } else {
-                query.push_str(" ORDER BY timestamp DESC");
+                query.push_str(" ORDER BY ap.timestamp DESC");
             }
 
             // Add LIMIT and OFFSET
@@ -213,7 +214,7 @@ impl DatabaseReader {
                     .get(7)
                     .map_err(|e| DatabaseError::generic_with_source("Failed to get score", e))?,
                 prompt_md5: row.get(8).ok(),
-                execution_time_ms: None,
+                execution_time_ms: row.get(9).ok(),
                 metadata: HashMap::new(),
             });
         }
@@ -521,7 +522,7 @@ impl DatabaseReader {
 
         let total_results = self
             .conn
-            .query("SELECT COUNT(*) FROM results", ())
+            .query("SELECT COUNT(*) FROM agent_performance", ())
             .await
             .map_err(|e| DatabaseError::query("Failed to count results", e))?
             .next()
@@ -535,7 +536,10 @@ impl DatabaseReader {
 
         let avg_score = self
             .conn
-            .query("SELECT AVG(score) FROM results WHERE score IS NOT NULL", ())
+            .query(
+                "SELECT AVG(score) FROM agent_performance WHERE score IS NOT NULL",
+                (),
+            )
             .await
             .map_err(|e| DatabaseError::query("Failed to calculate average score", e))?
             .next()
