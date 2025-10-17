@@ -87,10 +87,10 @@ impl DatabaseWriter {
             .await
             .map_err(|e| DatabaseError::operation("Failed to update session log path", e))?;
 
-        // Store full content in session_logs table
+        // Store full content in session_logs table - use INSERT without OR REPLACE for compatibility
         self.conn
             .execute(
-                "INSERT OR REPLACE INTO session_logs (session_id, content, file_size) VALUES (?, ?, ?)",
+                "INSERT INTO session_logs (session_id, content, file_size) VALUES (?, ?, ?)",
                 [
                     session_id.to_string(),
                     log_content.to_string(),
@@ -167,14 +167,8 @@ impl DatabaseWriter {
                     benchmark_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     interface: row.get(3)?,
-                    start_time: {
-                        let time_str: String = row.get(4)?;
-                        time_str.parse().unwrap_or(0)
-                    },
-                    end_time: {
-                        let time_opt: Option<String> = row.get(5)?;
-                        time_opt.and_then(|s| s.parse().ok())
-                    },
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
                     status: row.get(6)?,
                     score: row.get(7)?,
                     final_status: row.get(8)?,
@@ -194,14 +188,8 @@ impl DatabaseWriter {
                     benchmark_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     interface: row.get(3)?,
-                    start_time: {
-                        let time_str: String = row.get(4)?;
-                        time_str.parse().unwrap_or(0)
-                    },
-                    end_time: {
-                        let time_opt: Option<String> = row.get(5)?;
-                        time_opt.and_then(|s| s.parse().ok())
-                    },
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
                     status: row.get(6)?,
                     score: row.get(7)?,
                     final_status: row.get(8)?,
@@ -221,14 +209,8 @@ impl DatabaseWriter {
                     benchmark_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     interface: row.get(3)?,
-                    start_time: {
-                        let time_str: String = row.get(4)?;
-                        time_str.parse().unwrap_or(0)
-                    },
-                    end_time: {
-                        let time_opt: Option<String> = row.get(5)?;
-                        time_opt.and_then(|s| s.parse().ok())
-                    },
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
                     status: row.get(6)?,
                     score: row.get(7)?,
                     final_status: row.get(8)?,
@@ -248,14 +230,8 @@ impl DatabaseWriter {
                     benchmark_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     interface: row.get(3)?,
-                    start_time: {
-                        let time_str: String = row.get(4)?;
-                        time_str.parse().unwrap_or(0)
-                    },
-                    end_time: {
-                        let time_opt: Option<String> = row.get(5)?;
-                        time_opt.and_then(|s| s.parse().ok())
-                    },
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
                     status: row.get(6)?,
                     score: row.get(7)?,
                     final_status: row.get(8)?,
@@ -275,14 +251,8 @@ impl DatabaseWriter {
                     benchmark_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     interface: row.get(3)?,
-                    start_time: {
-                        let time_str: String = row.get(4)?;
-                        time_str.parse().unwrap_or(0)
-                    },
-                    end_time: {
-                        let time_opt: Option<String> = row.get(5)?;
-                        time_opt.and_then(|s| s.parse().ok())
-                    },
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
                     status: row.get(6)?,
                     score: row.get(7)?,
                     final_status: row.get(8)?,
@@ -313,14 +283,8 @@ impl DatabaseWriter {
                 benchmark_id: row.get(1)?,
                 agent_type: row.get(2)?,
                 interface: row.get(3)?,
-                start_time: {
-                    let time_str: String = row.get(4)?;
-                    time_str.parse().unwrap_or(0)
-                },
-                end_time: {
-                    let time_opt: Option<String> = row.get(5)?;
-                    time_opt.and_then(|s| s.parse().ok())
-                },
+                start_time: row.get(4)?,
+                end_time: row.get(5)?,
                 status: row.get(6)?,
                 score: row.get(7)?,
                 final_status: row.get(8)?,

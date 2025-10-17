@@ -31,6 +31,9 @@ pub use reev_db::{
     VERSION,
 };
 
+// Re-export session types from types module
+pub use reev_db::types::{SessionInfo, SessionResult};
+
 // Re-export shared types for clarity
 pub use reev_db::shared::flow::DBFlowLog as SharedFlowLog;
 pub use reev_db::shared::performance::AgentPerformance as SharedPerformanceMetrics;
@@ -39,6 +42,7 @@ pub use reev_db::shared::performance::AgentPerformance as SharedPerformanceMetri
 // This matches the old AgentPerformanceData structure from reev-lib
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentPerformanceData {
+    pub session_id: String,
     pub benchmark_id: String,
     pub agent_type: String,
     pub score: f64,
@@ -53,6 +57,7 @@ impl From<AgentPerformanceData> for DbAgentPerformance {
     fn from(data: AgentPerformanceData) -> Self {
         DbAgentPerformance {
             id: None,
+            session_id: data.session_id,
             benchmark_id: data.benchmark_id,
             agent_type: data.agent_type,
             score: data.score,
@@ -113,10 +118,21 @@ impl reev_flow::logger::DatabaseWriter for FlowDatabaseWriter {
         &self,
         flow_log: &reev_flow::database::DBFlowLog,
     ) -> reev_flow::error::FlowResult<i64> {
-        self.inner.insert_flow_log(flow_log).await.map_err(|e| {
-            let error_msg = format!("Failed to insert flow log: {e}");
-            reev_flow::error::FlowError::database(error_msg)
-        })
+        // For now, store flow logs as session logs to maintain compatibility
+        // TODO: Implement proper flow log storage in reev-db
+        let session_id = flow_log.session_id().to_string();
+        let log_content = serde_json::to_string(flow_log).map_err(|e| {
+            reev_flow::error::FlowError::database(format!("Failed to serialize flow log: {e}"))
+        })?;
+
+        self.inner
+            .store_complete_log(&session_id, &log_content)
+            .await
+            .map(|_| 1i64)
+            .map_err(|e| {
+                let error_msg = format!("Failed to store flow log as session log: {e}");
+                reev_flow::error::FlowError::database(error_msg)
+            })
     }
 
     async fn insert_agent_performance(
@@ -124,7 +140,11 @@ impl reev_flow::logger::DatabaseWriter for FlowDatabaseWriter {
         performance: &reev_flow::logger::AgentPerformanceData,
     ) -> reev_flow::error::FlowResult<i64> {
         // Convert from reev-flow AgentPerformanceData to reev-lib AgentPerformanceData
+        // Generate session_id from benchmark and agent info since reev-flow doesn't track sessions
+        let generated_session_id =
+            format!("{}_{}", performance.benchmark_id, performance.agent_type);
         let lib_performance = AgentPerformanceData {
+            session_id: generated_session_id,
             benchmark_id: performance.benchmark_id.clone(),
             agent_type: performance.agent_type.clone(),
             score: performance.score,
@@ -153,9 +173,8 @@ impl reev_flow::logger::DatabaseWriter for FlowDatabaseWriter {
             .get_prompt_md5_by_benchmark_name(benchmark_name)
             .await
             .map_err(|e| {
-                let error_msg = format!(
-                    "Failed to get prompt MD5 for benchmark '{benchmark_name}': {e}"
-                );
+                let error_msg =
+                    format!("Failed to get prompt MD5 for benchmark '{benchmark_name}': {e}");
                 reev_flow::error::FlowError::database(error_msg)
             })
     }

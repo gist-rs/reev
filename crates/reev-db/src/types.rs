@@ -158,6 +158,8 @@ pub struct PerformanceResult {
 pub struct AgentPerformance {
     /// Unique identifier
     pub id: Option<i64>,
+    /// Session identifier for unified tracking
+    pub session_id: String,
     /// Benchmark identifier
     pub benchmark_id: String,
     /// Type of agent
@@ -247,6 +249,7 @@ pub struct DuplicateRecord {
 
 /// Sync operation result
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct SyncResult {
     /// Number of benchmarks processed
     pub processed_count: usize,
@@ -264,19 +267,6 @@ pub struct SyncResult {
     pub errors: Vec<SyncError>,
 }
 
-impl Default for SyncResult {
-    fn default() -> Self {
-        Self {
-            processed_count: 0,
-            new_count: 0,
-            updated_count: 0,
-            error_count: 0,
-            duration_ms: 0,
-            synced_benchmarks: Vec::new(),
-            errors: Vec::new(),
-        }
-    }
-}
 
 /// Information about a synced benchmark
 #[derive(Debug, Clone, Serialize, Deserialize)]

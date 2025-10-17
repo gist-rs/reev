@@ -111,6 +111,11 @@ impl LlmAgent {
             is_glm,
         })
     }
+
+    /// Get the model name for this agent
+    pub fn model_name(&self) -> &str {
+        &self.model_name
+    }
 }
 
 #[async_trait]

@@ -363,7 +363,7 @@ impl DatabaseWriter {
         ];
         for table in tables {
             let count = self.get_table_count(table).await.unwrap_or(0);
-            metrics.insert(format!("table_{}_count", table), count as f64);
+            metrics.insert(format!("table_{table}_count"), count as f64);
         }
 
         // Get database size

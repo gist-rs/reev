@@ -90,7 +90,7 @@ impl DatabaseWriter {
 
         // Check if directory exists
         if !benchmarks_path.exists() {
-            let error_msg = format!("Benchmarks directory does not exist: {:?}", benchmarks_path);
+            let error_msg = format!("Benchmarks directory does not exist: {benchmarks_path:?}");
             error!("[DB] {}", error_msg);
             return Err(DatabaseError::configuration(error_msg));
         }
@@ -98,7 +98,7 @@ impl DatabaseWriter {
         // Read directory entries
         let mut entries = fs::read_dir(benchmarks_path).await.map_err(|e| {
             DatabaseError::filesystem_with_source(
-                format!("Failed to read benchmarks directory: {:?}", benchmarks_path),
+                format!("Failed to read benchmarks directory: {benchmarks_path:?}"),
                 e,
             )
         })?;
@@ -171,14 +171,14 @@ impl DatabaseWriter {
         // Read file content
         let content = fs::read_to_string(file_path).await.map_err(|e| {
             DatabaseError::filesystem_with_source(
-                format!("Failed to read benchmark file: {:?}", file_path),
+                format!("Failed to read benchmark file: {file_path:?}"),
                 e,
             )
         })?;
 
         // Parse YAML to extract benchmark name and prompt
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).map_err(|e| {
-            DatabaseError::yaml_with_source(format!("Failed to parse YAML from {:?}", file_path), e)
+            DatabaseError::yaml_with_source(format!("Failed to parse YAML from {file_path:?}"), e)
         })?;
 
         // Extract benchmark name from filename if not in YAML

@@ -14,6 +14,8 @@ use std::collections::HashMap;
 pub struct AgentPerformance {
     /// Unique identifier
     pub id: Option<i64>,
+    /// Session identifier for unified tracking
+    pub session_id: String,
     /// Benchmark identifier
     pub benchmark_id: String,
     /// Type of agent

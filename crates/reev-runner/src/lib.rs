@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
@@ -300,31 +301,77 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             FinalStatus::Failed
         };
 
-        if let Some(step) = trace.steps.first() {
-            // Serialize the Vec<AgentAction> to a JSON string for database storage.
-            let action_json = serde_json::to_string(&step.action)
-                .context("Failed to serialize action vector to JSON for DB insertion")?;
+        // Create a session for this benchmark execution
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let start_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
-            // Serialize AgentObservation to JSON string for database storage
-            let observation_json = serde_json::to_string(&final_observation)
-                .context("Failed to serialize final observation to JSON for DB insertion")?;
+        let session_info = reev_lib::db::SessionInfo {
+            session_id: session_id.clone(),
+            benchmark_id: test_case.id.clone(),
+            agent_type: agent.model_name().to_string(),
+            interface: "tui".to_string(),
+            start_time: start_time as i64,
+            end_time: None,
+            status: "running".to_string(),
+            score: None,
+            final_status: None,
+        };
 
-            // Convert FinalStatus to string
-            let status_str = match final_status {
-                FinalStatus::Succeeded => "Succeeded",
-                FinalStatus::Failed => "Failed",
-            };
+        // Create session
+        db.create_session(&session_info)
+            .await
+            .context("Failed to create execution session")?;
 
-            db.insert_result(
-                &test_case.id,
-                &test_case.prompt,
-                &action_json,
-                &observation_json,
-                status_str,
-                score,
-            )
-            .await?;
-        }
+        // Store execution trace as session log
+        let log_content = serde_json::to_string(&trace)
+            .context("Failed to serialize execution trace for session log")?;
+
+        db.store_complete_log(&session_id, &log_content)
+            .await
+            .context("Failed to store execution trace")?;
+
+        // Complete session with results
+        let end_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let session_result = reev_lib::db::SessionResult {
+            end_time: end_time as i64,
+            score,
+            final_status: match final_status {
+                FinalStatus::Succeeded => "completed".to_string(),
+                FinalStatus::Failed => "failed".to_string(),
+            },
+        };
+
+        db.complete_session(&session_id, &session_result)
+            .await
+            .context("Failed to complete execution session")?;
+
+        // Store performance metrics
+        let performance = reev_lib::db::AgentPerformanceData {
+            session_id: session_id.clone(),
+            benchmark_id: test_case.id.clone(),
+            agent_type: agent.model_name().to_string(),
+            score,
+            final_status: match final_status {
+                FinalStatus::Succeeded => "completed".to_string(),
+                FinalStatus::Failed => "failed".to_string(),
+            },
+            execution_time_ms: (end_time - start_time) * 1000,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            flow_log_id: None,
+            prompt_md5: None,
+        };
+
+        let db_performance = reev_lib::db::DbAgentPerformance::from(performance);
+        db.insert_agent_performance(&db_performance)
+            .await
+            .context("Failed to store performance metrics")?;
 
         let result = TestResult::new(&test_case, final_status, score, trace);
         results.push(result);

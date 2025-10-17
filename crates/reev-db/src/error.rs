@@ -290,7 +290,7 @@ impl DatabaseError {
     ) -> Self {
         Self::FilesystemError {
             path: "unknown".to_string(),
-            source: std::io::Error::new(std::io::ErrorKind::Other, message.into()),
+            source: std::io::Error::other(message.into()),
         }
     }
 

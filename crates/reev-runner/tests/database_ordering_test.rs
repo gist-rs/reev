@@ -20,6 +20,7 @@ async fn test_agent_performance_timestamp_ordering() {
 
     // Insert older result first
     let older_result = AgentPerformanceData {
+        session_id: uuid::Uuid::new_v4().to_string(),
         benchmark_id: "test-benchmark".to_string(),
         agent_type: "deterministic".to_string(),
         score: 0.8,
@@ -38,6 +39,7 @@ async fn test_agent_performance_timestamp_ordering() {
 
     // Insert newer result second
     let newer_result = AgentPerformanceData {
+        session_id: uuid::Uuid::new_v4().to_string(),
         benchmark_id: "test-benchmark".to_string(),
         agent_type: "deterministic".to_string(),
         score: 1.0,
@@ -54,6 +56,7 @@ async fn test_agent_performance_timestamp_ordering() {
 
     // Insert another result with different benchmark
     let other_result = AgentPerformanceData {
+        session_id: uuid::Uuid::new_v4().to_string(),
         benchmark_id: "other-benchmark".to_string(),
         agent_type: "deterministic".to_string(),
         score: 0.5,
@@ -130,6 +133,7 @@ async fn test_flow_log_id_null_handling() {
 
     // Insert result with NULL flow_log_id
     let result = AgentPerformanceData {
+        session_id: uuid::Uuid::new_v4().to_string(),
         benchmark_id: "test-benchmark".to_string(),
         agent_type: "deterministic".to_string(),
         score: 1.0,

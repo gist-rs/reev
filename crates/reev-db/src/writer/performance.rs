@@ -34,7 +34,7 @@ impl DatabaseWriter {
                     performance.final_status.clone(),
                     performance.execution_time_ms.map(|t| t.to_string()).unwrap_or_default(),
                     performance.timestamp.clone(),
-                    performance.prompt_md5.unwrap_or_default(),
+                    performance.prompt_md5.as_ref().unwrap_or(&String::new()).clone(),
                 ],
             )
             .await
@@ -113,12 +113,10 @@ impl DatabaseWriter {
                 agent_type: row.get(2)?,
                 score: row.get(3)?,
                 final_status: row.get(4)?,
-                execution_time_ms: row
-                    .get::<_, Option<String>>(5)?
-                    .and_then(|s| s.parse().ok()),
+                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
                 timestamp: row.get(6)?,
                 flow_log_id: None,
-                prompt_md5: row.get::<_, Option<String>>(7)?,
+                prompt_md5: row.get::<Option<String>>(7)?,
                 additional_metrics: HashMap::new(),
             });
         }
@@ -160,12 +158,10 @@ impl DatabaseWriter {
                 agent_type: row.get(2)?,
                 score: row.get(3)?,
                 final_status: row.get(4)?,
-                execution_time_ms: row
-                    .get::<_, Option<String>>(5)?
-                    .and_then(|s| s.parse().ok()),
+                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
                 timestamp: row.get(6)?,
                 flow_log_id: None,
-                prompt_md5: row.get::<_, Option<String>>(7)?,
+                prompt_md5: row.get::<Option<String>>(7)?,
                 additional_metrics: HashMap::new(),
             });
         }
@@ -203,12 +199,10 @@ impl DatabaseWriter {
                 agent_type: row.get(2)?,
                 score: row.get(3)?,
                 final_status: row.get(4)?,
-                execution_time_ms: row
-                    .get::<_, Option<String>>(5)?
-                    .and_then(|s| s.parse().ok()),
+                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
                 timestamp: row.get(6)?,
                 flow_log_id: None,
-                prompt_md5: row.get::<_, Option<String>>(7)?,
+                prompt_md5: row.get::<Option<String>>(7)?,
                 additional_metrics: HashMap::new(),
             };
             info!("[DB] Found performance data for session: {}", session_id);
@@ -272,7 +266,7 @@ impl DatabaseWriter {
             .query(
                 "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
                  FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC LIMIT ?",
-                [agent_type, limit.to_string()],
+                [agent_type, &limit.to_string()],
             )
             .await
             .map_err(|e| DatabaseError::query("Failed to get agent performance trend", e))?;
@@ -286,12 +280,10 @@ impl DatabaseWriter {
                 agent_type: row.get(2)?,
                 score: row.get(3)?,
                 final_status: row.get(4)?,
-                execution_time_ms: row
-                    .get::<_, Option<String>>(5)?
-                    .and_then(|s| s.parse().ok()),
+                execution_time_ms: row.get::<Option<String>>(5)?.and_then(|s| s.parse().ok()),
                 timestamp: row.get(6)?,
                 flow_log_id: None,
-                prompt_md5: row.get::<_, Option<String>>(7)?,
+                prompt_md5: row.get::<Option<String>>(7)?,
                 additional_metrics: HashMap::new(),
             });
         }
@@ -354,13 +346,13 @@ impl DatabaseWriter {
 
         let mut stats = HashMap::new();
         if let Some(row) = rows.next().await? {
-            stats.insert("total_executions".to_string(), row.get::<_, i64>(0)? as f64);
-            stats.insert("avg_score".to_string(), row.get::<_, f64>(1)?);
-            stats.insert("min_score".to_string(), row.get::<_, f64>(2)?);
-            stats.insert("max_score".to_string(), row.get::<_, f64>(3)?);
+            stats.insert("total_executions".to_string(), row.get::<i64>(0)? as f64);
+            stats.insert("avg_score".to_string(), row.get::<f64>(1)?);
+            stats.insert("min_score".to_string(), row.get::<f64>(2)?);
+            stats.insert("max_score".to_string(), row.get::<f64>(3)?);
             stats.insert(
                 "avg_execution_time".to_string(),
-                row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+                row.get::<Option<f64>>(4)?.unwrap_or(0.0),
             );
             let successful: i64 = row.get(5)?;
             let total: i64 = row.get(0)?;

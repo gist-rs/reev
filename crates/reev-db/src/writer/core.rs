@@ -5,7 +5,6 @@
 use crate::{
     config::DatabaseConfig,
     error::{DatabaseError, Result},
-    types::DatabaseStats,
 };
 use std::path::Path;
 use tokio::fs;
@@ -30,7 +29,7 @@ impl DatabaseWriter {
         if let Some(parent) = Path::new(&config.path).parent() {
             fs::create_dir_all(parent).await.map_err(|e| {
                 DatabaseError::filesystem_with_source(
-                    format!("Failed to create database directory: {:?}", parent),
+                    format!("Failed to create database directory: {parent:?}"),
                     e,
                 )
             })?;
@@ -187,34 +186,6 @@ impl DatabaseWriter {
         } else {
             Ok(0)
         }
-    }
-
-    /// Get comprehensive database statistics
-    pub async fn get_database_stats(&self) -> Result<DatabaseStats> {
-        let total_benchmarks = self.get_table_count("benchmarks").await?;
-        let total_sessions = self
-            .get_table_count("execution_sessions")
-            .await
-            .unwrap_or(0);
-        let total_session_logs = self.get_table_count("session_logs").await.unwrap_or(0);
-        let total_performance_records =
-            self.get_table_count("agent_performance").await.unwrap_or(0);
-
-        // Get database size if available
-        let database_size_bytes = self.get_database_size().await.ok().map(|size| size as u64);
-
-        let stats = DatabaseStats {
-            total_benchmarks,
-            duplicate_count: 0, // TODO: Implement duplicate detection for new schema
-            duplicate_details: Vec::new(),
-            total_results: total_sessions,
-            total_flow_logs: total_session_logs,
-            total_performance_records,
-            database_size_bytes,
-            last_updated: chrono::Utc::now().to_rfc3339(),
-        };
-
-        Ok(stats)
     }
 
     /// Check database health and integrity

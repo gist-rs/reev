@@ -7,7 +7,6 @@ use reev_db::types::{SessionFilter, SessionInfo, SessionResult};
 use reev_db::{DatabaseConfig, DatabaseWriter};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
-use tokio;
 
 #[tokio::test]
 async fn test_session_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +37,7 @@ async fn test_session_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create session
     db.create_session(&session).await?;
-    println!("✅ Session created: {}", session_id);
+    println!("✅ Session created: {session_id}");
 
     // Test session retrieval
     let filter = SessionFilter {

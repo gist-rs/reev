@@ -7,6 +7,8 @@ use axum::{
 };
 use reev_lib::db::BenchmarkYml;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tracing::warn;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -351,27 +353,78 @@ pub async fn get_flow_log(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
 ) -> impl IntoResponse {
-    info!("Getting YML flow logs for benchmark: {}", benchmark_id);
+    info!("Getting session logs for benchmark: {}", benchmark_id);
 
-    match state.db.get_yml_flow_logs(&benchmark_id).await {
-        Ok(Some(yml_logs)) => {
-            info!("Found YML logs for benchmark: {}", benchmark_id);
-            let preview = if yml_logs.is_empty() {
-                "<empty>".to_string()
+    // Use session management to get logs for this benchmark
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: Some(benchmark_id.clone()),
+        agent_type: None,
+        interface: None,
+        status: None,
+        limit: None,
+    };
+
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            if sessions.is_empty() {
+                info!("No sessions found for benchmark: {}", benchmark_id);
+                Json(json!({"message": "No sessions found", "sessions": []})).into_response()
             } else {
-                yml_logs[..yml_logs.len().min(100)].to_string()
-            };
-            info!("YML log: length={}, preview={}", yml_logs.len(), preview);
+                // Get logs for each session
+                let mut session_logs = Vec::new();
+                for session in sessions {
+                    match state.db.get_session_log(&session.session_id).await {
+                        Ok(log_content) => {
+                            session_logs.push(json!({
+                                "session_id": session.session_id,
+                                "agent_type": session.agent_type,
+                                "interface": session.interface,
+                                "status": session.status,
+                                "score": session.score,
+                                "final_status": session.final_status,
+                                "log_content": log_content
+                            }));
+                        }
+                        Err(e) => {
+                            warn!(
+                                "Failed to get log for session {}: {}",
+                                session.session_id, e
+                            );
+                            session_logs.push(json!({
+                                "session_id": session.session_id,
+                                "agent_type": session.agent_type,
+                                "interface": session.interface,
+                                "status": session.status,
+                                "score": session.score,
+                                "final_status": session.final_status,
+                                "error": format!("Failed to retrieve log: {}", e)
+                            }));
+                        }
+                    }
+                }
 
-            Json(yml_logs).into_response()
-        }
-        Ok(None) => {
-            info!("No YML logs found for benchmark: {}", benchmark_id);
-            Json("No logs found").into_response()
+                info!(
+                    "Found {} sessions for benchmark: {}",
+                    session_logs.len(),
+                    benchmark_id
+                );
+                Json(json!({
+                    "benchmark_id": benchmark_id,
+                    "sessions": session_logs
+                }))
+                .into_response()
+            }
         }
         Err(e) => {
-            error!("Failed to get YML flow logs: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to get flow logs").into_response()
+            error!(
+                "Failed to get sessions for benchmark {}: {}",
+                benchmark_id, e
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": e.to_string()})),
+            )
+                .into_response()
         }
     }
 }
@@ -386,45 +439,89 @@ pub async fn get_ascii_tree_direct(
         benchmark_id, agent_type
     );
 
-    // Try to get YML TestResult from database first
-    match state
-        .db
-        .get_yml_testresult(&benchmark_id, &agent_type)
-        .await
-    {
-        Ok(Some(yml_content)) => {
-            let yml_content: String = yml_content;
-            info!("Found YML TestResult for benchmark: {}", benchmark_id);
+    // Use session management to get performance data for this benchmark and agent
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: Some(benchmark_id.clone()),
+        agent_type: Some(agent_type.clone()),
+        interface: None,
+        status: None,
+        limit: Some(1), // Get the most recent session
+    };
 
-            // Parse YML to TestResult
-            let test_result: reev_lib::results::TestResult =
-                match serde_yaml::from_str(&yml_content) {
-                    Ok(result) => result,
-                    Err(e) => {
-                        error!("Failed to parse YML to TestResult: {}", e);
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("Failed to parse YML: {e}"),
-                        )
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            if let Some(session) = sessions.first() {
+                info!(
+                    "Found session for benchmark: {} by agent: {}",
+                    benchmark_id, agent_type
+                );
+
+                // Get the session log which contains the execution trace
+                match state.db.get_session_log(&session.session_id).await {
+                    Ok(log_content) => {
+                        // Try to parse the log content as an execution trace
+                        let trace: reev_lib::trace::ExecutionTrace =
+                            match serde_json::from_str(&log_content) {
+                                Ok(trace) => trace,
+                                Err(e) => {
+                                    warn!("Failed to parse log as execution trace: {}", e);
+                                    // Create a minimal trace for ASCII tree generation
+                                    reev_lib::trace::ExecutionTrace {
+                                        prompt: format!(
+                                            "Session trace for {benchmark_id} by {agent_type}"
+                                        ),
+                                        steps: vec![],
+                                    }
+                                }
+                            };
+
+                        // Create a TestResult from the trace
+                        let test_result = reev_lib::results::TestResult::new(
+                            &reev_lib::benchmark::TestCase {
+                                id: benchmark_id.clone(),
+                                description: format!("API generated test for {benchmark_id}"),
+                                tags: vec!["api".to_string()],
+                                initial_state: vec![],
+                                prompt: format!("API generated test for {benchmark_id}"),
+                                flow: None,
+                                ground_truth: reev_lib::benchmark::GroundTruth {
+                                    transaction_status: "unknown".to_string(),
+                                    final_state_assertions: vec![],
+                                    expected_instructions: vec![],
+                                    skip_instruction_validation: false,
+                                },
+                            },
+                            match session.final_status.as_deref() {
+                                Some("completed") => reev_lib::results::FinalStatus::Succeeded,
+                                _ => reev_lib::results::FinalStatus::Failed,
+                            },
+                            session.score.unwrap_or(0.0),
+                            trace,
+                        );
+
+                        // Render as ASCII tree
+                        let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
+
+                        info!(
+                            "Successfully rendered ASCII tree for benchmark: {}",
+                            benchmark_id
+                        );
+                        return (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree)
                             .into_response();
                     }
-                };
-
-            // Render as ASCII tree
-            let ascii_tree = reev_runner::renderer::render_result_as_tree(&test_result);
-
-            info!(
-                "Successfully rendered ASCII tree for benchmark: {}",
-                benchmark_id
-            );
-            return (StatusCode::OK, [("Content-Type", "text/plain")], ascii_tree).into_response();
-        }
-        Ok(None) => {
-            info!("No YML TestResult found in database, falling back to execution state");
+                    Err(e) => {
+                        warn!("Failed to get session log: {}", e);
+                    }
+                }
+            } else {
+                info!(
+                    "No sessions found for benchmark: {} by agent: {}",
+                    benchmark_id, agent_type
+                );
+            }
         }
         Err(e) => {
-            error!("Failed to query YML TestResult from database: {}", e);
-            info!("Falling back to execution state");
+            error!("Failed to list sessions: {}", e);
         }
     }
 
@@ -470,9 +567,11 @@ pub async fn get_ascii_tree_direct(
                 )
                     .into_response()
             } else {
+                info!("No trace available in execution state");
                 (
                     StatusCode::NOT_FOUND,
-                    "No trace available for this execution",
+                    [("Content-Type", "text/plain")],
+                    "No trace available".to_string(),
                 )
                     .into_response()
             }
@@ -482,7 +581,12 @@ pub async fn get_ascii_tree_direct(
                 "No execution found for benchmark: {} by agent: {}",
                 benchmark_id, agent_type
             );
-            (StatusCode::NOT_FOUND, "No execution found").into_response()
+            (
+                StatusCode::NOT_FOUND,
+                [("Content-Type", "text/plain")],
+                "No execution found".to_string(),
+            )
+                .into_response()
         }
     }
 }
@@ -822,35 +926,52 @@ pub async fn test_prompt_md5_lookup(
     State(state): State<ApiState>,
     Json(request): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let db = &state.db;
+    todo!()
+    // let db = &state.db;
 
-    if let Some(benchmark_name) = request.get("benchmark_name").and_then(|v| v.as_str()) {
-        match db.test_prompt_md5_lookup(benchmark_name).await {
-            Ok(_) => (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "success": true,
-                    "message": format!("Test completed for benchmark: {}", benchmark_name)
-                })),
-            ),
-            Err(e) => {
-                error!("Failed to test prompt MD5 lookup: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "success": false,
-                        "error": format!("Failed to test prompt MD5 lookup: {}", e)
-                    })),
-                )
-            }
-        }
-    } else {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Missing 'benchmark_name' field in request"
-            })),
-        )
-    }
+    // if let Some(benchmark_name) = request.get("benchmark_name").and_then(|v| v.as_str()) {
+    //     // Use the new FlowDatabaseWriter to test prompt MD5 lookup
+    //     let flow_db = reev_lib::db::FlowDatabaseWriter::new(std::sync::Arc::clone(db));
+    //     match flow_db
+    //         .get_prompt_md5_by_benchmark_name(benchmark_name)
+    //         .await
+    //     {
+    //         Ok(Some(prompt_md5)) => (
+    //             StatusCode::OK,
+    //             Json(serde_json::json!({
+    //                 "success": true,
+    //                 "benchmark_name": benchmark_name,
+    //                 "prompt_md5": prompt_md5,
+    //                 "message": format!("Found prompt MD5 for benchmark: {}", benchmark_name)
+    //             })),
+    //         ),
+    //         Ok(None) => (
+    //             StatusCode::OK,
+    //             Json(serde_json::json!({
+    //                 "success": true,
+    //                 "benchmark_name": benchmark_name,
+    //                 "prompt_md5": null,
+    //                 "message": format!("No prompt MD5 found for benchmark: {}", benchmark_name)
+    //             })),
+    //         ),
+    //         Err(e) => {
+    //             error!("Failed to test prompt MD5 lookup: {}", e);
+    //             (
+    //                 StatusCode::INTERNAL_SERVER_ERROR,
+    //                 Json(serde_json::json!({
+    //                     "success": false,
+    //                     "error": format!("Failed to test prompt MD5 lookup: {}", e)
+    //                 })),
+    //             )
+    //         }
+    //     }
+    // } else {
+    //     (
+    //         StatusCode::BAD_REQUEST,
+    //         Json(serde_json::json!({
+    //             "success": false,
+    //             "error": "Missing 'benchmark_name' field in request"
+    //         })),
+    //     )
+    // }
 }

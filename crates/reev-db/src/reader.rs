@@ -311,8 +311,8 @@ impl DatabaseReader {
         filter: Option<QueryFilter>,
     ) -> Result<Vec<AgentPerformance>> {
         let mut query = "
-            SELECT id, benchmark_id, agent_type, score, final_status,
-                   execution_time_ms, timestamp, flow_log_id, prompt_md5
+            SELECT id, session_id, benchmark_id, agent_type, score, final_status,
+                   execution_time_ms, timestamp, prompt_md5
             FROM agent_performance
         "
         .to_string();
@@ -413,23 +413,26 @@ impl DatabaseReader {
                 id: Some(row.get(0).map_err(|e| {
                     DatabaseError::generic_with_source("Failed to get performance ID", e)
                 })?),
-                benchmark_id: row
+                session_id: row
                     .get(1)
+                    .map_err(|_| DatabaseError::generic("Failed to get session ID"))?,
+                benchmark_id: row
+                    .get(2)
                     .map_err(|_| DatabaseError::generic("Failed to get benchmark ID"))?,
                 agent_type: row
-                    .get(2)
+                    .get(3)
                     .map_err(|_| DatabaseError::generic("Failed to get agent type"))?,
                 score: row
-                    .get(3)
+                    .get(4)
                     .map_err(|_| DatabaseError::generic("Failed to get score"))?,
                 final_status: row
-                    .get(4)
+                    .get(5)
                     .map_err(|_| DatabaseError::generic("Failed to get final status"))?,
-                execution_time_ms: row.get(5).ok(),
+                execution_time_ms: row.get(6).ok(),
                 timestamp: row
-                    .get(6)
+                    .get(7)
                     .map_err(|_| DatabaseError::generic("Failed to get timestamp"))?,
-                flow_log_id: row.get(7).ok(),
+                flow_log_id: None,
                 prompt_md5: row.get(8).ok(),
                 additional_metrics: HashMap::new(),
             });
