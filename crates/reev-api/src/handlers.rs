@@ -565,6 +565,13 @@ pub async fn get_transaction_logs(
 
     // First check for active executions (like execution trace does)
     let executions = state.executions.lock().await;
+    info!("DEBUG: Total executions in memory: {}", executions.len());
+    for (id, exec) in executions.iter() {
+        info!(
+            "DEBUG: Execution {} -> benchmark: {}, status: {:?}",
+            id, exec.benchmark_id, exec.status
+        );
+    }
     for (_execution_id, execution) in executions.iter() {
         if execution.benchmark_id == benchmark_id {
             let is_running = execution.status == ExecutionStatus::Running
@@ -576,6 +583,11 @@ pub async fn get_transaction_logs(
 
             // Handle running executions like execution trace - return raw trace or loading message
             if is_running {
+                info!(
+                    "DEBUG: Handling running execution {} with trace length: {}",
+                    _execution_id,
+                    execution.trace.len()
+                );
                 // Check format parameter: yaml or plain (yaml is default)
                 let format_param = params
                     .get("format")
@@ -682,7 +694,7 @@ pub async fn get_transaction_logs(
 
             // For completed executions, try to parse the trace
             info!(
-                "Attempting to parse trace for completed execution: {} (trace length: {} chars)",
+                "DEBUG: Completed execution {} found, attempting to parse trace (length: {} chars)",
                 _execution_id,
                 execution.trace.len()
             );
