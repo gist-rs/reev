@@ -8,8 +8,7 @@ CREATE TABLE IF NOT EXISTS benchmarks (
     benchmark_name TEXT NOT NULL,
     prompt TEXT NOT NULL,
     content TEXT NOT NULL,
-    created_at INTEGER DEFAULT (strftime('%s', 'now')),
-    updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS execution_sessions (
@@ -43,7 +42,7 @@ CREATE TABLE IF NOT EXISTS agent_performance (
     score REAL NOT NULL,
     final_status TEXT NOT NULL,
     execution_time_ms INTEGER,
-    timestamp INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
     prompt_md5 TEXT,
     FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id),
     FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id)
@@ -65,7 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_session_logs_created_at ON session_logs(created_a
 CREATE INDEX IF NOT EXISTS idx_agent_performance_session_id ON agent_performance(session_id);
 CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5);
 CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score);
-CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp);
+CREATE INDEX IF NOT EXISTS idx_agent_performance_created_at ON agent_performance(created_at);
 
 -- Initial data (skip auto-insertion for compatibility)
 -- INSERT OR IGNORE INTO schema_version (version, description) VALUES ('1.0', 'Phase 25: Unified logging system with session management');
@@ -101,7 +100,7 @@ CREATE TABLE IF NOT EXISTS agent_performance (
     score REAL NOT NULL,
     final_status TEXT NOT NULL,
     execution_time_ms INTEGER,
-    timestamp INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
     prompt_md5 TEXT,
     FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id),
     FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id)
@@ -123,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_session_logs_created_at ON session_logs(created_a
 CREATE INDEX IF NOT EXISTS idx_agent_performance_session_id ON agent_performance(session_id);
 CREATE INDEX IF NOT EXISTS idx_agent_performance_prompt_md5 ON agent_performance(prompt_md5);
 CREATE INDEX IF NOT EXISTS idx_agent_performance_score ON agent_performance(score);
-CREATE INDEX IF NOT EXISTS idx_agent_performance_timestamp ON agent_performance(timestamp);
+CREATE INDEX IF NOT EXISTS idx_agent_performance_created_at ON agent_performance(created_at);
 
 -- Initial data (skip auto-insertion for compatibility)
 -- INSERT OR IGNORE INTO schema_version (version, description) VALUES ('1.0', 'Phase 25: Unified logging system with session management');

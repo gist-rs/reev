@@ -42,13 +42,12 @@ impl DatabaseWriter {
 
         // Atomic upsert with proper ON CONFLICT handling
         let query = "
-            INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO benchmarks (id, benchmark_name, prompt, content, created_at)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 benchmark_name = excluded.benchmark_name,
                 prompt = excluded.prompt,
-                content = excluded.content,
-                updated_at = excluded.updated_at;
+                content = excluded.content;
         ";
 
         self.conn
@@ -59,7 +58,6 @@ impl DatabaseWriter {
                     benchmark_name.to_string(),
                     prompt.to_string(),
                     content.to_string(),
-                    timestamp.clone(),
                     timestamp.clone(),
                 ],
             )
@@ -234,7 +232,7 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                "SELECT id, benchmark_name, prompt, content, created_at
                  FROM benchmarks WHERE id = ?",
                 [id],
             )
@@ -248,7 +246,6 @@ impl DatabaseWriter {
                 prompt: row.get(2)?,
                 content: row.get(3)?,
                 created_at: row.get(4)?,
-                updated_at: row.get(5)?,
             };
             info!("[DB] Found benchmark: {}", benchmark.benchmark_name);
             Ok(Some(benchmark))
@@ -265,7 +262,7 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                "SELECT id, benchmark_name, prompt, content, created_at
                  FROM benchmarks WHERE benchmark_name = ? ORDER BY created_at DESC LIMIT 1",
                 [name],
             )
@@ -279,7 +276,6 @@ impl DatabaseWriter {
                 prompt: row.get(2)?,
                 content: row.get(3)?,
                 created_at: row.get(4)?,
-                updated_at: row.get(5)?,
             };
             info!("[DB] Found benchmark: {}", benchmark.benchmark_name);
             Ok(Some(benchmark))
@@ -296,7 +292,7 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT id, benchmark_name, prompt, content, created_at, updated_at
+                "SELECT id, benchmark_name, prompt, content, created_at
                  FROM benchmarks ORDER BY benchmark_name",
                 (),
             )
@@ -311,7 +307,6 @@ impl DatabaseWriter {
                 prompt: row.get(2)?,
                 content: row.get(3)?,
                 created_at: row.get(4)?,
-                updated_at: row.get(5)?,
             });
         }
 

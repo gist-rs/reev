@@ -45,10 +45,10 @@ impl DatabaseWriter {
     ) -> Result<Vec<PerformanceResult>> {
         let limit_clause = limit.map(|l| format!(" LIMIT {l}")).unwrap_or_default();
         let results_query = format!(
-            "SELECT id, session_id, benchmark_id, score, final_status, timestamp
+            "SELECT id, session_id, benchmark_id, score, final_status, created_at
              FROM agent_performance
              WHERE agent_type = ?
-             ORDER BY timestamp DESC{limit_clause}"
+             ORDER BY created_at DESC{limit_clause}"
         );
 
         let mut results_rows = self
@@ -91,7 +91,7 @@ impl DatabaseWriter {
         self.conn
             .execute(
                 "INSERT INTO agent_performance
-                 (session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5)
+                 (session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, created_at, prompt_md5)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     performance.session_id.clone(),
@@ -120,7 +120,7 @@ impl DatabaseWriter {
                 agent_type,
                 COUNT(*) as execution_count,
                 AVG(score) as avg_score,
-                MAX(timestamp) as latest_timestamp
+                MAX(created_at) as latest_timestamp
             FROM agent_performance
             GROUP BY agent_type
             ORDER BY agent_type
@@ -167,8 +167,8 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
-                 FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC",
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, created_at, prompt_md5
+                 FROM agent_performance WHERE agent_type = ? ORDER BY created_at DESC",
                 [agent_type],
             )
             .await
@@ -200,8 +200,8 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
-                 FROM agent_performance WHERE benchmark_id = ? ORDER BY timestamp DESC",
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, created_at, prompt_md5
+                 FROM agent_performance WHERE benchmark_id = ? ORDER BY created_at DESC",
                 [benchmark_id],
             )
             .await
@@ -230,7 +230,7 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, created_at, prompt_md5
                  FROM agent_performance WHERE session_id = ?",
                 [session_id],
             )
@@ -258,7 +258,7 @@ impl DatabaseWriter {
                      agent_type,
                      COUNT(*) as execution_count,
                      AVG(score) as avg_score,
-                     MAX(timestamp) as latest_timestamp
+                     MAX(created_at) as latest_timestamp
                  FROM agent_performance
                  GROUP BY agent_type
                  HAVING execution_count >= 3
@@ -306,8 +306,8 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, timestamp, prompt_md5
-                 FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC LIMIT ?",
+                "SELECT session_id, benchmark_id, agent_type, score, final_status, execution_time_ms, created_at, prompt_md5
+                 FROM agent_performance WHERE agent_type = ? ORDER BY created_at DESC LIMIT ?",
                 [agent_type, &limit.to_string()],
             )
             .await

@@ -94,8 +94,6 @@ pub struct BenchmarkData {
     pub content: String,
     /// Creation timestamp
     pub created_at: String,
-    /// Last update timestamp
-    pub updated_at: String,
 }
 
 /// Test execution result
@@ -245,8 +243,6 @@ pub struct DuplicateRecord {
     pub count: i64,
     /// First occurrence timestamp
     pub first_created_at: String,
-    /// Last occurrence timestamp
-    pub last_updated_at: String,
 }
 
 /// Sync operation result

@@ -37,13 +37,4 @@
 ## Refactor
 
 - add `pub updated_at: Option<String>,`
-- move any test in file to tests folder
-- add flow ascoo tree view
-- add this to all examples
-```
-
-    // 3. Sync benchmarks to database before running examples
-    sync_benchmarks_to_database()
-        .await
-        .context("Failed to sync benchmarks to database")?;
-```
+- add flow ascii tree view

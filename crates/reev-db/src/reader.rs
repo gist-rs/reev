@@ -44,7 +44,7 @@ impl DatabaseReader {
     /// Get test results with optional filtering
     pub async fn get_test_results(&self, filter: Option<QueryFilter>) -> Result<Vec<TestResult>> {
         let mut query = "
-            SELECT ap.id, ap.benchmark_id, ap.timestamp, b.prompt, '' as generated_instruction,
+            SELECT ap.id, ap.benchmark_id, ap.created_at, b.prompt, '' as generated_instruction,
                    '' as final_on_chain_state, ap.final_status, ap.score, ap.prompt_md5, ap.execution_time_ms
             FROM agent_performance ap
             LEFT JOIN benchmarks b ON ap.benchmark_id = b.id
@@ -77,12 +77,12 @@ impl DatabaseReader {
             }
 
             if let Some(date_from) = f.date_from {
-                where_clauses.push("ap.timestamp >= ?");
+                where_clauses.push("ap.created_at >= ?");
                 params.push(date_from);
             }
 
             if let Some(date_to) = f.date_to {
-                where_clauses.push("ap.timestamp <= ?");
+                where_clauses.push("ap.created_at <= ?");
                 params.push(date_to);
             }
 
@@ -96,7 +96,7 @@ impl DatabaseReader {
                 let direction = f.sort_direction.as_deref().unwrap_or("DESC");
                 query.push_str(&format!(" ORDER BY ap.{sort_by} {direction}"));
             } else {
-                query.push_str(" ORDER BY ap.timestamp DESC");
+                query.push_str(" ORDER BY ap.created_at DESC");
             }
 
             // Add LIMIT and OFFSET
@@ -107,7 +107,7 @@ impl DatabaseReader {
                 }
             }
         } else {
-            query.push_str(" ORDER BY timestamp DESC");
+            query.push_str(" ORDER BY created_at DESC");
         }
 
         debug!("[DB] Querying test results: {}", query);
@@ -196,7 +196,7 @@ impl DatabaseReader {
                     DatabaseError::generic_with_source("Failed to get benchmark ID", e)
                 })?,
                 timestamp: row.get(2).map_err(|e| {
-                    DatabaseError::generic_with_source("Failed to get timestamp", e)
+                    DatabaseError::generic_with_source("Failed to get created_at", e)
                 })?,
                 prompt: row
                     .get(3)
@@ -313,7 +313,7 @@ impl DatabaseReader {
     ) -> Result<Vec<AgentPerformance>> {
         let mut query = "
             SELECT id, session_id, benchmark_id, agent_type, score, final_status,
-                   execution_time_ms, timestamp, prompt_md5
+                   execution_time_ms, created_at, prompt_md5
             FROM agent_performance
         "
         .to_string();
@@ -347,13 +347,13 @@ impl DatabaseReader {
                 query.push_str(&where_clauses.join(" AND "));
             }
 
-            query.push_str(" ORDER BY timestamp DESC");
+            query.push_str(" ORDER BY created_at DESC");
 
             if let Some(limit) = f.limit {
                 query.push_str(&format!(" LIMIT {limit}"));
             }
         } else {
-            query.push_str(" ORDER BY timestamp DESC");
+            query.push_str(" ORDER BY created_at DESC");
         }
 
         let mut stmt =
@@ -432,7 +432,7 @@ impl DatabaseReader {
                 execution_time_ms: row.get(6).ok(),
                 timestamp: row
                     .get(7)
-                    .map_err(|_| DatabaseError::generic("Failed to get timestamp"))?,
+                    .map_err(|_| DatabaseError::generic("Failed to get created_at"))?,
                 flow_log_id: None,
                 prompt_md5: row.get(8).ok(),
                 additional_metrics: HashMap::new(),
@@ -564,7 +564,7 @@ impl DatabaseReader {
         query_text: &str,
     ) -> Result<Vec<crate::types::BenchmarkData>> {
         let query = "
-            SELECT id, benchmark_name, prompt, content, created_at, updated_at
+            SELECT id, benchmark_name, prompt, content, created_at
             FROM benchmarks
             WHERE benchmark_name LIKE ? OR prompt LIKE ? OR content LIKE ?
             ORDER BY benchmark_name
@@ -607,9 +607,6 @@ impl DatabaseReader {
                 created_at: row
                     .get(4)
                     .map_err(|_| DatabaseError::generic("Failed to get created_at"))?,
-                updated_at: row
-                    .get(5)
-                    .map_err(|_| DatabaseError::generic("Failed to get updated_at"))?,
             });
         }
 

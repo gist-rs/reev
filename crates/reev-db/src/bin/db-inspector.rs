@@ -114,19 +114,18 @@ async fn check_duplicates(db: &DatabaseWriter, format: &str) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&duplicates)?);
         } else {
             println!(
-                "{:<40} {:<20} {:<10} {:<20} {:<20}",
-                "ID", "Benchmark Name", "Count", "First Created", "Last Updated"
+                "{:<40} {:<20} {:<10} {:<20}",
+                "ID", "Benchmark Name", "Count", "First Created"
             );
             println!("{}", "-".repeat(120));
 
             for duplicate in &duplicates {
                 println!(
-                    "{:<40} {:<20} {:<10} {:<20} {:<20}",
+                    "{:<40} {:<20} {:<10} {:<20}",
                     duplicate.id,
                     duplicate.benchmark_name,
                     duplicate.count,
                     duplicate.first_created_at,
-                    duplicate.last_updated_at
                 );
             }
         }
@@ -199,8 +198,8 @@ async fn list_benchmarks(db: &DatabaseWriter, format: &str) -> Result<()> {
             };
 
             println!(
-                "{:<32} {:<20} {:<50} {:<20}",
-                benchmark.id, benchmark.benchmark_name, prompt_preview, benchmark.updated_at
+                "{:<32} {:<20} {:<50}",
+                benchmark.id, benchmark.benchmark_name, prompt_preview
             );
         }
 

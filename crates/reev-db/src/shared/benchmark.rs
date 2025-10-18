@@ -39,8 +39,6 @@ pub struct BenchmarkData {
     pub content: String,
     /// Creation timestamp
     pub created_at: String,
-    /// Last update timestamp
-    pub updated_at: String,
 }
 
 /// Test execution result

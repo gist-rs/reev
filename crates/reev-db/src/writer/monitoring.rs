@@ -40,7 +40,6 @@ impl DatabaseWriter {
                 benchmark_name,
                 count,
                 first_created_at: chrono::Utc::now().to_rfc3339(),
-                last_updated_at: chrono::Utc::now().to_rfc3339(),
             });
         }
 
