@@ -272,7 +272,10 @@ pub async fn stop_benchmark(
 
     match executions.get_mut(&execution_id) {
         Some(execution) => {
-            if matches!(execution.status, ExecutionStatus::Running) {
+            if matches!(
+                execution.status,
+                ExecutionStatus::Running | ExecutionStatus::Pending
+            ) {
                 execution.status = ExecutionStatus::Failed;
                 execution.end_time = Some(chrono::Utc::now());
                 execution.error = Some("Execution stopped by user".to_string());
@@ -363,7 +366,8 @@ pub async fn get_flow_log(
 
     for (execution_id, execution) in executions.iter() {
         if execution.benchmark_id == benchmark_id {
-            let is_running = execution.status == ExecutionStatus::Running;
+            let is_running = execution.status == ExecutionStatus::Running
+                || execution.status == ExecutionStatus::Pending;
             info!(
                 "Execution trace debug: execution_id={}, status={:?}, is_running={}, benchmark_id={}",
                 execution_id, execution.status, is_running, benchmark_id
@@ -563,7 +567,8 @@ pub async fn get_transaction_logs(
     let executions = state.executions.lock().await;
     for (_execution_id, execution) in executions.iter() {
         if execution.benchmark_id == benchmark_id {
-            let is_running = execution.status == ExecutionStatus::Running;
+            let is_running = execution.status == ExecutionStatus::Running
+                || execution.status == ExecutionStatus::Pending;
             info!(
                 "Found execution for benchmark: {} (status: {:?})",
                 benchmark_id, execution.status

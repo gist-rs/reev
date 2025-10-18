@@ -53,14 +53,13 @@ async fn test_simple_mutex_proof() -> Result<()> {
     for handle in handles {
         match handle.await {
             Ok(Ok(())) => success_count += 1,
-            Ok(Err(e)) => println!("❌ Operation failed: {}", e),
-            Err(e) => println!("❌ Task failed: {}", e),
+            Ok(Err(e)) => println!("❌ Operation failed: {e}"),
+            Err(e) => println!("❌ Task failed: {e}"),
         }
     }
 
     println!(
-        "📊 Results: {}/5 concurrent operations succeeded",
-        success_count
+        "📊 Results: {success_count}/5 concurrent operations succeeded"
     );
 
     // All operations should succeed with mutex
@@ -137,8 +136,7 @@ async fn test_mutex_prevents_data_races() -> Result<()> {
     }
 
     println!(
-        "📊 Race test results: {}/3 operations succeeded",
-        success_count
+        "📊 Race test results: {success_count}/3 operations succeeded"
     );
 
     // All should succeed - no data races with mutex
@@ -184,8 +182,7 @@ async fn test_minimal_performance_impact() -> Result<()> {
     let duration = start.elapsed();
 
     println!(
-        "📊 Performance: 5 concurrent operations took {:?}",
-        duration
+        "📊 Performance: 5 concurrent operations took {duration:?}"
     );
 
     // Should complete quickly (less than 1 second)

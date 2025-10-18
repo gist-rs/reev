@@ -81,11 +81,11 @@ async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
             Ok(Ok(())) => success_count += 1,
             Ok(Err(e)) => {
                 error_count += 1;
-                println!("❌ Operation failed: {}", e);
+                println!("❌ Operation failed: {e}");
             }
             Err(e) => {
                 error_count += 1;
-                println!("❌ Task failed: {}", e);
+                println!("❌ Task failed: {e}");
             }
         }
     }
@@ -93,8 +93,8 @@ async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
     let success_rate = (success_count as f64 / operation_count as f64) * 100.0;
 
     println!("\n📈 RESULTS:");
-    println!("   Total operations: {}", operation_count);
-    println!("   Successful: {} ({:.1}%)", success_count, success_rate);
+    println!("   Total operations: {operation_count}");
+    println!("   Successful: {success_count} ({success_rate:.1}%)");
     println!(
         "   Failed: {} ({:.1}%)",
         error_count,
@@ -104,8 +104,7 @@ async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
     // With mutex, we expect high success rate
     assert!(
         success_rate >= 90.0,
-        "With mutex, success rate should be >= 90%, got {:.1}%",
-        success_rate
+        "With mutex, success rate should be >= 90%, got {success_rate:.1}%"
     );
 
     println!("✅ PROVEN: Mutex fix enables reliable concurrent database access!");
@@ -223,7 +222,7 @@ async fn test_mutex_performance_impact() -> Result<()> {
         });
     }
 
-    while let Some(_) = join_set.join_next().await {}
+    while (join_set.join_next().await).is_some() {}
     let concurrent_time = start_concurrent.elapsed();
 
     let overhead_ratio = concurrent_time.as_millis() as f64 / sequential_time.as_millis() as f64;
@@ -231,13 +230,12 @@ async fn test_mutex_performance_impact() -> Result<()> {
     println!("📊 PERFORMANCE RESULTS:");
     println!("   Sequential: {}ms", sequential_time.as_millis());
     println!("   Concurrent: {}ms", concurrent_time.as_millis());
-    println!("   Overhead ratio: {:.2}x", overhead_ratio);
+    println!("   Overhead ratio: {overhead_ratio:.2}x");
 
     // Overhead should be reasonable
     assert!(
         overhead_ratio < 3.0,
-        "Mutex overhead should be less than 3x, got {:.2}x",
-        overhead_ratio
+        "Mutex overhead should be less than 3x, got {overhead_ratio:.2}x"
     );
 
     println!("✅ PROVEN: Performance impact is minimal!");
