@@ -3784,7 +3784,6 @@ dependencies = [
  "reev-db",
  "reev-flow",
  "reev-lib",
- "regex",
  "reqwest",
  "rstest",
  "serde_json",

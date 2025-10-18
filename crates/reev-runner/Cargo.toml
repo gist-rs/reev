@@ -60,7 +60,6 @@ uuid = { workspace = true }
 
 # Database dependencies
 reev-db = { path = "../reev-db" }
-regex = "1.10"
 
 # Dependency management
 flate2 = "1.0"
