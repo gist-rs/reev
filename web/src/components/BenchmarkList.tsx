@@ -476,7 +476,7 @@ export function BenchmarkList({
                           position="top"
                           className="max-w-xs"
                         >
-                          <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
                             {benchmark.prompt || benchmark.name}
                           </div>
                         </Tooltip>
