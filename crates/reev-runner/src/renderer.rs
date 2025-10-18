@@ -73,7 +73,8 @@ fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
             );
 
             if i > 0 {
-                output.push_str("\n     ─────────────────────────────────────────────────────────");
+                output
+                    .push_str("\n     ─────────────────────────────────────────────────────────\n");
             }
 
             output.push_str(&format!(
