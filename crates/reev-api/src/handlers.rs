@@ -478,11 +478,31 @@ pub async fn get_transaction_logs_demo(
 ) -> impl IntoResponse {
     info!("Generating demo transaction logs with visualization");
 
-    // Default to tree format, allow plain format override
-    let use_tree = params.get("format").is_none_or(|f| f != "plain");
+    // Check format parameter: yaml or plain (yaml is default)
+    let format_param = params
+        .get("format")
+        .map_or("yaml".to_string(), |v| v.clone());
+    let use_yaml = format_param == "yaml";
 
-    let demo_logs = if use_tree {
-        crate::services::generate_mock_transaction_logs_tree()
+    let demo_logs = if use_yaml {
+        // Generate YAML format demo
+        let mock_logs = vec![
+            "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]".to_string(),
+            "Program log: CreateIdempotent".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]".to_string(),
+            "Program log: Instruction: GetAccountDataSize".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1569 of 997595 compute units".to_string(),
+            "Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
+        ];
+
+        match crate::services::generate_transaction_logs_yaml(&mock_logs) {
+            Ok(yaml_logs) => yaml_logs,
+            Err(e) => {
+                error!("Failed to generate YAML logs: {}", e);
+                format!("Error generating YAML tree: {e}")
+            }
+        }
     } else {
         // Generate plain format demo
         let mock_logs = vec![
@@ -508,7 +528,7 @@ pub async fn get_transaction_logs_demo(
         Json(json!({
             "benchmark_id": "demo-jupiter-swap",
             "transaction_logs": demo_logs,
-            "format": if use_tree { "tree" } else { "plain" },
+            "format": if use_yaml { "yaml" } else { "plain" },
             "message": "Demo transaction logs generated successfully"
         })),
     )
@@ -564,12 +584,31 @@ pub async fn get_transaction_logs(
                                     trace,
                                 );
 
-                                // Default to tree format, allow plain format override
-                                let use_tree = params.get("format").is_none_or(|f| f != "plain");
+                                // Check format parameter: yaml or plain (yaml is default)
+                                let format_param = params
+                                    .get("format")
+                                    .map_or("yaml".to_string(), |v| v.clone());
+                                let use_yaml = format_param == "yaml";
 
                                 // Use appropriate transaction log extraction
-                                let transaction_logs = if use_tree {
-                                    crate::services::generate_transaction_logs_tree(&test_result)
+                                let transaction_logs = if use_yaml {
+                                    match crate::services::generate_transaction_logs_yaml(
+                                        &test_result
+                                            .trace
+                                            .steps
+                                            .iter()
+                                            .flat_map(|step| {
+                                                &step.observation.last_transaction_logs
+                                            })
+                                            .cloned()
+                                            .collect::<Vec<_>>(),
+                                    ) {
+                                        Ok(yaml_logs) => yaml_logs,
+                                        Err(e) => {
+                                            error!("Failed to generate YAML logs: {}", e);
+                                            format!("Error generating YAML tree: {e}")
+                                        }
+                                    }
                                 } else {
                                     crate::services::generate_transaction_logs(&test_result)
                                 };
@@ -578,7 +617,7 @@ pub async fn get_transaction_logs(
                                     "Extracted transaction logs for benchmark: {} ({} chars, format: {})",
                                     benchmark_id,
                                     transaction_logs.len(),
-                                    if use_tree { "tree" } else { "plain" }
+                                    if use_yaml { "yaml" } else { "plain" }
                                 );
 
                                 if transaction_logs.trim().is_empty() {
@@ -587,7 +626,7 @@ pub async fn get_transaction_logs(
                                         Json(json!({
                                             "benchmark_id": benchmark_id,
                                             "transaction_logs": "",
-                                            "format": if use_tree { "tree" } else { "plain" },
+                                            "format": format_param,
                                             "message": "No transaction logs available"
                                         })),
                                     )
@@ -598,9 +637,9 @@ pub async fn get_transaction_logs(
                                     StatusCode::OK,
                                     Json(json!({
                                         "benchmark_id": benchmark_id,
-                                        "transaction_logs": transaction_logs,
-                                        "format": if use_tree { "tree" } else { "plain" },
-                                        "message": "Transaction logs extracted successfully"
+                                        "format": format_param,
+                                        "message": "Transaction logs extracted successfully",
+                                        "transaction_logs": transaction_logs
                                     })),
                                 )
                                     .into_response()

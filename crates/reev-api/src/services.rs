@@ -5,9 +5,11 @@ use reev_flow::{
 };
 use reev_lib::db::DatabaseWriter;
 use reev_lib::results::TestResult;
+
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tracing::{debug, error, info};
+use text_trees::{FormatCharacters, TreeFormatting, TreeNode};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Background task to execute benchmark
@@ -315,73 +317,6 @@ pub fn generate_transaction_logs(result: &TestResult) -> String {
 }
 
 /// Generate beautiful ASCII tree visualization of transaction logs
-pub fn generate_transaction_logs_tree(result: &TestResult) -> String {
-    let mut tree = String::new();
-
-    // Header - use the result ID which is the benchmark ID
-    let benchmark_name = &result.id;
-
-    tree.push_str(&format!(
-        "🔄 TRANSACTION: {} | ID: {}\n\n",
-        benchmark_name, &result.id
-    ));
-
-    let mut total_programs = std::collections::HashSet::new();
-    let mut total_instructions = 0;
-    let mut total_compute_units = 0u64;
-    let mut has_errors = false;
-
-    for (step_idx, step) in result.trace.steps.iter().enumerate() {
-        if step_idx > 0 {
-            tree.push('\n');
-        }
-
-        tree.push_str(&format!("Step {}\n", step_idx + 1));
-
-        // Parse and render transaction logs as tree
-        let parsed_logs = parse_transaction_logs(&step.observation.last_transaction_logs);
-        for (log_idx, log_entry) in parsed_logs.iter().enumerate() {
-            render_log_entry(&mut tree, log_entry, log_idx == parsed_logs.len() - 1, 1);
-
-            // Collect statistics
-            if let Some(program_id) = &log_entry.program_id {
-                total_programs.insert(program_id.clone());
-            }
-            if log_entry.is_instruction {
-                total_instructions += 1;
-            }
-            total_compute_units += log_entry.compute_units.unwrap_or(0);
-            if log_entry.is_error {
-                has_errors = true;
-            }
-        }
-
-        if let Some(error) = &step.observation.last_transaction_error {
-            tree.push_str(&format!("  ❌ Error: {error}\n"));
-            has_errors = true;
-        }
-    }
-
-    // Summary section
-    tree.push_str("\n📊 SUMMARY\n");
-    tree.push_str(&format!("├─ Total Programs: {}\n", total_programs.len()));
-    tree.push_str(&format!("├─ Total Instructions: {total_instructions}\n"));
-    tree.push_str(&format!(
-        "├─ Total Compute Units: ~{}K\n",
-        total_compute_units / 1000
-    ));
-    tree.push_str(&format!(
-        "└─ Status: {}\n",
-        if has_errors {
-            "❌ FAILED"
-        } else {
-            "✅ SUCCESS"
-        }
-    ));
-
-    tree
-}
-
 /// Parsed transaction log entry
 #[derive(Debug, Clone)]
 struct LogEntry {
@@ -393,7 +328,6 @@ struct LogEntry {
     compute_units: Option<u64>,
     is_instruction: bool,
     is_success: bool,
-    is_error: bool,
     is_last_child: bool,
     return_data: Option<String>,
 }
@@ -437,7 +371,6 @@ fn parse_transaction_logs(logs: &[String]) -> Vec<LogEntry> {
                 compute_units: None,
                 is_instruction: false,
                 is_success: false,
-                is_error: false,
                 is_last_child: false,
                 return_data: None,
             });
@@ -472,7 +405,6 @@ fn parse_transaction_logs(logs: &[String]) -> Vec<LogEntry> {
                             compute_units: None,
                             is_instruction: false,
                             is_success: true,
-                            is_error: false,
                             is_last_child: false,
                             return_data: None,
                         });
@@ -558,7 +490,7 @@ fn extract_program_id_from_success(message: &str) -> Option<String> {
         .map(|caps| caps[1].to_string())
 }
 
-/// Mark which entries are the last child of their parent
+/// Mark which entries are the last child of their parent and track vertical connectors
 fn mark_last_children(entries: &mut [LogEntry]) {
     let mut i = 0;
     while i < entries.len() {
@@ -579,120 +511,6 @@ fn mark_last_children(entries: &mut [LogEntry]) {
     }
 }
 
-/// Render a single log entry as ASCII tree
-fn render_log_entry(
-    tree: &mut String,
-    entry: &LogEntry,
-    _is_last_in_step: bool,
-    _base_indent: usize,
-) {
-    // Build proper tree indentation with vertical connectors
-    let prefix = build_tree_prefix(entry.level, entry.is_last_child);
-
-    // Get appropriate icon
-    let icon = get_program_icon(&entry.program_id);
-
-    // Render program invocation
-    if entry.program_name.is_some() && !entry.is_success {
-        tree.push_str(&format!(
-            "{}{} {} ({})\n",
-            prefix,
-            icon,
-            entry.program_name.as_deref().unwrap_or("Unknown"),
-            entry.program_id.as_deref().unwrap_or("")
-        ));
-
-        // Build child prefix (adds vertical connector for this node's children)
-        let child_prefix = build_child_prefix(entry.level, entry.is_last_child);
-
-        // Render instruction if present
-        if let Some(instruction) = &entry.instruction {
-            tree.push_str(&format!(
-                "{child_prefix}├─ 📋 Instruction: {instruction}\n"
-            ));
-        }
-
-        // Render log message if present
-        if let Some(log_msg) = &entry.log_message {
-            if log_msg.starts_with("Please upgrade") {
-                tree.push_str(&format!("{child_prefix}├─ ⚠️  Log: {log_msg}\n"));
-            } else {
-                tree.push_str(&format!("{child_prefix}├─ 📝 Log: {log_msg}\n"));
-            }
-        }
-
-        // Render return data if present
-        if let Some(return_data) = &entry.return_data {
-            tree.push_str(&format!("{child_prefix}├─ 💾 Return: {return_data}\n"));
-        }
-
-        // Render success if present
-        if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!("{child_prefix}└─ ✅ Success ({cu} CU)\n"));
-        }
-    }
-    // Render standalone success entry
-    else if entry.is_success {
-        if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!("{prefix}{icon} ✅ Success ({cu} CU)\n"));
-        } else {
-            tree.push_str(&format!("{prefix}{icon} ✅ Success\n"));
-        }
-    }
-}
-
-/// Build proper tree prefix with vertical connectors for each level
-fn build_tree_prefix(level: usize, is_last_child: bool) -> String {
-    if level == 0 {
-        return String::new();
-    }
-
-    let mut prefix = String::new();
-
-    // For each level above the current one, add appropriate connector
-    for i in 0..level {
-        if i == level - 1 {
-            // This is the direct parent level
-            if is_last_child {
-                prefix.push_str("└─ ");
-            } else {
-                prefix.push_str("├─ ");
-            }
-        } else {
-            // Higher levels need vertical connectors if they have siblings below
-            prefix.push_str("│  ");
-        }
-    }
-
-    prefix
-}
-
-/// Build prefix for child elements (adds vertical connector for current node)
-fn build_child_prefix(level: usize, is_last_child: bool) -> String {
-    if level == 0 {
-        return "  ".to_string();
-    }
-
-    let mut prefix = String::new();
-
-    // For each level, add appropriate connector
-    for i in 0..level {
-        if i == level - 1 {
-            // This is the current level - children need continuation
-            if is_last_child {
-                prefix.push_str("   ");
-            } else {
-                prefix.push_str("│  ");
-            }
-        } else {
-            // Higher levels need vertical connectors
-            prefix.push_str("│  ");
-        }
-    }
-
-    prefix
-}
-
 /// Get appropriate icon for program type
 fn get_program_icon(program_id: &Option<String>) -> &'static str {
     match program_id.as_deref() {
@@ -707,53 +525,119 @@ fn get_program_icon(program_id: &Option<String>) -> &'static str {
     }
 }
 
-/// Test function to generate tree visualization with mock data
-pub fn generate_mock_transaction_logs_tree() -> String {
-    let mock_logs = vec![
-        "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]".to_string(),
-        "Program log: CreateIdempotent".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]".to_string(),
-        "Program log: Instruction: GetAccountDataSize".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1569 of 997595 compute units".to_string(),
-        "Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
-        "Program 11111111111111111111111111111111 invoke [2]".to_string(),
-        "Program 11111111111111111111111111111111 success".to_string(),
-        "Program log: Initialize the associated token account".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]".to_string(),
-        "Program log: Instruction: InitializeImmutableOwner".to_string(),
-        "Program log: Please upgrade to SPL Token 2022 for immutable owner support".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1405 of 991008 compute units".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]".to_string(),
-        "Program log: Instruction: InitializeAccount3".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 3158 of 987126 compute units".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
-        "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 19315 of 1003000 compute units".to_string(),
-        "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success".to_string(),
-        "Program 11111111111111111111111111111111 invoke [1]".to_string(),
-        "Program 11111111111111111111111111111111 success".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]".to_string(),
-        "Program log: Instruction: SyncNative".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 3045 of 983535 compute units".to_string(),
-        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
-    ];
+/// Generate transaction logs as tree structure using text_trees
+pub fn generate_transaction_logs_yaml(logs: &[String]) -> Result<String> {
+    let parsed_logs = parse_transaction_logs(logs);
 
-    let mut tree = String::new();
-    tree.push_str("🔄 TRANSACTION: 100-jup-swap-sol-usdc | ID: mock-test\n\n");
+    // Create the root tree node
+    let root_node = create_tree_from_logs(&parsed_logs)?;
 
-    let parsed_logs = parse_transaction_logs(&mock_logs);
-    for (log_idx, log_entry) in parsed_logs.iter().enumerate() {
-        render_log_entry(&mut tree, log_entry, log_idx == parsed_logs.len() - 1, 1);
+    // Format and return the ASCII tree
+    match root_node.to_string_with_format(&TreeFormatting::dir_tree(FormatCharacters::box_chars()))
+    {
+        Ok(tree_str) => Ok(tree_str),
+        Err(e) => {
+            warn!(
+                "text_trees formatting failed, falling back to plain format: {}",
+                e
+            );
+            // Fallback to plain format
+            let mut plain = String::new();
+            plain.push_str("Transaction logs (plain format):\n");
+            for (i, log) in logs.iter().enumerate() {
+                plain.push_str(&format!("{}: {}\n", i + 1, log));
+            }
+            Ok(plain)
+        }
+    }
+}
+
+/// Create a TreeNode from parsed transaction logs
+fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
+    let mut children = Vec::new();
+
+    // Group logs by level for better organization
+    let mut level_groups: std::collections::HashMap<usize, Vec<&LogEntry>> =
+        std::collections::HashMap::new();
+    for entry in parsed_logs {
+        level_groups.entry(entry.level).or_default().push(entry);
     }
 
-    tree.push_str("\n📊 SUMMARY\n");
-    tree.push_str("├─ Total Programs: 3\n");
-    tree.push_str("├─ Total Instructions: 6\n");
-    tree.push_str("├─ Total Compute Units: ~28K\n");
-    tree.push_str("└─ Status: ✅ SUCCESS\n");
+    // Sort levels
+    let mut levels: Vec<_> = level_groups.keys().cloned().collect();
+    levels.sort();
 
-    tree
+    for &level in &levels {
+        if let Some(entries) = level_groups.get(&level) {
+            let level_node = create_level_node(level, entries)?;
+            children.push(level_node);
+        }
+    }
+
+    Ok(TreeNode::with_child_nodes(
+        "🔄 TRANSACTION LOGS".to_string(),
+        children.into_iter(),
+    ))
+}
+
+/// Create a tree node for a specific level
+fn create_level_node(level: usize, entries: &[&LogEntry]) -> Result<TreeNode<String>> {
+    let level_name = format!("Level {level}");
+    let mut children = Vec::new();
+
+    for (entry_idx, &entry) in entries.iter().enumerate() {
+        let entry_node = create_entry_node(entry, entry_idx == entries.len() - 1)?;
+        children.push(entry_node);
+    }
+
+    Ok(TreeNode::with_child_nodes(level_name, children.into_iter()))
+}
+
+/// Create a tree node for a log entry
+fn create_entry_node(entry: &LogEntry, _is_last: bool) -> Result<TreeNode<String>> {
+    if let Some(program_name) = &entry.program_name {
+        let icon = get_program_icon(&entry.program_id);
+
+        if entry.is_success {
+            let content = if let Some(cu) = entry.compute_units {
+                format!("✅ {program_name} ({cu} CU)")
+            } else {
+                format!("✅ {program_name}")
+            };
+            Ok(TreeNode::new(content))
+        } else {
+            let main_content = format!(
+                "{} {} ({})",
+                icon,
+                program_name,
+                entry.program_id.as_deref().unwrap_or("unknown")
+            );
+
+            let mut children = Vec::new();
+
+            // Add details as children
+            if let Some(instruction) = &entry.instruction {
+                children.push(TreeNode::new(format!("📋 {instruction}")));
+            }
+            if let Some(log_msg) = &entry.log_message {
+                children.push(TreeNode::new(format!("📝 {log_msg}")));
+            }
+            if let Some(return_data) = &entry.return_data {
+                children.push(TreeNode::new(format!("💾 {return_data}")));
+            }
+
+            if children.is_empty() {
+                Ok(TreeNode::new(main_content))
+            } else {
+                Ok(TreeNode::with_child_nodes(
+                    main_content,
+                    children.into_iter(),
+                ))
+            }
+        }
+    } else {
+        Ok(TreeNode::new("Unknown Entry".to_string()))
+    }
 }
 
 /// Update execution as failed

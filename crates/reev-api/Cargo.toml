@@ -27,3 +27,4 @@ chrono = { workspace = true, features = ["serde"] }
 project-root = "0.2"
 serde_yaml = { workspace = true }
 regex = "1.10"
+text_trees = "0.1.2"
