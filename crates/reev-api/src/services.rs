@@ -318,16 +318,12 @@ pub fn generate_transaction_logs(result: &TestResult) -> String {
 pub fn generate_transaction_logs_tree(result: &TestResult) -> String {
     let mut tree = String::new();
 
-    // Header
+    // Header - use the result ID which is the benchmark ID
+    let benchmark_name = &result.id;
+
     tree.push_str(&format!(
         "🔄 TRANSACTION: {} | ID: {}\n\n",
-        result
-            .trace
-            .prompt
-            .split_whitespace()
-            .next()
-            .unwrap_or("unknown"),
-        &result.id
+        benchmark_name, &result.id
     ));
 
     let mut total_programs = std::collections::HashSet::new();
@@ -448,38 +444,50 @@ fn parse_transaction_logs(logs: &[String]) -> Vec<LogEntry> {
             continue;
         }
 
-        // Parse program success
+        // Parse program success - attach to the most recent program invocation of the same ID
         if trimmed.contains("Program") && trimmed.contains("success") {
             if let Some(program_id) = extract_program_id_from_success(trimmed) {
-                // Find the level of this program in the stack
-                let level = program_stack
-                    .iter()
-                    .position(|(id, _)| id == &program_id)
-                    .unwrap_or(0);
-
-                entries.push(LogEntry {
-                    level,
-                    program_id: Some(program_id.clone()),
-                    program_name: get_program_name(&program_id),
-                    instruction: None,
-                    log_message: None,
-                    compute_units: None,
-                    is_instruction: false,
-                    is_success: true,
-                    is_error: false,
-                    is_last_child: false,
-                    return_data: None,
+                // Check if this program already has a success entry to avoid duplicates
+                let has_success = entries.iter().any(|entry| {
+                    entry.program_id.as_ref() == Some(&program_id) && entry.is_success
                 });
+
+                if !has_success {
+                    // Find the most recent program invocation with this ID
+                    if let Some(program_level) = entries
+                        .iter()
+                        .rev()
+                        .find(|entry| {
+                            entry.program_id.as_ref() == Some(&program_id) && !entry.is_success
+                        })
+                        .map(|entry| entry.level)
+                    {
+                        // Add success as a child of this program
+                        entries.push(LogEntry {
+                            level: program_level + 1, // Child level
+                            program_id: Some(program_id.clone()),
+                            program_name: get_program_name(&program_id),
+                            instruction: None,
+                            log_message: None,
+                            compute_units: None,
+                            is_instruction: false,
+                            is_success: true,
+                            is_error: false,
+                            is_last_child: false,
+                            return_data: None,
+                        });
+                    }
+                }
             }
             continue;
         }
 
-        // Parse compute units
+        // Parse compute units - attach to the most recent program or success entry
         if let Some(caps) = compute_units_regex.captures(trimmed) {
             let compute_units = caps[1].parse::<u64>().unwrap_or(0);
-            // Find the most recent program entry
+            // Find the most recent entry that doesn't have compute units yet
             for entry in entries.iter_mut().rev() {
-                if !entry.is_success && entry.compute_units.is_none() {
+                if entry.compute_units.is_none() {
                     entry.compute_units = Some(compute_units);
                     break;
                 }
