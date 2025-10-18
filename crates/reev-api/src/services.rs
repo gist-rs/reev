@@ -578,14 +578,8 @@ fn render_log_entry(
     _is_last_in_step: bool,
     _base_indent: usize,
 ) {
-    let indent = "  ".repeat(entry.level);
-    let connector = if entry.level == 0 {
-        ""
-    } else if entry.is_last_child {
-        "└─ "
-    } else {
-        "├─ "
-    };
+    // Build proper tree indentation with vertical connectors
+    let prefix = build_tree_prefix(entry.level, entry.is_last_child);
 
     // Get appropriate icon
     let icon = get_program_icon(&entry.program_id);
@@ -593,80 +587,103 @@ fn render_log_entry(
     // Render program invocation
     if entry.program_name.is_some() && !entry.is_success {
         tree.push_str(&format!(
-            "{}{}{} {} ({})\n",
-            indent,
-            connector,
+            "{}{} {} ({})\n",
+            prefix,
             icon,
             entry.program_name.as_deref().unwrap_or("Unknown"),
             entry.program_id.as_deref().unwrap_or("")
         ));
 
+        // Build child prefix (adds vertical connector for this node's children)
+        let child_prefix = build_child_prefix(entry.level, entry.is_last_child);
+
         // Render instruction if present
         if let Some(instruction) = &entry.instruction {
             tree.push_str(&format!(
-                "{}{}  ├─ 📋 Instruction: {}\n",
-                indent,
-                if entry.is_last_child { "   " } else { "│  " },
-                instruction
+                "{}├─ 📋 Instruction: {}\n",
+                child_prefix, instruction
             ));
         }
 
         // Render log message if present
         if let Some(log_msg) = &entry.log_message {
             if log_msg.starts_with("Please upgrade") {
-                tree.push_str(&format!(
-                    "{}{}  ├─ ⚠️  Log: {}\n",
-                    indent,
-                    if entry.is_last_child { "   " } else { "│  " },
-                    log_msg
-                ));
+                tree.push_str(&format!("{}├─ ⚠️  Log: {}\n", child_prefix, log_msg));
             } else {
-                tree.push_str(&format!(
-                    "{}{}  ├─ 📝 Log: {}\n",
-                    indent,
-                    if entry.is_last_child { "   " } else { "│  " },
-                    log_msg
-                ));
+                tree.push_str(&format!("{}├─ 📝 Log: {}\n", child_prefix, log_msg));
             }
         }
 
         // Render return data if present
         if let Some(return_data) = &entry.return_data {
-            tree.push_str(&format!(
-                "{}{}  ├─ 💾 Return: {}\n",
-                indent,
-                if entry.is_last_child { "   " } else { "│  " },
-                return_data
-            ));
+            tree.push_str(&format!("{}├─ 💾 Return: {}\n", child_prefix, return_data));
         }
 
         // Render success if present
         if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!(
-                "{}{}  └─ ✅ Success ({} CU)\n",
-                indent,
-                if entry.is_last_child { "   " } else { "│  " },
-                cu
-            ));
+            tree.push_str(&format!("{}└─ ✅ Success ({} CU)\n", child_prefix, cu));
         }
     }
     // Render standalone success entry
     else if entry.is_success {
-        let parent_indent = if entry.level > 0 {
-            "  ".repeat(entry.level)
-        } else {
-            String::new()
-        };
-        let connector = if entry.level == 0 { "" } else { "└─ " };
-
         if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!(
-                "{parent_indent}{connector}{icon} ✅ Success ({cu} CU)\n"
-            ));
+            tree.push_str(&format!("{}{} ✅ Success ({} CU)\n", prefix, icon, cu));
         } else {
-            tree.push_str(&format!("{parent_indent}{connector}{icon} ✅ Success\n"));
+            tree.push_str(&format!("{}{} ✅ Success\n", prefix, icon));
         }
     }
+}
+
+/// Build proper tree prefix with vertical connectors for each level
+fn build_tree_prefix(level: usize, is_last_child: bool) -> String {
+    if level == 0 {
+        return String::new();
+    }
+
+    let mut prefix = String::new();
+
+    // For each level above the current one, add appropriate connector
+    for i in 0..level {
+        if i == level - 1 {
+            // This is the direct parent level
+            if is_last_child {
+                prefix.push_str("└─ ");
+            } else {
+                prefix.push_str("├─ ");
+            }
+        } else {
+            // Higher levels need vertical connectors if they have siblings below
+            prefix.push_str("│  ");
+        }
+    }
+
+    prefix
+}
+
+/// Build prefix for child elements (adds vertical connector for current node)
+fn build_child_prefix(level: usize, is_last_child: bool) -> String {
+    if level == 0 {
+        return "  ".to_string();
+    }
+
+    let mut prefix = String::new();
+
+    // For each level, add appropriate connector
+    for i in 0..level {
+        if i == level - 1 {
+            // This is the current level - children need continuation
+            if is_last_child {
+                prefix.push_str("   ");
+            } else {
+                prefix.push_str("│  ");
+            }
+        } else {
+            // Higher levels need vertical connectors
+            prefix.push_str("│  ");
+        }
+    }
+
+    prefix
 }
 
 /// Get appropriate icon for program type
