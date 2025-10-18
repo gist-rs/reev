@@ -34,4 +34,3 @@
 
 ## Refactor
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
-- make each item expand when click and also when run (mainly when focus) and collapse when lost focus (other get expand which mean only 1 expand), when collapse show only prompt and run button

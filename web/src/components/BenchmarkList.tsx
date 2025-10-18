@@ -67,6 +67,46 @@ export function BenchmarkList({
   // State for expand/collapse agent configuration
   const [showAgentConfig, setShowAgentConfig] = useState(false);
 
+  // State for expand/collapse benchmark items
+  const [expandedBenchmark, setExpandedBenchmark] = useState<string | null>(
+    null,
+  );
+
+  // Handle benchmark expansion
+  const handleBenchmarkExpand = useCallback(
+    (benchmarkId: string) => {
+      setExpandedBenchmark(
+        expandedBenchmark === benchmarkId ? null : benchmarkId,
+      );
+    },
+    [expandedBenchmark],
+  );
+
+  // Auto-expand when benchmark starts running
+  useEffect(() => {
+    const runningBenchmark = Array.from(runningBenchmarks.keys()).find(
+      (benchmarkId) => {
+        const execution = executions.get(benchmarkId);
+        return execution?.status === ExecutionStatus.RUNNING;
+      },
+    );
+
+    if (runningBenchmark) {
+      setExpandedBenchmark(runningBenchmark);
+    }
+  }, [executions, runningBenchmarks]);
+
+  // Handle focus change - collapse when other benchmark is selected
+  const handleBenchmarkClick = useCallback(
+    (benchmarkId: string) => {
+      onBenchmarkSelect(benchmarkId);
+      setExpandedBenchmark(
+        expandedBenchmark === benchmarkId ? null : benchmarkId,
+      );
+    },
+    [expandedBenchmark, onBenchmarkSelect],
+  );
+
   // Use agent performance data passed as props instead of duplicate API call
 
   // Process shared data into results map
@@ -523,6 +563,10 @@ export function BenchmarkList({
                     : 0;
               const isSelected = selectedBenchmark === benchmark.id;
 
+              const isExpanded =
+                expandedBenchmark === benchmark.id ||
+                status === ExecutionStatus.RUNNING;
+
               return (
                 <div
                   key={benchmark.id}
@@ -531,100 +575,134 @@ export function BenchmarkList({
                       ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400"
                       : ""
                   }`}
-                  onClick={() => onBenchmarkSelect(benchmark.id)}
+                  onClick={() => handleBenchmarkClick(benchmark.id)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {/* Benchmark Name */}
-                      <div>
-                        <Tooltip
-                          content={
-                            <div className="text-sm">
-                              <div className="font-medium mb-1">
-                                {benchmark.name}
-                              </div>
-                              <div className="text-gray-600 dark:text-gray-300">
-                                {benchmark.id}
-                              </div>
-                            </div>
-                          }
-                          position="top"
-                          className="max-w-md"
-                        >
-                          <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
-                            {benchmark.prompt || benchmark.name}
-                          </div>
-                        </Tooltip>
-                        <hr className="my-2 border-gray-200 dark:border-gray-700" />
-                        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                          {/* Status Icon */}
-                          <span
-                            className={`font-mono text-sm ${getStatusColor(status)}`}
-                          >
-                            {getStatusIcon(status)}
-                          </span>
-
-                          {/* Score */}
-                          <span
-                            className={`font-mono text-xs font-medium ${getScoreColor(score)}`}
-                          >
-                            {status === ExecutionStatus.COMPLETED ||
-                            status === ExecutionStatus.FAILED
-                              ? formatScore(score)
-                              : "000%"}
-                          </span>
-                          <span className="text-gray-400"></span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300">
-                            {benchmark.id}
-                          </span>
+                  {/* Collapsed view - only prompt and run button */}
+                  {!isExpanded && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
+                          {benchmark.prompt || benchmark.name}
                         </div>
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRunBenchmark(benchmark);
+                        }}
+                        disabled={
+                          isRunning ||
+                          isRunningAll ||
+                          status === ExecutionStatus.RUNNING
+                        }
+                        className="ml-3 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {status === ExecutionStatus.RUNNING
+                          ? "Running..."
+                          : "Run"}
+                      </button>
                     </div>
+                  )}
 
-                    {/* Run Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRunBenchmark(benchmark);
-                      }}
-                      disabled={
-                        isRunning ||
-                        isRunningAll ||
-                        status === ExecutionStatus.RUNNING
-                      }
-                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {status === ExecutionStatus.RUNNING
-                        ? "Running..."
-                        : "Run"}
-                    </button>
-                  </div>
+                  {/* Expanded view - full details */}
+                  {isExpanded && (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {/* Benchmark Name */}
+                          <div>
+                            <Tooltip
+                              content={
+                                <div className="text-sm">
+                                  <div className="font-medium mb-1">
+                                    {benchmark.name}
+                                  </div>
+                                  <div className="text-gray-600 dark:text-gray-300">
+                                    {benchmark.id}
+                                  </div>
+                                </div>
+                              }
+                              position="top"
+                              className="max-w-md"
+                            >
+                              <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
+                                {benchmark.prompt || benchmark.name}
+                              </div>
+                            </Tooltip>
+                            <hr className="my-2 border-gray-200 dark:border-gray-700" />
+                            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                              {/* Status Icon */}
+                              <span
+                                className={`font-mono text-sm ${getStatusColor(status)}`}
+                              >
+                                {getStatusIcon(status)}
+                              </span>
 
-                  {/* Progress Bar for Running and Completed Benchmarks */}
-                  {(status === ExecutionStatus.RUNNING ||
-                    status === ExecutionStatus.COMPLETED ||
-                    status === ExecutionStatus.COMPLETED) && (
-                    <div className="mt-2">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            status === ExecutionStatus.COMPLETED
-                              ? "bg-green-600"
-                              : "bg-blue-600"
-                          }`}
-                          style={{
-                            width: `${getBenchmarkStatus(benchmark.id)?.progress || 0}%`,
-                          }}
-                        ></div>
-                      </div>
-                      {status === ExecutionStatus.COMPLETED && (
-                        <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                          ✓ Completed successfully
+                              {/* Score */}
+                              <span
+                                className={`font-mono text-xs font-medium ${getScoreColor(score)}`}
+                              >
+                                {status === ExecutionStatus.COMPLETED ||
+                                status === ExecutionStatus.FAILED
+                                  ? formatScore(score)
+                                  : "000%"}
+                              </span>
+                              <span className="text-gray-400"></span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300">
+                                {benchmark.id}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      {status === ExecutionStatus.FAILED && (
-                        <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                          ✗ Failed
+
+                        {/* Run Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRunBenchmark(benchmark);
+                          }}
+                          disabled={
+                            isRunning ||
+                            isRunningAll ||
+                            status === ExecutionStatus.RUNNING
+                          }
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {status === ExecutionStatus.RUNNING
+                            ? "Running..."
+                            : "Run"}
+                        </button>
+                      </div>
+
+                      {/* Progress Bar for Running and Completed Benchmarks */}
+                      {(status === ExecutionStatus.RUNNING ||
+                        status === ExecutionStatus.COMPLETED ||
+                        status === ExecutionStatus.FAILED) && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                status === ExecutionStatus.COMPLETED
+                                  ? "bg-green-600"
+                                  : status === ExecutionStatus.FAILED
+                                    ? "bg-red-600"
+                                    : "bg-blue-600"
+                              }`}
+                              style={{
+                                width: `${getBenchmarkStatus(benchmark.id)?.progress || 0}%`,
+                              }}
+                            ></div>
+                          </div>
+                          {status === ExecutionStatus.COMPLETED && (
+                            <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
+                              ✓ Completed successfully
+                            </div>
+                          )}
+                          {status === ExecutionStatus.FAILED && (
+                            <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                              ✗ Failed
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
