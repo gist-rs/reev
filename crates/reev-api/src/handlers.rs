@@ -478,7 +478,8 @@ pub async fn get_transaction_logs_demo(
 ) -> impl IntoResponse {
     info!("Generating demo transaction logs with visualization");
 
-    let use_tree = params.get("format").is_some_and(|f| f == "tree");
+    // Default to tree format, allow plain format override
+    let use_tree = !params.get("format").is_some_and(|f| f == "plain");
 
     let demo_logs = if use_tree {
         crate::services::generate_mock_transaction_logs_tree()
@@ -563,8 +564,8 @@ pub async fn get_transaction_logs(
                                     trace,
                                 );
 
-                                // Check if tree format is requested
-                                let use_tree = params.get("format").is_some_and(|f| f == "tree");
+                                // Default to tree format, allow plain format override
+                                let use_tree = !params.get("format").is_some_and(|f| f == "plain");
 
                                 // Use appropriate transaction log extraction
                                 let transaction_logs = if use_tree {
