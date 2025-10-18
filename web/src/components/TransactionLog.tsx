@@ -1,6 +1,13 @@
 // TransactionLog component for detailed transaction log viewing - redesigned to match ExecutionTrace
 
-import { useState, useEffect, useRef, useMemo } from "preact/hooks";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "preact/hooks";
+import { memo } from "preact/compat";
 import { apiClient } from "../services/api";
 
 // Configuration for trace display limits
@@ -133,16 +140,32 @@ export function TransactionLog({
     }
   }, [transactionLogData?.is_running, autoScroll]);
 
+  // Debounced load function to prevent rapid re-renders
+  const debouncedLoadTransactionLogs = useCallback(
+    (() => {
+      let timeoutId: number | null = null;
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+          loadTransactionLogs();
+        }, 100); // 100ms debounce
+      };
+    })(),
+    [loadTransactionLogs],
+  );
+
   // Auto-refresh for running executions
   useEffect(() => {
     if (!benchmarkId) return;
 
     if (isRunning) {
-      // Poll more frequently during execution
-      const interval = setInterval(loadTransactionLogs, 1000);
+      // Poll less frequently and use debounced loading
+      const interval = setInterval(debouncedLoadTransactionLogs, 2000);
       return () => clearInterval(interval);
     }
-  }, [benchmarkId, isRunning]);
+  }, [benchmarkId, isRunning, debouncedLoadTransactionLogs]);
 
   // Load on mount and when benchmark changes
   useEffect(() => {
@@ -367,7 +390,7 @@ export function TransactionLog({
 }
 
 // Virtualized trace display component
-function TraceDisplay({
+const TraceDisplay = memo(function TraceDisplay({
   traceLines,
   transactionLogData,
   isRunning,
@@ -476,7 +499,7 @@ function TraceDisplay({
               const actualIndex = visibleRange.start + index;
               return (
                 <div
-                  key={`${actualIndex}-${transactionLogData?.transaction_logs?.length || 0}`}
+                  key={`line-${actualIndex}-${line.slice(0, 20)}`}
                   className={`whitespace-pre-wrap ${getLineClass(line)}`}
                   style={{ height: `${VIRTUAL_ITEM_HEIGHT}px` }}
                 >
@@ -517,7 +540,7 @@ function TraceDisplay({
     <div>
       {visibleLines.map((line, index) => (
         <div
-          key={`${index}-${transactionLogData?.transaction_logs?.length || 0}`}
+          key={`line-${index}-${line.slice(0, 20)}`}
           className={`whitespace-pre-wrap ${getLineClass(line)}`}
         >
           {line}
@@ -541,4 +564,4 @@ function TraceDisplay({
       )}
     </div>
   );
-}
+});

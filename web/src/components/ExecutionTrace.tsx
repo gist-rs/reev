@@ -1,6 +1,13 @@
 // ExecutionTrace component for real-time execution monitoring and log display
 
-import { useState, useEffect, useRef, useMemo } from "preact/hooks";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "preact/hooks";
+import { memo } from "preact/compat";
 import { ExecutionState } from "../types/configuration";
 
 // Configuration for trace display limits
