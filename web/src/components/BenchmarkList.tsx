@@ -150,6 +150,11 @@ export function BenchmarkList({
         // Only set completion callback for individual benchmark runs (not Run All)
         if (!isRunAll) {
           setCompletionCallback((benchmarkId: string, execution: any) => {
+            console.log(
+              "🔍 Individual benchmark completed:",
+              benchmarkId,
+              execution.status,
+            );
             onExecutionComplete(benchmarkId, execution);
             // Clear the completion callback
             setCompletionCallback(() => () => {});
@@ -190,10 +195,90 @@ export function BenchmarkList({
     );
     currentRunAllIndex.current = 0;
 
+    console.log(
+      "🔍 Run All - Queue:",
+      runAllQueue.current.map((b) => b.id),
+    );
+
     // Start first benchmark
     const firstBenchmark = runAllQueue.current[0];
 
     try {
+      await handleRunBenchmark(firstBenchmark, true); // Pass isRunAll=true
+    } catch (error) {
+      console.error(`Failed to start benchmark ${firstBenchmark.id}:`, error);
+      // Continue to next one even on failure
+      runAllCompletionCallback(firstBenchmark.id, { status: "Failed", error });
+    }
+  }, [
+    isRunning,
+    benchmarks,
+    selectedBenchmark,
+    onBenchmarkSelect,
+    handleRunBenchmark,
+    setCompletionCallback,
+    runAllCompletionCallback,
+  ]);
+
+  const handleRunAllBelow = useCallback(async () => {
+    if (isRunning || !benchmarks || !selectedBenchmark) return;
+
+    setIsRunningAll(true);
+
+    // Set up completion callback (from App component)
+    setCompletionCallback(runAllCompletionCallback);
+
+    // Find the index of the currently selected benchmark
+    const selectedIndex = benchmarks.benchmarks.findIndex(
+      (benchmark) => benchmark.id === selectedBenchmark,
+    );
+
+    if (selectedIndex === -1) {
+      console.error("Selected benchmark not found in benchmarks list");
+      setIsRunningAll(false);
+      return;
+    }
+
+    // Initialize queue starting from selected benchmark - filter out failure test benchmarks
+    const allBenchmarks = [...benchmarks.benchmarks];
+    const filteredBenchmarks = allBenchmarks.filter(
+      (benchmark) =>
+        !benchmark.id.includes("003") && !benchmark.id.includes("004"),
+    );
+
+    // Find the selected benchmark in the filtered list
+    const filteredSelectedIndex = filteredBenchmarks.findIndex(
+      (benchmark) => benchmark.id === selectedBenchmark,
+    );
+
+    // If selected benchmark is filtered out, start from the next available one
+    const startIndex =
+      filteredSelectedIndex >= 0
+        ? filteredSelectedIndex
+        : filteredBenchmarks.findIndex(
+            (benchmark) => allBenchmarks.indexOf(benchmark) > selectedIndex,
+          );
+
+    if (startIndex === -1 || startIndex >= filteredBenchmarks.length) {
+      console.error("No valid benchmarks found to run from selected position");
+      setIsRunningAll(false);
+      return;
+    }
+
+    runAllQueue.current = filteredBenchmarks.slice(startIndex);
+    currentRunAllIndex.current = 0;
+
+    console.log(
+      "🔍 Run Current & Below - Queue:",
+      runAllQueue.current.map((b) => b.id),
+    );
+    console.log("🔍 Starting from index:", startIndex);
+
+    // Start first benchmark in the filtered queue
+    const firstBenchmark = runAllQueue.current[0];
+
+    try {
+      console.log("🚀 Starting benchmark:", firstBenchmark.id);
       await handleRunBenchmark(firstBenchmark, true); // Pass isRunAll=true
     } catch (error) {
       console.error(`Failed to start benchmark ${firstBenchmark.id}:`, error);
@@ -335,6 +420,13 @@ export function BenchmarkList({
             className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {isRunningAll ? "Running All..." : "Run All"}
+          </button>
+          <button
+            onClick={handleRunAllBelow}
+            disabled={isRunning || isRunningAll || !selectedBenchmark}
+            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+          >
+            {isRunningAll ? "Running..." : "Run Current & Below"}
           </button>
         </div>
       </div>

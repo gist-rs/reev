@@ -33,6 +33,5 @@
   - user: "Sell ___ [SOL]" → agent: "To ___?" // This missing target token so agent ask to fillfilments
 
 ## Refactor
-- show prompt for each test instead of `001 Sol Transfer`.
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
-- BenchmarkList.tsx, Add `Resume` beside `Run All` button so we can resume from current item.
+- make each item expand when click and also when run (mainly when focus) and collapse when lost focus (other get expand which mean only 1 expand), when collapse show only prompt and run button
