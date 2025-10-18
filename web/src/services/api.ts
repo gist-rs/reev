@@ -191,15 +191,22 @@ class ApiClient {
   // Benchmark list
   async getBenchmarkList(): Promise<BenchmarkList> {
     const benchmarks = await this.listBenchmarks();
-    return {
-      benchmarks: benchmarks.map((benchmark) => ({
-        id: benchmark.id,
-        name: benchmark.id
+
+    // The benchmarks list already includes prompt data, so use it directly
+    const benchmarksWithPrompts = benchmarks.map((benchmark) => ({
+      id: benchmark.id,
+      name:
+        benchmark.prompt ||
+        benchmark.id
           .replace(/-/g, " ")
           .replace(/\b\w/g, (l) => l.toUpperCase()),
-        file_path: `benchmarks/${benchmark.id}.yml`,
-        status: "Pending" as ExecutionStatus,
-      })),
+      prompt: benchmark.prompt,
+      file_path: `benchmarks/${benchmark.id}.yml`,
+      status: "Pending" as ExecutionStatus,
+    }));
+
+    return {
+      benchmarks: benchmarksWithPrompts,
       total: benchmarks.length,
     };
   }

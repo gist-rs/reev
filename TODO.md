@@ -26,17 +26,13 @@
 
 4. bring nothing: we will show Dashboard jup x [coding, local-qwen3, gemini, grok4, glm4.6]
 
-
 ## UI
 
 - ready to change the number randomly from tempate e.g.
   - user: "Swap ___ [SOL] for [USDC]" → agent: "Done! You now have 222 USDC" // This met required params
   - user: "Sell ___ [SOL]" → agent: "To ___?" // This missing target token so agent ask to fillfilments
 
-- when poll for update progress the `Transaction Log`, the view keep re-render whole view
-- Transaction Log (Real-time): show nothing when run, only when finish we see the output
-
 ## Refactor
-- show prompt for that test instead of `001 Sol Transfer`.
-- why `Execution Trace` has color format for ascii tree but `Transaction Log` didn't have?
+- show prompt for each test instead of `001 Sol Transfer`.
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
+- BenchmarkList.tsx, Add `Resume` beside `Run All` button so we can resume from current item.

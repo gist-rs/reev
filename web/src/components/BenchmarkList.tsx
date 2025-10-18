@@ -5,6 +5,7 @@ import { apiClient } from "../services/api";
 import { BenchmarkItem } from "../types/configuration";
 import { ExecutionStatus } from "../types/benchmark";
 import { AgentConfig } from "./AgentConfig";
+import { Tooltip } from "./ui/Tooltip";
 
 interface BenchmarkListProps {
   selectedAgent: string;
@@ -461,9 +462,24 @@ export function BenchmarkList({
 
                       {/* Benchmark Name */}
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {benchmark.name}
-                        </div>
+                        <Tooltip
+                          content={
+                            <div className="text-sm">
+                              <div className="font-medium mb-1">
+                                {benchmark.name}
+                              </div>
+                              <div className="text-gray-600 dark:text-gray-300">
+                                {benchmark.id}
+                              </div>
+                            </div>
+                          }
+                          position="top"
+                          className="max-w-xs"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {benchmark.prompt || benchmark.name}
+                          </div>
+                        </Tooltip>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {benchmark.id}
                         </div>

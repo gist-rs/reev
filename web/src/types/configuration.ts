@@ -52,6 +52,7 @@ export interface BenchmarkItem {
   description?: string;
   status: ExecutionStatus;
   result?: BenchmarkResult;
+  prompt?: string;
 }
 
 export interface BenchmarkResult {
