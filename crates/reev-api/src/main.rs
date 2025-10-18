@@ -61,7 +61,9 @@ async fn main() -> Result<()> {
 
     // Create API state
     let state = ApiState {
-        db,
+        db: Arc::new(tokio::sync::Mutex::new(
+            Arc::try_unwrap(db).map_err(|_| anyhow::anyhow!("Failed to unwrap Arc"))?,
+        )),
         executions: Arc::new(Mutex::new(HashMap::new())),
         agent_configs: Arc::new(Mutex::new(HashMap::new())),
     };

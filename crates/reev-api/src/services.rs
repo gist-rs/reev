@@ -33,7 +33,7 @@ pub async fn execute_benchmark_background(
         final_status: None,
     };
 
-    match state.db.create_session(&session_info).await {
+    match state.db.lock().await.create_session(&session_info).await {
         Ok(_) => {
             info!(
                 "Created database session: {} for benchmark: {}",
@@ -168,6 +168,8 @@ pub async fn execute_benchmark_background(
             // Store the complete execution log
             if let Err(e) = state
                 .db
+                .lock()
+                .await
                 .store_complete_log(&session_id, &full_execution_log)
                 .await
             {
@@ -183,6 +185,8 @@ pub async fn execute_benchmark_background(
 
             if let Err(e) = state
                 .db
+                .lock()
+                .await
                 .complete_session(&session_id, &session_result)
                 .await
             {
@@ -211,8 +215,13 @@ pub async fn execute_benchmark_background(
                     );
 
                     // Store YML TestResult in database for historical access
-                    if let Err(e) =
-                        store_yml_testresult(&state.db, &benchmark_id, &agent, &test_result).await
+                    if let Err(e) = store_yml_testresult(
+                        &state.db.lock().await,
+                        &benchmark_id,
+                        &agent,
+                        &test_result,
+                    )
+                    .await
                     {
                         error!("Failed to store YML TestResult in database: {}", e);
                     } else {
@@ -241,7 +250,9 @@ pub async fn execute_benchmark_background(
             }
 
             // Store flow log in database
-            if let Err(e) = store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await
+            if let Err(e) =
+                store_flow_log_from_result(&state.db.lock().await, &benchmark_id, &test_result)
+                    .await
             {
                 error!("Failed to store flow log: {}", e);
             }
@@ -691,7 +702,13 @@ pub async fn update_execution_failed(
     }
 
     // Update database session with failed status
-    if let Err(e) = state.db.update_session_status(session_id, "failed").await {
+    if let Err(e) = state
+        .db
+        .lock()
+        .await
+        .update_session_status(session_id, "failed")
+        .await
+    {
         error!(
             "Failed to update database session with failed status: {}",
             e
@@ -702,7 +719,13 @@ pub async fn update_execution_failed(
 
     // Store error log
     let error_log = format!("Execution failed: {error_message}");
-    if let Err(e) = state.db.store_complete_log(session_id, &error_log).await {
+    if let Err(e) = state
+        .db
+        .lock()
+        .await
+        .store_complete_log(session_id, &error_log)
+        .await
+    {
         error!("Failed to store error log: {}", e);
     }
 }
@@ -712,7 +735,7 @@ pub async fn update_execution_failed(
 // This function has been removed to prevent duplicate entries in agent_performance table
 /// Store flow log in database from test result
 pub async fn store_flow_log_from_result(
-    db: &DatabaseWriter,
+    db: &tokio::sync::MutexGuard<'_, DatabaseWriter>,
     benchmark_id: &str,
     test_result: &TestResult,
 ) -> Result<()> {
@@ -905,7 +928,7 @@ pub async fn store_flow_log(
 
 /// Store YML TestResult in database for historical access
 pub async fn store_yml_testresult(
-    db: &DatabaseWriter,
+    db: &tokio::sync::MutexGuard<'_, DatabaseWriter>,
     benchmark_id: &str,
     agent: &str,
     test_result: &TestResult,

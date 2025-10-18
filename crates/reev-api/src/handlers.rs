@@ -139,7 +139,7 @@ pub async fn list_agents() -> Json<Vec<String>> {
 pub async fn get_agent_performance(State(state): State<ApiState>) -> impl IntoResponse {
     info!("Getting agent performance summary");
 
-    match state.db.get_agent_performance().await {
+    match state.db.lock().await.get_agent_performance().await {
         Ok(summaries) => {
             // Debug logging for specific benchmark
             for summary in &summaries {
@@ -406,7 +406,7 @@ pub async fn get_flow_log(
         limit: None,
     };
 
-    match state.db.list_sessions(&filter).await {
+    match state.db.lock().await.list_sessions(&filter).await {
         Ok(sessions) => {
             if sessions.is_empty() {
                 info!(
@@ -418,7 +418,13 @@ pub async fn get_flow_log(
                 // Get logs for each session
                 let mut session_logs = Vec::new();
                 for session in sessions {
-                    match state.db.get_session_log(&session.session_id).await {
+                    match state
+                        .db
+                        .lock()
+                        .await
+                        .get_session_log(&session.session_id)
+                        .await
+                    {
                         Ok(log_content) => {
                             session_logs.push(json!({
                                 "session_id": session.session_id,
@@ -787,13 +793,19 @@ pub async fn get_transaction_logs(
         limit: Some(1), // Get the most recent session
     };
 
-    match state.db.list_sessions(&filter).await {
+    match state.db.lock().await.list_sessions(&filter).await {
         Ok(sessions) => {
             if let Some(session) = sessions.first() {
                 info!("Found session for benchmark: {}", benchmark_id);
 
                 // Get the session log which contains the execution trace
-                match state.db.get_session_log(&session.session_id).await {
+                match state
+                    .db
+                    .lock()
+                    .await
+                    .get_session_log(&session.session_id)
+                    .await
+                {
                     Ok(log_content) => {
                         // Try to parse as ExecutionTrace and extract transaction logs
                         match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&log_content)
@@ -967,7 +979,7 @@ pub async fn get_ascii_tree_direct(
         limit: Some(1), // Get the most recent session
     };
 
-    match state.db.list_sessions(&filter).await {
+    match state.db.lock().await.list_sessions(&filter).await {
         Ok(sessions) => {
             if let Some(session) = sessions.first() {
                 info!(
@@ -988,7 +1000,13 @@ pub async fn get_ascii_tree_direct(
                     Some("Completed") | Some("Succeeded") | Some("completed")
                     | Some("succeeded") => {
                         // Get the session log which contains the full execution output
-                        match state.db.get_session_log(&session.session_id).await {
+                        match state
+                            .db
+                            .lock()
+                            .await
+                            .get_session_log(&session.session_id)
+                            .await
+                        {
                             Ok(log_content) => {
                                 if log_content.trim().is_empty() {
                                     return (
@@ -1152,7 +1170,13 @@ pub async fn get_ascii_tree_direct(
                     }
                     Some("Failed") | Some("failed") | Some("Error") | Some("error") => {
                         // Get the session log even for failed executions to show error details
-                        match state.db.get_session_log(&session.session_id).await {
+                        match state
+                            .db
+                            .lock()
+                            .await
+                            .get_session_log(&session.session_id)
+                            .await
+                        {
                             Ok(log_content) => {
                                 if log_content.trim().is_empty() {
                                     return (
@@ -1479,7 +1503,7 @@ pub async fn upsert_yml(
     State(app_state): State<ApiState>,
     Json(payload): Json<UpsertYmlRequest>,
 ) -> impl IntoResponse {
-    let db_writer = &app_state.db;
+    let db_writer = &app_state.db.lock().await;
 
     // Validate YML content
     let benchmark_data: BenchmarkYml = match serde_yaml::from_str(&payload.yml_content) {
@@ -1563,7 +1587,7 @@ pub fn create_error_response(
 
 /// Debug endpoint to check benchmarks table
 pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoResponse {
-    let db = &state.db;
+    let db = &state.db.lock().await;
 
     // Get all benchmarks from database
     match db.get_all_benchmarks().await {
@@ -1604,7 +1628,7 @@ pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoRespons
 
 /// Test ON CONFLICT behavior with simple data
 pub async fn test_on_conflict(State(state): State<ApiState>) -> impl IntoResponse {
-    let db = &state.db;
+    let db = &state.db.lock().await;
 
     // Test 1: Insert first record using existing upsert function
     let result1 = db
@@ -1647,7 +1671,7 @@ pub async fn test_on_conflict(State(state): State<ApiState>) -> impl IntoRespons
 
 /// Sync benchmarks from filesystem to database
 pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse {
-    let db = &state.db;
+    let db = &state.db.lock().await;
     let benchmarks_dir = "benchmarks";
 
     info!(
