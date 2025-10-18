@@ -789,14 +789,25 @@ pub async fn get_transaction_logs(
                 info!("Found session for benchmark: {}", benchmark_id);
 
                 // Get the session log which contains the execution trace
-                match state
-                    .db
-                    .lock()
-                    .await
-                    .get_session_log(&session.session_id)
-                    .await
-                {
-                    Ok(log_content) => {
+                info!(
+                    "DEBUG: Attempting to get session log for session: {}",
+                    session.session_id
+                );
+
+                // Add timeout to prevent hanging
+                let log_result = tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    state.db.lock().await.get_session_log(&session.session_id),
+                )
+                .await;
+
+                info!(
+                    "DEBUG: Session log query completed for session: {}",
+                    session.session_id
+                );
+
+                match log_result {
+                    Ok(Ok(log_content)) => {
                         info!("DEBUG: Retrieved session log content (length: {} chars) for session: {}", log_content.len(), session.session_id);
 
                         // Log first 100 chars of content for debugging
@@ -909,7 +920,8 @@ pub async fn get_transaction_logs(
                                 warn!("Failed to parse log as ExecutionTrace: {}", e);
                                 info!("DEBUG: Returning fallback response for invalid ExecutionTrace data");
 
-                                (
+                                info!("DEBUG: Successfully created fallback JSON response");
+                                let response = (
                                     StatusCode::OK,
                                     Json(json!({
                                         "benchmark_id": benchmark_id,
@@ -919,20 +931,40 @@ pub async fn get_transaction_logs(
                                         "message": "No valid ExecutionTrace data found",
                                         "is_running": false
                                     })),
-                                ).into_response()
+                                );
+                                info!("DEBUG: Returning fallback response");
+                                response.into_response()
                             }
                         }
                     }
-                    Err(e) => {
-                        warn!("Failed to get session log: {}", e);
-                        info!("DEBUG: Returning error response for failed session log retrieval");
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(json!({
-                                "error": "Failed to retrieve session log"
-                            })),
-                        )
-                            .into_response()
+                    Ok(Err(e)) => {
+                        Err(e) => {
+                            warn!("Failed to get session log: {}", e);
+                            info!("DEBUG: Returning error response for failed session log retrieval");
+                            info!("DEBUG: Successfully created error JSON response");
+                            let response = (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(json!({
+                                    "error": "Failed to retrieve session log"
+                                })),
+                            );
+                            info!("DEBUG: Returning error response");
+                            response.into_response()
+                        }
+                        Err(_) => {
+                            warn!("Session log query timed out for session: {}", session.session_id);
+                            info!("DEBUG: Returning timeout response");
+                            let response = (
+                                StatusCode::REQUEST_TIMEOUT,
+                                Json(json!({
+                                    "error": "Session log retrieval timed out",
+                                    "benchmark_id": benchmark_id,
+                                    "message": "Request took too long to complete"
+                                })),
+                            );
+                            info!("DEBUG: Returning timeout response");
+                            response.into_response()
+                        }
                     }
                 }
             } else {
