@@ -794,20 +794,15 @@ pub async fn get_transaction_logs(
                     session.session_id
                 );
 
-                // Add timeout to prevent hanging
-                let log_result = tokio::time::timeout(
-                    std::time::Duration::from_secs(10),
-                    state.db.lock().await.get_session_log(&session.session_id),
-                )
-                .await;
-
-                info!(
-                    "DEBUG: Session log query completed for session: {}",
-                    session.session_id
-                );
-
-                match log_result {
-                    Ok(Ok(log_content)) => {
+                // Use same pattern as execution log - direct database access
+                match state
+                    .db
+                    .lock()
+                    .await
+                    .get_session_log(&session.session_id)
+                    .await
+                {
+                    Ok(log_content) => {
                         info!("DEBUG: Retrieved session log content (length: {} chars) for session: {}", log_content.len(), session.session_id);
 
                         // Log first 100 chars of content for debugging
@@ -948,23 +943,6 @@ pub async fn get_transaction_logs(
                             })),
                         );
                         info!("DEBUG: Returning error response");
-                        response.into_response()
-                    }
-                    Err(_) => {
-                        warn!(
-                            "Session log query timed out for session: {}",
-                            session.session_id
-                        );
-                        info!("DEBUG: Returning timeout response");
-                        let response = (
-                            StatusCode::REQUEST_TIMEOUT,
-                            Json(json!({
-                                "error": "Session log retrieval timed out",
-                                "benchmark_id": benchmark_id,
-                                "message": "Request took too long to complete"
-                            })),
-                        );
-                        info!("DEBUG: Returning timeout response");
                         response.into_response()
                     }
                 }
