@@ -528,11 +528,11 @@ fn get_program_icon(program_id: &Option<String>) -> &'static str {
 }
 
 /// Generate transaction logs as tree structure using text_trees
-pub fn generate_transaction_logs_yaml(logs: &[String]) -> Result<String> {
+pub fn generate_transaction_logs_yaml(logs: &[String], show_cu: bool) -> Result<String> {
     let parsed_logs = parse_transaction_logs(logs);
 
     // Create the root tree node
-    let root_node = create_tree_from_logs(&parsed_logs)?;
+    let root_node = create_tree_from_logs(&parsed_logs, show_cu)?;
 
     // Format and return the ASCII tree
     match root_node.to_string_with_format(&TreeFormatting::dir_tree(FormatCharacters::box_chars()))
@@ -555,7 +555,7 @@ pub fn generate_transaction_logs_yaml(logs: &[String]) -> Result<String> {
 }
 
 /// Create a TreeNode from parsed transaction logs
-fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
+fn create_tree_from_logs(parsed_logs: &[LogEntry], show_cu: bool) -> Result<TreeNode<String>> {
     let mut children = Vec::new();
 
     // Create a hierarchical tree based on actual transaction flow
@@ -564,7 +564,7 @@ fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
         let entry = &parsed_logs[i];
 
         // Create node for current entry
-        let entry_node = create_entry_node(entry, false)?;
+        let entry_node = create_entry_node(entry, false, show_cu)?;
 
         // Find and add children (entries with higher level that come immediately after)
         let mut child_nodes = Vec::new();
@@ -572,7 +572,7 @@ fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
 
         while j < parsed_logs.len() && parsed_logs[j].level > entry.level {
             let child_entry = &parsed_logs[j];
-            let child_node = create_entry_node(child_entry, false)?;
+            let child_node = create_entry_node(child_entry, false, show_cu)?;
             child_nodes.push(child_node);
             j += 1;
         }
@@ -613,7 +613,7 @@ fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
 }
 
 /// Create a tree node for a log entry
-fn create_entry_node(entry: &LogEntry, _is_last: bool) -> Result<TreeNode<String>> {
+fn create_entry_node(entry: &LogEntry, _is_last: bool, show_cu: bool) -> Result<TreeNode<String>> {
     let program_display = entry
         .program_name
         .clone()
@@ -627,10 +627,10 @@ fn create_entry_node(entry: &LogEntry, _is_last: bool) -> Result<TreeNode<String
 
     let icon = get_program_icon(&entry.program_id);
 
-    // Create main content with status and compute units
+    // Create main content with status and compute units (if enabled)
     let main_content = if entry.is_success {
-        if let Some(cu) = entry.compute_units {
-            format!("✅ {program_display} ({cu} CU)")
+        if show_cu && entry.compute_units.is_some() {
+            format!("✅ {program_display} ({} CU)", entry.compute_units.unwrap())
         } else {
             format!("✅ {program_display}")
         }
@@ -655,7 +655,7 @@ fn create_entry_node(entry: &LogEntry, _is_last: bool) -> Result<TreeNode<String
     if let Some(return_data) = &entry.return_data {
         children.push(TreeNode::new(format!("💾 {return_data}")));
     }
-    if !entry.is_success && entry.compute_units.is_some() {
+    if show_cu && !entry.is_success && entry.compute_units.is_some() {
         children.push(TreeNode::new(format!(
             "⚡ {} CU",
             entry.compute_units.unwrap()

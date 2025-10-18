@@ -484,6 +484,12 @@ pub async fn get_transaction_logs_demo(
         .map_or("yaml".to_string(), |v| v.clone());
     let use_yaml = format_param == "yaml";
 
+    // Check show_cu parameter: true or false (false is default)
+    let show_cu_param = params
+        .get("show_cu")
+        .map_or("false".to_string(), |v| v.clone());
+    let show_cu = show_cu_param == "true";
+
     let demo_logs = if use_yaml {
         // Generate YAML format demo
         let mock_logs = vec![
@@ -496,7 +502,7 @@ pub async fn get_transaction_logs_demo(
             "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
         ];
 
-        match crate::services::generate_transaction_logs_yaml(&mock_logs) {
+        match crate::services::generate_transaction_logs_yaml(&mock_logs, show_cu) {
             Ok(yaml_logs) => yaml_logs,
             Err(e) => {
                 error!("Failed to generate YAML logs: {}", e);
@@ -590,6 +596,12 @@ pub async fn get_transaction_logs(
                                     .map_or("yaml".to_string(), |v| v.clone());
                                 let use_yaml = format_param == "yaml";
 
+                                // Check show_cu parameter: true or false (false is default)
+                                let show_cu_param = params
+                                    .get("show_cu")
+                                    .map_or("false".to_string(), |v| v.clone());
+                                let show_cu = show_cu_param == "true";
+
                                 // Use appropriate transaction log extraction
                                 let transaction_logs = if use_yaml {
                                     match crate::services::generate_transaction_logs_yaml(
@@ -602,6 +614,7 @@ pub async fn get_transaction_logs(
                                             })
                                             .cloned()
                                             .collect::<Vec<_>>(),
+                                        show_cu,
                                     ) {
                                         Ok(yaml_logs) => yaml_logs,
                                         Err(e) => {
@@ -614,10 +627,11 @@ pub async fn get_transaction_logs(
                                 };
 
                                 info!(
-                                    "Extracted transaction logs for benchmark: {} ({} chars, format: {})",
+                                    "Extracted transaction logs for benchmark: {} ({} chars, format: {}, show_cu: {})",
                                     benchmark_id,
                                     transaction_logs.len(),
-                                    if use_yaml { "yaml" } else { "plain" }
+                                    if use_yaml { "yaml" } else { "plain" },
+                                    show_cu
                                 );
 
                                 if transaction_logs.trim().is_empty() {
