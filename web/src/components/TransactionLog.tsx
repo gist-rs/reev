@@ -514,7 +514,7 @@ function TraceDisplay({
 
   // Non-virtualized rendering for smaller traces
   return (
-    <div className="space-y-1">
+    <div>
       {visibleLines.map((line, index) => (
         <div
           key={`${index}-${transactionLogData?.transaction_logs?.length || 0}`}
