@@ -938,33 +938,34 @@ pub async fn get_transaction_logs(
                         }
                     }
                     Ok(Err(e)) => {
-                        Err(e) => {
-                            warn!("Failed to get session log: {}", e);
-                            info!("DEBUG: Returning error response for failed session log retrieval");
-                            info!("DEBUG: Successfully created error JSON response");
-                            let response = (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(json!({
-                                    "error": "Failed to retrieve session log"
-                                })),
-                            );
-                            info!("DEBUG: Returning error response");
-                            response.into_response()
-                        }
-                        Err(_) => {
-                            warn!("Session log query timed out for session: {}", session.session_id);
-                            info!("DEBUG: Returning timeout response");
-                            let response = (
-                                StatusCode::REQUEST_TIMEOUT,
-                                Json(json!({
-                                    "error": "Session log retrieval timed out",
-                                    "benchmark_id": benchmark_id,
-                                    "message": "Request took too long to complete"
-                                })),
-                            );
-                            info!("DEBUG: Returning timeout response");
-                            response.into_response()
-                        }
+                        warn!("Failed to get session log: {}", e);
+                        info!("DEBUG: Returning error response for failed session log retrieval");
+                        info!("DEBUG: Successfully created error JSON response");
+                        let response = (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({
+                                "error": "Failed to retrieve session log"
+                            })),
+                        );
+                        info!("DEBUG: Returning error response");
+                        response.into_response()
+                    }
+                    Err(_) => {
+                        warn!(
+                            "Session log query timed out for session: {}",
+                            session.session_id
+                        );
+                        info!("DEBUG: Returning timeout response");
+                        let response = (
+                            StatusCode::REQUEST_TIMEOUT,
+                            Json(json!({
+                                "error": "Session log retrieval timed out",
+                                "benchmark_id": benchmark_id,
+                                "message": "Request took too long to complete"
+                            })),
+                        );
+                        info!("DEBUG: Returning timeout response");
+                        response.into_response()
                     }
                 }
             } else {
