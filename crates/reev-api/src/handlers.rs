@@ -479,7 +479,7 @@ pub async fn get_transaction_logs_demo(
     info!("Generating demo transaction logs with visualization");
 
     // Default to tree format, allow plain format override
-    let use_tree = !params.get("format").is_some_and(|f| f == "plain");
+    let use_tree = params.get("format").is_none_or(|f| f != "plain");
 
     let demo_logs = if use_tree {
         crate::services::generate_mock_transaction_logs_tree()
@@ -565,7 +565,7 @@ pub async fn get_transaction_logs(
                                 );
 
                                 // Default to tree format, allow plain format override
-                                let use_tree = !params.get("format").is_some_and(|f| f == "plain");
+                                let use_tree = params.get("format").is_none_or(|f| f != "plain");
 
                                 // Use appropriate transaction log extraction
                                 let transaction_logs = if use_tree {
