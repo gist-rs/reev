@@ -552,8 +552,12 @@ pub async fn get_transaction_logs(
     // First check for active executions (like execution trace does)
     let executions = state.executions.lock().await;
     for (_execution_id, execution) in executions.iter() {
-        if execution.benchmark_id == benchmark_id && execution.status == ExecutionStatus::Running {
-            info!("Found active execution for benchmark: {}", benchmark_id);
+        if execution.benchmark_id == benchmark_id {
+            let is_running = execution.status == ExecutionStatus::Running;
+            info!(
+                "Found execution for benchmark: {} (status: {:?})",
+                benchmark_id, execution.status
+            );
 
             // Parse the current trace to extract transaction logs
             if let Ok(trace) =
@@ -606,7 +610,7 @@ pub async fn get_transaction_logs(
                     ) {
                         Ok(yaml_logs) => yaml_logs,
                         Err(e) => {
-                            error!("Failed to generate YAML logs from active execution: {}", e);
+                            error!("Failed to generate YAML logs from execution: {}", e);
                             format!("Error generating YAML tree: {e}")
                         }
                     }
@@ -615,11 +619,12 @@ pub async fn get_transaction_logs(
                 };
 
                 info!(
-                    "Extracted transaction logs from active execution for benchmark: {} ({} chars, format: {}, show_cu: {})",
+                    "Extracted transaction logs from execution for benchmark: {} ({} chars, format: {}, show_cu: {}, is_running: {})",
                     benchmark_id,
                     transaction_logs.len(),
                     if use_yaml { "yaml" } else { "plain" },
-                    show_cu
+                    show_cu,
+                    is_running
                 );
 
                 return (
@@ -629,13 +634,28 @@ pub async fn get_transaction_logs(
                         "transaction_logs": transaction_logs,
                         "format": if use_yaml { "yaml" } else { "plain" },
                         "show_cu": show_cu,
-                        "message": "Transaction logs from active execution",
-                        "is_running": true
+                        "message": if is_running { "Transaction logs from active execution" } else { "Transaction logs from completed execution" },
+                        "is_running": is_running
                     })),
                 )
                     .into_response();
+            } else {
+                warn!("Failed to parse trace for execution: {}", _execution_id);
             }
         }
+    }
+
+    if executions.is_empty() {
+        info!(
+            "No executions found in memory for benchmark: {}",
+            benchmark_id
+        );
+    } else {
+        info!(
+            "Checked {} executions, none matched benchmark: {}",
+            executions.len(),
+            benchmark_id
+        );
     }
     drop(executions);
 
