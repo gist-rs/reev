@@ -612,7 +612,7 @@ pub async fn get_ascii_tree_direct(
                                         .into_response();
                                 }
 
-                                // Try to parse as ExecutionTrace and render as ASCII tree
+                                // Try to parse as ExecutionTrace first (new format)
                                 match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(
                                     &log_content,
                                 ) {
@@ -647,7 +647,7 @@ pub async fn get_ascii_tree_direct(
                                             );
 
                                         info!(
-                                            "Rendered ASCII tree for benchmark: {} ({} chars)",
+                                            "Rendered ASCII tree for benchmark: {} ({} chars) - New format",
                                             benchmark_id,
                                             ascii_tree.len()
                                         );
@@ -658,20 +658,97 @@ pub async fn get_ascii_tree_direct(
                                         )
                                             .into_response()
                                     }
-                                    Err(e) => {
-                                        warn!("Failed to parse log as ExecutionTrace: {}", e);
-                                        // Return raw log if not a valid ExecutionTrace
-                                        info!(
-                                            "Returning raw execution log for benchmark: {} ({} chars)",
-                                            benchmark_id,
-                                            log_content.len()
-                                        );
-                                        (
-                                            StatusCode::OK,
-                                            [("Content-Type", "text/plain")],
-                                            log_content,
-                                        )
-                                            .into_response()
+                                    Err(_) => {
+                                        // Try to parse as old SessionLog format and extract ExecutionTrace
+                                        match serde_json::from_str::<
+                                            reev_lib::session_logger::SessionLog,
+                                        >(&log_content)
+                                        {
+                                            Ok(session_log) => {
+                                                // Check if final_result contains ExecutionTrace in data field
+                                                if let Some(final_result) =
+                                                    &session_log.final_result
+                                                {
+                                                    if let Ok(trace) = serde_json::from_value::<
+                                                        reev_lib::trace::ExecutionTrace,
+                                                    >(
+                                                        final_result.data.clone()
+                                                    ) {
+                                                        // Create a TestResult from the extracted trace
+                                                        let test_result = reev_lib::results::TestResult::new(
+                                                            &reev_lib::benchmark::TestCase {
+                                                                id: benchmark_id.clone(),
+                                                                description: format!(
+                                                                    "Execution result for {benchmark_id}"
+                                                                ),
+                                                                tags: vec!["tui".to_string()],
+                                                                initial_state: vec![],
+                                                                prompt: trace.prompt.clone(),
+                                                                flow: None,
+                                                                ground_truth: reev_lib::benchmark::GroundTruth {
+                                                                    transaction_status: "unknown".to_string(),
+                                                                    final_state_assertions: vec![],
+                                                                    expected_instructions: vec![],
+                                                                    skip_instruction_validation: false,
+                                                                },
+                                                            },
+                                                            reev_lib::results::FinalStatus::Succeeded,
+                                                            final_result.score,
+                                                            trace,
+                                                        );
+
+                                                        // Render as ASCII tree using the existing renderer
+                                                        let ascii_tree =
+                                                            reev_runner::renderer::render_result_as_tree(
+                                                                &test_result,
+                                                            );
+
+                                                        info!(
+                                                            "Rendered ASCII tree for benchmark: {} ({} chars) - Migrated format",
+                                                            benchmark_id,
+                                                            ascii_tree.len()
+                                                        );
+                                                        (
+                                                            StatusCode::OK,
+                                                            [("Content-Type", "text/plain")],
+                                                            ascii_tree,
+                                                        )
+                                                            .into_response()
+                                                    } else {
+                                                        warn!("Failed to extract ExecutionTrace from SessionLog data");
+                                                        (
+                                                            StatusCode::OK,
+                                                            [("Content-Type", "text/plain")],
+                                                            format!("❌ Legacy session format detected - unable to extract ExecutionTrace\n\nRaw log preview:\n{}", &log_content[..log_content.len().min(500)]),
+                                                        )
+                                                            .into_response()
+                                                    }
+                                                } else {
+                                                    warn!("SessionLog has no final_result");
+                                                    (
+                                                        StatusCode::OK,
+                                                        [("Content-Type", "text/plain")],
+                                                        format!("❌ Legacy session format detected - no final_result available\n\nRaw log preview:\n{}", &log_content[..log_content.len().min(500)]),
+                                                    )
+                                                        .into_response()
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!("Failed to parse log as both ExecutionTrace and SessionLog: {}", e);
+                                                // Return raw log if not a valid format
+                                                info!(
+                                                    "Returning raw execution log for benchmark: {} ({} chars)",
+                                                    benchmark_id,
+                                                    log_content.len()
+                                                );
+                                                (
+                                                    StatusCode::OK,
+                                                    [("Content-Type", "text/plain")],
+                                                    format!("❌ Unknown session format - cannot render ASCII tree\n\nRaw log:\n{}", &log_content[..log_content.len().min(1000)]),
+                                                )
+                                                    .into_response()
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -699,7 +776,7 @@ pub async fn get_ascii_tree_direct(
                                         .into_response();
                                 }
 
-                                // Try to parse as ExecutionTrace and render as ASCII tree even for failed executions
+                                // Try to parse as ExecutionTrace first (new format)
                                 match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(
                                     &log_content,
                                 ) {
@@ -734,7 +811,7 @@ pub async fn get_ascii_tree_direct(
                                             );
 
                                         info!(
-                                            "Rendered ASCII tree for failed benchmark: {} ({} chars)",
+                                            "Rendered ASCII tree for failed benchmark: {} ({} chars) - New format",
                                             benchmark_id,
                                             ascii_tree.len()
                                         );
@@ -745,23 +822,97 @@ pub async fn get_ascii_tree_direct(
                                         )
                                             .into_response()
                                     }
-                                    Err(e) => {
-                                        warn!(
-                                            "Failed to parse failed log as ExecutionTrace: {}",
-                                            e
-                                        );
-                                        // Return raw log if not a valid ExecutionTrace
-                                        info!(
-                                            "Returning raw failed execution log for benchmark: {} ({} chars)",
-                                            benchmark_id,
-                                            log_content.len()
-                                        );
-                                        (
-                                            StatusCode::OK,
-                                            [("Content-Type", "text/plain")],
-                                            format!("❌ Execution Failed\n\n{log_content}"),
-                                        )
-                                            .into_response()
+                                    Err(_) => {
+                                        // Try to parse as old SessionLog format and extract ExecutionTrace
+                                        match serde_json::from_str::<
+                                            reev_lib::session_logger::SessionLog,
+                                        >(&log_content)
+                                        {
+                                            Ok(session_log) => {
+                                                // Check if final_result contains ExecutionTrace in data field
+                                                if let Some(final_result) =
+                                                    &session_log.final_result
+                                                {
+                                                    if let Ok(trace) = serde_json::from_value::<
+                                                        reev_lib::trace::ExecutionTrace,
+                                                    >(
+                                                        final_result.data.clone()
+                                                    ) {
+                                                        // Create a TestResult from the extracted trace
+                                                        let test_result = reev_lib::results::TestResult::new(
+                                                            &reev_lib::benchmark::TestCase {
+                                                                id: benchmark_id.clone(),
+                                                                description: format!(
+                                                                    "Failed execution result for {benchmark_id}"
+                                                                ),
+                                                                tags: vec!["tui".to_string()],
+                                                                initial_state: vec![],
+                                                                prompt: trace.prompt.clone(),
+                                                                flow: None,
+                                                                ground_truth: reev_lib::benchmark::GroundTruth {
+                                                                    transaction_status: "unknown".to_string(),
+                                                                    final_state_assertions: vec![],
+                                                                    expected_instructions: vec![],
+                                                                    skip_instruction_validation: false,
+                                                                },
+                                                            },
+                                                            reev_lib::results::FinalStatus::Failed,
+                                                            final_result.score,
+                                                            trace,
+                                                        );
+
+                                                        // Render as ASCII tree using the existing renderer
+                                                        let ascii_tree =
+                                                            reev_runner::renderer::render_result_as_tree(
+                                                                &test_result,
+                                                            );
+
+                                                        info!(
+                                                            "Rendered ASCII tree for failed benchmark: {} ({} chars) - Migrated format",
+                                                            benchmark_id,
+                                                            ascii_tree.len()
+                                                        );
+                                                        (
+                                                            StatusCode::OK,
+                                                            [("Content-Type", "text/plain")],
+                                                            format!("❌ Execution Failed\n\n{ascii_tree}"),
+                                                        )
+                                                            .into_response()
+                                                    } else {
+                                                        warn!("Failed to extract ExecutionTrace from failed SessionLog data");
+                                                        (
+                                                            StatusCode::OK,
+                                                            [("Content-Type", "text/plain")],
+                                                            format!("❌ Failed execution - Legacy session format detected, unable to extract ExecutionTrace\n\nRaw log preview:\n{}", &log_content[..log_content.len().min(500)]),
+                                                        )
+                                                            .into_response()
+                                                    }
+                                                } else {
+                                                    warn!("Failed SessionLog has no final_result");
+                                                    (
+                                                        StatusCode::OK,
+                                                        [("Content-Type", "text/plain")],
+                                                        format!("❌ Failed execution - Legacy session format detected, no final_result available\n\nRaw log preview:\n{}", &log_content[..log_content.len().min(500)]),
+                                                    )
+                                                        .into_response()
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!("Failed to parse failed log as both ExecutionTrace and SessionLog: {}", e);
+                                                // Return raw log if not a valid format
+                                                info!(
+                                                    "Returning raw failed execution log for benchmark: {} ({} chars)",
+                                                    benchmark_id,
+                                                    log_content.len()
+                                                );
+                                                (
+                                                    StatusCode::OK,
+                                                    [("Content-Type", "text/plain")],
+                                                    format!("❌ Failed execution - Unknown session format, cannot render ASCII tree\n\nRaw log:\n{}", &log_content[..log_content.len().min(1000)]),
+                                                )
+                                                    .into_response()
+                                            }
+                                        }
                                     }
                                 }
                             }

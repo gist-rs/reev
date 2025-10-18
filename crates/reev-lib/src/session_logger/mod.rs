@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info};
 
+// Import ExecutionTrace for ASCII tree compatibility
+use crate::trace::ExecutionTrace;
+
 /// Session event types for structured logging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SessionEventType {
@@ -227,6 +230,86 @@ impl SessionFileLogger {
             log_file = %self.log_file.display(),
             events_count = self.events.len(),
             "Session log completed and written to file"
+        );
+
+        Ok(self.log_file)
+    }
+
+    /// Complete the session with ExecutionTrace for ASCII tree compatibility
+    pub fn complete_with_trace(self, trace: ExecutionTrace) -> Result<PathBuf> {
+        let end_time = SystemTime::now();
+        let end_timestamp = end_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let start_timestamp = self
+            .start_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Create session log with ExecutionTrace embedded in final_result
+        let session_log = SessionLog {
+            session_id: self.session_id.clone(),
+            benchmark_id: self.benchmark_id.clone(),
+            agent_type: self.agent_type.clone(),
+            start_time: start_timestamp,
+            end_time: Some(end_timestamp),
+            events: self.events.clone(),
+            final_result: Some(ExecutionResult {
+                success: trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success"),
+                score: if trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success")
+                {
+                    1.0
+                } else {
+                    0.0
+                },
+                status: if trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success")
+                {
+                    "Succeeded".to_string()
+                } else {
+                    "Failed".to_string()
+                },
+                execution_time_ms: (end_timestamp - start_timestamp) * 1000,
+                data: serde_json::to_value(trace).unwrap_or_default(),
+            }),
+            metadata: self.metadata,
+        };
+
+        // Write session log to file
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.log_file)
+            .with_context(|| format!("Failed to open log file: {:?}", self.log_file))?;
+
+        let mut writer = BufWriter::new(file);
+        let json_content = serde_json::to_string_pretty(&session_log)
+            .with_context(|| "Failed to serialize session log with ExecutionTrace")?;
+
+        writer
+            .write_all(json_content.as_bytes())
+            .with_context(|| "Failed to write session log with ExecutionTrace to file")?;
+        writer
+            .flush()
+            .with_context(|| "Failed to flush session log with ExecutionTrace file")?;
+
+        info!(
+            session_id = %self.session_id,
+            log_file = %self.log_file.display(),
+            events_count = self.events.len(),
+            "Session log with ExecutionTrace completed and written to file"
         );
 
         Ok(self.log_file)

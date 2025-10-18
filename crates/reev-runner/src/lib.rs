@@ -10,7 +10,6 @@ use reev_lib::{
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
     server_utils::{kill_existing_reev_agent, kill_existing_surfpool},
-    session_logger::ExecutionResult as SessionExecutionResult,
     solana_env::environment::SolanaEnv,
     test_scenarios,
     trace::ExecutionTrace,
@@ -235,70 +234,62 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 .unwrap_or_default()
                 .as_secs();
 
-            let total_time_ms = (SystemTime::now()
+            let _total_time_ms = (SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
                 - start_time)
                 * 1000;
 
-            let final_status = if final_observation.last_transaction_status == "Success" {
+            let _final_status = if final_observation.last_transaction_status == "Success" {
                 FinalStatus::Succeeded
             } else {
                 FinalStatus::Failed
             };
 
-            // Create execution result for session logger
-            let execution_result = SessionExecutionResult {
-                success: final_status == FinalStatus::Succeeded,
-                score,
-                status: final_status.to_string(),
-                execution_time_ms: total_time_ms,
-                data: serde_json::json!({
-                    "actions_count": actions.len(),
-                    "benchmark_id": test_case.id,
-                    "agent_type": agent.model_name(),
-                    "initial_observation": serde_json::to_value(&initial_observation).unwrap_or_default(),
-                    "final_observation": serde_json::to_value(&final_observation).unwrap_or_default(),
-                }),
-            };
-
-            match session_logger.complete(execution_result) {
+            // Store ExecutionTrace format directly for ASCII tree compatibility
+            match session_logger.complete_with_trace(trace.clone()) {
                 Ok(log_file) => {
                     info!(
                         benchmark_id = %test_case.id,
                         log_file = %log_file.display(),
-                        "Session log completed successfully"
+                        "Session log with ExecutionTrace completed successfully"
                     );
 
-                    // Store session log in database
-                    if let Ok(session_log) = reev_lib::session_logger::load_session_log(&log_file) {
-                        let log_content = serde_json::to_string(&session_log).unwrap_or_default();
+                    // Store ExecutionTrace directly in database for ASCII tree compatibility
+                    let trace_content = serde_json::to_string(&trace).unwrap_or_default();
 
-                        if let Err(e) = db
-                            .store_complete_log(&session_log.session_id, &log_content)
-                            .await
-                        {
-                            warn!(
-                                benchmark_id = %test_case.id,
-                                error = %e,
-                                "Failed to store session log in database"
-                            );
-                        } else {
-                            info!(
-                                benchmark_id = %test_case.id,
-                                session_id = %session_log.session_id,
-                                "Session log stored in database"
-                            );
-                        }
+                    if let Err(e) = db.store_complete_log(&session_id, &trace_content).await {
+                        warn!(
+                            benchmark_id = %test_case.id,
+                            error = %e,
+                            "Failed to store ExecutionTrace in database"
+                        );
+                    } else {
+                        info!(
+                            benchmark_id = %test_case.id,
+                            session_id = %session_id,
+                            "ExecutionTrace stored in database for ASCII tree compatibility"
+                        );
                     }
                 }
                 Err(e) => {
                     warn!(
                         benchmark_id = %test_case.id,
                         error = %e,
-                        "Failed to complete session logging"
+                        "Failed to complete session logging with ExecutionTrace"
                     );
+
+                    // Fallback: store ExecutionTrace directly even if session logging fails
+                    let trace_content = serde_json::to_string(&trace).unwrap_or_default();
+
+                    if let Err(e) = db.store_complete_log(&session_id, &trace_content).await {
+                        warn!(
+                            benchmark_id = %test_case.id,
+                            error = %e,
+                            "Failed to store fallback ExecutionTrace in database"
+                        );
+                    }
                 }
             }
         }
