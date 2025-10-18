@@ -563,132 +563,123 @@ pub async fn get_transaction_logs(
                 benchmark_id, execution.status
             );
 
-            // Handle transaction logs like execution trace - work with raw trace data
-
-            // Check format parameter: yaml or plain (yaml is default)
-            let format_param = params
-                .get("format")
-                .map_or("yaml".to_string(), |v| v.clone());
-            let use_yaml = format_param == "yaml";
-
-            // Check show_cu parameter: true or false (false is default)
-            let show_cu_param = params
-                .get("show_cu")
-                .map_or("false".to_string(), |v| v.clone());
-            let show_cu = show_cu_param == "true";
-
-            let transaction_logs = if execution.trace.trim().is_empty() {
-                // Empty trace - show loading message
-                if is_running {
-                    "🔄 Loading transaction logs...\n\n⏳ Execution in progress - please wait"
-                        .to_string()
-                } else {
-                    "📝 No transaction logs available".to_string()
-                }
-            } else if execution.trace.starts_with('{') {
-                // Raw JSON trace - try to parse and extract transaction logs
-                match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace) {
-                    Ok(trace) => {
-                        // Create a TestResult from the trace to use existing extraction logic
-                        let test_result = reev_lib::results::TestResult::new(
-                            &reev_lib::benchmark::TestCase {
-                                id: benchmark_id.clone(),
-                                description: format!("Transaction logs for {benchmark_id}"),
-                                tags: vec!["api".to_string()],
-                                initial_state: vec![],
-                                prompt: trace.prompt.clone(),
-                                flow: None,
-                                ground_truth: reev_lib::benchmark::GroundTruth {
-                                    transaction_status: "unknown".to_string(),
-                                    final_state_assertions: vec![],
-                                    expected_instructions: vec![],
-                                    skip_instruction_validation: false,
-                                },
-                            },
-                            reev_lib::results::FinalStatus::Succeeded,
-                            1.0, // Default score for running execution
-                            trace,
-                        );
-
-                        // Use appropriate transaction log extraction
-                        let logs = if use_yaml {
-                            match crate::services::generate_transaction_logs_yaml(
-                                &test_result
-                                    .trace
-                                    .steps
-                                    .iter()
-                                    .flat_map(|step| &step.observation.last_transaction_logs)
-                                    .cloned()
-                                    .collect::<Vec<_>>(),
-                                show_cu,
-                            ) {
-                                Ok(yaml_logs) => yaml_logs,
-                                Err(e) => {
-                                    error!("Failed to generate YAML logs from execution: {}", e);
-                                    format!("Error generating YAML tree: {e}")
-                                }
-                            }
-                        } else {
-                            crate::services::generate_transaction_logs(&test_result)
-                        };
-
-                        // Add status indicator for running executions
-                        if is_running && !logs.trim().is_empty() {
-                            format!("{logs}\n\n⏳ Execution in progress - logs may be incomplete")
-                        } else {
-                            logs
-                        }
-                    }
-                    Err(_) => {
-                        // Failed to parse JSON - show raw trace or error message
-                        if is_running {
-                            format!("🔄 Processing transaction logs...\n\n⚠️ Unable to parse execution trace - still running\n\nRaw trace preview:\n{}",
-                                &execution.trace[..execution.trace.len().min(500)])
-                        } else {
-                            format!(
-                                "❌ Failed to parse execution trace\n\nRaw trace preview:\n{}",
-                                &execution.trace[..execution.trace.len().min(500)]
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Already formatted ASCII tree trace - use it directly
-                let mut logs = execution.trace.clone();
-
-                // Add status indicator for running executions
-                if is_running && !logs.trim().is_empty() {
-                    logs.push_str("\n\n⏳ Execution in progress - logs may be incomplete");
-                }
-
-                logs
-            };
-
+            // Parse the current trace to extract transaction logs
             info!(
-                "Returning transaction logs from execution for benchmark: {} ({} chars, format: {}, show_cu: {}, is_running: {})",
-                benchmark_id,
-                transaction_logs.len(),
-                if use_yaml { "yaml" } else { "plain" },
-                show_cu,
-                is_running
+                "Attempting to parse trace for execution: {} (trace length: {} chars)",
+                _execution_id,
+                execution.trace.len()
             );
 
-            return (
-                StatusCode::OK,
-                Json(json!({
-                    "benchmark_id": benchmark_id,
-                    "transaction_logs": transaction_logs,
-                    "format": format_param,
-                    "show_cu": show_cu,
-                    "message": if is_running {
-                        "Transaction logs from active execution (may be incomplete)"
-                    } else {
-                        "Transaction logs from completed execution"
+            // Log first 200 chars of trace for debugging
+            if !execution.trace.is_empty() {
+                let trace_preview = if execution.trace.len() > 200 {
+                    format!("{}...", &execution.trace[..200])
+                } else {
+                    execution.trace.clone()
+                };
+                info!("Trace preview: {}", trace_preview);
+            }
+
+            if let Ok(trace) =
+                serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace)
+            {
+                // Create a TestResult from the trace to use existing extraction logic
+                let test_result = reev_lib::results::TestResult::new(
+                    &reev_lib::benchmark::TestCase {
+                        id: benchmark_id.clone(),
+                        description: format!("Transaction logs for {benchmark_id}"),
+                        tags: vec!["api".to_string()],
+                        initial_state: vec![],
+                        prompt: trace.prompt.clone(),
+                        flow: None,
+                        ground_truth: reev_lib::benchmark::GroundTruth {
+                            transaction_status: "unknown".to_string(),
+                            final_state_assertions: vec![],
+                            expected_instructions: vec![],
+                            skip_instruction_validation: false,
+                        },
                     },
-                    "is_running": is_running
-                })),
-            )
-                .into_response();
+                    reev_lib::results::FinalStatus::Succeeded,
+                    1.0, // Default score for running execution
+                    trace,
+                );
+
+                // Check format parameter: yaml or plain (yaml is default)
+                let format_param = params
+                    .get("format")
+                    .map_or("yaml".to_string(), |v| v.clone());
+                let use_yaml = format_param == "yaml";
+
+                // Check show_cu parameter: true or false (false is default)
+                let show_cu_param = params
+                    .get("show_cu")
+                    .map_or("false".to_string(), |v| v.clone());
+                let show_cu = show_cu_param == "true";
+
+                // Use appropriate transaction log extraction
+                let transaction_logs = if use_yaml {
+                    match crate::services::generate_transaction_logs_yaml(
+                        &test_result
+                            .trace
+                            .steps
+                            .iter()
+                            .flat_map(|step| &step.observation.last_transaction_logs)
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        show_cu,
+                    ) {
+                        Ok(yaml_logs) => yaml_logs,
+                        Err(e) => {
+                            error!("Failed to generate YAML logs from execution: {}", e);
+                            format!("Error generating YAML tree: {e}")
+                        }
+                    }
+                } else {
+                    crate::services::generate_transaction_logs(&test_result)
+                };
+
+                info!(
+                    "Extracted transaction logs from execution for benchmark: {} ({} chars, format: {}, show_cu: {}, is_running: {})",
+                    benchmark_id,
+                    transaction_logs.len(),
+                    if use_yaml { "yaml" } else { "plain" },
+                    show_cu,
+                    is_running
+                );
+
+                return (
+                    StatusCode::OK,
+                    Json(json!({
+                        "benchmark_id": benchmark_id,
+                        "transaction_logs": transaction_logs,
+                        "format": if use_yaml { "yaml" } else { "plain" },
+                        "show_cu": show_cu,
+                        "message": if is_running { "Transaction logs from active execution" } else { "Transaction logs from completed execution" },
+                        "is_running": is_running
+                    })),
+                )
+                    .into_response();
+            } else {
+                warn!(
+                    "Failed to parse trace for execution: {} - JSON parsing error, trace length: {}",
+                    _execution_id,
+                    execution.trace.len()
+                );
+                // Log more details about the trace content
+                if execution.trace.trim().is_empty() {
+                    warn!("Trace is empty for execution: {}", _execution_id);
+                } else if execution.trace.starts_with('{') {
+                    warn!(
+                        "Trace appears to be JSON but failed to parse for execution: {}",
+                        _execution_id
+                    );
+                } else {
+                    warn!(
+                        "Trace does not appear to be valid JSON for execution: {}",
+                        _execution_id
+                    );
+                }
+            }
         }
     }
 
