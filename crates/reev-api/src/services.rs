@@ -214,6 +214,11 @@ pub async fn execute_benchmark_background(
                         ascii_trace.len()
                     );
 
+                    info!(
+                        "DEBUG: Execution {} completed and stored in memory with status: {:?}, trace length: {}",
+                        execution_id, execution.status, execution.trace.len()
+                    );
+
                     // Store YML TestResult in database for historical access
                     if let Err(e) = store_yml_testresult(
                         &state.db.lock().await,
