@@ -364,6 +364,10 @@ pub async fn get_flow_log(
     for (execution_id, execution) in executions.iter() {
         if execution.benchmark_id == benchmark_id {
             let is_running = execution.status == ExecutionStatus::Running;
+            info!(
+                "Execution trace debug: execution_id={}, status={:?}, is_running={}, benchmark_id={}",
+                execution_id, execution.status, is_running, benchmark_id
+            );
             active_executions.push(json!({
                 "session_id": execution_id,
                 "agent_type": execution.agent,
