@@ -608,36 +608,35 @@ fn render_log_entry(
         // Render instruction if present
         if let Some(instruction) = &entry.instruction {
             tree.push_str(&format!(
-                "{}├─ 📋 Instruction: {}\n",
-                child_prefix, instruction
+                "{child_prefix}├─ 📋 Instruction: {instruction}\n"
             ));
         }
 
         // Render log message if present
         if let Some(log_msg) = &entry.log_message {
             if log_msg.starts_with("Please upgrade") {
-                tree.push_str(&format!("{}├─ ⚠️  Log: {}\n", child_prefix, log_msg));
+                tree.push_str(&format!("{child_prefix}├─ ⚠️  Log: {log_msg}\n"));
             } else {
-                tree.push_str(&format!("{}├─ 📝 Log: {}\n", child_prefix, log_msg));
+                tree.push_str(&format!("{child_prefix}├─ 📝 Log: {log_msg}\n"));
             }
         }
 
         // Render return data if present
         if let Some(return_data) = &entry.return_data {
-            tree.push_str(&format!("{}├─ 💾 Return: {}\n", child_prefix, return_data));
+            tree.push_str(&format!("{child_prefix}├─ 💾 Return: {return_data}\n"));
         }
 
         // Render success if present
         if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!("{}└─ ✅ Success ({} CU)\n", child_prefix, cu));
+            tree.push_str(&format!("{child_prefix}└─ ✅ Success ({cu} CU)\n"));
         }
     }
     // Render standalone success entry
     else if entry.is_success {
         if let Some(cu) = entry.compute_units {
-            tree.push_str(&format!("{}{} ✅ Success ({} CU)\n", prefix, icon, cu));
+            tree.push_str(&format!("{prefix}{icon} ✅ Success ({cu} CU)\n"));
         } else {
-            tree.push_str(&format!("{}{} ✅ Success\n", prefix, icon));
+            tree.push_str(&format!("{prefix}{icon} ✅ Success\n"));
         }
     }
 }

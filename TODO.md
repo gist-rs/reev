@@ -14,6 +14,8 @@
 
 ## Dashboard
 
+- add agent tool call as mermaid state diagram https://mermaid.js.org/syntax/stateDiagram.html
+
 1. bring your own agents: will call with only prompt (you prepare the account, no token = fail)
 
 2. bring your own model api_key (you prepare api_url, api_key, we will send you the request as see in benchmarks suite)
@@ -35,6 +37,6 @@
 - Transaction Log (Real-time): show nothing when run, only when finish we see the output
 
 ## Refactor
-
-- add `pub updated_at: Option<String>,`
-- add flow ascii tree view
+- show prompt for that test instead of `001 Sol Transfer`.
+- why `Execution Trace` has color format for ascii tree but `Transaction Log` didn't have?
+- use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
