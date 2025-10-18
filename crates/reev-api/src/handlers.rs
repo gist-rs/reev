@@ -541,12 +541,103 @@ pub async fn get_transaction_logs_demo(
         .into_response()
 }
 
+/// Get transaction logs for a benchmark
 pub async fn get_transaction_logs(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     info!("Getting transaction logs for benchmark: {}", benchmark_id);
+
+    // First check for active executions (like execution trace does)
+    let executions = state.executions.lock().await;
+    for (_execution_id, execution) in executions.iter() {
+        if execution.benchmark_id == benchmark_id && execution.status == ExecutionStatus::Running {
+            info!("Found active execution for benchmark: {}", benchmark_id);
+
+            // Parse the current trace to extract transaction logs
+            if let Ok(trace) =
+                serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace)
+            {
+                // Create a TestResult from the trace to use existing extraction logic
+                let test_result = reev_lib::results::TestResult::new(
+                    &reev_lib::benchmark::TestCase {
+                        id: benchmark_id.clone(),
+                        description: format!("Transaction logs for {benchmark_id}"),
+                        tags: vec!["api".to_string()],
+                        initial_state: vec![],
+                        prompt: trace.prompt.clone(),
+                        flow: None,
+                        ground_truth: reev_lib::benchmark::GroundTruth {
+                            transaction_status: "unknown".to_string(),
+                            final_state_assertions: vec![],
+                            expected_instructions: vec![],
+                            skip_instruction_validation: false,
+                        },
+                    },
+                    reev_lib::results::FinalStatus::Succeeded,
+                    1.0, // Default score for running execution
+                    trace,
+                );
+
+                // Check format parameter: yaml or plain (yaml is default)
+                let format_param = params
+                    .get("format")
+                    .map_or("yaml".to_string(), |v| v.clone());
+                let use_yaml = format_param == "yaml";
+
+                // Check show_cu parameter: true or false (false is default)
+                let show_cu_param = params
+                    .get("show_cu")
+                    .map_or("false".to_string(), |v| v.clone());
+                let show_cu = show_cu_param == "true";
+
+                // Use appropriate transaction log extraction
+                let transaction_logs = if use_yaml {
+                    match crate::services::generate_transaction_logs_yaml(
+                        &test_result
+                            .trace
+                            .steps
+                            .iter()
+                            .flat_map(|step| &step.observation.last_transaction_logs)
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        show_cu,
+                    ) {
+                        Ok(yaml_logs) => yaml_logs,
+                        Err(e) => {
+                            error!("Failed to generate YAML logs from active execution: {}", e);
+                            format!("Error generating YAML tree: {e}")
+                        }
+                    }
+                } else {
+                    crate::services::generate_transaction_logs(&test_result)
+                };
+
+                info!(
+                    "Extracted transaction logs from active execution for benchmark: {} ({} chars, format: {}, show_cu: {})",
+                    benchmark_id,
+                    transaction_logs.len(),
+                    if use_yaml { "yaml" } else { "plain" },
+                    show_cu
+                );
+
+                return (
+                    StatusCode::OK,
+                    Json(json!({
+                        "benchmark_id": benchmark_id,
+                        "transaction_logs": transaction_logs,
+                        "format": if use_yaml { "yaml" } else { "plain" },
+                        "show_cu": show_cu,
+                        "message": "Transaction logs from active execution",
+                        "is_running": true
+                    })),
+                )
+                    .into_response();
+            }
+        }
+    }
+    drop(executions);
 
     // Get the most recent session for this benchmark
     let filter = reev_db::types::SessionFilter {
@@ -641,7 +732,9 @@ pub async fn get_transaction_logs(
                                             "benchmark_id": benchmark_id,
                                             "transaction_logs": "",
                                             "format": format_param,
-                                            "message": "No transaction logs available"
+                                            "show_cu": show_cu,
+                                            "message": "No transaction logs available",
+                                            "is_running": false
                                         })),
                                     )
                                         .into_response();
@@ -652,8 +745,10 @@ pub async fn get_transaction_logs(
                                     Json(json!({
                                         "benchmark_id": benchmark_id,
                                         "format": format_param,
+                                        "show_cu": show_cu,
                                         "message": "Transaction logs extracted successfully",
-                                        "transaction_logs": transaction_logs
+                                        "transaction_logs": transaction_logs,
+                                        "is_running": false
                                     })),
                                 )
                                     .into_response()
@@ -667,10 +762,11 @@ pub async fn get_transaction_logs(
                                         "benchmark_id": benchmark_id,
                                         "transaction_logs": "",
                                         "format": if params.get("format").is_some_and(|f| f == "tree") { "tree" } else { "plain" },
-                                        "message": "No valid ExecutionTrace data found"
+                                        "show_cu": params.get("show_cu").unwrap_or(&"false".to_string()) == "true",
+                                        "message": "No valid ExecutionTrace data found",
+                                        "is_running": false
                                     })),
-                                )
-                                    .into_response()
+                                ).into_response()
                             }
                         }
                     }
@@ -693,10 +789,11 @@ pub async fn get_transaction_logs(
                         "benchmark_id": benchmark_id,
                         "transaction_logs": "",
                         "format": if params.get("format").is_some_and(|f| f == "tree") { "tree" } else { "plain" },
-                        "message": "No session logs available"
+                        "show_cu": params.get("show_cu").unwrap_or(&"false".to_string()) == "true",
+                        "message": format!("No sessions found for benchmark: {}", benchmark_id),
+                        "is_running": false
                     })),
-                )
-                    .into_response()
+                ).into_response()
             }
         }
         Err(e) => {
