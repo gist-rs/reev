@@ -443,23 +443,6 @@ export function BenchmarkList({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      {/* Status Icon */}
-                      <span
-                        className={`font-mono text-sm ${getStatusColor(status)}`}
-                      >
-                        {getStatusIcon(status)}
-                      </span>
-
-                      {/* Score */}
-                      <span
-                        className={`font-mono text-sm font-medium ${getScoreColor(score)} min-w-[3rem]`}
-                      >
-                        {status === ExecutionStatus.COMPLETED ||
-                        status === ExecutionStatus.FAILED
-                          ? formatScore(score)
-                          : "000%"}
-                      </span>
-
                       {/* Benchmark Name */}
                       <div>
                         <Tooltip
@@ -474,14 +457,34 @@ export function BenchmarkList({
                             </div>
                           }
                           position="top"
-                          className="max-w-xs"
+                          className="max-w-md"
                         >
                           <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
                             {benchmark.prompt || benchmark.name}
                           </div>
                         </Tooltip>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {benchmark.id}
+                        <hr className="my-2 border-gray-200 dark:border-gray-700" />
+                        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                          {/* Status Icon */}
+                          <span
+                            className={`font-mono text-sm ${getStatusColor(status)}`}
+                          >
+                            {getStatusIcon(status)}
+                          </span>
+
+                          {/* Score */}
+                          <span
+                            className={`font-mono text-xs font-medium ${getScoreColor(score)}`}
+                          >
+                            {status === ExecutionStatus.COMPLETED ||
+                            status === ExecutionStatus.FAILED
+                              ? formatScore(score)
+                              : "000%"}
+                          </span>
+                          <span className="text-gray-400"></span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300">
+                            {benchmark.id}
+                          </span>
                         </div>
                       </div>
                     </div>
