@@ -2,7 +2,11 @@ use anyhow::Result;
 use rig::{completion::Prompt, prelude::*, providers::openai::Client};
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use std::fs::OpenOptions;
+use tracing::{info, warn, Level};
+use tracing_subscriber::fmt::layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::{
     context::integration::ContextIntegration,
@@ -15,6 +19,37 @@ use crate::{
     },
     LlmRequest,
 };
+
+/// 🎯 Initialize logging for tool call tracking
+fn init_tool_logging() -> Result<()> {
+    // Create file writer for tool calls log
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("logs/tool_calls.log")?;
+
+    // Create a custom layer that writes to both console and file
+    let file_layer = layer()
+        .with_writer(log_file)
+        .with_ansi(false)
+        .with_target(true)
+        .with_thread_ids(true);
+
+    let console_layer = layer().pretty().with_target(false);
+
+    let filter_layer = tracing_subscriber::filter::EnvFilter::builder()
+        .with_default_directive(Level::INFO.into())
+        .from_env_lossy();
+
+    // Initialize tracing subscriber with multiple layers
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(console_layer)
+        .with(file_layer)
+        .try_init()?;
+
+    Ok(())
+}
 
 /// 🎯 Complete response format including transactions, summary, and signatures
 #[derive(Debug, Clone)]
@@ -42,7 +77,11 @@ impl OpenAIAgent {
         payload: LlmRequest,
         key_map: HashMap<String, String>,
     ) -> Result<String> {
+        // 🎯 Initialize logging for tool call tracking
+        init_tool_logging()?;
+
         info!("[OpenAIAgent] Running enhanced multi-turn agent with model: {model_name}");
+        info!("[OpenAIAgent] Tool logging initialized - tool calls will be logged to logs/tool_calls.log");
 
         // 🚨 Check for allowed tools filtering (for flow operations)
         let allowed_tools = payload.allowed_tools.as_ref();
@@ -237,10 +276,25 @@ impl OpenAIAgent {
             enhanced_user_request
         );
 
+        // 🎯 OpenTelemetry tracing for agent execution
+        let span = tracing::info_span!(
+            "agent_execution",
+            model = model_name,
+            conversation_depth = conversation_depth,
+            benchmark_id = %payload.id,
+            tools_count = allowed_tools.map(|t| t.len()).unwrap_or(10)
+        );
+
+        let _guard = span.enter();
+        info!("[OpenAIAgent] Starting agent execution with OpenTelemetry tracing");
+
         let response = agent
             .prompt(&enhanced_user_request)
             .multi_turn(conversation_depth)
             .await?;
+
+        drop(_guard);
+        info!("[OpenAIAgent] Agent execution completed - tool calls logged to OpenTelemetry");
 
         let response_str = response.to_string();
         info!("[OpenAIAgent] === AGENT RESPONSE RECEIVED ===");
@@ -279,6 +333,11 @@ impl OpenAIAgent {
             "[OpenAIAgent] Comprehensive response with {} transactions, {} signatures",
             execution_result.transactions.len(),
             execution_result.signatures.len()
+        );
+
+        // 🎯 Logging shutdown - all tool calls have been logged
+        info!(
+            "[OpenAIAgent] Tool logging completed - all tool calls logged to logs/tool_calls.log"
         );
 
         Ok(serde_json::to_string(&comprehensive_response)?)

@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
+use tracing::{info, instrument};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
 #[derive(Serialize, Deserialize, Debug)]
@@ -101,7 +102,19 @@ impl Tool for SolTransferTool {
     }
 
     /// Executes the tool's logic: validates arguments and calls the appropriate protocol handler.
+    #[instrument(
+        name = "sol_transfer_tool_call",
+        skip(self),
+        fields(
+            tool_name = "sol_transfer",
+            user_pubkey = %args.user_pubkey,
+            recipient_pubkey = %args.recipient_pubkey,
+            amount = args.amount,
+            operation = ?args.operation
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
         // Validate and parse arguments
         let user_pubkey = self
             .key_map
@@ -174,6 +187,11 @@ impl Tool for SolTransferTool {
 
         let execution_time = start_time.elapsed().as_millis() as u32;
 
+        info!(
+            "[SolTransferTool] Tool execution completed - total_time: {}ms, operation: {:?}",
+            execution_time, args.operation
+        );
+
         // Record flow data
         let tool_args = json!({
             "user_pubkey": args.user_pubkey,
@@ -194,7 +212,7 @@ impl Tool for SolTransferTool {
                 "operation": format!("{:?}", args.operation)
             })),
             error_message: None,
-            depth: 1, // Default depth
+            depth: 1,
         });
 
         // Serialize the Vec<RawInstruction> to a JSON string.
@@ -247,7 +265,19 @@ impl Tool for SplTransferTool {
     }
 
     /// Executes the tool's logic: creates SPL transfer instructions.
+    #[instrument(
+        name = "spl_transfer_tool_call",
+        skip(self),
+        fields(
+            tool_name = "spl_transfer",
+            user_pubkey = %args.user_pubkey,
+            recipient_pubkey = %args.recipient_pubkey,
+            amount = args.amount,
+            mint_address = ?args.mint_address
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[SplTransferTool] Starting tool execution with OpenTelemetry tracing");
         // Force SPL operation and validate mint address
         if args.mint_address.is_none() {
             return Err(NativeTransferError::MintAddressRequired);
@@ -255,6 +285,8 @@ impl Tool for SplTransferTool {
 
         let mut spl_args = args;
         spl_args.operation = NativeTransferOperation::Spl;
+
+        info!("[SplTransferTool] Delegating to SOL transfer tool with SPL operation");
 
         // Delegate to the SOL transfer tool with SPL operation
         let sol_tool = SolTransferTool {

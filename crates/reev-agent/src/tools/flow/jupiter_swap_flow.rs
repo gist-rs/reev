@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
+use std::time::Instant;
+use tracing::{info, instrument};
 
 /// Arguments for the Jupiter swap flow tool
 #[derive(Deserialize, Debug, Clone)]
@@ -79,7 +81,23 @@ impl Tool for JupiterSwapFlowTool {
     }
 
     /// Executes the Jupiter swap with flow awareness
+    #[instrument(
+        name = "jupiter_swap_flow_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_swap_flow",
+            input_mint = %args.input_mint,
+            output_mint = %args.output_mint,
+            amount = args.amount,
+            slippage_bps = args.slippage_bps,
+            user_pubkey = %args.user_pubkey,
+            recipient = ?args.recipient
+        )
+    )]
     async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
+        info!("[JupiterSwapFlowTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
+
         // Validate arguments with flow context
         self.validate_flow_args(&args)?;
 
@@ -100,6 +118,12 @@ impl Tool for JupiterSwapFlowTool {
 
         // Add flow metadata to result
         let flow_result = self.enhance_result_with_flow_context(result.to_string())?;
+
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+        info!(
+            "[JupiterSwapFlowTool] Tool execution completed - total_time: {}ms, flow_enhanced: true",
+            total_execution_time
+        );
 
         Ok(flow_result)
     }

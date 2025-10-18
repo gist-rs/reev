@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -126,7 +126,21 @@ impl Tool for JupiterSwapTool {
     }
 
     /// Executes the tool's logic: validates arguments and calls the protocol handler.
+    #[instrument(
+        name = "jupiter_swap_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_swap",
+            user_pubkey = %args.user_pubkey,
+            input_mint = %args.input_mint,
+            output_mint = %args.output_mint,
+            amount = args.amount,
+            slippage_bps = ?args.slippage_bps
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[JupiterSwapTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")
             || args.user_pubkey.starts_with("RECIPIENT_")
@@ -261,7 +275,8 @@ impl Tool for JupiterSwapTool {
         }
 
         // Call the protocol handler with flow tracking
-        let start_time = Instant::now();
+        let protocol_start_time = Instant::now();
+        info!("[JupiterSwapTool] Calling Jupiter protocol handler");
         let raw_instructions = handle_jupiter_swap(
             user_pubkey,
             input_mint,
@@ -271,7 +286,13 @@ impl Tool for JupiterSwapTool {
         )
         .await
         .map_err(JupiterSwapError::ProtocolCall)?;
-        let execution_time = start_time.elapsed().as_millis() as u32;
+        let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+
+        info!(
+            "[JupiterSwapTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
+            protocol_execution_time, total_execution_time, raw_instructions.len()
+        );
 
         // 🎯 Create enhanced response with metadata
         let instruction_count = raw_instructions.len();
@@ -323,7 +344,7 @@ impl Tool for JupiterSwapTool {
         GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
             tool_name: Self::NAME.to_string(),
             tool_args,
-            execution_time_ms: execution_time,
+            execution_time_ms: total_execution_time,
             result_status: ToolResultStatus::Success,
             result_data: Some(json!({
                 "instruction_count": instruction_count,

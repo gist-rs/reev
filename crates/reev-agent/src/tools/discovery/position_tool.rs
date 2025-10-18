@@ -8,7 +8,9 @@ use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::time::Instant;
 use thiserror::Error;
+use tracing::{info, instrument};
 
 /// The arguments for the position info tool
 #[derive(Deserialize, Debug)]
@@ -119,7 +121,21 @@ impl Tool for PositionInfoTool {
     }
 
     /// Executes the tool to query position information
+    #[instrument(
+        name = "position_info_tool_call",
+        skip(self),
+        fields(
+            tool_name = "get_position_info",
+            user_pubkey = %args.user_pubkey,
+            protocol = ?args.protocol,
+            position_address = ?args.position_address,
+            position_type = ?args.position_type
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[PositionInfoTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
+
         // Query positions for the user (validation happens inside)
         let positions = self.query_positions(&args).await?;
 
@@ -151,6 +167,14 @@ impl Tool for PositionInfoTool {
                 },
                 "total_positions": positions.len()
             });
+
+            let total_execution_time = start_time.elapsed().as_millis() as u32;
+            info!(
+                "[PositionInfoTool] Tool execution completed - total_time: {}ms, positions_found: {}",
+                total_execution_time,
+                positions.len()
+            );
+
             Ok(serde_json::to_string_pretty(&response)?)
         }
     }

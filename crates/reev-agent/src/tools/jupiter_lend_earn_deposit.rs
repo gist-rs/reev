@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, time::Instant};
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 /// The arguments for the Jupiter lend earn deposit tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -89,7 +89,19 @@ impl Tool for JupiterLendEarnDepositTool {
     }
 
     /// Executes the tool's logic: validates arguments and calls the protocol handler.
+    #[instrument(
+        name = "jupiter_lend_earn_deposit_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_lend_earn_deposit",
+            user_pubkey = %args.user_pubkey,
+            asset_mint = %args.asset_mint,
+            amount = args.amount
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[JupiterLendEarnDepositTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         info!("DEBUG: JupiterLendEarnDepositTool called with user_pubkey={}, asset_mint={}, amount={}",
               args.user_pubkey, args.asset_mint, args.amount);
         info!("DEBUG: Tool key_map contains: {:?}", self.key_map);
@@ -193,9 +205,17 @@ impl Tool for JupiterLendEarnDepositTool {
         }
 
         // Call the protocol handler
+        let protocol_start_time = Instant::now();
         let raw_instructions = handle_jupiter_lend_deposit(user_pubkey, asset_mint, args.amount)
             .await
             .map_err(JupiterLendEarnDepositError::ProtocolCall)?;
+        let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+
+        info!(
+            "[JupiterLendEarnDepositTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
+            protocol_execution_time, total_execution_time, raw_instructions.len()
+        );
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

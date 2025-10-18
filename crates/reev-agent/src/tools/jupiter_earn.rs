@@ -8,8 +8,9 @@ use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::time::Instant;
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, instrument};
 
 /// The arguments for the Jupiter earn tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -82,7 +83,19 @@ impl Tool for JupiterEarnTool {
     }
 
     /// Executes the tool's logic: calls the appropriate Jupiter protocol handler.
+    #[instrument(
+        name = "jupiter_earn_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_earn",
+            user_pubkey = %args.user_pubkey,
+            operation = ?args.operation,
+            position_address = ?args.position_address
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[JupiterEarn] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         // Validate user pubkey
         if args.user_pubkey.is_empty() {
             return Err(JupiterEarnError::InvalidUserPubkey(
@@ -166,6 +179,12 @@ impl Tool for JupiterEarnTool {
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "result": result
         });
+
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+        info!(
+            "[JupiterEarn] Tool execution completed - total_time: {}ms, operation: {:?}",
+            total_execution_time, args.operation
+        );
 
         info!(
             "[JupiterEarn] Final response: {}",

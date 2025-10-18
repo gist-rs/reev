@@ -10,8 +10,9 @@ use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Instant;
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, instrument};
 
 /// Custom deserializer to clean up shares parameter that may contain comments
 fn deserialize_shares<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -111,7 +112,19 @@ impl Tool for JupiterLendEarnMintTool {
     }
 
     /// Executes the tool's logic: validates arguments and calls the Jupiter API.
+    #[instrument(
+        name = "jupiter_lend_earn_mint_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_lend_earn_mint",
+            asset = %args.asset,
+            signer = %args.signer,
+            shares = args.shares
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[JupiterLendEarnMintTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         // Validate arguments
         tracing::debug!("[jupiter_lend_earn_mint] Starting mint execution with args: asset={}, signer={}, shares={}", args.asset, args.signer, args.shares);
 
@@ -159,9 +172,17 @@ impl Tool for JupiterLendEarnMintTool {
         }
 
         // Call the centralized lend_mint protocol handler
+        let protocol_start_time = Instant::now();
         let raw_instructions = jupiter::execute_jupiter_lend_mint(&asset, shares, &key_map)
             .await
             .map_err(JupiterLendEarnMintRedeemError::ProtocolError)?;
+        let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+
+        info!(
+            "[JupiterLendEarnMintTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
+            protocol_execution_time, total_execution_time, raw_instructions.len()
+        );
 
         // Convert RawInstruction to JSON string
         let instructions_json = serde_json::to_string(&raw_instructions)?;
@@ -225,7 +246,19 @@ impl Tool for JupiterLendEarnRedeemTool {
     }
 
     /// Executes the tool's logic: queries actual balance before redeeming.
+    #[instrument(
+        name = "jupiter_lend_earn_redeem_tool_call",
+        skip(self),
+        fields(
+            tool_name = "jupiter_lend_earn_redeem",
+            asset = %args.asset,
+            signer = %args.signer,
+            shares = args.shares
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[JupiterLendEarnRedeemTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         info!("[JupiterLendEarnRedeem] === FLOW CONTEXT MODE ===");
         info!("[JupiterLendEarnRedeem] Ignoring LLM args, querying actual balance");
         info!(
@@ -266,9 +299,17 @@ impl Tool for JupiterLendEarnRedeemTool {
         }
 
         // Call the centralized lend_redeem protocol handler
+        let protocol_start_time = Instant::now();
         let raw_instructions = jupiter::execute_jupiter_lend_redeem(&asset, shares, &key_map)
             .await
             .map_err(JupiterLendEarnMintRedeemError::ProtocolError)?;
+        let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+
+        info!(
+            "[JupiterLendEarnRedeemTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
+            protocol_execution_time, total_execution_time, raw_instructions.len()
+        );
 
         // Convert RawInstruction to JSON string
         let instructions_json = serde_json::to_string(&raw_instructions)?;

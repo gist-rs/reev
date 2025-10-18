@@ -8,7 +8,9 @@ use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::time::Instant;
 use thiserror::Error;
+use tracing::{info, instrument};
 
 /// The arguments for the lend/earn tokens tool
 #[derive(Deserialize, Debug)]
@@ -177,7 +179,18 @@ impl Tool for LendEarnTokensTool {
     }
 
     /// Executes the tool to query lend/earn tokens
+    #[instrument(
+        name = "lend_earn_tokens_tool_call",
+        skip(self),
+        fields(
+            tool_name = "lend_earn_tokens",
+            symbol = ?args.symbol,
+            mint_address = ?args.mint_address
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[LendEarnTokensTool] Starting tool execution with OpenTelemetry tracing");
+        let start_time = Instant::now();
         // Fetch tokens from Jupiter API
         let tokens = self.fetch_tokens().await?;
 
@@ -199,6 +212,13 @@ impl Tool for LendEarnTokensTool {
             "total_tokens": filtered_tokens.len(),
             "api_source": "https://lite-api.jup.ag/lend/v1/earn/tokens"
         });
+
+        let total_execution_time = start_time.elapsed().as_millis() as u32;
+        info!(
+            "[LendEarnTokensTool] Tool execution completed - total_time: {}ms, tokens_found: {}",
+            total_execution_time,
+            filtered_tokens.len()
+        );
 
         Ok(serde_json::to_string_pretty(&response)?)
     }

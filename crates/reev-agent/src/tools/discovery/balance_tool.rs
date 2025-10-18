@@ -15,6 +15,7 @@ use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
+use tracing::{info, instrument};
 
 /// The arguments for the account balance tool
 #[derive(Deserialize, Debug)]
@@ -115,7 +116,18 @@ impl Tool for AccountBalanceTool {
     }
 
     /// Executes the tool to query REAL account balance from surfpool
+    #[instrument(
+        name = "account_balance_tool_call",
+        skip(self),
+        fields(
+            tool_name = "get_account_balance",
+            pubkey = %args.pubkey,
+            token_mint = ?args.token_mint,
+            account_type = ?args.account_type
+        )
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        info!("[AccountBalanceTool] Starting tool execution with OpenTelemetry tracing");
         // Handle placeholder pubkeys by resolving them from key_map
         let resolved_pubkey = if args.pubkey.contains("USER_") || args.pubkey.contains("RECIPIENT_")
         {
