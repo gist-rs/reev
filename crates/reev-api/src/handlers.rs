@@ -1,4 +1,5 @@
 use crate::services::*;
+use crate::types::ExecutionStatus;
 use crate::types::*;
 use axum::{
     extract::{Path, State},
@@ -355,7 +356,43 @@ pub async fn get_flow_log(
 ) -> impl IntoResponse {
     info!("Getting session logs for benchmark: {}", benchmark_id);
 
-    // Use session management to get logs for this benchmark
+    // First check for active executions (like execution trace does)
+    let executions = state.executions.lock().await;
+    let mut active_executions = Vec::new();
+
+    for (execution_id, execution) in executions.iter() {
+        if execution.benchmark_id == benchmark_id {
+            let is_running = execution.status == ExecutionStatus::Running;
+            active_executions.push(json!({
+                "session_id": execution_id,
+                "agent_type": execution.agent,
+                "interface": "web",
+                "status": format!("{:?}", execution.status).to_lowercase(),
+                "score": null,
+                "final_status": execution.status,
+                "log_content": execution.trace.clone(),
+                "is_running": is_running,
+                "progress": execution.progress
+            }));
+        }
+    }
+    drop(executions);
+
+    // If there are active executions, return them
+    if !active_executions.is_empty() {
+        info!(
+            "Found {} active executions for benchmark: {}",
+            active_executions.len(),
+            benchmark_id
+        );
+        return Json(json!({
+            "benchmark_id": benchmark_id,
+            "sessions": active_executions
+        }))
+        .into_response();
+    }
+
+    // If no active executions, look for completed sessions
     let filter = reev_db::types::SessionFilter {
         benchmark_id: Some(benchmark_id.clone()),
         agent_type: None,
@@ -367,7 +404,10 @@ pub async fn get_flow_log(
     match state.db.list_sessions(&filter).await {
         Ok(sessions) => {
             if sessions.is_empty() {
-                info!("No sessions found for benchmark: {}", benchmark_id);
+                info!(
+                    "No sessions or active executions found for benchmark: {}",
+                    benchmark_id
+                );
                 Json(json!({"message": "No sessions found", "sessions": []})).into_response()
             } else {
                 // Get logs for each session
@@ -382,7 +422,8 @@ pub async fn get_flow_log(
                                 "status": session.status,
                                 "score": session.score,
                                 "final_status": session.final_status,
-                                "log_content": log_content
+                                "log_content": log_content,
+                                "is_running": false
                             }));
                         }
                         Err(e) => {
@@ -397,14 +438,15 @@ pub async fn get_flow_log(
                                 "status": session.status,
                                 "score": session.score,
                                 "final_status": session.final_status,
-                                "error": format!("Failed to retrieve log: {}", e)
+                                "error": format!("Failed to retrieve log: {}", e),
+                                "is_running": false
                             }));
                         }
                     }
                 }
 
                 info!(
-                    "Found {} sessions for benchmark: {}",
+                    "Found {} completed sessions for benchmark: {}",
                     session_logs.len(),
                     benchmark_id
                 );

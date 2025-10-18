@@ -34,7 +34,7 @@ pub struct ExecutionState {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum ExecutionStatus {
     Pending,
     Running,
