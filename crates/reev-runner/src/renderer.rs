@@ -77,7 +77,7 @@ fn render_step_node(step_number: usize, step: &TraceStep) -> Tree {
             }
 
             output.push_str(&format!(
-                "\n     {program_id}\n     Accounts:\n{accounts_str}\n     {data_str}"
+                "     {program_id}\n     Accounts:\n{accounts_str}\n     {data_str}"
             ));
         }
         output
