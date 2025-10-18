@@ -576,7 +576,7 @@ pub async fn get_transaction_logs(
 
     drop(executions); // Release lock before processing
 
-    if let Some((execution_id, execution)) = found_execution {
+    if let Some((_execution_id, execution)) = found_execution {
         let is_running = execution.status == ExecutionStatus::Running
             || execution.status == ExecutionStatus::Pending;
 
@@ -797,10 +797,21 @@ pub async fn get_transaction_logs(
                     .await
                 {
                     Ok(log_content) => {
+                        info!("DEBUG: Retrieved session log content (length: {} chars) for session: {}", log_content.len(), session.session_id);
+
+                        // Log first 100 chars of content for debugging
+                        let log_preview = if log_content.len() > 100 {
+                            format!("{}...", &log_content[..100])
+                        } else {
+                            log_content.clone()
+                        };
+                        info!("DEBUG: Session log preview: {}", log_preview);
+
                         // Try to parse as ExecutionTrace and extract transaction logs
                         match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&log_content)
                         {
                             Ok(trace) => {
+                                info!("DEBUG: Successfully parsed session log as ExecutionTrace");
                                 // Create a TestResult from the trace to use existing extraction logic
                                 let test_result = reev_lib::results::TestResult::new(
                                     &reev_lib::benchmark::TestCase {
@@ -896,6 +907,7 @@ pub async fn get_transaction_logs(
                             }
                             Err(e) => {
                                 warn!("Failed to parse log as ExecutionTrace: {}", e);
+                                info!("DEBUG: Returning fallback response for invalid ExecutionTrace data");
 
                                 (
                                     StatusCode::OK,
@@ -913,6 +925,7 @@ pub async fn get_transaction_logs(
                     }
                     Err(e) => {
                         warn!("Failed to get session log: {}", e);
+                        info!("DEBUG: Returning error response for failed session log retrieval");
                         (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(json!({
