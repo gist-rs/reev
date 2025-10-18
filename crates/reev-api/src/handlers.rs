@@ -2,13 +2,14 @@ use crate::services::*;
 use crate::types::ExecutionStatus;
 use crate::types::*;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use reev_lib::db::BenchmarkYml;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use tracing::warn;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -472,9 +473,51 @@ pub async fn get_flow_log(
 }
 
 /// Get transaction logs for a benchmark
+pub async fn get_transaction_logs_demo(
+    Query(params): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    info!("Generating demo transaction logs with visualization");
+
+    let use_tree = params.get("format").is_some_and(|f| f == "tree");
+
+    let demo_logs = if use_tree {
+        crate::services::generate_mock_transaction_logs_tree()
+    } else {
+        // Generate plain format demo
+        let mock_logs = vec![
+            "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]".to_string(),
+            "Program log: CreateIdempotent".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]".to_string(),
+            "Program log: Instruction: GetAccountDataSize".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1569 of 997595 compute units".to_string(),
+            "Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=".to_string(),
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
+        ];
+
+        let mut plain = String::new();
+        plain.push_str("Step 1:\n");
+        for log in &mock_logs {
+            plain.push_str(&format!("  {log}\n"));
+        }
+        plain
+    };
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "benchmark_id": "demo-jupiter-swap",
+            "transaction_logs": demo_logs,
+            "format": if use_tree { "tree" } else { "plain" },
+            "message": "Demo transaction logs generated successfully"
+        })),
+    )
+        .into_response()
+}
+
 pub async fn get_transaction_logs(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     info!("Getting transaction logs for benchmark: {}", benchmark_id);
 
@@ -520,14 +563,21 @@ pub async fn get_transaction_logs(
                                     trace,
                                 );
 
-                                // Use existing backend transaction log extraction
-                                let transaction_logs =
-                                    crate::services::generate_transaction_logs(&test_result);
+                                // Check if tree format is requested
+                                let use_tree = params.get("format").is_some_and(|f| f == "tree");
+
+                                // Use appropriate transaction log extraction
+                                let transaction_logs = if use_tree {
+                                    crate::services::generate_transaction_logs_tree(&test_result)
+                                } else {
+                                    crate::services::generate_transaction_logs(&test_result)
+                                };
 
                                 info!(
-                                    "Extracted transaction logs for benchmark: {} ({} chars)",
+                                    "Extracted transaction logs for benchmark: {} ({} chars, format: {})",
                                     benchmark_id,
-                                    transaction_logs.len()
+                                    transaction_logs.len(),
+                                    if use_tree { "tree" } else { "plain" }
                                 );
 
                                 if transaction_logs.trim().is_empty() {
@@ -536,6 +586,7 @@ pub async fn get_transaction_logs(
                                         Json(json!({
                                             "benchmark_id": benchmark_id,
                                             "transaction_logs": "",
+                                            "format": if use_tree { "tree" } else { "plain" },
                                             "message": "No transaction logs available"
                                         })),
                                     )
@@ -547,6 +598,7 @@ pub async fn get_transaction_logs(
                                     Json(json!({
                                         "benchmark_id": benchmark_id,
                                         "transaction_logs": transaction_logs,
+                                        "format": if use_tree { "tree" } else { "plain" },
                                         "message": "Transaction logs extracted successfully"
                                     })),
                                 )
@@ -554,11 +606,13 @@ pub async fn get_transaction_logs(
                             }
                             Err(e) => {
                                 warn!("Failed to parse log as ExecutionTrace: {}", e);
+
                                 (
                                     StatusCode::OK,
                                     Json(json!({
                                         "benchmark_id": benchmark_id,
                                         "transaction_logs": "",
+                                        "format": if params.get("format").is_some_and(|f| f == "tree") { "tree" } else { "plain" },
                                         "message": "No valid ExecutionTrace data found"
                                     })),
                                 )
@@ -584,7 +638,8 @@ pub async fn get_transaction_logs(
                     Json(json!({
                         "benchmark_id": benchmark_id,
                         "transaction_logs": "",
-                        "message": "No execution data found"
+                        "format": if params.get("format").is_some_and(|f| f == "tree") { "tree" } else { "plain" },
+                        "message": "No session logs available"
                     })),
                 )
                     .into_response()
