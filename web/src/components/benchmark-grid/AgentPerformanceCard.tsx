@@ -9,6 +9,7 @@ interface AgentPerformanceCardProps {
   allBenchmarks: any[];
   runningBenchmarks: Set<string>;
   onBenchmarkClick: (result: BenchmarkResult, agentType: string) => void;
+  onCardClick?: (agentType: string) => void;
   runningBenchmarkExecutions?: Map<
     string,
     { agent: string; status: string; progress: number }
@@ -23,6 +24,7 @@ export function AgentPerformanceCard({
   allBenchmarks,
   runningBenchmarks,
   onBenchmarkClick,
+  onCardClick,
   runningBenchmarkExecutions,
   selectedBenchmark,
   selectedAgent,
@@ -83,7 +85,13 @@ export function AgentPerformanceCard({
       <BenchmarkBox
         key={benchmark.id}
         result={result}
-        onClick={(result) => onBenchmarkClick(result, agentType)}
+        onClick={(result) => {
+          onBenchmarkClick(result, agentType);
+          // Also trigger card click to change tab focus
+          if (onCardClick) {
+            onCardClick(agentType);
+          }
+        }}
         isRunning={isRunning}
         isSelected={isSelected}
       />
@@ -254,8 +262,17 @@ export function AgentPerformanceCard({
       });
   };
 
+  const handleCardClick = () => {
+    if (onCardClick) {
+      onCardClick(agentType);
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2">
+    <div
+      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2 cursor-pointer hover:shadow-md transition-shadow"
+      onClick={handleCardClick}
+    >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
           {agentType}

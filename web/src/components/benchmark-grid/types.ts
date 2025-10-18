@@ -14,6 +14,7 @@ export interface BenchmarkGridProps {
   className?: string;
   refreshTrigger?: number;
   onBenchmarkSelect?: (benchmarkId: string, agentType?: string) => void;
+  onCardClick?: (agentType: string) => void;
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
   runningBenchmarkIds?: string[];

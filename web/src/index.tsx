@@ -117,6 +117,9 @@ export function App() {
         setSelectedAgent(agentType);
       }
 
+      // Switch to Transaction Log tab when benchmark is selected
+      setShowTransactionLog(true);
+
       // Update current execution if we have one for this benchmark
       const execution = Array.from(executions.values()).find(
         (exec) => exec.benchmark_id === benchmarkId,
@@ -559,6 +562,12 @@ export function App() {
           <BenchmarkGrid
             refreshTrigger={performanceOverviewRefresh}
             onBenchmarkSelect={handleBenchmarkSelect}
+            onCardClick={(agentType) => {
+              // Switch to Transaction Log tab when agent card is clicked
+              setShowTransactionLog(true);
+              // Also update selected agent to match the clicked card
+              setSelectedAgent(agentType);
+            }}
             isRunning={isRunning}
             onRunBenchmark={handleRunBenchmark}
             runningBenchmarkIds={runningBenchmarkIds}

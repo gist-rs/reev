@@ -8,6 +8,7 @@ export function BenchmarkGrid({
   className = "",
   refreshTrigger = 0,
   onBenchmarkSelect,
+  onCardClick,
   isRunning = false,
   onRunBenchmark,
   runningBenchmarkIds = [],
@@ -57,6 +58,7 @@ export function BenchmarkGrid({
                       onBenchmarkSelect(result.benchmark_id, agentType);
                     }
                   }}
+                  onCardClick={onCardClick}
                 />
               );
             })}
