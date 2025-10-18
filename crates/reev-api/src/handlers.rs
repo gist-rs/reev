@@ -560,6 +560,22 @@ pub async fn get_transaction_logs(
             );
 
             // Parse the current trace to extract transaction logs
+            info!(
+                "Attempting to parse trace for execution: {} (trace length: {} chars)",
+                _execution_id,
+                execution.trace.len()
+            );
+
+            // Log first 200 chars of trace for debugging
+            if !execution.trace.is_empty() {
+                let trace_preview = if execution.trace.len() > 200 {
+                    format!("{}...", &execution.trace[..200])
+                } else {
+                    execution.trace.clone()
+                };
+                info!("Trace preview: {}", trace_preview);
+            }
+
             if let Ok(trace) =
                 serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace)
             {
@@ -640,7 +656,25 @@ pub async fn get_transaction_logs(
                 )
                     .into_response();
             } else {
-                warn!("Failed to parse trace for execution: {}", _execution_id);
+                warn!(
+                    "Failed to parse trace for execution: {} - JSON parsing error, trace length: {}",
+                    _execution_id,
+                    execution.trace.len()
+                );
+                // Log more details about the trace content
+                if execution.trace.trim().is_empty() {
+                    warn!("Trace is empty for execution: {}", _execution_id);
+                } else if execution.trace.starts_with('{') {
+                    warn!(
+                        "Trace appears to be JSON but failed to parse for execution: {}",
+                        _execution_id
+                    );
+                } else {
+                    warn!(
+                        "Trace does not appear to be valid JSON for execution: {}",
+                        _execution_id
+                    );
+                }
             }
         }
     }
