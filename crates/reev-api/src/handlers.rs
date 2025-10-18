@@ -581,8 +581,8 @@ pub async fn get_transaction_logs(
                 } else {
                     "📝 No transaction logs available".to_string()
                 }
-            } else {
-                // Try to parse and extract transaction logs
+            } else if execution.trace.starts_with('{') {
+                // Raw JSON trace - try to parse and extract transaction logs
                 match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace) {
                     Ok(trace) => {
                         // Create a TestResult from the trace to use existing extraction logic
@@ -636,7 +636,7 @@ pub async fn get_transaction_logs(
                         }
                     }
                     Err(_) => {
-                        // Failed to parse - show raw trace or error message
+                        // Failed to parse JSON - show raw trace or error message
                         if is_running {
                             format!("🔄 Processing transaction logs...\n\n⚠️ Unable to parse execution trace - still running\n\nRaw trace preview:\n{}",
                                 &execution.trace[..execution.trace.len().min(500)])
@@ -648,6 +648,16 @@ pub async fn get_transaction_logs(
                         }
                     }
                 }
+            } else {
+                // Already formatted ASCII tree trace - use it directly
+                let mut logs = execution.trace.clone();
+
+                // Add status indicator for running executions
+                if is_running && !logs.trim().is_empty() {
+                    logs.push_str("\n\n⏳ Execution in progress - logs may be incomplete");
+                }
+
+                logs
             };
 
             info!(
