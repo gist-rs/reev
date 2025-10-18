@@ -476,9 +476,10 @@ fn get_program_name(program_id: &str) -> Option<String> {
         "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" => Some("Jupiter Router".to_string()),
         "TessVdML9pBGgG9yGks7o4HewRaXVAMuoVj4x83GLQH" => Some("Tessellate".to_string()),
         "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM" => Some("Serum DEX".to_string()),
+        "9H6tua7jkLhdm3w8BvgpTn5LZNU7g4ZynDmCiNN3q6Rp" => Some("Raydium DEX".to_string()),
         "SysvarRent111111111111111111111111111111111" => Some("Sysvar Rent".to_string()),
         "SysvarC1ock11111111111111111111111111111111" => Some("Sysvar Clock".to_string()),
-        _ => None,
+        _ => Some(format!("Program {}", &program_id[..8])), // Show first 8 chars for unknown programs
     }
 }
 
@@ -520,6 +521,7 @@ fn get_program_icon(program_id: &Option<String>) -> &'static str {
         Some("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4") => "🚀",
         Some("TessVdML9pBGgG9yGks7o4HewRaXVAMuoVj4x83GLQH") => "🔸",
         Some("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM") => "📈",
+        Some("9H6tua7jkLhdm3w8BvgpTn5LZNU7g4ZynDmCiNN3q6Rp") => "🦐",
         Some(_) => "📄",
         None => "❓",
     }
@@ -556,21 +558,51 @@ pub fn generate_transaction_logs_yaml(logs: &[String]) -> Result<String> {
 fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
     let mut children = Vec::new();
 
-    // Group logs by level for better organization
-    let mut level_groups: std::collections::HashMap<usize, Vec<&LogEntry>> =
-        std::collections::HashMap::new();
-    for entry in parsed_logs {
-        level_groups.entry(entry.level).or_default().push(entry);
-    }
+    // Create a hierarchical tree based on actual transaction flow
+    let mut i = 0;
+    while i < parsed_logs.len() {
+        let entry = &parsed_logs[i];
 
-    // Sort levels
-    let mut levels: Vec<_> = level_groups.keys().cloned().collect();
-    levels.sort();
+        // Create node for current entry
+        let entry_node = create_entry_node(entry, false)?;
 
-    for &level in &levels {
-        if let Some(entries) = level_groups.get(&level) {
-            let level_node = create_level_node(level, entries)?;
-            children.push(level_node);
+        // Find and add children (entries with higher level that come immediately after)
+        let mut child_nodes = Vec::new();
+        let mut j = i + 1;
+
+        while j < parsed_logs.len() && parsed_logs[j].level > entry.level {
+            let child_entry = &parsed_logs[j];
+            let child_node = create_entry_node(child_entry, false)?;
+            child_nodes.push(child_node);
+            j += 1;
+        }
+
+        // If we found children, create a parent node with children
+        if !child_nodes.is_empty() {
+            let mut all_children = Vec::new();
+            all_children.push(entry_node);
+            all_children.extend(child_nodes);
+
+            // Create a combined node showing the program and its operations
+            let program_name = entry
+                .program_name
+                .as_deref()
+                .or_else(|| entry.program_id.as_ref().map(|id| &id[..8]))
+                .unwrap_or("Unknown");
+
+            let icon = get_program_icon(&entry.program_id);
+            let header = format!(
+                "{} {} ({})",
+                icon,
+                program_name,
+                entry.program_id.as_deref().unwrap_or("unknown")
+            );
+
+            children.push(TreeNode::with_child_nodes(header, all_children.into_iter()));
+            i = j; // Skip the children we processed
+        } else {
+            children.push(entry_node);
+            i += 1;
         }
     }
 
@@ -580,63 +612,63 @@ fn create_tree_from_logs(parsed_logs: &[LogEntry]) -> Result<TreeNode<String>> {
     ))
 }
 
-/// Create a tree node for a specific level
-fn create_level_node(level: usize, entries: &[&LogEntry]) -> Result<TreeNode<String>> {
-    let level_name = format!("Level {level}");
-    let mut children = Vec::new();
-
-    for (entry_idx, &entry) in entries.iter().enumerate() {
-        let entry_node = create_entry_node(entry, entry_idx == entries.len() - 1)?;
-        children.push(entry_node);
-    }
-
-    Ok(TreeNode::with_child_nodes(level_name, children.into_iter()))
-}
-
 /// Create a tree node for a log entry
 fn create_entry_node(entry: &LogEntry, _is_last: bool) -> Result<TreeNode<String>> {
-    if let Some(program_name) = &entry.program_name {
-        let icon = get_program_icon(&entry.program_id);
+    let program_display = entry
+        .program_name
+        .clone()
+        .or_else(|| {
+            entry
+                .program_id
+                .as_ref()
+                .map(|id| format!("Program {}...", &id[..8]))
+        })
+        .unwrap_or_else(|| "Unknown Program".to_string());
 
-        if entry.is_success {
-            let content = if let Some(cu) = entry.compute_units {
-                format!("✅ {program_name} ({cu} CU)")
-            } else {
-                format!("✅ {program_name}")
-            };
-            Ok(TreeNode::new(content))
+    let icon = get_program_icon(&entry.program_id);
+
+    // Create main content with status and compute units
+    let main_content = if entry.is_success {
+        if let Some(cu) = entry.compute_units {
+            format!("✅ {program_display} ({cu} CU)")
         } else {
-            let main_content = format!(
-                "{} {} ({})",
-                icon,
-                program_name,
-                entry.program_id.as_deref().unwrap_or("unknown")
-            );
-
-            let mut children = Vec::new();
-
-            // Add details as children
-            if let Some(instruction) = &entry.instruction {
-                children.push(TreeNode::new(format!("📋 {instruction}")));
-            }
-            if let Some(log_msg) = &entry.log_message {
-                children.push(TreeNode::new(format!("📝 {log_msg}")));
-            }
-            if let Some(return_data) = &entry.return_data {
-                children.push(TreeNode::new(format!("💾 {return_data}")));
-            }
-
-            if children.is_empty() {
-                Ok(TreeNode::new(main_content))
-            } else {
-                Ok(TreeNode::with_child_nodes(
-                    main_content,
-                    children.into_iter(),
-                ))
-            }
+            format!("✅ {program_display}")
         }
     } else {
-        Ok(TreeNode::new("Unknown Entry".to_string()))
+        format!(
+            "{} {} ({})",
+            icon,
+            program_display,
+            entry.program_id.as_deref().unwrap_or("unknown")
+        )
+    };
+
+    let mut children = Vec::new();
+
+    // Add details as children
+    if let Some(instruction) = &entry.instruction {
+        children.push(TreeNode::new(format!("📋 {instruction}")));
+    }
+    if let Some(log_msg) = &entry.log_message {
+        children.push(TreeNode::new(format!("📝 {log_msg}")));
+    }
+    if let Some(return_data) = &entry.return_data {
+        children.push(TreeNode::new(format!("💾 {return_data}")));
+    }
+    if !entry.is_success && entry.compute_units.is_some() {
+        children.push(TreeNode::new(format!(
+            "⚡ {} CU",
+            entry.compute_units.unwrap()
+        )));
+    }
+
+    if children.is_empty() {
+        Ok(TreeNode::new(main_content))
+    } else {
+        Ok(TreeNode::with_child_nodes(
+            main_content,
+            children.into_iter(),
+        ))
     }
 }
 
