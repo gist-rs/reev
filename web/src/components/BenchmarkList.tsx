@@ -563,9 +563,20 @@ export function BenchmarkList({
                     : 0;
               const isSelected = selectedBenchmark === benchmark.id;
 
+              // Find if any benchmark is currently running
+              const runningBenchmark = Array.from(
+                runningBenchmarks.keys(),
+              ).find((benchmarkId) => {
+                const execution = executions.get(benchmarkId);
+                return execution?.status === ExecutionStatus.RUNNING;
+              });
+
               const isExpanded =
-                expandedBenchmark === benchmark.id ||
-                status === ExecutionStatus.RUNNING;
+                status === ExecutionStatus.RUNNING
+                  ? true // Always expand running benchmark
+                  : runningBenchmark
+                    ? false // Collapse all others when something is running
+                    : expandedBenchmark === benchmark.id; // Normal expansion logic when nothing is running
 
               return (
                 <div
