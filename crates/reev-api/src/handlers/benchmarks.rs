@@ -9,6 +9,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use chrono;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -188,11 +189,164 @@ pub async fn get_execution_status(
     State(state): State<ApiState>,
     Path((_benchmark_id, execution_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    let executions = state.executions.lock().await;
+    // First check in-memory executions (for running/recent executions)
+    {
+        let executions = state.executions.lock().await;
+        if let Some(execution) = executions.get(&execution_id) {
+            return Json(execution.clone()).into_response();
+        }
+    }
 
-    match executions.get(&execution_id) {
-        Some(execution) => Json(execution.clone()).into_response(),
-        None => (StatusCode::NOT_FOUND, "Execution not found").into_response(),
+    // If not in memory, try to load from database
+    // Look for session logs with execution_id as session_id
+    match state.db.get_session_log(&execution_id).await {
+        Ok(Some(log_content)) => {
+            // Parse the flow log and format it nicely
+            match serde_json::from_str::<reev_flow::FlowLog>(&log_content) {
+                Ok(flow_log) => {
+                    // Format the flow log as a readable trace
+                    let mut formatted_trace = String::new();
+
+                    // Add prompt from first event if available
+                    if let Some(event) = flow_log.events.first() {
+                        if let Some(prompt) = &event.content.data.get("prompt") {
+                            formatted_trace.push_str(&format!("📝 Prompt: {}\n\n", prompt));
+                        }
+                    }
+
+                    // Add steps - format all events
+                    for (i, event) in flow_log.events.iter().enumerate() {
+                        match event.event_type {
+                            reev_flow::FlowEventType::BenchmarkStateChange => {
+                                formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
+                                if let Some(action) = &event.content.data.get("action") {
+                                    formatted_trace
+                                        .push_str(&format!("   ├─ ACTION: {}\n", action));
+                                }
+                                if let Some(observation) = &event.content.data.get("observation") {
+                                    formatted_trace
+                                        .push_str(&format!("   └─ OBSERVATION: {}\n", observation));
+                                }
+                                formatted_trace.push('\n');
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Add final result
+                    if let Some(result) = &flow_log.final_result {
+                        formatted_trace.push_str(&format!(
+                            "✅ Execution completed - Score: {:.1}%\n",
+                            result.score * 100.0
+                        ));
+                    }
+
+                    // Extract benchmark_id from the flow log
+                    let benchmark_id = flow_log.benchmark_id.clone();
+
+                    let execution_state = ExecutionState {
+                        id: execution_id,
+                        benchmark_id,
+                        agent: flow_log.agent_type,
+                        status: if flow_log
+                            .final_result
+                            .as_ref()
+                            .map(|r| r.success)
+                            .unwrap_or(false)
+                        {
+                            ExecutionStatus::Completed
+                        } else {
+                            ExecutionStatus::Failed
+                        },
+                        progress: 100,
+                        start_time: chrono::DateTime::from_timestamp(
+                            flow_log
+                                .start_time
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs() as i64,
+                            0,
+                        )
+                        .unwrap_or_else(chrono::Utc::now),
+                        end_time: flow_log.end_time.map(|et| {
+                            chrono::DateTime::from_timestamp(
+                                et.duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs() as i64,
+                                0,
+                            )
+                            .unwrap_or_else(chrono::Utc::now)
+                        }),
+                        trace: formatted_trace,
+                        logs: String::new(),
+                        error: None,
+                    };
+
+                    Json(execution_state).into_response()
+                }
+                Err(e) => {
+                    error!("Failed to parse flow log JSON: {}", e);
+                    // Return raw content as fallback
+                    let execution_state = ExecutionState {
+                        id: execution_id,
+                        benchmark_id: "unknown".to_string(),
+                        agent: "deterministic".to_string(),
+                        status: ExecutionStatus::Completed,
+                        progress: 100,
+                        start_time: chrono::Utc::now(),
+                        end_time: Some(chrono::Utc::now()),
+                        trace: format!("Error parsing flow log: {}\nRaw data:\n{}", e, log_content),
+                        logs: String::new(),
+                        error: Some(format!("Failed to parse flow log: {}", e)),
+                    };
+                    Json(execution_state).into_response()
+                }
+            }
+        }
+        Ok(None) => {
+            // Try to find by looking for agent_performance records
+            match state
+                .db
+                .get_agent_performance(&reev_db::QueryFilter::new())
+                .await
+            {
+                Ok(performances) => {
+                    for perf in performances {
+                        if perf.session_id == execution_id {
+                            let execution_state = ExecutionState {
+                                id: execution_id,
+                                benchmark_id: perf.benchmark_id,
+                                agent: perf.agent_type,
+                                status: ExecutionStatus::Completed,
+                                progress: 100,
+                                start_time: chrono::Utc::now(),
+                                end_time: Some(chrono::Utc::now()),
+                                trace: format!(
+                                    "Benchmark completed with score: {:.1}%",
+                                    perf.score * 100.0
+                                ),
+                                logs: String::new(),
+                                error: None,
+                            };
+                            return Json(execution_state).into_response();
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to query agent performance: {}", e);
+                }
+            }
+
+            (StatusCode::NOT_FOUND, "Execution not found in database").into_response()
+        }
+        Err(e) => {
+            error!("Failed to get session log from database: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {}", e),
+            )
+                .into_response()
+        }
     }
 }
 
