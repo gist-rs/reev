@@ -58,34 +58,321 @@ pub async fn get_ascii_tree_direct(
                                         .into_response();
                                 }
 
-                                // For now, return the raw log content
-                                // TODO: Implement proper ASCII tree rendering
-                                return (
-                                    StatusCode::OK,
-                                    [("Content-Type", "text/plain")],
-                                    format!(
-                                        "📊 Execution Trace:\n\n{}",
-                                        &log_content[..log_content.len().min(1000)]
-                                    ),
-                                )
-                                    .into_response();
+                                // Parse the flow log and format it as readable trace
+                                match serde_json::from_str::<reev_flow::FlowLog>(&log_content) {
+                                    Ok(flow_log) => {
+                                        // Format the flow log as a readable trace
+                                        let mut formatted_trace = String::new();
+
+                                        // Add prompt
+                                        if !flow_log.events.is_empty() {
+                                            // Try to extract prompt from first event or use the prompt from the parsed data
+                                            if let Some(parsed) =
+                                                log_content.split("\"prompt\":\"").nth(1)
+                                            {
+                                                if let Some(prompt) = parsed.split("\"").next() {
+                                                    formatted_trace.push_str(&format!(
+                                                        "📝 Prompt: {}\n\n",
+                                                        prompt
+                                                    ));
+                                                }
+                                            }
+                                        }
+
+                                        // Add steps from parsed data
+                                        if let Some(steps_start) = log_content.find("\"steps\":[") {
+                                            if let Some(steps_end) =
+                                                log_content[steps_start + 10..].find("]")
+                                            {
+                                                let steps_str = &log_content[steps_start + 10
+                                                    ..steps_start + 10 + steps_end];
+                                                if let Ok(steps) =
+                                                    serde_json::from_str::<serde_json::Value>(
+                                                        format!("[{}]", steps_str).as_str(),
+                                                    )
+                                                {
+                                                    if let Some(steps_array) = steps.as_array() {
+                                                        for (i, step) in
+                                                            steps_array.iter().enumerate()
+                                                        {
+                                                            formatted_trace.push_str(&format!(
+                                                                "✓ Step {}\n",
+                                                                i + 1
+                                                            ));
+
+                                                            if let Some(action) = step.get("action")
+                                                            {
+                                                                if let Some(action_array) =
+                                                                    action.as_array()
+                                                                {
+                                                                    formatted_trace.push_str(
+                                                                        "   ├─ ACTION:\n",
+                                                                    );
+                                                                    for action_item in action_array
+                                                                    {
+                                                                        if let Some(program_id) =
+                                                                            action_item
+                                                                                .get("program_id")
+                                                                        {
+                                                                            formatted_trace.push_str(&format!("      Program ID: {}\n", program_id));
+                                                                        }
+                                                                        if let Some(accounts) =
+                                                                            action_item
+                                                                                .get("accounts")
+                                                                        {
+                                                                            if let Some(
+                                                                                accounts_array,
+                                                                            ) =
+                                                                                accounts.as_array()
+                                                                            {
+                                                                                formatted_trace.push_str("      Accounts:\n");
+                                                                                for (
+                                                                                    idx,
+                                                                                    account,
+                                                                                ) in
+                                                                                    accounts_array
+                                                                                        .iter()
+                                                                                        .enumerate()
+                                                                                {
+                                                                                    if let Some(
+                                                                                        pubkey,
+                                                                                    ) = account
+                                                                                        .get(
+                                                                                        "pubkey",
+                                                                                    ) {
+                                                                                        let is_signer = account.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                                                        let is_writable = account.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                                                        let icon = if is_signer { "🖋️" } else { "🖍️" };
+                                                                                        let arrow = if is_writable { "➕" } else { "➖" };
+                                                                                        formatted_trace.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        if let Some(data) =
+                                                                            action_item.get("data")
+                                                                        {
+                                                                            formatted_trace.push_str(&format!("      Data (Base58): {}\n", data));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            if let Some(observation) =
+                                                                step.get("observation")
+                                                            {
+                                                                formatted_trace.push_str(
+                                                                    "   └─ OBSERVATION: ",
+                                                                );
+                                                                if let Some(status) = observation
+                                                                    .get("last_transaction_status")
+                                                                {
+                                                                    formatted_trace.push_str(
+                                                                        &format!("{}\n", status),
+                                                                    );
+                                                                }
+                                                                if let Some(error) = observation
+                                                                    .get("last_transaction_error")
+                                                                {
+                                                                    if !error
+                                                                        .as_str()
+                                                                        .unwrap_or("")
+                                                                        .is_empty()
+                                                                    {
+                                                                        formatted_trace.push_str(
+                                                                            &format!(
+                                                                                "   Error: {}\n",
+                                                                                error
+                                                                            ),
+                                                                        );
+                                                                    }
+                                                                }
+                                                            }
+                                                            formatted_trace.push('\n');
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Add final result if available
+                                        if let Some(final_result) = flow_log.final_result {
+                                            formatted_trace.push_str(&format!(
+                                                "✅ Execution completed - Score: {:.1}%\n",
+                                                final_result.score * 100.0
+                                            ));
+                                        }
+
+                                        (
+                                            StatusCode::OK,
+                                            [("Content-Type", "text/plain")],
+                                            formatted_trace,
+                                        )
+                                            .into_response()
+                                    }
+                                    Err(_) => {
+                                        // Fallback: try to parse as simple JSON structure
+                                        if log_content.trim().starts_with("{") {
+                                            if let Ok(parsed) =
+                                                serde_json::from_str::<serde_json::Value>(
+                                                    &log_content,
+                                                )
+                                            {
+                                                let mut formatted = String::new();
+
+                                                if let Some(prompt) =
+                                                    parsed.get("prompt").and_then(|v| v.as_str())
+                                                {
+                                                    formatted.push_str(&format!(
+                                                        "📝 Prompt: {}\n\n",
+                                                        prompt
+                                                    ));
+                                                }
+
+                                                if let Some(steps) =
+                                                    parsed.get("steps").and_then(|v| v.as_array())
+                                                {
+                                                    for (i, step) in steps.iter().enumerate() {
+                                                        formatted.push_str(&format!(
+                                                            "✓ Step {}\n",
+                                                            i + 1
+                                                        ));
+
+                                                        if let Some(action) = step.get("action") {
+                                                            formatted.push_str("   ├─ ACTION:\n");
+                                                            if let Some(action_array) =
+                                                                action.as_array()
+                                                            {
+                                                                for action_item in action_array {
+                                                                    if let Some(program_id) =
+                                                                        action_item
+                                                                            .get("program_id")
+                                                                    {
+                                                                        formatted.push_str(&format!("      Program ID: {}\n", program_id));
+                                                                    }
+                                                                    if let Some(accounts) =
+                                                                        action_item.get("accounts")
+                                                                    {
+                                                                        if let Some(
+                                                                            accounts_array,
+                                                                        ) = accounts.as_array()
+                                                                        {
+                                                                            formatted.push_str(
+                                                                                "      Accounts:\n",
+                                                                            );
+                                                                            for (idx, account) in
+                                                                                accounts_array
+                                                                                    .iter()
+                                                                                    .enumerate()
+                                                                            {
+                                                                                if let Some(
+                                                                                    pubkey,
+                                                                                ) = account
+                                                                                    .get("pubkey")
+                                                                                {
+                                                                                    let is_signer = account.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                                                    let is_writable = account.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                                                    let icon =
+                                                                                        if is_signer
+                                                                                        {
+                                                                                            "🖋️"
+                                                                                        } else {
+                                                                                            "🖍️"
+                                                                                        };
+                                                                                    let arrow = if is_writable { "➕" } else { "➖" };
+                                                                                    formatted.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    if let Some(data) =
+                                                                        action_item.get("data")
+                                                                    {
+                                                                        formatted.push_str(&format!("      Data (Base58): {}\n", data));
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        if let Some(observation) =
+                                                            step.get("observation")
+                                                        {
+                                                            formatted
+                                                                .push_str("   └─ OBSERVATION: ");
+                                                            if let Some(status) = observation
+                                                                .get("last_transaction_status")
+                                                            {
+                                                                formatted.push_str(&format!(
+                                                                    "{}\n",
+                                                                    status
+                                                                ));
+                                                            }
+                                                            if let Some(error) = observation
+                                                                .get("last_transaction_error")
+                                                            {
+                                                                if !error
+                                                                    .as_str()
+                                                                    .unwrap_or("")
+                                                                    .is_empty()
+                                                                {
+                                                                    formatted.push_str(&format!(
+                                                                        "   Error: {}\n",
+                                                                        error
+                                                                    ));
+                                                                }
+                                                            }
+                                                        }
+                                                        formatted.push('\n');
+                                                    }
+                                                }
+
+                                                (
+                                                    StatusCode::OK,
+                                                    [("Content-Type", "text/plain")],
+                                                    formatted,
+                                                )
+                                                    .into_response()
+                                            } else {
+                                                // If all parsing fails, return raw content
+                                                (
+                                                    StatusCode::OK,
+                                                    [("Content-Type", "text/plain")],
+                                                    format!(
+                                                        "📊 Execution Trace:\n\n{}",
+                                                        &log_content[..log_content.len().min(1000)]
+                                                    ),
+                                                )
+                                                    .into_response()
+                                            }
+                                        } else {
+                                            // Not JSON, return as-is
+                                            (
+                                                StatusCode::OK,
+                                                [("Content-Type", "text/plain")],
+                                                format!(
+                                                    "📊 Execution Trace:\n\n{}",
+                                                    &log_content[..log_content.len().min(1000)]
+                                                ),
+                                            )
+                                                .into_response()
+                                        }
+                                    }
+                                }
                             }
-                            Ok(None) => {
-                                return (
-                                    StatusCode::OK,
-                                    [("Content-Type", "text/plain")],
-                                    "📝 No execution data available".to_string(),
-                                )
-                                    .into_response();
-                            }
+                            Ok(None) => (
+                                StatusCode::OK,
+                                [("Content-Type", "text/plain")],
+                                "📝 No execution data available".to_string(),
+                            )
+                                .into_response(),
                             Err(e) => {
                                 warn!("Failed to get session log: {}", e);
-                                return (
+                                (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve execution data".to_string(),
                                 )
-                                    .into_response();
+                                    .into_response()
                             }
                         }
                     }
@@ -102,34 +389,149 @@ pub async fn get_ascii_tree_direct(
                                         .into_response();
                                 }
 
-                                // For now, return the raw log content
-                                // TODO: Implement proper ASCII tree rendering for failed executions
-                                return (
-                                    StatusCode::OK,
-                                    [("Content-Type", "text/plain")],
-                                    format!(
-                                        "❌ Execution Failed:\n\n{}",
-                                        &log_content[..log_content.len().min(1000)]
-                                    ),
-                                )
-                                    .into_response();
+                                // Parse and format even for failed executions
+                                match serde_json::from_str::<serde_json::Value>(&log_content) {
+                                    Ok(parsed) => {
+                                        let mut formatted =
+                                            String::from("❌ Execution Failed:\n\n");
+
+                                        if let Some(prompt) =
+                                            parsed.get("prompt").and_then(|v| v.as_str())
+                                        {
+                                            formatted
+                                                .push_str(&format!("📝 Prompt: {}\n\n", prompt));
+                                        }
+
+                                        if let Some(steps) =
+                                            parsed.get("steps").and_then(|v| v.as_array())
+                                        {
+                                            for (i, step) in steps.iter().enumerate() {
+                                                formatted.push_str(&format!("✓ Step {}\n", i + 1));
+
+                                                if let Some(action) = step.get("action") {
+                                                    formatted.push_str("   ├─ ACTION:\n");
+                                                    if let Some(action_array) = action.as_array() {
+                                                        for action_item in action_array {
+                                                            if let Some(program_id) =
+                                                                action_item.get("program_id")
+                                                            {
+                                                                formatted.push_str(&format!(
+                                                                    "      Program ID: {}\n",
+                                                                    program_id
+                                                                ));
+                                                            }
+                                                            if let Some(accounts) =
+                                                                action_item.get("accounts")
+                                                            {
+                                                                if let Some(accounts_array) =
+                                                                    accounts.as_array()
+                                                                {
+                                                                    formatted.push_str(
+                                                                        "      Accounts:\n",
+                                                                    );
+                                                                    for (idx, account) in
+                                                                        accounts_array
+                                                                            .iter()
+                                                                            .enumerate()
+                                                                    {
+                                                                        if let Some(pubkey) =
+                                                                            account.get("pubkey")
+                                                                        {
+                                                                            let is_signer = account
+                                                                                .get("is_signer")
+                                                                                .and_then(|v| {
+                                                                                    v.as_bool()
+                                                                                })
+                                                                                .unwrap_or(false);
+                                                                            let is_writable = account.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                                            let icon = if is_signer
+                                                                            {
+                                                                                "🖋️"
+                                                                            } else {
+                                                                                "🖍️"
+                                                                            };
+                                                                            let arrow =
+                                                                                if is_writable {
+                                                                                    "➕"
+                                                                                } else {
+                                                                                    "➖"
+                                                                                };
+                                                                            formatted.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                            if let Some(data) =
+                                                                action_item.get("data")
+                                                            {
+                                                                formatted.push_str(&format!(
+                                                                    "      Data (Base58): {}\n",
+                                                                    data
+                                                                ));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                if let Some(observation) = step.get("observation") {
+                                                    formatted.push_str("   └─ OBSERVATION: ");
+                                                    if let Some(status) =
+                                                        observation.get("last_transaction_status")
+                                                    {
+                                                        formatted
+                                                            .push_str(&format!("{}\n", status));
+                                                    }
+                                                    if let Some(error) =
+                                                        observation.get("last_transaction_error")
+                                                    {
+                                                        if !error.as_str().unwrap_or("").is_empty()
+                                                        {
+                                                            formatted.push_str(&format!(
+                                                                "   Error: {}\n",
+                                                                error
+                                                            ));
+                                                        }
+                                                    }
+                                                }
+                                                formatted.push('\n');
+                                            }
+                                        }
+
+                                        (
+                                            StatusCode::OK,
+                                            [("Content-Type", "text/plain")],
+                                            formatted,
+                                        )
+                                            .into_response()
+                                    }
+                                    Err(_) => {
+                                        // If parsing fails, return raw content
+                                        (
+                                            StatusCode::OK,
+                                            [("Content-Type", "text/plain")],
+                                            format!(
+                                                "❌ Execution Failed:\n\n{}",
+                                                &log_content[..log_content.len().min(1000)]
+                                            ),
+                                        )
+                                            .into_response()
+                                    }
+                                }
                             }
-                            Ok(None) => {
-                                return (
-                                    StatusCode::OK,
-                                    [("Content-Type", "text/plain")],
-                                    "❌ Execution failed - No details available".to_string(),
-                                )
-                                    .into_response();
-                            }
+                            Ok(None) => (
+                                StatusCode::OK,
+                                [("Content-Type", "text/plain")],
+                                "❌ Execution failed - No details available".to_string(),
+                            )
+                                .into_response(),
                             Err(e) => {
                                 warn!("Failed to get session log: {}", e);
-                                return (
+                                (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve error details".to_string(),
                                 )
-                                    .into_response();
+                                    .into_response()
                             }
                         }
                     }

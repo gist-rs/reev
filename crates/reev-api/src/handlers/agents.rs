@@ -128,19 +128,19 @@ pub async fn debug_agent_performance_raw(State(state): State<ApiState>) -> impl 
     match state.db.get_agent_performance(&filter).await {
         Ok(performances) => {
             info!("DEBUG: Got {} raw performance records", performances.len());
-            return Json::<serde_json::Value>(serde_json::json!({
+            Json::<serde_json::Value>(serde_json::json!({
                 "count": performances.len(),
                 "data": performances
             }))
-            .into_response();
+            .into_response()
         }
         Err(e) => {
             error!("DEBUG: Failed to get raw agent performance: {}", e);
-            return Json::<serde_json::Value>(serde_json::json!({
+            Json::<serde_json::Value>(serde_json::json!({
                 "error": "Failed to get raw agent performance",
                 "details": e.to_string()
             }))
-            .into_response();
+            .into_response()
         }
     }
 }

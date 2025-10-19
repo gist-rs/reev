@@ -210,26 +210,23 @@ pub async fn get_execution_status(
                     // Add prompt from first event if available
                     if let Some(event) = flow_log.events.first() {
                         if let Some(prompt) = &event.content.data.get("prompt") {
-                            formatted_trace.push_str(&format!("📝 Prompt: {}\n\n", prompt));
+                            formatted_trace.push_str(&format!("📝 Prompt: {prompt}\n\n"));
                         }
                     }
 
                     // Add steps - format all events
                     for (i, event) in flow_log.events.iter().enumerate() {
-                        match event.event_type {
-                            reev_flow::FlowEventType::BenchmarkStateChange => {
-                                formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
-                                if let Some(action) = &event.content.data.get("action") {
-                                    formatted_trace
-                                        .push_str(&format!("   ├─ ACTION: {}\n", action));
-                                }
-                                if let Some(observation) = &event.content.data.get("observation") {
-                                    formatted_trace
-                                        .push_str(&format!("   └─ OBSERVATION: {}\n", observation));
-                                }
-                                formatted_trace.push('\n');
+                        if let reev_flow::FlowEventType::BenchmarkStateChange = event.event_type {
+                            formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
+                            if let Some(action) = &event.content.data.get("action") {
+                                formatted_trace
+                                    .push_str(&format!("   ├─ ACTION: {action}\n"));
                             }
-                            _ => {}
+                            if let Some(observation) = &event.content.data.get("observation") {
+                                formatted_trace
+                                    .push_str(&format!("   └─ OBSERVATION: {observation}\n"));
+                            }
+                            formatted_trace.push('\n');
                         }
                     }
 
@@ -295,9 +292,9 @@ pub async fn get_execution_status(
                         progress: 100,
                         start_time: chrono::Utc::now(),
                         end_time: Some(chrono::Utc::now()),
-                        trace: format!("Error parsing flow log: {}\nRaw data:\n{}", e, log_content),
+                        trace: format!("Error parsing flow log: {e}\nRaw data:\n{log_content}"),
                         logs: String::new(),
-                        error: Some(format!("Failed to parse flow log: {}", e)),
+                        error: Some(format!("Failed to parse flow log: {e}")),
                     };
                     Json(execution_state).into_response()
                 }
@@ -343,7 +340,7 @@ pub async fn get_execution_status(
             error!("Failed to get session log from database: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Database error: {}", e),
+                format!("Database error: {e}"),
             )
                 .into_response()
         }
