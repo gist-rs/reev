@@ -93,23 +93,31 @@ impl DependencyManager {
         self.clear_log_files().await?;
         info!("Log files cleared");
 
+        // Start both services with small delays for staggered parallel startup
+        info!("Starting both services with staggered approach...");
+        let parallel_start = std::time::Instant::now();
+
         // Start reev-agent first
         info!("Starting reev-agent service...");
-        let agent_start = std::time::Instant::now();
         if let Err(e) = self.start_reev_agent().await {
             error!(error = %e, "Failed to start reev-agent");
             return Err(e);
         }
-        info!("reev-agent started in {:?}", agent_start.elapsed());
+        info!("reev-agent started");
 
-        // Start surfpool
+        // Start surfpool with a small delay to avoid resource contention
+        tokio::time::sleep(Duration::from_millis(200)).await;
         info!("Starting surfpool service...");
-        let surfpool_start = std::time::Instant::now();
         if let Err(e) = self.start_surfpool().await {
             error!(error = %e, "Failed to start surfpool");
             return Err(e);
         }
-        info!("surfpool started in {:?}", surfpool_start.elapsed());
+        info!("surfpool started");
+
+        info!(
+            "Both services started with staggered approach in {:?}",
+            parallel_start.elapsed()
+        );
 
         // No continuous monitoring needed - services will be checked individually
         info!(
