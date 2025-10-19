@@ -2,11 +2,7 @@ use anyhow::Result;
 use rig::{completion::Prompt, prelude::*, providers::openai::Client};
 use serde_json::json;
 use std::collections::HashMap;
-use std::fs::OpenOptions;
-use tracing::{info, warn, Level};
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt::layer, Layer};
+use tracing::{info, warn};
 
 use crate::{
     context::integration::ContextIntegration,
