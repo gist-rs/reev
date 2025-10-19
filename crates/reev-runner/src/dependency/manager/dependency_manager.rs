@@ -193,29 +193,21 @@ impl DependencyManager {
         .with_health_check_interval(Duration::from_secs(2));
 
         // Start the process
-        info!("Starting reev-agent process...");
-        let process_start = std::time::Instant::now();
+        debug!("Starting reev-agent process...");
         let _pid = self.process_manager.start_process(process_config).await?;
-        info!(
-            "reev-agent process started with PID {:?} in {:?}",
-            _pid,
-            process_start.elapsed()
-        );
+        debug!("reev-agent process started with PID {:?}", _pid);
 
         // Wait for health check with simple polling
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
         let timeout = self.config.startup_timeout;
-        info!(
-            "Waiting for reev-agent health check at {} (timeout: {:?})",
-            health_url, timeout
-        );
+        info!("Waiting for reev-agent to be healthy...");
 
         let mut check_count = 0;
         while start_time.elapsed() < timeout {
             check_count += 1;
             let result = self.health_checker.check_reev_agent(&health_url).await;
-            info!(
+            debug!(
                 "Health check attempt {} for reev-agent: {:?}",
                 check_count, result.status
             );
@@ -237,7 +229,7 @@ impl DependencyManager {
                 }
                 .into());
             }
-            info!("reev-agent not ready yet, waiting 2s before next health check...");
+            debug!("reev-agent not ready yet, waiting 2s before next health check...");
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
@@ -250,7 +242,7 @@ impl DependencyManager {
         let mut services = self.services.write().await;
         services.insert(dependency_type, service);
 
-        info!(port, "reev-agent service started successfully");
+        info!(port, "reev-agent is healthy and ready");
         Ok(())
     }
 
@@ -291,7 +283,7 @@ impl DependencyManager {
                 service: dependency_type.process_name().to_string(),
                 reason: e.to_string(),
             })?;
-        info!("surfpool binary ready in {:?}", binary_start.elapsed());
+        debug!("surfpool binary ready in {:?}", binary_start.elapsed());
 
         // Extract the path from the binary result
         let surfpool_path = match surfpool_binary {
@@ -334,29 +326,21 @@ impl DependencyManager {
         .with_health_check_interval(Duration::from_secs(2));
 
         // Start the process
-        info!("Starting surfpool process...");
-        let process_start = std::time::Instant::now();
+        debug!("Starting surfpool process...");
         let _pid = self.process_manager.start_process(process_config).await?;
-        info!(
-            "surfpool process started with PID {:?} in {:?}",
-            _pid,
-            process_start.elapsed()
-        );
+        debug!("surfpool process started with PID {:?}", _pid);
 
         // Wait for health check with shorter timeout and better error handling
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
         let timeout = Duration::from_secs(30); // Shorter timeout for faster startup
-        info!(
-            "Waiting for surfpool health check at {} (timeout: {:?})",
-            health_url, timeout
-        );
+        info!("Waiting for surfpool to be healthy...");
 
         let mut check_count = 0;
         while start_time.elapsed() < timeout {
             check_count += 1;
             let result = self.health_checker.check_surfpool(&health_url).await;
-            info!(
+            debug!(
                 "Health check attempt {} for surfpool: {:?}",
                 check_count, result.status
             );
@@ -375,7 +359,7 @@ impl DependencyManager {
                 );
                 break; // Don't fail the startup, just warn
             }
-            info!("surfpool not ready yet, waiting 2s before next health check...");
+            debug!("surfpool not ready yet, waiting 2s before next health check...");
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
@@ -392,7 +376,7 @@ impl DependencyManager {
         let mut services = self.services.write().await;
         services.insert(dependency_type, service);
 
-        info!(port, "surfpool service started successfully");
+        info!(port, "surfpool is healthy and ready");
         Ok(())
     }
 
