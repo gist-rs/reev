@@ -39,6 +39,7 @@ dotenvy = { workspace = true }
 async-trait = { workspace = true }
 solana-client = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-appender = "0.2"
 rig-core = { version = "0.20.0" }
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 hex = "0.4.3"

@@ -15,7 +15,7 @@ use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 /// The arguments for the account balance tool
 #[derive(Deserialize, Debug)]
@@ -128,13 +128,96 @@ impl Tool for AccountBalanceTool {
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[AccountBalanceTool] Starting tool execution with OpenTelemetry tracing");
+
+        // Prepare tool args for logging
+        let tool_args = json!({
+            "pubkey": args.pubkey,
+            "token_mint": args.token_mint,
+            "account_type": args.account_type
+        })
+        .to_string();
+
+        // Execute the tool and log both success and failure
+        let result = self.execute_balance_query_internal(&args).await;
+
+        match &result {
+            Ok(balance_info) => {
+                // Log successful tool call
+                if let Err(e) = crate::enhanced::openai::log_tool_call(
+                    Self::NAME,
+                    &tool_args,
+                    "success",
+                    Some(&format!(
+                        "account_exists: {}, sol_balance: {}",
+                        balance_info.sol_balance, balance_info.exists
+                    )),
+                    0, // Balance queries are typically fast
+                ) {
+                    warn!("[AccountBalanceTool] Failed to log tool call: {}", e);
+                }
+            }
+            Err(e) => {
+                // Log failed tool call
+                if let Err(log_err) = crate::enhanced::openai::log_tool_call(
+                    Self::NAME,
+                    &tool_args,
+                    "error",
+                    Some(&format!("error: {e}")),
+                    0,
+                ) {
+                    warn!(
+                        "[AccountBalanceTool] Failed to log tool call error: {}",
+                        log_err
+                    );
+                }
+            }
+        }
+
+        // Convert result to JSON response
+        match result {
+            Ok(balance_info) => {
+                let resolved_pubkey =
+                    if args.pubkey.contains("USER_") || args.pubkey.contains("RECIPIENT_") {
+                        self.key_map
+                            .get(&args.pubkey)
+                            .cloned()
+                            .unwrap_or_else(|| args.pubkey.clone())
+                    } else {
+                        args.pubkey.clone()
+                    };
+
+                let response = json!({
+                    "account": balance_info,
+                    "query_params": {
+                        "pubkey": args.pubkey,
+                        "resolved_pubkey": resolved_pubkey,
+                        "token_mint": args.token_mint,
+                        "account_type": args.account_type
+                    },
+                    "data_source": "surfpool_rpc",
+                    "note": "This is REAL account data from surfpool testnet, not simulated values"
+                });
+
+                Ok(serde_json::to_string_pretty(&response)?)
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl AccountBalanceTool {
+    /// Execute the actual balance query (internal helper function)
+    async fn execute_balance_query_internal(
+        &self,
+        args: &AccountBalanceArgs,
+    ) -> Result<AccountBalance, AccountBalanceError> {
         // Handle placeholder pubkeys by resolving them from key_map
         let resolved_pubkey = if args.pubkey.contains("USER_") || args.pubkey.contains("RECIPIENT_")
         {
             if let Some(resolved) = self.key_map.get(&args.pubkey) {
                 resolved.clone()
             } else {
-                return Err(AccountBalanceError::AccountNotFound(args.pubkey));
+                return Err(AccountBalanceError::AccountNotFound(args.pubkey.clone()));
             }
         } else {
             args.pubkey.clone()
@@ -148,24 +231,8 @@ impl Tool for AccountBalanceTool {
         let rpc_client = RpcClient::new("http://127.0.0.1:8899".to_string());
 
         // Query the account balance from surfpool
-        let balance_info = self
-            .query_real_account_balance(&rpc_client, &pubkey, &args)
-            .await?;
-
-        // Convert to JSON response
-        let response = json!({
-            "account": balance_info,
-            "query_params": {
-                "pubkey": args.pubkey,
-                "resolved_pubkey": resolved_pubkey,
-                "token_mint": args.token_mint,
-                "account_type": args.account_type
-            },
-            "data_source": "surfpool_rpc",
-            "note": "This is REAL account data from surfpool testnet, not simulated values"
-        });
-
-        Ok(serde_json::to_string_pretty(&response)?)
+        self.query_real_account_balance(&rpc_client, &pubkey, args)
+            .await
     }
 }
 

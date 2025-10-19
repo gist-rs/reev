@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
 #[derive(Serialize, Deserialize, Debug)]
@@ -202,6 +202,9 @@ impl Tool for SolTransferTool {
         })
         .to_string();
 
+        // Clone tool_args for logging after the move
+        let tool_args_for_logging = tool_args.clone();
+
         GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
             tool_name: Self::NAME.to_string(),
             tool_args,
@@ -214,6 +217,17 @@ impl Tool for SolTransferTool {
             error_message: None,
             depth: 1,
         });
+
+        // Log tool call to file
+        if let Err(e) = crate::enhanced::openai::log_tool_call(
+            Self::NAME,
+            &tool_args_for_logging,
+            "success",
+            Some(&format!("instruction_count: {}", raw_instructions.len())),
+            execution_time,
+        ) {
+            warn!("[SolTransferTool] Failed to log tool call: {}", e);
+        }
 
         // Serialize the Vec<RawInstruction> to a JSON string.
         let output = serde_json::to_string(&raw_instructions)?;

@@ -47,3 +47,4 @@ chrono = { version = "0.4", features = ["serde"] }
 serial_test = "3.0"
 dotenvy = "0.15"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
+tracing-appender = "0.2"

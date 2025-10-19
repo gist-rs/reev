@@ -3,9 +3,8 @@
 //! This tool provides AI agent access to Jupiter's swap functionality,
 //! acting as a thin wrapper around the protocol handler.
 
-use crate::flow::GlobalFlowTracker;
 use crate::protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
-use reev_lib::agent::ToolResultStatus;
+
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use reev_lib::constants::{sol_mint, usdc_mint};
 use rig::{completion::ToolDefinition, tool::Tool};
@@ -141,6 +140,67 @@ impl Tool for JupiterSwapTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[JupiterSwapTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
+
+        // Prepare tool args for logging
+        let tool_args = json!({
+            "user_pubkey": args.user_pubkey,
+            "input_mint": args.input_mint,
+            "output_mint": args.output_mint,
+            "amount": args.amount,
+            "slippage_bps": args.slippage_bps
+        })
+        .to_string();
+
+        // Execute the swap operation and log both success and failure
+        let result = self.execute_swap_internal(&args, start_time).await;
+
+        match &result {
+            Ok(output) => {
+                // Try to extract instruction count for logging
+                if let Ok(response) = serde_json::from_str::<serde_json::Value>(output) {
+                    if let Some(instruction_count) =
+                        response.get("transaction_count").and_then(|v| v.as_u64())
+                    {
+                        if let Err(e) = crate::enhanced::openai::log_tool_call(
+                            Self::NAME,
+                            &tool_args,
+                            "success",
+                            Some(&format!("instruction_count: {instruction_count}")),
+                            start_time.elapsed().as_millis() as u32,
+                        ) {
+                            warn!("[JupiterSwapTool] Failed to log tool call: {}", e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                // Log failed tool call
+                if let Err(log_err) = crate::enhanced::openai::log_tool_call(
+                    Self::NAME,
+                    &tool_args,
+                    "error",
+                    Some(&format!("error: {e}")),
+                    start_time.elapsed().as_millis() as u32,
+                ) {
+                    warn!(
+                        "[JupiterSwapTool] Failed to log tool call error: {}",
+                        log_err
+                    );
+                }
+            }
+        }
+
+        result
+    }
+}
+
+impl JupiterSwapTool {
+    /// Internal method to execute the swap logic
+    async fn execute_swap_internal(
+        &self,
+        args: &JupiterSwapArgs,
+        start_time: std::time::Instant,
+    ) -> Result<String, JupiterSwapError> {
         // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")
             || args.user_pubkey.starts_with("RECIPIENT_")
@@ -330,29 +390,6 @@ impl Tool for JupiterSwapTool {
             "[JupiterSwapTool] Generated {} instructions for {}→{} swap",
             instruction_count, args.input_mint, args.output_mint
         );
-
-        // Record flow data
-        let tool_args = json!({
-            "user_pubkey": args.user_pubkey,
-            "input_mint": args.input_mint,
-            "output_mint": args.output_mint,
-            "amount": args.amount,
-            "slippage_bps": args.slippage_bps
-        })
-        .to_string();
-
-        GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
-            tool_name: Self::NAME.to_string(),
-            tool_args,
-            execution_time_ms: total_execution_time,
-            result_status: ToolResultStatus::Success,
-            result_data: Some(json!({
-                "instruction_count": instruction_count,
-                "swap_response": swap_response
-            })),
-            error_message: None,
-            depth: 1, // Default depth
-        });
 
         Ok(output)
     }
