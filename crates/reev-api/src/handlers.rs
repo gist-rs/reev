@@ -932,7 +932,7 @@ pub async fn get_transaction_logs(
                             }
                         }
                     }
-                    Ok(Err(e)) => {
+                    Err(e) => {
                         warn!("Failed to get session log: {}", e);
                         info!("DEBUG: Returning error response for failed session log retrieval");
                         info!("DEBUG: Successfully created error JSON response");
