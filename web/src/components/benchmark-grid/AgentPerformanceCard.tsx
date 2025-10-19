@@ -98,10 +98,17 @@ export function AgentPerformanceCard({
         }}
         isRunning={isRunning}
         isSelected={isSelected}
-        disabled={isAnyRunning && !isRunning}
+        disabled={false} // Let the card handle the disabled state
       />
     );
   };
+
+  // Check if this card has any running benchmarks
+  const hasRunningBenchmark = useMemo(() => {
+    return Array.from(runningBenchmarks.keys()).some((benchmarkId) => {
+      return runningBenchmarkExecutions?.get(benchmarkId)?.agent === agentType;
+    });
+  }, [runningBenchmarks, runningBenchmarkExecutions, agentType]);
 
   const calculateDayPercentage = useCallback(
     (dayResults: BenchmarkResult[]) => {
@@ -276,11 +283,13 @@ export function AgentPerformanceCard({
   return (
     <div
       className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2 transition-shadow ${
-        isAnyRunning
-          ? "cursor-not-allowed opacity-75"
+        isAnyRunning && !hasRunningBenchmark
+          ? "cursor-not-allowed opacity-50"
           : "cursor-pointer hover:shadow-md"
       }`}
-      onClick={isAnyRunning ? undefined : handleCardClick}
+      onClick={
+        isAnyRunning && !hasRunningBenchmark ? undefined : handleCardClick
+      }
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">

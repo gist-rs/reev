@@ -44,7 +44,7 @@ export function BenchmarkBox({
     return "";
   };
 
-  const baseClasses = `${getColorClass(result)} ${disabled ? "cursor-not-allowed opacity-50 grayscale" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
+  const baseClasses = `${getColorClass(result)} ${disabled ? "cursor-not-allowed opacity-50" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,
