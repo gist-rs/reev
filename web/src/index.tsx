@@ -117,8 +117,7 @@ export function App() {
         setSelectedAgent(agentType);
       }
 
-      // Switch to Transaction Log tab when benchmark is selected
-      setShowTransactionLog(true);
+      // Keep current tab selection (don't auto-switch to Transaction Log)
 
       // Update current execution if we have one for this benchmark
       const execution = Array.from(executions.values()).find(
@@ -563,8 +562,7 @@ export function App() {
             refreshTrigger={performanceOverviewRefresh}
             onBenchmarkSelect={handleBenchmarkSelect}
             onCardClick={(agentType) => {
-              // Switch to Transaction Log tab when agent card is clicked
-              setShowTransactionLog(true);
+              // Keep current tab selection (don't auto-switch to Transaction Log)
               // Also update selected agent to match the clicked card
               setSelectedAgent(agentType);
             }}
