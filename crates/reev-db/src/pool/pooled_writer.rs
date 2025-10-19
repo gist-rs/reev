@@ -150,15 +150,33 @@ impl PooledDatabaseWriter {
     }
 
     pub async fn get_session_log(&self, session_id: &str) -> Result<Option<String>> {
-        // Temporarily return empty string to avoid Option handling issues
-        // TODO: Fix this properly by updating all callers to handle Option<String>
-        info!(
-            "get_session_log called for session_id: {} (returning empty for now)",
-            session_id
-        );
-        Ok(Some(
-            "📝 Session log temporarily disabled during connection pool migration".to_string(),
-        ))
+        let conn = self.get_connection().await?;
+        let writer = crate::DatabaseReader::from_connection(conn.connection().clone());
+
+        // Query the session_logs table directly - use 'content' column name to match original
+        let mut rows = writer
+            .connection()
+            .query(
+                "SELECT content FROM session_logs WHERE session_id = ?",
+                [session_id],
+            )
+            .await
+            .map_err(|e| crate::error::DatabaseError::query("Failed to retrieve session log", e))?;
+
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| crate::error::DatabaseError::query("Failed to iterate session log", e))?
+        {
+            let log_content: String = row.get(0).map_err(|e| {
+                crate::error::DatabaseError::generic_with_source("Failed to parse session log", e)
+            })?;
+
+            info!("Session log retrieved: {} chars", log_content.len());
+            Ok(Some(log_content))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn list_sessions(
@@ -314,7 +332,7 @@ impl PooledDatabaseWriter {
                 for perf in performances {
                     agent_data
                         .entry(perf.agent_type.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(perf);
                 }
 
