@@ -187,164 +187,203 @@ pub async fn run_benchmark(
 /// Get execution status
 pub async fn get_execution_status(
     State(state): State<ApiState>,
-    Path((_benchmark_id, execution_id)): Path<(String, String)>,
+    Path((benchmark_id, execution_id)): Path<(String, Option<String>)>,
 ) -> impl IntoResponse {
-    // First check in-memory executions (for running/recent executions)
-    {
+    // If execution_id is provided, check in-memory executions first
+    if let Some(ref exec_id) = execution_id {
         let executions = state.executions.lock().await;
-        if let Some(execution) = executions.get(&execution_id) {
+        if let Some(execution) = executions.get(exec_id) {
             return Json(execution.clone()).into_response();
         }
-    }
+        drop(executions);
 
-    // If not in memory, try to load from database
-    // Look for session logs with execution_id as session_id
-    match state.db.get_session_log(&execution_id).await {
-        Ok(Some(log_content)) => {
-            // Parse the flow log and format it nicely
-            match serde_json::from_str::<reev_flow::FlowLog>(&log_content) {
-                Ok(flow_log) => {
-                    // Format the flow log as a readable trace
-                    let mut formatted_trace = String::new();
-
-                    // Add prompt from first event if available
-                    if let Some(event) = flow_log.events.first() {
-                        if let Some(prompt) = &event.content.data.get("prompt") {
-                            formatted_trace.push_str(&format!("📝 Prompt: {prompt}\n\n"));
-                        }
-                    }
-
-                    // Add steps - format all events
-                    for (i, event) in flow_log.events.iter().enumerate() {
-                        if let reev_flow::FlowEventType::BenchmarkStateChange = event.event_type {
-                            formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
-                            if let Some(action) = &event.content.data.get("action") {
-                                formatted_trace
-                                    .push_str(&format!("   ├─ ACTION: {action}\n"));
-                            }
-                            if let Some(observation) = &event.content.data.get("observation") {
-                                formatted_trace
-                                    .push_str(&format!("   └─ OBSERVATION: {observation}\n"));
-                            }
-                            formatted_trace.push('\n');
-                        }
-                    }
-
-                    // Add final result
-                    if let Some(result) = &flow_log.final_result {
-                        formatted_trace.push_str(&format!(
-                            "✅ Execution completed - Score: {:.1}%\n",
-                            result.score * 100.0
-                        ));
-                    }
-
-                    // Extract benchmark_id from the flow log
-                    let benchmark_id = flow_log.benchmark_id.clone();
-
-                    let execution_state = ExecutionState {
-                        id: execution_id,
-                        benchmark_id,
-                        agent: flow_log.agent_type,
-                        status: if flow_log
-                            .final_result
-                            .as_ref()
-                            .map(|r| r.success)
-                            .unwrap_or(false)
-                        {
-                            ExecutionStatus::Completed
-                        } else {
-                            ExecutionStatus::Failed
-                        },
-                        progress: 100,
-                        start_time: chrono::DateTime::from_timestamp(
-                            flow_log
-                                .start_time
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs() as i64,
-                            0,
+        // If not in memory, try to load from database with the specific execution_id
+        match state.db.get_session_log(exec_id).await {
+            Ok(Some(log_content)) => {
+                // Parse and format the execution trace
+                match format_execution_trace(&log_content, exec_id.clone()) {
+                    Ok(execution_state) => Json(execution_state).into_response(),
+                    Err(e) => {
+                        error!("Failed to format execution trace for {}: {}", exec_id, e);
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Failed to format execution trace: {}", e),
                         )
-                        .unwrap_or_else(chrono::Utc::now),
-                        end_time: flow_log.end_time.map(|et| {
-                            chrono::DateTime::from_timestamp(
-                                et.duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs() as i64,
-                                0,
-                            )
-                            .unwrap_or_else(chrono::Utc::now)
-                        }),
-                        trace: formatted_trace,
-                        logs: String::new(),
-                        error: None,
-                    };
-
-                    Json(execution_state).into_response()
-                }
-                Err(e) => {
-                    error!("Failed to parse flow log JSON: {}", e);
-                    // Return raw content as fallback
-                    let execution_state = ExecutionState {
-                        id: execution_id,
-                        benchmark_id: "unknown".to_string(),
-                        agent: "deterministic".to_string(),
-                        status: ExecutionStatus::Completed,
-                        progress: 100,
-                        start_time: chrono::Utc::now(),
-                        end_time: Some(chrono::Utc::now()),
-                        trace: format!("Error parsing flow log: {e}\nRaw data:\n{log_content}"),
-                        logs: String::new(),
-                        error: Some(format!("Failed to parse flow log: {e}")),
-                    };
-                    Json(execution_state).into_response()
-                }
-            }
-        }
-        Ok(None) => {
-            // Try to find by looking for agent_performance records
-            match state
-                .db
-                .get_agent_performance(&reev_db::QueryFilter::new())
-                .await
-            {
-                Ok(performances) => {
-                    for perf in performances {
-                        if perf.session_id == execution_id {
-                            let execution_state = ExecutionState {
-                                id: execution_id,
-                                benchmark_id: perf.benchmark_id,
-                                agent: perf.agent_type,
-                                status: ExecutionStatus::Completed,
-                                progress: 100,
-                                start_time: chrono::Utc::now(),
-                                end_time: Some(chrono::Utc::now()),
-                                trace: format!(
-                                    "Benchmark completed with score: {:.1}%",
-                                    perf.score * 100.0
-                                ),
-                                logs: String::new(),
-                                error: None,
-                            };
-                            return Json(execution_state).into_response();
-                        }
+                            .into_response()
                     }
                 }
-                Err(e) => {
-                    error!("Failed to query agent performance: {}", e);
+            }
+            Ok(None) => (StatusCode::NOT_FOUND, "Execution not found in database").into_response(),
+            Err(e) => {
+                error!("Failed to get session log from database: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Database error: {}", e),
+                )
+                    .into_response()
+            }
+        }
+    } else {
+        // No execution_id provided - get the most recent execution for this benchmark
+        let filter = reev_db::types::SessionFilter {
+            benchmark_id: Some(benchmark_id.clone()),
+            agent_type: None, // Get any agent
+            interface: None,
+            status: None,
+            limit: Some(1), // Get the most recent
+        };
+
+        match state.db.list_sessions(&filter).await {
+            Ok(sessions) => {
+                if let Some(session) = sessions.first() {
+                    match state.db.get_session_log(&session.session_id).await {
+                        Ok(Some(log_content)) => {
+                            match format_execution_trace(&log_content, session.session_id.clone()) {
+                                Ok(execution_state) => Json(execution_state).into_response(),
+                                Err(e) => {
+                                    error!("Failed to format execution trace: {}", e);
+                                    (
+                                        StatusCode::INTERNAL_SERVER_ERROR,
+                                        format!("Failed to format execution trace: {}", e),
+                                    )
+                                        .into_response()
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            (StatusCode::NOT_FOUND, "No execution trace found").into_response()
+                        }
+                        Err(e) => {
+                            error!("Failed to get session log: {}", e);
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Database error: {}", e),
+                            )
+                                .into_response()
+                        }
+                    }
+                } else {
+                    (StatusCode::NOT_FOUND, "No executions found for benchmark").into_response()
+                }
+            }
+            Err(e) => {
+                error!("Failed to list sessions: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Database error: {}", e),
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+/// Helper function to format execution trace from log content
+fn format_execution_trace(
+    log_content: &str,
+    execution_id: String,
+) -> Result<ExecutionState, Box<dyn std::error::Error + Send + Sync>> {
+    // Parse the flow log and format it as readable trace
+    match serde_json::from_str::<serde_json::Value>(log_content) {
+        Ok(parsed) => {
+            let mut formatted_trace = String::new();
+
+            if let Some(prompt) = parsed.get("prompt").and_then(|v| v.as_str()) {
+                formatted_trace.push_str(&format!("📝 Prompt: {}\n\n", prompt));
+            }
+
+            if let Some(steps) = parsed.get("steps").and_then(|v| v.as_array()) {
+                for (i, step) in steps.iter().enumerate() {
+                    formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
+
+                    if let Some(action) = step.get("action") {
+                        formatted_trace.push_str("   ├─ ACTION:\n");
+                        if let Some(action_array) = action.as_array() {
+                            for action_item in action_array {
+                                if let Some(program_id) = action_item.get("program_id") {
+                                    formatted_trace
+                                        .push_str(&format!("      Program ID: {}\n", program_id));
+                                }
+                                if let Some(accounts) = action_item.get("accounts") {
+                                    if let Some(accounts_array) = accounts.as_array() {
+                                        formatted_trace.push_str("      Accounts:\n");
+                                        for (idx, account) in accounts_array.iter().enumerate() {
+                                            if let Some(pubkey) = account.get("pubkey") {
+                                                let is_signer = account
+                                                    .get("is_signer")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let is_writable = account
+                                                    .get("is_writable")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let icon =
+                                                    if is_signer { "🖋️" } else { "🖍️" };
+                                                let arrow = if is_writable { "➕" } else { "➖" };
+                                                formatted_trace.push_str(&format!(
+                                                    "      [{}] {} {} {}\n",
+                                                    idx, icon, arrow, pubkey
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(data) = action_item.get("data") {
+                                    formatted_trace
+                                        .push_str(&format!("      Data (Base58): {}\n", data));
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(observation) = step.get("observation") {
+                        formatted_trace.push_str("   └─ OBSERVATION: ");
+                        if let Some(status) = observation.get("last_transaction_status") {
+                            formatted_trace.push_str(&format!("{}\n", status));
+                        }
+                        if let Some(error) = observation.get("last_transaction_error") {
+                            if !error.as_str().unwrap_or("").is_empty() {
+                                formatted_trace.push_str(&format!("   Error: {}\n", error));
+                            }
+                        }
+                    }
+                    formatted_trace.push('\n');
                 }
             }
 
-            (StatusCode::NOT_FOUND, "Execution not found in database").into_response()
+            // Add final success message
+            formatted_trace.push_str("✅ Execution completed - Full trace displayed above\n");
+
+            // Extract benchmark_id from the trace if available
+            let benchmark_id = parsed
+                .get("benchmark_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            Ok(ExecutionState {
+                id: execution_id,
+                benchmark_id,
+                agent: "deterministic".to_string(), // Default agent
+                status: ExecutionStatus::Completed,
+                progress: 100,
+                start_time: chrono::Utc::now(),
+                end_time: Some(chrono::Utc::now()),
+                trace: formatted_trace,
+                logs: String::new(),
+                error: None,
+            })
         }
-        Err(e) => {
-            error!("Failed to get session log from database: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Database error: {e}"),
-            )
-                .into_response()
-        }
+        Err(e) => Err(format!("Failed to parse execution trace: {}", e).into()),
     }
+}
+
+/// Get execution status without execution_id (gets most recent for benchmark)
+pub async fn get_execution_status_no_id(
+    State(state): State<ApiState>,
+    Path(benchmark_id): Path<String>,
+) -> impl IntoResponse {
+    get_execution_status(State(state), Path((benchmark_id, None))).await
 }
 
 /// Stop a running benchmark

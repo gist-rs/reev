@@ -1,4 +1,5 @@
 //! Handlers module - organized by functionality
+//! Handler modules
 
 pub mod agents;
 pub mod ascii_tree;

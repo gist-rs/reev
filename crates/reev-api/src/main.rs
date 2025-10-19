@@ -94,6 +94,10 @@ async fn main() -> Result<()> {
             get(get_execution_status),
         )
         .route(
+            "/api/v1/benchmarks/{id}/status",
+            get(get_execution_status_no_id),
+        )
+        .route(
             "/api/v1/benchmarks/{id}/stop/{execution_id}",
             post(stop_benchmark),
         )

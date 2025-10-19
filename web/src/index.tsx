@@ -140,28 +140,16 @@ export function App() {
                 "No execution found, loading flow logs from database...",
               );
             }
-            const agentToUse = agentType || selectedAgent || "deterministic";
             const response = await fetch(
-              `/api/v1/ascii-tree/${benchmarkId}/${agentToUse}`,
+              `/api/v1/benchmarks/${benchmarkId}/status`,
             );
 
             if (response.ok) {
-              const asciiTree = await response.text();
+              const execution = await response.json();
               if (import.meta.env.DEV) {
-                console.log("ASCII tree loaded:", asciiTree);
+                console.log("Execution status loaded:", execution);
               }
-              const historicalExecution = {
-                id: `historical-${benchmarkId}-${Date.now()}`,
-                benchmark_id: benchmarkId,
-                agent: "deterministic",
-                status: "Completed",
-                progress: 100,
-                start_time: new Date().toISOString(),
-                end_time: new Date().toISOString(),
-                trace: asciiTree,
-                logs: "",
-                score: 0, // We don't have score in this simple approach
-              };
+              const historicalExecution = execution;
 
               if (import.meta.env.DEV) {
                 console.log(
