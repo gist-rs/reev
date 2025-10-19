@@ -581,22 +581,37 @@ export function BenchmarkList({
                   {!isExpanded && (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center flex-1">
-                        {/* Expand icon on the left */}
-                        <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mr-3">
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
-                          </svg>
+                        {/* Status box and expand icon */}
+                        <div className="flex flex-col items-center mr-3">
+                          {/* Status indicator box */}
+                          <div
+                            className={`w-4 h-4 rounded-sm ${
+                              status === ExecutionStatus.COMPLETED
+                                ? "bg-green-500"
+                                : status === ExecutionStatus.FAILED
+                                  ? "bg-red-500"
+                                  : status === ExecutionStatus.RUNNING
+                                    ? "bg-blue-500"
+                                    : "bg-gray-300 dark:bg-gray-600"
+                            }`}
+                          />
+                          {/* Expand icon below status */}
+                          <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mt-1">
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </div>
                         </div>
                         <div className="flex-1">
                           <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
