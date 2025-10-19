@@ -1,0 +1,6 @@
+2025-10-18T16:00:00.000000Z INFO [OpenAIAgent] Starting agent execution with OpenTelemetry tracing
+2025-10-18T16:00:01.000000Z INFO [AccountBalanceTool] Starting tool execution with OpenTelemetry tracing
+2025-10-18T16:00:02.000000Z INFO [AccountBalanceTool] Tool execution completed - total_time: 150ms
+2025-10-18T16:00:03.000000Z INFO [JupiterSwapTool] Starting tool execution with OpenTelemetry tracing
+2025-10-18T16:00:05.000000Z INFO [JupiterSwapTool] Tool execution completed - total_time: 2000ms
+2025-10-18T16:00:06.000000Z INFO [OpenAIAgent] Agent execution completed

@@ -1,0 +1,9 @@
+2025-10-18T16:00:00.000000Z INFO [OpenAIAgent] Starting agent execution with OpenTelemetry tracing
+    in agent_execution with model: "qwen3-vl-30b-a3b-instruct", conversation_depth: 7, benchmark_id: demo-sample-001, tools_count: 2
+2025-10-18T16:00:01.000000Z INFO [AccountBalanceTool] Starting tool execution with OpenTelemetry tracing
+    in account_balance_tool_call with tool_name: "get_account_balance", pubkey: USER_1, token_mint: None, account_type: None
+2025-10-18T16:00:02.000000Z INFO [AccountBalanceTool] Tool execution completed - total_time: 150ms
+2025-10-18T16:00:03.000000Z INFO [JupiterSwapTool] Starting tool execution with OpenTelemetry tracing
+    in jupiter_swap_tool_call with tool_name: "jupiter_swap", user_pubkey: USER_1, input_mint: So11111111111111111111111111111111111111112, output_mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, amount: 100000000, slippage_bps: Some(100)
+2025-10-18T16:00:05.000000Z INFO [JupiterSwapTool] Tool execution completed - total_time: 2000ms
+2025-10-18T16:00:06.000000Z INFO [OpenAIAgent] Agent execution completed

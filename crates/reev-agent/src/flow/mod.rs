@@ -17,6 +17,7 @@ pub mod secure;
 pub mod selector;
 pub mod state;
 pub mod tracker;
+pub mod visualization;
 
 pub use agent::FlowAgent;
 pub use benchmark::FlowBenchmark;
@@ -26,6 +27,7 @@ pub use state::FlowState;
 pub use tracker::tool_wrapper::{
     create_flow_infrastructure, extract_flow_data, GlobalFlowTracker, SimpleFlowTracker,
 };
+pub use visualization::{generate_mermaid_diagram, FlowLogParser, MermaidStateDiagramGenerator};
 
 /// System preamble for flow agents with multi-step orchestration capabilities
 pub const FLOW_SYSTEM_PREAMBLE: &str = r#"

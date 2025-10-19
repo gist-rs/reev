@@ -20,6 +20,41 @@ use crate::{
     LlmRequest,
 };
 
+/// 🎨 Generate Mermaid state diagram from flow logs
+fn generate_flow_diagram(benchmark_id: &str) -> Result<()> {
+    use crate::flow::visualization::{generate_mermaid_diagram, mermaid_generator::DiagramConfig};
+    use std::fs;
+
+    let log_path = "logs/tool_calls.log";
+    let diagram_path = &format!("logs/{benchmark_id}_flow_diagram.mmd");
+
+    // Read the log file
+    let log_content = fs::read_to_string(log_path)?;
+
+    // Generate diagram with custom config
+    let _config = DiagramConfig {
+        include_timing: true,
+        include_parameters: true,
+        max_depth: 3,
+        show_errors: true,
+        group_tools: true,
+    };
+
+    let diagram = generate_mermaid_diagram(&log_content)
+        .map_err(|e| anyhow::anyhow!("Failed to generate diagram: {e}"))?;
+
+    // Write diagram to file
+    fs::write(diagram_path, &diagram)?;
+
+    info!(
+        "[OpenAIAgent] 🎨 Generated flow diagram: {} ({} states)",
+        diagram_path,
+        diagram.lines().count()
+    );
+
+    Ok(())
+}
+
 /// 🎯 Initialize logging for tool call tracking
 fn init_tool_logging() -> Result<()> {
     // Create file writer for tool calls log
@@ -339,6 +374,11 @@ impl OpenAIAgent {
         info!(
             "[OpenAIAgent] Tool logging completed - all tool calls logged to logs/tool_calls.log"
         );
+
+        // 🎨 Generate flow diagram for visualization
+        if let Err(e) = generate_flow_diagram(&payload.id) {
+            warn!("[OpenAIAgent] Failed to generate flow diagram: {}", e);
+        }
 
         Ok(serde_json::to_string(&comprehensive_response)?)
     }

@@ -34,4 +34,3 @@
 
 ## Refactor
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
-- output log by otel rig to see what tools that agent call, for examples https://raw.githubusercontent.com/0xPlaygrounds/rig/refs/heads/main/rig-core/examples/agent_with_tools_otel.rs , apply to our code crates/reev-agent/src/enhanced/openai.rs and write to /logs/tool_calls.log

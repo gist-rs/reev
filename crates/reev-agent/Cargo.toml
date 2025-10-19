@@ -42,6 +42,8 @@ rig-core = { version = "0.20.0" }
 jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 hex = "0.4.3"
 uuid = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
+
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["json"] }

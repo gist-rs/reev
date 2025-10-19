@@ -1,0 +1,28 @@
+stateDiagram-v2
+    [*] --> StartAgent
+
+    state "Execution1" as Execution1
+        Execution1
+            [*] --> AgentStart
+            state "Agent Start\nModel: unknown_agent" as AgentStart
+            state "AccountBalanceTool" as Tool1
+            AgentStart --> Tool1
+            state "AccountBalanceTool Complete\n(150ms)" as Complete2
+            Tool1 --> Complete2
+            state "JupiterSwapTool" as Tool3
+            Complete2 --> Tool3
+            state "JupiterSwapTool Complete\n(2000ms)" as Complete4
+            Tool3 --> Complete4
+            state "Agent End" as AgentEnd
+            Complete4 --> AgentEnd
+
+    Execution1 --> [*]
+
+    classDef Other0 fill:#ff6b6b
+    classDef Other0 fill:#ff6b6b
+    classDef Other2 fill:#ff6b6b
+    classDef Other2 fill:#ff6b6b
+    class OtherAccountBalanceTool Other
+    class OtherAccountBalanceTool Other
+    class OtherJupiterSwapTool Other
+    class OtherJupiterSwapTool Other
