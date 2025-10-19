@@ -134,12 +134,27 @@ export function BenchmarkList({
 
   // Process shared data into results map
   useEffect(() => {
+    console.log(
+      `🔍 [BenchmarkList] Processing data for selectedAgent: ${selectedAgent}`,
+    );
+    console.log(
+      `🔍 [BenchmarkList] Available agents:`,
+      agentPerformanceData?.map((a) => a.agent_type),
+    );
+
+    // Clear historical results when selectedAgent changes
+    setHistoricalResults(new Map());
+
     if (agentPerformanceData) {
       const resultsMap = new Map();
+      let resultsCount = 0;
 
       // Group results by benchmarkId for the selected agent
       agentPerformanceData.forEach((agentSummary) => {
         if (agentSummary.agent_type === selectedAgent) {
+          console.log(
+            `🔍 [BenchmarkList] Found agent ${selectedAgent} with ${agentSummary.results.length} results`,
+          );
           agentSummary.results.forEach((result) => {
             const key = `${result.benchmark_id}`;
             if (
@@ -155,12 +170,18 @@ export function BenchmarkList({
                 agentType: result.agent_type,
                 benchmarkId: result.benchmark_id,
               });
+              resultsCount++;
             }
           });
         }
       });
 
+      console.log(
+        `🔍 [BenchmarkList] Set ${resultsCount} historical results for ${selectedAgent}`,
+      );
       setHistoricalResults(resultsMap);
+    } else {
+      console.log(`🔍 [BenchmarkList] No agent performance data available`);
     }
   }, [agentPerformanceData, selectedAgent]);
 
@@ -369,18 +390,31 @@ export function BenchmarkList({
       if (!execution) {
         const historicalResult = historicalResults.get(benchmarkId);
         if (historicalResult) {
+          console.log(
+            `🔍 [getBenchmarkStatus] Found historical result for ${benchmarkId}:`,
+            historicalResult.final_status,
+          );
           // Map historical result status to execution status format
           return {
             ...historicalResult,
             status: historicalResult.final_status,
             progress: 100,
           };
+        } else {
+          console.log(
+            `🔍 [getBenchmarkStatus] No historical result for ${benchmarkId} (selectedAgent: ${selectedAgent})`,
+          );
         }
+      } else {
+        console.log(
+          `🔍 [getBenchmarkStatus] Found current execution for ${benchmarkId}:`,
+          execution.status,
+        );
       }
 
       return execution;
     },
-    [executions, historicalResults],
+    [executions, historicalResults, selectedAgent],
   );
 
   const getBenchmarkScore = useCallback(
