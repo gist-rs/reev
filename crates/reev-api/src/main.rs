@@ -106,10 +106,6 @@ async fn main() -> Result<()> {
         .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
         // Debug endpoints
         .route("/api/v1/debug/benchmarks", get(debug_benchmarks))
-        .route(
-            "/api/v1/debug/test-prompt-lookup",
-            post(test_prompt_md5_lookup),
-        )
         .route("/api/v1/agents/test", post(test_agent_connection))
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
@@ -125,20 +121,6 @@ async fn main() -> Result<()> {
         .route("/api/v1/upsert-yml", post(upsert_yml))
         .route("/api/v1/sync", post(sync_benchmarks))
         .route("/api/v1/test-on-conflict", post(test_on_conflict))
-        // YML TestResult endpoints for historical access (removed - use ascii-tree endpoint instead)
-        .route(
-            "/api/v1/ascii-tree/{benchmark_id}/{agent_type}",
-            get(get_ascii_tree_direct),
-        )
-        // Temporary endpoint for ASCII tree from execution state
-        .route(
-            "/api/v1/ascii-tree-state/{benchmark_id}/{agent_type}",
-            get(get_ascii_tree_from_state),
-        )
-        // Test endpoint without JSON
-        .route("/api/v1/test", get(test_endpoint))
-        // Test POST endpoint without JSON
-        .route("/api/v1/test-post", post(test_post_endpoint))
         // Simple CORS layer
         .layer(CorsLayer::permissive())
         .with_state(state);

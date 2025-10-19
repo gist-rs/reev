@@ -19,15 +19,6 @@ pub async fn health_check() -> Json<HealthResponse> {
 }
 
 /// Simple test endpoint
-pub async fn test_endpoint() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "test working"}))
-}
-
-/// POST test endpoint without JSON
-pub async fn test_post_endpoint() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "POST test working"}))
-}
-
 /// Helper function to create error responses
 #[allow(dead_code)]
 pub fn create_error_response(
@@ -170,18 +161,4 @@ pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse
             )
         }
     }
-}
-
-/// Manual test endpoint to test prompt MD5 lookup
-pub async fn test_prompt_md5_lookup(
-    State(_state): State<ApiState>,
-    Json(_request): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(serde_json::json!({
-            "success": false,
-            "error": "Test endpoint not implemented"
-        })),
-    )
 }
