@@ -233,7 +233,7 @@ impl MermaidStateDiagramGenerator {
         executions: &[FlowExecution],
     ) -> Result<String, Box<dyn std::error::Error>> {
         let mut styling = String::new();
-        styling.push_str("\n");
+        styling.push('\n');
 
         // Define styles for different tool types
         let tool_types = self.identify_tool_types(executions);

@@ -34,3 +34,5 @@
 
 ## Refactor
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
+- turso doc @fetch https://raw.githubusercontent.com/tursodatabase/turso/00e6ed82b6bdc56c629abb492f9aff37d6c80617/docs/manual.md
+did our db impl align to this?

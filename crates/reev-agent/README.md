@@ -80,11 +80,22 @@ cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-flash-l
 
 ### 🆕 Multi-Step Flow Examples:
 -   `200-jup-swap-then-lend-deposit` - **NEW!** Multi-step flow demonstration with real integration
+-   `210-multi-step-logging-demos` - **NEW!** Comprehensive logging demonstration with 6 different multi-step flows
 
 **Running Multi-Step Flow Examples:**
 ```sh
-# Run the multi-step flow example (requires surfpool and LLM server)
+# Run the original multi-step flow example (requires surfpool and LLM server)
 cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
+
+# Run the comprehensive logging demonstrations
+cargo run -p reev-agent --example 210-multi-step-logging-demos
+
+# Run individual logging test scenarios
+cargo test -p reev-agent test_multi_step_balance_check_then_swap
+cargo test -p reev-agent test_multi_step_swap_then_balance_verification
+cargo test -p reev-agent test_multi_step_three_operation_sequence
+cargo test -p reev-agent test_multi_step_conditional_flow
+cargo test -p reev-agent test_multi_step_error_recovery_flow
 ```
 
 This example demonstrates:
@@ -304,6 +315,12 @@ This integration test serves as **the definitive proof** that the `reev-agent` s
 ```sh
 # Run the multi-step flow example (demonstrates real integration)
 cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
+
+# Run comprehensive logging demonstrations
+cargo run -p reev-agent --example 210-multi-step-logging-demos
+
+# Generate flow visualization from logs
+cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html --output flow_diagram.html
 
 # Check compilation and run diagnostics
 cargo check -p reev-agent

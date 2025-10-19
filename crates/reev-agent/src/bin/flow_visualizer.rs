@@ -23,11 +23,11 @@
 //! cargo run --bin flow_visualizer -- --input logs/tool_calls.log --include-params
 //! ```
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
-use reev_agent::flow::visualization::{generate_mermaid_diagram, mermaid_generator::DiagramConfig};
+use reev_agent::flow::visualization::generate_mermaid_diagram;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -90,7 +90,7 @@ fn main() -> Result<()> {
     }
 
     println!("📊 Parsing flow execution data...");
-    let config = DiagramConfig {
+    let _config = DiagramConfig {
         include_timing: !args.no_timing,
         include_parameters: args.include_params,
         max_depth: args.max_depth,
@@ -98,9 +98,8 @@ fn main() -> Result<()> {
         group_tools: !args.no_grouping,
     };
 
-    let diagram = generate_mermaid_diagram(&log_content).map_err(|e| {
-        anyhow::anyhow!("Failed to generate Mermaid diagram from log content: {e}")
-    })?;
+    let diagram = generate_mermaid_diagram(&log_content)
+        .map_err(|e| anyhow::anyhow!("Failed to generate Mermaid diagram from log content: {e}"))?;
 
     let content = if args.html {
         generate_html_preview(&diagram)?
@@ -108,11 +107,14 @@ fn main() -> Result<()> {
         diagram
     };
 
+    // Extract base name for consistent file naming
+    let base_name = extract_base_name_from_log(&args.input);
+
     // Output the result
     match args.output {
         Some(output_path) => {
             println!("💾 Writing diagram to: {output_path:?}");
-            fs::write(&output_path, content)
+            fs::write(&output_path, content.clone())
                 .with_context(|| format!("Failed to write to output file: {output_path:?}"))?;
 
             println!("✅ Diagram generated successfully!");
@@ -120,6 +122,9 @@ fn main() -> Result<()> {
             if args.html {
                 println!("🌐 You can open the HTML file directly in a web browser.");
             }
+
+            // Generate additional files with correct naming convention
+            generate_additional_files(&base_name, &content)?;
         }
         None => {
             println!("📄 Generated Mermaid Diagram:");
@@ -127,6 +132,9 @@ fn main() -> Result<()> {
             println!("{content}");
             println!("{}", "=".repeat(60));
             println!("💡 Copy this diagram into a Mermaid-compatible editor to visualize.");
+
+            // Even without explicit output, generate additional files
+            generate_additional_files(&base_name, &content)?;
         }
     }
 
@@ -224,4 +232,49 @@ fn generate_html_preview(diagram: &str) -> Result<String> {
     );
 
     Ok(html)
+}
+
+/// Extract base name from input file path
+fn extract_base_name_from_log(input_path: &PathBuf) -> String {
+    let file_stem = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("flow_diagram");
+
+    // Remove common prefixes/suffixes
+    let base_name = file_stem
+        .replace("tool_calls", "")
+        .replace("sample_opentelemetry", "")
+        .replace("sample", "")
+        .replace("test", "")
+        .trim_end_matches(|c| c == '.' || c == '-');
+
+    if base_name.is_empty() {
+        "flow_diagram".to_string()
+    } else {
+        base_name.to_string()
+    }
+}
+
+/// Generate additional files with correct naming convention
+fn generate_additional_files(base_name: &str, content: &str) -> Result<()> {
+    // Create viz directory if it doesn't exist
+    let viz_dir = PathBuf::from("viz");
+    if !viz_dir.exists() {
+        fs::create_dir_all(&viz_dir)?;
+        println!("📁 Created viz directory");
+    }
+
+    // Generate MMD file with correct naming
+    let mmd_path = viz_dir.join(format!("{}.mmd", base_name));
+    fs::write(&mmd_path, content)?;
+    println!("📄 Generated: {}", mmd_path.display());
+
+    // Generate HTML file with correct naming
+    let html_path = viz_dir.join(format!("{}.html", base_name));
+    let html_content = generate_html_preview(content)?;
+    fs::write(&html_path, html_content)?;
+    println!("🌐 Generated: {}", html_path.display());
+
+    Ok(())
 }
