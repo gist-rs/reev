@@ -68,7 +68,7 @@ pub async fn get_ascii_tree_direct(
                                         &log_content[..log_content.len().min(1000)]
                                     ),
                                 )
-                                    .into_response()
+                                    .into_response();
                             }
                             Ok(None) => (
                                 StatusCode::OK,
@@ -83,7 +83,7 @@ pub async fn get_ascii_tree_direct(
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve execution data".to_string(),
                                 )
-                                    .into_response()
+                                    .into_response();
                             }
                         }
                     }
@@ -106,11 +106,11 @@ pub async fn get_ascii_tree_direct(
                                     StatusCode::OK,
                                     [("Content-Type", "text/plain")],
                                     format!(
-                                        "❌ Failed Execution:\n\n{}",
+                                        "❌ Execution Failed:\n\n{}",
                                         &log_content[..log_content.len().min(1000)]
                                     ),
                                 )
-                                    .into_response()
+                                    .into_response();
                             }
                             Ok(None) => (
                                 StatusCode::OK,
@@ -119,13 +119,13 @@ pub async fn get_ascii_tree_direct(
                             )
                                 .into_response(),
                             Err(e) => {
-                                warn!("Failed to get session log for failed execution: {}", e);
+                                warn!("Failed to get session log: {}", e);
                                 (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve error details".to_string(),
                                 )
-                                    .into_response()
+                                    .into_response();
                             }
                         }
                     }
