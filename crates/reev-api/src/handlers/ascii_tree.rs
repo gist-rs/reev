@@ -3,7 +3,7 @@ use crate::types::*;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::IntoResponse,
 };
 use tracing::{error, info, warn};
 
@@ -180,8 +180,8 @@ pub async fn get_ascii_tree_direct(
                                                                     {
                                                                         formatted_trace.push_str(
                                                                             &format!(
-                                                                                "   Error: {error}\n"
-                                                                            ),
+                                                                            "   Error: {error}\n"
+                                                                        ),
                                                                         );
                                                                     }
                                                                 }
@@ -393,8 +393,7 @@ pub async fn get_ascii_tree_direct(
                                         if let Some(prompt) =
                                             parsed.get("prompt").and_then(|v| v.as_str())
                                         {
-                                            formatted
-                                                .push_str(&format!("📝 Prompt: {prompt}\n\n"));
+                                            formatted.push_str(&format!("📝 Prompt: {prompt}\n\n"));
                                         }
 
                                         if let Some(steps) =
@@ -471,8 +470,7 @@ pub async fn get_ascii_tree_direct(
                                                     if let Some(status) =
                                                         observation.get("last_transaction_status")
                                                     {
-                                                        formatted
-                                                            .push_str(&format!("{status}\n"));
+                                                        formatted.push_str(&format!("{status}\n"));
                                                     }
                                                     if let Some(error) =
                                                         observation.get("last_transaction_error")
@@ -567,42 +565,6 @@ pub async fn get_ascii_tree_direct(
                 .into_response()
         }
     }
-}
-
-/// Render ASCII tree from JSON test result
-pub async fn render_ascii_tree(
-    State(_state): State<ApiState>,
-    Json(_payload): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    info!("Rendering ASCII tree from JSON payload");
-
-    // For now, return a simple message
-    // TODO: Implement proper ASCII tree rendering from JSON
-    (
-        StatusCode::OK,
-        [("Content-Type", "text/plain")],
-        "🌳 ASCII tree rendering from JSON not yet implemented".to_string(),
-    )
-        .into_response()
-}
-
-/// Parse YML to TestResult
-pub async fn parse_yml_to_testresult(
-    State(_state): State<ApiState>,
-    Json(payload): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    info!("Parsing YML to TestResult");
-
-    // For now, return a simple message
-    // TODO: Implement proper YML parsing
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "message": "YML parsing not yet implemented",
-            "received": payload
-        })),
-    )
-        .into_response()
 }
 
 /// Get ASCII tree from execution state (temporary endpoint)

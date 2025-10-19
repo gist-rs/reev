@@ -121,11 +121,6 @@ async fn main() -> Result<()> {
             "/api/v1/transaction-logs/demo",
             get(get_transaction_logs_demo),
         )
-        .route(
-            "/api/v1/parse-yml-to-testresult",
-            post(parse_yml_to_testresult),
-        )
-        .route("/api/v1/render-ascii-tree", post(render_ascii_tree))
         // Benchmark management endpoints
         .route("/api/v1/upsert-yml", post(upsert_yml))
         .route("/api/v1/sync", post(sync_benchmarks))
