@@ -28,7 +28,7 @@ use clap::Parser;
 use reev_agent::flow::visualization::generate_mermaid_diagram;
 use reev_agent::flow::visualization::mermaid_generator::DiagramConfig;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -236,7 +236,7 @@ fn generate_html_preview(diagram: &str) -> Result<String> {
 }
 
 /// Extract base name from input file path
-fn extract_base_name_from_log(input_path: &PathBuf) -> String {
+fn extract_base_name_from_log(input_path: &Path) -> String {
     let file_stem = input_path
         .file_stem()
         .and_then(|s| s.to_str())

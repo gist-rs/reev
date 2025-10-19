@@ -324,11 +324,11 @@ impl FlowLogParser {
                 let args_part = &line[start + 10..];
                 if let Some(end) = args_part.find('}') {
                     let json_str = &args_part[..=end];
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
-                        if let serde_json::Value::Object(obj) = parsed {
-                            for (key, value) in obj {
-                                params.insert(key, value.to_string());
-                            }
+                    if let Ok(serde_json::Value::Object(obj)) =
+                        serde_json::from_str::<serde_json::Value>(json_str)
+                    {
+                        for (key, value) in obj {
+                            params.insert(key, value.to_string());
                         }
                     }
                 }
