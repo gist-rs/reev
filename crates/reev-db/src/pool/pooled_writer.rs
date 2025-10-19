@@ -317,30 +317,117 @@ impl PooledDatabaseWriter {
         let conn = self.get_connection().await?;
         let writer = crate::DatabaseReader::from_connection(conn.connection().clone());
 
-        // Query for performance summary
-        let mut rows = writer.connection()
-            .query("SELECT benchmark_id, agent_type, AVG(score) as avg_score, COUNT(*) as count FROM agent_performance GROUP BY benchmark_id, agent_type ORDER BY benchmark_id, agent_type", ())
+        // Get all agent types first
+        let mut agent_rows = writer
+            .connection()
+            .query(
+                "SELECT DISTINCT agent_type FROM agent_performance ORDER BY agent_type",
+                (),
+            )
             .await
-            .map_err(|_e| crate::error::DatabaseError::query("Failed to get performance summary", _e))?;
+            .map_err(|_e| crate::error::DatabaseError::query("Failed to get agent types", _e))?;
 
         let mut summaries = Vec::new();
-        while let Some(row) = rows.next().await.map_err(|_e| {
-            crate::error::DatabaseError::query("Failed to iterate performance summary", _e)
-        })? {
-            let agent_type: String = row
-                .get(1)
+
+        while let Some(agent_row) = agent_rows
+            .next()
+            .await
+            .map_err(|_e| crate::error::DatabaseError::query("Failed to iterate agent types", _e))?
+        {
+            let agent_type: String = agent_row
+                .get(0)
                 .map_err(|_e| crate::error::DatabaseError::generic("Failed to get agent_type"))?;
 
+            // Get performance data for this agent
+            let mut perf_rows = writer.connection()
+                .query(
+                    "SELECT benchmark_id, score, final_status, timestamp FROM agent_performance WHERE agent_type = ? ORDER BY timestamp DESC",
+                    (agent_type.as_str(),)
+                )
+                .await
+                .map_err(|_e| crate::error::DatabaseError::query("Failed to get performance data", _e))?;
+
+            let mut results = Vec::new();
+            let mut total_score = 0.0;
+            let mut success_count = 0;
+            let mut benchmark_scores = std::collections::HashMap::new();
+
+            while let Some(perf_row) = perf_rows.next().await.map_err(|_e| {
+                crate::error::DatabaseError::query("Failed to iterate performance data", _e)
+            })? {
+                let benchmark_id: String = perf_row.get(0).map_err(|_e| {
+                    crate::error::DatabaseError::generic("Failed to get benchmark_id")
+                })?;
+                let score: f64 = perf_row
+                    .get(1)
+                    .map_err(|_e| crate::error::DatabaseError::generic("Failed to get score"))?;
+                let final_status: String = perf_row.get(2).map_err(|_e| {
+                    crate::error::DatabaseError::generic("Failed to get final_status")
+                })?;
+                let timestamp: String = perf_row.get(3).map_err(|_e| {
+                    crate::error::DatabaseError::generic("Failed to get timestamp")
+                })?;
+
+                total_score += score;
+                if final_status.to_lowercase() == "completed"
+                    || final_status.to_lowercase() == "succeeded"
+                {
+                    success_count += 1;
+                }
+
+                benchmark_scores.insert(benchmark_id.clone(), score);
+
+                // Only include recent results (last 50 per agent)
+                if results.len() < 50 {
+                    results.push(crate::types::PerformanceResult {
+                        id: None,
+                        session_id: String::new(), // We don't have this in the current query
+                        benchmark_id,
+                        score,
+                        final_status,
+                        timestamp,
+                    });
+                }
+            }
+
+            let total_benchmarks = results.len() as i64;
+            let average_score = if total_benchmarks > 0 {
+                total_score / total_benchmarks as f64
+            } else {
+                0.0
+            };
+            let success_rate = if total_benchmarks > 0 {
+                success_count as f64 / total_benchmarks as f64
+            } else {
+                0.0
+            };
+
+            // Sort benchmarks by score for best/worst lists
+            let mut sorted_benchmarks: Vec<_> = benchmark_scores.into_iter().collect();
+            sorted_benchmarks
+                .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            let best_benchmarks: Vec<String> = sorted_benchmarks
+                .iter()
+                .take(5)
+                .map(|(id, _)| id.clone())
+                .collect();
+
+            let worst_benchmarks: Vec<String> = sorted_benchmarks
+                .iter()
+                .rev()
+                .take(5)
+                .map(|(id, _)| id.clone())
+                .collect();
+
             summaries.push(crate::types::AgentPerformanceSummary {
-                agent_type: agent_type.clone(),
-                execution_count: row
-                    .get(3)
-                    .map_err(|_e| crate::error::DatabaseError::generic("Failed to get count"))?,
-                avg_score: row.get(2).map_err(|_e| {
-                    crate::error::DatabaseError::generic("Failed to get avg_score")
-                })?,
-                latest_timestamp: chrono::Utc::now().to_rfc3339(),
-                results: vec![], // Could be populated with additional query
+                agent_type,
+                total_benchmarks,
+                average_score,
+                success_rate,
+                best_benchmarks,
+                worst_benchmarks,
+                results,
             });
         }
 

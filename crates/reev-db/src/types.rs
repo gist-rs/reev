@@ -132,12 +132,16 @@ pub struct TestResult {
 pub struct AgentPerformanceSummary {
     /// Agent type
     pub agent_type: String,
-    /// Number of executions
-    pub execution_count: i64,
+    /// Number of benchmarks
+    pub total_benchmarks: i64,
     /// Average score
-    pub avg_score: f64,
-    /// Latest timestamp
-    pub latest_timestamp: String,
+    pub average_score: f64,
+    /// Success rate
+    pub success_rate: f64,
+    /// Best performing benchmarks
+    pub best_benchmarks: Vec<String>,
+    /// Worst performing benchmarks
+    pub worst_benchmarks: Vec<String>,
     /// Recent results (simplified for API)
     pub results: Vec<PerformanceResult>,
 }

@@ -136,16 +136,18 @@ impl DatabaseWriter {
             let agent_type: String = row.get(0)?;
             let execution_count: i64 = row.get(1)?;
             let avg_score: f64 = row.get(2)?;
-            let latest_timestamp: String = row.get(3)?;
+            let _latest_timestamp: String = row.get(0)?;
 
             // Get recent results for this agent type
             let results = self.get_agent_results(&agent_type, None).await?;
 
             summaries.push(AgentPerformanceSummary {
                 agent_type: agent_type.clone(),
-                execution_count,
-                avg_score,
-                latest_timestamp,
+                total_benchmarks: execution_count,
+                average_score: avg_score,
+                success_rate: 0.0,        // TODO: Calculate success rate
+                best_benchmarks: vec![],  // TODO: Calculate best benchmarks
+                worst_benchmarks: vec![], // TODO: Calculate worst benchmarks
                 results,
             });
         }
@@ -274,16 +276,18 @@ impl DatabaseWriter {
             let agent_type: String = row.get(0)?;
             let execution_count: i64 = row.get(1)?;
             let avg_score: f64 = row.get(2)?;
-            let latest_timestamp: String = row.get(3)?;
+            let _latest_timestamp: String = row.get(0)?;
 
             // Get all results for this top agent
             let results = self.get_agent_results(&agent_type, None).await?;
 
             summaries.push(AgentPerformanceSummary {
                 agent_type,
-                execution_count,
-                avg_score,
-                latest_timestamp,
+                total_benchmarks: execution_count,
+                average_score: avg_score,
+                success_rate: 0.0,        // TODO: Calculate success rate
+                best_benchmarks: vec![],  // TODO: Calculate best benchmarks
+                worst_benchmarks: vec![], // TODO: Calculate worst benchmarks
                 results,
             });
         }

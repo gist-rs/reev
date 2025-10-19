@@ -22,25 +22,22 @@ pub async fn list_agents() -> Json<Vec<String>> {
 pub async fn get_agent_performance(State(state): State<ApiState>) -> impl IntoResponse {
     info!("Getting agent performance summary");
 
-    let filter = reev_db::QueryFilter::new();
-    match state.db.get_agent_performance(&filter).await {
-        Ok(performances) => {
+    match state.db.get_agent_performance_summary().await {
+        Ok(summaries) => {
             // Debug logging for specific benchmark
-            for performance in &performances {
-                if performance.agent_type == "deterministic"
-                    && performance.benchmark_id == "116-jup-lend-redeem-usdc"
-                {
-                    info!("🔍 [API_DEBUG] Latest 116-jup-lend-redeem-usdc result: score={}, status={}, timestamp={}",
-                          performance.score, performance.final_status, performance.timestamp);
+            for summary in &summaries {
+                if summary.agent_type == "deterministic" {
+                    info!("🔍 [API_DEBUG] {} agent: {} benchmarks, avg_score={:.2}, success_rate={:.2}",
+                          summary.agent_type, summary.total_benchmarks, summary.average_score, summary.success_rate);
                 }
             }
-            Json::<Vec<reev_db::types::AgentPerformance>>(performances).into_response()
+            Json::<Vec<reev_db::types::AgentPerformanceSummary>>(summaries).into_response()
         }
         Err(e) => {
-            error!("Failed to get agent performance: {}", e);
+            error!("Failed to get agent performance summary: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to get agent performance",
+                "Failed to get agent performance summary",
             )
                 .into_response()
         }
