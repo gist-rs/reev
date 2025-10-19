@@ -23,11 +23,12 @@
 //! cargo run --bin flow_visualizer -- --input logs/tool_calls.log --include-params
 //! ```
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use reev_agent::flow::visualization::generate_mermaid_diagram;
+use reev_agent::flow::visualization::mermaid_generator::DiagramConfig;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -242,12 +243,12 @@ fn extract_base_name_from_log(input_path: &PathBuf) -> String {
         .unwrap_or("flow_diagram");
 
     // Remove common prefixes/suffixes
-    let base_name = file_stem
+    let binding = file_stem
         .replace("tool_calls", "")
         .replace("sample_opentelemetry", "")
         .replace("sample", "")
-        .replace("test", "")
-        .trim_end_matches(|c| c == '.' || c == '-');
+        .replace("test", "");
+    let base_name = binding.trim_end_matches(['.', '-']);
 
     if base_name.is_empty() {
         "flow_diagram".to_string()
@@ -266,12 +267,12 @@ fn generate_additional_files(base_name: &str, content: &str) -> Result<()> {
     }
 
     // Generate MMD file with correct naming
-    let mmd_path = viz_dir.join(format!("{}.mmd", base_name));
+    let mmd_path = viz_dir.join(format!("{base_name}.mmd"));
     fs::write(&mmd_path, content)?;
     println!("📄 Generated: {}", mmd_path.display());
 
     // Generate HTML file with correct naming
-    let html_path = viz_dir.join(format!("{}.html", base_name));
+    let html_path = viz_dir.join(format!("{base_name}.html"));
     let html_content = generate_html_preview(content)?;
     fs::write(&html_path, html_content)?;
     println!("🌐 Generated: {}", html_path.display());
