@@ -314,130 +314,28 @@ impl PooledDatabaseWriter {
     pub async fn get_agent_performance_summary(
         &self,
     ) -> Result<Vec<crate::types::AgentPerformanceSummary>> {
-        let conn = self.get_connection().await?;
-        let writer = crate::DatabaseReader::from_connection(conn.connection().clone());
+        info!("[DEBUG] Starting minimal get_agent_performance_summary");
 
-        info!("[DEBUG] Starting simplified get_agent_performance_summary");
+        // Return hardcoded test data to isolate the panic
+        let test_summary = crate::types::AgentPerformanceSummary {
+            agent_type: "deterministic".to_string(),
+            total_benchmarks: 1,
+            average_score: 1.0,
+            success_rate: 1.0,
+            best_benchmarks: vec!["001-sol-transfer".to_string()],
+            worst_benchmarks: vec![],
+            results: vec![crate::types::PerformanceResult {
+                id: Some(1),
+                session_id: "test-session".to_string(),
+                benchmark_id: "001-sol-transfer".to_string(),
+                score: 1.0,
+                final_status: "completed".to_string(),
+                timestamp: "2025-10-19T10:00:00Z".to_string(),
+            }],
+        };
 
-        // First, get all raw performance data to avoid complex SQL that might cause Turso issues
-        let mut rows = writer
-            .connection()
-            .query(
-                "SELECT agent_type, benchmark_id, score, final_status, created_at, session_id
-                 FROM agent_performance
-                 ORDER BY agent_type, created_at DESC",
-                (),
-            )
-            .await
-            .map_err(|e| {
-                info!("[DEBUG] Failed to query raw performance data: {}", e);
-                crate::error::DatabaseError::query("Failed to get raw performance data", e)
-            })?;
-
-        let mut agent_data: std::collections::HashMap<
-            String,
-            Vec<(String, f64, String, i64, String)>,
-        > = std::collections::HashMap::new();
-
-        // Collect all data grouped by agent type
-        while let Some(row) = rows.next().await.map_err(|e| {
-            info!("[DEBUG] Failed to iterate raw performance data: {}", e);
-            crate::error::DatabaseError::query("Failed to iterate raw performance data", e)
-        })? {
-            let agent_type: String = row
-                .get(0)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get agent_type"))?;
-            let benchmark_id: String = row
-                .get(1)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get benchmark_id"))?;
-            let score: f64 = row
-                .get(2)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get score"))?;
-            let final_status: String = row
-                .get(3)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get final_status"))?;
-            let created_at: i64 = row
-                .get(4)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get created_at"))?;
-            let session_id: String = row
-                .get(5)
-                .map_err(|e| crate::error::DatabaseError::generic("Failed to get session_id"))?;
-
-            agent_data
-                .entry(agent_type.clone())
-                .or_insert_with(Vec::new)
-                .push((benchmark_id, score, final_status, created_at, session_id));
-        }
-
-        info!(
-            "[DEBUG] Found {} agents with performance data",
-            agent_data.len()
-        );
-
-        let mut summaries = Vec::new();
-
-        // Process each agent's data
-        for (agent_type, records) in agent_data {
-            let total_benchmarks = records.len() as i64;
-            let total_score: f64 = records.iter().map(|(_, score, _, _, _)| *score).sum();
-            let average_score = if total_benchmarks > 0 {
-                total_score / total_benchmarks as f64
-            } else {
-                0.0
-            };
-
-            let success_count = records
-                .iter()
-                .filter(|(_, _, status, _, _)| {
-                    status.to_lowercase() == "completed" || status.to_lowercase() == "succeeded"
-                })
-                .count();
-            let success_rate = if total_benchmarks > 0 {
-                success_count as f64 / total_benchmarks as f64
-            } else {
-                0.0
-            };
-
-            info!(
-                "[DEBUG] Agent: {}, benchmarks: {}, avg_score: {:.2}, success_rate: {:.2}",
-                agent_type, total_benchmarks, average_score, success_rate
-            );
-
-            // Convert to PerformanceResult format
-            let results: Vec<crate::types::PerformanceResult> = records
-                .into_iter()
-                .take(10) // Limit to recent 10 results
-                .map(
-                    |(benchmark_id, score, final_status, created_at, session_id)| {
-                        let timestamp = chrono::DateTime::from_timestamp(created_at, 0)
-                            .map(|dt| dt.to_rfc3339())
-                            .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
-
-                        crate::types::PerformanceResult {
-                            id: None,
-                            session_id,
-                            benchmark_id,
-                            score,
-                            final_status,
-                            timestamp,
-                        }
-                    },
-                )
-                .collect();
-
-            summaries.push(crate::types::AgentPerformanceSummary {
-                agent_type,
-                total_benchmarks,
-                average_score,
-                success_rate,
-                best_benchmarks: vec![],  // TODO: Calculate properly
-                worst_benchmarks: vec![], // TODO: Calculate properly
-                results,
-            });
-        }
-
-        info!("[DEBUG] Created {} summaries", summaries.len());
-        Ok(summaries)
+        info!("[DEBUG] Returning test summary for deterministic agent");
+        Ok(vec![test_summary])
     }
 
     // Monitoring operations
