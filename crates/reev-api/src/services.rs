@@ -19,6 +19,10 @@ pub async fn execute_benchmark_background(
     benchmark_id: String,
     agent: String,
 ) {
+    info!("=== STARTING BENCHMARK EXECUTION ===");
+    info!("Execution ID: {}", execution_id);
+    info!("Benchmark ID: {}", benchmark_id);
+    info!("Agent: {}", agent);
     // Create database session with Running status
     let session_id = uuid::Uuid::new_v4().to_string();
     let session_info = reev_db::types::SessionInfo {
@@ -33,15 +37,18 @@ pub async fn execute_benchmark_background(
         final_status: None,
     };
 
-    match state.db.lock().await.create_session(&session_info).await {
+    match state.db.create_session(&session_info).await {
         Ok(_) => {
             info!(
-                "Created database session: {} for benchmark: {}",
-                session_id, benchmark_id
+                "Created database session: {} for benchmark: {} with status: {}",
+                session_id, benchmark_id, session_info.status
             );
         }
         Err(e) => {
-            error!("Failed to create database session: {}", e);
+            error!(
+                "Failed to create database session: {} - error: {:?}",
+                session_id, e
+            );
         }
     }
 
@@ -99,16 +106,44 @@ pub async fn execute_benchmark_background(
     }
 
     // Execute the benchmark using the real runner
+    info!(
+        "Attempting to run benchmark: {:?} with agent: {}",
+        benchmark_path, agent
+    );
+
+    // Update progress - about to execute
+    {
+        let mut executions = state.executions.lock().await;
+        if let Some(execution) = executions.get_mut(&execution_id) {
+            execution.progress = 50;
+            execution
+                .trace
+                .push_str("Starting benchmark execution...\n");
+        }
+    }
+
+    info!("CALLING BENCHMARK RUNNER");
     let execution_result = match reev_runner::run_benchmarks(benchmark_path.clone(), &agent).await {
         Ok(mut results) => {
+            info!("Benchmark runner returned {} results", results.len());
             if let Some(result) = results.pop() {
+                info!("Successfully got result from benchmark runner");
                 Ok(result)
             } else {
+                error!("Benchmark runner returned no results");
                 Err(anyhow::anyhow!("Benchmark runner returned no results"))
             }
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            error!("BENCHMARK RUNNER FAILED");
+            error!("Detailed error: {:?}", e);
+            error!("Error source chain: {}", e);
+            error!("Error debug: {:?}", e);
+            Err(e)
+        }
     };
+
+    info!("BENCHMARK RUNNER CALL COMPLETED");
 
     // Update progress - benchmark execution complete
     {
@@ -168,8 +203,6 @@ pub async fn execute_benchmark_background(
             // Store the complete execution log
             if let Err(e) = state
                 .db
-                .lock()
-                .await
                 .store_complete_log(&session_id, &full_execution_log)
                 .await
             {
@@ -185,17 +218,33 @@ pub async fn execute_benchmark_background(
 
             if let Err(e) = state
                 .db
-                .lock()
-                .await
                 .complete_session(&session_id, &session_result)
                 .await
             {
-                error!("Failed to complete database session: {}", e);
+                error!(
+                    "Failed to complete database session {}: {:?}",
+                    session_id, e
+                );
             } else {
                 info!(
-                    "Completed database session {} with final status: {}",
-                    session_id, final_status
+                    "Completed database session {} with final status: {} (score: {:.1}%)",
+                    session_id, final_status, score_percentage
                 );
+                // Verify session was updated by checking it immediately
+                match state.db.get_session(&session_id).await {
+                    Ok(Some(session)) => {
+                        info!(
+                            "Verified session {} status: {}, final_status: {:?}",
+                            session_id, session.status, session.final_status
+                        );
+                    }
+                    Ok(None) => {
+                        error!("Session {} not found after completion", session_id);
+                    }
+                    Err(e) => {
+                        error!("Failed to verify session {}: {:?}", session_id, e);
+                    }
+                }
             }
 
             {
@@ -220,13 +269,8 @@ pub async fn execute_benchmark_background(
                     );
 
                     // Store YML TestResult in database for historical access
-                    if let Err(e) = store_yml_testresult(
-                        &state.db.lock().await,
-                        &benchmark_id,
-                        &agent,
-                        &test_result,
-                    )
-                    .await
+                    if let Err(e) =
+                        store_yml_testresult(&state.db, &benchmark_id, &agent, &test_result).await
                     {
                         error!("Failed to store YML TestResult in database: {}", e);
                     } else {
@@ -251,30 +295,58 @@ pub async fn execute_benchmark_background(
                         debug!("Trace first 100 chars: {}", first_part);
                         debug!("Trace last 100 chars: {}", last_part);
                     }
+                    // Store flow log in database
+                    if let Err(e) =
+                        store_flow_log_from_result(&state.db, &benchmark_id, &test_result).await
+                    {
+                        error!("Failed to store flow log: {}", e);
+                    }
                 }
-            }
-
-            // Store flow log in database
-            if let Err(e) =
-                store_flow_log_from_result(&state.db.lock().await, &benchmark_id, &test_result)
-                    .await
-            {
-                error!("Failed to store flow log: {}", e);
             }
         }
         Err(e) => {
-            error!("Benchmark execution failed: {}", e);
-            update_execution_failed(
-                &state,
-                &execution_id,
-                &session_id,
-                &format!("Execution failed: {e}"),
-            )
-            .await;
+            error!("=== BENCHMARK EXECUTION FAILED ===");
+            error!("Execution failed with error: {:?}", e);
+            error!(
+                "Error source: {}",
+                e.source()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "unknown".to_string())
+            );
+            let detailed_error = format!(
+                "Execution failed: {} (source: {})",
+                e,
+                e.source()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "unknown".to_string())
+            );
+            error!(
+                "Updating execution {} with detailed error: {}",
+                execution_id, detailed_error
+            );
+            info!("CALLING update_execution_failed");
+            update_execution_failed(&state, &execution_id, &session_id, &detailed_error).await;
+            info!("update_execution_failed COMPLETED");
+
+            // Verify the session was updated with failed status
+            match state.db.get_session(&session_id).await {
+                Ok(Some(session)) => {
+                    info!(
+                        "Verified failed session {} status: {}, final_status: {:?}",
+                        session_id, session.status, session.final_status
+                    );
+                }
+                Ok(None) => {
+                    error!("Failed session {} not found after update", session_id);
+                }
+                Err(e) => {
+                    error!("Failed to verify failed session {}: {:?}", session_id, e);
+                }
+            }
         }
     }
 
-    info!("Benchmark execution completed: {}", execution_id);
+    info!("=== BENCHMARK EXECUTION COMPLETED: {} ===", execution_id);
 }
 
 /// Find benchmark file by ID
@@ -695,6 +767,7 @@ pub async fn update_execution_failed(
     session_id: &str,
     error_message: &str,
 ) {
+    info!("Updating execution {} as failed", execution_id);
     let mut executions = state.executions.lock().await;
     if let Some(execution) = executions.get_mut(execution_id) {
         execution.status = ExecutionStatus::Failed;
@@ -704,34 +777,58 @@ pub async fn update_execution_failed(
         execution
             .trace
             .push_str(&format!("ERROR: {error_message}\n"));
+        info!("Updated execution {} with failed status", execution_id);
+    } else {
+        error!("Execution {} not found in state", execution_id);
     }
+    drop(executions);
 
     // Update database session with failed status
-    if let Err(e) = state
-        .db
-        .lock()
-        .await
-        .update_session_status(session_id, "failed")
-        .await
-    {
+    info!(
+        "Updating database session {} with failed status",
+        session_id
+    );
+    if let Err(e) = state.db.update_session_status(session_id, "failed").await {
         error!(
-            "Failed to update database session with failed status: {}",
-            e
+            "Failed to update database session {} with failed status: {:?}",
+            session_id, e
         );
     } else {
         info!("Updated database session {} with failed status", session_id);
+
+        // Verify the update
+        match state.db.get_session(session_id).await {
+            Ok(Some(session)) => {
+                info!(
+                    "Verified session {} after failed update - status: {}, final_status: {:?}",
+                    session_id, session.status, session.final_status
+                );
+            }
+            Ok(None) => {
+                error!("Session {} not found after failed update", session_id);
+            }
+            Err(e) => {
+                error!(
+                    "Failed to verify session {} after failed update: {:?}",
+                    session_id, e
+                );
+            }
+        }
     }
 
     // Store error log
     let error_log = format!("Execution failed: {error_message}");
-    if let Err(e) = state
-        .db
-        .lock()
-        .await
-        .store_complete_log(session_id, &error_log)
-        .await
-    {
-        error!("Failed to store error log: {}", e);
+    info!(
+        "Storing error log for session {}: {}",
+        session_id, error_log
+    );
+    if let Err(e) = state.db.store_complete_log(session_id, &error_log).await {
+        error!(
+            "Failed to store error log for session {}: {:?}",
+            session_id, e
+        );
+    } else {
+        info!("Successfully stored error log for session {}", session_id);
     }
 }
 
@@ -740,7 +837,7 @@ pub async fn update_execution_failed(
 // This function has been removed to prevent duplicate entries in agent_performance table
 /// Store flow log in database from test result
 pub async fn store_flow_log_from_result(
-    db: &tokio::sync::MutexGuard<'_, DatabaseWriter>,
+    db: &DatabaseWriter,
     benchmark_id: &str,
     test_result: &TestResult,
 ) -> Result<()> {
@@ -933,7 +1030,7 @@ pub async fn store_flow_log(
 
 /// Store YML TestResult in database for historical access
 pub async fn store_yml_testresult(
-    db: &tokio::sync::MutexGuard<'_, DatabaseWriter>,
+    db: &DatabaseWriter,
     benchmark_id: &str,
     agent: &str,
     test_result: &TestResult,
