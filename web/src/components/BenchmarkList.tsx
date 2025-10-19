@@ -579,10 +579,29 @@ export function BenchmarkList({
                 >
                   {/* Collapsed view - only prompt and run button */}
                   {!isExpanded && (
-                    <div className="flex items-center justify-between relative pr-8">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
-                          {benchmark.prompt || benchmark.name}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center flex-1">
+                        {/* Expand icon on the left */}
+                        <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mr-3">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 break-words">
+                            {benchmark.prompt || benchmark.name}
+                          </div>
                         </div>
                       </div>
                       <button
@@ -601,23 +620,6 @@ export function BenchmarkList({
                           ? "Running..."
                           : "Run"}
                       </button>
-                      {/* Expand icon in bottom right */}
-                      <div className="absolute bottom-1 right-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </div>
                     </div>
                   )}
 

@@ -60,7 +60,7 @@ pub async fn get_ascii_tree_direct(
 
                                 // For now, return the raw log content
                                 // TODO: Implement proper ASCII tree rendering
-                                (
+                                return (
                                     StatusCode::OK,
                                     [("Content-Type", "text/plain")],
                                     format!(
@@ -70,15 +70,17 @@ pub async fn get_ascii_tree_direct(
                                 )
                                     .into_response();
                             }
-                            Ok(None) => (
-                                StatusCode::OK,
-                                [("Content-Type", "text/plain")],
-                                "📝 No execution data available".to_string(),
-                            )
-                                .into_response(),
+                            Ok(None) => {
+                                return (
+                                    StatusCode::OK,
+                                    [("Content-Type", "text/plain")],
+                                    "📝 No execution data available".to_string(),
+                                )
+                                    .into_response();
+                            }
                             Err(e) => {
                                 warn!("Failed to get session log: {}", e);
-                                (
+                                return (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve execution data".to_string(),
@@ -102,7 +104,7 @@ pub async fn get_ascii_tree_direct(
 
                                 // For now, return the raw log content
                                 // TODO: Implement proper ASCII tree rendering for failed executions
-                                (
+                                return (
                                     StatusCode::OK,
                                     [("Content-Type", "text/plain")],
                                     format!(
@@ -112,15 +114,17 @@ pub async fn get_ascii_tree_direct(
                                 )
                                     .into_response();
                             }
-                            Ok(None) => (
-                                StatusCode::OK,
-                                [("Content-Type", "text/plain")],
-                                "❌ Execution failed - No details available".to_string(),
-                            )
-                                .into_response(),
+                            Ok(None) => {
+                                return (
+                                    StatusCode::OK,
+                                    [("Content-Type", "text/plain")],
+                                    "❌ Execution failed - No details available".to_string(),
+                                )
+                                    .into_response();
+                            }
                             Err(e) => {
                                 warn!("Failed to get session log: {}", e);
-                                (
+                                return (
                                     StatusCode::INTERNAL_SERVER_ERROR,
                                     [("Content-Type", "text/plain")],
                                     "❌ Failed to retrieve error details".to_string(),
