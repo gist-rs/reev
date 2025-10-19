@@ -88,8 +88,8 @@ export function AgentPerformanceCard({
         key={benchmark.id}
         result={result}
         onClick={(result) => {
-          // Don't allow clicks when any benchmark is running
-          if (isAnyRunning) return;
+          // Don't allow clicks when any benchmark is running (except the running one)
+          if (isAnyRunning && !isRunning) return;
           onBenchmarkClick(result, agentType);
           // Also trigger card click to change tab focus
           if (onCardClick) {
@@ -98,7 +98,7 @@ export function AgentPerformanceCard({
         }}
         isRunning={isRunning}
         isSelected={isSelected}
-        disabled={isAnyRunning}
+        disabled={isAnyRunning && !isRunning}
       />
     );
   };
