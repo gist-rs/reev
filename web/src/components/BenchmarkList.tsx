@@ -96,6 +96,29 @@ export function BenchmarkList({
     }
   }, [executions, runningBenchmarks]);
 
+  // Clean up completed benchmarks from runningBenchmarks
+  useEffect(() => {
+    const completedBenchmarks = Array.from(runningBenchmarks.keys()).filter(
+      (benchmarkId) => {
+        const execution = executions.get(benchmarkId);
+        return (
+          execution?.status === ExecutionStatus.COMPLETED ||
+          execution?.status === ExecutionStatus.FAILED
+        );
+      },
+    );
+
+    if (completedBenchmarks.length > 0) {
+      setRunningBenchmarks((prev) => {
+        const updated = new Map(prev);
+        completedBenchmarks.forEach((benchmarkId) => {
+          updated.delete(benchmarkId);
+        });
+        return updated;
+      });
+    }
+  }, [executions, runningBenchmarks]);
+
   // Handle focus change - collapse when other benchmark is selected
   const handleBenchmarkClick = useCallback(
     (benchmarkId: string) => {

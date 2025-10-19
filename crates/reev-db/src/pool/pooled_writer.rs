@@ -360,10 +360,9 @@ impl PooledDatabaseWriter {
                         0.0
                     };
 
-                    // Convert to PerformanceResult format (limit to recent 10)
+                    // Convert to PerformanceResult format (include all results)
                     let results: Vec<crate::types::PerformanceResult> = records
                         .into_iter()
-                        .take(10)
                         .map(|perf| crate::types::PerformanceResult {
                             id: perf.id,
                             session_id: perf.session_id,
