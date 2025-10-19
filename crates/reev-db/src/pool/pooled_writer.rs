@@ -301,10 +301,7 @@ impl PooledDatabaseWriter {
         info!("[DEBUG] Starting safe get_agent_performance_summary");
 
         // Use the original working method to avoid Turso panics
-        match self
-            .get_agent_performance(&reev_db::QueryFilter::new())
-            .await
-        {
+        match self.get_agent_performance(&QueryFilter::new()).await {
             Ok(performances) => {
                 info!("[DEBUG] Got {} raw performance records", performances.len());
 
