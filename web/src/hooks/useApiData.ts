@@ -123,7 +123,7 @@ export function useAgentPerformance() {
 
   // Transform API data to match BenchmarkResult interface
   const transformedData = useMemo(() => {
-    if (!data) {
+    if (!data || !Array.isArray(data)) {
       return null;
     }
 
@@ -137,7 +137,7 @@ export function useAgentPerformance() {
 
       return {
         ...agent,
-        results: agent.results.map((result: any) => {
+        results: (agent.results || []).map((result: any) => {
           // Map API status strings to ExecutionStatus enum
           const mapStatusToEnum = (status: string): ExecutionStatus => {
             const normalizedStatus = status.toLowerCase();
