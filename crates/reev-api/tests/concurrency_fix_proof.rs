@@ -133,12 +133,11 @@ async fn test_no_deadlocks_with_mutex() -> Result<()> {
         let db_clone = db_mutex.clone();
 
         join_set.spawn(async move {
-            // Acquire lock, do work, release lock, then acquire again
+            // First operation - acquire lock, work, release
             {
-                let _db_guard1 = db_clone.lock().await;
-                // First operation
-                let _result = db_clone.lock().await.get_agent_performance().await;
-                // Lock released here
+                let db_guard = db_clone.lock().await;
+                let _result = db_guard.get_agent_performance().await;
+                // Lock released here when db_guard goes out of scope
             }
 
             // Small delay
@@ -146,9 +145,9 @@ async fn test_no_deadlocks_with_mutex() -> Result<()> {
 
             // Second operation with new lock acquisition
             {
-                let _db_guard2 = db_clone.lock().await;
-                let _result = db_clone.lock().await.get_all_benchmarks().await;
-                // Lock released here
+                let db_guard = db_clone.lock().await;
+                let _result = db_guard.get_all_benchmarks().await;
+                // Lock released here when db_guard goes out of scope
             }
 
             Ok::<(), anyhow::Error>(())
