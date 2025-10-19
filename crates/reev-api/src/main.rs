@@ -74,6 +74,19 @@ async fn main() -> Result<()> {
         .route("/api/v1/benchmarks", get(list_benchmarks))
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agent-performance", get(get_agent_performance))
+        // Debug endpoints
+        .route(
+            "/api/v1/debug/agent-performance-raw",
+            get(debug_agent_performance_raw),
+        )
+        .route(
+            "/api/v1/debug/execution-sessions",
+            get(debug_execution_sessions),
+        )
+        .route(
+            "/api/v1/debug/insert-test-data",
+            get(debug_insert_test_data),
+        )
         // Benchmark execution endpoints
         .route("/api/v1/benchmarks/{id}/run", post(run_benchmark))
         .route(
