@@ -9,6 +9,7 @@ description.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
+default-run = "reev-agent"
 
 [features]
 default = ["jupiter", "native"]
