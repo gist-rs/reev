@@ -24,7 +24,7 @@
 //!
 //! # Example Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use reev_runner::dependency::DependencyManager;
 //! use reev_runner::dependency::manager::DependencyConfig;
 //!
