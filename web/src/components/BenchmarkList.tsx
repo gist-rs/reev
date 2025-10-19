@@ -96,6 +96,24 @@ export function BenchmarkList({
     }
   }, [executions, runningBenchmarks]);
 
+  // Auto-expand when selectedBenchmark changes from external source (e.g., grid click)
+  useEffect(() => {
+    if (selectedBenchmark) {
+      // Check if any benchmark is currently running
+      const runningBenchmark = Array.from(runningBenchmarks.keys()).find(
+        (benchmarkId) => {
+          const execution = executions.get(benchmarkId);
+          return execution?.status === ExecutionStatus.RUNNING;
+        },
+      );
+
+      // Only expand if no benchmark is running (to avoid interfering with auto-expand during execution)
+      if (!runningBenchmark) {
+        setExpandedBenchmark(selectedBenchmark);
+      }
+    }
+  }, [selectedBenchmark, runningBenchmarks, executions]);
+
   // Clean up completed benchmarks from runningBenchmarks
   useEffect(() => {
     const completedBenchmarks = Array.from(runningBenchmarks.keys()).filter(
