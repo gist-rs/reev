@@ -268,15 +268,6 @@ pub async fn execute_benchmark_background(
                         execution_id, execution.status, execution.trace.len()
                     );
 
-                    // Store YML TestResult in database for historical access
-                    if let Err(e) =
-                        store_yml_testresult(&state.db, &benchmark_id, &agent, &test_result).await
-                    {
-                        error!("Failed to store YML TestResult in database: {}", e);
-                    } else {
-                        info!("YML TestResult stored in database for historical access");
-                    }
-
                     // Debug: Log first and last parts of the trace
                     if !ascii_trace.is_empty() {
                         let first_part = if ascii_trace.len() > 100 {
@@ -1025,76 +1016,5 @@ pub async fn store_flow_log(
         .map_err(|e| anyhow::anyhow!("Failed to serialize flow log to JSON: {e}"))?;
 
     db.store_complete_log(&session_id, &log_content).await?;
-    Ok(())
-}
-
-/// Store YML TestResult in database for historical access
-pub async fn store_yml_testresult(
-    db: &DatabaseWriter,
-    benchmark_id: &str,
-    agent: &str,
-    test_result: &TestResult,
-) -> Result<()> {
-    // Convert TestResult to YML string
-    let yml_content = serde_yaml::to_string(test_result)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize TestResult to YML: {e}"))?;
-
-    info!(
-        "Attempting to store YML TestResult ({} chars) as session data",
-        yml_content.len()
-    );
-
-    // Store YML TestResult as session data in new architecture
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let start_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let session_info = reev_db::types::SessionInfo {
-        session_id: session_id.clone(),
-        benchmark_id: benchmark_id.to_string(),
-        agent_type: agent.to_string(),
-        interface: "web".to_string(),
-        start_time: start_time as i64,
-        end_time: Some(start_time as i64),
-        status: if test_result.final_status == reev_lib::results::FinalStatus::Succeeded {
-            "completed".to_string()
-        } else {
-            "failed".to_string()
-        },
-        score: Some(test_result.score),
-        final_status: Some(format!("{:?}", test_result.final_status)),
-    };
-
-    // Create and complete session with YML content as log
-    db.create_session(&session_info).await.map_err(|e| {
-        error!("Failed to create session for YML TestResult: {:?}", e);
-        e
-    })?;
-
-    db.store_complete_log(&session_id, &yml_content)
-        .await
-        .map_err(|e| {
-            error!("Failed to store YML TestResult as session log: {:?}", e);
-            e
-        })?;
-
-    let session_result = reev_db::types::SessionResult {
-        end_time: start_time as i64,
-        score: test_result.score,
-        final_status: format!("{:?}", test_result.final_status),
-    };
-
-    db.complete_session(&session_id, &session_result)
-        .await
-        .map_err(|e| {
-            error!("Failed to complete session for YML TestResult: {:?}", e);
-            e
-        })?;
-
-    info!("Successfully stored YML TestResult as session data");
-
-    info!("YML TestResult stored for benchmark: {benchmark_id} by agent: {agent}");
     Ok(())
 }
