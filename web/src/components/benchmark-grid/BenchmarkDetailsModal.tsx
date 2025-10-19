@@ -1,4 +1,4 @@
-import { BenchmarkResult } from "../../types/benchmark";
+import { BenchmarkResult, ExecutionStatus } from "../../types/benchmark";
 
 interface BenchmarkDetailsModalProps {
   selectedResult: BenchmarkResult | null;
@@ -84,7 +84,7 @@ export function BenchmarkDetailsModal({
               </span>
               <span
                 className={`ml-2 ${
-                  selectedResult.final_status === "Succeeded"
+                  selectedResult.final_status === ExecutionStatus.COMPLETED
                     ? "text-green-600 dark:text-green-400"
                     : "text-red-600 dark:text-red-400"
                 }`}
