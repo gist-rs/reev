@@ -9,6 +9,7 @@ interface BenchmarkBoxProps {
   className?: string;
   isRunning?: boolean;
   isSelected?: boolean;
+  disabled?: boolean;
 }
 
 export function BenchmarkBox({
@@ -18,6 +19,7 @@ export function BenchmarkBox({
   className = "",
   isRunning = false,
   isSelected = false,
+  disabled = false,
 }: BenchmarkBoxProps) {
   const getColorClass = (result: BenchmarkResult): string => {
     // If running, don't apply static background color - animation will handle it
@@ -42,7 +44,7 @@ export function BenchmarkBox({
     return "";
   };
 
-  const baseClasses = `${getColorClass(result)} hover:opacity-80 transition-opacity cursor-pointer ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
+  const baseClasses = `${getColorClass(result)} ${disabled ? "cursor-not-allowed opacity-50 grayscale" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,
@@ -54,13 +56,13 @@ export function BenchmarkBox({
 
   return (
     <div
-      className={`${baseClasses} ${className} ${animationClass} relative group active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600`}
+      className={`${baseClasses} ${className} ${animationClass} relative group ${disabled ? "" : "active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600"}`}
       style={{
         ...styleProps,
         minWidth: "16px",
         minHeight: "16px",
       }}
-      onClick={() => onClick && onClick(result)}
+      onClick={() => !disabled && onClick && onClick(result)}
     />
   );
 }

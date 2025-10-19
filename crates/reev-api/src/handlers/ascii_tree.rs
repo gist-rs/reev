@@ -72,8 +72,7 @@ pub async fn get_ascii_tree_direct(
                                             {
                                                 if let Some(prompt) = parsed.split("\"").next() {
                                                     formatted_trace.push_str(&format!(
-                                                        "📝 Prompt: {}\n\n",
-                                                        prompt
+                                                        "📝 Prompt: {prompt}\n\n"
                                                     ));
                                                 }
                                             }
@@ -88,7 +87,7 @@ pub async fn get_ascii_tree_direct(
                                                     ..steps_start + 10 + steps_end];
                                                 if let Ok(steps) =
                                                     serde_json::from_str::<serde_json::Value>(
-                                                        format!("[{}]", steps_str).as_str(),
+                                                        format!("[{steps_str}]").as_str(),
                                                     )
                                                 {
                                                     if let Some(steps_array) = steps.as_array() {
@@ -114,7 +113,7 @@ pub async fn get_ascii_tree_direct(
                                                                             action_item
                                                                                 .get("program_id")
                                                                         {
-                                                                            formatted_trace.push_str(&format!("      Program ID: {}\n", program_id));
+                                                                            formatted_trace.push_str(&format!("      Program ID: {program_id}\n"));
                                                                         }
                                                                         if let Some(accounts) =
                                                                             action_item
@@ -144,7 +143,7 @@ pub async fn get_ascii_tree_direct(
                                                                                         let is_writable = account.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
                                                                                         let icon = if is_signer { "🖋️" } else { "🖍️" };
                                                                                         let arrow = if is_writable { "➕" } else { "➖" };
-                                                                                        formatted_trace.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                                        formatted_trace.push_str(&format!("      [{idx}] {icon} {arrow} {pubkey}\n"));
                                                                                     }
                                                                                 }
                                                                             }
@@ -152,7 +151,7 @@ pub async fn get_ascii_tree_direct(
                                                                         if let Some(data) =
                                                                             action_item.get("data")
                                                                         {
-                                                                            formatted_trace.push_str(&format!("      Data (Base58): {}\n", data));
+                                                                            formatted_trace.push_str(&format!("      Data (Base58): {data}\n"));
                                                                         }
                                                                     }
                                                                 }
@@ -168,7 +167,7 @@ pub async fn get_ascii_tree_direct(
                                                                     .get("last_transaction_status")
                                                                 {
                                                                     formatted_trace.push_str(
-                                                                        &format!("{}\n", status),
+                                                                        &format!("{status}\n"),
                                                                     );
                                                                 }
                                                                 if let Some(error) = observation
@@ -181,8 +180,7 @@ pub async fn get_ascii_tree_direct(
                                                                     {
                                                                         formatted_trace.push_str(
                                                                             &format!(
-                                                                                "   Error: {}\n",
-                                                                                error
+                                                                                "   Error: {error}\n"
                                                                             ),
                                                                         );
                                                                     }
@@ -224,8 +222,7 @@ pub async fn get_ascii_tree_direct(
                                                     parsed.get("prompt").and_then(|v| v.as_str())
                                                 {
                                                     formatted.push_str(&format!(
-                                                        "📝 Prompt: {}\n\n",
-                                                        prompt
+                                                        "📝 Prompt: {prompt}\n\n"
                                                     ));
                                                 }
 
@@ -248,7 +245,7 @@ pub async fn get_ascii_tree_direct(
                                                                         action_item
                                                                             .get("program_id")
                                                                     {
-                                                                        formatted.push_str(&format!("      Program ID: {}\n", program_id));
+                                                                        formatted.push_str(&format!("      Program ID: {program_id}\n"));
                                                                     }
                                                                     if let Some(accounts) =
                                                                         action_item.get("accounts")
@@ -280,7 +277,7 @@ pub async fn get_ascii_tree_direct(
                                                                                             "🖍️"
                                                                                         };
                                                                                     let arrow = if is_writable { "➕" } else { "➖" };
-                                                                                    formatted.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                                    formatted.push_str(&format!("      [{idx}] {icon} {arrow} {pubkey}\n"));
                                                                                 }
                                                                             }
                                                                         }
@@ -288,7 +285,7 @@ pub async fn get_ascii_tree_direct(
                                                                     if let Some(data) =
                                                                         action_item.get("data")
                                                                     {
-                                                                        formatted.push_str(&format!("      Data (Base58): {}\n", data));
+                                                                        formatted.push_str(&format!("      Data (Base58): {data}\n"));
                                                                     }
                                                                 }
                                                             }
@@ -303,8 +300,7 @@ pub async fn get_ascii_tree_direct(
                                                                 .get("last_transaction_status")
                                                             {
                                                                 formatted.push_str(&format!(
-                                                                    "{}\n",
-                                                                    status
+                                                                    "{status}\n"
                                                                 ));
                                                             }
                                                             if let Some(error) = observation
@@ -316,8 +312,7 @@ pub async fn get_ascii_tree_direct(
                                                                     .is_empty()
                                                                 {
                                                                     formatted.push_str(&format!(
-                                                                        "   Error: {}\n",
-                                                                        error
+                                                                        "   Error: {error}\n"
                                                                     ));
                                                                 }
                                                             }
@@ -399,7 +394,7 @@ pub async fn get_ascii_tree_direct(
                                             parsed.get("prompt").and_then(|v| v.as_str())
                                         {
                                             formatted
-                                                .push_str(&format!("📝 Prompt: {}\n\n", prompt));
+                                                .push_str(&format!("📝 Prompt: {prompt}\n\n"));
                                         }
 
                                         if let Some(steps) =
@@ -416,8 +411,7 @@ pub async fn get_ascii_tree_direct(
                                                                 action_item.get("program_id")
                                                             {
                                                                 formatted.push_str(&format!(
-                                                                    "      Program ID: {}\n",
-                                                                    program_id
+                                                                    "      Program ID: {program_id}\n"
                                                                 ));
                                                             }
                                                             if let Some(accounts) =
@@ -456,7 +450,7 @@ pub async fn get_ascii_tree_direct(
                                                                                 } else {
                                                                                     "➖"
                                                                                 };
-                                                                            formatted.push_str(&format!("      [{}] {} {} {}\n", idx, icon, arrow, pubkey));
+                                                                            formatted.push_str(&format!("      [{idx}] {icon} {arrow} {pubkey}\n"));
                                                                         }
                                                                     }
                                                                 }
@@ -465,8 +459,7 @@ pub async fn get_ascii_tree_direct(
                                                                 action_item.get("data")
                                                             {
                                                                 formatted.push_str(&format!(
-                                                                    "      Data (Base58): {}\n",
-                                                                    data
+                                                                    "      Data (Base58): {data}\n"
                                                                 ));
                                                             }
                                                         }
@@ -479,7 +472,7 @@ pub async fn get_ascii_tree_direct(
                                                         observation.get("last_transaction_status")
                                                     {
                                                         formatted
-                                                            .push_str(&format!("{}\n", status));
+                                                            .push_str(&format!("{status}\n"));
                                                     }
                                                     if let Some(error) =
                                                         observation.get("last_transaction_error")
@@ -487,8 +480,7 @@ pub async fn get_ascii_tree_direct(
                                                         if !error.as_str().unwrap_or("").is_empty()
                                                         {
                                                             formatted.push_str(&format!(
-                                                                "   Error: {}\n",
-                                                                error
+                                                                "   Error: {error}\n"
                                                             ));
                                                         }
                                                     }

@@ -53,6 +53,7 @@ export function BenchmarkGrid({
                   runningBenchmarkExecutions={executions}
                   selectedBenchmark={selectedBenchmark}
                   selectedAgent={selectedAgent}
+                  isAnyRunning={runningBenchmarkIds.length > 0}
                   onBenchmarkClick={(result) => {
                     if (onBenchmarkSelect) {
                       onBenchmarkSelect(result.benchmark_id, agentType);

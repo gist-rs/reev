@@ -207,7 +207,7 @@ pub async fn get_execution_status(
                         error!("Failed to format execution trace for {}: {}", exec_id, e);
                         (
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("Failed to format execution trace: {}", e),
+                            format!("Failed to format execution trace: {e}"),
                         )
                             .into_response()
                     }
@@ -218,7 +218,7 @@ pub async fn get_execution_status(
                 error!("Failed to get session log from database: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Database error: {}", e),
+                    format!("Database error: {e}"),
                 )
                     .into_response()
             }
@@ -244,7 +244,7 @@ pub async fn get_execution_status(
                                     error!("Failed to format execution trace: {}", e);
                                     (
                                         StatusCode::INTERNAL_SERVER_ERROR,
-                                        format!("Failed to format execution trace: {}", e),
+                                        format!("Failed to format execution trace: {e}"),
                                     )
                                         .into_response()
                                 }
@@ -257,7 +257,7 @@ pub async fn get_execution_status(
                             error!("Failed to get session log: {}", e);
                             (
                                 StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Database error: {}", e),
+                                format!("Database error: {e}"),
                             )
                                 .into_response()
                         }
@@ -270,7 +270,7 @@ pub async fn get_execution_status(
                 error!("Failed to list sessions: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Database error: {}", e),
+                    format!("Database error: {e}"),
                 )
                     .into_response()
             }
@@ -289,7 +289,7 @@ fn format_execution_trace(
             let mut formatted_trace = String::new();
 
             if let Some(prompt) = parsed.get("prompt").and_then(|v| v.as_str()) {
-                formatted_trace.push_str(&format!("📝 Prompt: {}\n\n", prompt));
+                formatted_trace.push_str(&format!("📝 Prompt: {prompt}\n\n"));
             }
 
             if let Some(steps) = parsed.get("steps").and_then(|v| v.as_array()) {
@@ -302,7 +302,7 @@ fn format_execution_trace(
                             for action_item in action_array {
                                 if let Some(program_id) = action_item.get("program_id") {
                                     formatted_trace
-                                        .push_str(&format!("      Program ID: {}\n", program_id));
+                                        .push_str(&format!("      Program ID: {program_id}\n"));
                                 }
                                 if let Some(accounts) = action_item.get("accounts") {
                                     if let Some(accounts_array) = accounts.as_array() {
@@ -321,8 +321,7 @@ fn format_execution_trace(
                                                     if is_signer { "🖋️" } else { "🖍️" };
                                                 let arrow = if is_writable { "➕" } else { "➖" };
                                                 formatted_trace.push_str(&format!(
-                                                    "      [{}] {} {} {}\n",
-                                                    idx, icon, arrow, pubkey
+                                                    "      [{idx}] {icon} {arrow} {pubkey}\n"
                                                 ));
                                             }
                                         }
@@ -330,7 +329,7 @@ fn format_execution_trace(
                                 }
                                 if let Some(data) = action_item.get("data") {
                                     formatted_trace
-                                        .push_str(&format!("      Data (Base58): {}\n", data));
+                                        .push_str(&format!("      Data (Base58): {data}\n"));
                                 }
                             }
                         }
@@ -339,11 +338,11 @@ fn format_execution_trace(
                     if let Some(observation) = step.get("observation") {
                         formatted_trace.push_str("   └─ OBSERVATION: ");
                         if let Some(status) = observation.get("last_transaction_status") {
-                            formatted_trace.push_str(&format!("{}\n", status));
+                            formatted_trace.push_str(&format!("{status}\n"));
                         }
                         if let Some(error) = observation.get("last_transaction_error") {
                             if !error.as_str().unwrap_or("").is_empty() {
-                                formatted_trace.push_str(&format!("   Error: {}\n", error));
+                                formatted_trace.push_str(&format!("   Error: {error}\n"));
                             }
                         }
                     }
@@ -374,7 +373,7 @@ fn format_execution_trace(
                 error: None,
             })
         }
-        Err(e) => Err(format!("Failed to parse execution trace: {}", e).into()),
+        Err(e) => Err(format!("Failed to parse execution trace: {e}").into()),
     }
 }
 

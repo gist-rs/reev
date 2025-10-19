@@ -16,6 +16,7 @@ interface AgentPerformanceCardProps {
   >;
   selectedBenchmark?: string | null;
   selectedAgent?: string;
+  isAnyRunning?: boolean;
 }
 
 export function AgentPerformanceCard({
@@ -28,6 +29,7 @@ export function AgentPerformanceCard({
   runningBenchmarkExecutions,
   selectedBenchmark,
   selectedAgent,
+  isAnyRunning = false,
 }: AgentPerformanceCardProps) {
   const finalAgentData = useMemo(
     () =>
@@ -86,6 +88,8 @@ export function AgentPerformanceCard({
         key={benchmark.id}
         result={result}
         onClick={(result) => {
+          // Don't allow clicks when any benchmark is running
+          if (isAnyRunning) return;
           onBenchmarkClick(result, agentType);
           // Also trigger card click to change tab focus
           if (onCardClick) {
@@ -94,6 +98,7 @@ export function AgentPerformanceCard({
         }}
         isRunning={isRunning}
         isSelected={isSelected}
+        disabled={isAnyRunning}
       />
     );
   };
@@ -270,8 +275,12 @@ export function AgentPerformanceCard({
 
   return (
     <div
-      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2 cursor-pointer hover:shadow-md transition-shadow"
-      onClick={handleCardClick}
+      className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 max-w-md m-2 transition-shadow ${
+        isAnyRunning
+          ? "cursor-not-allowed opacity-75"
+          : "cursor-pointer hover:shadow-md"
+      }`}
+      onClick={isAnyRunning ? undefined : handleCardClick}
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
