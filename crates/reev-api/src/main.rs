@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use reev_lib::db::{DatabaseConfig, DatabaseWriter};
+use reev_lib::db::{DatabaseConfig, PooledDatabaseWriter};
 use reev_lib::server_utils::kill_existing_api;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -44,8 +44,8 @@ async fn main() -> Result<()> {
     info!("Connecting to database at: {}", db_path);
 
     let db_config = DatabaseConfig::new(&db_path);
-    let db = Arc::new(DatabaseWriter::new(db_config).await?);
-    info!("Database connection established");
+    let db = PooledDatabaseWriter::new(db_config, 10).await?;
+    info!("Database connection pool established");
 
     // Sync benchmarks to database on startup
     let benchmarks_dir = "benchmarks";
@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
 
     // Create API state
     let state = ApiState {
-        db,
+        db: db.clone(),
         executions: Arc::new(Mutex::new(HashMap::new())),
         agent_configs: Arc::new(Mutex::new(HashMap::new())),
     };

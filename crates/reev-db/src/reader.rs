@@ -10,6 +10,7 @@ use crate::{
 use reev_flow::database::{DBFlowLog, DBFlowLogConverter};
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
+use turso::Connection;
 
 /// Database reader for efficient read operations
 pub struct DatabaseReader {
@@ -621,6 +622,11 @@ impl DatabaseReader {
     /// Get the underlying connection for advanced operations
     pub fn connection(&self) -> &turso::Connection {
         &self.conn
+    }
+
+    /// Create a DatabaseReader from an existing connection
+    pub fn from_connection(conn: Connection) -> Self {
+        Self { conn }
     }
 }
 

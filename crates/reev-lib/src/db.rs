@@ -20,6 +20,7 @@ pub use reev_db::{
     DatabaseStats,
     DatabaseWriter,
     DuplicateRecord,
+    PooledDatabaseWriter,
     QueryFilter,
     Result,
     SyncError,

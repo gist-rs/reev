@@ -319,7 +319,7 @@ pub async fn get_transaction_logs(
 
                 // Use same pattern as execution log - direct database access
                 match state.db.get_session_log(&session.session_id).await {
-                    Ok(log_content) => {
+                    Ok(Some(log_content)) => {
                         info!("DEBUG: Retrieved session log content (length: {} chars) for session: {}", log_content.len(), session.session_id);
 
                         // Log first 100 chars of content for debugging
@@ -448,6 +448,23 @@ pub async fn get_transaction_logs(
                                 response.into_response()
                             }
                         }
+                    }
+                    Ok(None) => {
+                        warn!("No session log content found");
+                        info!("DEBUG: Returning empty response for missing session log");
+                        let response = (
+                            StatusCode::OK,
+                            Json(json!({
+                                "benchmark_id": benchmark_id,
+                                "transaction_logs": "",
+                                "format": if params.get("format").is_some_and(|f| f == "tree") { "tree" } else { "plain" },
+                                "show_cu": params.get("show_cu").unwrap_or(&"false".to_string()) == "true",
+                                "message": "No session log content found",
+                                "is_running": false
+                            })),
+                        );
+                        info!("DEBUG: Returning empty response");
+                        response.into_response()
                     }
                     Err(e) => {
                         warn!("Failed to get session log: {}", e);

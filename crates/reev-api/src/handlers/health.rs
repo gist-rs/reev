@@ -47,7 +47,8 @@ pub async fn debug_benchmarks(State(state): State<ApiState>) -> impl IntoRespons
     let db = &state.db;
 
     // Get all benchmarks from database
-    match db.get_all_benchmarks().await {
+    let filter = reev_db::QueryFilter::new();
+    match db.list_benchmarks(&filter).await {
         Ok(benchmarks) => {
             let debug_info: Vec<serde_json::Value> = benchmarks
                 .into_iter()
@@ -88,21 +89,28 @@ pub async fn test_on_conflict(State(state): State<ApiState>) -> impl IntoRespons
     let db = &state.db;
 
     // Test 1: Insert first record using existing upsert function
-    let result1 = db
-        .upsert_benchmark("test-conflict-1", "test-prompt-1", "test-content-1")
-        .await;
+    let benchmark_data1 = reev_db::types::BenchmarkData {
+        id: "test-id-1".to_string(),
+        benchmark_name: "test-conflict-1".to_string(),
+        prompt: "test-prompt-1".to_string(),
+        content: "test-content-1".to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let result1 = db.upsert_benchmark(&benchmark_data1).await;
 
     // Test 2: Insert second record with SAME benchmark_name AND SAME prompt (should trigger conflict)
-    let result2 = db
-        .upsert_benchmark(
-            "test-conflict-1", // Same benchmark_name as first record
-            "test-prompt-1",   // SAME prompt - should generate same MD5
-            "test-content-1-updated",
-        )
-        .await;
+    let benchmark_data2 = reev_db::types::BenchmarkData {
+        id: "test-id-1".to_string(), // Same MD5 as first record
+        benchmark_name: "test-conflict-1".to_string(),
+        prompt: "test-prompt-1".to_string(), // SAME prompt - should generate same MD5
+        content: "test-content-1-updated".to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let result2 = db.upsert_benchmark(&benchmark_data2).await;
 
     // Check results using existing database functions
-    let total_records = db.get_all_benchmark_count().await.unwrap_or(0);
+    let stats = db.get_database_stats().await.unwrap_or_default();
+    let total_records = stats.total_benchmarks;
 
     let success = total_records == 1;
     let message = if success {

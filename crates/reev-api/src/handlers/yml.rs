@@ -35,14 +35,14 @@ pub async fn upsert_yml(
     };
 
     // Upsert to database
-    let prompt_md5 = match db
-        .upsert_benchmark(
-            &benchmark_data.id,
-            &benchmark_data.prompt,
-            &payload.yml_content,
-        )
-        .await
-    {
+    let benchmark_data = reev_db::types::BenchmarkData {
+        id: benchmark_data.id.clone(),
+        benchmark_name: benchmark_data.id.clone(),
+        prompt: benchmark_data.prompt.clone(),
+        content: payload.yml_content.clone(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let prompt_md5 = match db.upsert_benchmark(&benchmark_data).await {
         Ok(id) => id,
         Err(e) => {
             error!("Failed to upsert benchmark: {}", e);

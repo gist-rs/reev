@@ -12,7 +12,7 @@ pub struct BenchmarkInfo {
 /// API state containing database connection and execution state
 #[derive(Clone)]
 pub struct ApiState {
-    pub db: std::sync::Arc<reev_lib::db::DatabaseWriter>,
+    pub db: reev_lib::db::PooledDatabaseWriter,
     pub executions:
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
     pub agent_configs:

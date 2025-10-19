@@ -37,6 +37,7 @@
 
 pub mod config;
 pub mod error;
+pub mod pool;
 pub mod reader;
 pub mod shared;
 pub mod types;
@@ -45,6 +46,7 @@ pub mod writer;
 // Re-export commonly used types
 pub use config::DatabaseConfig;
 pub use error::{DatabaseError, Result};
+pub use pool::PooledDatabaseWriter;
 pub use reader::DatabaseReader;
 // Import shared types first, then legacy types for backward compatibility
 pub use shared::prelude::*;

@@ -182,4 +182,9 @@ impl DatabaseWriter {
         info!("[DB] Database health check completed successfully");
         Ok(())
     }
+
+    /// Create a DatabaseWriter from an existing connection
+    pub fn from_connection(conn: Connection, config: DatabaseConfig) -> Self {
+        Self { conn, config }
+    }
 }
