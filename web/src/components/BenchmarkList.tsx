@@ -276,6 +276,42 @@ export function BenchmarkList({
     [selectedAgent, isRunning, onExecutionStart, refetch],
   );
 
+  const handleStopBenchmark = useCallback(
+    async (benchmark: BenchmarkItem) => {
+      const executionId = runningBenchmarks.get(benchmark.id);
+      if (!executionId) {
+        console.warn("No running execution found for benchmark:", benchmark.id);
+        return;
+      }
+
+      try {
+        await apiClient.stopBenchmark(benchmark.id, executionId);
+
+        // Update execution state to show it's stopped
+        updateExecution(benchmark.id, {
+          ...executions.get(benchmark.id),
+          status: "Failed",
+          progress: 0,
+        });
+
+        // Remove from running benchmarks
+        setRunningBenchmarks((prev) => {
+          const updated = new Map(prev);
+          updated.delete(benchmark.id);
+          return updated;
+        });
+
+        console.log("✅ Benchmark stopped:", benchmark.id);
+      } catch (error) {
+        console.error("❌ Failed to stop benchmark:", error);
+        alert(
+          `Failed to stop benchmark: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    },
+    [runningBenchmarks, executions, updateExecution],
+  );
+
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
@@ -682,9 +718,9 @@ export function BenchmarkList({
                             }`}
                           />
                           {/* Expand icon below status */}
-                          <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors mt-1">
+                          <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-all duration-300 mt-1">
                             <svg
-                              className="w-4 h-4"
+                              className={`w-4 h-4 ${isExpanded ? "rotate-180" : ""}`}
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -729,6 +765,38 @@ export function BenchmarkList({
                     <div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
+                          {/* Status box and expand icon */}
+                          <div className="flex flex-col items-center mr-3">
+                            {/* Status indicator box */}
+                            <div
+                              className={`w-4 h-4 rounded-sm ${
+                                status === ExecutionStatus.COMPLETED
+                                  ? "bg-green-500"
+                                  : status === ExecutionStatus.FAILED
+                                    ? "bg-red-500"
+                                    : status === ExecutionStatus.RUNNING
+                                      ? "bg-blue-500"
+                                      : "bg-gray-300 dark:bg-gray-600"
+                              }`}
+                            />
+                            {/* Expand icon below status */}
+                            <div className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-all duration-300 mt-1">
+                              <svg
+                                className={`w-4 h-4 ${isExpanded ? "rotate-180" : ""}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </div>
+                          </div>
                           {/* Benchmark Name */}
                           <div>
                             <Tooltip
@@ -775,22 +843,27 @@ export function BenchmarkList({
                           </div>
                         </div>
 
-                        {/* Run Button */}
+                        {/* Run/Stop Button */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRunBenchmark(benchmark);
+                            if (status === ExecutionStatus.RUNNING) {
+                              handleStopBenchmark(benchmark);
+                            } else {
+                              handleRunBenchmark(benchmark);
+                            }
                           }}
                           disabled={
-                            isRunning ||
-                            isRunningAll ||
-                            status === ExecutionStatus.RUNNING
+                            status !== ExecutionStatus.RUNNING &&
+                            (isRunning || isRunningAll)
                           }
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                          className={`px-3 py-1 text-white text-sm rounded transition-colors ${
+                            status === ExecutionStatus.RUNNING
+                              ? "bg-red-600 hover:bg-red-700"
+                              : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          }`}
                         >
-                          {status === ExecutionStatus.RUNNING
-                            ? "Running..."
-                            : "Run"}
+                          {status === ExecutionStatus.RUNNING ? "Stop" : "Run"}
                         </button>
                       </div>
 
