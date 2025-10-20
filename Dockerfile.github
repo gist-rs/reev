@@ -1,0 +1,135 @@
+# syntax=docker/dockerfile:1
+#
+# Dockerfile.github - Ubuntu-based build simulating GitHub Actions runner
+# Based on Solana's comprehensive Docker setup with Turso dependencies
+#
+# This Dockerfile builds in an Ubuntu environment to simulate GitHub Actions
+
+##########################################
+## 1️⃣ Base Builder Stage (Ubuntu)      ##
+##########################################
+
+FROM ubuntu:20.04 AS builder
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV PATH="$PATH:/root/.cargo/bin"
+
+# Install comprehensive dependencies for Solana, Turso, and OpenSSL
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    # Basic build tools
+    build-essential \
+    git \
+    curl \
+    ca-certificates \
+    pkg-config \
+    cmake \
+    make \
+    # OpenSSL and crypto libraries
+    libssl-dev \
+    libssl1.1 \
+    # Solana dependencies
+    libudev-dev \
+    zlib1g-dev \
+    llvm \
+    clang \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libclang-dev \
+    # Additional system libraries
+    libudev1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- --no-modify-path --profile minimal --default-toolchain stable -y && \
+    rustup component add rustfmt clippy && \
+    rustup target add x86_64-unknown-linux-gnu
+
+# Install cargo-chef for optimized caching
+RUN cargo install cargo-chef --version 0.1.72
+
+WORKDIR /app
+
+##########################################
+## 2️⃣ Chef Stage (cargo-chef)          ##
+##########################################
+
+FROM builder AS chef
+
+# Copy all the source files for dependency planning
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+COPY protocols/ ./protocols/
+
+# Prepare the recipe for building dependencies
+RUN cargo chef prepare --recipe-path recipe.json
+
+##########################################
+## 3️⃣ Build Stage                      ##
+##########################################
+
+FROM builder AS build
+
+# Copy the recipe from chef stage
+COPY --from=chef /app/recipe.json recipe.json
+
+# Build dependencies using the recipe
+RUN PROTOC=/usr/bin/protoc \
+    PKG_CONFIG_ALLOW_CROSS=1 \
+    cargo chef cook --release --recipe-path recipe.json
+
+# Copy the actual source code
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+COPY protocols/ ./protocols/
+
+# Build the actual application binaries
+RUN PROTOC=/usr/bin/protoc \
+    PKG_CONFIG_ALLOW_CROSS=1 \
+    cargo build --release \
+    --package reev-agent \
+    --package reev-api \
+    --package reev-runner
+
+##########################################
+## 4️⃣ Runtime Stage                    ##
+##########################################
+
+FROM ubuntu:20.04
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    ca-certificates \
+    curl \
+    libssl1.1 \
+    libudev1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r app && \
+    useradd -r -u 1000 -g app app
+
+WORKDIR /app
+
+# Copy the compiled binaries
+COPY --from=build /app/target/release/reev-agent /app/reev-agent
+COPY --from=build /app/target/release/reev-api /app/reev-api
+COPY --from=build /app/target/release/reev-runner /app/reev-runner
+
+# Set ownership
+RUN chown -R app:app /app
+
+# Expose ports
+EXPOSE 8080 9090 9091
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
+    CMD curl -f http://localhost:9090/health || exit 1
+
+USER app
+
+ENTRYPOINT ["/app/reev-api"]
