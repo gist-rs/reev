@@ -193,6 +193,7 @@ impl StateDiagramGenerator {
     }
 
     /// Summarize tool result for display
+    #[allow(dead_code)]
     fn summarize_result(result: &Option<serde_json::Value>) -> String {
         match result {
             Some(serde_json::Value::Object(map)) => {

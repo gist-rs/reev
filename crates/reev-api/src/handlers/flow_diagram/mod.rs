@@ -42,7 +42,6 @@ pub enum FlowDiagramError {
     InvalidLogFormat(String),
     NoToolCalls,
     ParseError(String),
-    GenerationError(String),
 }
 
 impl std::fmt::Display for FlowDiagramError {
@@ -54,7 +53,6 @@ impl std::fmt::Display for FlowDiagramError {
             }
             FlowDiagramError::NoToolCalls => write!(f, "No tool calls found in session"),
             FlowDiagramError::ParseError(msg) => write!(f, "Parsing error: {msg}"),
-            FlowDiagramError::GenerationError(msg) => write!(f, "Generation error: {msg}"),
         }
     }
 }

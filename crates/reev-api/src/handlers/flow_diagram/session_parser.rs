@@ -18,14 +18,10 @@ pub struct ParsedSession {
     pub session_id: String,
     /// Benchmark identifier
     pub benchmark_id: String,
-    /// Agent type
-    pub agent_type: String,
     /// Extracted tool calls
     pub tool_calls: Vec<ParsedToolCall>,
     /// Session prompt
     pub prompt: Option<String>,
-    /// Final execution result
-    pub final_result: Option<Value>,
     /// Session start time
     pub start_time: u64,
     /// Session end time
@@ -39,14 +35,8 @@ pub struct ParsedToolCall {
     pub tool_id: String,
     /// Tool start time (Unix timestamp)
     pub start_time: u64,
-    /// Tool end time (Unix timestamp)
-    pub end_time: u64,
     /// Tool parameters
     pub params: Value,
-    /// Tool result
-    pub result: Option<Value>,
-    /// Tool execution status
-    pub status: String,
     /// Execution duration in milliseconds
     pub duration_ms: u64,
 }
@@ -83,7 +73,7 @@ impl SessionParser {
             .unwrap_or("unknown")
             .to_string();
 
-        let agent_type = session_log
+        let _agent_type = session_log
             .get("agent_type")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
@@ -159,7 +149,7 @@ impl SessionParser {
         // Sort tool calls by start time
         tool_calls.sort_by_key(|t| t.start_time);
 
-        let final_result = session_log.get("final_result").cloned();
+        let _final_result = session_log.get("final_result").cloned();
 
         info!(
             "Parsed session {} with {} tool calls",
@@ -170,10 +160,8 @@ impl SessionParser {
         Ok(ParsedSession {
             session_id,
             benchmark_id,
-            agent_type,
             tool_calls,
             prompt,
-            final_result,
             start_time,
             end_time,
         })
@@ -198,8 +186,8 @@ impl SessionParser {
             .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing end_time".to_string()))?;
 
         let params = tool.get("params").cloned().unwrap_or(Value::Null);
-        let result = tool.get("result").cloned();
-        let status = tool
+        let _result = tool.get("result").cloned();
+        let _status = tool
             .get("status")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
@@ -210,10 +198,7 @@ impl SessionParser {
         Ok(ParsedToolCall {
             tool_id,
             start_time,
-            end_time,
             params,
-            result,
-            status,
             duration_ms,
         })
     }
@@ -241,7 +226,7 @@ impl SessionParser {
                         }
                     }
                     "ToolResult" => {
-                        if let (Some(tool_id), Some(end_time), Some(result), Some(status)) = (
+                        if let (Some(tool_id), Some(end_time), Some(_result), Some(_status)) = (
                             event
                                 .get("data")
                                 .and_then(|d| d.get("tool_id"))
@@ -261,16 +246,15 @@ impl SessionParser {
                                 tool_calls.push(ParsedToolCall {
                                     tool_id: tool_id.to_string(),
                                     start_time,
-                                    end_time,
                                     params,
-                                    result: Some(result.clone()),
-                                    status: status.to_string(),
                                     duration_ms,
                                 });
                             }
                         }
                     }
-                    _ => {}
+                    _ => {
+                        // Handle other event types that we don't need to process
+                    }
                 }
             }
         }
@@ -335,7 +319,7 @@ impl SessionParser {
                     }
 
                     // Extract observation result
-                    let result = observation
+                    let _result = observation
                         .get("last_transaction_status")
                         .and_then(|s| s.as_str())
                         .map(|status| {
@@ -347,15 +331,12 @@ impl SessionParser {
 
                     // Create tool call with mock timestamps
                     let start_time = step_index as u64;
-                    let end_time = start_time + 1;
+                    let _end_time = start_time + 1;
 
                     return Some(ParsedToolCall {
                         tool_id,
                         start_time,
-                        end_time,
                         params: Value::Object(params),
-                        result,
-                        status: "completed".to_string(),
                         duration_ms: 1000,
                     });
                 }
@@ -378,82 +359,6 @@ impl SessionParser {
             execution_time_ms,
             benchmark_id: parsed.benchmark_id.clone(),
             session_id: Some(parsed.session_id.clone()),
-        }
-    }
-
-    /// Find the latest session file for a benchmark
-    pub async fn find_latest_session(
-        benchmark_id: &str,
-        sessions_dir: &Path,
-    ) -> Result<String, FlowDiagramError> {
-        let mut sessions = tokio::fs::read_dir(sessions_dir).await.map_err(|e| {
-            FlowDiagramError::SessionNotFound(format!("Failed to read sessions directory: {e}"))
-        })?;
-
-        let mut latest_session = None;
-        let mut latest_timestamp = 0u64;
-        let mut session_count = 0;
-
-        while let Some(entry) = sessions.next_entry().await.map_err(|e| {
-            FlowDiagramError::SessionNotFound(format!("Failed to read directory entry: {e}"))
-        })? {
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if filename.starts_with("session_") {
-                    session_count += 1;
-                    debug!("Checking session file #{}: {}", session_count, filename);
-                    // Try to read the session to check its benchmark_id and timestamp
-                    if let Ok(content) = tokio::fs::read_to_string(&path).await {
-                        if let Ok(session) = serde_json::from_str::<Value>(&content) {
-                            // Check if this session belongs to the requested benchmark
-                            if let Some(session_benchmark_id) =
-                                session.get("benchmark_id").and_then(|v| v.as_str())
-                            {
-                                debug!(
-                                    "Session {} has benchmark_id: {} (looking for: {})",
-                                    filename, session_benchmark_id, benchmark_id
-                                );
-                                if session_benchmark_id == benchmark_id {
-                                    if let Some(start_time) =
-                                        session.get("start_time").and_then(|v| v.as_u64())
-                                    {
-                                        debug!(
-                                            "Found matching session: {} with start_time: {}",
-                                            filename, start_time
-                                        );
-                                        if start_time > latest_timestamp {
-                                            latest_timestamp = start_time;
-                                            latest_session =
-                                                Some(path.to_string_lossy().to_string());
-                                            debug!(
-                                                "New latest session: {} at time: {}",
-                                                filename, start_time
-                                            );
-                                        }
-                                    }
-                                }
-                            } else {
-                                debug!("Session {} has no benchmark_id", filename);
-                            }
-                        } else {
-                            debug!("Failed to parse session JSON: {}", filename);
-                        }
-                    } else {
-                        debug!("Failed to read session file: {}", filename);
-                    }
-                }
-            }
-        }
-
-        debug!("Checked {} session files total", session_count);
-        if let Some(session) = latest_session {
-            debug!("Returning latest session: {}", session);
-            Ok(session)
-        } else {
-            Err(FlowDiagramError::SessionNotFound(format!(
-                "No session found for benchmark: {benchmark_id}"
-            )))
         }
     }
 }
