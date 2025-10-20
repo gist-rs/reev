@@ -109,6 +109,7 @@ async fn main() -> Result<()> {
         .route("/api/v1/agents/test", post(test_agent_connection))
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
+        .route("/api/v1/flows/{benchmark_id}", get(get_flow))
         .route(
             "/api/v1/transaction-logs/{benchmark_id}",
             get(get_transaction_logs),
