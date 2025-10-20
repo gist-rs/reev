@@ -187,7 +187,8 @@ impl LlmAgent {
         let response_end = SystemTime::now();
 
         info!(
-            "[LlmAgent] Debug - Parsing tools from response text: {}",
+            "[LlmAgent] Debug - Parsing tools from response text (length: {}): {}",
+            response_text.len(),
             response_text
         );
         // Parse response to identify tool intentions
@@ -525,14 +526,7 @@ impl Agent for LlmAgent {
         // We need to recreate the response since we consumed it with .text()
         let llm_response_text = response_text.clone();
 
-        // Extract tool calls from the response using the span timing
-        let response_start = SystemTime::now();
-        info!(
-            "[LlmAgent] Debug - Extracting tool calls from response: {}",
-            llm_response_text
-        );
-        self.extract_tool_calls_from_response(&llm_response_text, response_start)
-            .await?;
+        // Tool calls are now extracted after actions are parsed
 
         info!(
             "[LlmAgent] Debug - Raw response text: {}",
@@ -713,6 +707,16 @@ impl Agent for LlmAgent {
             "[LlmAgent] Successfully parsed {} instruction(s).",
             actions.len()
         );
+
+        // Extract tool calls from the response using the span timing
+        let response_start = SystemTime::now();
+        info!(
+            "[LlmAgent] Debug - Extracting tool calls from response (length: {}): {}",
+            llm_response_text.len(),
+            llm_response_text
+        );
+        self.extract_tool_calls_from_response(&llm_response_text, response_start)
+            .await?;
 
         // 10. Log transaction signatures if available (for new format)
         if let Some(signatures) = llm_response.signatures {
