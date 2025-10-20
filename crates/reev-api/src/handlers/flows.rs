@@ -27,8 +27,8 @@ pub async fn get_flow(
         session_id, query.format
     );
 
-    // Try to generate stateDiagram from session logs first
-    match generate_state_diagram(&session_id).await {
+    // Try to generate stateDiagram from database session data first
+    match generate_state_diagram_from_db(&state, &session_id).await {
         Ok(flow_diagram) => {
             let response_data = json!({
                 "session_id": session_id,
@@ -46,12 +46,36 @@ pub async fn get_flow(
         }
         Err(e) => {
             warn!(
-                "Failed to generate state diagram for session {}: {}, falling back to session data",
+                "Failed to generate state diagram for session {}: {}, trying session files",
                 session_id, e
             );
 
-            // Fall back to existing session data if diagram generation fails
-            get_session_fallback(state, session_id, query).await
+            // Try session files as fallback
+            match generate_state_diagram(&session_id).await {
+                Ok(flow_diagram) => {
+                    let response_data = json!({
+                        "session_id": session_id,
+                        "diagram": flow_diagram.diagram,
+                        "metadata": flow_diagram.metadata,
+                        "sessions": []
+                    });
+
+                    match query.format.as_deref() {
+                        Some("html") => Html(StateDiagramGenerator::generate_html(&flow_diagram))
+                            .into_response(),
+                        _ => Json(response_data).into_response(),
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to generate state diagram from session files for session {}: {}, falling back to session data",
+                        session_id, e
+                    );
+
+                    // Final fallback to existing session data
+                    get_session_fallback(state, session_id, query).await
+                }
+            }
         }
     }
 }
@@ -60,42 +84,84 @@ pub async fn get_flow(
 async fn generate_state_diagram(
     session_id: &str,
 ) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
-    // Look for session logs in the standard location
+    // Get session from database
     let sessions_dir = PathBuf::from("logs/sessions");
 
-    if !sessions_dir.exists() {
-        return Err(FlowDiagramError::SessionNotFound(
-            "Sessions directory does not exist".to_string(),
-        ));
+    // First try to find session file (for newer format)
+    if sessions_dir.exists() {
+        let session_file = format!("{}/session_{}.json", sessions_dir.display(), session_id);
+        let session_path = PathBuf::from(&session_file);
+
+        if session_path.exists() {
+            info!("Found session file: {}", session_file);
+            let parsed_session = SessionParser::parse_session_file(&session_path).await?;
+            return if parsed_session.tool_calls.is_empty() {
+                info!("No tool calls found, generating simple diagram");
+                Ok(StateDiagramGenerator::generate_simple_diagram(
+                    &parsed_session,
+                ))
+            } else {
+                info!(
+                    "Generating diagram with {} tool calls",
+                    parsed_session.tool_calls.len()
+                );
+                StateDiagramGenerator::generate_diagram(&parsed_session)
+            };
+        }
     }
 
-    // Find the specific session file
-    let session_file = format!("{}/session_{}.json", sessions_dir.display(), session_id);
-    let session_path = PathBuf::from(&session_file);
+    // Fallback: try to get session from database using session_id
+    // This requires access to the database state, which we don't have here
+    // For now, return an error to trigger the fallback mechanism
+    Err(FlowDiagramError::SessionNotFound(format!(
+        "Session file not found for session_id: {session_id}"
+    )))
+}
 
-    if !session_path.exists() {
-        return Err(FlowDiagramError::SessionNotFound(format!(
-            "Session file not found: {session_file}"
-        )));
-    }
+/// Generate stateDiagram from database session data
+async fn generate_state_diagram_from_db(
+    state: &ApiState,
+    session_id: &str,
+) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
+    // Get session log from database
+    match state.db.get_session_log(session_id).await {
+        Ok(log_content) => {
+            info!("Found session log in database for session: {}", session_id);
 
-    info!("Found session file: {}", session_file);
+            // Create a mock session structure for parsing
+            let session_data = json!({
+                "session_id": session_id,
+                "log_content": log_content,
+                "start_time": 0,
+                "end_time": 1
+            });
 
-    // Parse the session
-    let parsed_session = SessionParser::parse_session_file(&session_path).await?;
+            // Parse the session content
+            let parsed_session = SessionParser::parse_session_content(&session_data.to_string())?;
 
-    // Generate the diagram
-    if parsed_session.tool_calls.is_empty() {
-        info!("No tool calls found, generating simple diagram");
-        Ok(StateDiagramGenerator::generate_simple_diagram(
-            &parsed_session,
-        ))
-    } else {
-        info!(
-            "Generating diagram with {} tool calls",
-            parsed_session.tool_calls.len()
-        );
-        StateDiagramGenerator::generate_diagram(&parsed_session)
+            // Generate the diagram
+            if parsed_session.tool_calls.is_empty() {
+                info!("No tool calls found in database log, generating simple diagram");
+                Ok(StateDiagramGenerator::generate_simple_diagram(
+                    &parsed_session,
+                ))
+            } else {
+                info!(
+                    "Generating diagram with {} tool calls from database",
+                    parsed_session.tool_calls.len()
+                );
+                StateDiagramGenerator::generate_diagram(&parsed_session)
+            }
+        }
+        Err(e) => {
+            warn!(
+                "Failed to get session log from database for session {}: {}",
+                session_id, e
+            );
+            Err(FlowDiagramError::SessionNotFound(format!(
+                "Session not found in database: {session_id}"
+            )))
+        }
     }
 }
 

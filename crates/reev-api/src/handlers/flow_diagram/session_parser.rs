@@ -67,9 +67,8 @@ impl SessionParser {
     pub fn parse_session_content(content: &str) -> Result<ParsedSession, FlowDiagramError> {
         debug!("Parsing session content (length: {})", content.len());
 
-        let session_log: Value = serde_json::from_str(content).map_err(|e| {
-            FlowDiagramError::InvalidLogFormat(format!("JSON parsing failed: {e}"))
-        })?;
+        let session_log: Value = serde_json::from_str(content)
+            .map_err(|e| FlowDiagramError::InvalidLogFormat(format!("JSON parsing failed: {e}")))?;
 
         // Extract basic session information
         let session_id = session_log
@@ -97,13 +96,28 @@ impl SessionParser {
 
         let end_time = session_log.get("end_time").and_then(|v| v.as_u64());
 
-        // Extract prompt from final_result data
-        let prompt = session_log
+        // Extract prompt from different sources
+        let prompt = if let Some(p) = session_log
             .get("final_result")
             .and_then(|fr| fr.get("data"))
             .and_then(|data| data.get("prompt"))
             .and_then(|p| p.as_str())
-            .map(|s| s.to_string());
+        {
+            Some(p.to_string())
+        } else if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str())
+        {
+            // Try to parse log_content as JSON to extract prompt
+            if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
+                log_json
+                    .get("prompt")
+                    .and_then(|p| p.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         // Extract tool calls from multiple sources
         let mut tool_calls = Vec::new();
@@ -119,6 +133,19 @@ impl SessionParser {
             for tool in tools {
                 if let Ok(parsed_tool) = Self::parse_enhanced_tool(tool) {
                     tool_calls.push(parsed_tool);
+                }
+            }
+        } else if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str())
+        {
+            // Try to extract from log_content JSON format
+            if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
+                if let Some(steps) = log_json.get("steps").and_then(|s| s.as_array()) {
+                    debug!("Found {} steps in log_content", steps.len());
+                    for (index, step) in steps.iter().enumerate() {
+                        if let Some(tool_call) = Self::parse_step_as_tool_call(step, index) {
+                            tool_calls.push(tool_call);
+                        }
+                    }
                 }
             }
         } else {
@@ -249,6 +276,92 @@ impl SessionParser {
         }
 
         debug!("Extracted {} tool calls from events", tool_calls.len());
+    }
+
+    /// Parse a step from log_content as a tool call
+    fn parse_step_as_tool_call(step: &Value, step_index: usize) -> Option<ParsedToolCall> {
+        if let (Some(action), Some(observation)) = (step.get("action"), step.get("observation")) {
+            // Extract action details
+            if let Some(action_array) = action.as_array() {
+                if let Some(first_action) = action_array.first() {
+                    let program_id = first_action
+                        .get("program_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown_program");
+
+                    let accounts_vec = first_action
+                        .get("accounts")
+                        .and_then(|v| v.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+                    let accounts = &accounts_vec;
+
+                    let data = first_action
+                        .get("data")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    // Create tool name based on program_id
+                    let tool_id = if program_id == "11111111111111111111111111111111" {
+                        "transfer_sol".to_string()
+                    } else {
+                        format!("program_{}", &program_id[..8.min(program_id.len())])
+                    };
+
+                    // Extract account information for parameters
+                    let mut params = serde_json::Map::new();
+                    params.insert("program".to_string(), Value::String(program_id.to_string()));
+                    params.insert("data".to_string(), Value::String(data.to_string()));
+                    params.insert("data_length".to_string(), Value::Number(data.len().into()));
+
+                    if let Some(from_account) = accounts.first() {
+                        if let Some(from_pubkey) =
+                            from_account.get("pubkey").and_then(|v| v.as_str())
+                        {
+                            params
+                                .insert("from".to_string(), Value::String(from_pubkey.to_string()));
+                        }
+                    }
+
+                    if accounts.len() > 1 {
+                        if let Some(to_account) = accounts.get(1) {
+                            if let Some(to_pubkey) =
+                                to_account.get("pubkey").and_then(|v| v.as_str())
+                            {
+                                params
+                                    .insert("to".to_string(), Value::String(to_pubkey.to_string()));
+                            }
+                        }
+                    }
+
+                    // Extract observation result
+                    let result = observation
+                        .get("last_transaction_status")
+                        .and_then(|s| s.as_str())
+                        .map(|status| {
+                            let mut result_map = serde_json::Map::new();
+                            result_map
+                                .insert("status".to_string(), Value::String(status.to_string()));
+                            Value::Object(result_map)
+                        });
+
+                    // Create tool call with mock timestamps
+                    let start_time = step_index as u64;
+                    let end_time = start_time + 1;
+
+                    return Some(ParsedToolCall {
+                        tool_id,
+                        start_time,
+                        end_time,
+                        params: Value::Object(params),
+                        result,
+                        status: "completed".to_string(),
+                        duration_ms: 1000,
+                    });
+                }
+            }
+        }
+        None
     }
 
     /// Create diagram metadata from parsed session
