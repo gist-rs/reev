@@ -31,7 +31,7 @@ struct TestCase {
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent gemini-2.5-flash-lite
+/// RUST_LOG=info cargo run -p reev-agent --example 100-jup-swap-sol-usdc -- --agent glm-4.6
 /// ```
 ///
 /// **Local Agent:**

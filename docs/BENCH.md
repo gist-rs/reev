@@ -62,7 +62,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 1000000000
 
-  - pubkey: "RECIPIENT_WALLET_PUBKEY" 
+  - pubkey: "RECIPIENT_WALLET_PUBKEY"
     owner: "11111111111111111111111111111111"
     lamports: 0
 
@@ -83,7 +83,7 @@ ground_truth:
           is_signer: true
           is_writable: true
           weight: 1.0
-        - pubkey: "RECIPIENT_WALLET_PUBKEY" 
+        - pubkey: "RECIPIENT_WALLET_PUBKEY"
           is_signer: false
           is_writable: true
           weight: 1.0
@@ -116,13 +116,13 @@ prompt: "Swap 0.1 SOL for USDC using Jupiter."
 
 ground_truth:
   skip_instruction_validation: true  # API-based benchmark
-  
+
   final_state_assertions:
     - type: SolBalance
       pubkey: "USER_WALLET_PUBKEY"
       expected_approx: 899000000  # Account for slippage + fees
       weight: 0.3
-    
+
     - type: TokenAccountBalance
       pubkey: "USER_USDC_ATA"
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -170,7 +170,7 @@ flow:
 
 ground_truth:
   min_score: 0.6
-  
+
   final_state_assertions:
     - type: SolBalance
       pubkey: "USER_WALLET_PUBKEY"
@@ -255,7 +255,7 @@ For Jupiter and other complex protocols:
 ```yaml
 ground_truth:
   skip_instruction_validation: true  # Critical for API-based protocols
-  
+
   final_state_assertions:
     # Focus on end results, not instruction structure
     - type: TokenAccountBalance
@@ -349,7 +349,7 @@ cargo run -p reev-runner -- benchmarks/your-benchmark.yml --agent deterministic
 ```bash
 # Test with different agents
 cargo run -p reev-runner -- benchmarks/your-benchmark.yml --agent local
-cargo run -p reev-runner -- benchmarks/your-benchmark.yml --agent gemini-2.5-flash-lite
+cargo run -p reev-runner -- benchmarks/your-benchmark.yml --agent glm-4.6
 ```
 
 ## 🔍 Debugging Failed Benchmarks

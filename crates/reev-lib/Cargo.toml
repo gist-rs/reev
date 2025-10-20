@@ -18,6 +18,11 @@ thiserror = { workspace = true }
 rand = { workspace = true }
 chrono = { workspace = true }
 
+# OpenTelemetry Dependencies
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+
 # Solana Dependencies
 solana-client = { workspace = true }
 solana-sdk = { workspace = true }

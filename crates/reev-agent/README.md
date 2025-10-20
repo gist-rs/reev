@@ -66,7 +66,7 @@ You can also specify which agent model to use with the `--agent` flag.
 cargo run -p reev-agent --example 001-sol-transfer
 
 # Run with the Gemini agent (requires a GEMINI_API_KEY in your .env file)
-cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-flash-lite
+cargo run -p reev-agent --example 001-sol-transfer -- --agent glm-4.6
 ```
 
 **Available Examples:**

@@ -35,7 +35,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 *   **Cloud LLM Agent (e.g., Gemini):**
     To run the benchmark using a specific model, provide its name.
     ```sh
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent gemini-2.5-flash-lite
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
     ```
 
 *   **Local LLM Agent:**

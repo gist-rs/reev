@@ -90,7 +90,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
 curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "gemini-2.5-flash-lite"
+    "agent": "glm-4.6"
   }'
 
 # GLM model
@@ -173,7 +173,7 @@ curl -X POST http://localhost:3001/api/v1/agents/test \
 ## 📊 Available Benchmarks
 
 - `001-sol-transfer` - SOL transfer
-- `002-spl-transfer` - SPL token transfer  
+- `002-spl-transfer` - SPL token transfer
 - `003-spl-transfer-fail` - Failed SPL transfer
 - `004-partial-score-spl-transfer` - Partial score SPL transfer
 - `100-jup-swap-sol-usdc` - Jupiter SOL/USDC swap

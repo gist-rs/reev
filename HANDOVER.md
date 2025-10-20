@@ -1,293 +1,147 @@
-# HANDOVER.md
+# Handover: Flow Visualization Tool Call Tracking
 
-## Current State & Recent Changes
+## Current State (2025-10-20)
 
-### 🚀 **Connection Pool Implementation (COMPLETED - LATEST)**
+### ✅ What's Working
+1. **Flow API**: `/flows/{session_id}` endpoint working correctly
+2. **Session logs**: Generated with proper structure in `logs/sessions/`
+3. **Flow diagrams**: Basic stateDiagram generation working
+4. **Architecture**: Decoupled design implemented (reev-api layer tracking)
 
-**Issue**: `BorrowMutError` panics when multiple HTTP handlers tried to access the same Turso database connection concurrently.
+### ❌ What's Broken
+1. **Tool Call Tracking**: `tools: []` arrays are empty in session logs
+2. **OTEL Integration**: Created spans but not extracting data correctly
+3. **Agent Dependency**: Relying on agent code changes (wrong approach)
 
-**Root Cause**: Turso's `Connection` type is not thread-safe for concurrent access. Single shared `DatabaseWriter` in `ApiState` caused race conditions.
+## 🎯 Real Challenge
 
-**Solution**: Implemented comprehensive connection pool system:
-- ✅ Created `ConnectionPool` with configurable max connections (default: 10)
-- ✅ Implemented `PooledDatabaseWriter` with same API as original for compatibility
-- ✅ Added connection lifecycle management with automatic return to pool
-- ✅ Added semaphore-based flow control to prevent resource exhaustion
-- ✅ Updated all API handlers to use pooled connections
-- ✅ Fixed 30+ compilation errors across the codebase
-- ✅ Achieved true concurrent database access without serialization bottleneck
+**We must extract tool calls from OpenTelemetry traces via reev-api layer**
 
-**Test Results**: 
-- ✅ 20 concurrent database operations completed successfully
-- ✅ API server running on port 3001 with no BorrowMutError
-- ✅ All endpoints working: health, agents, benchmarks, performance
-- ✅ Concurrency test: 10 simultaneous requests all succeeded
+### Current Misconceptions
+- ❌ Relying on agent code changes (we can't control 3rd party agents)
+- ❌ Modifying LlmAgent logging (wrong layer)
+- ❌ Binary OTEL format parsing (not needed)
 
-**Files Modified**:
-- `crates/reev-db/src/pool/mod.rs` - Connection pool implementation
-- `crates/reev-db/src/pool/pooled_writer.rs` - Pooled database writer
-- `crates/reev-api/src/types.rs` - Updated ApiState to use PooledDatabaseWriter
-- `crates/reev-api/src/main.rs` - Initialize connection pool with 10 connections
-- All handler files updated to use new pooled API
+### Correct Approach
+- ✅ **OTEL spans are being created** in reev-api layer around HTTP requests
+- ✅ **Existing flow_visualizer** expects structured text format
+- ✅ **We need to extract OTEL trace data** and convert to expected format
 
-**API State Change**:
+## 📋 Next Steps (CRITICAL)
+
+### Step 1: Capture OTEL Trace Data in reev-api
 ```rust
-// Before: Single shared connection (causes BorrowMutError)
-pub db: std::sync::Arc<reev_lib::db::DatabaseWriter>
-
-// After: Connection pool (true concurrency)
-pub db: reev_lib::db::PooledDatabaseWriter
+// In LlmAgent::get_action() - AFTER HTTP request
+// Extract trace data from current OTEL span
+let trace_data = extract_current_otel_trace();
+// Convert to ToolCallInfo format
+let tool_calls = parse_otel_trace_to_tools(trace_data);
+// Store in session logs
 ```
 
-### 🎯 **Execution Trace Enhancement (COMPLETED)**
+### Step 2: OTEL Trace Extraction Methods
+- Find how to get current span data from global tracer
+- Parse OTEL span attributes to extract tool information
+- Map HTTP request/response to logical tool calls
 
-**Issue**: Execution trace was hiding multiple instructions with `(+ 5 more instructions in this transaction)` and included redundant TRANSACTION LOGS section.
+### Step 3: Integration Points
+- Hook into existing LlmAgent HTTP request/response cycle
+- Parse LLM responses to identify intended tool actions
+- Convert to existing `ToolCallInfo` structure format
 
-**Solution**: 
-- ✅ Removed TRANSACTION LOGS section from execution trace (dedicated view exists at `/api/v1/transaction-logs/{id}`)
-- ✅ Modified `render_step_node()` in `reev-runner/src/renderer.rs` to show ALL instructions
-- ✅ Added separator `---` between multiple instructions for clarity
-- ✅ Cleaned up unused transaction log parsing code and regex dependency
+## 🔧 Implementation Focus Areas
 
-**Before**:
-```
- ✅ 100-jup-swap-sol-usdc (Score: 100.0%): Succeeded
- └─ Step 1
-    ├─ ACTION:
-     Program ID: ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
-     Accounts:
-     [ 0] 🖋️ ➕ 3FDKGK8jjH8fXwA3qMhpZx3JG1pnSGh9L8rDNEys374Q
-     Data (Base58): 2
-     (+ 5 more instructions in this transaction)
-    ├─ TRANSACTION LOGS:  <-- REDUNDANT
-    └─ OBSERVATION: Success
+### 1. OTEL Data Extraction (HIGH PRIORITY)
+```rust
+// Need to implement these functions:
+fn extract_current_otel_trace() -> OtelTraceData
+fn parse_otel_trace_to_tools(trace: OtelTraceData) -> Vec<ToolCallInfo>
 ```
 
-**After**:
-```
- ✅ 100-jup-swap-sol-usdc (Score: 100.0%): Succeeded
- └─ Step 1
-    ├─ ACTION:
-     Program ID: ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
-     Accounts:
-     [ 0] 🖋️ ➕ 3FDKGK8jjH8fXwA3qMhpZx3JG1pnSGh9L8rDNEys374Q
-     Data (Base58): 2
-     ---
-     Program ID: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-     Accounts:
-     [ 0] 🖋️ ➕ 4EyR2svio2YJeEzaWybbGMUxGuiTbmhHdewvQ6hiNX1X
-     Data (Base58): 2
-     ---
-     Program ID: 11111111111111111111111111111111
-     Accounts:
-     [ 0] 🖋️ ➖ 3FDKGK8jjH8fXwA3qMhpZx3JG1pnSGh9L8rDNEys374Q
-     Data (Base58): 
-     ---
-     [All 6 instructions now visible]
-    └─ OBSERVATION: Success
-```
+### 2. Response Parsing (HIGH PRIORITY)
+- Parse LLM responses to identify tool intentions
+- Map "get account balance" → "get_account_balance" tool call
+- Extract parameters and results from natural language
 
-### 🎯 **Transaction Logs API Enhancement (COMPLETED)**
+### 3. Integration (MEDIUM PRIORITY)
+- Modify LlmAgent to call extraction methods
+- Update session logging to include extracted tools
+- Test with real agent responses
 
-**Solution**: Implemented beautiful ASCII tree visualization for transaction logs with:
-- ✅ Proper tree structure with vertical connectors (`│`, `├─`, `└─`)
-- ✅ Program-specific icons (🏦 Associated Token, 🚀 Jupiter Router, 🪙 SPL Token, 🔹 System)
-- ✅ Default to tree format, plain format via `?format=plain`
-- ✅ Compute unit tracking and summary statistics
-- ✅ Benchmark name fix in header
+## 📁 Key Files to Modify
 
-**API Endpoints**:
-- `GET /api/v1/transaction-logs/{id}` - Tree format (default)
-- `GET /api/v1/transaction-logs/{id}?format=plain` - Plain format
-- `GET /api/v1/transaction-logs/demo?format=tree` - Demo with mock data
+### Primary Targets
+- `crates/reev-lib/src/llm_agent.rs` - Add OTEL extraction after HTTP calls
+- `crates/reev-lib/src/otel_extraction.rs` - New module for trace parsing
 
-### 🔧 **Database Schema Fixes (COMPLETED)**
+### Secondary Targets
+- `crates/reev-lib/src/session_logger/mod.rs` - Tool integration (already works)
+- `crates/reev-runner/src/lib.rs` - Pass tool calls (already works)
 
-**Issues Resolved**:
-- ✅ Fixed `search_benchmarks` query referencing non-existent `updated_at` column
-- ✅ Updated all `agent_performance` queries to use `created_at` instead of `timestamp`
-- ✅ All tests passing: `reev-db reader_tests` and `reev-runner database_ordering_test`
+## 🧪 Testing Strategy
 
-## 🛠️ **Technical Implementation Details**
-
-### Connection Pool Implementation:
-1. **`crates/reev-db/src/pool/mod.rs`**
-   - `ConnectionPool` struct with Arc<Mutex<Vec<Connection>>> for thread safety
-   - Semaphore-based flow control to limit concurrent connections
-   - Automatic connection creation and schema initialization
-   - Connection lifecycle management with proper cleanup
-
-2. **`crates/reev-db/src/pool/pooled_writer.rs`**
-   - `PooledDatabaseWriter` providing same API as original DatabaseWriter
-   - Each operation gets separate connection from pool
-   - Handles all database operations: benchmarks, sessions, performance, stats
-
-3. **`crates/reev-db/src/bin/test_concurrent_fix.rs`**
-   - Comprehensive test demonstrating fix works
-   - 20 concurrent operations completing without BorrowMutError
-   - Validates same patterns that were causing original failures
-
-### Previous Implementation Details:
-1. **`reev-runner/src/renderer.rs`**
-   - Modified `render_step_node()` to iterate through all instructions
-   - Removed TRANSACTION LOGS section
-   - Added instruction separators
-   - Cleaned up ~300 lines of unused parsing code
-
-2. **`reev-api/src/services.rs`**
-   - Added `generate_transaction_logs_tree()` function
-   - Implemented proper ASCII tree parsing with `build_tree_prefix()` and `build_child_prefix()`
-   - Added program name mapping and icon assignment
-
-3. **`reev-api/src/handlers.rs`**
-   - Modified `get_transaction_logs()` to default to tree format
-   - Added demo endpoint for testing
-
-4. **`reev-db/src/reader.rs` & `reev-db/src/writer/performance.rs`**
-   - Fixed column name mismatches (`timestamp` → `created_at`)
-   - Updated all SELECT and INSERT statements
-
-### Database Schema Alignment:
-```sql
--- agent_performance table uses created_at, not timestamp
-CREATE TABLE IF NOT EXISTS agent_performance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    benchmark_id TEXT NOT NULL,
-    agent_type TEXT NOT NULL,
-    score REAL NOT NULL,
-    final_status TEXT NOT NULL,
-    execution_time_ms INTEGER,
-    created_at INTEGER DEFAULT (strftime('%s', 'now')),  -- ← Correct column
-    prompt_md5 TEXT,
-    FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id),
-    FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id)
-);
-```
-
-## 🧪 **Testing Status**
-
-### ✅ **All Tests Passing**:
-- `cargo test -p reev-db --test reader_tests` - PASSED
-- `cargo test -p reev-runner --test database_ordering_test` - PASSED
-- `cargo run --bin test_concurrent_fix -p reev-db` - PASSED (20 concurrent ops)
-- `cargo clippy --all-targets --all-features -- -D warnings` - PASSED
-- `cargo build -p reev-runner` - SUCCESS
-- `cargo build -p reev-api` - SUCCESS
-- API server running successfully on port 3001
-
-### 🧪 **Test Coverage**:
-- Connection pool functionality and concurrent access
-- Database operations with pooled connections
-- Transaction log parsing logic
-- ASCII tree rendering
-- Database schema alignment
-- API endpoint responses
-- Concurrency stress testing
-
-### 🔧 **Connection Pool Test Results**:
+### 1. Manual Testing
 ```bash
-🎯 SUCCESS: All concurrent operations completed without BorrowMutError!
-✅ The connection pool successfully fixes the concurrent access issue!
-📈 Results: 20 tasks completed, 0 tasks failed
+# Run benchmark with real agent
+curl -X POST http://localhost:3001/api/v1/benchmarks/100-jup-swap-sol-usdc/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "glm-4.6"}'
+
+# Check session logs for tools array
+cat logs/sessions/session_*.json | jq '.final_result.tools'
 ```
 
-## 🚀 **Next Steps & Recommendations**
+### 2. Flow API Testing
+```bash
+# Test flow diagram with extracted tools
+curl http://localhost:3001/api/v1/flows/{session_id}
+```
 
-### **Immediate Actions**:
-1. **Monitor connection pool performance** in production to optimize pool size
-2. **Add pool statistics monitoring** for observability
-3. **Test with high concurrent load** to validate pool limits
-4. **Test with real benchmark execution** to verify all instructions are displayed
+## 🎯 Success Criteria
 
-### **Connection Pool Enhancements**:
-1. **Connection health checks** for long-running applications
-2. **Pool metrics and monitoring** for operational visibility
-3. **Dynamic pool sizing** based on load patterns
-4. **Connection timeout and retry logic** for resilience
+### MUST HAVE
+- ✅ Session logs contain non-empty `tools: []` arrays
+- ✅ Tool calls have proper timing (start_time, end_time)
+- ✅ Tool calls have parameters and results
+- ✅ Flow diagrams show real tool execution paths
 
-### **Future Enhancements**:
-1. **Add instruction filtering** - Allow users to filter by program type in execution trace
-2. **Enhanced error display** - Show transaction errors in execution trace when they occur
-3. **Performance metrics** - Add timing information to instruction display
-4. **Flow log storage** - Re-enable with proper pooled connection support
+### NICE TO HAVE
+- ✅ Multiple tool calls in single session
+- ✅ Error handling for failed tool calls
+- ✅ Tool categorization (swap, transfer, etc.)
 
-### **Database Migration**:
-- **No migration needed** - Schema is correct
-- **If issues occur**: Delete `db/reev_results.db` and restart, schema will auto-initialize correctly
+## 🚨 BLOCKERS
 
-## 📋 **Known Issues**
+### Current Blocker
+- **How to extract OTEL trace data from global tracer?**
+- **What's the correct OTEL API for getting current span?**
+- **How to parse LLM responses for tool intentions?**
 
-### **Minor Issues**:
-- **Flow log storage temporarily disabled** due to connection pool changes (TODO: re-implement)
-- **ASCII tree rendering simplified** - Complex rendering temporarily replaced with raw log display
-- **Some database queries may have schema mismatches** - Monitor for query execution errors
+### Need Research
+- OpenTelemetry Rust API documentation
+- OTEL span data extraction methods
+- LLM response parsing for tool detection
 
-### **Resolved Issues**:
-- ✅ **BorrowMutError** - Completely eliminated with connection pool
-- ✅ **Compilation errors** - All 30+ errors fixed across codebase
-- ✅ **Clippy warnings** - All warnings resolved
-- ✅ **Database schema mismatches** - Fixed column name issues
+## 📚 Resources
 
-## 🔗 **Related Documentation**
+### OpenTelemetry Rust
+- https://docs.rs/opentelemetry/0.30/opentelemetry/
+- Focus on trace span data extraction
 
-### **API Endpoints**:
-- **Health Check**: `http://localhost:3001/api/v1/health`
-- **Transaction Logs API**: `http://localhost:3001/api/v1/transaction-logs/{benchmark_id}`
-- **Demo Endpoint**: `http://localhost:3001/api/v1/transaction-logs/demo?format=tree`
-- **Agent Performance**: `http://localhost:3001/api/v1/agent-performance`
-- **Agents List**: `http://localhost:3001/api/v1/agents`
+### Existing Code Patterns
+- `reev-agent/src/enhanced/openai.rs` - Tool logging format
+- `reev-agent/src/flow/visualization/` - Parsing patterns
 
-### **Code Documentation**:
-- **Database Schema**: `reev/crates/reev-db/.schema/current_schema.sql`
-- **Connection Pool**: `crates/reev-db/src/pool/mod.rs`
-- **Pooled Database Writer**: `crates/reev-db/src/pool/pooled_writer.rs`
-- **Concurrency Test**: `crates/reev-db/src/bin/test_concurrent_fix.rs`
+### Working Examples
+- OTEL spans are created (seen in logs)
+- Flow API works with mock data
+- Session structure supports tools array
 
-### **Project Documentation**:
-- **TOFIX.md** - Updated with connection pool solution details
-- **REFLECT.md** - Lessons learned from connection pool implementation
-- **PLAN.md** - Project development plan
-- **TASKS.md** - Task tracking
+## 🔄 Next Developer
 
-## 🎯 **Success Metrics**
+Focus should be on:
+1. **OTEL trace extraction research** - Find correct API calls
+2. **Implement extraction methods** - Get trace data programmatically
+3. **Integration testing** - Ensure tools appear in session logs
 
-### **Connection Pool Success**:
-- ✅ **Zero BorrowMutError** - Completely eliminated concurrent access issues
-- ✅ **True Concurrency** - No serialization bottleneck, parallel database access
-- ✅ **Production Ready** - Follows turso-test best practices for Turso usage
-- ✅ **Scalable** - Configurable pool size handles varying load levels
-- ✅ **Test Validated** - 20 concurrent operations completed successfully
-
-### **Previous Success Metrics**:
-- ✅ Execution trace shows ALL instructions (no more hidden content)
-- ✅ Transaction logs have beautiful ASCII tree visualization
-- ✅ Database schema aligned with queries
-- ✅ All tests passing
-- ✅ Clean separation of concerns (execution trace vs transaction logs)
-
-### **Quality Metrics**:
-- ✅ **Compilation**: All crates build without errors
-- ✅ **Clippy**: Passes `-D warnings` standards
-- ✅ **API Health**: All endpoints responding correctly
-- ✅ **Concurrency**: Handles multiple simultaneous requests without issues
-
----
-
-## 🚀 **Deployment Status**
-
-**Status**: ✅ **READY FOR PRODUCTION** - All enhancements completed and tested.
-
-**Current Deployment**:
-- ✅ API server running on `http://localhost:3001`
-- ✅ Connection pool active with 10 max connections
-- ✅ Database operations working correctly
-- ✅ No BorrowMutError or concurrency issues
-
-**Production Readiness**:
-- ✅ Error handling and logging implemented
-- ✅ Resource limits and flow control in place
-- ✅ Monitoring and observability hooks available
-- ✅ Follows established patterns from turso-test findings
-
-**Last Updated**: 2025-10-19 - Connection pool implementation completed and tested.
+This is the final piece to make flow visualization work with real agent executions!

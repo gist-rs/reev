@@ -3745,6 +3745,8 @@ dependencies = [
  "bs58",
  "chrono",
  "jup-sdk",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "rand 0.8.5",
  "reev-db",
  "reev-flow",
@@ -3763,6 +3765,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "tracing-opentelemetry",
  "uuid",
 ]
 

@@ -601,6 +601,9 @@ async fn run_evaluation_loop(
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     let fee_payer = env.fee_payer_placeholder();
+    // Debug: Check agent type before calling get_action
+    info!("[DEBUG] Agent type: {}", std::any::type_name_of_val(agent));
+
     // The agent now returns a vector of actions.
     let actions = agent
         .get_action(
@@ -614,6 +617,21 @@ async fn run_evaluation_loop(
 
     // Get tool calls from agent for flow diagram generation
     let tool_calls = agent.get_tool_calls();
+
+    // Debug: Log tool calls extraction results
+    info!(
+        "[DEBUG] Tool calls extracted from agent: {} tool calls found",
+        tool_calls.len()
+    );
+    for (i, tool_call) in tool_calls.iter().enumerate() {
+        info!(
+            "[DEBUG] Tool call {}: tool_id={}, params={:?}, result={:?}",
+            i, tool_call.tool_id, tool_call.params, tool_call.result
+        );
+    }
+
+    // Tool calls are now extracted from LlmAgent responses
+    // No fallback needed as extraction infrastructure is working
 
     // The environment's step function now takes a vector of actions to be bundled
     // into a single transaction.

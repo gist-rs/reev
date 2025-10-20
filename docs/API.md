@@ -273,7 +273,7 @@ Command-line interface for benchmark execution and testing.
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
 
 # Run with specific model
-cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent gemini-2.5-flash-lite
+cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent glm-4.6
 
 # Run all benchmarks
 cargo run -p reev-runner -- --all --agent deterministic
@@ -477,7 +477,7 @@ async fn test_benchmark_execution() {
     let (mut env, test_case, initial_obs) = setup_env_for_benchmark(&path).await?;
     let actions = generate_test_actions(&test_case);
     let result = env.step(actions, &test_case.ground_truth)?;
-    
+
     let score = calculate_final_score(&test_case, &actions, &initial_obs, &result.observation);
     assert!(score > 0.8); // Expect high score for test case
 }
@@ -491,10 +491,10 @@ async fn test_benchmark_execution() {
 async fn test_flow_execution() {
     let mut flow_agent = FlowAgent::new("deterministic").await?;
     let benchmark = load_flow_benchmark("200-jup-swap-then-lend-deposit.yml")?;
-    
+
     flow_agent.load_benchmark(&benchmark).await?;
     let results = flow_agent.execute_flow(&benchmark).await?;
-    
+
     assert_eq!(results.len(), 2); // Two steps
     assert!(results.iter().all(|r| r.status == ExecutionStatus::Success));
 }
@@ -564,13 +564,13 @@ async fn execute_benchmark_instrumented(
     agent: &mut dyn Agent,
 ) -> Result<ExecutionResult> {
     let start = std::time::Instant::now();
-    
+
     // Execute benchmark
     let result = execute_benchmark(test_case, agent).await?;
-    
+
     let execution_time = start.elapsed();
     tracing::info!(execution_time_ms = execution_time.as_millis());
-    
+
     Ok(result)
 }
 ```
@@ -586,19 +586,19 @@ use thiserror::Error;
 pub enum ReevError {
     #[error("Environment setup failed: {0}")]
     EnvironmentSetup(String),
-    
+
     #[error("Agent execution failed: {0}")]
     AgentExecution(String),
-    
+
     #[error("Benchmark validation failed: {0}")]
     BenchmarkValidation(String),
-    
+
     #[error("Scoring calculation failed: {0}")]
     ScoringCalculation(String),
-    
+
     #[error("Flow execution failed: {0}")]
     FlowExecution(String),
-    
+
     #[error("Database operation failed: {0}")]
     DatabaseOperation(String),
 }
@@ -618,7 +618,7 @@ where
     Fut: Future<Output = Result<T>>,
 {
     let mut attempts = 0;
-    
+
     loop {
         match operation().await {
             Ok(result) => return Ok(result),
@@ -645,13 +645,13 @@ async fn main() -> Result<()> {
     // Setup environment
     let mut env = SolanaEnv::new().await?;
     let benchmark = load_benchmark("001-sol-transfer.yml")?;
-    
+
     // Reset environment
     let initial_obs = env.reset_for_benchmark(&benchmark).await?;
-    
+
     // Create agent
     let mut agent = LlmAgent::new("deterministic").await?;
-    
+
     // Get action from agent
     let actions = agent.get_action(
         &benchmark.id,
@@ -660,10 +660,10 @@ async fn main() -> Result<()> {
         None,
         None,
     ).await?;
-    
+
     // Execute action
     let result = env.step(actions, &benchmark.ground_truth)?;
-    
+
     // Calculate score
     let score = calculate_final_score(
         &benchmark,
@@ -671,10 +671,10 @@ async fn main() -> Result<()> {
         &initial_obs,
         &result.observation,
     );
-    
+
     println!("Final score: {}", score);
     env.close()?;
-    
+
     Ok(())
 }
 ```
@@ -688,19 +688,19 @@ use reev_lib::flow::FlowAgent;
 async fn main() -> Result<()> {
     // Create flow agent
     let mut flow_agent = FlowAgent::new("local").await?;
-    
+
     // Load flow benchmark
     let benchmark = load_flow_benchmark("200-jup-swap-then-lend-deposit.yml")?;
-    
+
     // Execute flow
     flow_agent.load_benchmark(&benchmark).await?;
     let results = flow_agent.execute_flow(&benchmark).await?;
-    
+
     // Process results
     for (i, result) in results.iter().enumerate() {
         println!("Step {}: {:?}", i + 1, result.status);
     }
-    
+
     Ok(())
 }
 ```

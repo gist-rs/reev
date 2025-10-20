@@ -19,19 +19,19 @@ pub struct FlowQuery {
 /// Get flows for a benchmark with optional stateDiagram visualization
 pub async fn get_flow(
     State(state): State<ApiState>,
-    Path(benchmark_id): Path<String>,
+    Path(session_id): Path<String>,
     Query(query): Query<FlowQuery>,
 ) -> axum::response::Response {
     info!(
-        "Getting flow diagram for benchmark: {} with format: {:?}",
-        benchmark_id, query.format
+        "Getting flow diagram for session: {} with format: {:?}",
+        session_id, query.format
     );
 
     // Try to generate stateDiagram from session logs first
-    match generate_state_diagram(&benchmark_id).await {
+    match generate_state_diagram(&session_id).await {
         Ok(flow_diagram) => {
             let response_data = json!({
-                "benchmark_id": benchmark_id,
+                "session_id": session_id,
                 "diagram": flow_diagram.diagram,
                 "metadata": flow_diagram.metadata,
                 "sessions": [] // Keep empty for compatibility with existing API
@@ -46,19 +46,19 @@ pub async fn get_flow(
         }
         Err(e) => {
             warn!(
-                "Failed to generate state diagram for {}: {}, falling back to session data",
-                benchmark_id, e
+                "Failed to generate state diagram for session {}: {}, falling back to session data",
+                session_id, e
             );
 
             // Fall back to existing session data if diagram generation fails
-            get_session_fallback(state, benchmark_id, query).await
+            get_session_fallback(state, session_id, query).await
         }
     }
 }
 
 /// Generate stateDiagram from session logs
 async fn generate_state_diagram(
-    benchmark_id: &str,
+    session_id: &str,
 ) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
     // Look for session logs in the standard location
     let sessions_dir = PathBuf::from("logs/sessions");
@@ -69,13 +69,20 @@ async fn generate_state_diagram(
         ));
     }
 
-    // Find the latest session for this benchmark
-    let session_file = SessionParser::find_latest_session(benchmark_id, &sessions_dir).await?;
+    // Find the specific session file
+    let session_file = format!("{}/session_{}.json", sessions_dir.display(), session_id);
+    let session_path = PathBuf::from(&session_file);
+
+    if !session_path.exists() {
+        return Err(FlowDiagramError::SessionNotFound(format!(
+            "Session file not found: {session_file}"
+        )));
+    }
+
     info!("Found session file: {}", session_file);
 
     // Parse the session
-    let parsed_session =
-        SessionParser::parse_session_file(PathBuf::from(&session_file).as_path()).await?;
+    let parsed_session = SessionParser::parse_session_file(&session_path).await?;
 
     // Generate the diagram
     if parsed_session.tool_calls.is_empty() {
@@ -95,41 +102,38 @@ async fn generate_state_diagram(
 /// Fallback to existing session data if diagram generation fails
 async fn get_session_fallback(
     state: ApiState,
-    benchmark_id: String,
+    session_id: String,
     query: FlowQuery,
 ) -> axum::response::Response {
-    info!(
-        "Using fallback session data for benchmark: {}",
-        benchmark_id
-    );
+    info!("Using fallback session data for session: {}", session_id);
 
     // Check for active executions first
     let executions = state.executions.lock().await;
     let mut active_executions = Vec::new();
 
     for (execution_id, execution) in executions.iter() {
-        if execution.benchmark_id == benchmark_id {
-            let is_running = execution.status == ExecutionStatus::Running
-                || execution.status == ExecutionStatus::Pending;
+        // For session-based fallback, just return any active execution
+        // The session_id will be used for the flow diagram
+        let is_running = execution.status == ExecutionStatus::Running
+            || execution.status == ExecutionStatus::Pending;
 
-            active_executions.push(json!({
-                "session_id": execution_id,
-                "agent_type": execution.agent,
-                "interface": "web",
-                "status": format!("{:?}", execution.status).to_lowercase(),
-                "score": serde_json::Value::Null,
-                "final_status": execution.status,
-                "log_content": execution.trace.clone(),
-                "is_running": is_running,
-                "progress": execution.progress
-            }));
-        }
+        active_executions.push(json!({
+            "session_id": execution_id,
+            "agent_type": execution.agent,
+            "interface": "web",
+            "status": format!("{:?}", execution.status).to_lowercase(),
+            "score": serde_json::Value::Null,
+            "final_status": execution.status,
+            "log_content": execution.trace.clone(),
+            "is_running": is_running,
+            "progress": execution.progress
+        }));
     }
     drop(executions);
 
     if !active_executions.is_empty() {
         let response_data = json!({
-            "benchmark_id": benchmark_id,
+            "session_id": session_id,
             "sessions": active_executions,
             "diagram": null,
             "metadata": null
@@ -141,9 +145,9 @@ async fn get_session_fallback(
         };
     }
 
-    // Look for completed sessions
+    // Look for the specific session
     let filter = reev_db::types::SessionFilter {
-        benchmark_id: Some(benchmark_id.clone()),
+        benchmark_id: None, // We're looking for specific session_id
         agent_type: None,
         interface: None,
         status: None,
@@ -154,7 +158,7 @@ async fn get_session_fallback(
         Ok(sessions) => {
             let response_data = if sessions.is_empty() {
                 json!({
-                    "benchmark_id": benchmark_id,
+                    "session_id": session_id,
                     "sessions": [],
                     "diagram": null,
                     "metadata": null
@@ -162,30 +166,34 @@ async fn get_session_fallback(
             } else {
                 let mut session_logs = Vec::new();
                 for session in sessions {
-                    match state.db.get_session_log(&session.session_id).await {
-                        Ok(log_content) => {
-                            session_logs.push(json!({
-                                "session_id": session.session_id,
-                                "agent_type": session.agent_type,
-                                "interface": session.interface,
-                                "status": session.status,
-                                "score": session.score,
-                                "final_status": session.final_status,
-                                "log_content": log_content,
-                                "is_running": false
-                            }));
+                    // Only include the session that matches our session_id
+                    if session.session_id == session_id {
+                        match state.db.get_session_log(&session.session_id).await {
+                            Ok(log_content) => {
+                                session_logs.push(json!({
+                                    "session_id": session.session_id,
+                                    "agent_type": session.agent_type,
+                                    "interface": session.interface,
+                                    "status": session.status,
+                                    "score": session.score,
+                                    "final_status": session.final_status,
+                                    "log_content": log_content,
+                                    "is_running": false
+                                }));
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to get log for session {}: {}",
+                                    session.session_id, e
+                                );
+                            }
                         }
-                        Err(e) => {
-                            error!(
-                                "Failed to get log for session {}: {}",
-                                session.session_id, e
-                            );
-                        }
+                        break; // Found our session, no need to continue
                     }
                 }
 
                 json!({
-                    "benchmark_id": benchmark_id,
+                    "session_id": session_id,
                     "sessions": session_logs,
                     "diagram": null,
                     "metadata": null
@@ -198,10 +206,7 @@ async fn get_session_fallback(
             }
         }
         Err(e) => {
-            error!(
-                "Failed to get sessions for benchmark {}: {}",
-                benchmark_id, e
-            );
+            error!("Failed to get sessions for session {}: {}", session_id, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": e.to_string()})),

@@ -39,7 +39,7 @@ struct TestCase {
 ///
 /// **Gemini Agent:**
 /// ```sh
-/// cargo run -p reev-agent --example 001-sol-transfer -- --agent gemini-2.5-flash-lite
+/// cargo run -p reev-agent --example 001-sol-transfer -- --agent glm-4.6
 /// ```
 ///
 /// **Local Agent:**
