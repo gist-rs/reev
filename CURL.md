@@ -23,14 +23,8 @@ cargo run --example 001-sol-transfer --agent local
 ### Generate Flow Diagram from Tool Logs
 
 ```bash
-# Generate Mermaid diagram from tool_calls.log
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log
-
-# Generate with custom output file
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --output my_diagram.mmd
-
-# Generate HTML preview
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html
+# Flow visualization is now handled via the API
+# See FLOW.md for web interface usage
 ```
 
 ### Tool Log Format
@@ -268,8 +262,8 @@ curl http://localhost:3001/api/v1/benchmarks/001-sol-transfer/status/uuid-here
 # 5. Once complete, get the flow diagram using session_id
 curl http://localhost:3001/api/v1/flows/{session-id}
 
-# 6. Alternative: Generate flow diagram from tool_calls.log directly
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html
+# 6. Flow visualization is now handled via the web API
+# Use the reev-api endpoints for flow diagrams
 ```
 
 ## 🎯 Flow Visualization Sources
@@ -277,6 +271,6 @@ cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html
 There are two ways to generate flow diagrams:
 
 1. **Session-based API**: `/flows/{session-id}` - Uses session logs from database
-2. **Tool Log CLI**: `cargo run --bin flow_visualizer` - Uses `logs/tool_calls.log` directly
+2. **Web API**: Use reev-api endpoints for flow visualization
 
-Both methods generate the same Mermaid stateDiagram format showing agent decision flows and tool execution patterns.
+The web API provides real-time flow diagrams showing agent decision flows and tool execution patterns.

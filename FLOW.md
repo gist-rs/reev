@@ -15,7 +15,7 @@ Implement a production-ready flow diagram system that generates Mermaid `stateDi
 
 **❌ Current (Coupled):**
 ```
-3rd Party Agent → reev-agent (OTEL logging) → flow_visualizer CLI
+3rd Party Agent → reev-agent (OTEL logging) → reev-api Web Interface
      ↑
 We cannot control this
 ```
@@ -28,7 +28,7 @@ We cannot control this
 ```
 
 ### **🚨 Deprecation Notice**
-The `reev-agent` flow visualizer (`cargo run --bin flow_visualizer`) will be **deprecated** in favor of the unified session-based flow system. All flow visualization will move to the reev-api layer.
+The `reev-agent` flow visualizer has been **removed** in favor of the unified session-based flow system. All flow visualization is now handled by the reev-api layer.
 
 ## 📋 Requirements Analysis
 
@@ -427,8 +427,8 @@ crates/reev-lib/src/flow.rs                  # ✅ ASCII tree functionality
 
 #### Deprecated Files
 ```
-crates/reev-agent/src/flow/visualization/   # ⚠️ Will be deprecated
-crates/reev-agent/src/bin/flow_visualizer.rs # ⚠️ Will be deprecated
+# Flow visualization has been moved to reev-api
+# Use /api/v1/flows/{session_id} endpoints for flow diagrams
 ```
 
 ## 🚀 Success Criteria
@@ -478,7 +478,7 @@ crates/reev-agent/src/bin/flow_visualizer.rs # ⚠️ Will be deprecated
 5. **Phase 3 Implementation**: API endpoint update to session_id
 6. **Testing**: End-to-end API validation with session-specific flows  
 7. **Phase 4 Implementation**: Comprehensive localhost testing
-8. **Documentation**: Update API docs and deprecate reev-agent flow_visualizer
+8. **Documentation**: Update API docs (flow_visualizer removed)
 9. **Web UI Integration**: Update frontend to pass session_id from BenchmarkBox clicks
 
 ## 🧪 Quick Testing Guide

@@ -135,7 +135,8 @@ class get_account_balance tools
   `"tools": [... this should contain tool call with `start_time, end_time, tool_id, params` so we can build mermaid state diagram from this info ...],`
   so we can use it to render the diagram.
 - if log is hard to parse you may need to refine it format at logged time to easy to parse later.
-- you can totally modify/refactor old flow visualizer related, it's just poc, we need to revise it to production and have only one way to build this agent flow via api and show it to web.
+- ✅ flow_visualizer has been removed from reev-agent
+- Flow visualization is now handled exclusively via reev-api web interface
 - test until you get expected diagram results via api.
 
 read the related code and plan first, don't forget to dry and modular, this one include both our log and otel from RIG so it may cause troublesome so do it step by step not all at once.

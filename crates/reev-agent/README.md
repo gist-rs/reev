@@ -319,8 +319,8 @@ cargo run -p reev-agent --example 200-jup-swap-then-lend-deposit
 # Run comprehensive logging demonstrations
 cargo run -p reev-agent --example 210-multi-step-logging-demos
 
-# Generate flow visualization from logs
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html --output flow_diagram.html
+# Flow visualization is now handled via the web API
+# See reev-api documentation for flow diagram generation
 
 # Check compilation and run diagnostics
 cargo check -p reev-agent

@@ -56,14 +56,9 @@ cargo test --test otel_logging_test
 
 ### 2. Generate Diagram
 ```bash
-# Basic diagram
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log
-
-# With parameters
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --include-params
-
-# HTML preview
-cargo run --bin flow_visualizer -- --input logs/tool_calls.log --html --output diagram.html
+# Flow visualization is now handled via the web API
+# Use reev-api endpoints for flow diagram generation
+# See FLOW.md for web interface usage
 ```
 
 ### 3. Visualize

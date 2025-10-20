@@ -24,8 +24,8 @@
 
 ### Correct Approach
 - ✅ **OTEL spans are being created** in reev-api layer around HTTP requests
-- ✅ **Existing flow_visualizer** expects structured text format
-- ✅ **We need to extract OTEL trace data** and convert to expected format
+- ✅ **Flow visualization is now handled by reev-api** web interface
+- ✅ **Session-based flow diagrams** generated via API endpoints
 
 ## 📋 Next Steps (CRITICAL)
 
