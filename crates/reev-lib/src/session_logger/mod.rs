@@ -73,7 +73,7 @@ pub struct SessionLog {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCallInfo {
     /// Tool identifier
-    pub tool_id: String,
+    pub tool_name: String,
     /// Tool start time (Unix timestamp)
     pub start_time: u64,
     /// Tool end time (Unix timestamp)
@@ -211,24 +211,24 @@ impl SessionFileLogger {
         for event in &self.events {
             match event.event_type {
                 SessionEventType::ToolCall => {
-                    if let (Some(tool_id), Some(start_time), Some(params)) = (
-                        event.data.get("tool_id").and_then(|v| v.as_str()),
+                    if let (Some(tool_name), Some(start_time), Some(params)) = (
+                        event.data.get("tool_name").and_then(|v| v.as_str()),
                         event.data.get("start_time").and_then(|v| v.as_u64()),
                         event.data.get("params"),
                     ) {
-                        tool_starts.insert(tool_id.to_string(), (start_time, params.clone()));
+                        tool_starts.insert(tool_name.to_string(), (start_time, params.clone()));
                     }
                 }
                 SessionEventType::ToolResult => {
-                    if let (Some(tool_id), Some(end_time), Some(result), Some(status)) = (
-                        event.data.get("tool_id").and_then(|v| v.as_str()),
+                    if let (Some(tool_name), Some(end_time), Some(result), Some(status)) = (
+                        event.data.get("tool_name").and_then(|v| v.as_str()),
                         event.data.get("end_time").and_then(|v| v.as_u64()),
                         event.data.get("result"),
                         event.data.get("status").and_then(|v| v.as_str()),
                     ) {
-                        if let Some((start_time, params)) = tool_starts.remove(tool_id) {
+                        if let Some((start_time, params)) = tool_starts.remove(tool_name) {
                             tools.push(ToolCallInfo {
-                                tool_id: tool_id.to_string(),
+                                tool_name: tool_name.to_string(),
                                 start_time,
                                 end_time,
                                 params,
@@ -248,16 +248,16 @@ impl SessionFileLogger {
     }
 
     /// Start tracking a tool call
-    pub fn start_tool_call(&mut self, tool_id: String, params: serde_json::Value) {
+    pub fn start_tool_call(&mut self, tool_name: String, params: serde_json::Value) {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        self.active_tools.insert(tool_id.clone(), timestamp);
+        self.active_tools.insert(tool_name.clone(), timestamp);
 
         let tool_data = json!({
-            "tool_id": tool_id,
+            "tool_name": tool_name,
             "start_time": timestamp,
             "params": params
         });
@@ -268,7 +268,7 @@ impl SessionFileLogger {
     /// End tracking a tool call
     pub fn end_tool_call(
         &mut self,
-        tool_id: String,
+        tool_name: String,
         result: Option<serde_json::Value>,
         status: &str,
     ) {
@@ -277,9 +277,9 @@ impl SessionFileLogger {
             .unwrap_or_default()
             .as_secs();
 
-        if let Some(start_time) = self.active_tools.remove(&tool_id) {
+        if let Some(start_time) = self.active_tools.remove(&tool_name) {
             let tool_data = json!({
-                "tool_id": tool_id,
+                "tool_name": tool_name,
                 "start_time": start_time,
                 "end_time": end_time,
                 "result": result,

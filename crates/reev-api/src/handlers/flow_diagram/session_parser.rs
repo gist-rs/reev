@@ -32,7 +32,7 @@ pub struct ParsedSession {
 #[derive(Debug, Clone)]
 pub struct ParsedToolCall {
     /// Tool identifier
-    pub tool_id: String,
+    pub tool_name: String,
     /// Tool start time (Unix timestamp)
     pub start_time: u64,
     /// Tool parameters
@@ -169,10 +169,10 @@ impl SessionParser {
 
     /// Parse enhanced tool call from tools array
     fn parse_enhanced_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
-        let tool_id = tool
-            .get("tool_id")
+        let tool_name = tool
+            .get("tool_name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing tool_id".to_string()))?
+            .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing tool_name".to_string()))?
             .to_string();
 
         let start_time = tool
@@ -196,7 +196,7 @@ impl SessionParser {
         let duration_ms = end_time.saturating_sub(start_time) * 1000;
 
         Ok(ParsedToolCall {
-            tool_id,
+            tool_name,
             start_time,
             params,
             duration_ms,
@@ -211,10 +211,10 @@ impl SessionParser {
             if let Some(event_type) = event.get("event_type").and_then(|v| v.as_str()) {
                 match event_type {
                     "ToolCall" => {
-                        if let (Some(tool_id), Some(start_time), Some(params)) = (
+                        if let (Some(tool_name), Some(start_time), Some(params)) = (
                             event
                                 .get("data")
-                                .and_then(|d| d.get("tool_id"))
+                                .and_then(|d| d.get("tool_name"))
                                 .and_then(|v| v.as_str()),
                             event
                                 .get("data")
@@ -222,14 +222,14 @@ impl SessionParser {
                                 .and_then(|v| v.as_u64()),
                             event.get("data").and_then(|d| d.get("params")),
                         ) {
-                            tool_starts.insert(tool_id.to_string(), (start_time, params.clone()));
+                            tool_starts.insert(tool_name.to_string(), (start_time, params.clone()));
                         }
                     }
                     "ToolResult" => {
-                        if let (Some(tool_id), Some(end_time), Some(_result), Some(_status)) = (
+                        if let (Some(tool_name), Some(end_time), Some(_result), Some(_status)) = (
                             event
                                 .get("data")
-                                .and_then(|d| d.get("tool_id"))
+                                .and_then(|d| d.get("tool_name"))
                                 .and_then(|v| v.as_str()),
                             event
                                 .get("data")
@@ -241,10 +241,10 @@ impl SessionParser {
                                 .and_then(|d| d.get("status"))
                                 .and_then(|v| v.as_str()),
                         ) {
-                            if let Some((start_time, params)) = tool_starts.remove(tool_id) {
+                            if let Some((start_time, params)) = tool_starts.remove(tool_name) {
                                 let duration_ms = end_time.saturating_sub(start_time) * 1000;
                                 tool_calls.push(ParsedToolCall {
-                                    tool_id: tool_id.to_string(),
+                                    tool_name: tool_name.to_string(),
                                     start_time,
                                     params,
                                     duration_ms,
@@ -286,8 +286,8 @@ impl SessionParser {
                         .unwrap_or("");
 
                     // Create tool name based on program_id
-                    let tool_id = if program_id == "11111111111111111111111111111111" {
-                        "transfer_sol".to_string()
+                    let tool_name = if program_id == "11111111111111111111111111111111" {
+                        "sol_transfer".to_string()
                     } else {
                         format!("program_{}", &program_id[..8.min(program_id.len())])
                     };
@@ -334,7 +334,7 @@ impl SessionParser {
                     let _end_time = start_time + 1;
 
                     return Some(ParsedToolCall {
-                        tool_id,
+                        tool_name,
                         start_time,
                         params: Value::Object(params),
                         duration_ms: 1000,

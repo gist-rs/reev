@@ -125,22 +125,22 @@ impl LlmAgent {
     }
 
     /// Start tracking a tool call with timing
-    pub fn start_tool_call(&mut self, tool_id: String, _params: serde_json::Value) {
+    pub fn start_tool_call(&mut self, tool_name: String, _params: serde_json::Value) {
         let start_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        self.active_tool_calls.insert(tool_id.clone(), start_time);
+        self.active_tool_calls.insert(tool_name.clone(), start_time);
         info!(
             "[LlmAgent] Started tool call: {} at {}",
-            tool_id, start_time
+            tool_name, start_time
         );
     }
 
     /// End tracking a tool call and record result
     pub fn end_tool_call(
         &mut self,
-        tool_id: String,
+        tool_name: String,
         result: Option<serde_json::Value>,
         status: String,
     ) {
@@ -149,9 +149,9 @@ impl LlmAgent {
             .unwrap()
             .as_secs();
 
-        if let Some(start_time) = self.active_tool_calls.remove(&tool_id) {
+        if let Some(start_time) = self.active_tool_calls.remove(&tool_name) {
             let tool_call = crate::session_logger::ToolCallInfo {
-                tool_id: tool_id.clone(),
+                tool_name: tool_name.clone(),
                 start_time,
                 end_time,
                 params: serde_json::Value::Null, // Will be filled by HTTP intercept if needed
@@ -161,7 +161,7 @@ impl LlmAgent {
             self.tool_call_sequence.push(tool_call);
             info!(
                 "[LlmAgent] Completed tool call: {} in {}ms",
-                tool_id,
+                tool_name,
                 (end_time - start_time) * 1000
             );
         }
@@ -213,7 +213,7 @@ impl LlmAgent {
         // Create tool calls with timing based on the span duration
         for tool in detected_tools {
             let tool_call_info = crate::session_logger::ToolCallInfo {
-                tool_id: format!("tool_{}", &uuid::Uuid::new_v4().to_string()[..8]),
+                tool_name: format!("tool_{}", &uuid::Uuid::new_v4().to_string()[..8]),
                 start_time: response_start
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()

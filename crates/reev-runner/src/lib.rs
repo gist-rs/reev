@@ -625,8 +625,8 @@ async fn run_evaluation_loop(
     );
     for (i, tool_call) in tool_calls.iter().enumerate() {
         info!(
-            "[DEBUG] Tool call {}: tool_id={}, params={:?}, result={:?}",
-            i, tool_call.tool_id, tool_call.params, tool_call.result
+            "[DEBUG] Tool call {}: tool_name={}, params={:?}, result={:?}",
+            i, tool_call.tool_name, tool_call.params, tool_call.result
         );
     }
 
@@ -644,7 +644,7 @@ async fn run_evaluation_loop(
             // Detect SOL transfer (System Program)
             if program_id == "11111111111111111111111111111111" {
                 let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_id: format!("transfer_sol_{i}"),
+                    tool_name: format!("transfer_sol_{i}"),
                     start_time: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
@@ -671,7 +671,7 @@ async fn run_evaluation_loop(
             // Detect SPL Token operations
             else if program_id == "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" {
                 let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_id: format!("spl_token_{i}"),
+                    tool_name: format!("spl_token_{i}"),
                     start_time: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
@@ -696,7 +696,7 @@ async fn run_evaluation_loop(
             // Detect Jupiter operations
             else if program_id.contains("JUP") || program_id.contains("jupiter") {
                 let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_id: format!("jupiter_{i}"),
+                    tool_name: format!("jupiter_{i}"),
                     start_time: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
@@ -721,7 +721,7 @@ async fn run_evaluation_loop(
             // Generic program call
             else {
                 let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_id: format!("custom_{i}"),
+                    tool_name: format!("custom_{i}"),
                     start_time: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()

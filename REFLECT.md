@@ -17,10 +17,10 @@
 #### Technical Details
 ```rust
 // Before: Hardcoded generic name
-tool_id: format!("transfer_sol_{i}"),
+tool_name: format!("transfer_sol_{i}"),
 
 // After: Correct tool name from ToolDefinition
-tool_id: "sol_transfer".to_string(),
+tool_name: "sol_transfer".to_string(),
 ```
 
 #### Lessons Learned

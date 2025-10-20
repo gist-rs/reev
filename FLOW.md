@@ -35,7 +35,7 @@ Implement Mermaid `stateDiagram` visualizations from agent execution logs via we
   "benchmark_id": "...",
   "tools": [
     {
-      "tool_id": "...",
+      "tool_name": "...",
       "start_time": "...",
       "end_time": "...",
       "params": {"pubkey": "..."},
@@ -80,8 +80,8 @@ pub struct LlmAgent {
 }
 
 impl LlmAgent {
-    fn start_tool_call(&mut self, tool_id: &str, params: Value);
-    fn end_tool_call(&mut self, tool_id: &str, result: Value, status: ToolStatus);
+    fn start_tool_call(&mut self, tool_name: &str, params: Value);
+    fn end_tool_call(&mut self, tool_name: &str, result: Value, status: ToolStatus);
     pub fn get_tool_calls(&self) -> &[ToolCallInfo];
 }
 ```

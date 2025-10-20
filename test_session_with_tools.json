@@ -14,7 +14,7 @@
       "prompt": "What is the SOL balance for USER_1?",
       "tools": [
         {
-          "tool_id": "get_account_balance",
+          "tool_name": "get_account_balance",
           "start_time": 1760882000,
           "end_time": 1760882002,
           "params": {
@@ -26,7 +26,7 @@
           "status": "success"
         },
         {
-          "tool_id": "jupiter_swap",
+          "tool_name": "jupiter_swap",
           "start_time": 1760882002,
           "end_time": 1760882004,
           "params": {

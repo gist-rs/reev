@@ -43,14 +43,14 @@ impl StateDiagramGenerator {
         let mut previous_state = "Agent".to_string();
 
         for tool_call in session.tool_calls.iter() {
-            // Use actual tool_id, sanitized for Mermaid
-            let tool_state = Self::sanitize_tool_id(&tool_call.tool_id);
+            // Use actual tool_name, sanitized for Mermaid
+            let tool_state = Self::sanitize_tool_name(&tool_call.tool_name);
 
             // Get tool-specific details for enhanced display
             let _tool_details = Self::extract_tool_details(&tool_call.params);
 
             // For transfer operations, show amount in transition
-            let transition_label = if tool_call.tool_id.contains("transfer") {
+            let transition_label = if tool_call.tool_name.contains("transfer") {
                 Self::extract_amount_from_params(&tool_call.params)
                     .unwrap_or_else(|| Self::summarize_params(&tool_call.params))
             } else {
@@ -63,7 +63,7 @@ impl StateDiagramGenerator {
             ));
 
             // Add nested state for transfer operations
-            if tool_call.tool_id.contains("transfer") {
+            if tool_call.tool_name.contains("transfer") {
                 diagram_lines.push(format!("    state {tool_state} {{"));
                 if let Some((from, to, amount)) = Self::extract_transfer_details(&tool_call.params)
                 {
@@ -83,7 +83,7 @@ impl StateDiagramGenerator {
         diagram_lines.push("classDef tools fill:lightgrey".to_string());
 
         for tool_call in &session.tool_calls {
-            let tool_state = Self::sanitize_tool_id(&tool_call.tool_id);
+            let tool_state = Self::sanitize_tool_name(&tool_call.tool_name);
             diagram_lines.push(format!("class {tool_state} tools"));
         }
 
@@ -247,8 +247,8 @@ impl StateDiagramGenerator {
     }
 
     /// Sanitize tool ID for Mermaid compatibility
-    fn sanitize_tool_id(tool_id: &str) -> String {
-        tool_id
+    fn sanitize_tool_name(tool_name: &str) -> String {
+        tool_name
             .replace("-", "")
             .chars()
             .map(|c| {
