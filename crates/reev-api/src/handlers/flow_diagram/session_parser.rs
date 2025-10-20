@@ -254,7 +254,7 @@ impl SessionParser {
     /// Create diagram metadata from parsed session
     pub fn create_metadata(parsed: &ParsedSession) -> DiagramMetadata {
         let execution_time_ms = if let Some(end) = parsed.end_time {
-            (end - parsed.start_time) * 1000
+            end.saturating_sub(parsed.start_time) * 1000
         } else {
             parsed.tool_calls.iter().map(|t| t.duration_ms).sum()
         };
@@ -279,6 +279,7 @@ impl SessionParser {
 
         let mut latest_session = None;
         let mut latest_timestamp = 0u64;
+        let mut session_count = 0;
 
         while let Some(entry) = sessions.next_entry().await.map_err(|e| {
             FlowDiagramError::SessionNotFound(format!("Failed to read directory entry: {}", e))
@@ -287,6 +288,8 @@ impl SessionParser {
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if filename.starts_with("session_") {
+                    session_count += 1;
+                    debug!("Checking session file #{}: {}", session_count, filename);
                     // Try to read the session to check its benchmark_id and timestamp
                     if let Ok(content) = tokio::fs::read_to_string(&path).await {
                         if let Ok(session) = serde_json::from_str::<Value>(&content) {
@@ -294,29 +297,51 @@ impl SessionParser {
                             if let Some(session_benchmark_id) =
                                 session.get("benchmark_id").and_then(|v| v.as_str())
                             {
+                                debug!(
+                                    "Session {} has benchmark_id: {} (looking for: {})",
+                                    filename, session_benchmark_id, benchmark_id
+                                );
                                 if session_benchmark_id == benchmark_id {
                                     if let Some(start_time) =
                                         session.get("start_time").and_then(|v| v.as_u64())
                                     {
+                                        debug!(
+                                            "Found matching session: {} with start_time: {}",
+                                            filename, start_time
+                                        );
                                         if start_time > latest_timestamp {
                                             latest_timestamp = start_time;
                                             latest_session =
                                                 Some(path.to_string_lossy().to_string());
+                                            debug!(
+                                                "New latest session: {} at time: {}",
+                                                filename, start_time
+                                            );
                                         }
                                     }
                                 }
+                            } else {
+                                debug!("Session {} has no benchmark_id", filename);
                             }
+                        } else {
+                            debug!("Failed to parse session JSON: {}", filename);
                         }
+                    } else {
+                        debug!("Failed to read session file: {}", filename);
                     }
                 }
             }
         }
 
-        latest_session.ok_or_else(|| {
-            FlowDiagramError::SessionNotFound(format!(
+        debug!("Checked {} session files total", session_count);
+        if let Some(session) = latest_session {
+            debug!("Returning latest session: {}", session);
+            Ok(session)
+        } else {
+            Err(FlowDiagramError::SessionNotFound(format!(
                 "No session found for benchmark: {}",
                 benchmark_id
-            ))
-        })
+            )))
+        }
     }
 }
