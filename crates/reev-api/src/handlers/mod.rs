@@ -13,7 +13,6 @@ pub mod yml;
 // Re-export all handlers for easier importing
 pub use agents::*;
 pub use benchmarks::*;
-pub use flow_diagram::*;
 pub use flow_logs::*;
 pub use flows::*;
 pub use health::*;

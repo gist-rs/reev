@@ -3,7 +3,7 @@
 //! This module generates Mermaid stateDiagram visualizations from parsed session data.
 //! It follows the exact format specification required for the flow visualization.
 
-use crate::handlers::flow_diagram::{FlowDiagram, ParsedSession, ParsedToolCall};
+use crate::handlers::flow_diagram::{FlowDiagram, ParsedSession};
 
 /// StateDiagram generator for creating Mermaid stateDiagram visualizations
 pub struct StateDiagramGenerator;
@@ -34,7 +34,7 @@ impl StateDiagramGenerator {
             } else {
                 escaped_prompt
             };
-            diagram_lines.push(format!("    Prompt --> Agent : {}", truncated_prompt));
+            diagram_lines.push(format!("    Prompt --> Agent : {truncated_prompt}"));
         } else {
             diagram_lines.push("    Prompt --> Agent : Execute task".to_string());
         }
@@ -54,13 +54,12 @@ impl StateDiagramGenerator {
             } else if result_summary.is_empty() {
                 params_summary
             } else {
-                format!("{}, {}", params_summary, result_summary)
+                format!("{params_summary}, {result_summary}")
             };
 
             // Add single transition from previous state to this tool
             diagram_lines.push(format!(
-                "    {} --> {} : {}",
-                previous_state, tool_state, combined_info
+                "    {previous_state} --> {tool_state} : {combined_info}"
             ));
 
             previous_state = tool_state;
@@ -75,7 +74,7 @@ impl StateDiagramGenerator {
 
         for tool_call in &session.tool_calls {
             let tool_state = Self::sanitize_tool_id(&tool_call.tool_id);
-            diagram_lines.push(format!("class {} tools", tool_state));
+            diagram_lines.push(format!("class {tool_state} tools"));
         }
 
         // Join all lines with newlines
@@ -102,7 +101,7 @@ impl StateDiagramGenerator {
             } else {
                 escaped_prompt
             };
-            diagram_lines.push(format!("    Prompt --> Agent : {}", truncated_prompt));
+            diagram_lines.push(format!("    Prompt --> Agent : {truncated_prompt}"));
         } else {
             diagram_lines.push("    Prompt --> Agent : Execute task".to_string());
         }
@@ -131,11 +130,11 @@ impl StateDiagramGenerator {
                             } else {
                                 pubkey.to_string()
                             };
-                            summaries.push(format!("{} = {}", key, short_pubkey));
+                            summaries.push(format!("{key} = {short_pubkey}"));
                         }
                     } else if key == "amount" {
                         if let Some(amount) = value.as_u64() {
-                            summaries.push(format!("{} = {}", key, amount));
+                            summaries.push(format!("{key} = {amount}"));
                         }
                     } else if key == "input_mint" || key == "output_mint" {
                         if let Some(mint) = value.as_str() {
@@ -160,7 +159,7 @@ impl StateDiagramGenerator {
                         }
                     } else if summaries.len() < 3 {
                         // Limit to 3 most important params
-                        summaries.push(format!("{} = {}", key, value));
+                        summaries.push(format!("{key} = {value}"));
                     }
                 }
 
@@ -178,7 +177,7 @@ impl StateDiagramGenerator {
                 }
             }
             _ => {
-                format!("{:?}", params)
+                format!("{params:?}")
             }
         }
     }

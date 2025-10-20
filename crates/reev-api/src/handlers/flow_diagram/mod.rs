@@ -8,7 +8,7 @@ use serde::Serialize;
 pub mod session_parser;
 pub mod state_diagram_generator;
 
-pub use session_parser::{ParsedSession, ParsedToolCall, SessionParser};
+pub use session_parser::{ParsedSession, SessionParser};
 pub use state_diagram_generator::StateDiagramGenerator;
 
 /// Flow diagram generation result
@@ -48,13 +48,13 @@ pub enum FlowDiagramError {
 impl std::fmt::Display for FlowDiagramError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FlowDiagramError::SessionNotFound(msg) => write!(f, "Session log not found: {}", msg),
+            FlowDiagramError::SessionNotFound(msg) => write!(f, "Session log not found: {msg}"),
             FlowDiagramError::InvalidLogFormat(msg) => {
-                write!(f, "Invalid session log format: {}", msg)
+                write!(f, "Invalid session log format: {msg}")
             }
             FlowDiagramError::NoToolCalls => write!(f, "No tool calls found in session"),
-            FlowDiagramError::ParseError(msg) => write!(f, "Parsing error: {}", msg),
-            FlowDiagramError::GenerationError(msg) => write!(f, "Generation error: {}", msg),
+            FlowDiagramError::ParseError(msg) => write!(f, "Parsing error: {msg}"),
+            FlowDiagramError::GenerationError(msg) => write!(f, "Generation error: {msg}"),
         }
     }
 }

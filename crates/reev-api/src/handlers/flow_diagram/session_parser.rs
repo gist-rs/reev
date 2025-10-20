@@ -6,7 +6,7 @@
 use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
 use serde_json::Value;
 use std::path::Path;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Session log parser for extracting tool calls and execution data
 pub struct SessionParser;
@@ -58,7 +58,7 @@ impl SessionParser {
 
         let content = tokio::fs::read_to_string(file_path)
             .await
-            .map_err(|e| FlowDiagramError::ParseError(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| FlowDiagramError::ParseError(format!("Failed to read file: {e}")))?;
 
         Self::parse_session_content(&content)
     }
@@ -68,7 +68,7 @@ impl SessionParser {
         debug!("Parsing session content (length: {})", content.len());
 
         let session_log: Value = serde_json::from_str(content).map_err(|e| {
-            FlowDiagramError::InvalidLogFormat(format!("JSON parsing failed: {}", e))
+            FlowDiagramError::InvalidLogFormat(format!("JSON parsing failed: {e}"))
         })?;
 
         // Extract basic session information
@@ -274,7 +274,7 @@ impl SessionParser {
         sessions_dir: &Path,
     ) -> Result<String, FlowDiagramError> {
         let mut sessions = tokio::fs::read_dir(sessions_dir).await.map_err(|e| {
-            FlowDiagramError::SessionNotFound(format!("Failed to read sessions directory: {}", e))
+            FlowDiagramError::SessionNotFound(format!("Failed to read sessions directory: {e}"))
         })?;
 
         let mut latest_session = None;
@@ -282,7 +282,7 @@ impl SessionParser {
         let mut session_count = 0;
 
         while let Some(entry) = sessions.next_entry().await.map_err(|e| {
-            FlowDiagramError::SessionNotFound(format!("Failed to read directory entry: {}", e))
+            FlowDiagramError::SessionNotFound(format!("Failed to read directory entry: {e}"))
         })? {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
@@ -339,8 +339,7 @@ impl SessionParser {
             Ok(session)
         } else {
             Err(FlowDiagramError::SessionNotFound(format!(
-                "No session found for benchmark: {}",
-                benchmark_id
+                "No session found for benchmark: {benchmark_id}"
             )))
         }
     }

@@ -3,7 +3,7 @@ use crate::handlers::flow_diagram::{FlowDiagramError, SessionParser, StateDiagra
 use crate::types::*;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
 use serde::Deserialize;
