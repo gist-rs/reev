@@ -192,22 +192,11 @@ impl LlmAgent {
             response_text
         );
         // Parse response to identify tool intentions
-        let mut detected_tools = self.parse_tools_from_response(response_text)?;
+        let detected_tools = self.parse_tools_from_response(response_text)?;
 
+        // No fallback tool call - return empty if no tools detected
         if detected_tools.is_empty() {
-            info!("[LlmAgent] No tool calls detected in response, adding fallback tool");
-            // Add a fallback tool call for testing purposes
-            detected_tools.push(ParsedToolCall {
-                tool_name: "fallback_test".to_string(),
-                params: json!({
-                    "test": "fallback_tool_call"
-                }),
-                result: json!({
-                    "tool_name": "fallback_test",
-                    "test_result": "success"
-                }),
-                status: "Success".to_string(),
-            });
+            info!("[LlmAgent] No tool calls detected in response");
         }
 
         info!(
