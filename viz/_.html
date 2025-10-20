@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Execution Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .diagram-container {
+            background-color: #fafafa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            border-left: 4px solid #2196f3;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔀 Flow Execution Diagram</h1>
+            <p>Generated from flow execution logs using OpenTelemetry tracing data</p>
+        </div>
+
+        <div class="diagram-container">
+            <pre class="mermaid">
+stateDiagram-v2
+    [*] --> StartAgent
+
+    state "Execution1" as Execution1
+        Execution1
+            [*] --> AgentStart
+            state "Agent Start\nModel: unknown_agent" as AgentStart
+            state "AccountBalanceTool" as Tool1
+            AgentStart --> Tool1
+            state "JupiterSwapTool" as Tool2
+            Tool1 --> Tool2
+            state "Agent End" as AgentEnd
+            Tool2 --> AgentEnd
+
+    Execution1 --> [*]
+
+    classDef Other0 fill:#ff6b6b
+    classDef Other1 fill:#ff6b6b
+    class OtherAccountBalanceTool Other
+    class OtherJupiterSwapTool Other
+
+            </pre>
+        </div>
+
+        <div class="info">
+            <h3>ℹ️ About this Diagram</h3>
+            <p>This state diagram visualizes the agent's decision flow and tool execution sequence. Each state represents a step in the flow, and transitions show the order of execution. Tool states are color-coded by category (Swap, Transfer, Discovery, Lending, etc.).</p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#4ecdc4',
+                primaryTextColor: '#333',
+                primaryBorderColor: '#2c3e50',
+                lineColor: '#666',
+                secondaryColor: '#f8f9fa',
+                tertiaryColor: '#e9ecef'
+            }
+        });
+    </script>
+</body>
+</html>

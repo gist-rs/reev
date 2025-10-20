@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -68,6 +69,23 @@ pub struct SessionLog {
     pub metadata: std::collections::HashMap<String, String>,
 }
 
+/// Tool call information for flow diagram generation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallInfo {
+    /// Tool identifier
+    pub tool_id: String,
+    /// Tool start time (Unix timestamp)
+    pub start_time: u64,
+    /// Tool end time (Unix timestamp)
+    pub end_time: u64,
+    /// Tool parameters
+    pub params: serde_json::Value,
+    /// Tool result
+    pub result: Option<serde_json::Value>,
+    /// Tool execution status
+    pub status: String,
+}
+
 /// Final execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -81,6 +99,8 @@ pub struct ExecutionResult {
     pub execution_time_ms: u64,
     /// Additional result data
     pub data: serde_json::Value,
+    /// Tool calls made during execution (for flow diagram generation)
+    pub tools: Vec<ToolCallInfo>,
 }
 
 /// Simple file-based session logger
@@ -92,6 +112,7 @@ pub struct SessionFileLogger {
     log_file: PathBuf,
     events: Vec<SessionEvent>,
     metadata: std::collections::HashMap<String, String>,
+    active_tools: std::collections::HashMap<String, u64>,
 }
 
 impl SessionFileLogger {
@@ -126,6 +147,7 @@ impl SessionFileLogger {
             log_file,
             events: Vec::new(),
             metadata: std::collections::HashMap::new(),
+            active_tools: std::collections::HashMap::new(),
         })
     }
 
@@ -181,6 +203,93 @@ impl SessionFileLogger {
         self.log_event(SessionEventType::Error, depth, content);
     }
 
+    /// Extract tool calls from events for flow diagram generation
+    fn extract_tools_from_events(&self) -> Vec<ToolCallInfo> {
+        let mut tools = Vec::new();
+        let mut tool_starts = std::collections::HashMap::new();
+
+        for event in &self.events {
+            match event.event_type {
+                SessionEventType::ToolCall => {
+                    if let (Some(tool_id), Some(start_time), Some(params)) = (
+                        event.data.get("tool_id").and_then(|v| v.as_str()),
+                        event.data.get("start_time").and_then(|v| v.as_u64()),
+                        event.data.get("params"),
+                    ) {
+                        tool_starts.insert(tool_id.to_string(), (start_time, params.clone()));
+                    }
+                }
+                SessionEventType::ToolResult => {
+                    if let (Some(tool_id), Some(end_time), Some(result), Some(status)) = (
+                        event.data.get("tool_id").and_then(|v| v.as_str()),
+                        event.data.get("end_time").and_then(|v| v.as_u64()),
+                        event.data.get("result"),
+                        event.data.get("status").and_then(|v| v.as_str()),
+                    ) {
+                        if let Some((start_time, params)) = tool_starts.remove(tool_id) {
+                            tools.push(ToolCallInfo {
+                                tool_id: tool_id.to_string(),
+                                start_time,
+                                end_time,
+                                params,
+                                result: Some(result.clone()),
+                                status: status.to_string(),
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Sort tools by start time
+        tools.sort_by_key(|t| t.start_time);
+        tools
+    }
+
+    /// Start tracking a tool call
+    pub fn start_tool_call(&mut self, tool_id: String, params: serde_json::Value) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.active_tools.insert(tool_id.clone(), timestamp);
+
+        let tool_data = json!({
+            "tool_id": tool_id,
+            "start_time": timestamp,
+            "params": params
+        });
+
+        self.log_event(SessionEventType::ToolCall, 0, tool_data);
+    }
+
+    /// End tracking a tool call
+    pub fn end_tool_call(
+        &mut self,
+        tool_id: String,
+        result: Option<serde_json::Value>,
+        status: &str,
+    ) {
+        let end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        if let Some(start_time) = self.active_tools.remove(&tool_id) {
+            let tool_data = json!({
+                "tool_id": tool_id,
+                "start_time": start_time,
+                "end_time": end_time,
+                "result": result,
+                "status": status
+            });
+
+            self.log_event(SessionEventType::ToolResult, 0, tool_data);
+        }
+    }
+
     /// Complete the session and write to file
     pub fn complete(self, result: ExecutionResult) -> Result<PathBuf> {
         let end_time = SystemTime::now();
@@ -195,6 +304,10 @@ impl SessionFileLogger {
             .unwrap_or_default()
             .as_secs();
 
+        let tools = self.extract_tools_from_events();
+        let mut result_with_tools = result;
+        result_with_tools.tools = tools;
+
         let session_log = SessionLog {
             session_id: self.session_id.clone(),
             benchmark_id: self.benchmark_id.clone(),
@@ -202,7 +315,7 @@ impl SessionFileLogger {
             start_time: start_timestamp,
             end_time: Some(end_timestamp),
             events: self.events.clone(),
-            final_result: Some(result),
+            final_result: Some(result_with_tools),
             metadata: self.metadata,
         };
 
@@ -282,6 +395,7 @@ impl SessionFileLogger {
                 },
                 execution_time_ms: (end_timestamp - start_timestamp) * 1000,
                 data: serde_json::to_value(trace).unwrap_or_default(),
+                tools: self.extract_tools_from_events(),
             }),
             metadata: self.metadata,
         };
