@@ -1,92 +1,156 @@
 # TOFIX.md
 
-## Current Issues to Fix
+## Flow Diagram Bug Fixes
 
-### 🚨 High Priority
+### 🐛 Current Issues
 
-#### Database Concurrency Issue
-**Status**: ✅ FIXED & PROVEN - Implemented Connection Pool for True Concurrency
-**Problem**: `already borrowed: BorrowMutError` when multiple HTTP handlers access database simultaneously
-**Root Cause**: Single shared `DatabaseWriter` in `ApiState` cannot handle concurrent access (Turso Connection not thread-safe)
-**Solution**: Implemented `ConnectionPool` and `PooledDatabaseWriter` for true concurrent database access
-**Symptoms**: 
-+- Random 500 errors during active benchmark execution
-+- Panics in turso_core when UI polls multiple endpoints simultaneously
-+- Affects: `/api/v1/agent-performance`, `/api/v1/transaction-logs`, `/api/v1/flow-logs`
-**Proof**: Connection pool test with 20 concurrent operations completed successfully without BorrowMutError
+#### 1. Duplicate Transitions in StateDiagram
+**Problem**: Generated diagram has duplicate transitions:
+```mermaid
+Tool1 --> Tool2 : Balance: "100 USDC"
+Tool1 --> Tool2 : amount = 1000000, input = SOL, output = USDC, user_pubkey = USER_1
+```
 
-**Endpoints Affected**:
-- `get_agent_performance()` → `state.db.get_agent_performance()`
-- `get_flow_log()` → `state.db.list_sessions()` + `state.db.get_session_log()`
-- `get_transaction_logs()` → `state.db.list_sessions()` + `state.db.get_session_log()`
-- `get_ascii_tree_direct()` → `state.db.list_sessions()` + `state.db.get_session_log()`
+**Expected**: Single transition with combined parameters:
+```mermaid
+Tool1 --> Tool2 : pubkey = USER_1, Balance "100 USDC"
+```
 
-**When It Happens**:
-- User starts benchmark execution
-- UI simultaneously polls multiple endpoints for status updates
-- Multiple async tasks try to access shared database connection
+#### 2. Incorrect Quote Formatting
+**Problem**: Results show with escaped quotes:
+```
+Balance: "100 USDC"
+Output: "95 USDC"
+```
 
-**Implementation**: 
-+✅ Created `ConnectionPool` with configurable max connections (default: 10)
-+✅ Implemented `PooledDatabaseWriter` that manages separate connections per operation
-+✅ Added connection lifecycle management with automatic return to pool
-+✅ Updated ApiState to use `PooledDatabaseWriter` instead of `Arc<DatabaseWriter>`
-+✅ Added comprehensive test proving 20 concurrent operations work without errors
-+✅ Connection pool handles resource limits gracefully with semaphore-based flow control
+**Expected**: Clean formatting without extra quotes:
+```
+Balance "100 USDC"
+Output "95 USDC"
+```
 
-### 📋 Medium Priority
+#### 3. Missing Tool ID Extraction
+**Problem**: Using generic names instead of actual tool IDs:
+```
+Tool1, Tool2
+```
 
-#### Transaction Logs Edge Cases
-**Status**: ✅ FIXED - Now handles running executions properly
-**Issue**: 500 errors when clicking Transaction Log during active execution
-**Solution**: Separate handling for running vs completed executions
+**Expected**: Actual tool names from logs:
+```
+get_account_balance, jupiter_swap
+```
 
-#### Flow Logs Reliability
-**Status**: ✅ WORKING - 500 errors were from database concurrency issue
-**Issue**: Failed to load flow logs during concurrent access
-**Root Cause**: Same database concurrency issue as above
+#### 4. OTEL Log Integration Missing
+**Problem**: Not parsing real tool calls from `tool_calls.log`
+**Available Data**: Tool names, parameters, and results in OTEL format
 
----
+### 🔧 Fix Plan
 
-## Fix Strategy
+#### Phase 1: Fix StateDiagram Generation Logic
+**File**: `crates/reev-api/src/handlers/flow_diagram/state_diagram_generator.rs`
 
-### Phase 1: Database Concurrency Fix (High Priority) ✅ COMPLETED & PROVEN
-+1. **Implement Connection Pool**: ✅ Created `ConnectionPool` and `PooledDatabaseWriter`
-+2. **Test Concurrent Access**: ✅ Fix resolves borrowing errors (20 concurrent operations test)
-+3. **Performance Impact**: ✅ True concurrency achieved, no serialization bottleneck
-+4. **Comprehensive Testing**: ✅ Added test proving concurrent database operations work reliably
+**Tasks**:
+- Fix duplicate transition logic
+- Remove extra quotes from result formatting
+- Use actual tool_id instead of generic Tool1/Tool2
+- Combine parameters and results into single transition
 
-### Phase 2: Optimize Database Access (Medium Priority)
-1. **Batch Operations**: Combine multiple database calls where possible
-2. **Caching**: Cache frequently accessed data (agent performance, etc.)
-3. **Async Optimization**: Ensure all database operations are non-blocking
+#### Phase 2: Extract Real Tool IDs
+**File**: `crates/reev-api/src/handlers/flow_diagram/session_parser.rs`
 
----
+**Tasks**:
+- Extract tool_id from enhanced session logs
+- Map tool_id to readable names for diagram states
+- Handle tool_id sanitization for Mermaid compatibility
 
-## Implementation Notes
+#### Phase 3: OTEL Log Parser Integration
+**File**: `crates/reev-api/src/handlers/flow_diagram/otel_parser.rs`
 
-### Database Structure (Fixed)
+**Tasks**:
+- Create OTEL log parser for `tool_calls.log`
+- Extract tool calls with timing information
+- Merge OTEL data with session data
+- Fallback to OTEL when session tools array missing
+
+#### Phase 4: Enhanced Parameter/Result Formatting
+**Files**: `crates/reev-api/src/handlers/flow_diagram/state_diagram_generator.rs`
+
+**Tasks**:
+- Improve parameter summarization logic
+- Better result formatting without quotes
+- Combine multiple parameters/results into readable format
+- Handle edge cases (empty results, errors, etc.)
+
+### 📋 Implementation Details
+
+#### 1. Fix Duplicate Transitions
 ```rust
-pub struct ApiState {
-    pub db: reev_lib::db::PooledDatabaseWriter, // ✅ Fixed - Connection Pool
-    pub executions: std::sync::Arc<tokio::sync::Mutex<...>>,  // ✅ Already protected
-    pub agent_configs: std::sync::Arc<tokio::sync::Mutex<...>>, // ✅ Already protected
+// Current logic creates multiple transitions
+// Fix: Combine into single transition with all info
+let transition_text = format!("{} {}", params_summary, result_summary);
+```
+
+#### 2. Tool ID Extraction
+```rust
+// Extract from session tools array
+let tool_name = tool_call.tool_id.clone();
+let state_name = sanitize_for_mermaid(&tool_name);
+```
+
+#### 3. Quote Removal
+```rust
+// Remove extra quotes from results
+fn clean_result_text(text: &str) -> String {
+    text.replace('"', "").replace("\\\"", "")
 }
 ```
 
-### Files Updated
-- `crates/reev-db/src/pool/mod.rs` - Connection pool implementation
-- `crates/reev-db/src/pool/pooled_writer.rs` - Pooled database writer
-- `crates/reev-db/src/lib.rs` - Export new pool types
-- `crates/reev-lib/src/db.rs` - Export PooledDatabaseWriter
-- `crates/reev-api/src/types.rs` - Updated ApiState struct
-- `crates/reev-api/src/main.rs` - Initialize connection pool
-- `crates/reev-db/src/bin/test_concurrent_fix.rs` - Test proving fix works
+#### 4. OTEL Parser Pattern
+```rust
+// Parse tool_calls.log format
+"Calling tool {tool_name} with args: {args}"
+"Tool completed successfully in {context} with result: {result}"
+```
 
-### Impact Assessment
-++- **Reliability**: ✅ Eliminates random panics and 500 errors (proven by concurrent test)
-++- **Performance**: ✅ True concurrency achieved, no serialization bottleneck
-++- **Scalability**: ✅ Configurable pool size handles varying load levels
-++- **Maintainability**: ✅ Clean separation of concerns with pool management
-++- **Testing**: ✅ Comprehensive test proves 20 concurrent operations work reliably
-++- **Production Ready**: ✅ Follows established patterns from turso-test findings
+### 🎯 Expected Results
+
+After fixes, diagram should look like:
+```mermaid
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : What is the SOL balance for USER_1?
+    Agent --> get_account_balance : pubkey = USER_1
+    get_account_balance --> jupiter_swap : Balance 100 USDC, amount = 1000000, input = SOL, output = USDC
+    jupiter_swap --> [*] : Output 95 USDC
+
+classDef tools fill:green
+class get_account_balance tools
+class jupiter_swap tools
+```
+
+### 🧪 Testing Strategy
+
+1. **Unit Tests**: Test each fix individually
+2. **Integration Tests**: Test with real session and OTEL logs
+3. **Edge Cases**: Test with missing data, errors, empty results
+4. **Backward Compatibility**: Ensure existing functionality works
+
+### 📁 Files to Modify
+
+- `crates/reev-api/src/handlers/flow_diagram/state_diagram_generator.rs`
+- `crates/reev-api/src/handlers/flow_diagram/session_parser.rs`
+- `crates/reev-api/src/handlers/flow_diagram/otel_parser.rs` (new)
+- `crates/reev-api/src/handlers/flow_diagram/mod.rs`
+
+### ⏱️ Priority
+
+1. **High**: Fix duplicate transitions and quote formatting
+2. **Medium**: Extract real tool IDs from session data
+3. **Low**: OTEL log integration (future enhancement)
+
+### 🔄 Dependencies
+
+- Session logger enhancement (completed)
+- StateDiagram generator (completed)
+- Test session with tools (completed)
+- Real tool calls from agent execution (needed for testing)

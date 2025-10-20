@@ -43,26 +43,24 @@ impl StateDiagramGenerator {
         let mut previous_state = "Agent".to_string();
 
         for (index, tool_call) in session.tool_calls.iter().enumerate() {
-            let tool_state = format!("Tool{}", index + 1);
+            // Use actual tool_id, sanitized for Mermaid
+            let tool_state = Self::sanitize_tool_id(&tool_call.tool_id);
 
-            // Add transition from previous state to this tool
+            // Combine parameters and results into single transition
             let params_summary = Self::summarize_params(&tool_call.params);
-            diagram_lines.push(format!(
-                "    {} --> {} : {}",
-                previous_state, tool_state, params_summary
-            ));
-
-            // Add transition from tool to result
             let result_summary = Self::summarize_result(&tool_call.result);
+            let combined_info = if params_summary.is_empty() {
+                result_summary
+            } else if result_summary.is_empty() {
+                params_summary
+            } else {
+                format!("{}, {}", params_summary, result_summary)
+            };
+
+            // Add single transition from previous state to this tool
             diagram_lines.push(format!(
                 "    {} --> {} : {}",
-                tool_state,
-                if index == session.tool_calls.len() - 1 {
-                    "End".to_string()
-                } else {
-                    format!("Tool{}", index + 2)
-                },
-                result_summary
+                previous_state, tool_state, combined_info
             ));
 
             previous_state = tool_state;
@@ -75,8 +73,9 @@ impl StateDiagramGenerator {
         diagram_lines.push("".to_string());
         diagram_lines.push("classDef tools fill:green".to_string());
 
-        for index in 0..session.tool_calls.len() {
-            diagram_lines.push(format!("class Tool{} tools", index + 1));
+        for tool_call in &session.tool_calls {
+            let tool_state = Self::sanitize_tool_id(&tool_call.tool_id);
+            diagram_lines.push(format!("class {} tools", tool_state));
         }
 
         // Join all lines with newlines
@@ -190,13 +189,13 @@ impl StateDiagramGenerator {
             Some(serde_json::Value::Object(map)) => {
                 // Look for common result fields
                 if let Some(balance) = map.get("balance") {
-                    return format!("Balance: {}", balance);
+                    return format!("Balance {}", Self::clean_value(balance));
                 }
                 if let Some(amount) = map.get("amount") {
-                    return format!("Amount: {}", amount);
+                    return format!("Amount {}", Self::clean_value(amount));
                 }
                 if let Some(output_amount) = map.get("output_amount") {
-                    return format!("Output: {}", output_amount);
+                    return format!("Output {}", Self::clean_value(output_amount));
                 }
                 if let Some(transaction_hash) = map.get("transaction_hash") {
                     if let Some(hash) = transaction_hash.as_str() {
@@ -215,7 +214,7 @@ impl StateDiagramGenerator {
                 let mut summaries = Vec::new();
                 for (key, value) in map {
                     if summaries.len() < 2 {
-                        summaries.push(format!("{}: {}", key, value));
+                        summaries.push(format!("{} {}", key, Self::clean_value(value)));
                     }
                 }
 
@@ -227,16 +226,37 @@ impl StateDiagramGenerator {
             }
             Some(serde_json::Value::String(s)) => {
                 if s.len() > 30 {
-                    format!("{}...", &s[..27])
+                    format!("{}...", Self::clean_string(s))
                 } else {
-                    s.clone()
+                    Self::clean_string(s)
                 }
             }
-            Some(value) => {
-                format!("{:?}", value)
-            }
+            Some(value) => Self::clean_value(value),
             None => "Complete".to_string(),
         }
+    }
+
+    /// Sanitize tool ID for Mermaid compatibility
+    fn sanitize_tool_id(tool_id: &str) -> String {
+        tool_id
+            .replace('_', "")
+            .replace("-", "")
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect::<String>()
+    }
+
+    /// Clean JSON value for display (remove quotes)
+    fn clean_value(value: &serde_json::Value) -> String {
+        match value {
+            serde_json::Value::String(s) => Self::clean_string(s),
+            _ => value.to_string().replace('"', ""),
+        }
+    }
+
+    /// Clean string for display (remove quotes and escape sequences)
+    fn clean_string(s: &str) -> String {
+        s.replace('"', "").replace("\\\"", "")
     }
 
     /// Generate HTML wrapper for the diagram

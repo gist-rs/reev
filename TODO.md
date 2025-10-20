@@ -139,7 +139,7 @@ class get_account_balance tools
 - test until you get expected diagram results via api.
 
 read the related code and plan first, don't forget to dry and modular, this one include both our log and otel from RIG so it may cause troublesome so do it step by step not all at once.
-start from easy end working one and commit step by step so you can revert if needed. e.g.  start from just start and stop diagram then add only our log then add otel log in between, i will let you think and design how to do it , wisely, no rush.
+start from easy end working one and commit step by step so you can revert if needed. e.g.  start from just start and stop diagram then add only our log then add otel log in between, i will let you think and design how to do it , wisely, no rush, don't mess old session log and ascii tree that already work, (do search for it).
 ---
 
 
