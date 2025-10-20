@@ -427,7 +427,7 @@ mod tests {
         });
 
         let summary = StateDiagramGenerator::summarize_result(&Some(result));
-        assert_eq!(summary, "Balance: 100 USDC");
+        assert_eq!(summary, "Balance 100 USDC");
     }
 
     #[test]
