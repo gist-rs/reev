@@ -1,4 +1,14 @@
 # TODO
+
+- `Execution Trace` must have "--" after `Data (Base58): "2"` to separate line
+- refer to
+  ```
+  reev_lib::session_logger::ToolCallInfo` (used in session logs) - has `tool_id` field
+  reev_lib::agent::ToolCallInfo` (used in flow tracking) - has `tool_name` field
+  ```
+  clean this mess, use tool_id instead of tool_name, grep
+- clean TODO
+
 - Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Docker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
 
 -`"Please send 15 USDC from my token account (USER_USDC_ATA) to the recipient's token account (RECIPIENT_USDC_ATA)."` look not like human conversation, it should say `"Send 15 USDC to xxx." which xxx is someone wallet and we should provide the wallet info including ata by code inject to context for llm.
@@ -35,113 +45,6 @@
 ## Refactor
 - use const for any address e.g. `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
 
-
----
-# Flow
-- backend expect: when run each test benchmark we should get rendered mmd ready for call to present as diagram via web e.g. http://localhost:3001/api/v1/flows/{benckmark-id-from-clicked-box}
-- web expect: use can see mermaid flow diagram from above api on top of the web (hero section) when click box in grid, default to first tested results (also focus the box in ui to simulate user click the box to see the flow)
-- expect diagram
-```
-stateDiagram
-    [*] --> Prompt
-    Prompt --> Agent : What is the SOL balance for USER_1?
-    Agent --> get_account_balance : pubkey = USER_1
-    get_account_balance --> [*] : 100 USDC
-
-classDef tools fill:green
-class get_account_balance tools
-```
-- beware your old knowledge, you must follow my mermaid example precisely.
-- log expect (plz refine and add what missing, this is just a rough idea) refer to: logs/sessions/session_1c54293a-8a9e-4bdb-b089-f5731630dcfb.json
-```
-{
-  "session_id": "1c54293a-8a9e-4bdb-b089-f5731630dcfb",
-  "benchmark_id": "001-sol-transfer",
-  "agent_type": "deterministic",
-  "start_time": 1760879995,
-  "end_time": 1760879996,
-  "events": [],
-  "final_result": {
-    "success": true,
-    "score": 1.0,
-    "status": "Succeeded",
-    "execution_time_ms": 1000,
-    "data": {
-      "prompt": "Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).",
-      "tools": [... this should contain tool call with `start_time, end_time, tool_id, params` so we can build mermaid state diagram from this info ...],
-      "steps": [
-        {
-          "action": [
-            {
-              "accounts": [
-                {
-                  "is_signer": true,
-                  "is_writable": true,
-                  "pubkey": "DnY5yr57fWtxEfjfFs1pUU4iXXEiRjQRZvU9FN5U4pFL"
-                },
-                {
-                  "is_signer": false,
-                  "is_writable": true,
-                  "pubkey": "DJSAE2pLADX7c8FqY3yNbtPuLY1AqvLzGSZ9cQVTfkZ1"
-                }
-              ],
-              "data": "3Bxs411Dtc7pkFQj",
-              "program_id": "11111111111111111111111111111111"
-            }
-          ],
-          "info": {},
-          "observation": {
-            "account_states": {
-              "11111111111111111111111111111111": {
-                "data_len": 14,
-                "executable": true,
-                "lamports": 1,
-                "owner": "NativeLoader1111111111111111111111111111111"
-              },
-              "RECIPIENT_WALLET_PUBKEY": {
-                "data_len": 0,
-                "executable": false,
-                "lamports": 100000000,
-                "owner": "11111111111111111111111111111111"
-              },
-              "USER_WALLET_PUBKEY": {
-                "data_len": 0,
-                "executable": false,
-                "lamports": 899995000,
-                "owner": "11111111111111111111111111111111"
-              }
-            },
-            "key_map": {
-              "11111111111111111111111111111111": "11111111111111111111111111111111",
-              "RECIPIENT_WALLET_PUBKEY": "DJSAE2pLADX7c8FqY3yNbtPuLY1AqvLzGSZ9cQVTfkZ1",
-              "USER_WALLET_PUBKEY": "DnY5yr57fWtxEfjfFs1pUU4iXXEiRjQRZvU9FN5U4pFL"
-            },
-            "last_transaction_error": null,
-            "last_transaction_logs": [
-              "Program 11111111111111111111111111111111 invoke [1]",
-              "Program 11111111111111111111111111111111 success"
-            ],
-            "last_transaction_status": "Success"
-          },
-          "thought": null
-        }
-      ]
-    }
-  },
-  "metadata": {}
-}
-```
-- plz consolidate tool calling to that session log
-  `"tools": [... this should contain tool call with `start_time, end_time, tool_id, params` so we can build mermaid state diagram from this info ...],`
-  so we can use it to render the diagram.
-- if log is hard to parse you may need to refine it format at logged time to easy to parse later.
-- ✅ flow_visualizer has been removed from reev-agent
-- Flow visualization is now handled exclusively via reev-api web interface
-- test until you get expected diagram results via api.
-
-read the related code and plan first, don't forget to dry and modular, this one include both our log and otel from RIG so it may cause troublesome so do it step by step not all at once.
-start from easy end working one and commit step by step so you can revert if needed. e.g.  start from just start and stop diagram then add only our log then add otel log in between, i will let you think and design how to do it , wisely, no rush, don't mess old session log and ascii tree that already work, (do search for it).
----
 
 
 we have ,[@Dockerfile](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2FDockerfile) , which seem to build fine on my mac but need to manul build and combine the bin it myself refer to llm said (which is comfusing me)

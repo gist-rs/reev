@@ -2,6 +2,38 @@
 
 ## Key Learnings & Insights
 
+### Flow Diagram Tool Name Resolution
+
+#### Problem Understanding
+- **Issue**: Flow diagrams showed generic tool names (`transfer_sol`) instead of actual tool names (`sol_transfer`)
+- **Root Cause**: Fallback logic in benchmark runner used hardcoded names instead of respecting `ToolDefinition.name`
+- **Impact**: Flow diagrams didn't accurately represent actual tool execution flow
+
+#### Solution Approach
+- **Analysis**: Identified two tracking systems - `GlobalFlowTracker` (correct names) vs `LlmAgent` internal tracking (empty)
+- **Fix**: Updated fallback logic in `reev-runner/src/lib.rs` to use correct tool name `sol_transfer`
+- **Key Insight**: When agent tracking is empty, fallback should use meaningful names, not generic ones
+
+#### Technical Details
+```rust
+// Before: Hardcoded generic name
+tool_id: format!("transfer_sol_{i}"),
+
+// After: Correct tool name from ToolDefinition
+tool_id: "sol_transfer".to_string(),
+```
+
+#### Lessons Learned
+1. **Tool Name Consistency**: Ensure fallback logic respects actual tool definitions
+2. **Multiple Tracking Systems**: Understand which system provides authoritative data
+3. **Defensive Programming**: Fallbacks should be meaningful, not generic
+4. **Flow Accuracy**: Tool names in diagrams must match actual execution for user understanding
+
+#### Architecture Considerations
+- **Tool Tracking**: Need better integration between `GlobalFlowTracker` and `LlmAgent` systems
+- **Data Flow**: Ensure correct tool names flow from execution to visualization
+- **Fallback Quality**: When primary tracking fails, fallbacks should maintain semantic accuracy
+
 ### Database Concurrency Resolution (Connection Pool)
 
 #### Problem Understanding
