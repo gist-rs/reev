@@ -204,7 +204,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             .await
             .context("Failed to set up SPL scenario")?;
 
-        let (final_observation, trace, actions) =
+        let (final_observation, trace, actions, tool_calls) =
             run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation)
                 .await
                 .with_context(|| {
@@ -247,13 +247,14 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 FinalStatus::Failed
             };
 
-            // Store ExecutionTrace format directly for ASCII tree compatibility
-            match session_logger.complete_with_trace(trace.clone()) {
+            // Store ExecutionTrace with tool calls for flow diagram generation
+            match session_logger.complete_with_trace_and_tools(trace.clone(), tool_calls.clone()) {
                 Ok(log_file) => {
                     info!(
                         benchmark_id = %test_case.id,
                         log_file = %log_file.display(),
-                        "Session log with ExecutionTrace completed successfully"
+                        tools_count = %tool_calls.len(),
+                        "Session log with ExecutionTrace and tools completed successfully"
                     );
 
                     // Store ExecutionTrace directly in database for ASCII tree compatibility
@@ -432,7 +433,7 @@ async fn run_flow_benchmark(
         };
 
         // Execute the step
-        let (step_observation, step_trace, step_actions) =
+        let (step_observation, step_trace, step_actions, _step_tool_calls) =
             run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
                 .await
                 .with_context(|| {
@@ -595,6 +596,7 @@ async fn run_evaluation_loop(
     AgentObservation,
     ExecutionTrace,
     Vec<reev_lib::agent::AgentAction>,
+    Vec<reev_lib::session_logger::ToolCallInfo>,
 )> {
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
@@ -610,6 +612,9 @@ async fn run_evaluation_loop(
         )
         .await?;
 
+    // Get tool calls from agent for flow diagram generation
+    let tool_calls = agent.get_tool_calls();
+
     // The environment's step function now takes a vector of actions to be bundled
     // into a single transaction.
     let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
@@ -621,6 +626,9 @@ async fn run_evaluation_loop(
         info: step_result.info,
     };
     trace.add_step(trace_step);
-    info!("Episode finished.");
-    Ok((step_result.observation, trace, actions))
+    info!(
+        "Episode finished with {} tool calls tracked.",
+        tool_calls.len()
+    );
+    Ok((step_result.observation, trace, actions, tool_calls))
 }

@@ -112,6 +112,11 @@ pub trait Agent {
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>>;
+
+    /// Get tool calls made during this session (for flow diagram generation)
+    fn get_tool_calls(&self) -> Vec<crate::session_logger::ToolCallInfo> {
+        Vec::new() // Default implementation returns empty vector
+    }
 }
 
 /// Structs for deserializing the third-party LLM's JSON response.

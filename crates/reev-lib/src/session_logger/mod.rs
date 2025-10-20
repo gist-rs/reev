@@ -429,6 +429,97 @@ impl SessionFileLogger {
         Ok(self.log_file)
     }
 
+    /// Complete the session with ExecutionTrace and tool calls for flow diagram generation
+    pub fn complete_with_trace_and_tools(
+        self,
+        trace: ExecutionTrace,
+        tool_calls: Vec<ToolCallInfo>,
+    ) -> Result<PathBuf> {
+        let end_time = SystemTime::now();
+        let end_timestamp = end_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let start_timestamp = self
+            .start_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Create session log with ExecutionTrace and tools embedded in final_result
+        let session_log = SessionLog {
+            session_id: self.session_id.clone(),
+            benchmark_id: self.benchmark_id.clone(),
+            agent_type: self.agent_type.clone(),
+            start_time: start_timestamp,
+            end_time: Some(end_timestamp),
+            events: self.events.clone(),
+            final_result: Some(ExecutionResult {
+                success: trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success"),
+                score: if trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success")
+                {
+                    1.0
+                } else {
+                    0.0
+                },
+                status: if trace
+                    .steps
+                    .iter()
+                    .any(|step| step.observation.last_transaction_status == "Success")
+                {
+                    "Succeeded".to_string()
+                } else {
+                    "Failed".to_string()
+                },
+                execution_time_ms: (end_timestamp - start_timestamp) * 1000,
+                data: json!({
+                    "prompt": trace.prompt.clone(),
+                    "steps": trace.steps,
+                    "tools": tool_calls.clone(), // Add tools array for flow diagram
+                    "trace": trace
+                }),
+                tools: tool_calls, // Add tool calls to ExecutionResult
+            }),
+            metadata: self.metadata,
+        };
+
+        // Write session log to file
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.log_file)
+            .with_context(|| format!("Failed to open log file: {:?}", self.log_file))?;
+
+        let mut writer = BufWriter::new(file);
+        let json_content = serde_json::to_string_pretty(&session_log)
+            .with_context(|| "Failed to serialize session log with ExecutionTrace and tools")?;
+
+        writer
+            .write_all(json_content.as_bytes())
+            .with_context(|| "Failed to write session log with ExecutionTrace and tools to file")?;
+        writer
+            .flush()
+            .with_context(|| "Failed to flush session log with ExecutionTrace and tools file")?;
+
+        info!(
+            session_id = %self.session_id,
+            log_file = %self.log_file.display(),
+            events_count = self.events.len(),
+            tools_count = session_log.final_result.as_ref().map(|r| r.tools.len()).unwrap_or(0),
+            "Session log with ExecutionTrace and tools completed and written to file"
+        );
+
+        Ok(self.log_file)
+    }
+
     /// Get session statistics
     pub fn get_statistics(&self) -> SessionStatistics {
         let mut stats = SessionStatistics::default();

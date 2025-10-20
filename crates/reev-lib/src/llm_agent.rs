@@ -18,6 +18,9 @@ pub struct LlmAgent {
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
     is_glm: bool,
+    // Tool call tracking for flow diagram generation
+    active_tool_calls: std::collections::HashMap<String, u64>,
+    tool_call_sequence: Vec<crate::session_logger::ToolCallInfo>,
 }
 
 impl LlmAgent {
@@ -109,12 +112,68 @@ impl LlmAgent {
             flow_logger,
             current_depth: 0,
             is_glm,
+            active_tool_calls: std::collections::HashMap::new(),
+            tool_call_sequence: Vec::new(),
         })
     }
 
     /// Get the model name for this agent
     pub fn model_name(&self) -> &str {
         &self.model_name
+    }
+
+    /// Start tracking a tool call with timing
+    pub fn start_tool_call(&mut self, tool_id: String, _params: serde_json::Value) {
+        let start_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        self.active_tool_calls.insert(tool_id.clone(), start_time);
+        info!(
+            "[LlmAgent] Started tool call: {} at {}",
+            tool_id, start_time
+        );
+    }
+
+    /// End tracking a tool call and record result
+    pub fn end_tool_call(
+        &mut self,
+        tool_id: String,
+        result: Option<serde_json::Value>,
+        status: String,
+    ) {
+        let end_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if let Some(start_time) = self.active_tool_calls.remove(&tool_id) {
+            let tool_call = crate::session_logger::ToolCallInfo {
+                tool_id: tool_id.clone(),
+                start_time,
+                end_time,
+                params: serde_json::Value::Null, // Will be filled by HTTP intercept if needed
+                result,
+                status,
+            };
+            self.tool_call_sequence.push(tool_call);
+            info!(
+                "[LlmAgent] Completed tool call: {} in {}ms",
+                tool_id,
+                (end_time - start_time) * 1000
+            );
+        }
+    }
+
+    /// Get all tracked tool calls for this session
+    pub fn get_tool_calls(&self) -> Vec<crate::session_logger::ToolCallInfo> {
+        self.tool_call_sequence.clone()
+    }
+
+    /// Clear all tool call tracking (for new sessions)
+    pub fn clear_tool_calls(&mut self) {
+        self.active_tool_calls.clear();
+        self.tool_call_sequence.clear();
     }
 }
 
