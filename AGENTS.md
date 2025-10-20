@@ -10,6 +10,7 @@
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
 - when i say `handover` you must summarize current state and incomplpeted issues to HANDOVER.md for next thread can follow up easily, refer to TASKS.md number if has.
+- use macos commad
 
 ## DONT
 - DONT Add a test on each file.
