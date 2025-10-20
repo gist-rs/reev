@@ -1,16 +1,17 @@
 ## DO
 - DO add test to tests folder.
-- Always diag after edit, fix diag, follow PLAN.md TASKS.md, update plan PLAN.md TASKS.md when complete
-- Remove what done from to TOFIX.md, add what to fix in TOFIX.md
+- Always diag after edit, fix diag error, follow PLAN.md TASKS.md, update plan PLAN.md TASKS.md when complete
+- Add what to fix in TOFIX.md
 - Then fixed add reflect to REFLECT.md, but keep it short as DO and DONT.
 - Try to keep all md under 320 lines, keep only important and use short word, less noise, keep revise for compact.
 - Follow modular architecture, Keep files under 320-512 lines
 - Always run `cargo clippy --fix --allow-dirty` and fix after done edit.
-- Ask user for commit when done impl or fixed for each task and run success result without error and warning with git convention e.g. `feat:...`, `fix:...`, `refactor:...` for each task, but wait for confirm first.
+- Ask user for commit when done impl or fixed for each task and run success result without error with git convention e.g. `feat:...`, `fix:...`, `refactor:...` for each task, but wait for confirm first.
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
-- when i say `handover` you must summarize current state and incomplpeted issues to HANDOVER.md for next thread can follow up easily, refer to TASKS.md number if has.
-- use macos commad
+- when user say `handover` you must summarize current state and incomplpeted issues to HANDOVER.md for next thread can follow up easily, refer to TASKS.md number if has.
+- use macos cli commad
+- search for related code, tests, examples to get an idea and current context before impl
 
 ## DONT
 - DONT Add a test on each file.

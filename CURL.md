@@ -4,20 +4,18 @@ This document provides examples of how to interact with the Reev API using cURL 
 
 ## 🔍 Tool Call Logging with OpenTelemetry
 
-The reev-agent uses OpenTelemetry (OTEL) tracing to log all tool calls to `logs/tool_calls.log`. This log file contains detailed information about agent execution flows and is used to generate flow diagrams.
+Flow visualization is now handled by the reev-api web interface using database session data.
 
 ### Generate Tool Call Logs
 
-To generate `logs/tool_calls.log` for flow visualization:
+To generate flow diagrams:
 
 ```bash
-# Run the OpenTelemetry logging demo
-cargo run --example otel_tool_logging_demo
+# Use the reev-api web interface
+curl http://localhost:3001/api/v1/flows/{session-id}
 
-# Or run any benchmark example
-cargo run --example 001-sol-transfer --agent local
-
-# The tool calls will be logged to logs/tool_calls.log
+# Or run benchmarks and access via web UI
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
 ```
 
 ### Generate Flow Diagram from Tool Logs
@@ -29,7 +27,7 @@ cargo run --example 001-sol-transfer --agent local
 
 ### Tool Log Format
 
-The `logs/tool_calls.log` contains structured entries like:
+Flow diagram data is stored in database sessions and accessible via API:
 ```
 2024-01-15T10:30:00.123Z INFO [OpenAIAgent] Starting agent execution with OpenTelemetry tracing
 2024-01-15T10:30:01.456Z INFO [AccountBalanceTool] Starting tool execution in accountbalance_tool_call with args: {"pubkey": "USER_1"}
@@ -42,11 +40,8 @@ The `logs/tool_calls.log` contains structured entries like:
 ### Environment Variables
 
 ```bash
-# Disable tool logging (default: enabled)
-export REEV_ENABLE_TOOL_LOGGING=false
-
-# Tool logging is enabled by default
-# Logs are written to logs/tool_calls.log
+# Flow visualization is enabled by default
+# Session data is stored in database for web interface access
 ```
 
 ## 🚀 Running Benchmarks
