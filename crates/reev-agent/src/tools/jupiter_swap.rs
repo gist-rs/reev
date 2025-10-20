@@ -142,8 +142,7 @@ impl Tool for JupiterSwapTool {
         let start_time = Instant::now();
 
         // Prepare tool args for logging
-        let tool_args = json!({
-            "user_pubkey": args.user_pubkey,
+        let _tool_args = json!({
             "input_mint": args.input_mint,
             "output_mint": args.output_mint,
             "amount": args.amount,
@@ -161,32 +160,16 @@ impl Tool for JupiterSwapTool {
                     if let Some(instruction_count) =
                         response.get("transaction_count").and_then(|v| v.as_u64())
                     {
-                        if let Err(e) = crate::enhanced::openai::log_tool_call(
-                            Self::NAME,
-                            &tool_args,
-                            "success",
-                            Some(&format!("instruction_count: {instruction_count}")),
-                            start_time.elapsed().as_millis() as u32,
-                        ) {
-                            warn!("[JupiterSwapTool] Failed to log tool call: {}", e);
-                        }
+                        // Jupiter swap successful with instruction_count instructions
+                        info!(
+                            "[JupiterSwapTool] Successfully created swap with {} instructions",
+                            instruction_count
+                        );
                     }
                 }
             }
             Err(e) => {
-                // Log failed tool call
-                if let Err(log_err) = crate::enhanced::openai::log_tool_call(
-                    Self::NAME,
-                    &tool_args,
-                    "error",
-                    Some(&format!("error: {e}")),
-                    start_time.elapsed().as_millis() as u32,
-                ) {
-                    warn!(
-                        "[JupiterSwapTool] Failed to log tool call error: {}",
-                        log_err
-                    );
-                }
+                warn!("[JupiterSwapTool] Swap failed: {}", e);
             }
         }
 

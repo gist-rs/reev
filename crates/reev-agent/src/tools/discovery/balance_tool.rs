@@ -15,7 +15,7 @@ use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 /// The arguments for the account balance tool
 #[derive(Deserialize, Debug)]
@@ -130,48 +130,15 @@ impl Tool for AccountBalanceTool {
         info!("[AccountBalanceTool] Starting tool execution with OpenTelemetry tracing");
 
         // Prepare tool args for logging
-        let tool_args = json!({
+        let _tool_args = json!({
             "pubkey": args.pubkey,
             "token_mint": args.token_mint,
             "account_type": args.account_type
         })
         .to_string();
 
-        // Execute the tool and log both success and failure
+        // Execute the tool
         let result = self.execute_balance_query_internal(&args).await;
-
-        match &result {
-            Ok(balance_info) => {
-                // Log successful tool call
-                if let Err(e) = crate::enhanced::openai::log_tool_call(
-                    Self::NAME,
-                    &tool_args,
-                    "success",
-                    Some(&format!(
-                        "account_exists: {}, sol_balance: {}",
-                        balance_info.sol_balance, balance_info.exists
-                    )),
-                    0, // Balance queries are typically fast
-                ) {
-                    warn!("[AccountBalanceTool] Failed to log tool call: {}", e);
-                }
-            }
-            Err(e) => {
-                // Log failed tool call
-                if let Err(log_err) = crate::enhanced::openai::log_tool_call(
-                    Self::NAME,
-                    &tool_args,
-                    "error",
-                    Some(&format!("error: {e}")),
-                    0,
-                ) {
-                    warn!(
-                        "[AccountBalanceTool] Failed to log tool call error: {}",
-                        log_err
-                    );
-                }
-            }
-        }
 
         // Convert result to JSON response
         match result {

@@ -16,130 +16,6 @@ use crate::{
     LlmRequest,
 };
 
-/// 🎯 Initialize logging for tool call tracking
-pub fn init_tool_logging() -> Result<()> {
-    use std::fs::OpenOptions;
-    use std::io::Write;
-
-    // Check if tool logging is explicitly disabled
-    if std::env::var("REEV_ENABLE_TOOL_LOGGING")
-        .map(|v| v.to_lowercase() == "false" || v == "0")
-        .unwrap_or(false)
-    {
-        info!("[OpenAIAgent] Tool logging explicitly disabled via REEV_ENABLE_TOOL_LOGGING");
-        return Ok(());
-    }
-
-    // Create logs directory if it doesn't exist
-    std::fs::create_dir_all("logs")?;
-
-    // Open the tool_calls.log file in append mode and write a header
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("logs/tool_calls.log")?;
-
-    // Write initialization header with timestamp
-    let timestamp = chrono::Utc::now().to_rfc3339();
-    writeln!(
-        file,
-        "{timestamp} INFO [OpenAIAgent] Tool logging session started"
-    )?;
-
-    info!("[OpenAIAgent] Tool logging initialized - writing to logs/tool_calls.log");
-    Ok(())
-}
-
-/// 🎯 Write a tool call log entry to the tool_calls.log file
-pub fn log_tool_call(
-    tool_name: &str,
-    tool_args: &str,
-    result_status: &str,
-    result_data: Option<&str>,
-    _execution_time_ms: u32,
-) -> Result<()> {
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    use std::sync::Mutex;
-
-    // Check if tool logging is explicitly disabled
-    if std::env::var("REEV_ENABLE_TOOL_LOGGING")
-        .map(|v| v.to_lowercase() == "false" || v == "0")
-        .unwrap_or(false)
-    {
-        return Ok(());
-    }
-
-    // Use a static mutex to prevent concurrent writes to the log file
-    static LOG_MUTEX: std::sync::LazyLock<Mutex<()>> = std::sync::LazyLock::new(|| Mutex::new(()));
-
-    let _guard = LOG_MUTEX
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Failed to acquire log file lock: {e}"))?;
-
-    // Open the tool_calls.log file in append mode
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("logs/tool_calls.log")?;
-
-    // Write tool call entry with timestamp
-    let timestamp = chrono::Utc::now().to_rfc3339();
-    writeln!(
-        file,
-        "{timestamp} INFO Calling tool {tool_name} with args: \"{tool_args}\""
-    )?;
-
-    // Write tool execution start
-    writeln!(
-        file,
-        "{} INFO [{}Tool] Starting tool execution in {}_tool_call with args: {}",
-        timestamp,
-        tool_name
-            .chars()
-            .next()
-            .unwrap_or('X')
-            .to_uppercase()
-            .collect::<String>(),
-        tool_name.to_lowercase().replace("_", ""),
-        tool_args
-    )?;
-
-    // Write tool result
-    if let Some(data) = result_data {
-        writeln!(
-            file,
-            "{} INFO [{}Tool] Tool completed successfully in {}_tool_call with result: {}",
-            timestamp,
-            tool_name
-                .chars()
-                .next()
-                .unwrap_or('X')
-                .to_uppercase()
-                .collect::<String>(),
-            tool_name.to_lowercase().replace("_", ""),
-            data
-        )?;
-    } else {
-        writeln!(
-            file,
-            "{} INFO [{}Tool] Tool completed with status: {} in {}_tool_call",
-            timestamp,
-            tool_name
-                .chars()
-                .next()
-                .unwrap_or('X')
-                .to_uppercase()
-                .collect::<String>(),
-            tool_name.to_lowercase().replace("_", ""),
-            result_status
-        )?;
-    }
-
-    file.flush()?;
-    Ok(())
-}
-
 /// 🎯 Complete response format including transactions, summary, and signatures
 #[derive(Debug, Clone)]
 struct ExecutionResult {
@@ -166,11 +42,7 @@ impl OpenAIAgent {
         payload: LlmRequest,
         key_map: HashMap<String, String>,
     ) -> Result<String> {
-        // 🎯 Initialize logging for tool call tracking
-        init_tool_logging()?;
-
         info!("[OpenAIAgent] Running enhanced multi-turn agent with model: {model_name}");
-        info!("[OpenAIAgent] Tool logging initialized - tool calls will be logged to logs/tool_calls.log");
 
         // 🚨 Check for allowed tools filtering (for flow operations)
         let allowed_tools = payload.allowed_tools.as_ref();
@@ -416,9 +288,6 @@ impl OpenAIAgent {
         );
 
         // 🎯 Logging shutdown - all tool calls have been logged
-        info!(
-            "[OpenAIAgent] Tool logging completed - all tool calls logged to logs/tool_calls.log"
-        );
 
         Ok(serde_json::to_string(&comprehensive_response)?)
     }
