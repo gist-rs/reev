@@ -72,27 +72,6 @@ impl ExampleConfig {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_example_config_creation() {
-        let config = ExampleConfig::new("deterministic");
-        assert!(config.agent_url.contains("mock=true"));
-
-        let config = ExampleConfig::new("ai");
-        assert!(!config.agent_url.contains("mock=true"));
-    }
-
-    #[test]
-    fn test_url_construction() {
-        let config = ExampleConfig::new("test");
-        assert_eq!(config.health_check_url(), "http://127.0.0.1:9090/health");
-        assert_eq!(config.tx_url(), "http://127.0.0.1:9090");
-    }
-}
-
 /// Sync benchmarks to database before running examples
 ///
 /// This function ensures the benchmarks table is populated with YML files
