@@ -12,6 +12,7 @@
 1. **Tool Call Tracking**: `tools: []` arrays are empty in session logs
 2. **OTEL Integration**: Created spans but not extracting data correctly
 3. **Agent Dependency**: Relying on agent code changes (wrong approach)
+4. **Trace File Creation**: `traces.log` not created by default (system-breaking)
 
 ## 🎯 Real Challenge
 

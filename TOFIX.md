@@ -15,6 +15,21 @@
   5. Now tool names come from the source of truth in `reev-tools` instead of being hardcoded
 - **Architecture**: Proper decoupling achieved - `reev-tools` owns tool definitions, `reev-api` consumes them
 
+## Traces.log Default Creation Issue 🔄 CRITICAL
+- **Issue**: `traces.log` file is not created by default, preventing OpenTelemetry tool tracking from working
+- **Current Behavior**: Users must manually set `REEV_TRACE_FILE=traces.log` environment variable for traces to be written
+- **Expected Behavior**: `traces.log` should be created automatically by default without any configuration
+- **Root Cause**: OpenTelemetry flow tracing uses environment variable fallback but doesn't create default trace file
+- **Impact**: Without trace file creation by default, OpenTelemetry tool call tracking and Mermaid diagram generation fail
+- **Priority**: CRITICAL - system functionality depends on trace file availability
+- **Required Fix**: 
+  1. Modify `init_flow_tracing()` to always create `traces.log` by default
+  2. Remove dependency on `REEV_TRACE_FILE` environment variable for basic functionality
+  3. Allow custom trace file path via environment variable but default to `traces.log`
+  4. Ensure trace file is created in current working directory automatically
+  5. Update all documentation to reflect that traces work out of the box
+- **Architecture**: Zero-configuration OpenTelemetry tracing that works immediately
+
 ## OpenTelemetry Tool Call Extraction for Mermaid Diagrams ✅ COMPLETELY RESOLVED
 - **Issue**: Cannot extract tool names from rig's OpenTelemetry traces for Mermaid diagram generation
 - **Previous State**: 3 conflicting OpenTelemetry approaches (otel.rs, otel_wrapper.rs, tool_wrapper.rs)
@@ -25,17 +40,18 @@
     "benchmark_id": "...",
     "tools": [
       {
-        "tool_name": "sol_transfer",
+        "tool_name": "...",
         "start_time": "...",
         "end_time": "...",
         "params": {"pubkey": "..."},
         "result": {"balance": "..."},
-        "status": "success"
+        "status": "success|error"
       }
     ]
   }
   ```
 - **Root Cause**: Manual tool tracking approach violated OpenTelemetry principles and broke rig framework
+- **Priority**: CRITICAL - entire Mermaid flow diagram system depends on this
 - **Fix Applied**:
   1. **Deleted broken manual tracking**: Removed `reev-tools/src/tracker/tool_wrapper.rs` entirely
   2. **Created proper OpenTelemetry extraction**: New `reev-lib/src/otel_extraction/mod.rs` module
@@ -43,7 +59,9 @@
   4. **Simplified otel_wrapper.rs**: Removed fake OTEL setup, now just provides tool identification
   5. **Updated integration points**: reev-runner, reev-api, and reev-agent all use OpenTelemetry extraction
   6. **Added comprehensive tests**: `reev-lib/tests/otel_extraction_test.rs` validates the new architecture
-- **Architecture**: Clean separation - rig handles OTEL automatically, extraction layer converts to session format
+  7. **Removed REEV_OTEL_ENABLED dependency**: OpenTelemetry is now always enabled by default
+  8. **Always creates traces.log**: Trace file creation works without configuration
+- **Architecture**: Clean separation - rig handles OTEL automatically, extraction layer converts to session format, traces always created
 - **Key Functions Implemented**:
   ```rust
   // In reev-lib/src/otel_extraction/mod.rs
@@ -104,14 +122,21 @@ rig tool execution → OpenTelemetry spans → trace extraction → session form
 
 ### **How to Use**
 ```bash
-# OpenTelemetry tracing is always enabled
-export REEV_TRACE_FILE=traces.log
+# OpenTelemetry tracing and trace file creation work automatically
+# No environment variables needed - traces.log created by default
 
 # Run any agent (GLM, OpenAI, Local)
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 
-# Tool calls are automatically extracted and available for Mermaid diagrams
+# Tool calls are automatically extracted and traces.log created
+# View traces: tail -f traces.log
+
+# Tool calls available for Mermaid diagrams
 curl http://localhost:3001/api/v1/flows/{session_id}
+
+# Optional: Custom trace file location
+export REEV_TRACE_FILE=my_custom_traces.log
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 ```
 
 ### **Files Changed**
