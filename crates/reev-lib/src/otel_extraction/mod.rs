@@ -387,18 +387,9 @@ pub fn convert_to_session_format(tool_calls: Vec<ToolCallInfo>) -> Vec<SessionTo
 pub fn init_otel_extraction() -> Result<(), Box<dyn std::error::Error>> {
     info!("[OtelExtraction] Initializing OpenTelemetry trace extraction");
 
-    // Check if OpenTelemetry is properly configured
-    let enabled = std::env::var("REEV_OTEL_ENABLED")
-        .unwrap_or_else(|_| "true".to_string())
-        .parse()
-        .unwrap_or(false);
-
-    if enabled {
-        info!("[OtelExtraction] OpenTelemetry extraction enabled");
-        info!("[OtelExtraction] Tool calls will be extracted from rig's OpenTelemetry traces");
-    } else {
-        info!("[OtelExtraction] OpenTelemetry extraction disabled");
-    }
+    // OpenTelemetry is always enabled
+    info!("[OtelExtraction] OpenTelemetry extraction enabled");
+    info!("[OtelExtraction] Tool calls will be extracted from rig's OpenTelemetry traces");
 
     Ok(())
 }

@@ -37,8 +37,9 @@
 - **No Manual Tool Tracking**: Use rig's built-in OpenTelemetry, never manual interception
 - **Automatic Extraction**: Tool calls extracted via `extract_current_otel_trace()` and `parse_otel_trace_to_tools()`
 - **Session Format Compliance**: Convert to FLOW.md session format for Mermaid diagrams
-- **Environment Variables**: Use `REEV_OTEL_ENABLED=true` and `REEV_TRACE_FILE=traces.log`
+- **Environment Variables**: Use `REEV_TRACE_FILE=traces.log` (OpenTelemetry always enabled)
 - **Clean Architecture**: No HTTP request/response warping, let rig handle tracing automatically
+- **Always Enabled**: OpenTelemetry tool call tracking is enabled by default
 
 ## 🛠️ Production Standards
 

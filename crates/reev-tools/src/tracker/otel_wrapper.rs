@@ -142,8 +142,7 @@ impl Default for OtelMetricsCollector {
 /// by the rig framework when tools are executed.
 pub fn init_simple_tool_tracing() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Tool tracing relies on rig's built-in OpenTelemetry integration");
-    tracing::info!("Enable with REEV_OTEL_ENABLED=true and REEV_TRACE_FILE=traces.log");
-    tracing::info!("Tool calls will be automatically traced by rig framework");
+    tracing::info!("Tool calls are automatically traced to REEV_TRACE_FILE=traces.log");
     Ok(())
 }
 

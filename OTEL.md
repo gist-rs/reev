@@ -129,39 +129,27 @@ pub fn generate_mermaid_from_otel(session_id: &str) -> Option<String> {
 ```rust
 // ✅ COMPLETED: Environment variables for OpenTelemetry
 pub fn init_otel_for_tool_extraction() -> Result<(), Box<dyn std::error::Error>> {
-    // Check if OpenTelemetry is enabled
-    let enabled = std::env::var("REEV_OTEL_ENABLED")
-        .unwrap_or_else(|_| "true".to_string())
-        .parse()
-        .unwrap_or(false);
-    
-    if enabled {
+        // OpenTelemetry is always enabled
         // Initialize flow tracing with stdout exporter
         reev_flow::init_flow_tracing()?;
-        
+    
         // Initialize OpenTelemetry extraction
         reev_lib::otel_extraction::init_otel_extraction()?;
-        
+    
         info!("OpenTelemetry enabled for tool call extraction");
         info!("Tool calls will be automatically captured from rig's spans");
-    }
     
     Ok(())
 }
 
 // ✅ COMPLETED: Configuration for trace file output
 pub struct OtelConfig {
-    pub enabled: bool,
     pub trace_file: String,
 }
 
 impl OtelConfig {
     pub fn from_env() -> Self {
         Self {
-            enabled: std::env::var("REEV_OTEL_ENABLED")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(false),
             trace_file: std::env::var("REEV_TRACE_FILE")
                 .unwrap_or_else(|_| "traces.log".to_string()),
         }

@@ -19,18 +19,9 @@ pub struct FlowTracer {
 impl FlowTracer {
     /// Create a new flow tracer
     pub fn new() -> Self {
-        let enabled = std::env::var("REEV_OTEL_ENABLED")
-            .unwrap_or_else(|_| "true".to_string())
-            .parse()
-            .unwrap_or(false);
-
-        if enabled {
-            info!("Flow tracing enabled with OpenTelemetry backend");
-            Self { enabled: true }
-        } else {
-            info!("Flow tracing disabled");
-            Self { enabled: false }
-        }
+        // OpenTelemetry is always enabled
+        info!("Flow tracing enabled with OpenTelemetry backend");
+        Self { enabled: true }
     }
 }
 
@@ -241,16 +232,7 @@ impl FlowTracer {
 
 /// Initialize flow tracing with file output
 pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
-    let enabled = std::env::var("REEV_OTEL_ENABLED")
-        .unwrap_or_else(|_| "true".to_string())
-        .parse()
-        .unwrap_or(false);
-
-    if !enabled {
-        info!("Flow tracing initialization skipped");
-        return Ok(());
-    }
-
+    // OpenTelemetry is always enabled
     info!("Initializing flow tracing with file output...");
 
     // Set up stdout exporter for OpenTelemetry traces

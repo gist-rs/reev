@@ -10,16 +10,15 @@ use std::time::SystemTime;
 #[test]
 #[serial]
 fn test_flow_tracer_creation() {
-    std::env::set_var("REEV_OTEL_ENABLED", "false");
+    // OpenTelemetry is always enabled
     let tracer = FlowTracer::new();
-    assert!(!tracer.is_enabled());
-    std::env::remove_var("REEV_OTEL_ENABLED");
+    assert!(tracer.is_enabled());
 }
 
 #[test]
 #[serial]
 fn test_flow_tracing_disabled() {
-    std::env::set_var("REEV_OTEL_ENABLED", "false");
+    // OpenTelemetry is always enabled
     let tracer = FlowTracer::new();
 
     let event = FlowEvent {
@@ -40,13 +39,13 @@ fn test_flow_tracing_disabled() {
 
     // Should not panic when disabled
     tracer.trace_flow_event(&event);
-    std::env::remove_var("REEV_OTEL_ENABLED");
+    // No cleanup needed - OpenTelemetry is always enabled
 }
 
 #[test]
 #[serial]
 fn test_flow_tracing_enabled() {
-    std::env::set_var("REEV_OTEL_ENABLED", "true");
+    // OpenTelemetry is always enabled
     let tracer = FlowTracer::new();
     assert!(tracer.is_enabled());
 
@@ -65,5 +64,5 @@ fn test_flow_tracing_enabled() {
 
     // Should not panic when enabled
     tracer.trace_flow_event(&event);
-    std::env::remove_var("REEV_OTEL_ENABLED");
+    // No cleanup needed - OpenTelemetry is always enabled
 }

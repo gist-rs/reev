@@ -160,7 +160,6 @@ Now that OpenTelemetry extraction is complete, implement Mermaid diagram renderi
 
 ```bash
 # Test the complete OpenTelemetry flow
-export REEV_OTEL_ENABLED=true
 export REEV_TRACE_FILE=traces.log
 
 # Run agent with OpenTelemetry
@@ -173,8 +172,7 @@ curl http://localhost:3001/api/v1/flows/{session_id}
 ## 🧪 Quick Testing with OpenTelemetry Integration
 
 ```bash
-# 1. Enable OpenTelemetry tracing
-export REEV_OTEL_ENABLED=true
+# 1. OpenTelemetry tracing is always enabled
 export REEV_TRACE_FILE=traces.log
 export RUST_LOG=info
 

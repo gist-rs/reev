@@ -68,9 +68,8 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 1. **Rust Toolchain**: Install Rust (latest stable recommended)
 2. **Git**: Clone the repository
 3. **Optional LLM**: Install LM Studio or have Gemini API key for AI agents
-4. **OpenTelemetry Setup** (Optional, for tool call tracking):
+4. **OpenTelemetry Setup** (Tool call tracking always enabled):
    ```bash
-   export REEV_OTEL_ENABLED=true
    export REEV_TRACE_FILE=traces.log
    ```
 
@@ -88,7 +87,7 @@ cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
 cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 
 # Multi-step flows (swap + lend) with OpenTelemetry tracking
-export REEV_OTEL_ENABLED=true
+export REEV_TRACE_FILE=traces.log
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent glm-4.6
 
 # API benchmarks (positions, earnings)
@@ -111,8 +110,7 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministi
 
 **🌊 OpenTelemetry-Enabled Agents:**
 ```bash
-# Enable tool call tracking
-export REEV_OTEL_ENABLED=true
+# Tool call tracking is always enabled
 export REEV_TRACE_FILE=traces.log
 
 # Run with automatic tool call extraction
@@ -152,8 +150,7 @@ The framework now includes **automatic OpenTelemetry integration** for tool call
 ### 🔧 OpenTelemetry Setup
 
 ```bash
-# Enable OpenTelemetry tracing
-export REEV_OTEL_ENABLED=true
+# OpenTelemetry tracing is always enabled
 export REEV_TRACE_FILE=traces.log
 export RUST_LOG=info
 
@@ -173,7 +170,6 @@ Tool calls are automatically extracted from rig's OpenTelemetry spans and conver
 cargo run --bin reev-api
 
 # Run benchmark with tool tracking
-export REEV_OTEL_ENABLED=true
 curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
   -H "Content-Type: application/json" \
   -d '{"agent": "glm-4.6"}'

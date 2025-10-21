@@ -59,9 +59,9 @@
   - ✅ **KEPT**: `reev/crates/reev-flow/src/otel.rs` (proper OpenTelemetry integration)
   - ✅ **ADDED**: `reev/crates/reev-lib/src/otel_extraction/mod.rs` (trace extraction layer)
 
-- **Consolidated Environment Variables**:
-  - `REEV_OTEL_ENABLED=true` - Controls OpenTelemetry globally ✅
+- **Simplified Environment Variables**:
   - `REEV_TRACE_FILE=traces.log` - Output file for traces ✅
+  - OpenTelemetry is always enabled ✅
 
 - **Updated Module Exports**:
   - `reev-tools/src/tracker/mod.rs` now only exports otel_wrapper types
@@ -104,8 +104,7 @@ rig tool execution → OpenTelemetry spans → trace extraction → session form
 
 ### **How to Use**
 ```bash
-# Enable OpenTelemetry tracing
-export REEV_OTEL_ENABLED=true
+# OpenTelemetry tracing is always enabled
 export REEV_TRACE_FILE=traces.log
 
 # Run any agent (GLM, OpenAI, Local)
