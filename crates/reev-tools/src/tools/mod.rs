@@ -18,7 +18,7 @@ pub use jupiter_swap::JupiterSwapTool;
 pub use native::SolTransferTool;
 pub use native::SplTransferTool;
 
-// Re-export OpenTelemetry tool wrapper for proper tracing
+// Re-export simple tool wrapper for metrics
 pub use crate::tracker::otel_wrapper::{
-    init_otel_tool_tracing, OtelMetricsCollector, OtelToolWrapper, ToolExecutionMetrics,
+    init_simple_tool_tracing, OtelMetricsCollector, SimpleToolWrapper, ToolExecutionMetrics,
 };

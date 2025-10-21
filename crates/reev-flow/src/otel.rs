@@ -20,7 +20,7 @@ impl FlowTracer {
     /// Create a new flow tracer
     pub fn new() -> Self {
         let enabled = std::env::var("REEV_OTEL_ENABLED")
-            .unwrap_or_else(|_| "false".to_string())
+            .unwrap_or_else(|_| "true".to_string())
             .parse()
             .unwrap_or(false);
 
@@ -242,7 +242,7 @@ impl FlowTracer {
 /// Initialize flow tracing with file output
 pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
     let enabled = std::env::var("REEV_OTEL_ENABLED")
-        .unwrap_or_else(|_| "false".to_string())
+        .unwrap_or_else(|_| "true".to_string())
         .parse()
         .unwrap_or(false);
 

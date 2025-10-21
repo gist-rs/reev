@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::agent::{Agent, AgentAction, AgentObservation, LlmResponse, RawInstruction};
 use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent, ToolResultStatus};
@@ -122,9 +121,6 @@ impl LlmAgent {
     pub fn model_name(&self) -> &str {
         &self.model_name
     }
-
-    /// Tool calls are now automatically tracked by OpenTelemetry + rig integration
-    /// No manual parsing or tracking needed - this was breaking the tool system
 }
 
 /// OpenTelemetry automatically tracks tool calls - no manual parsing needed

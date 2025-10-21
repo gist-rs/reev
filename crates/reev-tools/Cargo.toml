@@ -38,7 +38,13 @@ chrono = { workspace = true, features = ["serde"] }
 solana-client = { workspace = true }
 uuid = { workspace = true }
 
+opentelemetry = { workspace = true, features = ["trace"] }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.30" }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-opentelemetry = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 solana-sdk = { workspace = true }
