@@ -83,6 +83,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         return Ok(vec![]);
     }
 
+    // Kill any existing API processes to prevent database lock conflicts
+    reev_lib::server_utils::kill_existing_api(3001).await?;
+
     // Initialize dependency management system
     info!("Starting dependency initialization...");
     let _dependency_guard = init_dependencies()
