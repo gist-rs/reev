@@ -1,13 +1,14 @@
 //! Flow tracking module for capturing tool calls and execution order
 //!
 //! This module provides functionality to track tool calls during agent execution,
-//! capturing the sequence, timing, and results of each tool invocation.
+//! capturing the sequence, timing, and results of each tool invocation using
+//! OpenTelemetry integration with the rig framework.
 
 use std::collections::HashMap;
-use std::time::{Instant, SystemTime};
-use tracing::{debug, info, warn};
+use std::time::Instant;
+use tracing::debug;
 
-use reev_lib::agent::{FlowData, ToolCallInfo, ToolResultStatus};
+use reev_lib::agent::{FlowData, ToolCallInfo};
 
 /// Flow tracker for capturing tool calls during agent execution
 #[derive(Debug, Clone)]
@@ -30,113 +31,6 @@ impl FlowTracker {
             active_calls: HashMap::new(),
             tool_usage: HashMap::new(),
         }
-    }
-
-    /// Start tracking a tool call
-    pub fn start_tool_call(&mut self, tool_name: &str, _tool_args: &str, depth: u32) -> String {
-        let call_id = format!("{}_{}", tool_name, uuid::Uuid::new_v4());
-        let start_time = Instant::now();
-
-        self.active_calls.insert(call_id.clone(), start_time);
-
-        info!(
-            "[FlowTracker] Starting tool call: {} at depth {}",
-            tool_name, depth
-        );
-
-        call_id
-    }
-
-    /// Complete a tool call with success result
-    pub fn complete_tool_call(
-        &mut self,
-        call_id: &str,
-        tool_name: &str,
-        tool_args: &str,
-        result_data: Option<serde_json::Value>,
-        depth: u32,
-    ) {
-        if call_id.is_empty() {
-            return;
-        }
-
-        let start_time = match self.active_calls.remove(call_id) {
-            Some(time) => time,
-            None => {
-                warn!(
-                    "[FlowTracker] Tool call {} not found in active calls",
-                    call_id
-                );
-                return;
-            }
-        };
-
-        let execution_time_ms = start_time.elapsed().as_millis() as u32;
-
-        let tool_call_info = ToolCallInfo {
-            tool_name: tool_name.to_string(),
-            tool_args: tool_args.to_string(),
-            execution_time_ms,
-            result_status: ToolResultStatus::Success,
-            result_data,
-            error_message: None,
-            timestamp: SystemTime::now(),
-            depth,
-        };
-
-        self.tool_calls.push(tool_call_info);
-        *self.tool_usage.entry(tool_name.to_string()).or_insert(0) += 1;
-
-        info!(
-            "[FlowTracker] Completed tool call: {} in {}ms",
-            tool_name, execution_time_ms
-        );
-    }
-
-    /// Complete a tool call with error result
-    pub fn fail_tool_call(
-        &mut self,
-        call_id: &str,
-        tool_name: &str,
-        tool_args: &str,
-        error_message: &str,
-        depth: u32,
-    ) {
-        if call_id.is_empty() {
-            return;
-        }
-
-        let start_time = match self.active_calls.remove(call_id) {
-            Some(time) => time,
-            None => {
-                warn!(
-                    "[FlowTracker] Tool call {} not found in active calls",
-                    call_id
-                );
-                return;
-            }
-        };
-
-        let execution_time_ms = start_time.elapsed().as_millis() as u32;
-
-        let tool_call_info = ToolCallInfo {
-            tool_name: tool_name.to_string(),
-            tool_args: tool_args.to_string(),
-            execution_time_ms,
-            result_status: ToolResultStatus::Error,
-            result_data: None,
-            error_message: Some(error_message.to_string()),
-            timestamp: SystemTime::now(),
-            depth,
-        };
-
-        self.tool_calls.push(tool_call_info);
-        *self.tool_usage.entry(tool_name.to_string()).or_insert(0) += 1;
-
-        warn!(
-            "[FlowTracker] Failed tool call: {} in {}ms - {}",
-            tool_name, execution_time_ms, error_message
-        );
     }
 
     /// Get flow data for inclusion in LlmResponse
@@ -195,5 +89,10 @@ impl<T> FlowAwareTool<T> {
     }
 }
 
+// Export the OpenTelemetry wrapper module
 pub mod otel_wrapper;
-pub mod tool_wrapper;
+
+// Re-export commonly used types
+pub use otel_wrapper::{
+    init_simple_tool_tracing, OtelMetricsCollector, SimpleToolWrapper, ToolExecutionMetrics,
+};

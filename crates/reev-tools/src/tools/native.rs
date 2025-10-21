@@ -5,9 +5,8 @@
 //! around the protocol handlers.
 
 use crate::tool_names::{SOL_TRANSFER, SPL_TRANSFER};
-use crate::tracker::tool_wrapper;
-use crate::tracker::tool_wrapper::GlobalFlowTracker;
-use reev_lib::agent::ToolResultStatus;
+// Tool tracking is now handled by OpenTelemetry + rig framework
+// No manual tool wrapper imports needed
 use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -195,7 +194,7 @@ impl Tool for SolTransferTool {
         );
 
         // Record flow data
-        let tool_args = json!({
+        let _tool_args = json!({
             "user_pubkey": args.user_pubkey,
             "recipient_pubkey": args.recipient_pubkey,
             "amount": args.amount,
@@ -204,21 +203,8 @@ impl Tool for SolTransferTool {
         })
         .to_string();
 
-        // Clone tool_args for logging after the move
-        let _tool_args_for_logging = tool_args.clone();
-
-        GlobalFlowTracker::record_tool_call(tool_wrapper::ToolCallParams {
-            tool_name: Self::NAME.to_string(),
-            tool_args,
-            execution_time_ms: execution_time,
-            result_status: ToolResultStatus::Success,
-            result_data: Some(json!({
-                "instruction_count": raw_instructions.len(),
-                "operation": format!("{:?}", args.operation)
-            })),
-            error_message: None,
-            depth: 1,
-        });
+        // Tool calls are now automatically tracked by OpenTelemetry + rig framework
+        // No manual tracking needed anymore
 
         // Tool execution completed successfully
         info!(

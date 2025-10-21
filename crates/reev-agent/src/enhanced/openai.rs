@@ -4,12 +4,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use tracing::{info, warn};
 
-use crate::{
-    context::integration::ContextIntegration,
-    flow::{create_flow_infrastructure, GlobalFlowTracker},
-    prompt::SYSTEM_PREAMBLE,
-    LlmRequest,
-};
+use crate::{context::integration::ContextIntegration, prompt::SYSTEM_PREAMBLE, LlmRequest};
 
 use reev_tools::tools::{
     AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -121,8 +116,8 @@ impl OpenAIAgent {
         info!("[OpenAIAgent] Is Single Turn: {}", conversation_depth == 1);
         info!("[OpenAIAgent] === END DEPTH CALCULATION ===");
 
-        // 🛠️ Create flow tracking infrastructure
-        let _flow_tracker = create_flow_infrastructure();
+        // Tool tracking is now handled by OpenTelemetry + rig framework
+        // No manual flow infrastructure needed
 
         // 🛠️ Instantiate tools with context-aware key_map
         let sol_tool = SolTransferTool {
@@ -263,8 +258,13 @@ impl OpenAIAgent {
         // 🎯 EXTRACT TOOL EXECUTION RESULTS FROM CONVERSATION
         let execution_result = extract_execution_results(&response_str).await?;
 
-        // 🎯 EXTRACT FLOW DATA FROM GLOBAL TRACKER
-        let flow_data = GlobalFlowTracker::get_flow_data();
+        // 🎯 EXTRACT TOOL CALLS FROM OPENTELEMETRY TRACES
+        let tool_calls =
+            if let Some(otel_trace) = reev_lib::otel_extraction::extract_current_otel_trace() {
+                reev_lib::otel_extraction::parse_otel_trace_to_tools(otel_trace)
+            } else {
+                vec![]
+            };
 
         // 🎯 FORMAT COMPREHENSIVE RESPONSE WITH FLOWS
         let mut comprehensive_response = json!({
@@ -273,12 +273,12 @@ impl OpenAIAgent {
             "signatures": execution_result.signatures
         });
 
-        // Add flow data if available
-        if let Some(flows) = flow_data {
-            comprehensive_response["flows"] = json!(flows);
+        // Add tool calls data if available
+        if !tool_calls.is_empty() {
+            comprehensive_response["flows"] = json!(tool_calls);
             info!(
-                "[OpenAIAgent] Flow data captured: {} tool calls",
-                flows.total_tool_calls
+                "[OpenAIAgent] Tool calls captured: {} tool calls",
+                tool_calls.len()
             );
         }
 

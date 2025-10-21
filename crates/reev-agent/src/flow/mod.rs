@@ -19,9 +19,8 @@ pub mod state;
 
 pub use agent::FlowAgent;
 pub use benchmark::FlowBenchmark;
-pub use reev_tools::tracker::tool_wrapper::{
-    create_flow_infrastructure, extract_flow_data, GlobalFlowTracker, SimpleFlowTracker,
-};
+// Tool tracking is now handled by OpenTelemetry + rig framework
+// No manual tool wrapper imports needed
 pub use secure::executor::SecureExecutor;
 pub use selector::ToolSelector;
 pub use state::FlowState;

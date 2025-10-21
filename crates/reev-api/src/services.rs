@@ -297,16 +297,18 @@ pub async fn execute_benchmark_background(
                         debug!("Trace first 100 chars: {}", first_part);
                         debug!("Trace last 100 chars: {}", last_part);
                     }
-                    // Store flow log in database
-                    if let Some(flow_data) =
-                        reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data()
+                    // Extract tool calls from OpenTelemetry traces
+                    if let Some(otel_trace) =
+                        reev_lib::otel_extraction::extract_current_otel_trace()
                     {
-                        // Convert flow data to JSON for storage
-                        if let Ok(flow_json) = serde_json::to_string(&flow_data) {
+                        let tool_calls =
+                            reev_lib::otel_extraction::parse_otel_trace_to_tools(otel_trace);
+                        // Convert tool calls to JSON for storage
+                        if let Ok(flow_json) = serde_json::to_string(&tool_calls) {
                             // Store flow data in session metadata or separate table
                             info!(
-                                "Storing flow data with {} tool calls in database",
-                                flow_data.total_tool_calls
+                                "Storing tool calls data with {} tool calls in database",
+                                tool_calls.len()
                             );
 
                             // Store flow data in the session - this will be available for flow diagram generation

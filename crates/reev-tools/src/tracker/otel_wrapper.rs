@@ -1,18 +1,20 @@
-//! Simple OpenTelemetry Tool Metrics
+//! Simple Tool Metrics Collection for OpenTelemetry Integration
 //!
-//! This module provides basic metrics collection for rig tools
-//! without complex wrapper patterns that break the tool system.
-//! The approach is to let rig's built-in OpenTelemetry handle tracing
-//! and provide simple metrics collection on top.
+//! This module provides basic tool identification and metrics collection
+//! that works with rig's built-in OpenTelemetry integration without
+//! interfering with the tool execution flow.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Simple tool wrapper that doesn't interfere with rig execution
+/// Simple tool wrapper for identification purposes
+///
+/// This wrapper doesn't interfere with rig's OpenTelemetry integration
+/// but provides a way to identify tools for metrics collection.
 pub struct SimpleToolWrapper<T> {
     /// The underlying rig tool
     inner: T,
-    /// Tool name for metrics
+    /// Tool name for metrics and identification
     tool_name: String,
 }
 
@@ -36,7 +38,7 @@ impl<T> SimpleToolWrapper<T> {
     }
 }
 
-/// Macro to wrap a tool with simple metrics
+/// Macro to wrap a tool with simple identification
 #[macro_export]
 macro_rules! simple_tool {
     ($tool:expr, $name:expr) => {
@@ -44,7 +46,7 @@ macro_rules! simple_tool {
     };
 }
 
-/// Simple tool execution metrics
+/// Tool execution metrics collected from OpenTelemetry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolExecutionMetrics {
     /// Tool name
@@ -83,9 +85,12 @@ impl ToolExecutionMetrics {
     }
 }
 
-/// Collector for tool execution metrics from OpenTelemetry
+/// Collector for tool execution metrics from OpenTelemetry traces
+///
+/// This collector extracts metrics from rig's OpenTelemetry integration
+/// without interfering with tool execution.
 pub struct OtelMetricsCollector {
-    /// Cached metrics
+    /// Cached metrics collected from OpenTelemetry
     metrics: HashMap<String, Vec<ToolExecutionMetrics>>,
 }
 
@@ -97,14 +102,14 @@ impl OtelMetricsCollector {
         }
     }
 
-    /// Collect metrics for a specific tool
+    /// Collect metrics for a specific tool from OpenTelemetry traces
     pub fn collect_tool_metrics(&mut self, tool_name: &str) -> Vec<ToolExecutionMetrics> {
         // In a real implementation, this would query the OpenTelemetry backend
-        // For now, return cached metrics
+        // for spans related to this tool. For now, return cached metrics.
         self.metrics.get(tool_name).cloned().unwrap_or_default()
     }
 
-    /// Get all metrics
+    /// Get all collected metrics
     pub fn get_all_metrics(&self) -> HashMap<String, Vec<ToolExecutionMetrics>> {
         self.metrics.clone()
     }
@@ -114,7 +119,7 @@ impl OtelMetricsCollector {
         self.metrics.clear();
     }
 
-    /// Add metrics (for testing)
+    /// Add metrics manually (for testing or manual tracking)
     #[cfg(test)]
     pub fn add_metrics(&mut self, metrics: ToolExecutionMetrics) {
         self.metrics
@@ -130,10 +135,15 @@ impl Default for OtelMetricsCollector {
     }
 }
 
-/// Simple initialization note - rig handles OpenTelemetry automatically
+/// Initialize simple tool tracing
+///
+/// This function just logs that tool tracing relies on rig's built-in
+/// OpenTelemetry integration. The actual tracing is handled automatically
+/// by the rig framework when tools are executed.
 pub fn init_simple_tool_tracing() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Tool tracing relies on rig's built-in OpenTelemetry integration");
     tracing::info!("Enable with REEV_OTEL_ENABLED=true and REEV_TRACE_FILE=traces.log");
+    tracing::info!("Tool calls will be automatically traced by rig framework");
     Ok(())
 }
 

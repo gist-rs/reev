@@ -608,14 +608,22 @@ async fn run_evaluation_loop(
     // Get tool calls from agent for flow diagram generation
     let mut tool_calls = agent.get_tool_calls();
 
-    // Also collect from GlobalFlowTracker if available
-    if let Some(flow_data) = reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data() {
+    // Extract tool calls from OpenTelemetry traces instead of manual tracking
+    info!("[DEBUG] Extracting tool calls from OpenTelemetry traces");
+    if let Some(otel_trace) = reev_lib::otel_extraction::extract_current_otel_trace() {
         info!(
-            "[DEBUG] Collected {} tool calls from GlobalFlowTracker",
-            flow_data.total_tool_calls
+            "[DEBUG] Found OpenTelemetry trace with {} spans",
+            otel_trace.spans.len()
         );
-        // Convert FlowData tool calls to session_logger ToolCallInfo format
-        for tool_call in flow_data.tool_calls {
+
+        let otel_tool_calls = reev_lib::otel_extraction::parse_otel_trace_to_tools(otel_trace);
+        info!(
+            "[DEBUG] Extracted {} tool calls from OpenTelemetry",
+            otel_tool_calls.len()
+        );
+
+        // Convert OpenTelemetry tool calls to session_logger format
+        for tool_call in otel_tool_calls {
             let start_timestamp = tool_call
                 .timestamp
                 .duration_since(std::time::UNIX_EPOCH)

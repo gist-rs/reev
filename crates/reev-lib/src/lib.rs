@@ -9,6 +9,7 @@ pub mod flow;
 pub mod instruction_score;
 pub mod llm_agent;
 pub mod mock;
+pub mod otel_extraction;
 
 pub mod results;
 pub mod score;

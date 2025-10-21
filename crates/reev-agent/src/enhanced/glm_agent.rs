@@ -2,9 +2,12 @@ use anyhow::Result;
 use rig::{completion::Prompt, prelude::*};
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 use crate::{prompt::SYSTEM_PREAMBLE, LlmRequest};
+use reev_lib::otel_extraction::{
+    convert_to_session_format, extract_current_otel_trace, parse_otel_trace_to_tools,
+};
 
 use reev_tools::tools::{
     AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -179,11 +182,49 @@ impl GlmAgent {
         // 📊 Extract execution results from response
         let execution_result = Self::extract_execution_results(&response)?;
 
-        // 🌊 Flow data is now automatically captured by OpenTelemetry + rig
-        info!("[GlmAgent] Tool calls will be automatically traced");
+        // 🌊 Extract tool calls from OpenTelemetry traces
+        info!("[GlmAgent] Extracting tool calls from OpenTelemetry traces");
+
+        if let Some(otel_trace) = extract_current_otel_trace() {
+            debug!(
+                "[GlmAgent] Found OpenTelemetry trace with {} spans",
+                otel_trace.spans.len()
+            );
+
+            let tool_calls = parse_otel_trace_to_tools(otel_trace);
+            info!(
+                "[GlmAgent] Extracted {} tool calls from OpenTelemetry",
+                tool_calls.len()
+            );
+
+            if !tool_calls.is_empty() {
+                // Convert to session format for Mermaid diagram generation
+                let session_tools = convert_to_session_format(tool_calls);
+                info!(
+                    "[GlmAgent] Converted {} tools to session format",
+                    session_tools.len()
+                );
+
+                // Log tool details for debugging
+                for tool in &session_tools {
+                    debug!(
+                        "[GlmAgent] Tool: {} | Status: {} | Duration: {}ms",
+                        tool.tool_name,
+                        tool.status,
+                        tool.end_time
+                            .duration_since(tool.start_time)
+                            .unwrap_or_default()
+                            .as_millis()
+                    );
+                }
+            }
+        } else {
+            warn!("[GlmAgent] No OpenTelemetry trace found - tool calls may not be captured");
+        }
 
         // 🎯 Logging shutdown
         info!("[GlmAgent] === AGENT EXECUTION COMPLETE ===");
+        info!("[GlmAgent] Tool call tracing completed via OpenTelemetry integration");
 
         // 📋 Return comprehensive response
         let comprehensive_response = json!({
