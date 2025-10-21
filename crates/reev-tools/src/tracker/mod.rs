@@ -195,4 +195,5 @@ impl<T> FlowAwareTool<T> {
     }
 }
 
+pub mod otel_wrapper;
 pub mod tool_wrapper;

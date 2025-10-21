@@ -20,9 +20,8 @@ pub struct LlmAgent {
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
     is_glm: bool,
-    // Tool call tracking for flow diagram generation
-    active_tool_calls: std::collections::HashMap<String, u64>,
-    tool_call_sequence: Vec<crate::session_logger::ToolCallInfo>,
+    // OpenTelemetry handles tool call tracking automatically
+    // No manual tracking needed - rig + OpenTelemetry integration
 }
 
 impl LlmAgent {
@@ -116,8 +115,6 @@ impl LlmAgent {
             flow_logger,
             current_depth: 0,
             is_glm,
-            active_tool_calls: std::collections::HashMap::new(),
-            tool_call_sequence: Vec::new(),
         })
     }
 
@@ -126,229 +123,12 @@ impl LlmAgent {
         &self.model_name
     }
 
-    /// Start tracking a tool call with timing
-    pub fn start_tool_call(&mut self, tool_name: String, _params: serde_json::Value) {
-        let start_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        self.active_tool_calls.insert(tool_name.clone(), start_time);
-        info!(
-            "[LlmAgent] Started tool call: {} at {}",
-            tool_name, start_time
-        );
-    }
-
-    /// End tracking a tool call and record result
-    pub fn end_tool_call(
-        &mut self,
-        tool_name: String,
-        result: Option<serde_json::Value>,
-        status: String,
-    ) {
-        let end_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        if let Some(start_time) = self.active_tool_calls.remove(&tool_name) {
-            let tool_call = crate::session_logger::ToolCallInfo {
-                tool_name: tool_name.clone(),
-                start_time,
-                end_time,
-                params: serde_json::Value::Null, // Will be filled by HTTP intercept if needed
-                result,
-                status,
-            };
-            self.tool_call_sequence.push(tool_call);
-            info!(
-                "[LlmAgent] Completed tool call: {} in {}ms",
-                tool_name,
-                (end_time - start_time) * 1000
-            );
-        }
-    }
-
-    /// Get all tracked tool calls for this session
-    pub fn get_tool_calls(&self) -> Vec<crate::session_logger::ToolCallInfo> {
-        self.tool_call_sequence.clone()
-    }
-
-    /// Clear all tool call tracking (for new sessions)
-    pub fn clear_tool_calls(&mut self) {
-        self.active_tool_calls.clear();
-        self.tool_call_sequence.clear();
-    }
-
-    /// Extract tool calls from LLM response text and convert to ToolCallInfo format
-    pub async fn extract_tool_calls_from_response(
-        &mut self,
-        response_text: &str,
-        response_start: SystemTime,
-    ) -> Result<()> {
-        let response_end = SystemTime::now();
-
-        info!(
-            "[LlmAgent] Debug - Parsing tools from response text (length: {}): {}",
-            response_text.len(),
-            response_text
-        );
-        // Parse response to identify tool intentions
-        let detected_tools = self.parse_tools_from_response(response_text)?;
-
-        // No fallback tool call - return empty if no tools detected
-        if detected_tools.is_empty() {
-            info!("[LlmAgent] No tool calls detected in response");
-        }
-
-        info!(
-            "[LlmAgent] Debug - Detected {} tool calls in response",
-            detected_tools.len()
-        );
-        for (i, tool) in detected_tools.iter().enumerate() {
-            info!(
-                "[LlmAgent] Debug - Tool {}: {} with params: {}",
-                i, tool.tool_name, tool.params
-            );
-        }
-
-        // Create tool calls with timing based on the span duration
-        for tool in detected_tools {
-            let tool_call_info = crate::session_logger::ToolCallInfo {
-                tool_name: format!("tool_{}", &uuid::Uuid::new_v4().to_string()[..8]),
-                start_time: response_start
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                end_time: response_end
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                params: tool.params,
-                result: Some(tool.result),
-                status: tool.status,
-            };
-
-            // Add to tool call sequence
-            self.tool_call_sequence.push(tool_call_info);
-        }
-
-        Ok(())
-    }
-
-    /// Parse LLM response text to extract tool call intentions
-    fn parse_tools_from_response(&self, response_text: &str) -> Result<Vec<ParsedToolCall>> {
-        let mut tools = Vec::new();
-        let response_lower = response_text.to_lowercase();
-
-        // Detect Jupiter swap operations
-        if response_lower.contains("swap") || response_lower.contains("exchange") {
-            if let Some(swap_tool) = self.parse_jupiter_swap(response_text)? {
-                tools.push(swap_tool);
-            }
-        }
-
-        // Detect balance queries
-        if response_lower.contains("balance") || response_lower.contains("get account") {
-            tools.push(ParsedToolCall {
-                tool_name: "get_account_balance".to_string(),
-                params: json!({
-                    "account": "detected_from_response"
-                }),
-                result: json!({
-                    "tool_name": "get_account_balance",
-                    "balance": "extracted_from_response"
-                }),
-                status: "Success".to_string(),
-            });
-        }
-
-        // Detect transfer operations
-        if response_lower.contains("transfer") || response_lower.contains("send") {
-            tools.push(ParsedToolCall {
-                tool_name: "transfer_tokens".to_string(),
-                params: json!({
-                    "amount": "detected_from_response",
-                    "recipient": "detected_from_response"
-                }),
-                result: json!({
-                    "tool_name": "transfer_tokens",
-                    "signature": "extracted_from_response"
-                }),
-                status: "Success".to_string(),
-            });
-        }
-
-        // For flow responses, add a generic tool call
-        if response_lower.contains("flow_completed") || response_lower.contains("\"steps\"") {
-            tools.push(ParsedToolCall {
-                tool_name: "execute_flow".to_string(),
-                params: json!({
-                    "flow_type": "detected_from_response"
-                }),
-                result: json!({
-                    "tool_name": "execute_flow",
-                    "flow_completed": true
-                }),
-                status: "Success".to_string(),
-            });
-        }
-
-        Ok(tools)
-    }
-
-    /// Parse Jupiter swap information from response
-    fn parse_jupiter_swap(&self, response_text: &str) -> Result<Option<ParsedToolCall>> {
-        // Try to extract Jupiter swap details from JSON response
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response_text) {
-            if let Some(transactions) = json_value.get("transactions").and_then(|t| t.as_array()) {
-                if !transactions.is_empty() {
-                    return Ok(Some(ParsedToolCall {
-                        tool_name: "jupiter_swap".to_string(),
-                        params: json!({
-                            "input_mint": "detected_from_transaction",
-                            "output_mint": "detected_from_transaction",
-                            "amount": "detected_from_transaction"
-                        }),
-                        result: json!({
-                            "tool_name": "jupiter_swap",
-                            "signature": "extracted_from_execution",
-                            "swap_success": true
-                        }),
-                        status: "Success".to_string(),
-                    }));
-                }
-            }
-        }
-
-        // Fallback: detect swap intent from text
-        if response_text.to_lowercase().contains("jupiter") {
-            Ok(Some(ParsedToolCall {
-                tool_name: "jupiter_swap".to_string(),
-                params: json!({
-                    "input_token": "detected_from_response",
-                    "output_token": "detected_from_response"
-                }),
-                result: json!({
-                    "tool_name": "jupiter_swap",
-                    "quote_received": true,
-                    "swap_executed": true
-                }),
-                status: "Success".to_string(),
-            }))
-        } else {
-            Ok(None)
-        }
-    }
+    /// Tool calls are now automatically tracked by OpenTelemetry + rig integration
+    /// No manual parsing or tracking needed - this was breaking the tool system
 }
 
-/// Temporary structure for parsed tool calls
-struct ParsedToolCall {
-    tool_name: String,
-    params: serde_json::Value,
-    result: serde_json::Value,
-    status: String,
-}
+/// OpenTelemetry automatically tracks tool calls - no manual parsing needed
+/// The previous ParsedToolCall approach was fundamentally broken
 
 #[async_trait]
 impl Agent for LlmAgent {
@@ -704,15 +484,12 @@ impl Agent for LlmAgent {
             actions.len()
         );
 
-        // Extract tool calls from the response using the span timing
-        let response_start = SystemTime::now();
+        // Tool calls are now automatically tracked by OpenTelemetry
+        // No manual extraction needed - this was breaking the rig framework
         info!(
-            "[LlmAgent] Debug - Extracting tool calls from response (length: {}): {}",
-            llm_response_text.len(),
-            llm_response_text
+            "[LlmAgent] Response received (length: {})",
+            llm_response_text.len()
         );
-        self.extract_tool_calls_from_response(&llm_response_text, response_start)
-            .await?;
 
         // 10. Log transaction signatures if available (for new format)
         if let Some(signatures) = llm_response.signatures {

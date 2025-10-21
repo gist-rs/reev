@@ -392,7 +392,7 @@ async fn run_flow_benchmark(
         db.clone(),
     ));
 
-    let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
+    let mut agent = LlmAgent::new_with_flow_logging(agent_name, Some(flow_logger))?;
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
     let mut all_actions = Vec::new();
     let mut flow_trace = ExecutionTrace::new(test_case.prompt.clone());

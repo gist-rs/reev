@@ -6,6 +6,7 @@
 //! - **Enhanced Context**: Rich financial intelligence and multi-step workflow understanding
 //! - **Gemini Agent**: Advanced reasoning with Google's Gemini models
 //! - **OpenAI Agent**: Multi-turn conversation with OpenAI-compatible models
+//! - **GLM Agent**: Tool-based agent using GLM's OpenAI-compatible API
 //!
 //! These agents showcase superior AI capabilities including:
 //! - Multi-step DeFi workflow orchestration
@@ -14,10 +15,12 @@
 //! - Context-aware decision making that exceeds deterministic patterns
 
 pub mod enhanced_context;
+pub mod glm_agent;
 // pub mod gemini; // Not implemented yet
 pub mod openai;
 
 // Re-export main components for easier access
 pub use enhanced_context::{EnhancedContextAgent, RequestAnalysis};
+pub use glm_agent::GlmAgent;
 // pub use gemini::GeminiAgent; // Not implemented yet
 pub use openai::OpenAIAgent;

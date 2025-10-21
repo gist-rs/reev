@@ -17,3 +17,8 @@ pub use jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool;
 pub use jupiter_swap::JupiterSwapTool;
 pub use native::SolTransferTool;
 pub use native::SplTransferTool;
+
+// Re-export OpenTelemetry tool wrapper for proper tracing
+pub use crate::tracker::otel_wrapper::{
+    init_otel_tool_tracing, OtelMetricsCollector, OtelToolWrapper, ToolExecutionMetrics,
+};

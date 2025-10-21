@@ -30,20 +30,31 @@
 - **Current Status**: GLM API working, agent executing successfully (100% score), but flow tracking not capturing tool calls
 - **Next Step**: Debug why GlobalFlowTracker is not recording tool calls despite successful execution
 
-## GLM Agent Tool Usage Issue 🔄 HIGH PRIORITY
-- **Issue**: GLM agent in `reev-lib/src/llm_agent.rs` doesn't use tools, violates RULES.md
-- **Problem**: GLM agent asks LLM to generate raw transaction JSON instead of using tools
-- **Root Cause**: GLM agent makes raw HTTP requests without `rig` framework tool integration
-- **Impact**: Violates "No LLM Generation" and "API-Only Instructions" rules from RULES.md
-- **Current Behavior**: LLM generates `{"program_id": "...", "accounts": [...], "data": "..."}` 
-- **Expected Behavior**: LLM should use `sol_transfer`, `jupiter_swap`, etc. tools via `rig` framework
-- **Priority**: High - breaks core architecture principles and rules
-- **Fix Required**: 
-  1. Update GLM agent to use `rig` framework with proper tool integration
-  2. Model after OpenAI agent in `reev/crates/reev-agent/src/enhanced/openai.rs`
-  3. Remove all raw transaction generation prompts
-  4. Ensure GLM agent has access to same tools as OpenAI agent
-- **Alternative**: Remove GLM agent entirely, use enhanced agents for all models
+## Tool Call Tracking Architecture Issue 🔄 CRITICAL
+- **Issue**: Manual tool call tracking breaks rig framework, violates OpenTelemetry best practices
+- **Problem**: `start_tool_call`/`end_tool_call` interception is fundamentally broken approach
+- **Root Cause**: Trying to manually track tool calls instead of using proper OpenTelemetry instrumentation
+- **Impact**: 
+  - Breaks rig tool execution flow
+  - Violates OpenTelemetry tracing principles
+  - Forces HTTP request/response warping that breaks everything
+  - Makes GLM agent completely broken architecture
+- **Current Broken Behavior**: 
+  - Manual interception of tool calls for mermaid diagram generation
+  - HTTP request/response warping that breaks rig tools
+  - LLM agent asking to generate raw transactions
+- **Proper Solution**: OpenTelemetry integration with rig framework
+  1. Use `opentelemetry`, `opentelemetry-sdk`, `opentelemetry-otlp` for proper tracing
+  2. Follow rig's `agent_with_tools_otel.rs` example
+  3. Create `OtelToolWrapper` that adds tracing without breaking tools
+  4. Remove all manual tool call tracking code
+  5. Let OpenTelemetry automatically capture tool execution
+- **Priority**: CRITICAL - entire tool tracking architecture is wrong
+- **Files to Fix**:
+  - `reev/crates/reev-lib/src/llm_agent.rs` - Remove broken manual tracking
+  - `reev/crates/reev-tools/src/tracker/tool_wrapper.rs` - Replace with otel_wrapper
+  - `reev/crates/reev-flow/src/otel.rs` - Already updated with proper OpenTelemetry
+  - `reev/crates/reev-tools/src/tracker/otel_wrapper.rs` - New proper implementation
 
 ## API Graceful Shutdown ✅ COMPLETELY RESOLVED
 - **Issue**: API server didn't gracefully shutdown database connections on exit
