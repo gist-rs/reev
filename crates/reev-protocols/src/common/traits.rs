@@ -2,7 +2,7 @@
 //!
 //! This module contains the core trait definitions for all blockchain protocols.
 
-use crate::protocols::common::{HealthStatus, ProtocolError, ProtocolMetrics};
+use crate::common::{HealthStatus, ProtocolError, ProtocolMetrics};
 use async_trait::async_trait;
 use reev_lib::agent::RawInstruction;
 use serde::{Deserialize, Serialize};

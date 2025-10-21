@@ -3,7 +3,7 @@
 //! This module provides health check functionality for monitoring
 //! the operational status of blockchain protocols.
 
-use crate::protocols::common::{HealthStatus, ProtocolError};
+use crate::common::{HealthStatus, ProtocolError};
 use std::time::{Duration, Instant};
 
 /// Health checker configuration

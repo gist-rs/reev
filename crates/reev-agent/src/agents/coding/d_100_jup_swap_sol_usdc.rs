@@ -1,7 +1,7 @@
-use crate::protocols::jupiter::swap::handle_jupiter_swap;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use reev_lib::constants::{usdc_mint, EIGHT_PERCENT, SOL_SWAP_AMOUNT};
+use reev_protocols::jupiter::swap::handle_jupiter_swap;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};

@@ -10,15 +10,15 @@ use std::env;
 async fn test_flow_tracking_integration() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
-    reev_agent::flow::GlobalFlowTracker::reset();
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
     // Enable flow logging for this test
     env::set_var("REEV_ENABLE_FLOW_LOGGING", "1");
     env::set_var("RUST_LOG", "info");
 
     // Simulate some tool calls
-    reev_agent::flow::GlobalFlowTracker::record_tool_call(
-        reev_agent::flow::tracker::tool_wrapper::ToolCallParams {
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(
+        reev_tools::tracker::tool_wrapper::ToolCallParams {
             tool_name: "test_tool_1".to_string(),
             tool_args: r#"{"param1": "value1", "param2": 42}"#.to_string(),
             execution_time_ms: 150,
@@ -29,8 +29,8 @@ async fn test_flow_tracking_integration() {
         },
     );
 
-    reev_agent::flow::GlobalFlowTracker::record_tool_call(
-        reev_agent::flow::tracker::tool_wrapper::ToolCallParams {
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(
+        reev_tools::tracker::tool_wrapper::ToolCallParams {
             tool_name: "test_tool_2".to_string(),
             tool_args: r#"{"input": "data"}"#.to_string(),
             execution_time_ms: 200,
@@ -41,8 +41,8 @@ async fn test_flow_tracking_integration() {
         },
     );
 
-    reev_agent::flow::GlobalFlowTracker::record_tool_call(
-        reev_agent::flow::tracker::tool_wrapper::ToolCallParams {
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(
+        reev_tools::tracker::tool_wrapper::ToolCallParams {
             tool_name: "test_tool_3".to_string(),
             tool_args: r#"{"query": "search"}"#.to_string(),
             execution_time_ms: 75,
@@ -54,7 +54,7 @@ async fn test_flow_tracking_integration() {
     );
 
     // Extract flow data
-    let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
+    let flow_data = reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data();
 
     assert!(flow_data.is_some(), "Flow data should be available");
 
@@ -116,14 +116,14 @@ async fn test_flow_tracking_integration() {
 async fn test_flow_tracking_disabled() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
-    reev_agent::flow::GlobalFlowTracker::reset();
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
     // Ensure flow logging is disabled for this test
     env::set_var("REEV_ENABLE_FLOW_LOGGING", "false");
 
     // Record a tool call (should be ignored when logging is disabled)
-    reev_agent::flow::GlobalFlowTracker::record_tool_call(
-        reev_agent::flow::tracker::tool_wrapper::ToolCallParams {
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(
+        reev_tools::tracker::tool_wrapper::ToolCallParams {
             tool_name: "disabled_test_tool".to_string(),
             tool_args: r#"{"test": "data"}"#.to_string(),
             execution_time_ms: 100,
@@ -135,7 +135,7 @@ async fn test_flow_tracking_disabled() {
     );
 
     // Extract flow data
-    let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
+    let flow_data = reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data();
 
     // When logging is disabled, the tracker should return None
     match flow_data {
@@ -159,13 +159,13 @@ async fn test_flow_tracking_disabled() {
 async fn test_llm_response_with_flows() {
     // Clean up any existing state first
     env::remove_var("REEV_ENABLE_FLOW_LOGGING");
-    reev_agent::flow::GlobalFlowTracker::reset();
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
     // Enable flow logging for this test
     env::set_var("REEV_ENABLE_FLOW_LOGGING", "1");
 
     // Simulate tool calls that might occur during LLM execution
-    reev_agent::flow::GlobalFlowTracker::record_tool_call(reev_agent::flow::tracker::tool_wrapper::ToolCallParams {
+    reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(reev_tools::tracker::tool_wrapper::ToolCallParams {
         tool_name: "jupiter_swap".to_string(),
         tool_args: r#"{"user_pubkey": "USER_WALLET_PUBKEY", "input_mint": "So11111111111111111111111111111111111112", "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "amount": 10000000}"#.to_string(),
         execution_time_ms: 1250,
@@ -179,7 +179,7 @@ async fn test_llm_response_with_flows() {
     });
 
     // Extract flow data and verify it matches expected format
-    let flow_data = reev_agent::flow::GlobalFlowTracker::get_flow_data();
+    let flow_data = reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data();
     assert!(
         flow_data.is_some(),
         "Flow data should be available for LLM test"

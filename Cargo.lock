@@ -3642,15 +3642,15 @@ name = "reev-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "axum",
  "bs58",
  "chrono",
  "clap",
  "dotenvy",
  "hex",
- "jup-sdk",
  "reev-lib",
+ "reev-protocols",
+ "reev-tools",
  "regex",
  "reqwest",
  "rig-core",
@@ -3658,17 +3658,13 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "serial_test",
- "solana-client",
  "solana-sdk",
- "solana-system-interface",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "tracing-appender",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -3720,7 +3716,6 @@ dependencies = [
 name = "reev-flow"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ascii_tree",
  "async-trait",
  "chrono",
@@ -3732,7 +3727,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -3745,8 +3739,6 @@ dependencies = [
  "bs58",
  "chrono",
  "jup-sdk",
- "opentelemetry",
- "opentelemetry_sdk",
  "rand 0.8.5",
  "reev-db",
  "reev-flow",
@@ -3761,12 +3753,34 @@ dependencies = [
  "solana-system-interface",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
- "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "tracing-opentelemetry",
  "uuid",
+]
+
+[[package]]
+name = "reev-protocols"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bs58",
+ "chrono",
+ "dotenvy",
+ "jup-sdk",
+ "reev-lib",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "solana-client",
+ "solana-sdk",
+ "solana-system-interface",
+ "spl-associated-token-account 7.0.0",
+ "spl-token 8.0.0",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3809,6 +3823,27 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "zip",
+]
+
+[[package]]
+name = "reev-tools"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "reev-lib",
+ "reev-protocols",
+ "reqwest",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "solana-client",
+ "solana-sdk",
+ "spl-associated-token-account 7.0.0",
+ "spl-token 8.0.0",
+ "thiserror 1.0.69",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -7710,18 +7745,6 @@ dependencies = [
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-appender"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
-dependencies = [
- "crossbeam-channel",
- "thiserror 1.0.69",
- "time",
- "tracing-subscriber",
 ]
 
 [[package]]

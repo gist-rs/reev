@@ -3,7 +3,7 @@
 //! This module provides functions to fetch Jupiter lending earnings
 //! for a given user wallet address and optional position filtering.
 
-use crate::protocols::{get_jupiter_config, jupiter::parse_json_response};
+use crate::{get_jupiter_config, jupiter::parse_json_response};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ pub async fn get_earnings(
 
     let request = client.get(&url).header("Accept", "application/json");
 
-    let response = crate::protocols::jupiter::execute_request(request, config.max_retries).await?;
+    let response = crate::jupiter::execute_request(request, config.max_retries).await?;
 
     let json_value = parse_json_response(response).await?;
     let earnings: Vec<JupiterEarnings> = serde_json::from_value(json_value)?;

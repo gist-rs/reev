@@ -27,7 +27,7 @@ pub async fn handle_jupiter_mint(
 
     // Call the centralized lend_mint protocol handler
     let raw_instructions =
-        crate::protocols::jupiter::execute_jupiter_lend_mint(asset, shares, key_map)
+        reev_protocols::jupiter::execute_jupiter_lend_mint(asset, shares, key_map)
             .await
             .context("Failed to execute Jupiter lend mint")?;
 

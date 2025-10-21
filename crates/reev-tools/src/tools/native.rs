@@ -4,7 +4,8 @@
 //! including SOL transfers and SPL token transfers, acting as thin wrappers
 //! around the protocol handlers.
 
-use crate::flow::GlobalFlowTracker;
+use crate::tracker::tool_wrapper::GlobalFlowTracker;
+use crate::tracker::tool_wrapper;
 use reev_lib::agent::ToolResultStatus;
 use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
 use rig::{completion::ToolDefinition, tool::Tool};
@@ -205,7 +206,7 @@ impl Tool for SolTransferTool {
         // Clone tool_args for logging after the move
         let _tool_args_for_logging = tool_args.clone();
 
-        GlobalFlowTracker::record_tool_call(crate::flow::tracker::tool_wrapper::ToolCallParams {
+        GlobalFlowTracker::record_tool_call(tool_wrapper::ToolCallParams {
             tool_name: Self::NAME.to_string(),
             tool_args,
             execution_time_ms: execution_time,

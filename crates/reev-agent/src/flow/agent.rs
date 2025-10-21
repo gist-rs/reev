@@ -14,14 +14,14 @@ use crate::{
         state::{FlowState, StepResult, StepStatus},
     },
     run::run_agent,
-    tools::{
-        jupiter_earn::JupiterEarnTool, jupiter_lend_earn_deposit::JupiterLendEarnDepositTool,
-        jupiter_lend_earn_mint_redeem::JupiterLendEarnMintTool,
-        jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemTool,
-        jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool, jupiter_swap::JupiterSwapTool,
-        native::SolTransferTool, native::SplTransferTool,
-    },
     LlmRequest,
+};
+use reev_tools::tools::{
+    jupiter_earn::JupiterEarnTool, jupiter_lend_earn_deposit::JupiterLendEarnDepositTool,
+    jupiter_lend_earn_mint_redeem::JupiterLendEarnMintTool,
+    jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemTool,
+    jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool, jupiter_swap::JupiterSwapTool,
+    native::SolTransferTool, native::SplTransferTool,
 };
 
 /// Simple flow agent that executes tools directly without LLM touching transactions

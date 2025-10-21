@@ -1,7 +1,7 @@
-use crate::protocols::jupiter::lend_withdraw::handle_jupiter_lend_withdraw;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
 use reev_lib::constants::{usdc_mint, USDC_LEND_AMOUNT};
+use reev_protocols::jupiter::lend_withdraw::handle_jupiter_lend_withdraw;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;

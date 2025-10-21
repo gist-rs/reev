@@ -3,7 +3,7 @@
 //! This module provides metrics collection and aggregation functionality
 //! for monitoring protocol performance and usage patterns.
 
-use crate::protocols::common::HealthStatus;
+use crate::common::HealthStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

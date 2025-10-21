@@ -1,6 +1,6 @@
-use crate::protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
+use reev_protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use solana_sdk::pubkey::Pubkey;
 use spl_token;
 use std::{collections::HashMap, str::FromStr};

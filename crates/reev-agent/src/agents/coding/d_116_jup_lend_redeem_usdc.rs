@@ -27,7 +27,7 @@ pub async fn handle_jupiter_redeem(
 
     // Call the centralized lend_redeem protocol handler
     let raw_instructions =
-        crate::protocols::jupiter::execute_jupiter_lend_redeem(asset, shares, key_map)
+        reev_protocols::jupiter::execute_jupiter_lend_redeem(asset, shares, key_map)
             .await
             .context("Failed to execute Jupiter lend redeem")?;
 

@@ -3,7 +3,7 @@
 //! This module provides functions to fetch Jupiter lending positions
 //! for a given user wallet address.
 
-use crate::protocols::{get_jupiter_config, jupiter::parse_json_response};
+use crate::{get_jupiter_config, jupiter::parse_json_response};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -105,7 +105,7 @@ pub async fn get_positions(user_pubkey: String) -> Result<Vec<JupiterPosition>> 
 
     let request = client.get(&url).header("Accept", "application/json");
 
-    let response = crate::protocols::jupiter::execute_request(request, config.max_retries).await?;
+    let response = crate::jupiter::execute_request(request, config.max_retries).await?;
 
     let json_value = parse_json_response(response).await?;
     let positions: Vec<JupiterPosition> = serde_json::from_value(json_value)?;
@@ -204,7 +204,7 @@ pub async fn get_multiple_positions(
 
     let request = client.get(&url).header("Accept", "application/json");
 
-    let response = crate::protocols::jupiter::execute_request(request, config.max_retries).await?;
+    let response = crate::jupiter::execute_request(request, config.max_retries).await?;
 
     let json_value = parse_json_response(response).await?;
     let positions: Vec<JupiterPosition> = serde_json::from_value(json_value)?;

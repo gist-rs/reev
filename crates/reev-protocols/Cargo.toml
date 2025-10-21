@@ -1,5 +1,5 @@
 [package]
-name = "reev-agent"
+name = "reev-protocols"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,42 +9,37 @@ description.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
-default-run = "reev-agent"
 
 [features]
 default = ["jupiter", "native"]
 jupiter = []
 native = []
 
+[lib]
+name = "reev_protocols"
+path = "src/lib.rs"
+
 [dependencies]
-axum = "0.8.4"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-regex = { workspace = true }
 solana-sdk = { workspace = true }
 bs58 = { workspace = true }
 reev-lib = { path = "../reev-lib" }
-reev-tools = { path = "../reev-tools" }
-reev-protocols = { path = "../reev-protocols" }
 anyhow = { workspace = true }
-serial_test = { workspace = true }
+solana-system-interface = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-serde_yaml = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 dotenvy = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-rig-core = { version = "0.20.0" }
-hex = "0.4.3"
-clap = { version = "4.5", features = ["derive"] }
+async-trait = { workspace = true }
+solana-client = { workspace = true }
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["json"] }
-serde_yaml = { workspace = true }
 solana-sdk = { workspace = true }
-clap = { version = "4.5", features = ["derive"] }

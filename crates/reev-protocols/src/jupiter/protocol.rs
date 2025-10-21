@@ -3,7 +3,7 @@
 //! This module provides a concrete implementation of the Jupiter protocol
 //! using the common protocol abstractions defined in the common module.
 
-use crate::protocols::common::{
+use reev_protocols::common::{
     HealthStatus, LendProtocol, ProtocolError, ProtocolMetrics, SwapProtocol, TransferProtocol,
 };
 // use async_trait::async_trait; // Uncomment when async traits are used
@@ -179,8 +179,8 @@ impl Protocol for JupiterProtocol {
             .map_err(|e| ProtocolError::Config(e.to_string()))
     }
 
-    fn supported_operations(&self) -> Vec<crate::protocols::common::ProtocolOperation> {
-        use crate::protocols::common::ProtocolOperation;
+    fn supported_operations(&self) -> Vec<reev_protocols::common::ProtocolOperation> {
+        use reev_protocols::common::ProtocolOperation;
         vec![
             ProtocolOperation::Swap,
             ProtocolOperation::Deposit,
@@ -272,18 +272,18 @@ impl SwapProtocol for JupiterProtocol {
         input_mint: &str,
         output_mint: &str,
         amount: u64,
-    ) -> Result<crate::protocols::common::SwapQuote, ProtocolError> {
+    ) -> Result<reev_protocols::common::SwapQuote, ProtocolError> {
         self.record_metrics("get_quote", || {
             // For now, return a placeholder quote
             // In a real implementation, this would call Jupiter's quote API
-            let quote = crate::protocols::common::SwapQuote {
+            let quote = reev_protocols::common::SwapQuote {
                 input_mint: input_mint.to_string(),
                 output_mint: output_mint.to_string(),
                 input_amount: amount,
                 output_amount: amount * 95 / 100, // Assume 5% fee/slippage
                 price_impact_pct: 0.5,
                 slippage_bps: self.config.default_slippage_bps,
-                routes: vec![crate::protocols::common::SwapRoute {
+                routes: vec![reev_protocols::common::SwapRoute {
                     protocol: "jupiter".to_string(),
                     percentage: 100.0,
                 }],
@@ -297,18 +297,18 @@ impl SwapProtocol for JupiterProtocol {
     }
 
     // async fn supported_pairs(
-    fn supported_pairs(&self) -> Result<Vec<crate::protocols::common::TokenPair>, ProtocolError> {
+    fn supported_pairs(&self) -> Result<Vec<reev_protocols::common::TokenPair>, ProtocolError> {
         self.record_metrics("supported_pairs", || {
             // For now, return some common pairs
             // In a real implementation, this would query Jupiter's API
             let pairs = vec![
-                crate::protocols::common::TokenPair {
+                reev_protocols::common::TokenPair {
                     input_mint: "So11111111111111111111111111111111111111112".to_string(), // SOL
                     output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC
                     liquidity_usd: 1000000.0,
                     volume_24h: 500000.0,
                 },
-                crate::protocols::common::TokenPair {
+                reev_protocols::common::TokenPair {
                     input_mint: "So11111111111111111111111111111111111111112".to_string(), // SOL
                     output_mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string(), // USDT
                     liquidity_usd: 800000.0,
@@ -430,11 +430,11 @@ impl LendProtocol for JupiterProtocol {
     // async fn get_positions(
     //     &self,
     //     user_pubkey: &str,
-    // ) -> Result<Vec<crate::protocols::common::LendingPosition>, ProtocolError> {
+    // ) -> Result<Vec<reev_protocols::common::LendingPosition>, ProtocolError> {
     fn get_positions(
         &self,
         user_pubkey: &str,
-    ) -> Result<Vec<crate::protocols::common::LendingPosition>, ProtocolError> {
+    ) -> Result<Vec<reev_protocols::common::LendingPosition>, ProtocolError> {
         self.record_metrics("get_positions", || {
             let rt = tokio::runtime::Handle::current();
             let positions = rt
@@ -447,7 +447,7 @@ impl LendProtocol for JupiterProtocol {
             // Convert to common format
             let common_positions = positions
                 .into_iter()
-                .map(|pos| crate::protocols::common::LendingPosition {
+                .map(|pos| reev_protocols::common::LendingPosition {
                     position_id: pos
                         .get("position_id")
                         .and_then(|v| v.as_str())
@@ -482,7 +482,7 @@ impl LendProtocol for JupiterProtocol {
         &self,
         user_pubkey: &str,
         position_id: Option<String>,
-    ) -> Result<Vec<crate::protocols::common::EarningInfo>, ProtocolError> {
+    ) -> Result<Vec<reev_protocols::common::EarningInfo>, ProtocolError> {
         self.record_metrics("get_earnings", || {
             let rt = tokio::runtime::Handle::current();
             let earnings = rt
@@ -495,7 +495,7 @@ impl LendProtocol for JupiterProtocol {
             // Convert to common format
             let common_earnings = earnings
                 .into_iter()
-                .map(|earn| crate::protocols::common::EarningInfo {
+                .map(|earn| reev_protocols::common::EarningInfo {
                     position_id: earn
                         .get("position_id")
                         .and_then(|v| v.as_str())
@@ -526,12 +526,12 @@ impl LendProtocol for JupiterProtocol {
     // async fn available_markets(
     fn available_markets(
         &self,
-    ) -> Result<Vec<crate::protocols::common::LendingMarket>, ProtocolError> {
+    ) -> Result<Vec<reev_protocols::common::LendingMarket>, ProtocolError> {
         self.record_metrics("available_markets", || {
             // For now, return some common markets
             // In a real implementation, this would query Jupiter's API
             let markets = vec![
-                crate::protocols::common::LendingMarket {
+                reev_protocols::common::LendingMarket {
                     token_mint: "So11111111111111111111111111111111111111112".to_string(), // SOL
                     token_symbol: "SOL".to_string(),
                     total_supply: 1000000000,
@@ -541,7 +541,7 @@ impl LendProtocol for JupiterProtocol {
                     utilization_rate: 0.2,
                     protocol: "jupiter".to_string(),
                 },
-                crate::protocols::common::LendingMarket {
+                reev_protocols::common::LendingMarket {
                     token_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC
                     token_symbol: "USDC".to_string(),
                     total_supply: 50000000000,

@@ -1,6 +1,6 @@
-use crate::protocols::native::handle_spl_transfer as protocol_handle_spl_transfer;
 use anyhow::{Context, Result};
 use reev_lib::agent::RawInstruction;
+use reev_protocols::native::handle_spl_transfer as protocol_handle_spl_transfer;
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;

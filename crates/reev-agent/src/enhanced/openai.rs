@@ -8,12 +8,13 @@ use crate::{
     context::integration::ContextIntegration,
     flow::{create_flow_infrastructure, GlobalFlowTracker},
     prompt::SYSTEM_PREAMBLE,
-    tools::{
-        AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
-        JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool,
-        LendEarnTokensTool, SolTransferTool, SplTransferTool,
-    },
     LlmRequest,
+};
+
+use reev_tools::tools::{
+    AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
+    JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool, LendEarnTokensTool,
+    SolTransferTool, SplTransferTool,
 };
 
 /// 🎯 Complete response format including transactions, summary, and signatures

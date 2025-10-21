@@ -128,12 +128,12 @@ pub use traits::*;
 #[macro_export]
 macro_rules! impl_protocol_common {
     ($struct_name:ty, $protocol_name:expr) => {
-        impl $crate::protocols::common::Protocol for $struct_name {
+        impl $crate::common::Protocol for $struct_name {
             fn name(&self) -> &'static str {
                 $protocol_name
             }
 
-            fn metrics(&self) -> &$crate::protocols::common::ProtocolMetrics {
+            fn metrics(&self) -> &$crate::common::ProtocolMetrics {
                 &self.metrics
             }
 

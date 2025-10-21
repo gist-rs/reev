@@ -326,16 +326,14 @@ async fn handle_flow_step_benchmarks(
 pub mod context;
 pub mod enhanced;
 pub mod flow;
-pub mod protocols;
 pub mod run;
-pub mod tools;
 
 mod agents;
 pub mod common;
 mod prompt;
 
-use protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
-use protocols::jupiter::swap::handle_jupiter_swap;
+use reev_protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
+use reev_protocols::jupiter::swap::handle_jupiter_swap;
 
 #[derive(Debug, Deserialize)]
 pub struct LlmRequest {
@@ -622,14 +620,14 @@ fn initialize_configurations() -> anyhow::Result<()> {
     info!("[reev-agent] Initializing protocol configurations...");
 
     // Initialize Jupiter configuration
-    let jupiter_config = protocols::jupiter::JupiterConfig::from_env();
+    let jupiter_config = reev_protocols::jupiter::JupiterConfig::from_env();
     jupiter_config.validate()?;
-    protocols::jupiter::init_jupiter_config(jupiter_config);
+    reev_protocols::jupiter::init_jupiter_config(jupiter_config);
     info!("[reev-agent] Jupiter configuration initialized");
 
     // Initialize Native configuration
-    let native_config = protocols::native::NativeConfig::from_env();
-    protocols::native::init_native_config(native_config);
+    let native_config = reev_protocols::native::NativeConfig::from_env();
+    reev_protocols::native::init_native_config(native_config);
     info!("[reev-agent] Native configuration initialized");
 
     info!("[reev-agent] All protocol configurations initialized successfully");
