@@ -43,7 +43,7 @@ fn test_tool_span_detection() {
     };
 
     // Note: is_tool_span is now tested indirectly through parse_otel_trace_to_tools
-    assert!(true); // Placeholder assertion
+    // Placeholder assertion removed - function is tested indirectly
 
     let _non_tool_span = OtelSpanData {
         span_name: "http_request".to_string(),
@@ -57,7 +57,7 @@ fn test_tool_span_detection() {
     };
 
     // Note: is_tool_span is now tested indirectly through parse_otel_trace_to_tools
-    assert!(true); // Placeholder assertion
+    // Placeholder assertion removed - function is tested indirectly
 }
 
 #[test]
@@ -151,7 +151,12 @@ fn test_parse_otel_trace_to_tools() {
     assert_eq!(tool_calls[0].tool_name, "sol_transfer");
     // Use match instead of assert_eq for ToolResultStatus
     match tool_calls[0].result_status {
-        ToolResultStatus::Success => assert!(true),
-        _ => assert!(false, "Expected Success status"),
+        ToolResultStatus::Success => {
+            // Expected result - test passes
+        }
+        _ => panic!(
+            "Expected Success status, got: {:?}",
+            tool_calls[0].result_status
+        ),
     }
 }
