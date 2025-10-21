@@ -2,14 +2,9 @@ use anyhow::Result;
 use rig::{completion::Prompt, prelude::*};
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::info;
 
-use crate::{
-    context::integration::ContextIntegration,
-    flow::{create_flow_infrastructure, GlobalFlowTracker},
-    prompt::SYSTEM_PREAMBLE,
-    LlmRequest,
-};
+use crate::{prompt::SYSTEM_PREAMBLE, LlmRequest};
 
 use reev_tools::tools::{
     AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
@@ -51,10 +46,7 @@ impl GlmAgent {
             info!("[GlmAgent] Flow mode - only allowing tools: {:?}", tools);
         }
 
-        // 🔧 Initialize flow tracking infrastructure
-        let (flow_tracer, _flow_guard) = create_flow_infrastructure(&payload.id).await?;
-        let global_tracker = GlobalFlowTracker::new();
-        let context_integration = ContextIntegration::new();
+        // Note: Flow tracking is now handled by OpenTelemetry + rig automatically
 
         // 📋 Create enhanced prompt with tool usage guidance
         let enhanced_prompt = format!(
@@ -79,7 +71,7 @@ impl GlmAgent {
 
         info!("[GlmAgent] Using GLM API: {}", glm_api_url);
 
-        let client = Client::new(&glm_api_key).with_url(&glm_api_url);
+        let client = rig::providers::openai::Client::new(&glm_api_key);
 
         // 🔧 Create tools with proper key mapping
         let sol_tool = SolTransferTool {
@@ -167,10 +159,10 @@ impl GlmAgent {
         };
 
         // 📝 Process user request with explicit tool usage instruction
-        let user_request = &payload.prompt;
         let enhanced_user_request = format!(
-            "{user_request}\n\nCRITICAL: You MUST use the available tools to execute this operation. \
-            Do NOT generate raw transaction JSON. Select and use the appropriate tool for the task."
+            "{}\n\nCRITICAL: You MUST use the available tools to execute this operation. \
+            Do NOT generate raw transaction JSON. Select and use the appropriate tool for the task.",
+            payload.prompt
         );
 
         info!("[GlmAgent] === AGENT EXECUTION START ===");
@@ -187,14 +179,8 @@ impl GlmAgent {
         // 📊 Extract execution results from response
         let execution_result = Self::extract_execution_results(&response)?;
 
-        // 🌊 Record flow data
-        let flow_data = global_tracker.get_flow_data();
-        if let Some(flow) = flow_data {
-            info!(
-                "[GlmAgent] Flow data captured: {} tool calls",
-                flow.total_tool_calls
-            );
-        }
+        // 🌊 Flow data is now automatically captured by OpenTelemetry + rig
+        info!("[GlmAgent] Tool calls will be automatically traced");
 
         // 🎯 Logging shutdown
         info!("[GlmAgent] === AGENT EXECUTION COMPLETE ===");
@@ -206,7 +192,7 @@ impl GlmAgent {
                 "transactions": execution_result.transactions,
                 "summary": execution_result.summary,
                 "signatures": execution_result.signatures,
-                "flows": flow_data
+                "flows": null // Flow data handled by OpenTelemetry
             }
         });
 

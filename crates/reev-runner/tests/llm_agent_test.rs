@@ -507,24 +507,5 @@ async fn test_glm_env_validation() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_tool_call_extraction_no_tools() {
-    use reev_lib::llm_agent::LlmAgent;
-    use std::time::SystemTime;
-
-    let mut agent = LlmAgent::new("test-agent").expect("Failed to create agent");
-
-    // Test conversational response with no tool calls
-    // This test is valuable because it ensures the keyword-based tool detector
-    // doesn't create false positives for normal chat responses
-    let empty_response = "Hello, how can I help you today?";
-
-    let response_start = SystemTime::now();
-    let result = agent
-        .extract_tool_calls_from_response(empty_response, response_start)
-        .await;
-    assert!(result.is_ok(), "Tool call extraction should succeed");
-
-    let tool_calls = agent.get_tool_calls();
-    assert!(tool_calls.is_empty(), "Should not detect any tool calls");
-}
+// NOTE: Tool call extraction tests removed since manual tracking was disabled
+// Tool calls are now automatically tracked by OpenTelemetry + rig integration
