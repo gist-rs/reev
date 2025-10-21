@@ -1,0 +1,128 @@
+   Compiling hyper-rustls v0.27.7
+   Compiling solana-pubsub-client v2.3.11
+   Compiling reqwest v0.12.23
+   Compiling solana-metrics v2.3.11
+   Compiling reqwest-middleware v0.4.2
+   Compiling solana-connection-cache v2.3.11
+   Compiling solana-perf v2.3.11
+   Compiling solana-rpc-client-api v2.3.11
+   Compiling solana-rpc-client v2.3.11
+   Compiling solana-transaction-metrics-tracker v2.3.11
+   Compiling solana-streamer v2.3.11
+   Compiling solana-quic-client v2.3.11
+   Compiling solana-udp-client v2.3.11
+   Compiling solana-rpc-client-nonce-utils v2.3.11
+   Compiling solana-thin-client v2.3.11
+   Compiling solana-tpu-client v2.3.11
+   Compiling solana-client v2.3.11
+   Compiling jup-sdk v0.1.0 (/Users/katopz/git/gist/reev/protocols/jupiter/jup-sdk)
+   Compiling reev-lib v0.1.0 (/Users/katopz/git/gist/reev/crates/reev-lib)
+   Compiling reev-runner v0.1.0 (/Users/katopz/git/gist/reev/crates/reev-runner)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.19s
+     Running `target/debug/reev-runner benchmarks/001-sol-transfer.yml --agent glm-4.6`
+[2m2025-10-21T04:35:36.720963Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m --- Reev Evaluation Runner ---
+[2m2025-10-21T04:35:36.721061Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Running benchmarks at: 'benchmarks/001-sol-transfer.yml' with agent: 'glm-4.6'
+[2m2025-10-21T04:35:36.721160Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Starting dependency initialization...
+[2m2025-10-21T04:35:36.721176Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Initializing dependency management...
+[2m2025-10-21T04:35:36.721218Z[0m [32m INFO[0m [2mreev_lib::server_utils[0m[2m:[0m 🧹 Checking for existing reev-agent processes on port 9090...
+[2m2025-10-21T04:35:36.739531Z[0m [32m INFO[0m [2mreev_lib::server_utils[0m[2m:[0m ✅ No existing reev-agent processes found on port 9090
+[2m2025-10-21T04:35:36.739609Z[0m [32m INFO[0m [2mreev_lib::server_utils[0m[2m:[0m 🧹 Checking for existing surfpool processes on port 8899...
+[2m2025-10-21T04:35:36.757529Z[0m [32m INFO[0m [2mreev_lib::server_utils[0m[2m:[0m ✅ No existing surfpool processes found on port 8899
+[2m2025-10-21T04:35:36.758676Z[0m [33m WARN[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Signal handling temporarily disabled to focus on core functionality
+[2m2025-10-21T04:35:36.758720Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Initializing dependencies...
+[2m2025-10-21T04:35:36.758736Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Clearing log files...
+[2m2025-10-21T04:35:36.758753Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Clearing log files for clean debugging...
+[2m2025-10-21T04:35:36.758895Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Cleared log file: reev-agent.log
+[2m2025-10-21T04:35:36.758945Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Cleared log file: surfpool.log
+[2m2025-10-21T04:35:36.758953Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Log files cleared
+[2m2025-10-21T04:35:36.758960Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting both services with staggered approach...
+[2m2025-10-21T04:35:36.758965Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting reev-agent service...
+[2m2025-10-21T04:35:36.758972Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting reev-agent service [3mport[0m[2m=[0m9090
+[2m2025-10-21T04:35:36.758979Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Checking for existing reev-agent processes...
+[2m2025-10-21T04:35:36.790421Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m No existing reev-agent processes found, starting new instance
+[2m2025-10-21T04:35:36.790462Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::process_detector[0m[2m:[0m Checking if port is in use [3mport[0m[2m=[0m9090
+[2m2025-10-21T04:35:36.808518Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::process_detector[0m[2m:[0m Port usage check completed [3mport[0m[2m=[0m9090 [3mis_in_use[0m[2m=[0mfalse
+[2m2025-10-21T04:35:36.808633Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Creating reev-agent process configuration...
+[2m2025-10-21T04:35:36.808689Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting reev-agent process...
+[2m2025-10-21T04:35:36.808716Z[0m [32m INFO[0m [2mreev_runner::dependency::process::process_manager[0m[2m:[0m Starting process [3mprocess_name[0m[2m=[0mreev-agent
+[2m2025-10-21T04:35:36.914655Z[0m [32m INFO[0m [2mreev_runner::dependency::process::process_manager[0m[2m:[0m Process started successfully [3mprocess_name[0m[2m=[0mreev-agent [3mpid[0m[2m=[0m98118 [3mstartup_time_ms[0m[2m=[0m105
+[2m2025-10-21T04:35:36.914729Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent process started with PID 98118
+[2m2025-10-21T04:35:36.914752Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Waiting for reev-agent to be healthy...
+[2m2025-10-21T04:35:36.914802Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:36.917042Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:36.917092Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 1 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:36.917104Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:38.919143Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:38.920076Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:38.920099Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 2 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:38.920109Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:40.922253Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:40.923125Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:40.923157Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 3 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:40.923181Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:42.925268Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:42.926222Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:42.926266Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 4 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:42.926278Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:44.928041Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:44.928991Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:44.929022Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 5 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:44.929033Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:46.931136Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:46.932032Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:46.932066Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 6 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:46.932077Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:48.933538Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:48.934489Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check failed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3merror[0m[2m=[0merror sending request for url (http://localhost:9090/health)
+[2m2025-10-21T04:35:48.934516Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 7 for reev-agent: Unhealthy("HTTP request failed: error sending request for url (http://localhost:9090/health)")
+[2m2025-10-21T04:35:48.934538Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:50.936517Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing HTTP health check [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health"
+[2m2025-10-21T04:35:50.938875Z[0m [32m INFO[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Health check passed [3mservice_name[0m[2m=[0m"reev-agent" [3murl[0m[2m=[0m"http://localhost:9090/health" [3mresponse_time_ms[0m[2m=[0m2
+[2m2025-10-21T04:35:50.938912Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 8 for reev-agent: Healthy
+[2m2025-10-21T04:35:50.938920Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent health check passed after 8 attempts in 14.023857041s
+[2m2025-10-21T04:35:50.939077Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent is healthy and ready [3mport[0m[2m=[0m9090
+[2m2025-10-21T04:35:50.939090Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m reev-agent started
+[2m2025-10-21T04:35:51.141213Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting surfpool service...
+[2m2025-10-21T04:35:51.141266Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting surfpool service [3mport[0m[2m=[0m8899
+[2m2025-10-21T04:35:51.141276Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Checking for existing surfpool processes...
+[2m2025-10-21T04:35:51.175530Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m No existing surfpool processes found, starting new instance
+[2m2025-10-21T04:35:51.175559Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Getting or building surfpool binary...
+[2m2025-10-21T04:35:51.175567Z[0m [32m INFO[0m [2mreev_runner::dependency::binary::binary_manager[0m[2m:[0m Getting surfpool binary...
+[2m2025-10-21T04:35:51.175584Z[0m [32m INFO[0m [2mreev_runner::dependency::binary::binary_manager[0m[2m:[0m Checking for cached surfpool binary...
+[2m2025-10-21T04:35:51.175722Z[0m [32m INFO[0m [2mreev_runner::dependency::binary::binary_manager[0m[2m:[0m Found cached surfpool binary at: .surfpool/cache/surfpool
+[2m2025-10-21T04:35:51.175750Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool binary ready in 184.333µs
+[2m2025-10-21T04:35:51.175760Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::process_detector[0m[2m:[0m Checking if port is in use [3mport[0m[2m=[0m8899
+[2m2025-10-21T04:35:51.194663Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::process_detector[0m[2m:[0m Port usage check completed [3mport[0m[2m=[0m8899 [3mis_in_use[0m[2m=[0mfalse
+[2m2025-10-21T04:35:51.194719Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Creating surfpool process configuration...
+[2m2025-10-21T04:35:51.194734Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Starting surfpool process...
+[2m2025-10-21T04:35:51.194743Z[0m [32m INFO[0m [2mreev_runner::dependency::process::process_manager[0m[2m:[0m Starting process [3mprocess_name[0m[2m=[0msurfpool
+[2m2025-10-21T04:35:51.299941Z[0m [32m INFO[0m [2mreev_runner::dependency::process::process_manager[0m[2m:[0m Process started successfully [3mprocess_name[0m[2m=[0msurfpool [3mpid[0m[2m=[0m99111 [3mstartup_time_ms[0m[2m=[0m105
+[2m2025-10-21T04:35:51.302125Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool process started with PID 99111
+[2m2025-10-21T04:35:51.302186Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Waiting for surfpool to be healthy...
+[2m2025-10-21T04:35:51.302207Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing RPC health check [3mservice_name[0m[2m=[0m"surfpool" [3mrpc_url[0m[2m=[0m"http://localhost:8899"
+[2m2025-10-21T04:35:51.303061Z[0m [33m WARN[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m RPC health check failed [3mservice_name[0m[2m=[0m"surfpool" [3mrpc_url[0m[2m=[0m"http://localhost:8899" [3merror[0m[2m=[0merror sending request for url (http://localhost:8899/)
+[2m2025-10-21T04:35:51.305270Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 1 for surfpool: Unhealthy("RPC request failed: error sending request for url (http://localhost:8899/)")
+[2m2025-10-21T04:35:51.305287Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool not ready yet, waiting 2s before next health check...
+[2m2025-10-21T04:35:53.307226Z[0m [34mDEBUG[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m Performing RPC health check [3mservice_name[0m[2m=[0m"surfpool" [3mrpc_url[0m[2m=[0m"http://localhost:8899"
+[2m2025-10-21T04:35:53.308744Z[0m [32m INFO[0m [2mreev_runner::dependency::health::health_checker[0m[2m:[0m RPC health check passed [3mservice_name[0m[2m=[0m"surfpool" [3mrpc_url[0m[2m=[0m"http://localhost:8899" [3mresponse_time_ms[0m[2m=[0m1
+[2m2025-10-21T04:35:53.308773Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Health check attempt 2 for surfpool: Healthy
+[2m2025-10-21T04:35:53.308784Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool health check passed after 2 attempts in 2.006557042s
+[2m2025-10-21T04:35:53.308791Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Waiting additional 3s for surfpool to fully initialize...
+[2m2025-10-21T04:35:56.310590Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Registering surfpool service...
+[2m2025-10-21T04:35:56.311417Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool is healthy and ready [3mport[0m[2m=[0m8899
+[2m2025-10-21T04:35:56.311442Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m surfpool started
+[2m2025-10-21T04:35:56.311453Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Both services started with staggered approach in 19.552054125s
+[2m2025-10-21T04:35:56.311462Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Dependencies initialized successfully in 19.552302042s
+[2m2025-10-21T04:35:56.311472Z[0m [32m INFO[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m Dependencies marked as initialized
+[2m2025-10-21T04:35:56.311645Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Dependencies initialized successfully
+[2m2025-10-21T04:35:56.311655Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m reev-agent: http://localhost:9090
+[2m2025-10-21T04:35:56.311662Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m surfpool: http://localhost:8899
+[2m2025-10-21T04:35:56.311669Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Dependency initialization completed successfully
+[2m2025-10-21T04:35:56.311675Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Initializing database...
+[2m2025-10-21T04:35:56.311739Z[0m [32m INFO[0m [2mreev_db::writer::core[0m[2m:[0m [DB] Creating database connection to: local SQLite
+[2m2025-10-21T04:35:56.312424Z[0m [32m INFO[0m [2mreev_runner[0m[2m:[0m Dependency manager dropped - processes will be cleaned up on next startup
+[2m2025-10-21T04:35:56.312437Z[0m [34mDEBUG[0m [2mreev_runner::dependency::manager::dependency_manager[0m[2m:[0m DependencyManager dropped
+Error: Database connection failed: Failed to create local database: db/reev_results.db
+
+Caused by:
+    SQL execution failure: `Locking error: Failed locking file. File is locked by another process`

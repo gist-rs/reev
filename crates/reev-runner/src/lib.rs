@@ -660,7 +660,7 @@ async fn run_evaluation_loop(
                         "data_length": instruction.data.len()
                     }),
                     result: Some(serde_json::json!({
-                        "tool_name": "transfer_sol",
+                        "tool_name": "sol_transfer",
                         "operation": "system_program_transfer"
                     })),
                     status: "Success".to_string(),

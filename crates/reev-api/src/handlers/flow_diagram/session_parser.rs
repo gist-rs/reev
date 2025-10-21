@@ -40,6 +40,10 @@ pub struct ParsedToolCall {
     pub params: Value,
     /// Execution duration in milliseconds
     pub duration_ms: u64,
+    /// Tool result data (includes instruction count, etc.)
+    pub result_data: Option<Value>,
+    /// Original tool arguments as JSON string
+    pub tool_args: Option<String>,
 }
 
 impl SessionParser {
@@ -187,7 +191,11 @@ impl SessionParser {
             .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing end_time".to_string()))?;
 
         let params = tool.get("params").cloned().unwrap_or(Value::Null);
-        let _result = tool.get("result").cloned();
+        let result = tool.get("result").cloned();
+        let tool_args = tool
+            .get("tool_args")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         let _status = tool
             .get("status")
             .and_then(|v| v.as_str())
@@ -201,6 +209,8 @@ impl SessionParser {
             start_time,
             params,
             duration_ms,
+            result_data: result,
+            tool_args,
         })
     }
 
@@ -249,6 +259,8 @@ impl SessionParser {
                                     start_time,
                                     params,
                                     duration_ms,
+                                    result_data: None,
+                                    tool_args: None,
                                 });
                             }
                         }
@@ -335,6 +347,8 @@ impl SessionParser {
                         start_time,
                         params: Value::Object(params),
                         duration_ms: 1000,
+                        result_data: None,
+                        tool_args: None,
                     });
                 }
             }

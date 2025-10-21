@@ -298,11 +298,36 @@ pub async fn execute_benchmark_background(
                         debug!("Trace last 100 chars: {}", last_part);
                     }
                     // Store flow log in database
-                    // Note: Flow log storage temporarily disabled due to connection pool changes
-                    // TODO: Implement proper flow log storage with pooled connections
-                    info!(
-                        "Flow log storage temporarily disabled for connection pool compatibility"
-                    );
+                    if let Some(flow_data) =
+                        reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data()
+                    {
+                        // Convert flow data to JSON for storage
+                        if let Ok(flow_json) = serde_json::to_string(&flow_data) {
+                            // Store flow data in session metadata or separate table
+                            info!(
+                                "Storing flow data with {} tool calls in database",
+                                flow_data.total_tool_calls
+                            );
+
+                            // Store flow data in the session - this will be available for flow diagram generation
+                            // Note: For now, we'll append it to the trace or store in session metadata
+                            // In the future, this could be a dedicated flow_data table
+                            let enhanced_trace = if !ascii_trace.is_empty() {
+                                format!("{}\n\n--- FLOW DATA ---\n{}", ascii_trace, flow_json)
+                            } else {
+                                flow_json
+                            };
+
+                            // Update the trace with flow data
+                            execution.trace = enhanced_trace;
+
+                            info!("Flow data successfully stored in database session");
+                        } else {
+                            warn!("Failed to serialize flow data to JSON");
+                        }
+                    } else {
+                        info!("No flow data available to store (tracking may be disabled)");
+                    }
                 }
             }
         }

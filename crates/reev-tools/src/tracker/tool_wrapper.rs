@@ -39,12 +39,18 @@ impl SimpleFlowTracker {
 
     /// Check if flow tracking is enabled
     pub fn is_enabled(&self) -> bool {
-        reev_lib::flow::is_flow_logging_enabled()
+        let enabled = reev_flow::is_flow_logging_enabled();
+        debug!("[SimpleFlowTracker] Flow logging enabled: {}", enabled);
+        enabled
     }
 
     /// Record a tool call
     pub fn record_tool_call(&mut self, params: ToolCallParams) {
         if !self.is_enabled() {
+            debug!(
+                "[SimpleFlowTracker] Flow logging disabled, skipping tool call: {}",
+                params.tool_name
+            );
             return;
         }
 
@@ -101,16 +107,34 @@ pub struct GlobalFlowTracker;
 impl GlobalFlowTracker {
     /// Record a tool call globally
     pub fn record_tool_call(params: ToolCallParams) {
+        debug!(
+            "[GlobalFlowTracker] Attempting to record tool call: {}",
+            params.tool_name
+        );
         if let Ok(mut tracker) = GLOBAL_TRACKER.lock() {
             tracker.record_tool_call(params);
+            debug!("[GlobalFlowTracker] Tool call recorded successfully");
+        } else {
+            warn!("[GlobalFlowTracker] Failed to acquire lock for global tracker");
         }
     }
 
     /// Get the current flow data
     pub fn get_flow_data() -> Option<FlowData> {
+        debug!("[GlobalFlowTracker] Attempting to get flow data");
         if let Ok(tracker) = GLOBAL_TRACKER.lock() {
-            tracker.get_flow_data()
+            let data = tracker.get_flow_data();
+            if let Some(ref flow_data) = data {
+                debug!(
+                    "[GlobalFlowTracker] Found flow data with {} tool calls",
+                    flow_data.total_tool_calls
+                );
+            } else {
+                debug!("[GlobalFlowTracker] No flow data found in tracker");
+            }
+            data
         } else {
+            warn!("[GlobalFlowTracker] Failed to acquire lock for global tracker");
             None
         }
     }
