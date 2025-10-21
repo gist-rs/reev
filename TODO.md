@@ -16,7 +16,7 @@
     "sessions": []
   }
   ```
-- when start it should kill old reev-api service `kill_existing_api(3001).await?;` and when stop api it should gracefully stop db connection in all exit case.
+
 - llm is not allow to generate tx, why rompt siad `and data fields.`? via `cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
 
 ```

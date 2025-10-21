@@ -30,6 +30,21 @@
 - **Current Status**: GLM API working, agent executing successfully (100% score), but flow tracking not capturing tool calls
 - **Next Step**: Debug why GlobalFlowTracker is not recording tool calls despite successful execution
 
+## GLM Agent Tool Usage Issue 🔄 HIGH PRIORITY
+- **Issue**: GLM agent in `reev-lib/src/llm_agent.rs` doesn't use tools, violates RULES.md
+- **Problem**: GLM agent asks LLM to generate raw transaction JSON instead of using tools
+- **Root Cause**: GLM agent makes raw HTTP requests without `rig` framework tool integration
+- **Impact**: Violates "No LLM Generation" and "API-Only Instructions" rules from RULES.md
+- **Current Behavior**: LLM generates `{"program_id": "...", "accounts": [...], "data": "..."}` 
+- **Expected Behavior**: LLM should use `sol_transfer`, `jupiter_swap`, etc. tools via `rig` framework
+- **Priority**: High - breaks core architecture principles and rules
+- **Fix Required**: 
+  1. Update GLM agent to use `rig` framework with proper tool integration
+  2. Model after OpenAI agent in `reev/crates/reev-agent/src/enhanced/openai.rs`
+  3. Remove all raw transaction generation prompts
+  4. Ensure GLM agent has access to same tools as OpenAI agent
+- **Alternative**: Remove GLM agent entirely, use enhanced agents for all models
+
 ## API Graceful Shutdown ✅ COMPLETELY RESOLVED
 - **Issue**: API server didn't gracefully shutdown database connections on exit
 - **Impact**: Database connections remained open, potential resource leaks

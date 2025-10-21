@@ -389,8 +389,7 @@ impl Agent for LlmAgent {
         // 2. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
             // GLM uses OpenAI-compatible format
-            let full_prompt = format!("{}\n\n{}\n\n{}", context_prompt, prompt,
-                "Generate Solana transactions as JSON array in the response. Each transaction should include program_id, accounts, and data fields.");
+            let full_prompt = format!("{context_prompt}\n\n{prompt}");
 
             json!({
                 "model": self.model_name,
