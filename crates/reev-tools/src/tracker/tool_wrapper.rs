@@ -4,7 +4,7 @@
 
 use reev_lib::agent::{FlowData, ToolCallInfo, ToolResultStatus};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Simple flow tracker for capturing tool call information
 #[derive(Debug, Clone)]
