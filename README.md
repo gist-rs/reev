@@ -19,6 +19,7 @@ The framework achieves **100% success rates** across all benchmark categories:
 - **🔬 Real-World Testing**: Mainnet fork validation with actual deployed programs
 - **✅ Scoring System Validation**: Complete test suite covering 0%, 50%, 75%, and 100% score scenarios
 - **🌊 Flow Support**: Step-by-step flow execution with proper transaction isolation
+- **📊 OpenTelemetry Integration**: Automatic tool call tracking with Mermaid diagram generation
 
 ### 🚀 **Core Architecture: Real Programs, Controlled State**
 
@@ -33,6 +34,7 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 -   **Reproducibility**: The primary goal. Every test run is hermetic, guaranteeing that a given benchmark will produce the exact same result every time.
 -   **Service-Oriented Environment**: The Solana test validator (`surfpool`) is treated as a managed, external service that the environment connects to and configures via RPC. This ensures a clean architectural boundary and prevents dependency conflicts.
 -   **Gymnasium-Inspired API**: The agent-environment interaction is modeled via a standard Rust `trait` (`GymEnv`) inspired by the Gymnasium API, promoting a clear separation of concerns.
+-   **OpenTelemetry Observability**: Automatic tool call extraction from rig's OpenTelemetry traces for flow visualization and debugging.
 
 ### Key Components
 
@@ -47,9 +49,15 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 
 3.  **`reev-agent` (LLM Service)**:
     *   A standalone server that exposes an LLM's reasoning capabilities over an API.
-    *   Can be configured to use different models (local, Gemini, etc.) and includes a deterministic agent for generating ground-truth instructions.
+    *   Can be configured to use different models (local, Gemini, GLM, etc.) and includes a deterministic agent for generating ground-truth instructions.
+    *   Features OpenTelemetry integration for automatic tool call tracking and Mermaid diagram generation.
 
-4.  **Benchmark Suite**:
+4.  **`reev-api` (Web API & Flow Visualization)**:
+    *   RESTful API for benchmark execution and flow diagram generation.
+    *   Automatic tool call extraction from OpenTelemetry traces.
+    *   Mermaid diagram generation for visualizing agent execution flows.
+
+5.  **Benchmark Suite**:
     *   A suite of evaluation tasks defined in YAML files located in the `benchmarks/` directory.
     *   Each test case includes a declarative `initial_state`, a natural language `prompt`, and `ground_truth` criteria for success.
 
@@ -60,6 +68,11 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 1. **Rust Toolchain**: Install Rust (latest stable recommended)
 2. **Git**: Clone the repository
 3. **Optional LLM**: Install LM Studio or have Gemini API key for AI agents
+4. **OpenTelemetry Setup** (Optional, for tool call tracking):
+   ```bash
+   export REEV_OTEL_ENABLED=true
+   export REEV_TRACE_FILE=traces.log
+   ```
 
 ### 🎯 Running Benchmarks
 
@@ -74,8 +87,9 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
 cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 
-# Multi-step flows (swap + lend)
-cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent deterministic
+# Multi-step flows (swap + lend) with OpenTelemetry tracking
+export REEV_OTEL_ENABLED=true
+cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent glm-4.6
 
 # API benchmarks (positions, earnings)
 cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agent deterministic
@@ -83,6 +97,9 @@ cargo run -p reev-runner -- benchmarks/114-jup-positions-and-earnings.yml --agen
 # Scoring validation tests
 cargo run -p reev-runner -- benchmarks/003-spl-transfer-fail.yml --agent deterministic  # 0% score
 cargo run -p reev-runner -- benchmarks/004-partial-score-spl-transfer.yml --agent deterministic  # ~50% score
+
+# View OpenTelemetry traces and tool calls
+cat traces.log
 ```
 
 ### 🤖 Agent Options
@@ -90,6 +107,19 @@ cargo run -p reev-runner -- benchmarks/004-partial-score-spl-transfer.yml --agen
 **Deterministic Agent (Ground Truth):**
 ```bash
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
+```
+
+**🌊 OpenTelemetry-Enabled Agents:**
+```bash
+# Enable tool call tracking
+export REEV_OTEL_ENABLED=true
+export REEV_TRACE_FILE=traces.log
+
+# Run with automatic tool call extraction
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
+
+# View extracted tool calls for Mermaid diagrams
+curl http://localhost:3001/api/v1/flows/{session_id}
 ```
 
 **Local Model Agent:**
@@ -114,6 +144,75 @@ Features:
 - 🔍 Detailed execution trace analysis
 - 🏷️ Agent selection (deterministic, local, glm-4.6, gemini)
 - 📈 Real-time scoring and metrics
+
+## 🌊 OpenTelemetry Integration & Flow Visualization
+
+The framework now includes **automatic OpenTelemetry integration** for tool call tracking and Mermaid diagram generation. This provides real-time observability into agent execution flows without manual interference.
+
+### 🔧 OpenTelemetry Setup
+
+```bash
+# Enable OpenTelemetry tracing
+export REEV_OTEL_ENABLED=true
+export REEV_TRACE_FILE=traces.log
+export RUST_LOG=info
+
+# Run any agent with automatic tool call tracking
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
+
+# View captured traces
+cat traces.log
+```
+
+### 📊 Flow Diagram Generation
+
+Tool calls are automatically extracted from rig's OpenTelemetry spans and converted to session format for Mermaid diagrams:
+
+```bash
+# Start reev-api for flow visualization
+cargo run --bin reev-api
+
+# Run benchmark with tool tracking
+export REEV_OTEL_ENABLED=true
+curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "glm-4.6"}'
+
+# Get flow diagram
+curl http://localhost:3001/api/v1/flows/{session_id}
+```
+
+### 🎯 Session Format for Mermaid
+
+The system automatically converts OpenTelemetry traces to the session format required by FLOW.md:
+
+```json
+{
+  "session_id": "uuid-here",
+  "benchmark_id": "001-sol-transfer",
+  "tools": [
+    {
+      "tool_name": "sol_transfer",
+      "start_time": "2024-01-15T10:30:01.456Z",
+      "end_time": "2024-01-15T10:30:02.789Z",
+      "params": {"pubkey": "USER_1", "amount": "0.1"},
+      "result": {"signatures": ["abc123"]},
+      "status": "success"
+    }
+  ]
+}
+```
+
+### 🏗️ Architecture
+
+```
+rig tool execution → OpenTelemetry spans → trace extraction → session format → Mermaid diagrams
+```
+
+- **No Manual Tracking**: Uses rig's built-in OpenTelemetry automatically
+- **Clean Integration**: No HTTP request/response warping or tool interception
+- **Session Format**: Matches FLOW.md specification exactly
+- **Real-time Extraction**: Tool calls captured during agent execution
 
 ## 📊 Benchmark Categories
 

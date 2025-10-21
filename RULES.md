@@ -33,6 +33,13 @@
 - **Agent Consistency**: Deterministic and AI agents handle flows identically
 - **Error Isolation**: Step failures don't cascade to other steps
 
+### 6. OpenTelemetry Tracking Rules ✅ NEW
+- **No Manual Tool Tracking**: Use rig's built-in OpenTelemetry, never manual interception
+- **Automatic Extraction**: Tool calls extracted via `extract_current_otel_trace()` and `parse_otel_trace_to_tools()`
+- **Session Format Compliance**: Convert to FLOW.md session format for Mermaid diagrams
+- **Environment Variables**: Use `REEV_OTEL_ENABLED=true` and `REEV_TRACE_FILE=traces.log`
+- **Clean Architecture**: No HTTP request/response warping, let rig handle tracing automatically
+
 ## 🛠️ Production Standards
 
 ### Dependencies
@@ -41,8 +48,9 @@
 - **CLI**: `clap` for command-line interfaces
 - **TUI**: `ratatui` for terminal interfaces
 - **Solana**: `solana-client`, `solana-sdk`, `spl-token`
-- **LLM**: `rig` for agent-LLM communication
-- **Logging**: `tracing` for structured logging
+- **LLM**: `rig` for agent-LLM communication with OpenTelemetry
+- **Logging**: `tracing` with OpenTelemetry backend (`opentelemetry`, `opentelemetry-stdout`)
+- **OpenTelemetry**: `opentelemetry_sdk`, `tracing-opentelemetry` for trace extraction
 
 ### Testing Requirements
 - **Score Validation**: Test 0%, ~50%, ~75%, and 100% score scenarios
@@ -65,6 +73,8 @@
 - ✅ Comprehensive test coverage
 - ✅ No critical security vulnerabilities
 - ✅ Performance within acceptable limits
+- ✅ OpenTelemetry integration for tool call tracking
+- ✅ Clean architecture with no manual tool tracking
 
 ### Code Quality
 - ✅ Centralized configuration
@@ -72,5 +82,7 @@
 - ✅ Clear error messages
 - ✅ Consistent naming conventions
 - ✅ Well-documented APIs
+- ✅ Proper OpenTelemetry trace extraction
+- ✅ Session format compliance for Mermaid diagrams
 
-The `reev` framework maintains enterprise-grade quality standards while enabling rapid development of blockchain agent evaluation capabilities.
+The `reev` framework maintains enterprise-grade quality standards while enabling rapid development of blockchain agent evaluation capabilities with comprehensive OpenTelemetry observability.

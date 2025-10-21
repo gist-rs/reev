@@ -1,206 +1,212 @@
-# OTEL.md: Type-Safe Response Architecture Observability
+# OTEL.md: OpenTelemetry Integration for Tool Call Extraction
 
-## 📋 Current Status: Phase 6 - Implementation Ready
+## 📋 Current Status: ✅ IMPLEMENTATION COMPLETE
 
-This document outlines the OpenTelemetry integration for the type-safe response architecture, providing real-time insights into agent behavior, API compliance, and performance metrics. The integration follows the rig-core example pattern and is ready for implementation in Phase 6.
+This document outlines the completed OpenTelemetry integration for tool call extraction and Mermaid diagram generation. The system now automatically extracts tool calls from rig's OpenTelemetry traces and converts them to session format for flow visualization.
 
-**Current State**: The framework uses `tracing` for structured logging and has basic health monitoring. OpenTelemetry integration is planned for Phase 6 development with type-safe response architecture.
+**Current State**: ✅ **Full OpenTelemetry integration implemented** - Tool calls are automatically captured from rig's spans and converted to session format for Mermaid diagrams.
 
 ---
 
-## OpenTelemetry Integration
+## ✅ Completed OpenTelemetry Integration
 
-**Goal:** Instrument the framework to emit standardized OpenTelemetry (OTel) traces for advanced performance analysis and professional observability integration.
+**Goal:** ✅ **ACHIEVED** - Instrument the framework to extract tool calls from rig's OpenTelemetry traces for Mermaid diagram generation.
 
-**Rationale:**
--   **Type-Aware Observability**: OTel provides real-time visibility into type-safe response handling, API compliance validation, and performance bottlenecks.
--   **Compliance Monitoring**: Track API vs LLM-generated responses in real-time, ensuring agents follow API-first principles.
--   **Performance Optimization**: Identify bottlenecks in response parsing, validation, and instruction extraction through detailed metrics.
--   **Distributed Tracing**: Track multi-step flows with proper span relationships and correlation IDs for complex DeFi operations.
+**Implementation:**
+-   **Tool Call Extraction**: Automatic extraction of tool calls from rig's OpenTelemetry spans
+-   **Session Format Conversion**: Convert traces to FLOW.md session format for Mermaid diagrams
+-   **Real-time Tracking**: Tool calls captured during agent execution without manual interference
+-   **Clean Architecture**: No manual tool tracking - relies on rig's built-in OpenTelemetry integration
 
-**Current Observability Stack:**
-- **Structured Logging**: Comprehensive `tracing` integration with log levels (debug, info, warn, error)
-- **Health Monitoring**: Surfpool health checks and service status monitoring
-- **Performance Metrics**: Benchmark execution times, scoring results, and agent performance data
-- **Database Persistence**: SQLite database with detailed execution traces and results
+**Key Components Implemented:**
+-   `reev-lib/src/otel_extraction/mod.rs` - Trace extraction layer
+-   `extract_current_otel_trace()` - Extract current trace from global tracer
+-   `parse_otel_trace_to_tools()` - Convert spans to tool call format
+-   `convert_to_session_format()` - Convert to Mermaid session format
 
-**Planned OpenTelemetry Integration:**
-| Type-Safe Response Concept | OpenTelemetry Concept | OTEL Attributes & Events |
-|---------------------------|---------------------|------------------------|
-| `TypedAgent<T>` Request | **Root Span** (`agent.request`) | `response_type`, `operation`, `request_id` |
-| Response Validation | **Span** (`agent.validate`) | `validation_result`, `api_source`, `instruction_count` |
-| API Compliance Check | **Event** (`agent.compliance`) | `api_compliant`, `validation_errors` |
-| Instruction Extraction | **Span** (`agent.extract`) | `extraction_method`, `instruction_count` |
-| Type-Specific Metrics | **Metrics** (`agent.metrics`) | Counter, Histogram, Gauge per type |
+**✅ Completed OpenTelemetry Architecture:**
+- **Structured Logging**: Comprehensive `tracing` integration with OpenTelemetry backend
+- **Tool Call Extraction**: Automatic extraction from rig's OpenTelemetry spans
+- **Session Format**: Standardized format for Mermaid diagram generation
+- **Clean Integration**: No manual tracking - relies on rig framework
 
-## 🏗️ **Type-Safe OTEL Architecture**
+**✅ Implemented OpenTelemetry Integration:**
+| Agent Tool Call | OpenTelemetry Concept | Session Format Output |
+|-----------------|---------------------|----------------------|
+| `sol_transfer` execution | **Span** (`sol_transfer`) | `{tool_name: "sol_transfer", params: {...}, result: {...}}` |
+| `jupiter_swap` execution | **Span** (`jupiter_swap`) | `{tool_name: "jupiter_swap", params: {...}, result: {...}}` |
+| Tool result | **Span Attributes** | `{status: "success|error", execution_time_ms: 100}` |
+| Error handling | **Span Status** | `{status: "error", error_message: "..."}` |
+| Session flow | **Trace Context** | `{session_id: "...", tools: [...]}` |
 
-### **Component 1: Type-Aware Tracing Infrastructure**
+## 🏗️ **✅ Implemented OpenTelemetry Architecture**
+
+### **Component 1: OpenTelemetry Trace Extraction Layer**
 ```rust
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::Resource;
-use opentelemetry_sdk::trace::SdkTracerProvider;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
+// ✅ COMPLETED: Trace extraction from rig's OpenTelemetry
+use reev_lib::otel_extraction::{
+    extract_current_otel_trace, 
+    parse_otel_trace_to_tools,
+    convert_to_session_format
+};
 
-// 🎯 Type-safe instrumented agent execution
-#[tracing::instrument(
-    name = "agent_execution",
-    fields(
-        response_type = std::any::type_name::<T>(),
-        operation = T::operation_type(),
-        instruction_count = tracing::field::Empty,
-        api_source = tracing::field::Empty,
-    )
-)]
-pub async fn execute_typed_request<T: AgentResponse>(request: T::Request) -> Result<T, AgentError> {
-    let start = std::time::Instant::now();
-    
-    // 🎯 OpenTelemetry tracks exact types
-    tracing::info!(
-        agent_type = std::any::type_name::<T>(),
-        request_id = uuid::Uuid::new_v4().to_string(),
-        operation = T::operation_type(),
-        user_pubkey = request.user_pubkey(),
-    );
-    
-    // Execute with automatic tracing
-    let response = typed_agent.call_typed(request).await?;
-    
-    // 🎯 Record compliance metrics
-    let execution_time = start.elapsed();
-    tracing::info!(
-        execution_time_ms = execution_time.as_millis(),
-        instruction_count = response.to_execution_result().transactions.len(),
-        validation_result = response.validate_instructions().is_ok(),
-        api_source = detect_api_source(&response),
-    );
-    
-    Ok(response)
+// 🎯 Extract tool calls from current OpenTelemetry trace context
+pub fn extract_tool_calls_for_mermaid() -> Vec<SessionToolData> {
+    if let Some(trace) = extract_current_otel_trace() {
+        let tool_calls = parse_otel_trace_to_tools(trace);
+        convert_to_session_format(tool_calls)
+    } else {
+        vec![]
+    }
+}
+
+// 🎯 Agent implementation with OpenTelemetry extraction
+impl GlmAgent {
+    pub async fn run_with_otel_extraction(&self, payload: LlmRequest) -> Result<String> {
+        // Execute agent with rig's automatic OpenTelemetry tracing
+        let response = self.agent.prompt(&enhanced_request).await?;
+        
+        // Extract tool calls from OpenTelemetry traces
+        let tool_calls = extract_tool_calls_for_mermaid();
+        info!("Extracted {} tool calls from OpenTelemetry", tool_calls.len());
+        
+        // Return response with tool call data for Mermaid diagrams
+        Ok(format_response_with_tools(response, tool_calls))
+    }
 }
 ```
 
-### **Component 2: Structured Metrics Collection**
+### **Component 2: Session Format for Mermaid Diagrams**
 ```rust
-use opentelemetry::metrics::{Counter, Histogram, Gauge};
-
-// 🎯 Type-aware metrics collector for API compliance tracking
-pub struct TypeMetricsCollector {
-    request_counter: Counter<u64>,
-    execution_histogram: Histogram<f64>,
-    validation_gauge: Gauge<u64>,
-    api_source_counter: Counter<u64>,
+// ✅ COMPLETED: Session format matching FLOW.md specification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionToolData {
+    pub tool_name: String,           // "sol_transfer", "jupiter_swap"
+    pub start_time: SystemTime,      // Tool execution start
+    pub end_time: SystemTime,        // Tool execution end
+    pub params: serde_json::Value,   // Tool parameters
+    pub result: serde_json::Value,   // Tool result data
+    pub status: String,              // "success", "error"
 }
 
-impl TypeMetricsCollector {
-    pub fn new() -> Self {
-        let meter = opentelemetry::global::meter("reev_agent_metrics");
+// ✅ COMPLETED: Conversion from OpenTelemetry to session format
+impl From<OtelSpanData> for SessionToolData {
+    fn from(span: OtelSpanData) -> Self {
+        SessionToolData {
+            tool_name: extract_tool_name_from_span(&span),
+            start_time: span.start_time,
+            end_time: span.end_time.unwrap_or(span.start_time),
+            params: extract_params_from_span(&span),
+            result: extract_result_from_span(&span),
+            status: span.status,
+        }
+    }
+}
+
+// ✅ COMPLETED: Tool call extraction for Mermaid generation
+pub fn generate_mermaid_from_otel(session_id: &str) -> Option<String> {
+    let tools = extract_tool_calls_for_mermaid();
+    if tools.is_empty() {
+        return None;
+    }
+    
+    let mut mermaid = String::from("stateDiagram-v2\n");
+    mermaid.push_str(&format!("    [*] --> {}\n", tools[0].tool_name));
+    
+    for i in 0..tools.len() - 1 {
+        mermaid.push_str(&format!(
+            "    {} --> {}\n", 
+            tools[i].tool_name, 
+            tools[i + 1].tool_name
+        ));
+    }
+    
+    Some(mermaid)
+}
+```
+
+### **Component 3: Environment Configuration**
+```rust
+// ✅ COMPLETED: Environment variables for OpenTelemetry
+pub fn init_otel_for_tool_extraction() -> Result<(), Box<dyn std::error::Error>> {
+    // Check if OpenTelemetry is enabled
+    let enabled = std::env::var("REEV_OTEL_ENABLED")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse()
+        .unwrap_or(false);
+    
+    if enabled {
+        // Initialize flow tracing with stdout exporter
+        reev_flow::init_flow_tracing()?;
         
+        // Initialize OpenTelemetry extraction
+        reev_lib::otel_extraction::init_otel_extraction()?;
+        
+        info!("OpenTelemetry enabled for tool call extraction");
+        info!("Tool calls will be automatically captured from rig's spans");
+    }
+    
+    Ok(())
+}
+
+// ✅ COMPLETED: Configuration for trace file output
+pub struct OtelConfig {
+    pub enabled: bool,
+    pub trace_file: String,
+}
+
+impl OtelConfig {
+    pub fn from_env() -> Self {
         Self {
-            request_counter: meter.u64_counter("agent_requests_total")
-                .with_description("Total number of agent requests"),
-            execution_histogram: meter.f64_histogram("agent_execution_time")
-                .with_description("Agent execution time in milliseconds"),
-            validation_gauge: meter.u64_gauge("agent_validation_status")
-                .with_description("Agent response validation status (1=valid, 0=invalid)"),
-            api_source_counter: meter.u64_counter("api_source_counts")
-                .with_description("Counts of API vs LLM generated responses"),
+            enabled: std::env::var("REEV_OTEL_ENABLED")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap_or(false),
+            trace_file: std::env::var("REEV_TRACE_FILE")
+                .unwrap_or_else(|_| "traces.log".to_string()),
         }
-    }
-    
-    pub fn record_request<T: AgentResponse>(&self, response: &T) {
-        self.request_counter.add(
-            1,
-            [
-                KeyValue::new("response_type", T::operation_type()),
-                KeyValue::new("operation_id", uuid::Uuid::new_v4().to_string()),
-            ],
-        );
-        
-        self.execution_histogram.record(
-            response.execution_time_ms() as f64,
-            [
-                KeyValue::new("response_type", T::operation_type()),
-                KeyValue::new("instruction_count", response.instruction_count() as u64),
-            ],
-        );
-        
-        self.validation_gauge.set(
-            if response.validate_instructions().is_ok() { 1 } else { 0 },
-            [
-                KeyValue::new("response_type", T::operation_type()),
-            ],
-        );
-        
-        self.api_source_counter.add(
-            1,
-            [
-                KeyValue::new("api_source", response.detect_api_source()),
-                KeyValue::new("response_type", T::operation_type()),
-            ],
-        );
     }
 }
 ```
 
-### **Component 3: Custom Span Attributes for Compliance**
+### **Component 4: Integration with All Agents**
 ```rust
-use opentelemetry::trace::{Span, SpanKind, Status};
+// ✅ COMPLETED: OpenTelemetry extraction integrated with all agents
 
-// 🎯 Rich span attributes for compliance tracking
-impl<T: AgentResponse> AgentResponse for T {
-    fn create_span(&self, operation: &str) -> Span {
-        let span = tracing::span!(Level::INFO, operation, kind = SpanKind::Client);
+// GLM Agent with OpenTelemetry extraction
+impl GlmAgent {
+    pub async fn run(&self, payload: LlmRequest) -> Result<String> {
+        // Execute with rig's automatic OpenTelemetry tracing
+        let response = self.agent.prompt(&enhanced_request).await?;
         
-        span.set_attribute("response_type", T::operation_type());
-        span.set_attribute("instruction_count", self.instruction_count() as u64);
-        span.set_attribute("api_compliant", self.validate_instructions().is_ok());
-        span.set_attribute("execution_time_ms", self.execution_time_ms());
-        span.set_attribute("api_source", self.detect_api_source());
+        // 🌊 Extract tool calls from OpenTelemetry traces
+        info!("[GlmAgent] Extracting tool calls from OpenTelemetry traces");
         
-        // Add protocol-specific attributes
-        if let Some(jupiter_data) = self.jupiter_metadata() {
-            span.set_attribute("jupiter_operation", jupiter_data.operation_type);
-            span.set_attribute("jupiter_tokens", jupiter_data.token_mints);
+        if let Some(otel_trace) = extract_current_otel_trace() {
+            let tool_calls = parse_otel_trace_to_tools(otel_trace);
+            let session_tools = convert_to_session_format(tool_calls);
+            info!("[GlmAgent] Extracted {} tools for Mermaid diagram", session_tools.len());
         }
         
-        span
+        Ok(response)
     }
 }
-```
 
-### **Component 4: Distributed Tracing for Multi-Step Flows**
-```rust
-// 🎯 Distributed tracing for Jupiter multi-step flows
-#[tracing::instrument(
-    name = "jupiter_swap_flow",
-    skip_if = true
-)]
-pub async fn execute_jupiter_swap_flow<T: AgentResponse>(
-    agent: &TypedAgent<T>,
-    request: JupiterSwapRequest,
-) -> Result<T, AgentError> {
-    // Step 1: Get quote with span tracking
-    let quote_span = tracing::info_span!("jupiter_get_quote").entered();
-    let quote = agent.get_quote(&request).instrument(quote_span).await?;
-    quote_span.exit();
-    
-    // Step 2: Get instructions with span tracking
-    let instructions_span = tracing::info_span!("jupiter_get_instructions").entered();
-    let instructions = agent.get_instructions(&quote).instrument(instructions_span).await?;
-    instructions_span.exit();
-    
-    // Step 3: Execute transaction with span tracking
-    let execution_span = tracing::info_span!("jupiter_execute_transaction").entered();
-    let response = agent.execute_transaction(&instructions).instrument(execution_span).await?;
-    execution_span.exit();
-    
-    // Step 4: Validate result with span tracking
-    let validation_span = tracing::info_span!("jupiter_validate_response").entered();
-    response.validate_instructions().instrument(validation_span).await?;
-    validation_span.exit();
-    
-    Ok(response)
+// OpenAI Agent with OpenTelemetry extraction  
+impl OpenAIAgent {
+    pub async fn run(&self, payload: LlmRequest) -> Result<String> {
+        // Execute with rig's automatic OpenTelemetry tracing
+        let response = self.agent.prompt(&enhanced_request).await?;
+        
+        // 🌊 Extract tool calls from OpenTelemetry traces
+        let tool_calls = if let Some(otel_trace) = extract_current_otel_trace() {
+            reev_lib::otel_extraction::parse_otel_trace_to_tools(otel_trace)
+        } else {
+            vec![]
+        };
+        
+        info!("[OpenAIAgent] Tool calls captured via OpenTelemetry: {}", tool_calls.len());
+        Ok(response)
+    }
 }
 ```
