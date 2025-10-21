@@ -23,10 +23,10 @@ ascii_tree = "0.1.1"
 async-trait = { workspace = true }
 
 # OpenTelemetry dependencies for proper tool call tracing
-opentelemetry = { version = "0.21", features = ["trace"] }
-opentelemetry-sdk = { version = "0.21", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
-tracing-opentelemetry = "0.22"
+opentelemetry = { workspace = true, features = ["trace"] }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
+opentelemetry-stdout = { version = "0.30" }
+tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [features]

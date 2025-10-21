@@ -1,26 +1,23 @@
-//! OpenTelemetry integration for flow tracing
+//! Simple OpenTelemetry integration for flow tracing
 //!
-//! This module provides proper OpenTelemetry integration with the rig framework
-//! for tool call tracing and flow monitoring. It follows the pattern from
-//! rig's agent_with_tools_otel example to properly capture tool execution
-//! without breaking the tool system.
+//! This module provides simple tracing with OpenTelemetry backend for tool call
+//! monitoring. Uses stdout exporter with file output following the pattern from
+//! opentelemetry_stdout examples.
 
 use super::types::*;
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::Resource;
-use std::time::Duration;
-use tracing::{debug, info, instrument, warn, Span};
+use opentelemetry::global;
+use opentelemetry_sdk::trace as sdktrace;
+use std::fs::File;
+use tracing::{debug, info, info_span, instrument, warn, Span};
+use tracing_subscriber::prelude::*;
 
-/// Proper OpenTelemetry flow tracer for rig integration
+/// Simple flow tracer with OpenTelemetry backend
 pub struct FlowTracer {
     enabled: bool,
-    tracer_provider: Option<SdkTracerProvider>,
 }
 
 impl FlowTracer {
-    /// Create a new OpenTelemetry flow tracer with rig integration
+    /// Create a new flow tracer
     pub fn new() -> Self {
         let enabled = std::env::var("REEV_OTEL_ENABLED")
             .unwrap_or_else(|_| "false".to_string())
@@ -28,55 +25,11 @@ impl FlowTracer {
             .unwrap_or(false);
 
         if enabled {
-            info!("Initializing OpenTelemetry flow tracer with rig integration");
-
-            // Initialize OpenTelemetry if enabled
-            if let Ok(provider) = Self::init_otel() {
-                Self {
-                    enabled: true,
-                    tracer_provider: Some(provider),
-                }
-            } else {
-                warn!("Failed to initialize OpenTelemetry, falling back to disabled mode");
-                Self {
-                    enabled: false,
-                    tracer_provider: None,
-                }
-            }
+            info!("Flow tracing enabled with OpenTelemetry backend");
+            Self { enabled: true }
         } else {
-            info!("OpenTelemetry flow tracing disabled");
-            Self {
-                enabled: false,
-                tracer_provider: None,
-            }
-        }
-    }
-
-    /// Initialize OpenTelemetry with OTLP exporter
-    fn init_otel() -> Result<SdkTracerProvider, Box<dyn std::error::Error>> {
-        let exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_http()
-            .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
-            .build()?;
-
-        let service_name =
-            std::env::var("REEV_OTEL_SERVICE_NAME").unwrap_or_else(|_| "reev".to_string());
-
-        let provider = SdkTracerProvider::builder()
-            .with_batch_exporter(exporter)
-            .with_resource(Resource::builder().with_service_name(service_name).build())
-            .build();
-
-        info!("OpenTelemetry initialized with service: {}", service_name);
-        Ok(provider)
-    }
-}
-
-impl Drop for FlowTracer {
-    fn drop(&mut self) {
-        if let Some(provider) = self.tracer_provider.take() {
-            info!("Shutting down OpenTelemetry tracer provider");
-            let _ = provider.shutdown();
+            info!("Flow tracing disabled");
+            Self { enabled: false }
         }
     }
 }
@@ -93,91 +46,74 @@ impl FlowTracer {
         self.enabled
     }
 
-    /// Trace a complete flow log with proper OpenTelemetry spans
-    #[instrument(skip(self, flow), fields(session_id = %flow.session_id, benchmark_id = %flow.benchmark_id))]
+    /// Trace a complete flow log
     pub fn trace_flow(&self, flow: &FlowLog) {
         if !self.enabled {
             return;
         }
 
-        let span = Span::current();
-        span.record("agent", flow.agent_type.as_str());
-        span.record("events_count", flow.events.len() as i64);
+        let span = info_span!(
+            "flow_execution",
+            session_id = %flow.session_id,
+            benchmark_id = %flow.benchmark_id,
+            agent = %flow.agent_type,
+            events_count = flow.events.len()
+        );
+        let _guard = span.enter();
 
         info!("Tracing flow execution for session: {}", flow.session_id);
         info!("  - Benchmark: {}", flow.benchmark_id);
         info!("  - Agent: {}", flow.agent_type);
         info!("  - Events: {}", flow.events.len());
 
-        // Trace each event in the flow with proper spans
+        // Trace each event in the flow
         for event in &flow.events {
             self.trace_flow_event(event);
         }
 
         // Log final result
         if let Some(result) = &flow.final_result {
-            span.record("success", result.success);
-            span.record("score", result.score);
-            span.record("total_time_ms", result.total_time_ms as i64);
-            span.record("llm_calls", result.statistics.total_llm_calls as i64);
-            span.record("tool_calls", result.statistics.total_tool_calls as i64);
-
-            info!("Flow completed:");
-            info!("  - Success: {}", result.success);
-            info!("  - Score: {:.3}", result.score);
-            info!("  - Time: {}ms", result.total_time_ms);
-            info!("  - LLM calls: {}", result.statistics.total_llm_calls);
-            info!("  - Tool calls: {}", result.statistics.total_tool_calls);
+            tracing::info!(
+                success = result.success,
+                score = result.score,
+                total_time_ms = result.total_time_ms,
+                llm_calls = result.statistics.total_llm_calls,
+                tool_calls = result.statistics.total_tool_calls,
+                "Flow completed"
+            );
         }
 
-        debug!("Completed flow tracing for session: {}", flow.session_id);
+        tracing::debug!("Completed flow tracing for session: {}", flow.session_id);
     }
 
-    /// Trace an individual flow event with proper OpenTelemetry spans
-    #[instrument(skip(self, event), fields(event_type = ?event.event_type, depth = event.depth))]
+    /// Trace an individual flow event
     pub fn trace_flow_event(&self, event: &FlowEvent) {
         if !self.enabled {
             return;
         }
 
-        let span = Span::current();
         let event_name = match &event.event_type {
-            FlowEventType::LlmRequest => {
-                span.record("event_name", "LLM Request");
-                "LLM Request"
-            }
-            FlowEventType::ToolCall => {
-                span.record("event_name", "Tool Call");
-                "Tool Call"
-            }
-            FlowEventType::ToolResult => {
-                span.record("event_name", "Tool Result");
-                "Tool Result"
-            }
-            FlowEventType::TransactionExecution => {
-                span.record("event_name", "Transaction");
-                "Transaction"
-            }
-            FlowEventType::Error => {
-                span.record("event_name", "Error");
-                "Error"
-            }
-            FlowEventType::BenchmarkStateChange => {
-                span.record("event_name", "State Change");
-                "State Change"
-            }
+            FlowEventType::LlmRequest => "LLM Request",
+            FlowEventType::ToolCall => "Tool Call",
+            FlowEventType::ToolResult => "Tool Result",
+            FlowEventType::TransactionExecution => "Transaction",
+            FlowEventType::Error => "Error",
+            FlowEventType::BenchmarkStateChange => "State Change",
         };
+
+        let span = info_span!("flow_event", event_type = event_name, depth = event.depth);
+        let _guard = span.enter();
 
         debug!(
             "Tracing flow event: {} at depth {}",
             event_name, event.depth
         );
 
-        // Record event-specific details as span attributes
+        // Record event-specific details
         match &event.event_type {
             FlowEventType::LlmRequest => {
                 if let Some(model) = event.content.data.get("model").and_then(|v| v.as_str()) {
-                    span.record("model", model);
+                    tracing::info!(model, "LLM Request");
                     debug!("  - Model: {}", model);
                 }
                 if let Some(tokens) = event
@@ -186,7 +122,7 @@ impl FlowTracer {
                     .get("context_tokens")
                     .and_then(|v| v.as_u64())
                 {
-                    span.record("context_tokens", tokens as i64);
+                    tracing::info!(context_tokens = tokens as i64, "LLM Request tokens");
                     debug!("  - Context tokens: {}", tokens);
                 }
             }
@@ -194,7 +130,7 @@ impl FlowTracer {
                 if let Some(tool_name) =
                     event.content.data.get("tool_name").and_then(|v| v.as_str())
                 {
-                    span.record("tool_name", tool_name);
+                    tracing::info!(tool_name, "Tool Call");
                     debug!("  - Tool: {}", tool_name);
                 }
                 if let Some(exec_time) = event
@@ -203,7 +139,7 @@ impl FlowTracer {
                     .get("execution_time_ms")
                     .and_then(|v| v.as_u64())
                 {
-                    span.record("execution_time_ms", exec_time as i64);
+                    tracing::info!(execution_time_ms = exec_time as i64, "Tool execution time");
                     debug!("  - Execution time: {}ms", exec_time);
                 }
             }
@@ -211,7 +147,7 @@ impl FlowTracer {
                 if let Some(error_message) =
                     event.content.data.get("message").and_then(|v| v.as_str())
                 {
-                    span.record("error_message", error_message);
+                    tracing::error!(error_message, "Flow event error");
                     warn!("  - Error: {}", error_message);
                 }
             }
@@ -258,29 +194,36 @@ impl FlowTracer {
     }
 
     /// Record metrics for performance monitoring with proper attributes
-    #[instrument(skip(self, flow), fields(session_id = %flow.session_id))]
+    /// Record metrics for performance monitoring
     pub fn record_metrics(&self, flow: &FlowLog) {
         if !self.enabled {
             return;
         }
 
-        let span = Span::current();
+        let span = info_span!("flow_metrics", session_id = %flow.session_id);
+        let _guard = span.enter();
 
         // Record flow duration
         if let Some(end) = flow.end_time {
             let start = flow.start_time;
             if let Ok(duration) = end.duration_since(start) {
-                span.record("flow_duration_ms", duration.as_millis() as i64);
+                tracing::info!(
+                    flow_duration_ms = duration.as_millis() as i64,
+                    "Flow duration"
+                );
                 info!("Flow duration: {}ms", duration.as_millis());
             }
         }
 
         // Record metrics
         if let Some(result) = &flow.final_result {
-            span.record("llm_calls", result.statistics.total_llm_calls as i64);
-            span.record("tool_calls", result.statistics.total_tool_calls as i64);
-            span.record("total_tokens", result.statistics.total_tokens as i64);
-            span.record("success_rate", if result.success { 100.0 } else { 0.0 });
+            tracing::info!(
+                llm_calls = result.statistics.total_llm_calls as i64,
+                tool_calls = result.statistics.total_tool_calls as i64,
+                total_tokens = result.statistics.total_tokens as i64,
+                success_rate = if result.success { 100.0 } else { 0.0 },
+                "Flow metrics"
+            );
 
             info!("Metrics for session {}:", flow.session_id);
             info!("  - LLM calls: {}", result.statistics.total_llm_calls);
@@ -292,59 +235,60 @@ impl FlowTracer {
             );
         }
 
-        debug!("Recorded flow metrics for session: {}", flow.session_id);
+        tracing::debug!("Recorded flow metrics for session: {}", flow.session_id);
     }
 }
 
-/// Initialize proper OpenTelemetry flow tracing with rig integration
-pub async fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
+/// Initialize flow tracing with file output
+pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
     let enabled = std::env::var("REEV_OTEL_ENABLED")
         .unwrap_or_else(|_| "false".to_string())
         .parse()
         .unwrap_or(false);
 
     if !enabled {
-        info!("OpenTelemetry flow tracing initialization skipped");
+        info!("Flow tracing initialization skipped");
         return Ok(());
     }
 
-    info!("Initializing OpenTelemetry flow tracing with rig integration...");
+    info!("Initializing flow tracing with file output...");
 
-    let service_name =
-        std::env::var("REEV_OTEL_SERVICE_NAME").unwrap_or_else(|_| "reev".to_string());
+    // Set up stdout exporter for OpenTelemetry traces
+    let exporter = opentelemetry_stdout::SpanExporter::default();
 
-    // Initialize the tracing subscriber with OpenTelemetry layer
-    let exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_http()
-        .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
-        .build()?;
-
-    let provider = SdkTracerProvider::builder()
-        .with_batch_exporter(exporter)
-        .with_resource(Resource::builder().with_service_name(service_name).build())
+    let tracer_provider = sdktrace::SdkTracerProvider::builder()
+        .with_simple_exporter(exporter)
         .build();
+    global::set_tracer_provider(tracer_provider);
 
-    let tracer = provider.tracer("reev-flow");
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    // Specify the log file
+    let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or_else(|_| "traces.log".to_string());
+    let file = File::create(&log_file)?;
+    let log_file_for_info = log_file.clone();
 
-    let filter_layer = tracing_subscriber::filter::EnvFilter::builder()
-        .with_default_directive(tracing::Level::INFO.into())
-        .from_env_lossy();
-
-    let fmt_layer = tracing_subscriber::fmt::layer().pretty();
-
-    // Initialize the global subscriber
+    // Set up tracing subscriber to write to the file
     tracing_subscriber::registry()
-        .with(filter_layer)
-        .with(fmt_layer)
-        .with(otel_layer)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .pretty()
+                .with_writer(move || {
+                    file.try_clone()
+                        .unwrap_or_else(|_| std::fs::File::create(&log_file).unwrap())
+                }),
+        )
         .init();
 
     info!(
-        "OpenTelemetry flow tracing initialized with service: {}",
-        service_name
+        "Flow tracing initialized with file output: {}",
+        log_file_for_info
     );
-    info!("Tool calls will be properly traced without breaking the rig framework");
+    info!("Tool calls will be automatically traced to file");
 
     Ok(())
+}
+
+/// Shutdown tracer provider
+pub fn shutdown_tracer_provider() {
+    info!("Shutting down tracer provider");
+    // Note: No explicit shutdown needed for stdout exporter
 }
