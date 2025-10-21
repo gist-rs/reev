@@ -143,8 +143,9 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             continue;
         }
 
-        // Initialize unified session logging (flow logging is always enabled)
+        // Initialize unified session logging if enabled
         let session_id = uuid::Uuid::new_v4().to_string();
+        // Flow logging is always enabled
         let log_path =
             std::env::var("REEV_SESSION_LOG_PATH").unwrap_or_else(|_| "logs/sessions".to_string());
         let path = PathBuf::from(log_path);
@@ -200,7 +201,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             .await
             .context("Failed to set up SPL scenario")?;
 
-        let (final_observation, trace, actions, tool_calls) =
+        let (final_observation, trace, actions) =
             run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation)
                 .await
                 .with_context(|| {
@@ -243,14 +244,13 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 FinalStatus::Failed
             };
 
-            // Store ExecutionTrace with tool calls for flow diagram generation
-            match session_logger.complete_with_trace_and_tools(trace.clone(), tool_calls.clone()) {
+            // Store ExecutionTrace format directly for ASCII tree compatibility
+            match session_logger.complete_with_trace(trace.clone()) {
                 Ok(log_file) => {
                     info!(
                         benchmark_id = %test_case.id,
                         log_file = %log_file.display(),
-                        tools_count = %tool_calls.len(),
-                        "Session log with ExecutionTrace and tools completed successfully"
+                        "Session log with ExecutionTrace completed successfully"
                     );
 
                     // Store ExecutionTrace directly in database for ASCII tree compatibility
@@ -371,7 +371,7 @@ async fn run_flow_benchmark(
     flow_steps: &[FlowStep],
     agent_name: &str,
     _benchmark_path: &str,
-    db: Arc<FlowDatabaseWriter>,
+    _db: Arc<FlowDatabaseWriter>,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -379,18 +379,20 @@ async fn run_flow_benchmark(
         "Starting flow benchmark execution"
     );
 
-    // Initialize flow logging for flow benchmarks (flow logging is always enabled)
-    let output_path =
-        std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
-    let path = PathBuf::from(output_path);
-    std::fs::create_dir_all(&path)?;
+    // Initialize flow logging for flow benchmarks
+    // Flow logging is always enabled
+    let flow_logger = {
+        let output_path =
+            std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
+        let path = PathBuf::from(output_path);
+        std::fs::create_dir_all(&path)?;
 
-    let flow_logger = Some(FlowLogger::new_with_database(
-        test_case.id.clone(),
-        agent_name.to_string(),
-        path,
-        db.clone(),
-    ));
+        Some(FlowLogger::new(
+            test_case.id.clone(),
+            agent_name.to_string(),
+            path,
+        ))
+    };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
@@ -425,7 +427,7 @@ async fn run_flow_benchmark(
         };
 
         // Execute the step
-        let (step_observation, step_trace, step_actions, _step_tool_calls) =
+        let (step_observation, step_trace, step_actions) =
             run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
                 .await
                 .with_context(|| {
@@ -508,10 +510,11 @@ async fn run_flow_benchmark(
             scoring_breakdown: Some(scoring_breakdown),
         };
 
-        // Auto-render flow as ASCII tree after completion (flow logging is always enabled)
+        // Auto-render flow as ASCII tree after completion
+        // Flow logging is always enabled
         match flow_logger.complete(execution_result).await {
             Ok(flow_file_path) => {
-                match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
+                match reev_lib::flow::render_flow_file_as_ascii_tree(flow_file_path.as_path()) {
                     Ok(tree_output) => {
                         info!("\n{}", tree_output);
                     }
@@ -586,14 +589,10 @@ async fn run_evaluation_loop(
     AgentObservation,
     ExecutionTrace,
     Vec<reev_lib::agent::AgentAction>,
-    Vec<reev_lib::session_logger::ToolCallInfo>,
 )> {
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
 
     let fee_payer = env.fee_payer_placeholder();
-    // Debug: Check agent type before calling get_action
-    info!("[DEBUG] Agent type: {}", std::any::type_name_of_val(agent));
-
     // The agent now returns a vector of actions.
     let actions = agent
         .get_action(
@@ -604,178 +603,6 @@ async fn run_evaluation_loop(
             Some(test_case.ground_truth.skip_instruction_validation),
         )
         .await?;
-
-    // Get tool calls from agent for flow diagram generation
-    let mut tool_calls = agent.get_tool_calls();
-
-    // Extract tool calls from OpenTelemetry traces instead of manual tracking
-    info!("[DEBUG] Extracting tool calls from OpenTelemetry traces");
-    if let Some(otel_trace) = reev_lib::otel_extraction::extract_current_otel_trace() {
-        info!(
-            "[DEBUG] Found OpenTelemetry trace with {} spans",
-            otel_trace.spans.len()
-        );
-
-        let otel_tool_calls = reev_lib::otel_extraction::parse_otel_trace_to_tools(otel_trace);
-        info!(
-            "[DEBUG] Extracted {} tool calls from OpenTelemetry",
-            otel_tool_calls.len()
-        );
-
-        // Convert OpenTelemetry tool calls to session_logger format
-        for tool_call in otel_tool_calls {
-            let start_timestamp = tool_call
-                .timestamp
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let end_timestamp = start_timestamp + (tool_call.execution_time_ms as u64 / 1000);
-
-            let tool_call_info = reev_lib::session_logger::ToolCallInfo {
-                tool_name: tool_call.tool_name,
-                start_time: start_timestamp,
-                end_time: end_timestamp,
-                params: serde_json::from_str(&tool_call.tool_args)
-                    .unwrap_or(serde_json::Value::Null),
-                result: tool_call.result_data,
-                status: format!("{:?}", tool_call.result_status),
-            };
-            tool_calls.push(tool_call_info);
-        }
-    }
-
-    // Debug: Log tool calls extraction results
-    info!(
-        "[DEBUG] Tool calls extracted from agent: {} tool calls found",
-        tool_calls.len()
-    );
-    for (i, tool_call) in tool_calls.iter().enumerate() {
-        info!(
-            "[DEBUG] Tool call {}: tool_name={}, params={:?}, result={:?}",
-            i, tool_call.tool_name, tool_call.params, tool_call.result
-        );
-    }
-
-    // Analyze actions to create meaningful tool calls based on actual transactions
-    if tool_calls.is_empty() && !actions.is_empty() {
-        info!(
-            "[DEBUG] Analyzing {} actions to create tool calls",
-            actions.len()
-        );
-
-        for (i, action) in actions.iter().enumerate() {
-            let instruction = &action.0;
-            let program_id = instruction.program_id.to_string();
-
-            // Detect SOL transfer (System Program)
-            if program_id == "11111111111111111111111111111111" {
-                let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_name: format!("transfer_sol_{i}"),
-                    start_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    end_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    params: serde_json::json!({
-                        "program": "system_program",
-                        "from": instruction.accounts.first().map(|a| a.pubkey.to_string()),
-                        "to": instruction.accounts.get(1).map(|a| a.pubkey.to_string()),
-                        "data_length": instruction.data.len()
-                    }),
-                    result: Some(serde_json::json!({
-                        "tool_name": "sol_transfer",
-                        "operation": "system_program_transfer"
-                    })),
-                    status: "Success".to_string(),
-                };
-                tool_calls.push(tool_call);
-                info!("[DEBUG] Added SOL transfer tool call");
-            }
-            // Detect SPL Token operations
-            else if program_id == "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" {
-                let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_name: format!("spl_token_{i}"),
-                    start_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    end_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    params: serde_json::json!({
-                        "program": "spl_token",
-                        "accounts": instruction.accounts.iter().map(|a| a.pubkey.to_string()).collect::<Vec<_>>()
-                    }),
-                    result: Some(serde_json::json!({
-                        "tool_name": "spl_token_operation",
-                        "operation": "token_program"
-                    })),
-                    status: "Success".to_string(),
-                };
-                tool_calls.push(tool_call);
-                info!("[DEBUG] Added SPL token tool call");
-            }
-            // Detect Jupiter operations
-            else if program_id.contains("JUP") || program_id.contains("jupiter") {
-                let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_name: format!("jupiter_{i}"),
-                    start_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    end_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    params: serde_json::json!({
-                        "program": "jupiter",
-                        "accounts": instruction.accounts.iter().map(|a| a.pubkey.to_string()).collect::<Vec<_>>()
-                    }),
-                    result: Some(serde_json::json!({
-                        "tool_name": "jupiter_operation",
-                        "operation": "jupiter_protocol"
-                    })),
-                    status: "Success".to_string(),
-                };
-                tool_calls.push(tool_call);
-                info!("[DEBUG] Added Jupiter tool call");
-            }
-            // Generic program call
-            else {
-                let tool_call = reev_lib::session_logger::ToolCallInfo {
-                    tool_name: format!("custom_{i}"),
-                    start_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    end_time: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    params: serde_json::json!({
-                        "program_id": program_id,
-                        "accounts": instruction.accounts.iter().map(|a| a.pubkey.to_string()).collect::<Vec<_>>()
-                    }),
-                    result: Some(serde_json::json!({
-                        "tool_name": "custom_program_call",
-                        "operation": "unknown_program"
-                    })),
-                    status: "Success".to_string(),
-                };
-                tool_calls.push(tool_call);
-                info!("[DEBUG] Added custom program tool call for {}", program_id);
-            }
-        }
-
-        info!(
-            "[DEBUG] Created {} tool calls from actions",
-            tool_calls.len()
-        );
-    }
 
     // The environment's step function now takes a vector of actions to be bundled
     // into a single transaction.
@@ -788,9 +615,6 @@ async fn run_evaluation_loop(
         info: step_result.info,
     };
     trace.add_step(trace_step);
-    info!(
-        "Episode finished with {} tool calls tracked.",
-        tool_calls.len()
-    );
-    Ok((step_result.observation, trace, actions, tool_calls))
+    info!("Episode finished.");
+    Ok((step_result.observation, trace, actions))
 }

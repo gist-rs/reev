@@ -153,4 +153,50 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 3. **Test Mermaid diagram generation** from extracted tool calls
 4. **Performance testing** to ensure trace extraction doesn't impact execution
 
-**Status**: ✅ **ALL CRITICAL ISSUES RESOLVED** - Ready for Mermaid diagram implementation
+## GLM Agent Architecture Violation 🔄 CRITICAL
+- **Issue**: GLM agent in `reev-lib/src/llm_agent.rs` generates raw transaction JSON instead of using tools, violating Jupiter Integration Rules
+- **Current Behavior**: GLM agent generates JSON with `program`/`program_id` fields directly instead of using proper tool calls like `sol_transfer`
+- **Expected Behavior**: GLM agent should use the rig framework's tool system to call `sol_transfer`, `spl_transfer`, etc. tools
+- **Rule Violations**:
+  - ❌ **API-Only Instructions**: All Jupiter instructions must come from official API calls
+  - ❌ **No LLM Generation**: LLM is forbidden from generating Jupiter transaction data  
+  - ❌ **Exact API Extraction**: Preserve complete API response structure
+- **Root Cause**: `reev-lib/src/llm_agent.rs` is fundamentally designed as a generic JSON-to-transaction parser instead of a tool-using agent
+- **Impact**: Creates invalid transaction data that violates core architecture principles
+- **Priority**: CRITICAL - violates fundamental system rules and creates security risks
+- **Required Fix**:
+  1. Replace GLM JSON parsing logic in `reev-lib/src/llm_agent.rs` with proper rig tool integration
+  2. Configure GLM agent with the same tools as `reev-agent/src/enhanced/glm_agent.rs` (SolTransferTool, SplTransferTool, etc.)
+  3. Update GLM prompt to instruct use of tools instead of JSON generation
+  4. Remove all transaction JSON parsing logic from GLM agent
+  5. Ensure GLM agent uses the same tool framework as other agents
+
+- **Specific Violation Fixed**: Removed explicit rule violation from line 321-323 in restored file:
+  ~~```rust
+  let full_prompt = format!("{}\n\n{}\n\n{}", context_prompt, prompt,
+      "Generate Solana transactions as JSON array in the response. Each transaction should include program_id, accounts, and data fields.");
+  ```~~
+  ✅ **FIXED**: Now uses `let full_prompt = format!("{context_prompt}\n\n{prompt}");` which removes the explicit instruction to generate raw transaction JSON.
+- **Architecture**: Consistent tool-based agent architecture across all LLM providers
+- **Reference**: Compare with working implementation in `crates/reev-agent/src/enhanced/glm_agent.rs`
+
+## Reev-Runner Breakage from LlmAgent Removal 🔄 CRITICAL
+- **Issue**: Deleting `llm_agent.rs` broke `reev-runner` which depended on it for benchmark execution
+- **Current State**: `reev-runner` fails to compile due to missing `LlmAgent` imports and broken function logic
+- **Affected Functions**: 
+  - `run_benchmarks()` - main benchmark execution function
+  - `run_flow_benchmark()` - flow-based benchmark execution
+- **Compilation Errors**: Missing agent variables, unreachable code, broken brace structure
+- **Impact**: No benchmark execution possible until proper tool-based agent is implemented
+- **Priority**: CRITICAL - core functionality completely broken
+- **Required Fix**:
+  1. ✅ **COMPLETED**: Remove explicit transaction generation instruction
+  2. Implement proper tool-based agent runner using `reev-agent` pattern
+  3. Replace `LlmAgent` usage with `GlmAgent` from `reev-agent` that uses tools correctly
+  4. Update runner to use tool-based execution instead of raw transaction parsing
+  5. Fix all compilation errors and unreachable code
+  6. Ensure benchmark execution follows Jupiter Integration Rules
+- **Architecture**: Migrate from broken JSON-parsing agent to proper tool-based agent system
+- **Temporary Workaround**: Currently returns errors instead of executing benchmarks
+
+**Status**: 🔄 **PARTIALLY FIXED** - Explicit violation removed, but architecture still needs proper tool-based implementation

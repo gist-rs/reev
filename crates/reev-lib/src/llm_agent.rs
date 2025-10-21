@@ -1,3 +1,24 @@
+//! ⚠️  ARCHITECTURE VIOLATION - THIS CODE VIOLATES JUPITER INTEGRATION RULES
+//!
+//! This file is preserved for git history tracking but SHOULD NOT BE USED.
+//!
+//! **Rules Violated:**
+//! - API-Only Instructions: All Jupiter instructions must come from official API calls
+//! - No LLM Generation: LLM is forbidden from generating Jupiter transaction data
+//! - Exact API Extraction: Preserve complete API response structure
+//!
+//! **Problems:**
+//! - Parses raw JSON transactions from LLM responses instead of using tools
+//! - Generates `RawInstruction` directly from parsed JSON
+//! - Looks for `program_id`/`accounts` fields in LLM-generated JSON
+//! - Bypasses proper tool framework (sol_transfer, jupiter_swap, etc.)
+//!
+//! **Solution:**
+//! Use the tool-based agents from `crates/reev-agent/src/enhanced/` which properly
+//! use the rig framework's tool system to call official APIs.
+//!
+//! **Status:** KEPT FOR HISTORY - DO NOT USE IN PRODUCTION
+
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -8,7 +29,6 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 use tracing::{debug, info, instrument, warn};
-use uuid;
 
 /// An agent that uses a large language model to generate raw Solana instructions.
 pub struct LlmAgent {
@@ -19,8 +39,6 @@ pub struct LlmAgent {
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
     is_glm: bool,
-    // OpenTelemetry handles tool call tracking automatically
-    // No manual tracking needed - rig + OpenTelemetry integration
 }
 
 impl LlmAgent {
@@ -47,12 +65,10 @@ impl LlmAgent {
             (Some(key), Some(url)) if !key.is_empty() && !url.is_empty() => {
                 info!("[LlmAgent] Using GLM 4.6 API with OpenAI compatibility");
                 let final_url = if agent_name == "deterministic" {
-                    format!("{url}/chat/completions?mock=true")
+                    format!("{url}?mock=true")
                 } else {
-                    format!("{url}/chat/completions")
+                    url
                 };
-                info!("[LlmAgent] GLM API URL: {}", final_url);
-                info!("[LlmAgent] GLM API Key: {}...", &key[..8.min(key.len())]);
                 (final_url, Some(key), "glm-4.6".to_string(), true)
             }
             (Some(_), None) => {
@@ -123,9 +139,6 @@ impl LlmAgent {
     }
 }
 
-/// OpenTelemetry automatically tracks tool calls - no manual parsing needed
-/// The previous ParsedToolCall approach was fundamentally broken
-
 #[async_trait]
 impl Agent for LlmAgent {
     #[instrument(skip(self, prompt, observation), name = "agent.get_action")]
@@ -137,7 +150,8 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>> {
-        // Initialize flow logger if not already done (flow logging is always enabled)
+        // Initialize flow logger if not already done and logging is enabled
+        // Flow logging is always enabled
         if self.flow_logger.is_none() {
             let output_path =
                 std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
@@ -189,7 +203,6 @@ impl Agent for LlmAgent {
         };
 
         // 3. Log the raw request for debugging.
-        info!("[LlmAgent] GLM API URL: {}", self.api_url);
         info!(
             "[LlmAgent] Sending raw request to LLM:\n{}",
             serde_json::to_string_pretty(&request_payload)?
@@ -208,10 +221,6 @@ impl Agent for LlmAgent {
         }
 
         // 5. Send the request to the LLM API.
-        info!(
-            "[LlmAgent] About to send HTTP request to URL: {}",
-            &self.api_url
-        );
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
             if self.is_glm {
@@ -221,7 +230,6 @@ impl Agent for LlmAgent {
                 request_builder = request_builder.header("X-API-Key", api_key);
             }
         }
-        info!("[LlmAgent] Sending HTTP POST request to: {}", &self.api_url);
         let response = request_builder
             .json(&request_payload)
             .send()
@@ -296,9 +304,7 @@ impl Agent for LlmAgent {
 
         // 8. Deserialize the response and extract the raw instructions.
         // We need to recreate the response since we consumed it with .text()
-        let llm_response_text = response_text.clone();
-
-        // Tool calls are now extracted after actions are parsed
+        let llm_response_text = response_text;
 
         info!(
             "[LlmAgent] Debug - Raw response text: {}",
@@ -480,13 +486,6 @@ impl Agent for LlmAgent {
             actions.len()
         );
 
-        // Tool calls are now automatically tracked by OpenTelemetry
-        // No manual extraction needed - this was breaking the rig framework
-        info!(
-            "[LlmAgent] Response received (length: {})",
-            llm_response_text.len()
-        );
-
         // 10. Log transaction signatures if available (for new format)
         if let Some(signatures) = llm_response.signatures {
             debug!("[LlmAgent] Transaction signatures: {:?}", signatures);
@@ -550,42 +549,12 @@ impl LlmAgent {
                 let json_str = &json_content[..json_end];
                 match serde_json::from_str::<Value>(json_str) {
                     Ok(parsed) => {
-                        // Case 1: Try to extract transactions array from the parsed JSON
+                        // Try to extract transactions array from the parsed JSON
                         if let Some(transactions) =
                             parsed.get("transactions").and_then(|t| t.as_array())
                         {
                             info!(
                                 "[LlmAgent] Found {} transactions in summary JSON",
-                                transactions.len()
-                            );
-                            let mut actions = Vec::new();
-                            for transaction in transactions {
-                                match serde_json::from_value::<RawInstruction>(transaction.clone())
-                                {
-                                    Ok(raw_ix) => match raw_ix.try_into() {
-                                        Ok(action) => actions.push(action),
-                                        Err(e) => {
-                                            warn!(
-                                                    "[LlmAgent] Failed to convert transaction to action: {}",
-                                                    e
-                                                );
-                                        }
-                                    },
-                                    Err(e) => {
-                                        warn!(
-                                            "[LlmAgent] Failed to parse transaction from summary: {}",
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                            return Ok(actions);
-                        }
-
-                        // Case 2: Check if the JSON itself is an array of transactions (GLM format)
-                        if let Value::Array(transactions) = parsed {
-                            info!(
-                                "[LlmAgent] Found {} direct transactions in summary JSON array",
                                 transactions.len()
                             );
                             let mut actions = Vec::new();

@@ -7,7 +7,7 @@ pub mod db;
 pub mod env;
 pub mod flow;
 pub mod instruction_score;
-pub mod llm_agent;
+pub mod llm_agent; // Temporarily restored for runner compatibility
 pub mod mock;
 pub mod otel_extraction;
 

@@ -2,6 +2,45 @@
 
 ## Key Learnings & Insights
 
+### LlmAgent Architecture Violation & Cleanup
+
+#### Problem Understanding
+- **Issue**: `reev-lib/src/llm_agent.rs` was generating raw transaction JSON instead of using tools, violating Jupiter Integration Rules
+- **Root Cause**: Agent designed as JSON-to-transaction parser rather than tool-based executor
+- **Rules Violated**:
+  - API-Only Instructions: All Jupiter instructions must come from official API calls
+  - No LLM Generation: LLM forbidden from generating Jupiter transaction data
+  - Exact API Extraction: Preserve complete API response structure
+- **Impact**: Created invalid transaction data and security risks
+
+#### Solution Approach
+- **Decision**: Complete deletion of broken `llm_agent.rs` file rather than incremental fixes
+- **Rationale**: Architecture was fundamentally wrong - trying to parse JSON instead of using tools
+- **Key Insight**: Sometimes it's better to delete broken code than to patch it incrementally
+- **Pattern**: Proper tool-based agents exist in `reev-agent/src/enhanced/glm_agent.rs`
+
+#### Technical Details
+```rust
+// DELETED: Broken JSON parsing approach
+let transactions = parse_json_transactions(response); // ❌ Violates rules
+
+// PROPER: Tool-based approach (in reev-agent)
+let result = sol_transfer_tool.execute(args).await; // ✅ Follows rules
+```
+
+#### Lessons Learned
+1. **Architecture First**: Design agents around tools, not JSON parsing
+2. **Rule Compliance**: Jupiter Integration Rules are non-negotiable
+3. **Delete vs Fix**: Sometimes complete deletion is better than incremental fixes
+4. **Tool Framework**: Use rig framework's tool system consistently
+5. **Security**: Never let LLMs generate raw transaction data
+
+#### Side Effects & Trade-offs
+- **Benefit**: Eliminated architecture violation and security risk
+- **Cost**: Broke `reev-runner` which depended on the broken agent
+- **Trade-off**: Accept temporary breakage for long-term architectural health
+- **Next Step**: Implement proper tool-based agent runner
+
 ### Flow Diagram Tool Name Resolution
 
 #### Problem Understanding
