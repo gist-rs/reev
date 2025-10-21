@@ -1,18 +1,20 @@
-# Handover: Flow Visualization Tool Call Tracking
+# Handover: Architecture Cleanup & Flow Visualization
 
-## Current State (2025-10-20)
+## Current State (2025-10-21)
 
 ### ✅ What's Working
 1. **Flow API**: `/flows/{session_id}` endpoint working correctly
 2. **Session logs**: Generated with proper structure in `logs/sessions/`
 3. **Flow diagrams**: Basic stateDiagram generation working
 4. **Architecture**: Decoupled design implemented (reev-api layer tracking)
+5. **Database Cleanup**: Fixed database lock conflicts with proper process killing
+6. **Jupiter Rules Compliance**: Removed explicit LLM transaction generation instruction
 
 ### ❌ What's Broken
 1. **Tool Call Tracking**: `tools: []` arrays are empty in session logs
 2. **OTEL Integration**: Created spans but not extracting data correctly
-3. **Agent Dependency**: Relying on agent code changes (wrong approach)
-4. **Trace File Creation**: `traces.log` not created by default (system-breaking)
+3. **Agent Architecture**: LlmAgent violates Jupiter Integration Rules (preserved for history)
+4. **Process Management**: API server not killed before runner execution (FIXED)
 
 ## 🎯 Real Challenge
 
@@ -27,122 +29,90 @@
 - ✅ **OTEL spans are being created** in reev-api layer around HTTP requests
 - ✅ **Flow visualization is now handled by reev-api** web interface
 - ✅ **Session-based flow diagrams** generated via API endpoints
+- ✅ **Process cleanup working**: kills API(3001), reev-agent(9090), surfpool(8899)
+
+### Recent Fixes Applied
+- **Oct 21, 2025**: Removed explicit LLM transaction generation instruction
+- **Oct 21, 2025**: Fixed database lock conflicts by killing API processes
+- **Oct 21, 2025**: Preserved git history while fixing Jupiter rule violations
 
 ## 📋 Next Steps (CRITICAL)
 
-### Step 1: Capture OTEL Trace Data in reev-api
+### Step 1: Replace LlmAgent Architecture
 ```rust
-// In LlmAgent::get_action() - AFTER HTTP request
-// Extract trace data from current OTEL span
-let trace_data = extract_current_otel_trace();
-// Convert to ToolCallInfo format
-let tool_calls = parse_otel_trace_to_tools(trace_data);
-// Store in session logs
+// Current: Broken JSON parsing agent
+let agent = LlmAgent::new("glm-4.6")?; // ❌ Violates Jupiter rules
+
+// Target: Tool-based agent from reev-agent
+let agent = GlmAgent::run("glm-4.6", payload, key_map).await?; // ✅ Uses tools
 ```
 
-### Step 2: OTEL Trace Extraction Methods
-- Find how to get current span data from global tracer
-- Parse OTEL span attributes to extract tool information
-- Map HTTP request/response to logical tool calls
+### Step 2: Implement Tool-Based Runner
+- Use `crates/reev-agent/src/enhanced/glm_agent.rs` pattern
+- Replace LlmAgent imports with proper tool-based agents
+- Update runner to work with tool execution instead of JSON parsing
 
-### Step 3: Integration Points
-- Hook into existing LlmAgent HTTP request/response cycle
-- Parse LLM responses to identify intended tool actions
-- Convert to existing `ToolCallInfo` structure format
+### Step 3: OTEL Integration (Secondary)
+- Once tool-based agent works, integrate OTEL extraction
+- Use existing `reev-lib/src/otel_extraction.rs` module
+- Extract tool calls from rig's OpenTelemetry spans
 
-## 🔧 Implementation Focus Areas
+## 📁 Key Files Status
 
-### 1. OTEL Data Extraction (HIGH PRIORITY)
-```rust
-// Need to implement these functions:
-fn extract_current_otel_trace() -> OtelTraceData
-fn parse_otel_trace_to_tools(trace: OtelTraceData) -> Vec<ToolCallInfo>
-```
+### ✅ Fixed Files
+- `crates/reev-lib/src/llm_agent.rs` - Removed explicit violation (preserved for history)
+- `crates/reev-runner/src/lib.rs` - Added API process killing
+- `TOFIX.md` - Updated with current status
+- `REFLECT.md` - Added learnings from cleanup
 
-### 2. Response Parsing (HIGH PRIORITY)
-- Parse LLM responses to identify tool intentions
-- Map "get account balance" → "get_account_balance" tool call
-- Extract parameters and results from natural language
-
-### 3. Integration (MEDIUM PRIORITY)
-- Modify LlmAgent to call extraction methods
-- Update session logging to include extracted tools
-- Test with real agent responses
-
-## 📁 Key Files to Modify
-
-### Primary Targets
-- `crates/reev-lib/src/llm_agent.rs` - Add OTEL extraction after HTTP calls
-- `crates/reev-lib/src/otel_extraction.rs` - New module for trace parsing
-
-### Secondary Targets
-- `crates/reev-lib/src/session_logger/mod.rs` - Tool integration (already works)
-- `crates/reev-runner/src/lib.rs` - Pass tool calls (already works)
-
-## 🧪 Testing Strategy
-
-### 1. Manual Testing
-```bash
-# Run benchmark with real agent
-curl -X POST http://localhost:3001/api/v1/benchmarks/100-jup-swap-sol-usdc/run \
-  -H "Content-Type: application/json" \
-  -d '{"agent": "glm-4.6"}'
-
-# Check session logs for tools array
-cat logs/sessions/session_*.json | jq '.final_result.tools'
-```
-
-### 2. Flow API Testing
-```bash
-# Test flow diagram with extracted tools
-curl http://localhost:3001/api/v1/flows/{session_id}
-```
+### 🔄 Files Needing Work
+- `crates/reev-runner/src/lib.rs` - Replace LlmAgent with tool-based agent
+- Integration with `reev-agent` pattern for proper tool usage
 
 ## 🎯 Success Criteria
 
-### MUST HAVE
-- ✅ Session logs contain non-empty `tools: []` arrays
-- ✅ Tool calls have proper timing (start_time, end_time)
-- ✅ Tool calls have parameters and results
-- ✅ Flow diagrams show real tool execution paths
+### IMMEDIATE (Required for working system)
+- ✅ Database lock conflicts resolved
+- ✅ Jupiter Integration Rules no longer violated
+- 🎯 Tool-based agent execution working
+- 🎯 GLM-4.6 benchmarks run without rule violations
 
-### NICE TO HAVE
-- ✅ Multiple tool calls in single session
-- ✅ Error handling for failed tool calls
-- ✅ Tool categorization (swap, transfer, etc.)
+### FUTURE (Flow visualization)
+- 🎯 Session logs contain non-empty `tools: []` arrays from real tool calls
+- 🎯 Flow diagrams show actual tool execution paths
+- 🎯 OTEL extraction working with rig framework
 
-## 🚨 BLOCKERS
+## 🚨 CURRENT BLOCKERS
 
-### Current Blocker
-- **How to extract OTEL trace data from global tracer?**
-- **What's the correct OTEL API for getting current span?**
-- **How to parse LLM responses for tool intentions?**
+### Primary Blocker
+- **Architecture**: LlmAgent violates Jupiter Integration Rules
+- **Solution**: Replace with tool-based agents from `reev-agent`
 
-### Need Research
-- OpenTelemetry Rust API documentation
-- OTEL span data extraction methods
-- LLM response parsing for tool detection
+### Secondary Blockers
+- **OTEL Integration**: Need to implement with tool-based agents
+- **Testing**: Verify tool calls appear in session logs
 
-## 📚 Resources
+## 🔄 Next Developer Priority
 
-### OpenTelemetry Rust
-- https://docs.rs/opentelemetry/0.30/opentelemetry/
-- Focus on trace span data extraction
+1. **HIGH**: Replace LlmAgent with tool-based agent implementation
+2. **MEDIUM**: Integrate OTEL extraction with new tool-based agents  
+3. **LOW**: Flow visualization improvements once tool tracking works
 
-### Existing Code Patterns
-- `reev-agent/src/enhanced/openai.rs` - Tool logging format
-- `reev-agent/src/flow/visualization/` - Parsing patterns
+## 📚 Architecture Context
 
-### Working Examples
-- OTEL spans are created (seen in logs)
-- Flow API works with mock data
-- Session structure supports tools array
+### Current State
+- ✅ **Violations Fixed**: No longer explicitly telling LLM to generate raw JSON
+- ✅ **Process Management**: All processes properly killed before runs
+- ⚠️ **Architecture**: Still using broken agent pattern (preserved for history)
 
-## 🔄 Next Developer
+### Target Architecture
+```
+Tool-based Agent → Tool Calls → OTEL Spans → Session Logs → Flow Diagrams
+```
 
-Focus should be on:
-1. **OTEL trace extraction research** - Find correct API calls
-2. **Implement extraction methods** - Get trace data programmatically
-3. **Integration testing** - Ensure tools appear in session logs
+### Files to Reference
+- `crates/reev-agent/src/enhanced/glm_agent.rs` - Working tool-based pattern
+- `crates/reev-lib/src/otel_extraction.rs` - OTEL extraction module
+- `TOFIX.md` - Detailed status and remaining work
 
-This is the final piece to make flow visualization work with real agent executions!
+The immediate priority is replacing the broken LlmAgent with proper tool-based execution!

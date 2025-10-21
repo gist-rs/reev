@@ -1,5 +1,22 @@
 # TOFIX.md - Current Issues to Fix
 
+## ✅ Recently Fixed Issues
+
+### Database Lock Conflicts ✅ RESOLVED
+- **Issue**: `SQL execution failure: Locking error: Failed locking file. File is locked by another process`
+- **Root Cause**: `reev-api` process (port 3001) holding database lock, but runner only killed reev-agent (9090)
+- **Fix Applied**: Added `kill_existing_api(3001)` call before dependency initialization in runner
+- **Result**: Now properly kills all processes: API(3001), reev-agent(9090), surfpool(8899)
+- **Commit**: `6996580e - fix: kill existing API processes to prevent database lock conflicts`
+
+### Explicit Jupiter Rules Violation ✅ RESOLVED
+- **Issue**: GLM agent instructed to "Generate Solana transactions as JSON array in the response"
+- **Root Cause**: Added during GLM 4.6 integration (Oct 12, 2025), violated "No LLM Generation" rule
+- **Fix Applied**: Removed explicit instruction, now uses `format!("{context_prompt}\n\n{prompt}")`
+- **Result**: No longer explicitly telling LLM to generate raw transaction JSON
+- **Commit**: `6f2459bc - fix: remove explicit LLM transaction generation violation`
+- **Status**: Architecture still needs tool-based replacement, but immediate violation fixed
+
 ## ~~Flow Diagram Tool Name Bug~~ ✅ COMPLETELY RESOLVED
 - **Issue**: Flow diagram shows generic tool names (`transfer_sol`) instead of actual tool names (`sol_transfer`)
 - **Current Output**: `Agent --> transfer_sol : 0.1 SOL`
@@ -180,23 +197,21 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 - **Architecture**: Consistent tool-based agent architecture across all LLM providers
 - **Reference**: Compare with working implementation in `crates/reev-agent/src/enhanced/glm_agent.rs`
 
-## Reev-Runner Breakage from LlmAgent Removal 🔄 CRITICAL
-- **Issue**: Deleting `llm_agent.rs` broke `reev-runner` which depended on it for benchmark execution
-- **Current State**: `reev-runner` fails to compile due to missing `LlmAgent` imports and broken function logic
-- **Affected Functions**: 
-  - `run_benchmarks()` - main benchmark execution function
-  - `run_flow_benchmark()` - flow-based benchmark execution
-- **Compilation Errors**: Missing agent variables, unreachable code, broken brace structure
-- **Impact**: No benchmark execution possible until proper tool-based agent is implemented
-- **Priority**: CRITICAL - core functionality completely broken
+## GLM Agent Architecture Violation 🔄 HIGH PRIORITY
+- **Issue**: `reev-lib/src/llm_agent.rs` violates Jupiter Integration Rules by parsing raw JSON instead of using tools
+- **Current State**: Preserved for git history, but violates core architecture principles
+- **Rules Violated**:
+  - ❌ **API-Only Instructions**: All Jupiter instructions must come from official API calls
+  - ❌ **No LLM Generation**: LLM forbidden from generating Jupiter transaction data  
+  - ❌ **Exact API Extraction**: Preserve complete API response structure
+- **Impact**: Creates invalid transaction data and security risks
+- **Priority**: HIGH - violates fundamental system rules but immediate violation fixed
 - **Required Fix**:
   1. ✅ **COMPLETED**: Remove explicit transaction generation instruction
-  2. Implement proper tool-based agent runner using `reev-agent` pattern
-  3. Replace `LlmAgent` usage with `GlmAgent` from `reev-agent` that uses tools correctly
-  4. Update runner to use tool-based execution instead of raw transaction parsing
-  5. Fix all compilation errors and unreachable code
-  6. Ensure benchmark execution follows Jupiter Integration Rules
-- **Architecture**: Migrate from broken JSON-parsing agent to proper tool-based agent system
-- **Temporary Workaround**: Currently returns errors instead of executing benchmarks
+  2. Replace LlmAgent with tool-based agent from `reev-agent/src/enhanced/glm_agent.rs`
+  3. Update runner to use proper tool execution instead of JSON parsing
+  4. Ensure all agents use consistent tool-based architecture
+- **Architecture**: Consistent tool-based agent architecture across all LLM providers
+- **Reference**: Working implementation in `crates/reev-agent/src/enhanced/glm_agent.rs`
 
-**Status**: 🔄 **PARTIALLY FIXED** - Explicit violation removed, but architecture still needs proper tool-based implementation
+-**Status**: 🔄 **IMMEDIATE VIOLATION FIXED** - Architecture replacement needed for long-term health
