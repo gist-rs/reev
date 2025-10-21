@@ -6,8 +6,8 @@
 
 use reev_lib::agent::{ToolCallInfo, ToolResultStatus};
 use reev_lib::otel_extraction::{
-    convert_to_session_format, extract_current_otel_trace, parse_otel_trace_to_tools, OtelSpanData,
-    SessionToolData,
+    convert_to_session_format, extract_current_otel_trace, init_otel_extraction,
+    parse_otel_trace_to_tools, OtelSpanData, SessionToolData,
 };
 use std::time::SystemTime;
 
@@ -159,4 +159,14 @@ fn test_parse_otel_trace_to_tools() {
             tool_calls[0].result_status
         ),
     }
+}
+
+#[test]
+fn test_otel_extraction_always_enabled() {
+    // Test that OpenTelemetry extraction is always enabled
+    let result = init_otel_extraction();
+    assert!(
+        result.is_ok(),
+        "OpenTelemetry extraction should always initialize successfully"
+    );
 }
