@@ -3679,6 +3679,7 @@ dependencies = [
  "reev-flow",
  "reev-lib",
  "reev-runner",
+ "reev-tools",
  "regex",
  "serde",
  "serde_json",

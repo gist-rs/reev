@@ -4,8 +4,9 @@
 //! including SOL transfers and SPL token transfers, acting as thin wrappers
 //! around the protocol handlers.
 
-use crate::tracker::tool_wrapper::GlobalFlowTracker;
+use crate::tool_names::{SOL_TRANSFER, SPL_TRANSFER};
 use crate::tracker::tool_wrapper;
+use crate::tracker::tool_wrapper::GlobalFlowTracker;
 use reev_lib::agent::ToolResultStatus;
 use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
 use rig::{completion::ToolDefinition, tool::Tool};
@@ -62,7 +63,7 @@ pub struct SolTransferTool {
 }
 
 impl Tool for SolTransferTool {
-    const NAME: &'static str = "sol_transfer";
+    const NAME: &'static str = SOL_TRANSFER;
     type Error = NativeTransferError;
     type Args = NativeTransferArgs;
     type Output = String;
@@ -239,7 +240,7 @@ pub struct SplTransferTool {
 }
 
 impl Tool for SplTransferTool {
-    const NAME: &'static str = "spl_transfer";
+    const NAME: &'static str = SPL_TRANSFER;
     type Error = NativeTransferError;
     type Args = NativeTransferArgs;
     type Output = String;

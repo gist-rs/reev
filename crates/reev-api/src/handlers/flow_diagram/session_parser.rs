@@ -4,6 +4,7 @@
 //! and execution information for flow diagram generation.
 
 use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
+use reev_tools::tool_names;
 use serde_json::Value;
 use std::path::Path;
 use tracing::{debug, info};
@@ -285,12 +286,8 @@ impl SessionParser {
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
 
-                    // Create tool name based on program_id
-                    let tool_name = if program_id == "11111111111111111111111111111111" {
-                        "sol_transfer".to_string()
-                    } else {
-                        format!("program_{}", &program_id[..8.min(program_id.len())])
-                    };
+                    // Create tool name based on program_id using centralized tool names
+                    let tool_name = tool_names::tool_name_from_program_id(program_id);
 
                     // Extract account information for parameters
                     let mut params = serde_json::Map::new();
