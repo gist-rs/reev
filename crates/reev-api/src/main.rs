@@ -11,6 +11,7 @@ use reev_lib::db::{DatabaseConfig, PooledDatabaseWriter};
 use reev_lib::server_utils::kill_existing_api;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::signal;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tracing::info;
@@ -138,6 +139,26 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("API server listening on {}", addr);
 
-    axum::serve(listener, app).await?;
+    // Graceful shutdown handling
+    let graceful_shutdown = async move {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        info!("Received Ctrl+C signal, shutting down gracefully...");
+
+        // Gracefully shutdown database connections
+        info!("Shutting down database connection pool...");
+        if let Err(e) = db.shutdown().await {
+            tracing::warn!("Error shutting down database: {}", e);
+        } else {
+            info!("Database connections closed successfully");
+        }
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(graceful_shutdown)
+        .await?;
+
+    info!("API server shutdown complete");
     Ok(())
 }

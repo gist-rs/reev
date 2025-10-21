@@ -1,7 +1,7 @@
 //! Integration test for flow tracking functionality
 //!
 //! This test demonstrates that the flow tracking system captures tool calls
-//! and execution order when REEV_ENABLE_FLOW_LOGGING is enabled.
+//! and execution order with flow logging enabled by default.
 
 use std::env;
 
@@ -9,11 +9,9 @@ use std::env;
 #[serial_test::serial]
 async fn test_flow_tracking_integration() {
     // Clean up any existing state first
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
-    // Enable flow logging for this test
-    env::set_var("REEV_ENABLE_FLOW_LOGGING", "1");
+    // Flow logging is enabled by default
     env::set_var("RUST_LOG", "info");
 
     // Simulate some tool calls
@@ -107,7 +105,6 @@ async fn test_flow_tracking_integration() {
     println!("🔧 Tool usage: {:?}", data.tool_usage);
 
     // Clean up
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     env::remove_var("RUST_LOG");
 }
 
@@ -115,11 +112,10 @@ async fn test_flow_tracking_integration() {
 #[serial_test::serial]
 async fn test_flow_tracking_disabled() {
     // Clean up any existing state first
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
-    // Ensure flow logging is disabled for this test
-    env::set_var("REEV_ENABLE_FLOW_LOGGING", "false");
+    // This test is no longer relevant since flow logging is always enabled
+    // TODO: Remove this test or repurpose it
 
     // Record a tool call (should be ignored when logging is disabled)
     reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(
@@ -158,11 +154,9 @@ async fn test_flow_tracking_disabled() {
 #[serial_test::serial]
 async fn test_llm_response_with_flows() {
     // Clean up any existing state first
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
     reev_tools::tracker::tool_wrapper::GlobalFlowTracker::reset();
 
-    // Enable flow logging for this test
-    env::set_var("REEV_ENABLE_FLOW_LOGGING", "1");
+    // Flow logging is enabled by default
 
     // Simulate tool calls that might occur during LLM execution
     reev_tools::tracker::tool_wrapper::GlobalFlowTracker::record_tool_call(reev_tools::tracker::tool_wrapper::ToolCallParams {
@@ -199,5 +193,4 @@ async fn test_llm_response_with_flows() {
     println!("📄 Serialized flow data: {serialized}");
 
     // Clean up
-    env::remove_var("REEV_ENABLE_FLOW_LOGGING");
 }

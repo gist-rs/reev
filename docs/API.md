@@ -293,7 +293,7 @@ RUST_LOG=info                    # Log level (debug, info, warn, error)
 REEV_FLOW_LOG_PATH=logs/flows    # Flow log output directory
 GOOGLE_API_KEY=your-key          # Gemini API key
 GLM_API_KEY=your-key            # GLM API key
-GLM_API_URL=https://api.example.com
+GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
 
 # Command-line options
 --timeout SECONDS                # Execution timeout (default: 30)

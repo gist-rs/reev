@@ -313,7 +313,7 @@ pub async fn execute_benchmark_background(
                             // Note: For now, we'll append it to the trace or store in session metadata
                             // In the future, this could be a dedicated flow_data table
                             let enhanced_trace = if !ascii_trace.is_empty() {
-                                format!("{}\n\n--- FLOW DATA ---\n{}", ascii_trace, flow_json)
+                                format!("{ascii_trace}\n\n--- FLOW DATA ---\n{flow_json}")
                             } else {
                                 flow_json
                             };

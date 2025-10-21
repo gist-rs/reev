@@ -1,7 +1,39 @@
-# TODO
+# TODO (skip this doc, this meant for human tasks)
 
 - `Execution Trace` must have "--" after `Data (Base58): "2"` to separate line
-- clean TODO
+- The diagram while running should say running or loading in diagram, currently it look like this
+  ```
+  {
+    "diagram": "stateDiagram\n    [*] --> Prompt\n    Prompt --> Agent : Execute task\n    Agent --> [*]",
+    "metadata": {
+    "benchmark_id": "unknown",
+    "execution_time_ms": 1000,
+    "session_id": "0b6e2481-ff80-43a8-8487-546b89245643",
+    "state_count": 2,
+    "tool_count": 0
+    },
+    "session_id": "0b6e2481-ff80-43a8-8487-546b89245643",
+    "sessions": []
+  }
+  ```
+- when start it should kill old reev-api service `kill_existing_api(3001).await?;` and when stop api it should gracefully stop db connection in all exit case.
+- llm is not allow to generate tx, why rompt siad `and data fields.`? via `cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
+
+```
+: [LlmAgent] Sending raw request to LLM:
+{
+  "max_tokens": 4000,
+  "messages": [
+    {
+      "content": "---\n\nCURRENT ON-CHAIN CONTEXT:\naccount_states:\n  '11111111111111111111111111111111':\n    data_len: 14\n    executable: true\n    lamports: 1\n    owner: NativeLoader1111111111111111111111111111111\n  USER_WALLET_PUBKEY:\n    data_len: 0\n    executable: false\n    lamports: 1000000000\n    owner: '11111111111111111111111111111111'\nfee_payer_placeholder: USER_WALLET_PUBKEY\nkey_map:\n  '11111111111111111111111111111111': '11111111111111111111111111111111'\n  RECIPIENT_WALLET_PUBKEY: 4GwvTUF6uXPrnvqetT6LWNU2XVqsw49SN5fHcRYoY4Wy\n  USER_WALLET_PUBKEY: 9Mh4CjZpRYvakQYgsvY4RTaTQp2cCGjKtiTG2tDuYL2q\n\n\n---\n\nPlease send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).\n\nGenerate Solana transactions as JSON array in the response. Each transaction should include program_id, accounts, and data fields.",
+      "role": "user"
+    }
+  ],
+  "model": "glm-4.6",
+  "temperature": 0.1
+}
+```
+
 
 - Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Docker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
 

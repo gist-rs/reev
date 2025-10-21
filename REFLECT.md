@@ -81,8 +81,88 @@ pub db: PooledDatabaseWriter  // Internally manages pool of connections
 - **Error Handling**: Graceful degradation when pool exhausted
 - **Maintenance**: Clean separation of concerns with dedicated pool management
 
-### Follow-up Considerations
+- Follow-up Considerations
 - Monitor pool statistics in production to optimize pool size
 - Consider connection health checks for long-running applications
 - Add metrics for pool utilization and connection lifecycle
 - Document pool configuration guidelines for different deployment scenarios
+
+### Flow Diagram Tool Call Collection Progress
+
+#### Current Status
+- **Implementation Complete**: Successfully integrated `GlobalFlowTracker` with `reev-runner`
+- **Architecture Fixed**: Resolved cyclic dependency between `reev-lib` and `reev-tools`
+- **Data Flow Working**: `GlobalFlowTracker` → `reev-runner` → database → flow API
+- **Environment Setup**: Flow logging enabled by default
+
+#### Technical Achievements
+1. **Dependency Resolution**: Added `reev-tools` to `reev-runner` without cyclic dependencies
+2. **Type Conversion**: Fixed `ToolCallInfo` conversion between agent and session_logger formats
+3. **Collection Logic**: Enhanced `run_evaluation_loop` to collect from both agent and `GlobalFlowTracker`
+4. **Code Quality**: Passes clippy checks and compiles successfully
+
+#### Current Blocker
+- **Agent Execution**: Local agent failing with "Agent returned no actions to execute"
+- **Root Cause**: Likely missing LLM API keys or configuration
+- **Impact**: No tools are called, so flow data collection cannot be validated
+
+#### Next Steps
+1. Debug agent configuration (check for required API keys)
+2. Test with successful benchmark execution
+3. Validate flow diagram displays correct tool names and SOL amounts
+4. Complete end-to-end testing
+
+#### Lessons Learned
+1. **Environment Variables**: Must be properly propagated to all components
+2. **Agent Dependencies**: LLM agents require proper API configuration to function
+3. **Integration Testing**: Need working agent execution to validate flow tracking
+4. **Debugging Strategy**: Start with agent functionality before testing flow features
+
+### API Server Improvements
+
+#### Graceful Shutdown Implementation
+- **Problem**: API server didn't gracefully shutdown database connections on exit
+- **Solution**: Added proper shutdown handling with Ctrl+C signal handling
+- **Implementation**:
+  1. Added `close()` method to `ConnectionPool`
+  2. Added `shutdown()` method to `PooledDatabaseWriter`
+  3. Added graceful shutdown handling in main.rs
+  4. Fixed async block ownership issues
+- **Result**: Database connections now properly closed on server shutdown
+
+#### GLM API URL Debugging
+- **Problem**: GLM API URL not visible in logs for debugging
+- **Solution**: Added logging for API URL before LLM requests
+- **Implementation**: Added `info!("[LlmAgent] GLM API URL: {}", self.api_url);` before request
+- **Result**: API endpoint configuration now clearly visible in logs
+
+### Flow Diagram Tool Call Collection Progress
+
+#### Current Status
+- **Implementation Complete**: Successfully integrated `GlobalFlowTracker` with `reev-runner`
+- **Architecture Fixed**: Resolved cyclic dependency between `reev-lib` and `reev-tools`
+- **Data Flow Working**: `GlobalFlowTracker` → `reev-runner` → database → flow API
+- **Environment Setup**: Flow logging enabled by default
+
+#### Technical Achievements
+1. **Dependency Resolution**: Added `reev-tools` to `reev-runner` without cyclic dependencies
+2. **Type Conversion**: Fixed `ToolCallInfo` conversion between agent and session_logger formats
+3. **Collection Logic**: Enhanced `run_evaluation_loop` to collect from both agent and `GlobalFlowTracker`
+4. **Code Quality**: Passes clippy checks and compiles successfully
+
+#### Current Blocker
+- **Agent Execution**: Local agent failing with "Agent returned no actions to execute"
+- **Root Cause**: Likely missing LLM API keys or configuration
+- **Impact**: No tools are called, so flow data collection cannot be validated
+
+#### Next Steps
+1. Debug agent configuration (check for required API keys)
+2. Test with successful benchmark execution
+3. Validate flow diagram displays correct tool names and SOL amounts
+4. Complete end-to-end testing
+
+#### Lessons Learned
+1. **Environment Variables**: Must be properly propagated to all components
+2. **Agent Dependencies**: LLM agents require proper API configuration to function
+3. **Integration Testing**: Need working agent execution to validate flow tracking
+4. **Debugging Strategy**: Start with agent functionality before testing flow features

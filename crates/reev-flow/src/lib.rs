@@ -24,8 +24,7 @@ pub use otel::FlowTracer;
 pub use renderer::{render_flow_file_as_ascii_tree, FlowLogRenderer};
 pub use types::*;
 pub use utils::{
-    calculate_execution_statistics, get_default_flow_log_path, is_flow_logging_enabled,
-    FlowSummary, FlowUtils,
+    calculate_execution_statistics, get_default_flow_log_path, FlowSummary, FlowUtils,
 };
 pub use website_exporter::WebsiteExporter;
 

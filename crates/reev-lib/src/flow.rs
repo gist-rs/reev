@@ -10,12 +10,11 @@ use std::path::{Path, PathBuf};
 // Re-export everything from reev-flow for backward compatibility
 pub use reev_flow::{
     calculate_execution_statistics, get_default_flow_log_path, init_flow_tracing,
-    is_flow_logging_enabled, render_flow_file_as_ascii_tree, AgentBehaviorAnalysis, ErrorContent,
-    EventContent, ExecutionResult, ExecutionStatistics, FlowEdge, FlowError, FlowEvent,
-    FlowEventType, FlowGraph, FlowLog, FlowLogDbExt, FlowLogRenderer, FlowLogger, FlowNode,
-    FlowResult, FlowTracer, LlmRequestContent, PerformanceMetrics, ScoringBreakdown,
-    ToolCallContent, ToolResultStatus, ToolUsageStats, TransactionExecutionContent, WebsiteData,
-    WebsiteExporter,
+    render_flow_file_as_ascii_tree, AgentBehaviorAnalysis, ErrorContent, EventContent,
+    ExecutionResult, ExecutionStatistics, FlowEdge, FlowError, FlowEvent, FlowEventType, FlowGraph,
+    FlowLog, FlowLogDbExt, FlowLogRenderer, FlowLogger, FlowNode, FlowResult, FlowTracer,
+    LlmRequestContent, PerformanceMetrics, ScoringBreakdown, ToolCallContent, ToolResultStatus,
+    ToolUsageStats, TransactionExecutionContent, WebsiteData, WebsiteExporter,
 };
 
 // Re-export from database module for backward compatibility

@@ -143,23 +143,19 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             continue;
         }
 
-        // Initialize unified session logging if enabled
+        // Initialize unified session logging (flow logging is always enabled)
         let session_id = uuid::Uuid::new_v4().to_string();
-        let session_logger = if reev_lib::flow::is_flow_logging_enabled() {
-            let log_path = std::env::var("REEV_SESSION_LOG_PATH")
-                .unwrap_or_else(|_| "logs/sessions".to_string());
-            let path = PathBuf::from(log_path);
-            std::fs::create_dir_all(&path)?;
+        let log_path =
+            std::env::var("REEV_SESSION_LOG_PATH").unwrap_or_else(|_| "logs/sessions".to_string());
+        let path = PathBuf::from(log_path);
+        std::fs::create_dir_all(&path)?;
 
-            Some(create_session_logger(
-                session_id.clone(),
-                test_case.id.clone(),
-                agent_name.to_string(),
-                Some(path),
-            )?)
-        } else {
-            None
-        };
+        let session_logger = Some(create_session_logger(
+            session_id.clone(),
+            test_case.id.clone(),
+            agent_name.to_string(),
+            Some(path),
+        )?);
 
         // Create session in database
         let start_time = std::time::SystemTime::now()
@@ -383,22 +379,18 @@ async fn run_flow_benchmark(
         "Starting flow benchmark execution"
     );
 
-    // Initialize flow logging for flow benchmarks
-    let flow_logger = if reev_lib::flow::is_flow_logging_enabled() {
-        let output_path =
-            std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
-        let path = PathBuf::from(output_path);
-        std::fs::create_dir_all(&path)?;
+    // Initialize flow logging for flow benchmarks (flow logging is always enabled)
+    let output_path =
+        std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
+    let path = PathBuf::from(output_path);
+    std::fs::create_dir_all(&path)?;
 
-        Some(FlowLogger::new_with_database(
-            test_case.id.clone(),
-            agent_name.to_string(),
-            path,
-            Arc::clone(&db) as Arc<dyn reev_flow::logger::DatabaseWriter>,
-        ))
-    } else {
-        None
-    };
+    let flow_logger = Some(FlowLogger::new_with_database(
+        test_case.id.clone(),
+        agent_name.to_string(),
+        path,
+        db.clone(),
+    ));
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
@@ -516,30 +508,28 @@ async fn run_flow_benchmark(
             scoring_breakdown: Some(scoring_breakdown),
         };
 
-        // Auto-render flow as ASCII tree after completion
-        if reev_lib::flow::is_flow_logging_enabled() {
-            match flow_logger.complete(execution_result).await {
-                Ok(flow_file_path) => {
-                    match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
-                        Ok(tree_output) => {
-                            info!("\n{}", tree_output);
-                        }
-                        Err(e) => {
-                            warn!(
-                                benchmark_id = %test_case.id,
-                                error = %e,
-                                "Failed to render flow as ASCII tree"
-                            );
-                        }
+        // Auto-render flow as ASCII tree after completion (flow logging is always enabled)
+        match flow_logger.complete(execution_result).await {
+            Ok(flow_file_path) => {
+                match reev_lib::flow::render_flow_file_as_ascii_tree(&flow_file_path) {
+                    Ok(tree_output) => {
+                        info!("\n{}", tree_output);
+                    }
+                    Err(e) => {
+                        warn!(
+                            benchmark_id = %test_case.id,
+                            error = %e,
+                            "Failed to render flow as ASCII tree"
+                        );
                     }
                 }
-                Err(e) => {
-                    warn!(
-                        benchmark_id = %test_case.id,
-                        error = %e,
-                        "Failed to complete flow logging"
-                    );
-                }
+            }
+            Err(e) => {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    error = %e,
+                    "Failed to complete flow logging"
+                );
             }
         }
     }
@@ -617,6 +607,34 @@ async fn run_evaluation_loop(
 
     // Get tool calls from agent for flow diagram generation
     let mut tool_calls = agent.get_tool_calls();
+
+    // Also collect from GlobalFlowTracker if available
+    if let Some(flow_data) = reev_tools::tracker::tool_wrapper::GlobalFlowTracker::get_flow_data() {
+        info!(
+            "[DEBUG] Collected {} tool calls from GlobalFlowTracker",
+            flow_data.total_tool_calls
+        );
+        // Convert FlowData tool calls to session_logger ToolCallInfo format
+        for tool_call in flow_data.tool_calls {
+            let start_timestamp = tool_call
+                .timestamp
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let end_timestamp = start_timestamp + (tool_call.execution_time_ms as u64 / 1000);
+
+            let tool_call_info = reev_lib::session_logger::ToolCallInfo {
+                tool_name: tool_call.tool_name,
+                start_time: start_timestamp,
+                end_time: end_timestamp,
+                params: serde_json::from_str(&tool_call.tool_args)
+                    .unwrap_or(serde_json::Value::Null),
+                result: tool_call.result_data,
+                status: format!("{:?}", tool_call.result_status),
+            };
+            tool_calls.push(tool_call_info);
+        }
+    }
 
     // Debug: Log tool calls extraction results
     info!(

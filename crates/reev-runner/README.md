@@ -48,7 +48,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     To run using the GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm` agent name.
     ```sh
     export GLM_API_KEY="your-glm-api-key"
-    export GLM_API_URL="https://api.example.com/v1/chat/completions"
+    export GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm
     ```
     > **Note:** Both `GLM_API_KEY` and `GLM_API_URL` environment variables must be set for GLM 4.6 to work.

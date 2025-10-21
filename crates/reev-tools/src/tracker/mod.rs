@@ -18,35 +18,22 @@ pub struct FlowTracker {
     active_calls: HashMap<String, Instant>,
     /// Tool usage statistics
     tool_usage: HashMap<String, u32>,
-    /// Whether flow tracking is enabled
-    enabled: bool,
 }
 
 impl FlowTracker {
     /// Create a new flow tracker
     pub fn new() -> Self {
-        let enabled = reev_lib::flow::is_flow_logging_enabled();
-        debug!("Flow tracker initialized - enabled: {}", enabled);
+        debug!("Flow tracker initialized");
 
         Self {
             tool_calls: Vec::new(),
             active_calls: HashMap::new(),
             tool_usage: HashMap::new(),
-            enabled,
         }
-    }
-
-    /// Check if flow tracking is enabled
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
     }
 
     /// Start tracking a tool call
     pub fn start_tool_call(&mut self, tool_name: &str, _tool_args: &str, depth: u32) -> String {
-        if !self.enabled {
-            return String::new();
-        }
-
         let call_id = format!("{}_{}", tool_name, uuid::Uuid::new_v4());
         let start_time = Instant::now();
 
@@ -69,7 +56,7 @@ impl FlowTracker {
         result_data: Option<serde_json::Value>,
         depth: u32,
     ) {
-        if !self.enabled || call_id.is_empty() {
+        if call_id.is_empty() {
             return;
         }
 
@@ -115,7 +102,7 @@ impl FlowTracker {
         error_message: &str,
         depth: u32,
     ) {
-        if !self.enabled || call_id.is_empty() {
+        if call_id.is_empty() {
             return;
         }
 
@@ -154,7 +141,7 @@ impl FlowTracker {
 
     /// Get flow data for inclusion in LlmResponse
     pub fn get_flow_data(&self) -> Option<FlowData> {
-        if !self.enabled || self.tool_calls.is_empty() {
+        if self.tool_calls.is_empty() {
             return None;
         }
 
@@ -175,10 +162,6 @@ impl FlowTracker {
 
     /// Get current statistics
     pub fn get_statistics(&self) -> (u32, HashMap<String, u32>) {
-        if !self.enabled {
-            return (0, HashMap::new());
-        }
-
         (self.tool_calls.len() as u32, self.tool_usage.clone())
     }
 }

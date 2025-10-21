@@ -182,6 +182,22 @@ impl ConnectionPool {
             available_permits,
         }
     }
+
+    /// Close all connections in the pool
+    pub async fn close(&self) -> Result<()> {
+        info!("[POOL] Closing all database connections...");
+
+        // Clear all connections from the pool
+        let mut connections = self.connections.lock().await;
+        connections.clear();
+
+        // Reset current size
+        let mut current_size = self.current_size.lock().await;
+        *current_size = 0;
+
+        info!("[POOL] All database connections closed");
+        Ok(())
+    }
 }
 
 /// A pooled database connection that returns itself to the pool when dropped

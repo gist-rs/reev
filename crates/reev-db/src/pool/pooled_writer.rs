@@ -476,6 +476,17 @@ impl PooledDatabaseWriter {
             Ok(None)
         }
     }
+
+    /// Gracefully shutdown the connection pool
+    pub async fn shutdown(&self) -> Result<()> {
+        info!("[POOLED_WRITER] Shutting down database connection pool...");
+
+        // Close all connections in the pool
+        self.pool.close().await?;
+
+        info!("[POOLED_WRITER] Database connection pool shutdown complete");
+        Ok(())
+    }
 }
 
 // Implement Clone for PooledDatabaseWriter

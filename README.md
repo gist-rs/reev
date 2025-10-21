@@ -68,6 +68,7 @@ The framework now provides **automatic surfpool management** - no manual setup r
 ```bash
 # All benchmarks work out of the box
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 
 # Jupiter protocols (swap, lending, mint/redeem)
 cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local

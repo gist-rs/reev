@@ -37,23 +37,8 @@ impl SimpleFlowTracker {
         }
     }
 
-    /// Check if flow tracking is enabled
-    pub fn is_enabled(&self) -> bool {
-        let enabled = reev_flow::is_flow_logging_enabled();
-        debug!("[SimpleFlowTracker] Flow logging enabled: {}", enabled);
-        enabled
-    }
-
     /// Record a tool call
     pub fn record_tool_call(&mut self, params: ToolCallParams) {
-        if !self.is_enabled() {
-            debug!(
-                "[SimpleFlowTracker] Flow logging disabled, skipping tool call: {}",
-                params.tool_name
-            );
-            return;
-        }
-
         let tool_call_info = ToolCallInfo {
             tool_name: params.tool_name.clone(),
             tool_args: params.tool_args,
@@ -76,7 +61,7 @@ impl SimpleFlowTracker {
 
     /// Get flow data for inclusion in LlmResponse
     pub fn get_flow_data(&self) -> Option<FlowData> {
-        if !self.is_enabled() || self.tool_calls.is_empty() {
+        if self.tool_calls.is_empty() {
             return None;
         }
 

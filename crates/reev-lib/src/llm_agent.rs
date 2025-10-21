@@ -49,10 +49,12 @@ impl LlmAgent {
             (Some(key), Some(url)) if !key.is_empty() && !url.is_empty() => {
                 info!("[LlmAgent] Using GLM 4.6 API with OpenAI compatibility");
                 let final_url = if agent_name == "deterministic" {
-                    format!("{url}?mock=true")
+                    format!("{url}/chat/completions?mock=true")
                 } else {
-                    url
+                    format!("{url}/chat/completions")
                 };
+                info!("[LlmAgent] GLM API URL: {}", final_url);
+                info!("[LlmAgent] GLM API Key: {}...", &key[..8.min(key.len())]);
                 (final_url, Some(key), "glm-4.6".to_string(), true)
             }
             (Some(_), None) => {
@@ -359,8 +361,8 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
     ) -> Result<Vec<AgentAction>> {
-        // Initialize flow logger if not already done and logging is enabled
-        if self.flow_logger.is_none() && crate::flow::is_flow_logging_enabled() {
+        // Initialize flow logger if not already done (flow logging is always enabled)
+        if self.flow_logger.is_none() {
             let output_path =
                 std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
             let path = PathBuf::from(output_path);
@@ -412,6 +414,7 @@ impl Agent for LlmAgent {
         };
 
         // 3. Log the raw request for debugging.
+        info!("[LlmAgent] GLM API URL: {}", self.api_url);
         info!(
             "[LlmAgent] Sending raw request to LLM:\n{}",
             serde_json::to_string_pretty(&request_payload)?
@@ -430,6 +433,10 @@ impl Agent for LlmAgent {
         }
 
         // 5. Send the request to the LLM API.
+        info!(
+            "[LlmAgent] About to send HTTP request to URL: {}",
+            &self.api_url
+        );
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
             if self.is_glm {
@@ -439,6 +446,7 @@ impl Agent for LlmAgent {
                 request_builder = request_builder.header("X-API-Key", api_key);
             }
         }
+        info!("[LlmAgent] Sending HTTP POST request to: {}", &self.api_url);
         let response = request_builder
             .json(&request_payload)
             .send()
@@ -770,12 +778,42 @@ impl LlmAgent {
                 let json_str = &json_content[..json_end];
                 match serde_json::from_str::<Value>(json_str) {
                     Ok(parsed) => {
-                        // Try to extract transactions array from the parsed JSON
+                        // Case 1: Try to extract transactions array from the parsed JSON
                         if let Some(transactions) =
                             parsed.get("transactions").and_then(|t| t.as_array())
                         {
                             info!(
                                 "[LlmAgent] Found {} transactions in summary JSON",
+                                transactions.len()
+                            );
+                            let mut actions = Vec::new();
+                            for transaction in transactions {
+                                match serde_json::from_value::<RawInstruction>(transaction.clone())
+                                {
+                                    Ok(raw_ix) => match raw_ix.try_into() {
+                                        Ok(action) => actions.push(action),
+                                        Err(e) => {
+                                            warn!(
+                                                    "[LlmAgent] Failed to convert transaction to action: {}",
+                                                    e
+                                                );
+                                        }
+                                    },
+                                    Err(e) => {
+                                        warn!(
+                                            "[LlmAgent] Failed to parse transaction from summary: {}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                            return Ok(actions);
+                        }
+
+                        // Case 2: Check if the JSON itself is an array of transactions (GLM format)
+                        if let Value::Array(transactions) = parsed {
+                            info!(
+                                "[LlmAgent] Found {} direct transactions in summary JSON array",
                                 transactions.len()
                             );
                             let mut actions = Vec::new();
