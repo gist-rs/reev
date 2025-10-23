@@ -201,32 +201,4 @@ impl ZAIAgent {
         // 🎯 Format final response using common helper
         AgentHelper::format_comprehensive_response(execution_result, Some(tool_calls), "ZAIAgent")
     }
-
-    /// Check if response contains transaction indicators
-    fn contains_transaction_indicators(response: &str) -> bool {
-        response.contains("transactions")
-            || response.contains("instruction")
-            || response.contains("program_id")
-            || response.contains("accounts")
-            || response.contains("data")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_contains_transaction_indicators() {
-        assert!(ZAIAgent::contains_transaction_indicators(
-            "transactions: [...]"
-        ));
-        assert!(ZAIAgent::contains_transaction_indicators(
-            "program_id: SystemProgram"
-        ));
-        assert!(ZAIAgent::contains_transaction_indicators("data: ..."));
-        assert!(!ZAIAgent::contains_transaction_indicators(
-            "just a regular response"
-        ));
-    }
 }
