@@ -726,6 +726,27 @@ impl LlmAgent {
     fn extract_transactions_from_summary(&self, summary: &str) -> Result<Vec<AgentAction>> {
         use serde_json::Value;
 
+        // First, try to parse the summary directly as a JSON array of transactions
+        // This handles cases where the summary is like "[{\"program_id\":...}]"
+        if let Ok(transactions) = serde_json::from_str::<Vec<RawInstruction>>(summary) {
+            info!(
+                "[LlmAgent] Found {} transactions by parsing summary as JSON array",
+                transactions.len()
+            );
+            let mut actions = Vec::new();
+            for transaction in transactions {
+                match transaction.try_into() {
+                    Ok(action) => actions.push(action),
+                    Err(e) => {
+                        warn!("[LlmAgent] Failed to convert transaction to action: {}", e);
+                    }
+                }
+            }
+            if !actions.is_empty() {
+                return Ok(actions);
+            }
+        }
+
         // Look for JSON blocks in the summary that contain transaction data
         // Pattern: ```json\n{...transactions...}\n```
         if let Some(json_start) = summary.find("```json") {

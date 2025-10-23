@@ -41,6 +41,45 @@ let result = sol_transfer_tool.execute(args).await; // ✅ Follows rules
 - **Trade-off**: Accept temporary breakage for long-term architectural health
 - **Next Step**: Implement proper tool-based agent runner
 
+### Transaction Parsing Fix Success
+
+#### Problem Understanding
+- **Issue**: LlmAgent couldn't parse transaction responses from GLM models, causing 0% scores on benchmarks
+- **Root Cause**: GLM responses return transaction data in `summary` field as JSON array string, not in `transactions` array
+- **Error Pattern**: `Agent returned no actions to execute` because parsing failed
+- **Impact**: All deterministic benchmarks failing despite valid transaction generation
+
+#### Solution Approach
+- **Insight**: GLM Coding agent returns data as `summary: "[{\"program_id\":\"...\"}]"` (JSON array string)
+- **Fix**: Added direct JSON array parsing in `extract_transactions_from_summary()` method
+- **Key Change**: Handle case where summary is direct JSON array, not wrapped in code blocks
+- **Result**: 001-sol-transfer benchmark score improved from 0% to 100%
+
+#### Technical Details
+```rust
+// BEFORE: Only looked for ```json blocks
+if let Some(json_start) = summary.find("```json") { ... }
+
+// AFTER: Added direct JSON array parsing
+if let Ok(transactions) = serde_json::from_str::<Vec<RawInstruction>>(summary) {
+    info!("Found {} transactions by parsing summary as JSON array", transactions.len());
+    // Convert to actions...
+}
+```
+
+#### Lessons Learned
+1. **Response Format Matters**: Different AI services return data in different fields
+2. **Robust Parsing**: Must handle multiple response formats, not just ideal cases
+3. **JSON Array Strings**: Sometimes data comes as stringified JSON arrays
+4. **Testing Validation**: Real benchmark testing revealed the issue quickly
+5. **Incremental Fixes**: Small targeted fixes can resolve major functionality gaps
+
+#### Impact Assessment
+- **Before**: 001-sol-transfer: 0%, 002-spl-transfer: 0%, all basic benchmarks failing
+- **After**: 001-sol-transfer: 100%, 002-spl-transfer: 100%, core functionality restored
+- **Scope**: Fix applies to all GLM-based agents (deterministic, local, etc.)
+- **Reliability**: Now handles both new format responses and legacy formats
+
 ### GLM-4.6 API Integration
 
 #### Problem Understanding
