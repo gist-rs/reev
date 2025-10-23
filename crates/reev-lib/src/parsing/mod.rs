@@ -219,25 +219,25 @@ impl ResponseParser {
                     transactions
                         .iter()
                         .flat_map(|tx| {
-                            // Extract instructions array from each transaction
+                            // First try to extract instructions array (Jupiter format)
                             if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
                                 instructions
                                     .iter()
                                     .filter_map(|instruction| {
-                                        info!("[ResponseParser] Debug - Attempting to parse instruction: {:?}", instruction);
+                                        info!("[ResponseParser] Debug - Attempting to parse Jupiter instruction: {:?}", instruction);
                                         match serde_json::from_value::<RawInstruction>(
                                             instruction.clone(),
                                         ) {
                                             Ok(raw_instruction) => {
                                                 info!(
-                                                    "[ResponseParser] Debug - Successfully parsed RawInstruction with program_id: {}",
+                                                    "[ResponseParser] Debug - Successfully parsed Jupiter RawInstruction with program_id: {}",
                                                     raw_instruction.program_id
                                                 );
                                                 Some(raw_instruction)
                                             }
                                             Err(e) => {
                                                 warn!(
-                                                    "[ResponseParser] Debug - Failed to parse RawInstruction: {}. Instruction: {}",
+                                                    "[ResponseParser] Debug - Failed to parse Jupiter RawInstruction: {}. Instruction: {}",
                                                     e, instruction
                                                 );
                                                 None
@@ -246,8 +246,24 @@ impl ResponseParser {
                                     })
                                     .collect::<Vec<RawInstruction>>()
                             } else {
-                                warn!("[ResponseParser] Debug - Transaction has no instructions array");
-                                Vec::new()
+                                // Try to parse transaction as direct instruction (simple format)
+                                info!("[ResponseParser] Debug - Transaction has no instructions array, trying direct instruction format");
+                                match serde_json::from_value::<RawInstruction>(tx.clone()) {
+                                    Ok(raw_instruction) => {
+                                        info!(
+                                            "[ResponseParser] Debug - Successfully parsed direct RawInstruction with program_id: {}",
+                                            raw_instruction.program_id
+                                        );
+                                        vec![raw_instruction]
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "[ResponseParser] Debug - Failed to parse direct RawInstruction: {}. Transaction: {}",
+                                            e, tx
+                                        );
+                                        Vec::new()
+                                    }
+                                }
                             }
                         })
                         .collect::<Vec<RawInstruction>>(),
@@ -303,25 +319,25 @@ impl ResponseParser {
                 .flat_map(|tx| {
                     info!("[ResponseParser] Debug - Processing transaction: {:?}", tx);
 
-                    // Extract instructions array from each transaction
+                    // First try to extract instructions array (Jupiter format)
                     if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
                         instructions
                             .iter()
                             .filter_map(|instruction| {
-                                info!("[ResponseParser] Debug - Attempting to parse instruction: {:?}", instruction);
+                                info!("[ResponseParser] Debug - Attempting to parse nested instruction: {:?}", instruction);
                                 match serde_json::from_value::<RawInstruction>(
                                     instruction.clone(),
                                 ) {
                                     Ok(raw_instruction) => {
                                         info!(
-                                            "[ResponseParser] Debug - Successfully parsed RawInstruction with program_id: {}",
+                                            "[ResponseParser] Debug - Successfully parsed nested RawInstruction with program_id: {}",
                                             raw_instruction.program_id
                                         );
                                         Some(raw_instruction)
                                     }
                                     Err(e) => {
                                         warn!(
-                                            "[ResponseParser] Debug - Failed to parse RawInstruction: {}. Instruction: {}",
+                                            "[ResponseParser] Debug - Failed to parse nested RawInstruction: {}. Instruction: {}",
                                             e, instruction
                                         );
                                         None
@@ -330,8 +346,24 @@ impl ResponseParser {
                             })
                             .collect::<Vec<RawInstruction>>()
                     } else {
-                        warn!("[ResponseParser] Debug - Transaction has no instructions array");
-                        Vec::new()
+                        // Try to parse transaction as direct instruction (simple format)
+                        info!("[ResponseParser] Debug - Transaction has no instructions array, trying direct instruction format");
+                        match serde_json::from_value::<RawInstruction>(tx.clone()) {
+                            Ok(raw_instruction) => {
+                                info!(
+                                    "[ResponseParser] Debug - Successfully parsed direct RawInstruction with program_id: {}",
+                                    raw_instruction.program_id
+                                );
+                                vec![raw_instruction]
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "[ResponseParser] Debug - Failed to parse direct RawInstruction: {}. Transaction: {}",
+                                    e, tx
+                                );
+                                Vec::new()
+                            }
+                        }
                     }
                 })
                 .collect::<Vec<RawInstruction>>(),
