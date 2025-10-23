@@ -245,6 +245,30 @@ impl ResponseParser {
                                         }
                                     })
                                     .collect::<Vec<RawInstruction>>()
+                            } else if let Some(tx_array) = tx.as_array() {
+                                // Handle GLM double-nested format: transactions[[{...}]]
+                                info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
+                                tx_array
+                                    .iter()
+                                    .filter_map(|inner_tx| {
+                                        match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
+                                            Ok(raw_instruction) => {
+                                                info!(
+                                                    "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
+                                                    raw_instruction.program_id
+                                                );
+                                                Some(raw_instruction)
+                                            }
+                                            Err(e) => {
+                                                warn!(
+                                                    "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
+                                                    e, inner_tx
+                                                );
+                                                None
+                                            }
+                                        }
+                                    })
+                                    .collect::<Vec<RawInstruction>>()
                             } else {
                                 // Try to parse transaction as direct instruction (simple format)
                                 info!("[ResponseParser] Debug - Transaction has no instructions array, trying direct instruction format");
@@ -339,6 +363,54 @@ impl ResponseParser {
                                         warn!(
                                             "[ResponseParser] Debug - Failed to parse nested RawInstruction: {}. Instruction: {}",
                                             e, instruction
+                                        );
+                                        None
+                                    }
+                                }
+                            })
+                            .collect::<Vec<RawInstruction>>()
+                    } else if let Some(tx_array) = tx.as_array() {
+                        // Handle GLM double-nested format: transactions[[{...}]]
+                        info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
+                        tx_array
+                            .iter()
+                            .filter_map(|inner_tx| {
+                                match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
+                                    Ok(raw_instruction) => {
+                                        info!(
+                                            "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
+                                            raw_instruction.program_id
+                                        );
+                                        Some(raw_instruction)
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
+                                            e, inner_tx
+                                        );
+                                        None
+                                    }
+                                }
+                            })
+                            .collect::<Vec<RawInstruction>>()
+                    } else if let Some(tx_array) = tx.as_array() {
+                        // Handle GLM double-nested format: transactions[[{...}]]
+                        info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
+                        tx_array
+                            .iter()
+                            .filter_map(|inner_tx| {
+                                match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
+                                    Ok(raw_instruction) => {
+                                        info!(
+                                            "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
+                                            raw_instruction.program_id
+                                        );
+                                        Some(raw_instruction)
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
+                                            e, inner_tx
                                         );
                                         None
                                     }
