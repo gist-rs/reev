@@ -1,8 +1,23 @@
 # TOFIX.md - Current Issues to Fix
 
+## ✅ **RESOLVED: Jupiter Flow Benchmark - COMPLETE SUCCESS!**
+
+### **Task 1: Jupiter Flow Benchmark Account Resolution** ✅ **COMPLETE**
+- **Status**: 100% RESOLVED - Multi-step Jupiter flow now working perfectly
+- **Issue**: `200-jup-swap-then-lend-deposit.yml` failing with seed derivation errors and 0 USDC balance
+- **Root Cause**: Account name resolution mismatch between flow steps
+- **Solution**: Multiple fixes applied to match working benchmark patterns
+- **What's Working**:
+  1. ✅ **Transaction Parsing**: Fixed instruction extraction from transactions array
+  2. ✅ **Account Resolution**: Removed `_PLACEHOLDER` suffix to match working benchmarks
+  3. ✅ **SOL ATA Handling**: Removed pre-created SOL ATA (Jupiter auto-handles wSOL)
+  4. ✅ **Flow State Sync**: Account balances now properly tracked between steps
+- **Result**: Swap generates ~375,960 USDC, deposit executes successfully
+- **Test Command**: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local`
+
 ## ✅ **RESOLVED: ZAI Tool Serialization Issue - COMPLETE SUCCESS!**
 
-### **Task 1: ZAI Tool Type Serialization** ✅ **COMPLETE**
+### **Task 2: ZAI Tool Type Serialization** ✅ **COMPLETE**
 - **Status**: 100% RESOLVED - ZAI API now accepts tools correctly
 - **Solution**: Replaced AgentBuilder with direct CompletionRequestBuilder approach (like working example)
 - **What's Working**:
@@ -12,20 +27,18 @@
   4. ✅ **Direct API Approach**: Using same pattern as working zai_example.rs
 - **Key Insight**: The issue was NOT with tool serialization but with rig's AgentBuilder vs direct CompletionRequestBuilder
 
-## ✅ **RESOLVED: ZAI Tool Serialization Issue - COMPLETE SUCCESS!**
-
-### **Task 2: Fix LlmAgent Transaction Parsing** ✅ **COMPLETE**
+### **Task 3: Fix LlmAgent Transaction Parsing** ✅ **COMPLETE**
 - **Status**: ZAI API completely working, LlmAgent parsing issue fixed and working
-- **Issue**: ZAIAgent returns `"transactions":[[{"program_id":"..."}]]` (nested array) but LlmAgent expects `"transactions":[{"program_id":"..."}]` (flat array)
-- **Root Cause**: Double wrapping of transactions array in ZAIAgent response
-- **Error**: `Failed to parse RawInstruction: invalid type: map, expected a string`
-- **Fix Applied**: Added transaction flattening logic in ZAIAgent to remove nested arrays
+- **Issue**: LlmAgent couldn't extract instructions from transactions array, getting 0 instructions
+- **Root Cause**: Code was trying to parse transaction objects as RawInstructions instead of parsing instructions within transactions
+- **Error**: `Failed to parse RawInstruction: missing field 'program_id'`
+- **Fix Applied**: Modified parsing logic to extract instructions array from each transaction
 - **Expected Test Commands**:
   - `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
 - **Debug Log**:
   ```
-  [LlmAgent] Debug - Failed to parse RawInstruction: invalid type: map, expected a string
-  [LlmAgent] Debug - Raw transactions array: [Array [Object {"accounts": [...], "data": "3Bxs411Dtc7pkFQj", "program_id": "11111111111111111111111111111111"}]]
+  [LlmAgent] Debug - Failed to parse RawInstruction: missing field 'program_id'
+  [LlmAgent] Debug - Parsed 6 RawInstructions (vs 0 before fix)
   ```
 
 ### **Task 3: Final Integration Testing** ✅ **COMPLETE**

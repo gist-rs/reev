@@ -318,33 +318,36 @@ impl Agent for LlmAgent {
                     let transactions = Some(
                         root_transactions
                             .iter()
-                            .filter_map(|tx| {
+                            .flat_map(|tx| {
                                 info!("[LlmAgent] Debug - Processing transaction: {:?}", tx);
 
-                                // Handle nested arrays from ZAI agent: [{"accounts":...}] vs direct objects
-                                let instruction_to_parse = if tx.is_array() {
-                                    // ZAI agent returns nested arrays, extract the first element
-                                    tx.as_array().and_then(|arr| arr.first()).unwrap_or(tx)
+                                // Extract instructions array from each transaction
+                                if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
+                                    instructions
+                                        .iter()
+                                        .filter_map(|instruction| {
+                                            match serde_json::from_value::<RawInstruction>(
+                                                instruction.clone(),
+                                            ) {
+                                                Ok(raw_instruction) => {
+                                                    info!(
+                                                        "[LlmAgent] Debug - Successfully parsed RawInstruction"
+                                                    );
+                                                    Some(raw_instruction)
+                                                }
+                                                Err(e) => {
+                                                    warn!(
+                                                        "[LlmAgent] Debug - Failed to parse RawInstruction: {}",
+                                                        e
+                                                    );
+                                                    None
+                                                }
+                                            }
+                                        })
+                                        .collect::<Vec<RawInstruction>>()
                                 } else {
-                                    tx
-                                };
-
-                                match serde_json::from_value::<RawInstruction>(
-                                    instruction_to_parse.clone(),
-                                ) {
-                                    Ok(instruction) => {
-                                        info!(
-                                            "[LlmAgent] Debug - Successfully parsed RawInstruction"
-                                        );
-                                        Some(instruction)
-                                    }
-                                    Err(e) => {
-                                        warn!(
-                                            "[LlmAgent] Debug - Failed to parse RawInstruction: {}",
-                                            e
-                                        );
-                                        None
-                                    }
+                                    warn!("[LlmAgent] Debug - Transaction has no instructions array");
+                                    Vec::new()
                                 }
                             })
                             .collect::<Vec<RawInstruction>>(),

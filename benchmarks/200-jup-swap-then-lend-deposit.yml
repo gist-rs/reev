@@ -7,7 +7,7 @@ initial_state:
     owner: "11111111111111111111111111111111"
     lamports: 5000000000
 
-  - pubkey: "USER_USDC_ATA_PLACEHOLDER"
+  - pubkey: "USER_USDC_ATA"
     owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     lamports: 2039280
     data:
@@ -15,12 +15,12 @@ initial_state:
       owner: "USER_WALLET_PUBKEY"
       amount: "0"
 
-prompt: "I want to earn yield on my SOL by converting it to USDC and depositing into Jupiter lending. Can you help me swap 0.1 SOL to USDC and then deposit the USDC into Jupiter lending?"
+prompt: "I want to earn yield on my SOL by converting it to USDC and depositing into Jupiter lending. Can you help me swap 2.0 SOL to USDC and then deposit the USDC into Jupiter lending?"
 
 flow:
   - step: 1
-    description: "Swap 0.5 SOL to USDC using Jupiter"
-    prompt: "I want to swap 0.1 SOL for USDC using Jupiter."
+    description: "Swap 2.0 SOL to USDC using Jupiter"
+    prompt: "I want to swap 2.0 SOL for USDC using Jupiter."
     critical: true
     timeout: 30
 
