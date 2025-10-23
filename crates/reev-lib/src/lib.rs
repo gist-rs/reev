@@ -10,6 +10,7 @@ pub mod instruction_score;
 pub mod llm_agent; // Temporarily restored for runner compatibility
 pub mod mock;
 pub mod otel_extraction;
+pub mod parsing;
 
 pub mod results;
 pub mod score;
