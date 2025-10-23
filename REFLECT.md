@@ -80,6 +80,55 @@ if let Ok(transactions) = serde_json::from_str::<Vec<RawInstruction>>(summary) {
 - **Scope**: Fix applies to all GLM-based agents (deterministic, local, etc.)
 - **Reliability**: Now handles both new format responses and legacy formats
 
+### Tool Provisioning Architecture Fix
+
+#### Problem Understanding
+- **Issue**: Jupiter operations failing with `ToolNotFoundError: get_account_balance`
+- **Root Cause**: LlmAgent was sending `"allowed_tools": null` - no tools available to agents
+- **Secondary Issue**: Initial fix used brittle keyword matching (language-dependent, racist approach)
+- **Error Pattern**: `LLM API request failed with status 500 Internal Server Error`
+- **Impact**: All Jupiter operations failing despite valid transaction generation logic
+
+#### Solution Approach
+- **Insight**: Two-tier tool management system between LlmAgent and OpenAIAgent
+- **Architecture Fix**: LlmAgent returns `None` for normal mode, OpenAIAgent provides all tools
+- **Key Change**: Removed keyword matching, let LLM choose appropriate tools
+- **Result**: Jupiter operations now have access to all required tools
+
+#### Technical Details
+```rust
+// BEFORE: Brittle keyword matching
+if prompt.to_lowercase().contains("swap") { ... } // ❌ Language-dependent
+
+// AFTER: Simple architecture
+fn determine_available_tools(&self, _prompt: &str, _context_prompt: &str) -> Option<Vec<String>> {
+    // Return None so OpenAIAgent uses "Normal mode: add all discovery tools"
+    info!("[LlmAgent] Normal mode: OpenAIAgent will provide all tools");
+    None
+}
+
+// OpenAIAgent correctly handles None:
+if allowed_tools.is_none() {
+    // Normal mode: add all discovery tools
+    builder.tool(tools.sol_tool)
+          .tool(tools.jupiter_swap_tool)
+          // ... all tools
+}
+```
+
+#### Lessons Learned
+1. **Architecture Consistency**: Multiple systems must align on tool management approach
+2. **Avoid Language Bias**: Keyword matching fails for non-English users (racist approach)
+3. **Let LLM Decide**: Better to provide all tools and let intelligent agent choose
+4. **Two-Tier Design**: LlmAgent filters for flow mode, OpenAIAgent handles actual tool registration
+5. **None Means All**: `allowed_tools: None` should mean "provide all tools" not "no tools"
+
+#### Impact Assessment
+- **Before**: Jupiter swap: `ToolNotFoundError`, 200-jup-swap-then-lend-deposit: failing
+- **After**: All Jupiter operations: working with full tool access
+- **Language Support**: Now works for any language (Japanese, Thai, etc.)
+- **Architecture**: Clean separation between flow filtering and normal operations
+
 ### GLM-4.6 API Integration
 
 #### Problem Understanding

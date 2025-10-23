@@ -24,6 +24,7 @@ pub struct ZaiUsage {
     pub prompt_tokens_details: Option<PromptTokensDetails>,
 }
 
+#[allow(unused)]
 fn completion_usage_from_zai_usage(usage: Option<ZaiUsage>) -> CompletionUsage {
     usage
         .map(|u| CompletionUsage {

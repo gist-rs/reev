@@ -167,7 +167,10 @@ impl Agent for LlmAgent {
 
         let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
 
-        // 2. Create the final JSON payload for the API.
+        // 2. Determine available tools based on context
+        let available_tools = self.determine_available_tools(prompt, &context_prompt);
+
+        // 3. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
             // GLM routes through reev-agent, use reev-agent format
             json!({
@@ -177,7 +180,7 @@ impl Agent for LlmAgent {
                 "model_name": self.agent_type, // Use agent_type for routing
                 "mock": false,
                 "initial_state": None::<serde_json::Value>,
-                "allowed_tools": None::<Vec<String>>,
+                "allowed_tools": available_tools,
             })
         } else {
             // Default reev API format
@@ -722,6 +725,19 @@ impl Agent for LlmAgent {
 }
 
 impl LlmAgent {
+    /// Determine tool availability - return None for normal mode (all tools in OpenAIAgent)
+    /// Only return Some(tools) for specific flow operations that need tool filtering
+    fn determine_available_tools(
+        &self,
+        _prompt: &str,
+        _context_prompt: &str,
+    ) -> Option<Vec<String>> {
+        // For normal operation, return None so OpenAIAgent uses "Normal mode: add all discovery tools"
+        // This allows the LLM to choose from all available tools
+        info!("[LlmAgent] Normal mode: OpenAIAgent will provide all tools");
+        None
+    }
+
     /// Extract transactions from a summary field that contains JSON-formatted transaction data
     fn extract_transactions_from_summary(&self, summary: &str) -> Result<Vec<AgentAction>> {
         use serde_json::Value;

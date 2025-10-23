@@ -1,5 +1,21 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
+
+seem to fail after refactor[@openai.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fopenai.rs) , you may see git history to get some idea (it work before but not sure when)
+
+also maybe start with deterministics which also fail and it work before too (maybe share same bug), this one is faster test btw
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml
+
+fyI: 
+- DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api" > logs/reev-api.log 2>&1 &` so server will reflect the latest code.
+
+try run other test too
+
+
 commit and DRY [@openai.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fopenai.rs) and [@zai_agent.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fzai_agent.rs), create common helper
 
 ---

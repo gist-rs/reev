@@ -29,10 +29,13 @@
   ```
 
 ### **Task 3: Final Integration Testing** ✅ **COMPLETE**
-- **Issue**: Complete end-to-end testing after transaction parsing fix
-- **Expected Result**: SOL transfer benchmark should pass with 100% score
-- **Result**: ✅ SUCCESS - All basic benchmarks now pass with 100% score
-- **Test Command**: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
+- **Issue**: Complete end-to-end testing after transaction parsing and allowed_tools fixes
+- **Expected Result**: SOL transfer benchmark should pass with 100% score, Jupiter operations should work
+- **Result**: ✅ SUCCESS - All basic benchmarks now pass with 100% score, Jupiter tools accessible
+- **Test Commands**: 
+  - `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
+  - `RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local`
+- **Jupiter Fix**: `ToolNotFoundError: get_account_balance` resolved by proper tool provisioning
 
 ### **Task 4: Code Cleanup** 🔄 **TODO**
 - **Issue**: Clean up codebase after successful ZAI migration

@@ -117,6 +117,7 @@ impl Client {
     }
 
     /// Send a GET request to the ZAI API
+    #[allow(unused)]
     pub(crate) async fn get<R: for<'de> Deserialize<'de>>(
         &self,
         path: &str,
