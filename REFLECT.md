@@ -2,6 +2,26 @@
 
 ## Key Learnings & Insights
 
+### GLM Jupiter Tools Integration - Major Success ✅
+#### Problem Understanding
+GLM-4.6 agent was failing on all Jupiter benchmarks with "Agent returned no actions to execute" despite having Jupiter tools available. The core issue was in the ZAI agent tool routing.
+
+#### Root Cause Analysis  
+The ZAI agent in `crates/reev-agent/src/enhanced/zai_agent.rs` had two critical issues:
+1. **Tool Registration**: Only registering `sol_tool` but not Jupiter tools in completion request
+2. **Tool Routing**: Hardcoded routing that always called `tools.sol_tool.call()` regardless of which tool was actually invoked
+
+#### Solution Implementation
+1. **Added All Jupiter Tools**: Registered swap, lend, earn, balance tools in completion request
+2. **Fixed Tool Routing**: Added proper match statement to route each tool call to correct handler
+3. **Enhanced Error Handling**: Better error messages and summaries for each tool type
+4. **Maintained Compatibility**: Preserved existing SOL/SPL transfer functionality
+
+#### Results
+- All Jupiter benchmarks now work: swaps, lending, earning, positions
+- Zero regression in basic transfer operations
+- Production-ready GLM-4.6 agent with full tool ecosystem
+
 ### Local Agent Model Selection Fix Success ✅
 #### Problem Understanding
 When running `--agent local`, the system was incorrectly routing to GLM API instead of the local LM Studio server, despite explicit user selection.

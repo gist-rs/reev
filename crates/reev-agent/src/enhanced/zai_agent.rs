@@ -124,9 +124,38 @@ impl ZAIAgent {
         let model = client.completion_model(zai::GLM_4_6);
 
         // Create completion request with tools like the working example
-        let tool_def = tools.sol_tool.definition(String::new()).await;
+        let sol_tool_def = tools.sol_tool.definition(String::new()).await;
+        let spl_tool_def = tools.spl_tool.definition(String::new()).await;
+        let jupiter_swap_tool_def = tools.jupiter_swap_tool.definition(String::new()).await;
+        let jupiter_lend_deposit_tool_def = tools
+            .jupiter_lend_earn_deposit_tool
+            .definition(String::new())
+            .await;
+        let jupiter_lend_withdraw_tool_def = tools
+            .jupiter_lend_earn_withdraw_tool
+            .definition(String::new())
+            .await;
+        let jupiter_lend_mint_tool_def = tools
+            .jupiter_lend_earn_mint_tool
+            .definition(String::new())
+            .await;
+        let jupiter_lend_redeem_tool_def = tools
+            .jupiter_lend_earn_redeem_tool
+            .definition(String::new())
+            .await;
+        let jupiter_earn_tool_def = tools.jupiter_earn_tool.definition(String::new()).await;
+        let balance_tool_def = tools.balance_tool.definition(String::new()).await;
+
         let request = CompletionRequestBuilder::new(model.clone(), &enhanced_user_request)
-            .tool(tool_def)
+            .tool(sol_tool_def)
+            .tool(spl_tool_def)
+            .tool(jupiter_swap_tool_def)
+            .tool(jupiter_lend_deposit_tool_def)
+            .tool(jupiter_lend_withdraw_tool_def)
+            .tool(jupiter_lend_mint_tool_def)
+            .tool(jupiter_lend_redeem_tool_def)
+            .tool(jupiter_earn_tool_def)
+            .tool(balance_tool_def)
             .build();
 
         let result = model.completion(request).await?;
@@ -151,17 +180,87 @@ impl ZAIAgent {
             info!("[ZAIAgent] Tool called: {}", tool_call.function.name);
             info!("[ZAIAgent] Arguments: {}", tool_call.function.arguments);
 
-            // Execute the tool using the pre-created tool instance
-            let args: reev_tools::tools::native::NativeTransferArgs =
-                serde_json::from_value(tool_call.function.arguments.clone())?;
-            let tool_result = tools.sol_tool.call(args).await?;
+            // Route tool call to appropriate tool based on function name
+            let tool_result = match tool_call.function.name.as_str() {
+                "sol_transfer" => {
+                    let args: reev_tools::tools::native::NativeTransferArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.sol_tool.call(args).await?
+                }
+                "spl_transfer" => {
+                    let args: reev_tools::tools::native::NativeTransferArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.spl_tool.call(args).await?
+                }
+                "jupiter_swap" => {
+                    let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_swap_tool.call(args).await?
+                }
+                "jupiter_lend_earn_deposit" => {
+                    let args: reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_lend_earn_deposit_tool.call(args).await?
+                }
+                "jupiter_lend_earn_withdraw" => {
+                    let args: reev_tools::tools::jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_lend_earn_withdraw_tool.call(args).await?
+                }
+                "jupiter_lend_earn_mint" => {
+                    let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnMintArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_lend_earn_mint_tool.call(args).await?
+                }
+                "jupiter_lend_earn_redeem" => {
+                    let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_lend_earn_redeem_tool.call(args).await?
+                }
+                "jupiter_earn" => {
+                    let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.jupiter_earn_tool.call(args).await?
+                }
+                "get_account_balance" => {
+                    let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.balance_tool.call(args).await?
+                }
+                "get_lend_earn_tokens" => {
+                    let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools.lend_earn_tokens_tool.call(args).await?
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unknown tool called: {}",
+                        tool_call.function.name
+                    ));
+                }
+            };
 
             info!("[ZAIAgent] Tool result: {}", tool_result);
+
+            // Determine appropriate summary based on tool type
+            let summary = match tool_call.function.name.as_str() {
+                "sol_transfer" => "SOL transfer completed successfully",
+                "spl_transfer" => "SPL transfer completed successfully",
+                "jupiter_swap" => "Jupiter swap completed successfully",
+                "jupiter_lend_earn_deposit" => "Jupiter lend deposit completed successfully",
+                "jupiter_lend_earn_withdraw" => "Jupiter lend withdraw completed successfully",
+                "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
+                "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
+                "jupiter_earn" => "Jupiter earn operation completed successfully",
+                "get_account_balance" => "Account balance retrieved successfully",
+                "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
+                _ => "Tool operation completed successfully",
+            };
 
             // Format as JSON response
             json!({
                 "transactions": [tool_result],
-                "summary": "SOL transfer completed successfully",
+                "summary": summary,
                 "signatures": ["estimated_signature"]
             })
             .to_string()

@@ -6,7 +6,7 @@
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{error, info, warn};
 
 use crate::{context::integration::ContextIntegration, prompt::SYSTEM_PREAMBLE, LlmRequest};
 
@@ -267,8 +267,13 @@ pub async fn extract_execution_results(
     info!("[{agent_name}] === EXECUTION RESULT EXTRACTION ===");
     info!("[{agent_name}] Extracting execution results from response");
     info!(
-        "[{agent_name}] Debug - Raw response string: {}",
-        response_str
+        "[{agent_name}] Debug - Raw response string (length: {}): {}",
+        response_str.len(),
+        if response_str.len() > 500 {
+            format!("{}...", &response_str[..500])
+        } else {
+            response_str.to_string()
+        }
     );
 
     // Check if response contains completion signals
@@ -346,9 +351,36 @@ pub async fn extract_execution_results(
 
     info!("[{agent_name}] Extracted JSON string: {}", json_str);
 
-    // 🧠 Parse the extracted JSON
-    let parsed: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse JSON from response: {e}"))?;
+    // 🧠 Parse the extracted JSON with GLM-specific fallback handling
+    info!(
+        "[{agent_name}] Attempting to parse JSON string: {}",
+        json_str
+    );
+    let parsed = match parse_json_with_glm_fallback(json_str, agent_name) {
+        Ok(parsed) => {
+            info!("[{agent_name}] ✅ JSON parsing succeeded");
+            parsed
+        }
+        Err(e) => {
+            error!(
+                "[{agent_name}] ❌ All JSON parsing attempts failed: {}. Using fallback response.",
+                e
+            );
+            return Ok(ExecutionResult {
+                transactions: vec![],
+                summary: format!(
+                    "JSON parsing failed: {}. Response may need manual review. Original response: {}",
+                    e,
+                    if response_str.len() > 200 {
+                        format!("{}...", &response_str[..200])
+                    } else {
+                        response_str.to_string()
+                    }
+                ),
+                signatures: vec![],
+            });
+        }
+    };
 
     info!("[{agent_name}] Parsed JSON: {}", parsed);
 
@@ -397,4 +429,100 @@ pub async fn extract_execution_results(
         summary,
         signatures,
     })
+}
+
+/// 🛡️ GLM-specific JSON parsing with robust fallback strategies
+fn parse_json_with_glm_fallback(json_str: &str, agent_name: &str) -> Result<serde_json::Value> {
+    // Strategy 1: Try direct JSON parsing first
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+        info!("[{agent_name}] ✅ Direct JSON parsing succeeded");
+        return Ok(parsed);
+    }
+
+    warn!("[{agent_name}] Direct JSON parsing failed, trying GLM fallback strategies...");
+    info!("[{agent_name}] JSON that failed to parse: {}", json_str);
+
+    // Strategy 2: Handle GLM-specific format issues (trailing commas, missing quotes, etc.)
+    let cleaned_json = clean_glm_json_response(json_str);
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&cleaned_json) {
+        info!("[{agent_name}] ✅ GLM JSON cleaning succeeded");
+        return Ok(parsed);
+    }
+
+    // Strategy 3: Try to extract JSON from mixed natural language (more aggressive)
+    if let Some(extracted_json) = extract_json_from_mixed_response(json_str) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&extracted_json) {
+            info!("[{agent_name}] ✅ Mixed response JSON extraction succeeded");
+            return Ok(parsed);
+        }
+    }
+
+    // Strategy 4: Handle empty/malformed responses gracefully
+    if json_str.trim().is_empty() {
+        warn!("[{agent_name}] Empty response detected, creating fallback structure");
+        info!("[{agent_name}] Response was empty or only whitespace");
+        return Ok(serde_json::json!({
+            "transactions": [],
+            "summary": "Agent returned empty response",
+            "signatures": []
+        }));
+    }
+
+    Err(anyhow::anyhow!("All JSON parsing strategies failed"))
+}
+
+/// 🧹 Clean common GLM JSON formatting issues
+fn clean_glm_json_response(json_str: &str) -> String {
+    let mut cleaned = json_str.trim().to_string();
+
+    // Remove trailing commas before closing brackets/braces
+    if let Ok(re) = regex::Regex::new(r",\s*([}\]\]])") {
+        cleaned = re.replace_all(&cleaned, "$1").to_string();
+    }
+
+    // Fix unquoted property names (common in GLM responses)
+    if let Ok(re) = regex::Regex::new(r"(\w+):") {
+        cleaned = re.replace_all(&cleaned, "\"$1\":").to_string();
+    }
+
+    // Fix single quotes instead of double quotes
+    cleaned = cleaned.replace('\'', "\"");
+
+    // Remove any leading/trailing non-JSON content
+    if let Some(start) = cleaned.find('{') {
+        cleaned = cleaned[start..].to_string();
+    }
+
+    // Ensure proper JSON structure
+    if !cleaned.starts_with('{') {
+        cleaned = format!("{{\"transactions\": [], \"summary\": \"{cleaned}\"}}");
+    }
+
+    cleaned
+}
+
+/// 🔍 Extract JSON from mixed natural language responses (more aggressive)
+fn extract_json_from_mixed_response(response: &str) -> Option<String> {
+    // Look for JSON-like patterns in the response
+    let json_patterns = [
+        r"\{[^{}]*transactions[^{}]*\}",
+        r"\{[^{}]*summary[^{}]*\}",
+        r"\{[^{}]*signatures[^{}]*\}",
+        r"\{[^{}]*result[^{}]*\}",
+    ];
+
+    for pattern in &json_patterns {
+        if let Ok(re) = regex::Regex::new(pattern) {
+            if let Some(captures) = re.captures(response) {
+                if let Some(matched) = captures.get(0) {
+                    let json_str = matched.as_str().trim();
+                    if json_str.starts_with('{') && json_str.ends_with('}') {
+                        return Some(json_str.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }

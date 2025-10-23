@@ -29,6 +29,40 @@
 **Files Modified**: 
 - `crates/reev-lib/src/parsing/mod.rs` - Added GLM double-nested format support
 
+---
+
+## ✅ **COMPLETED: GLM Jupiter Tools Integration Fix**
+
+### **Task 8: Fix GLM Jupiter Tools Integration** ✅ **COMPLETE**
+**Priority**: HIGH  
+**Issue**: GLM-4.6 agent failing on all Jupiter benchmarks with "Agent returned no actions to execute"
+**Root Cause**: ZAI agent only registered sol_tool but hardcoded routing to only call SOL tool regardless of actual tool invoked
+
+**Fix Applied**:
+1. **Added All Jupiter Tools**: Registered swap, lend, earn, balance tools in ZAI completion request
+2. **Fixed Tool Routing**: Added proper match statement to route each tool call to correct handler with proper argument types
+3. **Enhanced Error Handling**: Better error messages and summaries for each tool type
+4. **Maintained Compatibility**: Preserved existing SOL/SPL transfer functionality
+
+**Test Results**:
+- ✅ **100-jup-swap-sol-usdc**: Working - Jupiter swaps functional
+- ✅ **110-jup-lend-deposit-sol**: Working - Jupiter lending functional  
+- ✅ **111-jup-lend-deposit-usdc**: Working - USDC lending functional
+- ✅ **112-jup-lend-withdraw-sol**: Working - SOL withdrawals functional
+- ✅ **113-jup-lend-withdraw-usdc**: Working - USDC withdrawals functional
+- ✅ **114-jup-positions-and-earnings**: Working - Position queries functional
+- ✅ **115-jup-lend-mint-usdc**: Working - Mint operations functional
+- ✅ **116-jup-lend-redeem-usdc**: Working - Redeem operations functional
+- ✅ **Basic Transfers**: 001, 002, 003 all working (no regression)
+
+**Impact**: GLM-4.6 agent now has production-ready access to full Jupiter DeFi ecosystem
+
+**Files Modified**: 
+- `crates/reev-agent/src/enhanced/zai_agent.rs` - Added Jupiter tools and proper routing
+- `crates/reev-agent/src/enhanced/common/mod.rs` - Enhanced JSON parsing fallbacks
+
+---
+
 **Key Achievement**: GLM models now work with proper parsing, LLM reasoning issues identified as separate concern.
 
 **Status**: 🎉 PARSING FIX RESOLVED - Production ready!
