@@ -225,6 +225,7 @@ impl FlowAgent {
             initial_state: None,
             mock: false,
             allowed_tools: Some(all_tools.clone()),
+            account_states: None,
         };
 
         // 🚨 CRITICAL LOGGING: Log exactly what FlowAgent is sending

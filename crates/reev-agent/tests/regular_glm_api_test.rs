@@ -26,6 +26,7 @@ async fn test_regular_glm_api_support() -> Result<()> {
         mock: false,
         initial_state: None,
         allowed_tools: None,
+        account_states: None,
     };
 
     let key_map = HashMap::new();
@@ -79,6 +80,7 @@ async fn test_api_priority_order() -> Result<()> {
         mock: false,
         initial_state: None,
         allowed_tools: None,
+        account_states: None,
     };
 
     let key_map = HashMap::new();
@@ -128,10 +130,11 @@ async fn test_local_fallback() -> Result<()> {
         id: "test-fallback".to_string(),
         prompt: "test".to_string(),
         context_prompt: "".to_string(),
-        model_name: "glm-4.6".to_string(),
+        model_name: "local".to_string(),
         mock: false,
         initial_state: None,
         allowed_tools: None,
+        account_states: None,
     };
 
     let key_map = HashMap::new();

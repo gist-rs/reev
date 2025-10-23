@@ -349,6 +349,8 @@ pub struct LlmRequest {
     pub initial_state: Option<Vec<reev_lib::benchmark::InitialStateItem>>,
     #[serde(default)]
     pub allowed_tools: Option<Vec<String>>,
+    #[serde(default)]
+    pub account_states: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 fn default_model() -> String {

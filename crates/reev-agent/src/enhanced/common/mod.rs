@@ -93,14 +93,27 @@ impl AgentHelper {
     ) -> Result<(ContextIntegration, EnhancedPromptData, String)> {
         let context_config = ContextIntegration::config_for_benchmark_type(&payload.id);
         let context_integration = ContextIntegration::new(context_config);
-        let initial_state = payload.initial_state.clone().unwrap_or_default();
 
-        let enhanced_prompt_data = context_integration.build_enhanced_prompt(
-            &payload.prompt,
-            &initial_state,
-            key_map,
-            &payload.id,
-        );
+        let enhanced_prompt_data = if let Some(account_states) = &payload.account_states {
+            // Use real observation state when available (FIXES #002)
+            info!("[AgentHelper] Using account_states from observation for real balances");
+            context_integration.build_enhanced_prompt_from_observation(
+                &payload.prompt,
+                account_states,
+                key_map,
+                &payload.id,
+            )
+        } else {
+            // Fallback to initial_state from YAML (old behavior)
+            let initial_state = payload.initial_state.clone().unwrap_or_default();
+            info!("[AgentHelper] Using initial_state from YAML (fallback behavior)");
+            context_integration.build_enhanced_prompt(
+                &payload.prompt,
+                &initial_state,
+                key_map,
+                &payload.id,
+            )
+        };
 
         let enhanced_prompt = format!(
             "{SYSTEM_PREAMBLE}\n\n---\n{}\n---",

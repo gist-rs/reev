@@ -499,6 +499,42 @@ if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
 4. **Test Coverage**: Must test all supported formats to prevent regressions
 
 #### Impact Assessment
+
+### Balance Context Missing Issue Fix ✅
+#### Problem Understanding
+Context builder was parsing benchmark YAML initial_state instead of querying actual surfpool RPC state after setup. This caused agents to receive incorrect balance information (0.0000 SOL instead of 1.0 SOL) and make blind decisions while being told to avoid balance checks.
+
+#### Root Cause Analysis
+The flow was: reset() → setup_spl_scenario() → context built from YAML. The correct flow should be: reset() → setup_spl_scenario() → query real surfpool state → build context from observation.
+
+#### Solution Implementation
+- Added `build_context_from_observation()` method to ContextBuilder
+- Added `build_enhanced_prompt_from_observation()` to ContextIntegration  
+- Updated AgentHelper to use account_states when available (falls back to initial_state)
+- Modified LlmRequest to include account_states field
+- Updated llm_agent to pass observation.account_states in request payload
+- Added unit test verifying real balances appear in context
+
+#### Technical Details
+Context now shows actual surfpool state:
+```
+ACCOUNT BALANCES AND POSITIONS:
+
+💰 SOL Balance: 1.0000 SOL
+
+💎 Token Balances:
+  • USER_U...DC_ATA: 50 USDC
+```
+
+#### Lessons Learned
+- Observation data should always trump YAML parsing for dynamic state
+- Unit tests essential for verifying context correctness  
+- Backward compatibility maintained through fallback to initial_state
+
+#### Impact Assessment
+Fixes the critical issue where agents were making blind decisions. All operations now have access to real balance information, enabling proper decision making without unnecessary balance checks.
+
+#### Impact Assessment
 - ✅ Fixed regression: 001-sol-transfer.yml now scores 1.0 (was 0.0)
 - ✅ No regression: 100-jup-swap-sol-usdc.yml still scores 1.0
 - ✅ Both formats now work seamlessly with same parser

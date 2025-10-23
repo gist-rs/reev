@@ -187,6 +187,7 @@ impl Agent for LlmAgent {
                     serde_json::to_value(state).unwrap_or(serde_json::Value::Null)
                 }),
                 "allowed_tools": available_tools,
+                "account_states": observation.account_states,
             })
         } else {
             // Default reev API format

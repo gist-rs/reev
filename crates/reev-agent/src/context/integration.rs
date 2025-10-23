@@ -125,6 +125,83 @@ impl ContextIntegration {
         }
     }
 
+    /// Build enhanced prompt from actual observation state (REAL balances)
+    pub fn build_enhanced_prompt_from_observation(
+        &self,
+        base_prompt: &str,
+        account_states: &HashMap<String, serde_json::Value>,
+        key_map: &HashMap<String, String>,
+        benchmark_id: &str,
+    ) -> EnhancedPrompt {
+        info!(
+            "[ContextIntegration] Building enhanced prompt from observation for benchmark: {}",
+            benchmark_id
+        );
+
+        // Always build context from observation when available
+        match self
+            .builder
+            .build_context_from_observation(account_states, key_map, benchmark_id)
+        {
+            Ok(context) => {
+                // Validate context completeness
+                if let Err(validation_error) = self.builder.validate_context(&context) {
+                    warn!(
+                        "[ContextIntegration] Context validation failed: {}, falling back to discovery",
+                        validation_error
+                    );
+                    let discovery_context =
+                        self.builder.build_discovery_context(key_map, benchmark_id);
+                    let enhanced_prompt = self.format_enhanced_prompt(
+                        base_prompt,
+                        &discovery_context,
+                        false,
+                        key_map,
+                    );
+
+                    EnhancedPrompt {
+                        prompt: enhanced_prompt,
+                        has_context: false,
+                        recommended_depth: self.config.discovery_depth,
+                        context_summary: self.summarize_context(&discovery_context),
+                    }
+                } else {
+                    let enhanced_prompt =
+                        self.format_enhanced_prompt(base_prompt, &context, true, key_map);
+
+                    debug!(
+                        "[ContextIntegration] Enhanced prompt built from observation: {} chars, context: true, depth: {}",
+                        enhanced_prompt.len(),
+                        self.config.context_depth
+                    );
+
+                    EnhancedPrompt {
+                        prompt: enhanced_prompt,
+                        has_context: true,
+                        recommended_depth: self.config.context_depth,
+                        context_summary: self.summarize_context(&context),
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "[ContextIntegration] Failed to build context from observation: {}, using discovery mode",
+                    e
+                );
+                let discovery_context = self.builder.build_discovery_context(key_map, benchmark_id);
+                let enhanced_prompt =
+                    self.format_enhanced_prompt(base_prompt, &discovery_context, false, key_map);
+
+                EnhancedPrompt {
+                    prompt: enhanced_prompt,
+                    has_context: false,
+                    recommended_depth: self.config.discovery_depth,
+                    context_summary: self.summarize_context(&discovery_context),
+                }
+            }
+        }
+    }
+
     /// Format enhanced prompt with context integration
     fn format_enhanced_prompt(
         &self,

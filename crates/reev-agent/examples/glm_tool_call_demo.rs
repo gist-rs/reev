@@ -78,6 +78,7 @@ async fn main() -> Result<()> {
             mock: false,
             initial_state: None,
             allowed_tools: None,
+            account_states: None,
         };
 
         match ZAIAgent::run("glm-4.6", request, key_map.clone()).await {

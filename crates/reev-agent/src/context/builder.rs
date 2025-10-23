@@ -256,4 +256,144 @@ impl ContextBuilder {
             formatted_context: context,
         }
     }
+
+    /// Build context from actual surfpool observation state (REAL balances)
+    pub fn build_context_from_observation(
+        &self,
+        account_states: &HashMap<String, serde_json::Value>,
+        key_map: &HashMap<String, String>,
+        benchmark_id: &str,
+    ) -> Result<AccountContext, crate::context::ContextError> {
+        info!(
+            "[ContextBuilder] Building account context from observation for benchmark: {}",
+            benchmark_id
+        );
+        debug!(
+            "[ContextBuilder] Processing {} account states from observation",
+            account_states.len()
+        );
+
+        let context = self.build_context_from_observation_internal(account_states, key_map)?;
+
+        // Log summary of extracted information
+        let mut summary = String::new();
+
+        if context.sol_balance.is_some() {
+            summary.push_str(&format!(
+                "SOL: {:.4} SOL, ",
+                context.sol_balance.unwrap() as f64 / 1_000_000_000.0
+            ));
+        }
+
+        summary.push_str(&format!("Tokens: {}, ", context.token_balances.len()));
+        summary.push_str(&format!("Positions: {}", context.lending_positions.len()));
+
+        info!(
+            "[ContextBuilder] Context built from observation: {}",
+            summary
+        );
+        debug!(
+            "[ContextBuilder] Formatted context length: {} characters",
+            context.formatted_context.len()
+        );
+
+        Ok(context)
+    }
+
+    /// Internal method to build context from observation state
+    fn build_context_from_observation_internal(
+        &self,
+        account_states: &HashMap<String, serde_json::Value>,
+        key_map: &HashMap<String, String>,
+    ) -> Result<AccountContext, crate::context::ContextError> {
+        let mut sol_balance = None;
+        let mut token_balances = HashMap::new();
+        let mut lending_positions = HashMap::new();
+
+        for (account_name, state) in account_states {
+            let lamports = state.get("lamports").and_then(|v| v.as_u64()).unwrap_or(0);
+            let owner = state.get("owner").and_then(|v| v.as_str()).unwrap_or("");
+
+            // Check if this is a SOL account (System Program owned)
+            if owner == "11111111111111111111111111111111" {
+                sol_balance = Some(lamports);
+            }
+
+            // Check if this is a token account
+            if let (Some(mint), Some(amount_str)) = (
+                state.get("mint").and_then(|v| v.as_str()),
+                state.get("amount").and_then(|v| v.as_str()),
+            ) {
+                let amount = amount_str
+                    .parse::<u64>()
+                    .map_err(|e| crate::context::ContextError::InvalidAmount(e.to_string()))?;
+
+                let token_symbol = self
+                    .token_symbols
+                    .get(mint)
+                    .cloned()
+                    .unwrap_or_else(|| format!("TOKEN_{}", &mint[..8]));
+
+                let decimals = self.token_decimals.get(mint).copied().unwrap_or(0);
+                let formatted_amount = self.format_token_amount(amount, decimals, &token_symbol);
+
+                // Get the token account owner
+                let token_owner = state
+                    .get("token_account_owner")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                // Check if this is a lending position token
+                if self.is_lending_token(mint) {
+                    let position_type = if mint.contains("jupiter") || mint.contains("Jupiter") {
+                        format!("j{token_symbol}")
+                    } else {
+                        format!("L-{token_symbol}")
+                    };
+
+                    let position_type_clone = position_type.clone();
+                    lending_positions.insert(
+                        account_name.clone(),
+                        crate::context::LendingPosition {
+                            mint: mint.to_string(),
+                            shares: amount,
+                            owner: token_owner,
+                            position_type,
+                            formatted_shares: self.format_token_amount(
+                                amount,
+                                decimals,
+                                &position_type_clone,
+                            ),
+                        },
+                    );
+                } else {
+                    token_balances.insert(
+                        account_name.clone(),
+                        crate::context::TokenBalance {
+                            mint: mint.to_string(),
+                            amount,
+                            owner: token_owner,
+                            formatted_amount,
+                        },
+                    );
+                }
+            }
+        }
+
+        // Build formatted context string
+        let formatted_context = self.build_formatted_context(
+            &sol_balance,
+            &token_balances,
+            &lending_positions,
+            key_map,
+        );
+
+        Ok(crate::context::AccountContext {
+            sol_balance,
+            token_balances,
+            lending_positions,
+            formatted_context,
+        })
+    }
 }
