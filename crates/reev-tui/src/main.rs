@@ -6,18 +6,13 @@ mod ui;
 use anyhow::{Context, Result};
 use app::App;
 use event::handle_events;
-use tracing::{info, subscriber};
-use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
+
 use tui::Tui;
 use ui::ui;
 
 fn main() -> Result<()> {
     // Load environment variables from a .env file.
     dotenvy::dotenv().ok();
-
-    // Initialize tracing.
-    init_tracing()?;
-    info!("--- Reev TUI Started ---");
 
     // Set a panic hook to ensure the terminal is restored even on panic.
     let original_hook = std::panic::take_hook();
@@ -44,21 +39,6 @@ fn main() -> Result<()> {
         // Handle events
         handle_events(&mut app)?;
     }
-
-    Ok(())
-}
-
-/// Initializes tracing for the TUI.
-fn init_tracing() -> Result<()> {
-    let subscriber = Registry::default()
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,reev_lib=debug,reev_tui=debug")),
-        )
-        .with(fmt::layer());
-
-    subscriber::set_global_default(subscriber)
-        .context("Failed to set global default tracing subscriber")?;
 
     Ok(())
 }

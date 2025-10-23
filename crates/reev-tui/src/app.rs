@@ -31,7 +31,7 @@ pub enum SelectedAgent {
     Local,
     #[strum(to_string = " GLM 4.6 ")]
     Glm46,
-    #[strum(to_string = " GLM 4.6 COding")]
+    #[strum(to_string = " GLM 4.6 Coding")]
     Glm46Coding,
 }
 
