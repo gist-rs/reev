@@ -69,6 +69,13 @@
   - Clean up unused imports and debug logging
 
 ## ✅ Recently Fixed Issues
+### GLM Double-Nested Transaction Parsing ✅ RESOLVED
+**Issue**: GLM models generate double-nested arrays that parser couldn't handle
+**Root Cause**: GLM format `{"transactions": [[{"program_id": "..."}]]}` not supported  
+**Fix**: Added third fallback for GLM double-nested format in ResponseParser
+**Result**: GLM-4.6-coding: 0% → 100% score, GLM-4.6: 0% → 56.25% score
+**Files Modified**: `crates/reev-lib/src/parsing/mod.rs`
+
 ### Response Parsing Regression ✅ RESOLVED
 **Issue**: Jupiter response parsing fix broke simple SOL transfer transactions
 **Root Cause**: Parser only handled nested Jupiter format, not direct transaction objects  

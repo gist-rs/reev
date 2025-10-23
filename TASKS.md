@@ -7,6 +7,34 @@
 
 ---
 
+## ✅ **COMPLETED: GLM Double-Nested Transaction Parsing Fix**
+
+### **Task 7: Fix GLM Double-Nested Transaction Parsing** ✅ **COMPLETE**
+**Priority**: HIGH  
+**Issue**: GLM models generate double-nested arrays that parser couldn't handle
+**Root Cause**: GLM format `{"transactions": [[{"program_id": "..."}]]}` not supported
+
+**Fix Applied**:
+1. Added third fallback for GLM double-nested format in ResponseParser
+2. Fallback order: Jupiter nested → GLM double-nested → Simple direct
+3. Applied to both `parse_jupiter_response()` and `parse_transaction_array()`
+4. Graceful handling ensures no regressions
+
+**Test Results**:
+- ✅ **GLM-4.6-coding**: Score 1.0, Status: Succeeded (was 0.0)
+- ✅ **GLM-4.6**: Score 0.5625, Status: Failed (was 0.0) - parsing fixed, LLM reasoning issues remain
+- ✅ **Local agent**: Score 1.0, Status: Succeeded (no regression)
+- ✅ **Jupiter format**: Working correctly (no regression)
+
+**Files Modified**: 
+- `crates/reev-lib/src/parsing/mod.rs` - Added GLM double-nested format support
+
+**Key Achievement**: GLM models now work with proper parsing, LLM reasoning issues identified as separate concern.
+
+**Status**: 🎉 PARSING FIX RESOLVED - Production ready!
+
+---
+
 ## ✅ **COMPLETED: Response Parsing Regression Fix**
 
 ### **Task 6: Fix Response Parsing Regression** ✅ **COMPLETE**
