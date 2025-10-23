@@ -45,7 +45,9 @@ impl LlmAgent {
             glm_api_key,
             glm_api_url,
         ) {
-            (Some(key), Some(url)) if !key.is_empty() && !url.is_empty() => {
+            (Some(key), Some(url))
+                if !key.is_empty() && !url.is_empty() && agent_name != "local" =>
+            {
                 info!("[LlmAgent] GLM Coding environment detected, routing through reev-agent");
                 // Route GLM through reev-agent instead of direct API calls
                 let final_url = if agent_name == "deterministic" {

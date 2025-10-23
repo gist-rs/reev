@@ -7,6 +7,35 @@
 
 ---
 
+## ✅ **COMPLETED: Local Agent Model Selection Fix**
+
+### **Task 5: Fix Local Agent Model Selection Logic** ✅ **COMPLETE**
+**Priority**: HIGH  
+**Issue**: `--agent local` was being overridden by GLM environment variables, forcing GLM API usage instead of local LM Studio server.
+
+**Root Cause**: LlmAgent prioritized `GLM_CODING_API_KEY`/`GLM_CODING_API_URL` over explicit `--agent local` selection.
+
+**Fix Applied**:
+1. Updated LlmAgent to respect explicit agent selection over environment variables
+2. Fixed OpenAIAgent base URL to include `/v1` for LM Studio compatibility  
+3. Added support for actual model name via `LOCAL_MODEL_NAME` environment variable
+4. Defaults to `qwen3-coder-30b-a3b-instruct-mlx` for local models
+
+**Result**: ✅ COMPLETE - Local agent working perfectly with 100% benchmark success rate
+
+**Test Results**:
+- Command: `unset GLM_CODING_API_KEY && unset GLM_CODING_API_URL && RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local`
+- Status: ✅ SUCCESS - Local model used, transaction generated and executed correctly
+- Score: 100% (1.0/1.0) with successful SOL transfer transaction
+
+**Files Modified**: 
+- `crates/reev-lib/src/llm_agent.rs` - Fixed agent selection logic to respect `--agent local`
+- `crates/reev-agent/src/enhanced/openai.rs` - Fixed URL and model name handling for local models
+
+**Key Achievement**: Local agent now properly routes through LM Studio server with correct OpenAI-compatible API format.
+
+---
+
 ## ✅ **COMPLETED: ZAI Provider Integration**
 
 ### **Task 1: Create ZAIAgent with Full Tool Support** ✅ **COMPLETE**

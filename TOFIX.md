@@ -33,6 +33,17 @@
 - **Root Cause**: Code was trying to parse transaction objects as RawInstructions instead of parsing instructions within transactions
 - **Error**: `Failed to parse RawInstruction: missing field 'program_id'`
 - **Fix Applied**: Modified parsing logic to extract instructions array from each transaction
+
+### **Task 4: Local Agent Model Selection Logic** ✅ **COMPLETE**
+- **Status**: 100% RESOLVED - Local agent now works perfectly with LM Studio
+- **Issue**: `--agent local` was being overridden by GLM environment variables, forcing GLM API usage instead of local LM Studio server
+- **Root Cause**: LlmAgent prioritized `GLM_CODING_API_KEY`/`GLM_CODING_API_URL` over explicit `--agent local` selection
+- **Fix Applied**: 
+  1. Updated LlmAgent to respect explicit agent selection over environment variables
+  2. Fixed OpenAIAgent base URL to include `/v1` for LM Studio compatibility
+  3. Added support for actual model name via `LOCAL_MODEL_NAME` environment variable
+- **Test Results**: 100% benchmark success rate (1.0/1.0 score) with successful SOL transfer transaction
+- **Key Achievement**: Local agent now properly routes through LM Studio server with correct OpenAI-compatible API format
 - **Expected Test Commands**:
   - `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
 - **Debug Log**:

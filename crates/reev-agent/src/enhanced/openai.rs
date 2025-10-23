@@ -46,14 +46,20 @@ impl OpenAIAgent {
         let _user_request = enhanced_prompt_data.prompt.clone();
 
         // Check API priority based on model selection
-        let client = if model_name == "local" {
+        let (client, actual_model_name) = if model_name == "local" {
             // Local model - always use local endpoint regardless of API keys
             let local_url = std::env::var("LOCAL_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost:1234/v1".to_string());
             let dummy_key = "dummy-key-for-local-model";
+            let actual_model = std::env::var("LOCAL_MODEL_NAME")
+                .unwrap_or_else(|_| "qwen3-coder-30b-a3b-instruct-mlx".to_string());
 
             info!("[OpenAIAgent] Using local model at: {}", local_url);
-            Client::builder(dummy_key).base_url(&local_url).build()?
+            info!("[OpenAIAgent] Using model name: {}", actual_model);
+            (
+                Client::builder(dummy_key).base_url(&local_url).build()?,
+                actual_model,
+            )
         } else if model_name.starts_with("glm-") {
             // GLM models - use ZAI_API_KEY if available
             if let Ok(zai_api_key) = std::env::var("ZAI_API_KEY") {
@@ -66,9 +72,10 @@ impl OpenAIAgent {
                 );
                 info!("[OpenAIAgent] Model: {} (regular GLM)", model_name);
 
-                Client::builder(&zai_api_key)
+                let client = Client::builder(&zai_api_key)
                     .base_url(&zai_api_url)
-                    .build()?
+                    .build()?;
+                (client, model_name.to_string())
             } else {
                 return Err(anyhow::anyhow!(
                     "GLM model '{model_name}' requires ZAI_API_KEY environment variable"
@@ -77,18 +84,22 @@ impl OpenAIAgent {
         } else if let Ok(openai_api_key) = std::env::var("OPENAI_API_KEY") {
             // Standard OpenAI client for other models
             info!("[OpenAIAgent] Using OpenAI API");
-            Client::new(&openai_api_key)
+            let client = Client::new(&openai_api_key);
+            (client, model_name.to_string())
         } else {
             // Fallback to local model for unknown models
             let local_url = std::env::var("LOCAL_MODEL_URL")
                 .unwrap_or_else(|_| "http://localhost:1234/v1".to_string());
             let dummy_key = "dummy-key-for-local-model";
+            let actual_model = std::env::var("LOCAL_MODEL_NAME")
+                .unwrap_or_else(|_| "qwen3-coder-30b-a3b-instruct-mlx".to_string());
 
             warn!(
                 "[OpenAIAgent] No API key found for model '{}', using local model at: {}",
                 model_name, local_url
             );
-            Client::builder(dummy_key).base_url(&local_url).build()?
+            let client = Client::builder(dummy_key).base_url(&local_url).build()?;
+            (client, actual_model)
         };
 
         // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization
@@ -124,7 +135,7 @@ impl OpenAIAgent {
                 allowed_tools
             );
             let mut builder = client
-                .completion_model(model_name)
+                .completion_model(&actual_model_name)
                 .completions_api()
                 .into_agent_builder()
                 .preamble(&enhanced_prompt)
@@ -151,7 +162,7 @@ impl OpenAIAgent {
             // Normal mode: add all discovery tools
             info!("[OpenAIAgent] Normal mode: Adding all discovery tools");
             client
-                .completion_model(model_name)
+                .completion_model(&actual_model_name)
                 .completions_api()
                 .into_agent_builder()
                 .preamble(&enhanced_prompt)
