@@ -432,3 +432,45 @@ pub db: PooledDatabaseWriter  // Internally manages pool of connections
 2. **Agent Dependencies**: LLM agents require proper API configuration to function
 3. **Integration Testing**: Need working agent execution to validate flow tracking
 4. **Debugging Strategy**: Start with agent functionality before testing flow features
+
+### Response Parsing Regression Fix ✅
+#### Problem Understanding
+After fixing Jupiter response parsing, simple SOL transfer transactions started failing with 0% scores. The parser expected nested `instructions` arrays but simple transfers have direct transaction objects.
+
+#### Root Cause Analysis
+Two different response structures existed:
+- Jupiter format: `{"transactions": [{"instructions": [{"program_id": "...", ...}], "completed": true, ...}]}`
+- Simple format: `{"transactions": [{"program_id": "...", "accounts": [...], "data": "..."}]}`
+
+The parser only handled the Jupiter format, breaking simple transfers.
+
+#### Solution Approach
+Implemented fallback parsing logic in `ResponseParser`:
+1. First attempt: Parse nested `instructions` array (Jupiter format)
+2. Fallback: Parse transaction object directly (simple format)
+3. Graceful failure: Return empty vector if neither works
+
+#### Technical Details
+Updated both `parse_jupiter_response()` and `parse_transaction_array()` functions:
+```rust
+if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
+    // Jupiter format - parse nested instructions
+} else {
+    // Simple format - parse transaction directly
+    match serde_json::from_value::<RawInstruction>(tx.clone()) {
+        Ok(raw_instruction) => vec![raw_instruction],
+        Err(_) => Vec::new()
+    }
+}
+```
+
+#### Lessons Learned
+1. **Backward Compatibility**: API changes must consider all existing response formats
+2. **Fallback Logic**: Essential when dealing with multiple data formats from different sources
+3. **Defensive Programming**: Always handle both expected and unexpected structures gracefully
+4. **Test Coverage**: Must test all supported formats to prevent regressions
+
+#### Impact Assessment
+- ✅ Fixed regression: 001-sol-transfer.yml now scores 1.0 (was 0.0)
+- ✅ No regression: 100-jup-swap-sol-usdc.yml still scores 1.0
+- ✅ Both formats now work seamlessly with same parser

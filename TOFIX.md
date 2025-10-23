@@ -69,6 +69,12 @@
   - Clean up unused imports and debug logging
 
 ## ✅ Recently Fixed Issues
+### Response Parsing Regression ✅ RESOLVED
+**Issue**: Jupiter response parsing fix broke simple SOL transfer transactions
+**Root Cause**: Parser only handled nested Jupiter format, not direct transaction objects  
+**Fix**: Added fallback logic in ResponseParser - tries nested instructions first, then direct parsing
+**Result**: Both 001-sol-transfer.yml and 100-jup-swap-sol-usdc.yml now score 1.0
+**Files Modified**: `crates/reev-lib/src/parsing/mod.rs`
 
 ### GLM-4.6 API 404 Error ✅ RESOLVED
 - **Issue**: `LLM API request failed with status 404 Not Found` when running `cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
