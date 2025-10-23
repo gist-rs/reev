@@ -11,8 +11,6 @@ use tracing::{debug, info, warn};
 /// Context integration configuration
 #[derive(Debug, Clone)]
 pub struct ContextConfig {
-    /// Whether to provide account context
-    pub enable_context: bool,
     /// Maximum conversation depth for context scenarios
     pub context_depth: u32,
     /// Maximum conversation depth for discovery scenarios
@@ -24,7 +22,6 @@ pub struct ContextConfig {
 impl Default for ContextConfig {
     fn default() -> Self {
         Self {
-            enable_context: true,
             context_depth: 3,
             discovery_depth: 7,
             force_discovery: false,
@@ -66,10 +63,9 @@ impl ContextIntegration {
                 false,
                 self.config.discovery_depth,
             )
-        } else if self.config.enable_context
-            && self
-                .builder
-                .should_provide_context(benchmark_id, initial_state)
+        } else if self
+            .builder
+            .should_provide_context(benchmark_id, initial_state)
         {
             match self
                 .builder
@@ -249,10 +245,9 @@ impl ContextIntegration {
             return self.config.discovery_depth;
         }
 
-        if self.config.enable_context
-            && self
-                .builder
-                .should_provide_context(benchmark_id, initial_state)
+        if self
+            .builder
+            .should_provide_context(benchmark_id, initial_state)
         {
             // Check if we have rich account data
             let has_token_accounts = initial_state.iter().any(|item| item.data.is_some());
@@ -290,7 +285,6 @@ impl ContextIntegration {
                 };
 
                 ContextConfig {
-                    enable_context: true,
                     context_depth: 5,
                     discovery_depth: depth,
                     force_discovery: false,
@@ -299,22 +293,19 @@ impl ContextIntegration {
             // Complex multi-step benchmarks need more depth
             id if id.contains("200-") || id.contains("complex") || Self::is_multi_step_flow(id) => {
                 ContextConfig {
-                    enable_context: true,
                     context_depth: 5,
                     discovery_depth: 10,
                     force_discovery: false,
                 }
             }
-            // Simple benchmarks: SOL transfers use minimal context, SPL transfers need balance info
+            // Simple benchmarks: SOL transfers have balance data and should provide context, SPL transfers need balance info
             id if id.contains("001-") => ContextConfig {
-                enable_context: false,
                 context_depth: 5,
                 discovery_depth: 7,
                 force_discovery: false,
             },
             // SPL transfers have token account data and should provide context
             id if id.contains("002-") => ContextConfig {
-                enable_context: true,
                 context_depth: 5,
                 discovery_depth: 7,
                 force_discovery: false,
@@ -328,11 +319,15 @@ impl ContextIntegration {
     pub fn analyze_context_effectiveness(
         &self,
         benchmark_id: &str,
+        initial_state: &[InitialStateItem],
         tool_calls_made: u32,
         depth_used: u32,
         success: bool,
     ) -> ContextAnalysis {
-        let expected_depth = if self.config.enable_context {
+        let expected_depth = if self
+            .builder
+            .should_provide_context(benchmark_id, initial_state)
+        {
             self.config.context_depth
         } else {
             self.config.discovery_depth

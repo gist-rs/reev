@@ -103,7 +103,20 @@ impl ContextBuilder {
             return true;
         }
 
-        debug!(
+        // Provide context for SOL transfer benchmarks with lamports in initial_state
+        let has_sol_accounts = initial_state
+            .iter()
+            .any(|item| item.data.is_none() && item.owner == "11111111111111111111111111111111");
+
+        if has_sol_accounts {
+            info!(
+                "[ContextBuilder] Providing context for SOL benchmark: {}",
+                benchmark_id
+            );
+            return true;
+        }
+
+        info!(
             "[ContextBuilder] Not providing context for simple benchmark: {}",
             benchmark_id
         );
