@@ -1,24 +1,3 @@
-//! ⚠️  ARCHITECTURE VIOLATION - THIS CODE VIOLATES JUPITER INTEGRATION RULES
-//!
-//! This file is preserved for git history tracking but SHOULD NOT BE USED.
-//!
-//! **Rules Violated:**
-//! - API-Only Instructions: All Jupiter instructions must come from official API calls
-//! - No LLM Generation: LLM is forbidden from generating Jupiter transaction data
-//! - Exact API Extraction: Preserve complete API response structure
-//!
-//! **Problems:**
-//! - Parses raw JSON transactions from LLM responses instead of using tools
-//! - Generates `RawInstruction` directly from parsed JSON
-//! - Looks for `program_id`/`accounts` fields in LLM-generated JSON
-//! - Bypasses proper tool framework (sol_transfer, jupiter_swap, etc.)
-//!
-//! **Solution:**
-//! Use the tool-based agents from `crates/reev-agent/src/enhanced/` which properly
-//! use the rig framework's tool system to call official APIs.
-//!
-//! **Status:** KEPT FOR HISTORY - DO NOT USE IN PRODUCTION
-
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -36,6 +15,7 @@ pub struct LlmAgent {
     api_url: String,
     api_key: Option<String>,
     model_name: String,
+    agent_type: String,
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
     is_glm: bool,
@@ -57,25 +37,35 @@ impl LlmAgent {
     ) -> Result<Self> {
         info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
-        // Check for GLM environment variables
-        let glm_api_key = std::env::var("GLM_API_KEY").ok();
-        let glm_api_url = std::env::var("GLM_API_URL").ok();
+        // Check for GLM Coding environment variables
+        let glm_api_key = std::env::var("GLM_CODING_API_KEY").ok();
+        let glm_api_url = std::env::var("GLM_CODING_API_URL").ok();
 
-        let (api_url, api_key, model_name, is_glm) = match (glm_api_key, glm_api_url) {
+        let (api_url, api_key, model_name, agent_name_for_type, is_glm) = match (
+            glm_api_key,
+            glm_api_url,
+        ) {
             (Some(key), Some(url)) if !key.is_empty() && !url.is_empty() => {
-                info!("[LlmAgent] Using GLM 4.6 API with OpenAI compatibility");
+                info!("[LlmAgent] GLM Coding environment detected, routing through reev-agent");
+                // Route GLM through reev-agent instead of direct API calls
                 let final_url = if agent_name == "deterministic" {
-                    format!("{url}?mock=true")
+                    "http://localhost:9090/gen/tx?mock=true".to_string()
                 } else {
-                    url
+                    "http://localhost:9090/gen/tx".to_string()
                 };
-                (final_url, Some(key), "glm-4.6".to_string(), true)
+                (
+                    final_url,
+                    None,
+                    "glm-4.6".to_string(),
+                    agent_name.to_string(),
+                    true,
+                )
             }
             (Some(_), None) => {
-                anyhow::bail!("GLM_API_KEY is set but GLM_API_URL is missing. Please set both GLM_API_KEY and GLM_API_URL for GLM 4.6 support.");
+                anyhow::bail!("GLM_CODING_API_KEY is set but GLM_CODING_API_URL is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");
             }
             (None, Some(_)) => {
-                anyhow::bail!("GLM_API_URL is set but GLM_API_KEY is missing. Please set both GLM_API_KEY and GLM_API_URL for GLM 4.6 support.");
+                anyhow::bail!("GLM_CODING_API_URL is set but GLM_CODING_API_KEY is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");
             }
             _ => {
                 info!("[LlmAgent] GLM environment variables not found, using default LLM configuration");
@@ -112,7 +102,7 @@ impl LlmAgent {
                     }
                 };
 
-                (api_url, api_key, model_name, false)
+                (api_url, api_key, model_name, agent_name.to_string(), false)
             }
         };
 
@@ -127,6 +117,7 @@ impl LlmAgent {
             api_url,
             api_key,
             model_name,
+            agent_type: agent_name_for_type,
             flow_logger,
             current_depth: 0,
             is_glm,
@@ -178,19 +169,15 @@ impl Agent for LlmAgent {
 
         // 2. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
-            // GLM uses OpenAI-compatible format
-            let full_prompt = format!("{context_prompt}\n\n{prompt}");
-
+            // GLM routes through reev-agent, use reev-agent format
             json!({
-                "model": self.model_name,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": full_prompt
-                    }
-                ],
-                "temperature": 0.1,
-                "max_tokens": 4000
+                "id": id,
+                "context_prompt": context_prompt,
+                "prompt": prompt,
+                "model_name": self.agent_type, // Use agent_type for routing
+                "mock": false,
+                "initial_state": None::<serde_json::Value>,
+                "allowed_tools": None::<Vec<String>>,
             })
         } else {
             // Default reev API format
@@ -312,62 +299,272 @@ impl Agent for LlmAgent {
         );
 
         let llm_response = if self.is_glm {
-            // Parse OpenAI-compatible response from GLM
-            let openai_response: serde_json::Value = serde_json::from_str(&llm_response_text)
-                .context("Failed to deserialize GLM OpenAI-compatible response")?;
+            // Check if this is a GLM Coding response (contains result field)
+            if let Ok(glm_response) = serde_json::from_str::<serde_json::Value>(&llm_response_text)
+            {
+                // First check if transactions are at the root level (local agent format)
+                if let Some(root_transactions) =
+                    glm_response.get("transactions").and_then(|t| t.as_array())
+                {
+                    info!("[LlmAgent] Processing transactions at root level (local agent format)");
+                    info!(
+                        "[LlmAgent] Debug - Raw transactions array: {:?}",
+                        root_transactions
+                    );
 
-            info!(
-                "[LlmAgent] Debug - Parsed GLM OpenAI response: {:?}",
-                openai_response
-            );
+                    let transactions = Some(
+                        root_transactions
+                            .iter()
+                            .filter_map(|tx| {
+                                info!("[LlmAgent] Debug - Processing transaction: {:?}", tx);
 
-            // Extract content from OpenAI response format
-            let content = openai_response
-                .get("choices")
-                .and_then(|choices| choices.get(0))
-                .and_then(|choice| choice.get("message"))
-                .and_then(|message| message.get("content"))
-                .and_then(|content| content.as_str())
-                .unwrap_or("");
+                                // Handle nested arrays from ZAI agent: [{"accounts":...}] vs direct objects
+                                let instruction_to_parse = if tx.is_array() {
+                                    // ZAI agent returns nested arrays, extract the first element
+                                    tx.as_array().and_then(|arr| arr.first()).unwrap_or(tx)
+                                } else {
+                                    tx
+                                };
 
-            info!("[LlmAgent] Debug - GLM extracted content: {}", content);
+                                match serde_json::from_value::<RawInstruction>(
+                                    instruction_to_parse.clone(),
+                                ) {
+                                    Ok(instruction) => {
+                                        info!(
+                                            "[LlmAgent] Debug - Successfully parsed RawInstruction"
+                                        );
+                                        Some(instruction)
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "[LlmAgent] Debug - Failed to parse RawInstruction: {}",
+                                            e
+                                        );
+                                        None
+                                    }
+                                }
+                            })
+                            .collect::<Vec<RawInstruction>>(),
+                    );
 
-            // Try to parse the content as JSON to extract transactions
-            match serde_json::from_str::<serde_json::Value>(content) {
-                Ok(json_content) => {
-                    // Look for transactions array in the parsed content
-                    if let Some(transactions) =
-                        json_content.get("transactions").and_then(|t| t.as_array())
-                    {
-                        LlmResponse {
-                            transactions: Some(
-                                transactions
-                                    .iter()
-                                    .filter_map(|tx| serde_json::from_value(tx.clone()).ok())
-                                    .collect(),
-                            ),
-                            result: None,
-                            summary: json_content
-                                .get("summary")
-                                .and_then(|s| s.as_str())
-                                .map(|s| s.to_string()),
-                            signatures: None,
-                            flows: None,
-                        }
-                    } else {
-                        // Fallback: treat the entire content as a transactions array
-                        if let Ok(transaction) =
-                            serde_json::from_value::<RawInstruction>(json_content)
+                    info!(
+                        "[LlmAgent] Debug - Parsed {} RawInstructions",
+                        transactions.as_ref().map_or(0, |t| t.len())
+                    );
+
+                    let summary = glm_response
+                        .get("summary")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string());
+
+                    let signatures = glm_response
+                        .get("signatures")
+                        .and_then(|s| s.as_array())
+                        .map(|sigs| {
+                            sigs.iter()
+                                .filter_map(|sig| sig.as_str().map(|s| s.to_string()))
+                                .collect()
+                        });
+
+                    info!(
+                        "[LlmAgent] Root level extracted {} transactions, summary: {}",
+                        transactions.as_ref().map_or(0, |t| t.len()),
+                        summary.as_deref().unwrap_or("none")
+                    );
+
+                    LlmResponse {
+                        transactions,
+                        result: None,
+                        summary,
+                        signatures,
+                        flows: None,
+                    }
+                } else if let Some(result) = glm_response.get("result") {
+                    info!("[LlmAgent] Processing GLM Coding response with result field");
+
+                    // Check if result has a "text" field (nested response)
+                    if let Some(text_field) = result.get("text").and_then(|t| t.as_str()) {
+                        info!("[LlmAgent] Found nested GLM Coding response in text field");
+
+                        // Parse the text field as JSON to get the inner result
+                        if let Ok(inner_response) =
+                            serde_json::from_str::<serde_json::Value>(text_field)
                         {
+                            if let Some(inner_result) = inner_response.get("result") {
+                                info!("[LlmAgent] Processing inner GLM Coding result");
+
+                                // Extract transactions from inner result.transactions
+                                let transactions = inner_result
+                                    .get("transactions")
+                                    .and_then(|t| t.as_array())
+                                    .map(|txs| {
+                                        txs.iter()
+                                            .filter_map(|tx| {
+                                                // Handle nested arrays from ZAI agent: [{"accounts":...}] vs direct objects
+                                                let instruction_to_parse = if tx.is_array() {
+                                                    // ZAI agent returns nested arrays, extract the first element
+                                                    tx.as_array()
+                                                        .and_then(|arr| arr.first())
+                                                        .unwrap_or(tx)
+                                                } else {
+                                                    tx
+                                                };
+
+                                                serde_json::from_value(instruction_to_parse.clone())
+                                                    .ok()
+                                            })
+                                            .collect::<Vec<RawInstruction>>()
+                                    });
+
+                                // Extract summary from inner result.summary
+                                let summary = inner_result
+                                    .get("summary")
+                                    .and_then(|s| s.as_str())
+                                    .map(|s| s.to_string());
+
+                                // Extract signatures from inner result.signatures
+                                let signatures = inner_result
+                                    .get("signatures")
+                                    .and_then(|s| s.as_array())
+                                    .map(|sigs| {
+                                        sigs.iter()
+                                            .filter_map(|sig| sig.as_str().map(|s| s.to_string()))
+                                            .collect()
+                                    });
+
+                                info!(
+                                    "[LlmAgent] GLM Coding inner extracted {} transactions, summary: {}",
+                                    transactions.as_ref().map_or(0, |t| t.len()),
+                                    summary.as_deref().unwrap_or("none")
+                                );
+
+                                LlmResponse {
+                                    transactions,
+                                    result: None,
+                                    summary,
+                                    signatures,
+                                    flows: None,
+                                }
+                            } else {
+                                warn!("[LlmAgent] Inner result not found in text field");
+                                LlmResponse {
+                                    transactions: None,
+                                    result: None,
+                                    summary: Some(text_field.to_string()),
+                                    signatures: None,
+                                    flows: None,
+                                }
+                            }
+                        } else {
+                            warn!("[LlmAgent] Failed to parse text field as JSON");
                             LlmResponse {
-                                transactions: Some(vec![transaction]),
+                                transactions: None,
                                 result: None,
-                                summary: None,
+                                summary: Some(text_field.to_string()),
                                 signatures: None,
                                 flows: None,
                             }
-                        } else {
-                            // If we can't parse as transaction, create empty response
+                        }
+                    } else {
+                        // Direct result field (not nested)
+                        info!("[LlmAgent] Processing direct GLM Coding result");
+
+                        // Extract transactions from result.transactions
+                        let transactions = result
+                            .get("transactions")
+                            .and_then(|t| t.as_array())
+                            .map(|txs| {
+                                txs.iter()
+                                    .filter_map(|tx| serde_json::from_value(tx.clone()).ok())
+                                    .collect::<Vec<RawInstruction>>()
+                            });
+
+                        // Extract summary from result.summary
+                        let summary = result
+                            .get("summary")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string());
+
+                        // Extract signatures from result.signatures
+                        let signatures =
+                            result
+                                .get("signatures")
+                                .and_then(|s| s.as_array())
+                                .map(|sigs| {
+                                    sigs.iter()
+                                        .filter_map(|sig| sig.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                });
+
+                        info!(
+                            "[LlmAgent] GLM Coding direct extracted {} transactions, summary: {}",
+                            transactions.as_ref().map_or(0, |t| t.len()),
+                            summary.as_deref().unwrap_or("none")
+                        );
+
+                        LlmResponse {
+                            transactions,
+                            result: None,
+                            summary,
+                            signatures,
+                            flows: None,
+                        }
+                    }
+                } else {
+                    // Parse OpenAI-compatible response from regular GLM
+                    info!("[LlmAgent] Processing regular GLM OpenAI-compatible response");
+
+                    // Extract content from OpenAI response format
+                    let content = glm_response
+                        .get("choices")
+                        .and_then(|choices| choices.get(0))
+                        .and_then(|choice| choice.get("message"))
+                        .and_then(|message| message.get("content"))
+                        .and_then(|content| content.as_str())
+                        .unwrap_or("");
+
+                    info!("[LlmAgent] Debug - GLM extracted content: {}", content);
+
+                    // Try to parse the content as JSON to extract transactions
+                    match serde_json::from_str::<serde_json::Value>(content) {
+                        Ok(json_content) => {
+                            // Look for transactions array in the parsed content
+                            if let Some(transactions) =
+                                json_content.get("transactions").and_then(|t| t.as_array())
+                            {
+                                LlmResponse {
+                                    transactions: Some(
+                                        transactions
+                                            .iter()
+                                            .filter_map(|tx| {
+                                                serde_json::from_value(tx.clone()).ok()
+                                            })
+                                            .collect(),
+                                    ),
+                                    result: None,
+                                    summary: json_content
+                                        .get("summary")
+                                        .and_then(|s| s.as_str())
+                                        .map(|s| s.to_string()),
+                                    signatures: None,
+                                    flows: None,
+                                }
+                            } else {
+                                // If we can't parse as transaction, create empty response
+                                LlmResponse {
+                                    transactions: None,
+                                    result: None,
+                                    summary: Some(content.to_string()),
+                                    signatures: None,
+                                    flows: None,
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            // If we can't parse as JSON, create a default response
+                            warn!(
+                                "[LlmAgent] Could not parse GLM response as JSON, using fallback"
+                            );
                             LlmResponse {
                                 transactions: None,
                                 result: None,
@@ -378,16 +575,15 @@ impl Agent for LlmAgent {
                         }
                     }
                 }
-                Err(_) => {
-                    // If we can't parse as JSON, create a default response
-                    warn!("[LlmAgent] Could not parse GLM response as JSON, using fallback");
-                    LlmResponse {
-                        transactions: None,
-                        result: None,
-                        summary: Some(content.to_string()),
-                        signatures: None,
-                        flows: None,
-                    }
+            } else {
+                // If we can't parse as JSON at all, create empty response
+                warn!("[LlmAgent] Could not parse GLM response as JSON, creating empty response");
+                LlmResponse {
+                    transactions: None,
+                    result: None,
+                    summary: Some(llm_response_text),
+                    signatures: None,
+                    flows: None,
                 }
             }
         } else {
@@ -444,17 +640,6 @@ impl Agent for LlmAgent {
                 info!("[LlmAgent] No transactions found in response");
                 vec![]
             }
-        } else if let Some(result) = llm_response.result {
-            // Old format: nested in result.text
-            info!(
-                "[LlmAgent] Processing {} instructions from old format",
-                result.text.len()
-            );
-            result
-                .text
-                .into_iter()
-                .map(|raw_ix| raw_ix.try_into())
-                .collect::<Result<Vec<AgentAction>>>()?
         } else {
             // No instructions found, try summary as last resort
             if let Some(summary) = &llm_response.summary {

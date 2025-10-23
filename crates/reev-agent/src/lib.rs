@@ -326,6 +326,7 @@ async fn handle_flow_step_benchmarks(
 pub mod context;
 pub mod enhanced;
 pub mod flow;
+pub mod providers;
 pub mod run;
 
 mod agents;

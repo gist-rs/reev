@@ -68,7 +68,20 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
 1. **Rust Toolchain**: Install Rust (latest stable recommended)
 2. **Git**: Clone the repository
 3. **Optional LLM**: Install LM Studio or have Gemini API key for AI agents
-4. **OpenTelemetry Setup** (Tool call tracking always enabled):
+4. **GLM API Setup**:
+   
+   **Regular GLM API** (OpenAI-compatible, highest priority):
+   ```bash
+   export ZAI_API_KEY="your-glm-api-key"
+   export ZAI_API_URL="https://api.z.ai/api/paas/v4"  # optional
+   ```
+   
+   **GLM Coding API** (for coding-specific tasks):
+   ```bash
+   export GLM_CODING_API_KEY="your-glm-coding-api-key"
+   export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"  # optional
+   ```
+5. **OpenTelemetry Setup** (Tool call tracking always enabled):
    ```bash
    export REEV_TRACE_FILE=traces.log
    ```
@@ -127,7 +140,7 @@ cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent loca
 
 **Gemini Agent:**
 ```bash
-cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 ```
 
 ### 🎮 Interactive TUI

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::info;
 
-use crate::{enhanced::openai::OpenAIAgent, LlmRequest};
+use crate::{enhanced::openai::OpenAIAgent, enhanced::zai_agent::ZAIAgent, LlmRequest};
 
 /// A minimal struct for deserializing the `key_map` from the `context_prompt` YAML.
 #[derive(Debug, Deserialize)]
@@ -48,13 +48,36 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     let key_map = context.key_map;
 
     // Route to appropriate enhanced agent based on model type
-    if model_name == "local" {
+    if model_name.starts_with("glm-") {
+        if std::env::var("ZAI_API_KEY").is_ok() {
+            // All GLM models - use ZAIAgent with ZAI_API_KEY
+            info!("[run_agent] Using GLM model via ZAIAgent with ZAI_API_KEY");
+            ZAIAgent::run(model_name, payload, key_map).await
+        } else {
+            Err(anyhow::anyhow!(
+                "GLM model '{model_name}' requires ZAI_API_KEY environment variable"
+            ))
+        }
+    } else if model_name == "local" {
         // Real local model - route to OpenAI agent which supports local LLM servers
         info!("[run_agent] Using real local model via OpenAI agent");
         OpenAIAgent::run(model_name, payload, key_map).await
+    } else if model_name.starts_with("gpt-")
+        || model_name.starts_with("claude-")
+        || model_name.starts_with("o1-")
+    {
+        // Other cloud models - route to OpenAI agent
+        info!(
+            "[run_agent] Using cloud model via OpenAI agent: {}",
+            model_name
+        );
+        OpenAIAgent::run(model_name, payload, key_map).await
     } else {
-        // Route to deterministic agent
-        info!("[run_agent] Legacy local-model detected, routing to deterministic agent");
+        // Route to deterministic agent for unknown models
+        info!(
+            "[run_agent] Unknown model '{}' detected, routing to deterministic agent",
+            model_name
+        );
         let response = crate::run_deterministic_agent(payload).await?;
         // Extract the text field from LlmResponse
         let response_text = response

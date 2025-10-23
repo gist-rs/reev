@@ -8,7 +8,7 @@ use crate::{
 };
 use std::path::Path;
 use tokio::fs;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use turso::{Builder, Connection};
 
 /// Current database schema loaded from external file
@@ -23,7 +23,7 @@ pub struct DatabaseWriter {
 impl DatabaseWriter {
     /// Create a new database writer with the given configuration
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
-        info!(
+        debug!(
             "[DB] Creating database connection to: {}",
             config.database_type()
         );
@@ -62,7 +62,7 @@ impl DatabaseWriter {
 
     /// Initialize database schema with all necessary tables and indexes
     async fn initialize_schema(&self) -> Result<()> {
-        info!("[DB] Initializing unified database schema from external file");
+        debug!("[DB] Initializing unified database schema from external file");
 
         // Split schema into individual statements and filter out comments
         let schema_string = CURRENT_SCHEMA
@@ -147,7 +147,7 @@ impl DatabaseWriter {
 
     /// Check database health and integrity
     pub async fn check_database_health(&self) -> Result<()> {
-        info!("[DB] Performing database health check");
+        debug!("[DB] Performing database health check");
 
         // Test basic connectivity
         let mut rows = self.conn.query("SELECT 1 as test", ()).await.map_err(|e| {
@@ -166,7 +166,7 @@ impl DatabaseWriter {
                 ["health_check", "health_check", "health_check", "tui", "1234567890"]
             ).await {
             Ok(_) => {
-                info!("[DB] AUTOINCREMENT test passed");
+                debug!("[DB] AUTOINCREMENT test passed");
                 // Clean up the test record
                 let _ = self.conn.execute("DELETE FROM execution_sessions WHERE session_id = ?", ["health_check"]).await;
             }
@@ -179,7 +179,7 @@ impl DatabaseWriter {
             }
         }
 
-        info!("[DB] Database health check completed successfully");
+        debug!("[DB] Database health check completed successfully");
         Ok(())
     }
 

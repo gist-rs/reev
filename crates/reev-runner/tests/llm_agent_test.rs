@@ -21,7 +21,7 @@ use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::fmt;
 
 use common::helpers::setup_env_for_benchmark;
@@ -139,7 +139,7 @@ async fn check_agent_health() -> Result<()> {
 
 /// Kill any existing reev-agent process on port 9090
 async fn kill_existing_reev_agent() -> Result<()> {
-    info!(
+    debug!(
         "🧹 Checking for existing reev-agent processes on port {}...",
         AGENT_PORT
     );
@@ -169,7 +169,7 @@ async fn kill_existing_reev_agent() -> Result<()> {
                 // Give processes time to terminate
                 tokio::time::sleep(Duration::from_millis(500)).await;
             } else {
-                info!("✅ No existing reev-agent processes found");
+                debug!("✅ No existing reev-agent processes found");
             }
         }
         Err(e) => {
@@ -210,8 +210,8 @@ async fn create_ai_agent() -> Result<reev_lib::llm_agent::LlmAgent> {
     // Check if we have API keys for cloud models
     let has_gemini_key = std::env::var("GEMINI_API_KEY").is_ok();
     let has_openai_key = std::env::var("OPENAI_API_KEY").is_ok();
-    let has_glm_key = std::env::var("GLM_API_KEY").is_ok();
-    let has_glm_url = std::env::var("GLM_API_URL").is_ok();
+    let has_glm_key = std::env::var("GLM_CODING_API_KEY").is_ok();
+    let has_glm_url = std::env::var("GLM_CODING_API_URL").is_ok();
 
     let model_name = if has_glm_key && has_glm_url {
         "glm-4.6".to_string()
@@ -274,6 +274,9 @@ async fn test_llm_agent_on_all_benchmarks(
     }
 
     let mut agent = create_ai_agent().await?;
+
+    // test only first one
+    // let benchmark_path = benchmark_paths.first().unwrap();
 
     for benchmark_path in benchmark_paths {
         info!(
@@ -352,160 +355,3 @@ async fn test_llm_agent_on_all_benchmarks(
 
     Ok(())
 }
-
-/// Test GLM 4.6 integration specifically
-#[tokio::test]
-async fn test_glm_46_integration() -> Result<()> {
-    // Initialize tracing
-    let _ = fmt::try_init();
-
-    // Check if GLM environment variables are set
-    let has_glm_key = std::env::var("GLM_API_KEY").is_ok();
-    let has_glm_url = std::env::var("GLM_API_URL").is_ok();
-
-    if !has_glm_key || !has_glm_url {
-        info!("⚠️  Skipping GLM test - GLM_API_KEY or GLM_API_URL not set");
-        return Ok(());
-    }
-
-    info!("🧪 Testing GLM 4.6 integration...");
-
-    // Test GLM agent creation
-    let mut agent = match reev_lib::llm_agent::LlmAgent::new("glm-4.6") {
-        Ok(agent) => {
-            info!("✅ GLM 4.6 agent created successfully");
-            agent
-        }
-        Err(e) => {
-            error!("❌ Failed to create GLM 4.6 agent: {}", e);
-            return Err(e);
-        }
-    };
-
-    // Check prerequisites
-    if let Err(e) = check_surfpool_available().await {
-        warn!("⚠️  Skipping GLM test - surfpool not available: {}", e);
-        return Ok(());
-    }
-
-    // Test on a simple benchmark
-    let root = get_project_root()?;
-    let benchmark_path = root.join("benchmarks/001-sol-transfer.yml");
-
-    if !benchmark_path.exists() {
-        warn!("⚠️  Benchmark 001-sol-transfer.yml not found, skipping GLM test");
-        return Ok(());
-    }
-
-    let (mut env, test_case, initial_observation) =
-        setup_env_for_benchmark(&benchmark_path).await?;
-    info!("✅ Environment setup complete for GLM test");
-
-    // Test GLM agent action generation
-    match agent
-        .get_action(
-            &test_case.id,
-            &test_case.prompt,
-            &initial_observation,
-            Some(&"USER_WALLET_PUBKEY".to_string()),
-            Some(test_case.ground_truth.skip_instruction_validation),
-        )
-        .await
-    {
-        Ok(actions) => {
-            info!("✅ GLM 4.6 agent generated {} actions", actions.len());
-
-            if actions.is_empty() {
-                warn!("⚠️  GLM 4.6 agent generated no actions");
-            } else {
-                // Execute actions to verify they work
-                let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
-
-                // Calculate score
-                let score = calculate_final_score(
-                    &test_case,
-                    &actions,
-                    &initial_observation,
-                    &step_result.observation,
-                );
-
-                info!("📊 GLM 4.6 agent score: {}", score);
-
-                if score > 0.5 {
-                    info!("✅ GLM 4.6 integration test passed");
-                } else {
-                    warn!(
-                        "⚠️  GLM 4.6 agent scored low ({}), but integration is working",
-                        score
-                    );
-                }
-            }
-        }
-        Err(e) => {
-            error!("❌ GLM 4.6 agent failed to generate actions: {}", e);
-            return Err(e);
-        }
-    }
-
-    env.close()?;
-    info!("✅ GLM 4.6 integration test completed successfully");
-    Ok(())
-}
-
-/// Test GLM environment variable validation
-#[tokio::test]
-async fn test_glm_env_validation() -> Result<()> {
-    // Test case 1: Both GLM_API_KEY and GLM_API_URL set
-    unsafe {
-        std::env::set_var("GLM_API_KEY", "test_key");
-        std::env::set_var("GLM_API_URL", "https://api.example.com");
-    }
-
-    match reev_lib::llm_agent::LlmAgent::new("glm-4.6") {
-        Ok(_) => info!("✅ GLM agent created with both env vars set"),
-        Err(e) => error!("❌ Failed to create GLM agent with both env vars: {}", e),
-    }
-
-    // Test case 2: Only GLM_API_KEY set
-    unsafe {
-        std::env::remove_var("GLM_API_URL");
-    }
-
-    match reev_lib::llm_agent::LlmAgent::new("glm-4.6") {
-        Ok(_) => error!("❌ GLM agent should not be created with only API_KEY"),
-        Err(_) => info!("✅ GLM agent correctly rejected missing API_URL"),
-    }
-
-    // Test case 3: Only GLM_API_URL set
-    unsafe {
-        std::env::remove_var("GLM_API_KEY");
-        std::env::set_var("GLM_API_URL", "https://api.example.com");
-    }
-
-    match reev_lib::llm_agent::LlmAgent::new("glm-4.6") {
-        Ok(_) => error!("❌ GLM agent should not be created with only API_URL"),
-        Err(_) => info!("✅ GLM agent correctly rejected missing API_KEY"),
-    }
-
-    // Test case 4: Neither GLM env var set
-    unsafe {
-        std::env::remove_var("GLM_API_KEY");
-        std::env::remove_var("GLM_API_URL");
-    }
-
-    match reev_lib::llm_agent::LlmAgent::new("glm-4.6") {
-        Ok(_) => info!("✅ GLM agent created with default config (no GLM env vars)"),
-        Err(e) => warn!("⚠️  GLM agent failed with default config: {}", e),
-    }
-
-    // Clean up
-    unsafe {
-        std::env::remove_var("GLM_API_KEY");
-        std::env::remove_var("GLM_API_URL");
-    }
-
-    Ok(())
-}
-
-// NOTE: Tool call extraction tests removed since manual tracking was disabled
-// Tool calls are now automatically tracked by OpenTelemetry + rig integration

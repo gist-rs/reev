@@ -80,47 +80,47 @@ impl DependencyManager {
         {
             let initialized = self.initialized.read().await;
             if *initialized {
-                info!("Dependencies already initialized");
+                debug!("Dependencies already initialized");
                 return self.get_dependency_urls().await;
             }
         }
 
-        info!("Initializing dependencies...");
+        debug!("Initializing dependencies...");
         let start_time = std::time::Instant::now();
 
         // Clear log files for clean debugging
-        info!("Clearing log files...");
+        debug!("Clearing log files...");
         self.clear_log_files().await?;
-        info!("Log files cleared");
+        debug!("Log files cleared");
 
         // Start both services with small delays for staggered parallel startup
-        info!("Starting both services with staggered approach...");
+        debug!("Starting both services with staggered approach...");
         let parallel_start = std::time::Instant::now();
 
         // Start reev-agent first
-        info!("Starting reev-agent service...");
+        debug!("Starting reev-agent service...");
         if let Err(e) = self.start_reev_agent().await {
             error!(error = %e, "Failed to start reev-agent");
             return Err(e);
         }
-        info!("reev-agent started");
+        debug!("reev-agent started");
 
         // Start surfpool with a small delay to avoid resource contention
         tokio::time::sleep(Duration::from_millis(200)).await;
-        info!("Starting surfpool service...");
+        debug!("Starting surfpool service...");
         if let Err(e) = self.start_surfpool().await {
             error!(error = %e, "Failed to start surfpool");
             return Err(e);
         }
-        info!("surfpool started");
+        debug!("surfpool started");
 
-        info!(
+        debug!(
             "Both services started with staggered approach in {:?}",
             parallel_start.elapsed()
         );
 
         // No continuous monitoring needed - services will be checked individually
-        info!(
+        debug!(
             "Dependencies initialized successfully in {:?}",
             start_time.elapsed()
         );
@@ -139,13 +139,13 @@ impl DependencyManager {
         let dependency_type = DependencyType::ReevAgent;
         let port = self.config.get_port(dependency_type);
 
-        info!(port, "Starting reev-agent service");
+        debug!(port, "Starting reev-agent service");
 
         // Check if reev-agent is already running
-        info!("Checking for existing reev-agent processes...");
+        debug!("Checking for existing reev-agent processes...");
         if let Ok(pids) = ProcessUtils::find_process_by_name(dependency_type.process_name()) {
             if !pids.is_empty() && self.config.shared_instances {
-                info!(
+                debug!(
                     "Found {} existing reev-agent process(es), using shared instance",
                     pids.len()
                 );
@@ -158,7 +158,7 @@ impl DependencyManager {
                 return Ok(());
             }
         }
-        info!("No existing reev-agent processes found, starting new instance");
+        debug!("No existing reev-agent processes found, starting new instance");
 
         // Check if port is available
         if super::ProcessDetector::is_port_in_use(port)? {
@@ -176,7 +176,7 @@ impl DependencyManager {
         let log_file = PathBuf::from(&self.config.log_dir).join("reev-agent.log");
 
         // Create process configuration
-        info!("Creating reev-agent process configuration...");
+        debug!("Creating reev-agent process configuration...");
         let process_config = ProcessConfig::new(
             dependency_type.process_name().to_string(),
             "cargo".to_string(),
@@ -201,7 +201,7 @@ impl DependencyManager {
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
         let timeout = self.config.startup_timeout;
-        info!("Waiting for reev-agent to be healthy...");
+        debug!("Waiting for reev-agent to be healthy...");
 
         let mut check_count = 0;
         while start_time.elapsed() < timeout {
@@ -212,7 +212,7 @@ impl DependencyManager {
                 check_count, result.status
             );
             if result.is_healthy() {
-                info!(
+                debug!(
                     "reev-agent health check passed after {} attempts in {:?}",
                     check_count,
                     start_time.elapsed()
@@ -251,13 +251,13 @@ impl DependencyManager {
         let dependency_type = DependencyType::Surfpool;
         let port = self.config.get_port(dependency_type);
 
-        info!(port, "Starting surfpool service");
+        debug!(port, "Starting surfpool service");
 
         // Check if surfpool is already running
-        info!("Checking for existing surfpool processes...");
+        debug!("Checking for existing surfpool processes...");
         if let Ok(pids) = ProcessUtils::find_process_by_name(dependency_type.process_name()) {
             if !pids.is_empty() && self.config.shared_instances {
-                info!(
+                debug!(
                     "Found {} existing surfpool process(es), using shared instance",
                     pids.len()
                 );
@@ -270,10 +270,10 @@ impl DependencyManager {
                 return Ok(());
             }
         }
-        info!("No existing surfpool processes found, starting new instance");
+        debug!("No existing surfpool processes found, starting new instance");
 
         // Get or build surfpool binary
-        info!("Getting or building surfpool binary...");
+        debug!("Getting or building surfpool binary...");
         let binary_start = std::time::Instant::now();
         let surfpool_binary = self
             .binary_manager
@@ -309,7 +309,7 @@ impl DependencyManager {
         let log_file = PathBuf::from(&self.config.log_dir).join("surfpool.log");
 
         // Create process configuration for surfpool start
-        info!("Creating surfpool process configuration...");
+        debug!("Creating surfpool process configuration...");
         let process_config = ProcessConfig::new(
             dependency_type.process_name().to_string(),
             surfpool_path.to_string_lossy().to_string(),
@@ -334,7 +334,7 @@ impl DependencyManager {
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
         let timeout = Duration::from_secs(30); // Shorter timeout for faster startup
-        info!("Waiting for surfpool to be healthy...");
+        debug!("Waiting for surfpool to be healthy...");
 
         let mut check_count = 0;
         while start_time.elapsed() < timeout {
@@ -345,7 +345,7 @@ impl DependencyManager {
                 check_count, result.status
             );
             if result.is_healthy() {
-                info!(
+                debug!(
                     "surfpool health check passed after {} attempts in {:?}",
                     check_count,
                     start_time.elapsed()
@@ -363,11 +363,11 @@ impl DependencyManager {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
-        info!("Waiting additional 3s for surfpool to fully initialize...");
+        debug!("Waiting additional 3s for surfpool to fully initialize...");
         tokio::time::sleep(Duration::from_secs(3)).await;
 
         // Register service
-        info!("Registering surfpool service...");
+        debug!("Registering surfpool service...");
         let mut service =
             DependencyService::new(dependency_type.process_name().to_string(), Some(port));
         service.add_url("rpc".to_string(), format!("http://localhost:{port}"));
@@ -423,15 +423,15 @@ impl DependencyManager {
 
     /// Cleanup and shutdown all dependencies
     pub async fn cleanup(&mut self) -> Result<()> {
-        info!("Cleaning up dependencies...");
+        debug!("Cleaning up dependencies...");
 
         // No monitoring to stop - services are shut down directly
-        info!("Health checking stopped (continuous monitoring was not used)");
+        debug!("Health checking stopped (continuous monitoring was not used)");
 
         // Shutdown processes
         let mut processes = self.processes.write().await;
         for (dependency_type, process_guard) in processes.drain() {
-            info!(dependency = ?dependency_type, "Shutting down process");
+            debug!(dependency = ?dependency_type, "Shutting down process");
             if let Err(e) = process_guard.shutdown().await {
                 warn!(dependency = ?dependency_type, error = %e, "Failed to shutdown process gracefully");
             }
@@ -445,13 +445,13 @@ impl DependencyManager {
         let mut initialized = self.initialized.write().await;
         *initialized = false;
 
-        info!("Dependency cleanup completed");
+        debug!("Dependency cleanup completed");
         Ok(())
     }
 
     /// Force shutdown of all dependencies
     pub async fn force_cleanup(&mut self) -> Result<()> {
-        info!("Force cleaning up dependencies...");
+        debug!("Force cleaning up dependencies...");
 
         // No monitoring to stop - services are shut down directly
         debug!("Health checking force stopped (continuous monitoring was not used)");
@@ -459,7 +459,7 @@ impl DependencyManager {
         // Force shutdown processes
         let mut processes = self.processes.write().await;
         for (dependency_type, process_guard) in processes.drain() {
-            info!(dependency = ?dependency_type, "Force shutting down process");
+            debug!(dependency = ?dependency_type, "Force shutting down process");
             let _ = process_guard.force_shutdown();
         }
 
@@ -471,7 +471,7 @@ impl DependencyManager {
         let mut initialized = self.initialized.write().await;
         *initialized = false;
 
-        info!("Force dependency cleanup completed");
+        debug!("Force dependency cleanup completed");
         Ok(())
     }
 
@@ -489,7 +489,7 @@ impl DependencyManager {
 
     /// Clear log files for clean debugging
     async fn clear_log_files(&self) -> Result<()> {
-        info!("Clearing log files for clean debugging...");
+        debug!("Clearing log files for clean debugging...");
 
         let log_files = ["reev-agent.log", "surfpool.log"];
 
@@ -498,7 +498,7 @@ impl DependencyManager {
             if log_path.exists() {
                 match fs::write(&log_path, "") {
                     Ok(()) => {
-                        info!("Cleared log file: {}", log_file);
+                        debug!("Cleared log file: {}", log_file);
                     }
                     Err(e) => {
                         warn!("Failed to clear log file {}: {}", log_file, e);

@@ -7,14 +7,14 @@ use crate::{
     error::{DatabaseError, Result},
     types::{DatabaseStats, DuplicateRecord},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::core::DatabaseWriter;
 
 impl DatabaseWriter {
     /// Check for duplicate benchmark records
     pub async fn check_for_duplicates(&self) -> Result<Vec<DuplicateRecord>> {
-        info!("[DB] Checking for duplicate benchmark records");
+        debug!("[DB] Checking for duplicate benchmark records");
 
         let query = "
             SELECT id, benchmark_name, COUNT(*) as count
@@ -63,11 +63,11 @@ impl DatabaseWriter {
 
     /// Cleanup duplicate benchmark records
     pub async fn cleanup_duplicates(&self) -> Result<usize> {
-        info!("[DB] Starting cleanup of duplicate benchmark records");
+        debug!("[DB] Starting cleanup of duplicate benchmark records");
 
         let duplicates = self.check_for_duplicates().await?;
         if duplicates.is_empty() {
-            info!("[DB] No duplicates to cleanup");
+            debug!("[DB] No duplicates to cleanup");
             return Ok(0);
         }
 
@@ -99,7 +99,7 @@ impl DatabaseWriter {
                 .map_err(|e| DatabaseError::operation("Failed to cleanup duplicates", e))?;
 
             total_cleaned += rows_affected;
-            info!(
+            debug!(
                 "[DB] Cleaned up {} duplicate records for ID '{}'",
                 rows_affected, duplicate.id
             );
@@ -157,7 +157,7 @@ impl DatabaseWriter {
 
     /// Perform comprehensive database health check
     pub async fn perform_health_check(&self) -> Result<()> {
-        info!("[DB] Starting comprehensive database health check");
+        debug!("[DB] Starting comprehensive database health check");
 
         // Test basic connectivity
         self.test_connectivity().await?;
@@ -180,7 +180,7 @@ impl DatabaseWriter {
 
     /// Test basic database connectivity
     async fn test_connectivity(&self) -> Result<()> {
-        info!("[DB] Testing database connectivity");
+        debug!("[DB] Testing database connectivity");
 
         let mut rows = self.conn.query("SELECT 1 as test", ()).await.map_err(|e| {
             error!("[DB] Connectivity test failed: {}", e);
@@ -199,7 +199,7 @@ impl DatabaseWriter {
 
     /// Test table integrity
     async fn test_table_integrity(&self) -> Result<()> {
-        info!("[DB] Testing table integrity");
+        debug!("[DB] Testing table integrity");
 
         let tables = [
             "benchmarks",
@@ -210,7 +210,7 @@ impl DatabaseWriter {
 
         for table in tables {
             let count = self.get_table_count(table).await?;
-            info!("[DB] Table '{}': {} records", table, count);
+            debug!("[DB] Table '{}': {} records", table, count);
         }
 
         info!("[DB] Table integrity test passed");
@@ -219,7 +219,7 @@ impl DatabaseWriter {
 
     /// Test foreign key constraints
     async fn test_foreign_keys(&self) -> Result<()> {
-        info!("[DB] Testing foreign key constraints");
+        debug!("[DB] Testing foreign key constraints");
 
         // Test execution_sessions -> benchmarks foreign key
         let mut rows = self
@@ -277,7 +277,7 @@ impl DatabaseWriter {
 
     /// Check for database corruption
     async fn check_corruption(&self) -> Result<()> {
-        info!("[DB] Checking for database corruption");
+        debug!("[DB] Checking for database corruption");
 
         // Test inserting into a table with AUTOINCREMENT
         match self
@@ -314,7 +314,7 @@ impl DatabaseWriter {
 
     /// Test CRUD operations
     async fn test_crud_operations(&self) -> Result<()> {
-        info!("[DB] Testing CRUD operations");
+        debug!("[DB] Testing CRUD operations");
 
         let _test_id = "crud_test_benchmark";
         let test_name = "crud-test";
@@ -349,7 +349,7 @@ impl DatabaseWriter {
 
     /// Get database performance metrics
     pub async fn get_performance_metrics(&self) -> Result<std::collections::HashMap<String, f64>> {
-        info!("[DB] Getting database performance metrics");
+        debug!("[DB] Getting database performance metrics");
 
         let mut metrics = std::collections::HashMap::new();
 
@@ -400,7 +400,7 @@ impl DatabaseWriter {
 
     /// Optimize database performance
     pub async fn optimize_database(&self) -> Result<()> {
-        info!("[DB] Starting database optimization");
+        debug!("[DB] Starting database optimization");
 
         // Run ANALYZE to update query planner statistics
         self.conn
@@ -408,7 +408,7 @@ impl DatabaseWriter {
             .await
             .map_err(|e| DatabaseError::operation("Failed to analyze database", e))?;
 
-        info!("[DB] Database ANALYZE completed");
+        debug!("[DB] Database ANALYZE completed");
 
         // Run VACUUM to reclaim unused space
         match self.conn.execute("VACUUM", ()).await {

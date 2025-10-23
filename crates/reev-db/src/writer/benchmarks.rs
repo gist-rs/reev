@@ -12,7 +12,7 @@ use chrono::Utc;
 use std::error::Error;
 use std::path::Path;
 use tokio::fs;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::core::DatabaseWriter;
 
@@ -24,7 +24,7 @@ impl DatabaseWriter {
         prompt: &str,
         content: &str,
     ) -> Result<String> {
-        info!(
+        debug!(
             "[DB] Upserting benchmark: '{}' (prompt: {:.50}...)",
             benchmark_name, prompt
         );
@@ -35,7 +35,7 @@ impl DatabaseWriter {
         // Use fixed timestamp for consistent content
         let timestamp = Utc::now().to_rfc3339();
 
-        info!(
+        debug!(
             "[DB] Upserting benchmark '{}' with MD5 '{}'",
             benchmark_name, prompt_md5
         );
@@ -64,7 +64,7 @@ impl DatabaseWriter {
             .await
             .map_err(|e| DatabaseError::query("Failed to upsert benchmark with ON CONFLICT", e))?;
 
-        info!(
+        debug!(
             "[DB] Upserted benchmark '{}' with MD5 '{}' (prompt: {:.50}...)",
             benchmark_name, prompt_md5, prompt
         );
@@ -78,7 +78,7 @@ impl DatabaseWriter {
         benchmarks_dir: P,
     ) -> Result<SyncResult> {
         let benchmarks_path = benchmarks_dir.as_ref();
-        info!(
+        debug!(
             "[DB] Starting benchmark synchronization from: {:?}",
             benchmarks_path
         );
@@ -101,7 +101,7 @@ impl DatabaseWriter {
             )
         })?;
 
-        info!("[DB] Scanning benchmark files...");
+        debug!("[DB] Scanning benchmark files...");
 
         // Process each YAML file
         while let Some(entry) = entries.next_entry().await.map_err(|e| {
@@ -132,7 +132,7 @@ impl DatabaseWriter {
                         _ => {}
                     }
                     sync_result.synced_benchmarks.push(synced);
-                    info!("[DB] ✅ Synced: {:?}", path.file_name());
+                    debug!("[DB] ✅ Synced: {:?}", path.file_name());
                 }
                 Err(e) => {
                     sync_result.error_count += 1;
@@ -227,7 +227,7 @@ impl DatabaseWriter {
 
     /// Get benchmark by ID
     pub async fn get_benchmark_by_id(&self, id: &str) -> Result<Option<BenchmarkData>> {
-        info!("[DB] Getting benchmark by ID: {}", id);
+        debug!("[DB] Getting benchmark by ID: {}", id);
 
         let mut rows = self
             .conn
@@ -247,17 +247,17 @@ impl DatabaseWriter {
                 content: row.get(3)?,
                 created_at: row.get(4)?,
             };
-            info!("[DB] Found benchmark: {}", benchmark.benchmark_name);
+            debug!("[DB] Found benchmark: {}", benchmark.benchmark_name);
             Ok(Some(benchmark))
         } else {
-            info!("[DB] Benchmark not found: {}", id);
+            debug!("[DB] Benchmark not found: {}", id);
             Ok(None)
         }
     }
 
     /// Get benchmark by name
     pub async fn get_benchmark_by_name(&self, name: &str) -> Result<Option<BenchmarkData>> {
-        info!("[DB] Getting benchmark by name: {}", name);
+        debug!("[DB] Getting benchmark by name: {}", name);
 
         let mut rows = self
             .conn
@@ -277,17 +277,17 @@ impl DatabaseWriter {
                 content: row.get(3)?,
                 created_at: row.get(4)?,
             };
-            info!("[DB] Found benchmark: {}", benchmark.benchmark_name);
+            debug!("[DB] Found benchmark: {}", benchmark.benchmark_name);
             Ok(Some(benchmark))
         } else {
-            info!("[DB] Benchmark not found: {}", name);
+            debug!("[DB] Benchmark not found: {}", name);
             Ok(None)
         }
     }
 
     /// Get all benchmarks
     pub async fn get_all_benchmarks(&self) -> Result<Vec<BenchmarkData>> {
-        info!("[DB] Getting all benchmarks");
+        debug!("[DB] Getting all benchmarks");
 
         let mut rows = self
             .conn
@@ -310,7 +310,7 @@ impl DatabaseWriter {
             });
         }
 
-        info!("[DB] Retrieved {} benchmarks", benchmarks.len());
+        debug!("[DB] Retrieved {} benchmarks", benchmarks.len());
         Ok(benchmarks)
     }
 
@@ -334,7 +334,7 @@ impl DatabaseWriter {
 
     /// Delete benchmark by ID
     pub async fn delete_benchmark(&self, id: &str) -> Result<()> {
-        info!("[DB] Deleting benchmark: {}", id);
+        debug!("[DB] Deleting benchmark: {}", id);
 
         let rows_affected = self
             .conn
@@ -343,7 +343,7 @@ impl DatabaseWriter {
             .map_err(|e| DatabaseError::query("Failed to delete benchmark", e))?;
 
         if rows_affected > 0 {
-            info!("[DB] Benchmark deleted successfully: {}", id);
+            debug!("[DB] Benchmark deleted successfully: {}", id);
         } else {
             warn!("[DB] Benchmark not found for deletion: {}", id);
         }
@@ -356,7 +356,7 @@ impl DatabaseWriter {
         &self,
         benchmark_name: &str,
     ) -> Result<Option<String>> {
-        info!(
+        debug!(
             "[DB] Looking up prompt MD5 for benchmark_name: '{}'",
             benchmark_name
         );

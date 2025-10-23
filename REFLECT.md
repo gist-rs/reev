@@ -41,6 +41,55 @@ let result = sol_transfer_tool.execute(args).await; // ✅ Follows rules
 - **Trade-off**: Accept temporary breakage for long-term architectural health
 - **Next Step**: Implement proper tool-based agent runner
 
+### GLM-4.6 API Integration
+
+#### Problem Understanding
+- **Issue**: `LLM API request failed with status 404 Not Found` when using GLM-4.6 agent
+- **Root Cause**: Runner was using old `LlmAgent` architecture instead of new `GlmAgent` from `reev-agent`
+- **Technical Challenge**: GLM API returns content in `reasoning_content` field, not `content` like OpenAI
+- **Impact**: GLM-4.6 agent completely non-functional despite having valid API credentials
+
+#### Solution Approach
+- **Architecture Decision**: Update runner to route to new `GlmAgent` when `--agent glm-4.6` specified
+- **Custom Client**: Created `GlmHttpClient` to intercept and transform GLM responses
+- **Response Transformation**: Move `reasoning_content` to `content` field for OpenAI compatibility
+- **Wrapper Pattern**: Implemented `GlmAgentWrapper` to bridge new and old agent interfaces
+
+#### Technical Implementation
+```rust
+// Custom HTTP client for GLM API
+struct GlmHttpClient {
+    client: reqwest::Client,
+    api_key: String,
+    api_url: String,
+}
+
+// Response transformation
+if let Some(reasoning) = message.get("reasoning_content") {
+    msg_obj.insert("content".to_string(), reasoning);
+}
+
+// Agent routing
+let agent = if agent_name == "glm-4.6" {
+    Box::new(GlmAgentWrapper::new(agent_name))
+} else {
+    Box::new(LlmAgent::new_with_flow_logging(agent_name, None)?)
+};
+```
+
+#### Lessons Learned
+1. **API Compatibility**: Different LLM APIs have unique response formats requiring custom handling
+2. **Wrapper Pattern**: Useful for bridging old/new architectures during migration
+3. **Response Transformation**: Sometimes need to adapt external APIs to internal expected formats
+4. **Gradual Migration**: Can update systems incrementally without breaking existing functionality
+5. **Debugging**: 404 errors often indicate wrong routing/architecture, not just URL issues
+
+#### Side Effects & Trade-offs
+- **Benefit**: GLM-4.6 agent now functional, API connectivity restored
+- **Cost**: Added complexity with custom HTTP client and response transformation
+- **Trade-off**: Accept custom client overhead for GLM compatibility
+- **Next Step**: Improve tool integration with GLM's function calling capabilities
+
 ### Flow Diagram Tool Name Resolution
 
 #### Problem Understanding

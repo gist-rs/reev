@@ -3740,9 +3740,11 @@ dependencies = [
  "anyhow",
  "axum",
  "bs58",
+ "bytes",
  "chrono",
  "clap",
  "dotenvy",
+ "futures",
  "hex",
  "reev-lib",
  "reev-protocols",
@@ -3891,6 +3893,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ascii_tree",
+ "async-trait",
  "chrono",
  "clap",
  "dotenvy",
@@ -3962,12 +3965,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossterm 0.27.0",
+ "dotenvy",
  "project-root",
  "ratatui",
  "reev-lib",
  "reev-runner",
  "strum",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

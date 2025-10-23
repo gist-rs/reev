@@ -80,7 +80,7 @@ impl HealthChecker {
             }
             Ok(Err(e)) => {
                 let error_msg = format!("HTTP request failed: {e}");
-                warn!(service_name, url, error = %e, "Health check failed");
+                debug!(service_name, url, error = %e, "Health check failed");
 
                 HealthCheckResult::new(service_name.to_string())
                     .with_status(ServiceHealth::Unhealthy(error_msg.clone()))
@@ -92,7 +92,7 @@ impl HealthChecker {
                     "Health check timeout after {}ms",
                     self.config.timeout.as_millis()
                 );
-                warn!(
+                debug!(
                     service_name,
                     url,
                     timeout_ms = self.config.timeout.as_millis(),
@@ -168,7 +168,7 @@ impl HealthChecker {
             }
             Ok(Err(e)) => {
                 let error_msg = format!("RPC request failed: {e}");
-                warn!(service_name, rpc_url, error = %e, "RPC health check failed");
+                debug!(service_name, rpc_url, error = %e, "RPC health check failed");
 
                 HealthCheckResult::new(service_name.to_string())
                     .with_status(ServiceHealth::Unhealthy(error_msg.clone()))

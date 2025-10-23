@@ -6,7 +6,7 @@
 use anyhow::Result;
 use std::process::Command;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Kill any existing reev-agent process on the specified port
 ///
@@ -32,7 +32,7 @@ use tracing::{info, warn};
 /// }
 /// ```
 pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
-    info!(
+    debug!(
         "🧹 Checking for existing reev-agent processes on port {}...",
         port
     );
@@ -70,7 +70,7 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
                     port
                 );
             } else {
-                info!("✅ No existing reev-agent processes found on port {}", port);
+                debug!("✅ No existing reev-agent processes found on port {}", port);
             }
         }
         Err(e) => {
@@ -109,7 +109,7 @@ pub async fn kill_existing_reev_agent(port: u16) -> Result<()> {
 /// }
 /// ```
 pub async fn kill_existing_surfpool(port: u16) -> Result<()> {
-    info!(
+    debug!(
         "🧹 Checking for existing surfpool processes on port {}...",
         port
     );
@@ -147,7 +147,7 @@ pub async fn kill_existing_surfpool(port: u16) -> Result<()> {
                     port
                 );
             } else {
-                info!("✅ No existing surfpool processes found on port {}", port);
+                debug!("✅ No existing surfpool processes found on port {}", port);
             }
         }
         Err(e) => {
@@ -246,7 +246,7 @@ pub async fn is_port_in_use(port: u16) -> bool {
 /// }
 /// ```
 pub async fn kill_existing_api(port: u16) -> Result<()> {
-    info!("🧹 Checking for existing API processes on port {}...", port);
+    debug!("🧹 Checking for existing API processes on port {}...", port);
 
     // Try to kill any process using the specified port
     match Command::new("lsof")
@@ -281,7 +281,7 @@ pub async fn kill_existing_api(port: u16) -> Result<()> {
                     port
                 );
             } else {
-                info!("✅ No existing API processes found on port {}", port);
+                debug!("✅ No existing API processes found on port {}", port);
             }
         }
         Err(e) => {

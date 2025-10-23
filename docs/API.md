@@ -4,6 +4,14 @@
 
 The Reev framework provides a comprehensive set of APIs for evaluating Solana LLM agents through benchmark execution, scoring, and analysis. This document covers the complete API surface including Rust libraries, REST endpoints, and configuration interfaces.
 
+## 🚀 Recent Updates
+
+### GLM-4.6 Agent Integration (v0.1.0)
+- **Fixed 404 API Error**: Resolved GLM API endpoint connectivity issues
+- **Custom Response Handling**: Implemented special handling for GLM's `reasoning_content` field
+- **Tool Support**: Added preliminary tool calling support for GLM-4.6 agent
+- **Runner Integration**: Updated reev-runner to use new GlmAgent architecture when `--agent glm-4.6` is specified
+
 ## 📦 Core Components
 
 ### 1. reev-lib - Core Library
@@ -292,8 +300,8 @@ RUST_LOG=debug cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --age
 RUST_LOG=info                    # Log level (debug, info, warn, error)
 REEV_FLOW_LOG_PATH=logs/flows    # Flow log output directory
 GOOGLE_API_KEY=your-key          # Gemini API key
-GLM_API_KEY=your-key            # GLM API key
-GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
+GLM_API_KEY=your-key            # GLM API key (required for glm-4.6 agent)
+GLM_API_URL="https://api.z.ai/api/coding/paas/v4"  # GLM API endpoint
 
 # Command-line options
 --timeout SECONDS                # Execution timeout (default: 30)

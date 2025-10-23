@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, anyhow};
-
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
@@ -20,7 +19,7 @@ use std::{
     sync::Arc,
     time::SystemTime,
 };
-use tracing::{info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 pub mod dependency;
 pub mod renderer;
 
@@ -43,7 +42,7 @@ impl Drop for DependencyManagerGuard {
 
 /// Initialize dependency management and ensure services are running
 async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
-    info!("Initializing dependency management...");
+    debug!("Initializing dependency management...");
 
     // Clean up any existing processes before starting new ones
     kill_existing_reev_agent(9090)
@@ -194,7 +193,8 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             );
         }
 
-        let mut agent = LlmAgent::new_with_flow_logging(agent_name, None)?;
+        let mut agent =
+            Box::new(LlmAgent::new_with_flow_logging(agent_name, None)?) as Box<dyn Agent + Send>;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
         let options = serde_json::to_value(&test_case)
@@ -205,7 +205,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             .context("Failed to set up SPL scenario")?;
 
         let (final_observation, trace, actions) =
-            run_evaluation_loop(&mut env, &mut agent, &test_case, &initial_observation)
+            run_evaluation_loop(&mut env, agent.as_mut(), &test_case, &initial_observation)
                 .await
                 .with_context(|| {
                     format!("Evaluation loop failed for benchmark: {}", test_case.id)
@@ -335,7 +335,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
         let performance_data = reev_lib::db::AgentPerformanceData {
             session_id: session_id.clone(),
             benchmark_id: test_case.id.clone(),
-            agent_type: agent.model_name().to_string(),
+            agent_type: agent_name.to_string(),
             score,
             final_status: match final_status {
                 FinalStatus::Succeeded => "completed".to_string(),

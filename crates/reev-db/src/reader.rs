@@ -299,7 +299,7 @@ impl DatabaseReader {
             logs.push(db_flow_log);
         }
 
-        info!(
+        debug!(
             "[DB] Retrieved {} flow logs for benchmark '{}'",
             logs.len(),
             benchmark_id
@@ -440,7 +440,7 @@ impl DatabaseReader {
             });
         }
 
-        info!(
+        debug!(
             "[DB] Retrieved {} agent performance records",
             performances.len()
         );
@@ -496,7 +496,7 @@ impl DatabaseReader {
             });
         }
 
-        info!(
+        debug!(
             "[DB] Retrieved {} YML test results for '{}' agent '{}' ",
             results.len(),
             benchmark_id,
@@ -611,7 +611,7 @@ impl DatabaseReader {
             });
         }
 
-        info!(
+        debug!(
             "[DB] Found {} benchmarks matching '{}'",
             benchmarks.len(),
             query_text

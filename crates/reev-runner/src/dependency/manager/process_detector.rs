@@ -126,7 +126,7 @@ impl ProcessDetector {
 
     /// Check if a specific port is in use
     pub fn is_port_in_use(port: u16) -> Result<bool> {
-        info!(port, "Checking if port is in use");
+        debug!(port, "Checking if port is in use");
 
         #[cfg(target_os = "macos")]
         {

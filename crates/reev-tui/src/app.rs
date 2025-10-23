@@ -31,6 +31,8 @@ pub enum SelectedAgent {
     Local,
     #[strum(to_string = " GLM 4.6 ")]
     Glm46,
+    #[strum(to_string = " GLM 4.6 COding")]
+    Glm46Coding,
 }
 
 impl SelectedAgent {
@@ -40,6 +42,7 @@ impl SelectedAgent {
             SelectedAgent::Gemini => "gemini-2.5-flash-lite",
             SelectedAgent::Local => "local",
             SelectedAgent::Glm46 => "glm-4.6",
+            SelectedAgent::Glm46Coding => "glm-4.6-coding",
         }
     }
 
@@ -62,8 +65,12 @@ impl SelectedAgent {
 
         // Check if GLM environment variables are properly configured
         if matches!(self, SelectedAgent::Glm46) {
-            let has_glm_key = std::env::var("GLM_API_KEY").is_ok();
-            let has_glm_url = std::env::var("GLM_API_URL").is_ok();
+            let has_glm_key = std::env::var("ZAI_API_KEY").is_ok();
+            let has_glm_url = std::env::var("ZAI_API_URL").is_ok();
+            !(has_glm_key && has_glm_url)
+        } else if matches!(self, SelectedAgent::Glm46Coding) {
+            let has_glm_key = std::env::var("GLM_CODING_API_KEY").is_ok();
+            let has_glm_url = std::env::var("GLM_CODING_API_URL").is_ok();
             !(has_glm_key && has_glm_url)
         } else {
             false

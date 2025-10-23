@@ -13,7 +13,8 @@
 - when user say `handover` you must summarize current state and incomplpeted issues to HANDOVER.md for next thread can follow up easily, refer to TASKS.md number if has.
 - use macos cli commad
 - search for related code, tests, examples to get an idea and current context before impl
-- fix warning diag but be reason about unused because maybe it meant to use, remove if not used
+- fix warning diag before commit but be reason about unused because maybe it meant to use, remove if not used
+- Always diagnostic and fix error before run
 
 ## DONT
 - DONT Add a test on each file, place it in tests folder.

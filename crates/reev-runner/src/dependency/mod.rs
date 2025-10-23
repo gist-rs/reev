@@ -62,7 +62,7 @@ pub use manager::{
 pub use process::{LifecycleManager, ProcessConfig, ProcessGuard, ProcessManager};
 
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Initialize dependency management system with default configuration
 pub async fn init_default() -> Result<DependencyManager> {
@@ -72,7 +72,7 @@ pub async fn init_default() -> Result<DependencyManager> {
 
 /// Initialize dependency management system with custom configuration
 pub async fn init_with_config(config: DependencyConfig) -> Result<DependencyManager> {
-    info!("Initializing dependency management system");
+    debug!("Initializing dependency management system");
 
     let manager = DependencyManager::new(config)?;
 

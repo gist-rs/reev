@@ -9,7 +9,7 @@ use crate::{
     types::{AgentPerformanceSummary, PerformanceResult},
 };
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{debug, info};
 
 use super::core::DatabaseWriter;
 
@@ -83,7 +83,7 @@ impl DatabaseWriter {
 
     /// Insert agent performance data
     pub async fn insert_agent_performance(&self, performance: &AgentPerformance) -> Result<()> {
-        info!(
+        debug!(
             "[DB] Storing performance for agent: {} on benchmark: {}",
             performance.agent_type, performance.benchmark_id
         );
@@ -113,7 +113,7 @@ impl DatabaseWriter {
 
     /// Get agent performance summaries
     pub async fn get_agent_performance(&self) -> Result<Vec<AgentPerformanceSummary>> {
-        info!("[DB] Getting agent performance summaries");
+        debug!("[DB] Getting agent performance summaries");
 
         let query = "
             SELECT
@@ -164,7 +164,7 @@ impl DatabaseWriter {
         &self,
         agent_type: &str,
     ) -> Result<Vec<AgentPerformance>> {
-        info!("[DB] Getting performance data for agent: {}", agent_type);
+        debug!("[DB] Getting performance data for agent: {}", agent_type);
 
         let mut rows = self
             .conn
