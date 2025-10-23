@@ -328,19 +328,21 @@ impl Agent for LlmAgent {
                                     instructions
                                         .iter()
                                         .filter_map(|instruction| {
+                                            info!("[LlmAgent] Debug - Attempting to parse instruction: {:?}", instruction);
                                             match serde_json::from_value::<RawInstruction>(
                                                 instruction.clone(),
                                             ) {
                                                 Ok(raw_instruction) => {
                                                     info!(
-                                                        "[LlmAgent] Debug - Successfully parsed RawInstruction"
+                                                        "[LlmAgent] Debug - Successfully parsed RawInstruction with program_id: {}",
+                                                        raw_instruction.program_id
                                                     );
                                                     Some(raw_instruction)
                                                 }
                                                 Err(e) => {
                                                     warn!(
-                                                        "[LlmAgent] Debug - Failed to parse RawInstruction: {}",
-                                                        e
+                                                        "[LlmAgent] Debug - Failed to parse RawInstruction: {}. Instruction: {}",
+                                                        e, instruction
                                                     );
                                                     None
                                                 }
@@ -595,9 +597,93 @@ impl Agent for LlmAgent {
                 }
             }
         } else {
-            // Default reev API format
-            serde_json::from_str(&llm_response_text)
-                .context("Failed to deserialize the LLM API response")?
+            // Try to parse as reev API format, but handle Jupiter complex responses
+            if let Ok(reev_response) = serde_json::from_str::<serde_json::Value>(&llm_response_text)
+            {
+                // Check if this is a Jupiter-style response with complex transaction structure
+                if let Some(transactions) =
+                    reev_response.get("transactions").and_then(|t| t.as_array())
+                {
+                    info!(
+                        "[LlmAgent] Processing Jupiter-style response with {} transactions",
+                        transactions.len()
+                    );
+
+                    let parsed_transactions = Some(
+                        transactions
+                            .iter()
+                            .flat_map(|tx| {
+                                // Extract instructions array from each transaction
+                                if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
+                                    instructions
+                                        .iter()
+                                        .filter_map(|instruction| {
+                                            info!("[LlmAgent] Debug - Attempting to parse instruction: {:?}", instruction);
+                                            match serde_json::from_value::<RawInstruction>(
+                                                instruction.clone(),
+                                            ) {
+                                                Ok(raw_instruction) => {
+                                                    info!(
+                                                        "[LlmAgent] Debug - Successfully parsed RawInstruction with program_id: {}",
+                                                        raw_instruction.program_id
+                                                    );
+                                                    Some(raw_instruction)
+                                                }
+                                                Err(e) => {
+                                                    warn!(
+                                                        "[LlmAgent] Debug - Failed to parse RawInstruction: {}. Instruction: {}",
+                                                        e, instruction
+                                                    );
+                                                    None
+                                                }
+                                            }
+                                        })
+                                        .collect::<Vec<RawInstruction>>()
+                                } else {
+                                    warn!("[LlmAgent] Debug - Transaction has no instructions array");
+                                    Vec::new()
+                                }
+                            })
+                            .collect::<Vec<RawInstruction>>(),
+                    );
+
+                    let summary = reev_response
+                        .get("summary")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string());
+
+                    let signatures = reev_response
+                        .get("signatures")
+                        .and_then(|s| s.as_array())
+                        .map(|sigs| {
+                            sigs.iter()
+                                .filter_map(|sig| sig.as_str().map(|s| s.to_string()))
+                                .collect()
+                        });
+
+                    info!(
+                        "[LlmAgent] Jupiter-style parsed {} transactions, summary: {}",
+                        parsed_transactions.as_ref().map_or(0, |t| t.len()),
+                        summary.as_deref().unwrap_or("none")
+                    );
+
+                    LlmResponse {
+                        transactions: parsed_transactions,
+                        result: None,
+                        summary,
+                        signatures,
+                        flows: None,
+                    }
+                } else {
+                    // Fallback to standard reev API deserialization
+                    serde_json::from_str(&llm_response_text)
+                        .context("Failed to deserialize the LLM API response")?
+                }
+            } else {
+                // Fallback to standard reev API deserialization
+                serde_json::from_str(&llm_response_text)
+                    .context("Failed to deserialize the LLM API response")?
+            }
         };
 
         info!("[LlmAgent] Debug - Parsed LlmResponse: {:?}", llm_response);

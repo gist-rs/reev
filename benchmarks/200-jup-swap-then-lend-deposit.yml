@@ -1,5 +1,5 @@
 id: 200-jup-swap-then-lend-deposit
-description: Multi-step flow - User swaps SOL to USDC then deposits USDC into Jupiter lending
+description: Multi-step flow - User swaps SOL to USDC then deposits USDC into Jupiter lending.
 tags: ["jupiter", "swap", "lend", "multi-step", "flow", "yield"]
 
 initial_state:
