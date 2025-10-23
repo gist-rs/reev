@@ -17,34 +17,43 @@
 
 ## Next Tasks
 
-### #002: Dynamic Tool Selection System  
-**Goal**: Implement LLM+dynamic tool routing for context-aware tool selection
-- Remove hardcoded Jupiter lending prompts for all operations
-- Add operation type detection (transfer vs swap vs lend)
-- Allow flexible tool call limits based on operation complexity
-- Create proper response type separation (account info vs transactions)
-- Re-enable `get_account_balance` tool with intelligent context routing
-
-### #003: Balance Context Missing Issue - CRITICAL
+### #002: Balance Context Missing Issue - CRITICAL
 **Problem**: Prompt says "Avoid unnecessary balance checks since information is already provided" but no balance info is actually provided
 - **Error**: Context only shows account keys, not actual SOL/token holdings
-- **Root Cause**: Runner not passing `initial_state` from benchmark to agent context
+- **Root Cause**: Wrong approach - should use surfpool RPC to set state then query it back
 - **Impact**: BREAKS ALL OPERATIONS - agents make blind decisions, violate prompt instructions
 - **Symptoms**: 
   - Agent told to avoid balance checks but has no balance information
-  - Context only shows wallet pubkeys, no amounts/token holdings
+  - Context shows 0.0000 SOL instead of expected 1.0 SOL from benchmark
   - Forces agent to make blind decisions or violate prompt instructions
   - Benchmark has balance data but context builder ignores it
   - Will cause failures in token swaps, lending operations, insufficient funds scenarios
-- **Status**: 🚨 CRITICAL - SOL transfers work by workaround, but ALL other operations will fail
+- **Status**: 🚨 CRITICAL - Need proper surfpool state setup and query
 - **Priority**: 🔥 URGENT - Must fix before any other benchmarks
-- **Solution**: Fix runner to pass `initial_state` data to agent for proper context building
+- **Solution**: Use surfpool RPC cheats to set state, then query real state for context
 - **Implementation**:
-  - Find where runner creates LlmRequest payload
-  - Ensure benchmark.initial_state is properly passed to payload.initial_state
-  - Test with SOL transfers to verify balance context appears
-  - Validate token operations work with proper balance context
+  - Parse ALL account types from benchmark's `initial_state`:
+    - SOL accounts: Use `surfnet_setAccount` with lamports
+    - Token accounts: Use `surfnet_setTokenAccount` with mint and amount
+    - Program accounts: Use `surfnet_setAccount` with owner and data
+    - Custom data accounts: Use `surfnet_setAccount` with full account data
+  - Handle both placeholder pubkeys (USER_WALLET_PUBKEY) and literal pubkeys
+  - Query current state from surfpool using RPC calls for agent context
+  - Ensure context shows real SOL/token balances from surfpool state
+  - Test with multiple benchmarks: SOL transfers, SPL transfers, Jupiter operations
+  - Verify context matches exactly what's specified in benchmark YAML
 
+### #003: Dynamic Tool Selection System (POSTPONED)
+**Goal**: Implement LLM+dynamic tool routing for context-aware tool selection
+- **Status**: 🚫 POSTPONED - Will address after context issues are fully resolved
+- **Priority**: Low - Not relevant until proper balance context is working
+- **Future Implementation**:
+  - Remove hardcoded Jupiter lending prompts for all operations
+  - Add operation type detection (transfer vs swap vs lend)
+  - Allow flexible tool call limits based on operation complexity
+  - Create proper response type separation (account info vs transactions)
+  - Re-enable `get_account_balance` tool with intelligent context routing
+ 
 ### #004: Enhanced Test Coverage
 **Goal**: Add comprehensive test cases for balance validation
 - Create `010-sol-check-balance-transfer.yml` benchmark

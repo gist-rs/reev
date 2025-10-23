@@ -111,6 +111,7 @@ pub trait Agent {
         observation: &AgentObservation,
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
+        initial_state: Option<&[crate::benchmark::InitialStateItem]>,
     ) -> Result<Vec<AgentAction>>;
 
     /// Get tool calls made during this session (for flow diagram generation)

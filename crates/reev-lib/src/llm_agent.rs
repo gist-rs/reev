@@ -143,6 +143,7 @@ impl Agent for LlmAgent {
         observation: &AgentObservation,
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
+        initial_state: Option<&[crate::benchmark::InitialStateItem]>,
     ) -> Result<Vec<AgentAction>> {
         // Initialize flow logger if not already done and logging is enabled
         // Flow logging is always enabled
@@ -182,7 +183,9 @@ impl Agent for LlmAgent {
                 "prompt": prompt,
                 "model_name": self.agent_type, // Use agent_type for routing
                 "mock": false,
-                "initial_state": None::<serde_json::Value>,
+                "initial_state": initial_state.map(|state| {
+                    serde_json::to_value(state).unwrap_or(serde_json::Value::Null)
+                }),
                 "allowed_tools": available_tools,
             })
         } else {
