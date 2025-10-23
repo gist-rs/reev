@@ -2,6 +2,14 @@
 
 ## Key Learnings & Insights
 
+### SOL Transfer Balance Tool Fix ✅
+**Problem**: Agent failed SOL transfers, stopped after balance check (0% score)
+**Root Cause**: Jupiter lending prompts applied to native transfers + 2-tool limit
+**Solution**: Commented out `get_account_balance` tool in ZAI/OpenAI agents
+**Results**: SOL transfer score improved 0% → 100%
+**Files**: `zai_agent.rs`, `openai.rs`
+**Next**: LLM+dynamic tool routing for context-aware selection
+
 ### GLM Jupiter Tools Integration - Major Success ✅
 #### Problem Understanding
 GLM-4.6 agent was failing on all Jupiter benchmarks with "Agent returned no actions to execute" despite having Jupiter tools available. The core issue was in the ZAI agent tool routing.

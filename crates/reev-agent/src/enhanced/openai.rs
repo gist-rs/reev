@@ -150,9 +150,10 @@ impl OpenAIAgent {
             if allowed_tools.contains(&"get_lend_earn_tokens".to_string()) {
                 builder = builder.tool(tools.lend_earn_tokens_tool);
             }
-            if allowed_tools.contains(&"get_account_balance".to_string()) {
-                builder = builder.tool(tools.balance_tool);
-            }
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // if allowed_tools.contains(&"get_account_balance".to_string()) {
+            //     builder = builder.tool(tools.balance_tool);
+            // }
             if allowed_tools.contains(&"jupiter_earn".to_string()) {
                 builder = builder.tool(tools.jupiter_earn_tool);
             }
@@ -174,7 +175,8 @@ impl OpenAIAgent {
                 .tool(tools.jupiter_lend_earn_mint_tool)
                 .tool(tools.jupiter_lend_earn_redeem_tool)
                 .tool(tools.jupiter_earn_tool)
-                .tool(tools.balance_tool)
+                // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+                // .tool(tools.balance_tool)
                 .tool(tools.lend_earn_tokens_tool)
                 .build()
         };

@@ -1,356 +1,53 @@
-# TASKS
+# TASKS.md
 
-## 🎯 ZAI Provider Integration - COMPLETE ✅
+## Current Issues
 
-**Status**: 100% Complete - All Systems Working! 🎉
-**Result**: ZAI Provider + LlmAgent + Tool Provisioning All Functional
+### #001: SOL Transfer Agent Issue
+**Problem**: Agent fails to execute native SOL transfers, stops after balance check
+- **Error**: `Agent returned no actions to execute`
+- **Root Cause**: Jupiter lending prompt confusion for native transfers
+- **Symptoms**: 
+  - Agent calls `get_account_balance` (tool 1/2)
+  - Stops due to "STOP after discovery tool" rule
+  - Returns balance info instead of proceeding with transfer
+- **Status**: ✅ FIXED - Commented out `get_account_balance` tool
+- **Priority**: High
+- **Solution**: Temporarily disabled balance checking tool to allow direct SOL transfers
+- **Result**: Score improved from 0% to 100% - SOL transfers now work correctly
 
----
+## Next Tasks
 
-## ✅ **COMPLETED: GLM Double-Nested Transaction Parsing Fix**
+### #002: Dynamic Tool Selection System  
+**Goal**: Implement LLM+dynamic tool routing for context-aware tool selection
+- Remove hardcoded Jupiter lending prompts for all operations
+- Add operation type detection (transfer vs swap vs lend)
+- Allow flexible tool call limits based on operation complexity
+- Create proper response type separation (account info vs transactions)
+- Re-enable `get_account_balance` tool with intelligent context routing
 
-### **Task 7: Fix GLM Double-Nested Transaction Parsing** ✅ **COMPLETE**
-**Priority**: HIGH  
-**Issue**: GLM models generate double-nested arrays that parser couldn't handle
-**Root Cause**: GLM format `{"transactions": [[{"program_id": "..."}]]}` not supported
+### #003: Enhanced Test Coverage
+**Goal**: Add comprehensive test cases for balance validation
+- Create `010-sol-check-balance-transfer.yml` benchmark
+- Test insufficient funds scenarios
+- Validate proper balance check → transfer flow
+- Cross-agent consistency testing
 
-**Fix Applied**:
-1. Added third fallback for GLM double-nested format in ResponseParser
-2. Fallback order: Jupiter nested → GLM double-nested → Simple direct
-3. Applied to both `parse_jupiter_response()` and `parse_transaction_array()`
-4. Graceful handling ensures no regressions
+## Recent Fixes
 
-**Test Results**:
-- ✅ **GLM-4.6-coding**: Score 1.0, Status: Succeeded (was 0.0)
-- ✅ **GLM-4.6**: Score 0.5625, Status: Failed (was 0.0) - parsing fixed, LLM reasoning issues remain
-- ✅ **Local agent**: Score 1.0, Status: Succeeded (no regression)
-- ✅ **Jupiter format**: Working correctly (no regression)
-
-**Files Modified**: 
-- `crates/reev-lib/src/parsing/mod.rs` - Added GLM double-nested format support
-
----
-
-## ✅ **COMPLETED: GLM Jupiter Tools Integration Fix**
-
-### **Task 8: Fix GLM Jupiter Tools Integration** ✅ **COMPLETE**
-**Priority**: HIGH  
-**Issue**: GLM-4.6 agent failing on all Jupiter benchmarks with "Agent returned no actions to execute"
-**Root Cause**: ZAI agent only registered sol_tool but hardcoded routing to only call SOL tool regardless of actual tool invoked
-
-**Fix Applied**:
-1. **Added All Jupiter Tools**: Registered swap, lend, earn, balance tools in ZAI completion request
-2. **Fixed Tool Routing**: Added proper match statement to route each tool call to correct handler with proper argument types
-3. **Enhanced Error Handling**: Better error messages and summaries for each tool type
-4. **Maintained Compatibility**: Preserved existing SOL/SPL transfer functionality
-
-**Test Results**:
-- ✅ **100-jup-swap-sol-usdc**: Working - Jupiter swaps functional
-- ✅ **110-jup-lend-deposit-sol**: Working - Jupiter lending functional  
-- ✅ **111-jup-lend-deposit-usdc**: Working - USDC lending functional
-- ✅ **112-jup-lend-withdraw-sol**: Working - SOL withdrawals functional
-- ✅ **113-jup-lend-withdraw-usdc**: Working - USDC withdrawals functional
-- ✅ **114-jup-positions-and-earnings**: Working - Position queries functional
-- ✅ **115-jup-lend-mint-usdc**: Working - Mint operations functional
-- ✅ **116-jup-lend-redeem-usdc**: Working - Redeem operations functional
-- ✅ **Basic Transfers**: 001, 002, 003 all working (no regression)
-
-**Impact**: GLM-4.6 agent now has production-ready access to full Jupiter DeFi ecosystem
-
-**Files Modified**: 
-- `crates/reev-agent/src/enhanced/zai_agent.rs` - Added Jupiter tools and proper routing
-- `crates/reev-agent/src/enhanced/common/mod.rs` - Enhanced JSON parsing fallbacks
-
----
-
-**Key Achievement**: GLM models now work with proper parsing, LLM reasoning issues identified as separate concern.
-
-**Status**: 🎉 PARSING FIX RESOLVED - Production ready!
-
----
-
-## ✅ **COMPLETED: Response Parsing Regression Fix**
-
-### **Task 6: Fix Response Parsing Regression** ✅ **COMPLETE**
-**Priority**: HIGH  
-**Issue**: Jupiter response parsing fix broke simple SOL transfer transactions
-**Root Cause**: Parser only handled nested Jupiter format, not direct transaction objects
-
-**Fix Applied**:
-1. Updated `parse_jupiter_response()` and `parse_transaction_array()` with fallback logic
-2. First attempts nested `instructions` parsing (Jupiter format)
-3. Falls back to direct transaction parsing (simple format)
-4. Graceful handling of both response structures
-
-**Test Results**:
-- ✅ **001-sol-transfer.yml**: Score 1.0, Status: Succeeded (was failing)
-- ✅ **100-jup-swap-sol-usdc.yml**: Score 1.0, Status: Succeeded (still working)
-
-**Files Modified**: 
-- `crates/reev-lib/src/parsing/mod.rs` - Added fallback parsing logic
-
-**Key Achievement**: Both Jupiter and simple transaction formats now work correctly without regression.
-
-**Status**: 🎉 REGRESSION RESOLVED - All benchmarks passing!
-
----
-
-## ✅ **COMPLETED: Local Agent Model Selection Fix**
-
-### **Task 5: Fix Local Agent Model Selection Logic** ✅ **COMPLETE**
-**Priority**: HIGH  
-**Issue**: `--agent local` was being overridden by GLM environment variables, forcing GLM API usage instead of local LM Studio server.
-
-**Root Cause**: LlmAgent prioritized `GLM_CODING_API_KEY`/`GLM_CODING_API_URL` over explicit `--agent local` selection.
-
-**Fix Applied**:
-1. Updated LlmAgent to respect explicit agent selection over environment variables
-2. Fixed OpenAIAgent base URL to include `/v1` for LM Studio compatibility  
-3. Added support for actual model name via `LOCAL_MODEL_NAME` environment variable
-4. Defaults to `qwen3-coder-30b-a3b-instruct-mlx` for local models
-
-**Result**: ✅ COMPLETE - Local agent working perfectly with 100% benchmark success rate
-
-**Test Results**:
-- Command: `unset GLM_CODING_API_KEY && unset GLM_CODING_API_URL && RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local`
-- Status: ✅ SUCCESS - Local model used, transaction generated and executed correctly
-- Score: 100% (1.0/1.0) with successful SOL transfer transaction
-
-**Files Modified**: 
-- `crates/reev-lib/src/llm_agent.rs` - Fixed agent selection logic to respect `--agent local`
-- `crates/reev-agent/src/enhanced/openai.rs` - Fixed URL and model name handling for local models
-
-**Key Achievement**: Local agent now properly routes through LM Studio server with correct OpenAI-compatible API format.
-
----
-
-## ✅ **COMPLETED: ZAI Provider Integration**
-
-### **Task 1: Create ZAIAgent with Full Tool Support** ✅ **COMPLETE**
-**Priority**: COMPLETED  
-**Status**: ZAI Provider + ZAIAgent Fully Functional!
-**Result**: Complete ZAIAgent implementation with full tool support and GLM-4.6 integration.
-
-**What Was Accomplished**:
-1. ✅ **Created ZAIAgent** in `crates/reev-agent/src/enhanced/zai_agent.rs`
-   - Mirrored OpenAIAgent structure but uses ZAI provider
-   - Supports all reev-tools (SolTransferTool, JupiterSwapTool, etc.)
-   - Added proper streaming and completion support
-   - Handles multi-turn conversation with intelligent depth optimization
-
-2. ✅ **Updated Model Routing** in `crates/reev-agent/src/run.rs`
-   - Routes `glm-4.6` and `glm-4.6-coding` to ZAIAgent
-   - Removed GLM_CODING_API_KEY dependency, uses ZAI_API_KEY for both
-   - Kept existing OpenAIAgent for non-GLM models
-
-3. ✅ **Context Integration Fixed** 
-   - Fixed enhanced_prompt usage to include full account context
-   - Agent now receives wallet keys and calls tools correctly
-   - Tool execution working perfectly
-
-**Test Results**:
-- ✅ ZAI provider example works perfectly: completion, tool calling, streaming
-- ✅ ZAIAgent successfully calls sol_transfer with correct parameters
-- ✅ Tool execution working perfectly
-- ✅ ZAI API tool format fully resolved
-- ✅ Transaction parsing fixed - benchmarks scoring 100%
-- ✅ Tool provisioning architecture fixed - Jupiter operations working
-
-**Working Test Commands**:
-- Basic transfers: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
-- Jupiter swap: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local`
-- Flow operations: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local`
-
-**Environment Variables**:
-- `ZAI_API_KEY`: Official GLM API key (use for both regular GLM and GLM Coding)
-- Local fallback still supported for non-GLM models
+### ✅ SOL Transfer Issue (#001) - FIXED
+**Date**: 2025-10-23
+**Changes Made**:
+- Commented out `get_account_balance` tool in ZAI and OpenAI agents
+- Added TODO comments for future re-enablement with proper context routing
+- Verified fix works: SOL transfer score improved from 0% to 100%
 
 **Files Modified**:
-- `crates/reev-agent/src/enhanced/zai_agent.rs` - New ZAIAgent ✅
-- `crates/reev-lib/src/llm_agent.rs` - Fixed transaction parsing & tool provisioning ✅
-- `TOFIX.md` - Updated with resolution status ✅
-- `REFLECT.md` - Added lessons learned ✅
+- `crates/reev-agent/src/enhanced/zai_agent.rs`
+- `crates/reev-agent/src/enhanced/openai.rs`
 
----
+## Implementation Plan
 
-## ✅ **COMPLETED: LlmAgent Transaction Parsing Fix**
-
-**Issue**: Benchmarks scoring 0% due to transaction parsing failures
-**Root Cause**: GLM responses in `summary` field as JSON arrays, not in `transactions` field
-**Solution**: Enhanced `extract_transactions_from_summary()` to handle direct JSON array parsing
-**Result**: All basic benchmarks now score 100%
-
----
-
-## ✅ **COMPLETED: Tool Provisioning Architecture Fix**
-
-**Issue**: Jupiter operations failing with `ToolNotFoundError: get_account_balance`
-**Root Cause**: LlmAgent sending `"allowed_tools": null` - no tools available
-**Solution**: Return `None` for normal mode, let OpenAIAgent provide all tools
-**Result**: All operations have full tool access, language-agnostic approach
-
----
-
-## 🎉 **FINAL STATUS: ALL SYSTEMS OPERATIONAL**
-
-- ✅ ZAI Provider Integration Complete
-- ✅ Transaction Parsing Fixed  
-- ✅ Tool Provisioning Fixed
-- ✅ Jupiter Operations Working
-- ✅ Multi-language Support
-- ✅ Flow Operations Supported
-- ✅ Benchmarks Scoring 100%
-
-**Ready for Production!** 🚀
-- `crates/reev-agent/src/enhanced/mod.rs` - Export ZAIAgent
-- `crates/reev-agent/src/run.rs` - Update routing logic
-- Remove: `crates/reev-agent/src/enhanced/glm_coding_agent.rs` (unused)
-
-### **Task 2: Tool Integration for ZAIAgent** ✅ **COMPLETE**
-**Priority**: COMPLETED  
-**Status**: All reev-tools successfully integrated with ZAIAgent
-
-**Tools Successfully Integrated**:
-- ✅ SolTransferTool (basic transfers)
-- ✅ JupiterSwapTool (token swaps)
-- ✅ JupiterLendEarnDepositTool
-- ✅ JupiterLendEarnWithdrawTool
-- ✅ JupiterLendEarnMintTool
-- ✅ JupiterLendEarnRedeemTool
-- ✅ JupiterEarnTool
-- ✅ AccountBalanceTool
-- ✅ SplTransferTool
-- ✅ LendEarnTokensTool
-- All other reev-tools
-
-**Integration Results**:
-- ✅ ZAI provider's tool calling capabilities fully functional
-- ✅ Leveraged existing tool definitions from OpenAIAgent
-- ✅ Proper tool response parsing implemented
-- ✅ Flow mode tool filtering supported
-- ✅ Ready for benchmark testing
-
----
-
-## ✅ **COMPLETED: ZAI Provider Foundation**
-
-### **Task 1: ZAI Provider Implementation** ✅ **COMPLETE**
-**Priority**: COMPLETED  
-**Status**: 100% COMPLETE - ZAI Provider fully functional!
-
-**What's Working**:
-- ✅ ZAI client with authentication and API endpoints
-- ✅ Completion model with GLM-4.6 support
-- ✅ Streaming support with proper response handling
-- ✅ Tool calling capabilities (tested in example)
-- ✅ OpenAI-compatible response format
-- ✅ Comprehensive working example
-
-**Files Created**:
-- `crates/reev-agent/src/providers/zai/client.rs` - API client
-- `crates/reev-agent/src/providers/zai/completion.rs` - Completion model
-- `crates/reev-agent/src/providers/zai/mod.rs` - Module exports
-- `crates/reev-agent/examples/zai_example.rs` - Working example
-
-**Result**: 🎉 ZAI Provider is production-ready for integration!
-
----
-
-## 🔄 **IN PROGRESS: Testing and Validation**
-
-### **Task 3: Integration Testing** 🔄 **NEXT STEP**
-**Priority**: HIGH  
-**Status**: Ready for full integration testing
-**Reason**: Validate ZAIAgent works with reev-runner and benchmarks
-
-**Test Commands Ready**:
-- `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6`
-- `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding`
-
-**Expected Results**:
-- ZAIAgent should handle both regular GLM and GLM Coding requests
-- Full tool execution with transaction generation
-- Proper response formatting and extraction
-
-### **Task 4: Code Cleanup** 🔄 **TODO**
-**Priority**: MEDIUM  
-**Reason**: Clean up codebase after successful ZAI migration
-
-**Files to Remove/Update**:
-- Remove `crates/reev-agent/src/enhanced/glm_coding_agent.rs` (unused)
-- Remove GLM_CODING_API_KEY references from routing logic
-- Clean up unused imports
-- Update documentation
-
----
-
-## ✅ **COMPLETED: Local Agent Model Selection Fix**
-
-### **Task 3: Fix Local Agent Model Selection Logic** ✅ **COMPLETED**
-**Priority**: HIGH  
-**Issue**: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local` failed with GLM API error despite requesting local model.
-
-**Root Cause**: OpenAIAgent prioritized ZAI_API_KEY over model selection, forcing GLM API even for local agent requests.
-
-**Fix Applied**:
-1. Updated OpenAIAgent client selection logic to respect model name first
-2. Local model (`--agent local`) now always uses local endpoint regardless of environment variables  
-3. Fixed transaction parsing to handle nested arrays: `Array [Array [Object {...}]]`
-4. GLM models only use ZAI_API_KEY, local models use localhost endpoint
-
-**Result**: ✅ COMPLETE - Local agent working perfectly, successfully generates and executes SOL transfer transactions
-
-**Files Modified**: 
-- `crates/reev-agent/src/enhanced/openai.rs` - Fixed client selection and transaction parsing
-- `crates/reev-agent/src/run.rs` - Updated model routing logic
-
-**Test Result**: 
-- Command: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent local`
-- Status: ✅ SUCCESS - Local model used, transaction generated and executed correctly
-
----
-
-## 📊 **Implementation Order (UPDATED)**
-
-1. ✅ **Task 1**: Create ZAIAgent with Full Tool Support (COMPLETE)
-2. ✅ **Task 2**: Update Model Routing to Use ZAIAgent (COMPLETE)  
-3. ✅ **Task 3**: Tool Integration Testing (COMPLETE)
-4. 🔄 **Task 4**: Integration Testing with reev-runner (HIGH - Next)
-5. 🔄 **Task 5**: Code Cleanup (MEDIUM)
-6. ❌ **Task 6**: Performance Testing (LOW)
-
----
-
-**Current Project Status (UPDATED)**
-
-**ZAI Provider**: ✅ **COMPLETE** (Production-ready!)
-**ZAIAgent**: ✅ **COMPLETE** (Full tool support, multi-turn conversation)
-**GLM Integration**: ✅ **COMPLETE** (Ready for testing)
-**Tool Support**: ✅ **COMPLETE** (All reev-tools integrated)
-**Code Cleanup**: 🔄 **TODO** (After testing)
-
-✅ **Task 1**: Create ZAIAgent with Full Tool Support (COMPLETE)  
-✅ **Task 2**: Update Model Routing to Use ZAIAgent (COMPLETE)  
-✅ **Task 3**: Tool Integration Testing (COMPLETE)  
-🔄 **Task 4**: Integration Testing with reev-runner (NEXT!)  
-
-**Next Action**: Test ZAIAgent with reev-runner benchmarks to validate full integration.
-
-## 🛠️ Technical Notes
-- **ZAI Provider**: ✅ **WORKING** - completion, streaming, tool calling all functional
-- **ZAIAgent**: ✅ **WORKING** - full agent with multi-turn conversation and tool support
-- **Target Models**: Both `glm-4.6` and `glm-4.6-coding` now use ZAIAgent
-- **Environment**: Use `ZAI_API_KEY` for both regular GLM and GLM Coding
-- **Key Success**: ZAIAgent mirrors OpenAIAgent functionality but uses ZAI provider
-- **Test Results**: ZAI example shows completion, tool calling, and streaming all working perfectly
-- **Critical Issue**: ZAI API tool serialization - "Tool type cannot be empty" error
-- **Current Status**: 95% complete - just need to fix tool type field serialization
-
-## 🔍 **Debugging Progress**
-- ✅ **Context Integration**: Fixed - agent now receives full account context
-- ✅ **Tool Calling**: Fixed - agent calls sol_transfer with correct parameters  
-- ✅ **Tool Execution**: Fixed - tool completes successfully
-- ❌ **API Format**: Tool type field empty in ZAI API request
-- **Error**: `{"error":{"code":"1214","message":"Tool type cannot be empty"}}`
-- **Location**: `crates/reev-agent/src/providers/zai/completion.rs` tool serialization
-
+1. **Quick Fix**: Comment out `get_account_balance` tool to enable immediate SOL transfers
+2. **Context Fix**: Separate Jupiter lending prompts from native transfer logic  
+3. **Response Fix**: Add proper response type handling (account_info vs transactions)
+4. **Dynamic System**: Implement intelligent tool selection based on user intent

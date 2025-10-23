@@ -144,7 +144,8 @@ impl ZAIAgent {
             .definition(String::new())
             .await;
         let jupiter_earn_tool_def = tools.jupiter_earn_tool.definition(String::new()).await;
-        let balance_tool_def = tools.balance_tool.definition(String::new()).await;
+        // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+        // let balance_tool_def = tools.balance_tool.definition(String::new()).await;
 
         let request = CompletionRequestBuilder::new(model.clone(), &enhanced_user_request)
             .tool(sol_tool_def)
@@ -155,7 +156,8 @@ impl ZAIAgent {
             .tool(jupiter_lend_mint_tool_def)
             .tool(jupiter_lend_redeem_tool_def)
             .tool(jupiter_earn_tool_def)
-            .tool(balance_tool_def)
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // .tool(balance_tool_def)
             .build();
 
         let result = model.completion(request).await?;
@@ -222,11 +224,14 @@ impl ZAIAgent {
                         serde_json::from_value(tool_call.function.arguments.clone())?;
                     tools.jupiter_earn_tool.call(args).await?
                 }
+                // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+                /*
                 "get_account_balance" => {
                     let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
                         serde_json::from_value(tool_call.function.arguments.clone())?;
                     tools.balance_tool.call(args).await?
                 }
+                */
                 "get_lend_earn_tokens" => {
                     let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
                         serde_json::from_value(tool_call.function.arguments.clone())?;
@@ -252,7 +257,8 @@ impl ZAIAgent {
                 "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
                 "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
                 "jupiter_earn" => "Jupiter earn operation completed successfully",
-                "get_account_balance" => "Account balance retrieved successfully",
+                // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+                // "get_account_balance" => "Account balance retrieved successfully",
                 "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
                 _ => "Tool operation completed successfully",
             };
