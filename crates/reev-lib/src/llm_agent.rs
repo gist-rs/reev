@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::agent::{Agent, AgentAction, AgentObservation, RawInstruction};
 use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent, ToolResultStatus};
 use crate::parsing::ResponseParser;
-use anyhow::{Context, Result};
+use anyhow::Context;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
@@ -28,7 +28,7 @@ impl LlmAgent {
     ///
     /// It initializes a `reqwest` client for making API calls.
     /// API configuration is loaded from environment variables.
-    pub fn new(agent_name: &str) -> Result<Self> {
+    pub fn new(agent_name: &str) -> anyhow::Result<Self> {
         Self::new_with_flow_logging(agent_name, None)
     }
 
@@ -36,7 +36,7 @@ impl LlmAgent {
     pub fn new_with_flow_logging(
         agent_name: &str,
         flow_logger: Option<FlowLogger>,
-    ) -> Result<Self> {
+    ) -> anyhow::Result<Self> {
         info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
         // Check for GLM Coding environment variables
@@ -151,7 +151,7 @@ impl Agent for LlmAgent {
         fee_payer: Option<&String>,
         skip_instruction_validation: Option<bool>,
         initial_state: Option<&[crate::benchmark::InitialStateItem]>,
-    ) -> Result<Vec<AgentAction>> {
+    ) -> anyhow::Result<Vec<AgentAction>> {
         // Initialize flow logger if not already done and logging is enabled
         // Flow logging is always enabled
         if self.flow_logger.is_none() {
@@ -182,17 +182,6 @@ impl Agent for LlmAgent {
             );
         }
 
-        // Initialize flow tracing with session_id if available
-        if let Some(ref session_id) = self.session_id {
-            if let Ok(log_file) = reev_flow::init_flow_tracing_with_session(session_id.clone()) {
-                info!(
-                    "[LlmAgent] Flow tracing initialized for session: {}",
-                    log_file
-                );
-            } else {
-                warn!("[LlmAgent] Failed to initialize flow tracing with session_id");
-            }
-        }
         // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
             "fee_payer_placeholder": fee_payer,
@@ -205,9 +194,6 @@ impl Agent for LlmAgent {
 
         // 2. Determine available tools based on context
         let available_tools = self.determine_available_tools(prompt, &context_prompt);
-
-        // Debug: Check if session_id is available
-        info!("[LlmAgent] Session ID available: {:?}", self.session_id);
 
         // 3. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
@@ -380,7 +366,7 @@ impl Agent for LlmAgent {
                 transactions
                     .into_iter()
                     .map(|raw_ix| raw_ix.try_into())
-                    .collect::<Result<Vec<AgentAction>>>()?
+                    .collect::<anyhow::Result<Vec<AgentAction>>>()?
             } else {
                 // Empty transactions array, try to extract from summary as fallback
                 if let Some(summary) = &llm_response.summary {
@@ -504,7 +490,7 @@ impl LlmAgent {
     }
 
     /// Extract transactions from a summary field that contains JSON-formatted transaction data
-    fn extract_transactions_from_summary(&self, summary: &str) -> Result<Vec<AgentAction>> {
+    fn extract_transactions_from_summary(&self, summary: &str) -> anyhow::Result<Vec<AgentAction>> {
         use serde_json::Value;
 
         // First, try to parse the summary directly as a JSON array of transactions
