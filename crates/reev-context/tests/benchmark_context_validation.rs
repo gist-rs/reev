@@ -553,9 +553,7 @@ async fn test_multi_step_swap_then_lend_context_consolidation() -> Result<()> {
             usdc_received, "50000000",
             "Step result should contain USDC amount"
         );
-        println!(
-            "✅ Step result accessible: {usdc_received} USDC available for next step"
-        );
+        println!("✅ Step result accessible: {usdc_received} USDC available for next step");
     }
 
     // === STEP 4: Simulate Context for Lending Step ===
