@@ -18,6 +18,10 @@ pub struct FlowState {
     pub step_results: HashMap<String, StepResult>,
     /// General context information accumulated during the flow
     pub context: HashMap<String, String>,
+    /// Current resolved context from ContextResolver
+    pub current_context: reev_context::AgentContext,
+    /// Last step result for context updates
+    pub last_step_result: serde_json::Value,
     /// Conversation history with the LLM
     pub conversation_history: Vec<ConversationTurn>,
     /// Error history for debugging and recovery
@@ -130,6 +134,14 @@ impl FlowState {
             context: HashMap::new(),
             conversation_history: Vec::new(),
             error_history: Vec::new(),
+            current_context: reev_context::AgentContext {
+                key_map: std::collections::HashMap::new(),
+                account_states: std::collections::HashMap::new(),
+                fee_payer_placeholder: None,
+                current_step: Some(0),
+                step_results: std::collections::HashMap::new(),
+            },
+            last_step_result: serde_json::Value::Null,
         }
     }
 

@@ -16,13 +16,7 @@ use crate::{
     run::run_agent,
     LlmRequest,
 };
-use reev_tools::tools::{
-    jupiter_earn::JupiterEarnTool, jupiter_lend_earn_deposit::JupiterLendEarnDepositTool,
-    jupiter_lend_earn_mint_redeem::JupiterLendEarnMintTool,
-    jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemTool,
-    jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawTool, jupiter_swap::JupiterSwapTool,
-    native::SolTransferTool, native::SplTransferTool,
-};
+use reev_context::{ContextResolver, InitialState};
 
 /// Simple flow agent that executes tools directly without LLM touching transactions
 pub struct FlowAgent {
@@ -45,94 +39,34 @@ impl FlowAgent {
             model_name
         );
 
-        // Create toolset with all available flow tools
-        let (tools, key_map) = Self::create_toolset().await?;
-
         let state = FlowState::new(0);
 
         Ok(Self {
             model_name: model_name.to_string(),
-            _tools: tools,
+            _tools: std::collections::HashMap::new(), // Tools created by model agents
             state,
-            key_map,
+            key_map: std::collections::HashMap::new(), // Managed by context resolver
         })
     }
 
-    /// Create the toolset with all available flow tools
-    async fn create_toolset() -> Result<(HashMap<String, Box<dyn ToolDyn>>, HashMap<String, String>)>
-    {
-        Self::create_conditional_toolset(false).await
-    }
-
-    /// Create the toolset with conditional inclusion of position checking tools
-    async fn create_conditional_toolset(
-        include_position_tools: bool,
-    ) -> Result<(HashMap<String, Box<dyn ToolDyn>>, HashMap<String, String>)> {
-        let mut tools: HashMap<String, Box<dyn ToolDyn>> = HashMap::new();
-
-        // Create real pubkeys for the key_map like existing examples
-        let user_wallet_pubkey = solana_sdk::pubkey::Pubkey::new_unique();
-        let mut key_map = HashMap::new();
-        key_map.insert(
-            "USER_WALLET_PUBKEY".to_string(),
-            user_wallet_pubkey.to_string(),
-        );
-
-        // Initialize each tool
-        tools.insert(
-            "sol_transfer".to_string(),
-            Box::new(SolTransferTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
-            "spl_transfer".to_string(),
-            Box::new(SplTransferTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
+    /// Create tool list with conditional inclusion of position checking tools
+    async fn create_tool_list(include_position_tools: bool) -> Result<Vec<String>> {
+        let mut all_tools = vec![
             "jupiter_swap".to_string(),
-            Box::new(JupiterSwapTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
-            "jupiter_lend_earn_deposit".to_string(),
-            Box::new(JupiterLendEarnDepositTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
-            "jupiter_lend_earn_withdraw".to_string(),
-            Box::new(JupiterLendEarnWithdrawTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
             "jupiter_lend_earn_mint".to_string(),
-            Box::new(JupiterLendEarnMintTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
-        tools.insert(
             "jupiter_lend_earn_redeem".to_string(),
-            Box::new(JupiterLendEarnRedeemTool {
-                key_map: key_map.clone(),
-            }) as Box<dyn ToolDyn>,
-        );
+            "jupiter_lend_earn_deposit".to_string(),
+            "jupiter_lend_earn_withdraw".to_string(),
+            "sol_transfer".to_string(),
+            "spl_transfer".to_string(),
+        ];
 
-        // Only include position checking tools if allowed
+        // Only add position checking tools if allowed
         if include_position_tools {
-            tools.insert(
-                "jupiter_earn".to_string(),
-                Box::new(JupiterEarnTool {
-                    key_map: key_map.clone(),
-                }) as Box<dyn ToolDyn>,
-            );
+            all_tools.push("jupiter_earn".to_string());
         }
 
-        Ok((tools, key_map))
+        Ok(all_tools)
     }
 
     /// Execute a single step in the flow
@@ -154,31 +88,8 @@ impl FlowAgent {
             step.description.contains("redeem") || step.description.contains("withdraw");
         let include_position_tools = is_api_benchmark && !is_flow_redeem;
 
-        // Create conditional toolset based on operation type
-        let (_tools, key_map) = Self::create_conditional_toolset(include_position_tools).await?;
-
-        // Simple tool selection based on keywords
-        // Give ALL tools to LLM for simpler logic, but remove position checking for redeem operations
-        let mut all_tools = vec![
-            "jupiter_swap".to_string(),
-            "jupiter_lend_earn_mint".to_string(),
-            "jupiter_lend_earn_redeem".to_string(),
-            "jupiter_lend_earn_deposit".to_string(),
-            "jupiter_lend_earn_withdraw".to_string(),
-            "sol_transfer".to_string(),
-            "spl_transfer".to_string(),
-        ];
-
-        // Only add position checking tools if allowed
-        if include_position_tools {
-            all_tools.push("jupiter_earn".to_string());
-            info!(
-                "[FlowAgent] Included jupiter_earn tool for API benchmark: {}",
-                benchmark.id
-            );
-        } else {
-            info!("[FlowAgent] Excluded jupiter_earn tool - not an API benchmark or is flow redeem operation");
-        }
+        // Create tool list based on operation type
+        let all_tools = Self::create_tool_list(include_position_tools).await?;
 
         info!(
             "[FlowAgent] Step {}: Making {} tools available to LLM (position_tools: {})",
@@ -216,11 +127,72 @@ impl FlowAgent {
                 step.prompt
             )
         };
+        // 🔄 NEW: Resolve context using context resolver
+        info!("[FlowAgent] === RESOLVING CONTEXT ===");
+        let rpc_client = solana_client::rpc_client::RpcClient::new_with_commitment(
+            "http://127.0.0.1:8899",
+            solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+        );
+        let context_resolver = ContextResolver::new(rpc_client);
+
+        // Convert initial_state to our format
+        let initial_state: Vec<InitialState> = benchmark
+            .initial_state
+            .iter()
+            .map(|state| InitialState {
+                pubkey: state.pubkey.clone(),
+                owner: state.owner.clone(),
+                lamports: state.lamports,
+                data: state
+                    .data
+                    .clone()
+                    .map(|d| serde_json::to_string(&d).unwrap_or_default()),
+            })
+            .collect();
+
+        // Resolve initial context or update from existing flow state
+        let resolved_context = if self.state.current_step == 0 {
+            info!("[FlowAgent] Resolving initial context");
+            context_resolver
+                .resolve_initial_context(
+                    &initial_state,
+                    &serde_json::to_value(&benchmark.ground_truth).unwrap_or_default(),
+                    None,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to resolve initial context: {}", e))?
+        } else {
+            info!("[FlowAgent] Updating context after previous step");
+            // For multi-step flows, update context from previous step results
+            let step_result = serde_json::to_value(&self.state.last_step_result)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize step result: {}", e))?;
+            context_resolver
+                .update_context_after_step(
+                    self.state.current_context.clone(),
+                    step.step as u32,
+                    step_result,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to update context after step: {}", e))?
+        };
+
+        // Validate the resolved context
+        context_resolver
+            .validate_resolved_context(&resolved_context)
+            .map_err(|e| anyhow::anyhow!("Resolved context validation failed: {}", e))?;
+
+        // Export context to YAML for LLM
+        let context_prompt = context_resolver
+            .context_to_yaml(&resolved_context)
+            .map_err(|e| anyhow::anyhow!("Failed to export context to YAML: {}", e))?;
+
+        // Store resolved context for next step
+        self.state.current_context = resolved_context.clone();
+
         let llm_request = LlmRequest {
             id: format!("{}-step-{}", benchmark.id, step.step),
             prompt: enhanced_prompt.clone(),
-            context_prompt: self
-                .build_context_prompt_with_keymap(benchmark, step, &all_tools, &key_map),
+            context_prompt,
             model_name: self.model_name.clone(),
             initial_state: None,
             mock: false,
@@ -324,6 +296,10 @@ impl FlowAgent {
             timestamp: format!("{start_time:?}"),
         });
 
+        // Store step result for context updates
+        self.state.last_step_result = serde_json::to_value(&step_result)
+            .map_err(|e| anyhow::anyhow!("Failed to convert step result to JSON: {}", e))?;
+
         Ok(step_result)
     }
 
@@ -374,23 +350,7 @@ impl FlowAgent {
     }
 
     /// Build the context prompt for the agent with provided key_map
-    fn build_context_prompt_with_keymap(
-        &self,
-        _benchmark: &FlowBenchmark,
-        _step: &crate::flow::benchmark::FlowStep,
-        _all_tools: &[String],
-        key_map: &HashMap<String, String>,
-    ) -> String {
-        // Create YAML context with provided key_map
-        let context_yaml = serde_json::json!({
-            "key_map": key_map
-        });
-
-        format!(
-            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{}\n\n---",
-            serde_yaml::to_string(&context_yaml).expect("Failed to serialize key_map")
-        )
-    }
+    // Removed: build_context_prompt_with_keymap - now handled by ContextResolver
 
     /// Get the current flow state
     pub fn get_state(&self) -> &FlowState {
