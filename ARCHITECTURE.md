@@ -154,6 +154,74 @@ match agent_name {
 - On-Chain Score (25%): Transaction execution success/failure
 - API benchmarks: `skip_instruction_validation: true` = full score if tools succeed
 
+## YAML Ground Truth Testing Strategy
+
+### 🧪 Two-Tier Validation Approach
+
+#### 1. Context Validation Tests (`benchmark_context_validation.rs`)
+**Purpose**: Test LLM input format without external dependencies
+- **Scope**: Context preparation and YAML format validation
+- **Dependencies**: None (completely self-contained)
+- **Ground Truth**: Extracted but intentionally ignored (`_ground_truth`)
+- **Use Case**: Ensure LLM receives correct context format
+- **Command**: `cargo test -p reev-context --test benchmark_context_validation -- --nocapture`
+
+#### 2. YAML Ground Truth Tests (`benchmark_yaml_validation.rs`)
+**Purpose**: End-to-end YAML validation without surfpool
+- **Scope**: Complete benchmark structure validation
+- **Dependencies**: None (ground truth only, no external services)
+- **Ground Truth**: Actively applied and validated
+- **Use Case**: Verify benchmark YAMLs are well-formed and self-contained
+- **Command**: `cargo test -p reev-context --test benchmark_yaml_validation -- --nocapture`
+
+#### 3. Ground Truth Separation Tests (`ground_truth_separation_test.rs`)
+**Purpose**: Validate architectural principle of no information leakage
+- **Scope**: Mode detection and ground truth access control
+- **Dependencies**: Agent service only
+- **Coverage**: 6 comprehensive test cases
+- **Use Case**: Ensure deterministic vs LLM mode separation works correctly
+- **Command**: `cargo test -p reev-agent --test ground_truth_separation_test -- --nocapture`
+
+#### 4. Integration Tests (`benchmarks_test.rs`) 
+**Purpose**: End-to-end validation of ALL benchmarks against surfpool
+- **Scope**: Complete system integration with real Solana programs
+- **Dependencies**: surfpool (mainnet fork) + agent service
+- **Coverage**: All `benchmarks/*.yml` files with configurable agents
+- **Use Case**: Production readiness validation with real blockchain state
+- **Command**: `cargo test -p reev-runner benchmarks_test -- --nocapture`
+
+### 🎯 Test Execution Strategy
+
+#### Before Production Changes:
+```bash
+# 1. Validate YAML structure and ground truth
+cargo test -p reev-context --test benchmark_yaml_validation -- --nocapture
+
+# 2. Validate context preparation for LLM
+cargo test -p reev-context --test benchmark_context_validation -- --nocapture
+
+# 3. Validate ground truth separation architecture
+cargo test -p reev-agent --test ground_truth_separation_test -- --nocapture
+
+# 4. Validate complete integration with surfpool
+cargo test -p reev-runner benchmarks_test -- --nocapture
+```
+
+#### Continuous Integration:
+- **Fast feedback**: YAML validation tests (no external deps)
+- **Full validation**: All three test suites
+- **Security check**: Ground truth separation tests must pass
+
+### 📋 Testing Checklist for YAML Changes
+
+When modifying benchmark YAML files:
+1. ✅ **Structure Validation**: `benchmark_yaml_validation.rs` passes
+2. ✅ **Context Generation**: `benchmark_context_validation.rs` passes  
+3. ✅ **No Information Leakage**: `ground_truth_separation_test.rs` passes
+4. ✅ **Integration Testing**: `benchmarks_test.rs` passes with surfpool
+5. ✅ **Clippy Compliance**: `cargo clippy --fix --allow-dirty` clean
+6. ✅ **Compilation**: `cargo check` succeeds
+
 ## File Locations
 - Benchmarks: `benchmarks/*.yml`
 - Tools: `crates/reev-tools/src/tools/`
@@ -161,6 +229,9 @@ match agent_name {
 - Jupiter SDK: `protocols/jupiter/jup-sdk/`
 - Agent: `crates/reev-agent/src/`
 - Runner: `crates/reev-runner/src/`
+- Context Tests: `crates/reev-context/tests/`
+- Ground Truth Tests: `crates/reev-agent/tests/`
+- Integration Tests: `crates/reev-runner/tests/`
 
 ## Environment Variables
 - `ZAI_API_KEY`: GLM API access
@@ -174,3 +245,53 @@ match agent_name {
 3. **Response parsing**: Jupiter vs simple format mismatch
 4. **Tool execution**: Missing API keys or network issues
 5. **Scoring**: Instruction validation failures
+6. **Ground Truth Leakage**: Incorrect mode detection causing information leak
+7. **YAML Structure**: Invalid benchmark format failing validation
+8. **Context Resolution**: Placeholder resolution failures in test environment
+9. **Integration Failures**: surfpool unavailability or agent startup issues
+10. **Benchmark Execution**: Transaction failures in real mainnet fork environment
+
+## Ground Truth Testing Troubleshooting
+
+### Environment Variable Conflicts
+```bash
+# Clean environment before running tests
+unset REEV_DETERMINISTIC
+cargo test -p reev-agent --test ground_truth_separation_test -- --nocapture
+```
+
+### Test Isolation Issues
+- Tests use `serial_test` crate to prevent interference
+- Environment variables set/cleaned per test
+- Run individually for debugging: `cargo test test_name`
+
+### YAML Validation Failures
+- Check `initial_state` structure (required fields: pubkey, owner, lamports)
+- Verify `ground_truth` contains proper `final_state_assertions`
+- Ensure JSON/YML syntax is valid
+
+### Context Resolution Errors
+- Placeholder names must be consistent across YAML sections
+- Mock address generation handles unknown placeholders
+- Key mapping verified between initial state and ground truth assertions
+
+### Integration Test Failures
+```bash
+# Check surfpool availability
+curl -X POST http://127.0.0.1:8899 -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'
+
+# Check agent availability  
+curl http://127.0.0.1:9090/health
+
+# Run integration tests with specific agent
+cargo test -p reev-runner benchmarks_test -- --nocapture --agent gpt-4
+```
+
+### Agent Configuration Issues
+```bash
+# Available agents for integration tests:
+cargo run -p reev-runner -- --agent deterministic benchmarks/    # Perfect responses
+cargo run -p reev-runner -- --agent gpt-4 benchmarks/          # OpenAI
+cargo run -p reev-runner -- --agent glm-4.6 benchmarks/        # GLM via ZAI
+cargo run -p reev-runner -- --agent local benchmarks/            # Local LM Studio
+```
