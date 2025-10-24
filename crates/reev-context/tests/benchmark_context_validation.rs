@@ -249,6 +249,46 @@ fn create_mock_context_from_initial_state(
             }
         }
 
+        // Debug: Print what we're adding to account_state
+        if !account_state.as_object().unwrap().contains_key("amount") {
+            if let Some(data_str) = &state.data {
+                println!(
+                    "🔍 DEBUG: Missing amount in account_state for {}",
+                    state.pubkey
+                );
+                println!("🔍 DEBUG: Raw data_str: {data_str}");
+                if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
+                    println!("🔍 DEBUG: Parsed data_value: {data_value:#?}");
+                    println!("🔍 DEBUG: account_state before adding amount: {account_state:#?}");
+                }
+            }
+        }
+
+        // Add more debug to see final account_state structure
+        if let Some(data_str) = &state.data {
+            if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
+                println!(
+                    "🔍 DEBUG: Successfully parsed token data for {}:",
+                    state.pubkey
+                );
+                if let Some(data_map) = data_value.as_mapping() {
+                    for (key, value) in data_map {
+                        println!("🔍 DEBUG:   {key:?}: {value:?}");
+                        if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
+                            if key_str == "amount" {
+                                println!("🔍 DEBUG: Adding amount field: {key_str} -> {value_str}");
+                                account_state[key_str.to_string()] =
+                                    serde_json::Value::String(value_str.to_string());
+                                println!(
+                                    "🔍 DEBUG: account_state after adding amount: {account_state:#?}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         account_states.insert(state.pubkey.clone(), account_state);
     }
 
