@@ -1,0 +1,20 @@
+[package]
+name = "reev-context"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow =  { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-program = { workspace = true }
+spl-associated-token-account = { workspace = true }
+spl-token = { workspace = true }
+tracing =  { workspace = true }
+bs58 = { workspace = true }
+
+[dev-dependencies]
+tokio = {  workspace = true, features = ["full"] }
