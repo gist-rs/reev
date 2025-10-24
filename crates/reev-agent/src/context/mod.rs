@@ -403,6 +403,7 @@ mod tests {
 
         // Debug: Show actual context
         println!("Actual context: {}", context.formatted_context);
+        println!("Key map used: {:?}", key_map);
 
         // Verify the context contains real balances
         assert!(context.formatted_context.contains("1.0000 SOL"));
