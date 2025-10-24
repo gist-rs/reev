@@ -280,9 +280,24 @@ fn enrich_prompt(&self, prompt: &str, benchmark: &FlowBenchmark) -> String {
 }
 ```
 
-## AI Agent Integration Testing
+## 🧪 Testing Strategy
 
-The `reev-agent` service is now fully validated through comprehensive integration tests in `reev-runner/tests/deterministic_agent_test.rs` and `reev-runner/tests/llm_agent_test.rs`. These tests demonstrate:
+The `reev-agent` service is validated through comprehensive testing across multiple tiers:
+
+### Test Files (2 tests)
+- `ground_truth_separation_test.rs` - Ground truth architecture validation (6 test cases)
+- `regular_glm_api_test.rs` - GLM API integration testing
+
+### Integration Tests
+- `reev-runner/tests/benchmarks_test.rs` - End-to-end surfpool integration
+- `reev-runner/tests/deterministic_agent_test.rs` - Deterministic agent validation  
+- `reev-runner/tests/llm_agent_test.rs` - LLM agent integration
+
+### Test Coverage
+- **Architecture Tests**: Ground truth separation, mode detection, agent types
+- **Integration Tests**: Full workflow execution with surfpool and real Solana programs
+- **API Tests**: GLM provider integration and response handling
+- **Examples**: 15 comprehensive examples covering all tool categories
 
 ### Phase 14 - End-to-End AI Agent Integration Test
 

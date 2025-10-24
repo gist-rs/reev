@@ -45,7 +45,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     ```
 
 *   **GLM 4.6 Agent:**
-    To run using the GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm` agent name.
+    To run using GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm` agent name.
     ```sh
     export GLM_API_KEY="your-glm-api-key"
     export GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
@@ -81,16 +81,48 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner
     ```
 
+### Current Test Files (8 tests)
+- `benchmarks_test.rs` - Comprehensive benchmark testing with surfpool integration
+- `deterministic_agent_test.rs` - Deterministic agent validation
+- `llm_agent_test.rs` - LLM agent integration tests
+- `scoring_test.rs` - Scoring logic unit tests
+- `surfpool_rpc_test.rs` - RPC connectivity validation
+- `dependency_management_test.rs` - Service lifecycle management
+- `database_ordering_test.rs` - Database consistency tests
+- `shared_flow_converter_test.rs` - Flow serialization tests
+
 *   **Benchmark Sanity-Check Test (`benchmarks_test.rs`):**
-    Ensures all benchmarks are solvable by a perfect agent.
+    Ensures ALL benchmarks are solvable by different agents with surfpool integration.
     ```sh
     RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
+    
+    # Run with specific agent
+    cargo test -p reev-runner --test benchmarks_test -- --agent gpt-4 -- --nocapture
     ```
 
 *   **Deterministic Agent Test (`deterministic_agent_test.rs`):**
     Validates core framework functionality using predefined instructions.
     ```sh
     RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
+    ```
+
+*   **LLM Agent Test (`llm_agent_test.rs`):**
+    Validates full AI agent pipeline by calling external LLM services.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
+    ```
+
+*   **Dependency Management Test (`dependency_management_test.rs`):**
+    Validates service startup, health checks, and graceful shutdown.
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test dependency_management_test -- --nocapture
+    ```
+
+*   **Database Tests:**
+    - `database_ordering_test.rs` - Database consistency validation
+    - `shared_flow_converter_test.rs` - Flow serialization tests
+    ```sh
+    RUST_LOG=info cargo test -p reev-runner --test database_ordering_test -- --nocapture
     ```
 
 *   **LLM Agent Test (`llm_agent_test.rs`):**
