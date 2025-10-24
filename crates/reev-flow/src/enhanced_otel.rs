@@ -103,6 +103,36 @@ impl EnhancedOtelLogger {
         })
     }
 
+    /// Create new enhanced otel logger with specific session ID
+    pub fn with_session_id(session_id: String) -> Result<Self> {
+        let log_file = format!("logs/sessions/otel_{session_id}.json");
+
+        // Ensure logs directory exists
+        if let Some(parent) = Path::new(&log_file).parent() {
+            std::fs::create_dir_all(parent).map_err(EnhancedOtelError::Io)?;
+        }
+
+        // Create/open log file
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file)
+            .map_err(EnhancedOtelError::Io)?;
+
+        info!(
+            "Enhanced OpenTelemetry logging initialized with session ID: {}",
+            session_id
+        );
+        info!("Log file: {}", log_file);
+
+        Ok(Self {
+            session_id,
+            log_file,
+            file_writer: Mutex::new(file),
+            tool_calls: Mutex::new(Vec::new()),
+        })
+    }
+
     /// Log a tool call with enhanced details
     pub fn log_tool_call(&self, tool_call: EnhancedToolCall) -> Result<()> {
         // Add to memory collection
@@ -237,6 +267,25 @@ pub fn init_enhanced_otel_logging() -> Result<String> {
 
     info!("✅ Enhanced OpenTelemetry logging initialized globally");
     info!("📁 Log file: {}", log_file);
+
+    Ok(log_file)
+}
+
+/// Initialize enhanced otel logger with specific session ID
+pub fn init_enhanced_otel_logging_with_session(session_id: String) -> Result<String> {
+    info!(
+        "=== INITIALIZING ENHANCED OPENTELEMETRY LOGGING WITH SESSION: {} ===",
+        session_id
+    );
+
+    let logger = EnhancedOtelLogger::with_session_id(session_id)?;
+    let log_file = logger.log_file().to_string();
+
+    ENHANCED_OTEL_LOGGER
+        .set(logger)
+        .map_err(|_| EnhancedOtelError::Mutex("Logger already initialized".to_string()))?;
+
+    info!("✅ Enhanced OpenTelemetry logging initialized with session");
 
     Ok(log_file)
 }

@@ -339,6 +339,7 @@ use reev_protocols::jupiter::swap::handle_jupiter_swap;
 #[derive(Debug, Deserialize)]
 pub struct LlmRequest {
     pub id: String,
+    pub session_id: String,
     pub prompt: String,
     pub context_prompt: String,
     #[serde(default = "default_model")]

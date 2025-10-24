@@ -40,6 +40,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 dotenvy = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 rig-core = { version = "0.20.0" }
 hex = "0.4.3"

@@ -17,6 +17,34 @@ struct AgentContext {
 pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
     info!("[run_agent] Dispatching to enhanced agent with model: {model_name}");
 
+    // Initialize enhanced otel logger with session ID from payload
+    // Check if global logger is already set, if not, initialize with session_id
+    match reev_flow::get_enhanced_otel_logger() {
+        Ok(logger) => {
+            // Logger already initialized, check if it has the correct session_id
+            if logger.session_id() != payload.session_id {
+                tracing::warn!(
+                    "[run_agent] Logger has different session_id: {} vs expected: {}",
+                    logger.session_id(),
+                    payload.session_id
+                );
+            }
+        }
+        Err(_) => {
+            // Logger not initialized, initialize with session_id
+            if let Ok(log_file) =
+                reev_flow::init_enhanced_otel_logging_with_session(payload.session_id.clone())
+            {
+                tracing::info!(
+                    "[run_agent] Enhanced OpenTelemetry logging initialized for session: {}",
+                    log_file
+                );
+            } else {
+                tracing::warn!("[run_agent] Failed to initialize Enhanced OpenTelemetry logging");
+            }
+        }
+    }
+
     // Check if mock is enabled and route to deterministic agent
     if payload.mock {
         info!("[run_agent] Mock mode enabled, routing to deterministic agent");

@@ -72,6 +72,7 @@ async fn main() -> Result<()> {
 
         let request = LlmRequest {
             id: format!("demo-{}-{}", i + 1, chrono::Utc::now().timestamp()),
+            session_id: format!("demo-session-{}-{}", i + 1, chrono::Utc::now().timestamp()),
             prompt: prompt.to_string(),
             context_prompt: "You are a helpful assistant with access to Solana blockchain tools. Use tools when appropriate to execute transactions and provide accurate information.".to_string(),
             model_name: "glm-4.6".to_string(),

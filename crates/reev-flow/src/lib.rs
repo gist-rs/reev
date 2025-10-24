@@ -20,7 +20,8 @@ pub mod website_exporter;
 
 // Re-export specific items to avoid ambiguity
 pub use enhanced_otel::{
-    init_enhanced_otel_logging, EnhancedOtelLogger, EnhancedToolCall, ToolExecutionStatus,
+    get_enhanced_otel_logger, init_enhanced_otel_logging, init_enhanced_otel_logging_with_session,
+    EnhancedOtelLogger, EnhancedToolCall, ToolExecutionStatus,
 };
 
 // Re-export macros at crate level (they're exported from enhanced_otel module)
@@ -30,7 +31,7 @@ pub use error::{FlowError, FlowResult};
 // Macros are now defined directly in enhanced_otel.rs and exported via #[macro_export]
 // Macros are exported at crate level via #[macro_export] - no need for pub use
 pub use logger::{init_flow_tracing, AgentPerformanceData, DatabaseWriter, FlowLogger};
-pub use otel::FlowTracer;
+pub use otel::{init_flow_tracing_with_session, FlowTracer};
 pub use renderer::{render_flow_file_as_ascii_tree, FlowLogRenderer};
 pub use types::*;
 pub use utils::{

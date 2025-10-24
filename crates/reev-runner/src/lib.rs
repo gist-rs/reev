@@ -135,12 +135,16 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                 "Detected flow benchmark, executing step-by-step"
             );
 
+            // Generate session_id for flow benchmark
+            let session_id = uuid::Uuid::new_v4().to_string();
+
             let result = run_flow_benchmark(
                 &test_case,
                 flow_steps,
                 agent_name,
                 &path.display().to_string(),
                 Arc::clone(&db),
+                &session_id,
             )
             .await?;
             results.push(result);
@@ -195,8 +199,11 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             );
         }
 
-        let mut agent =
-            Box::new(LlmAgent::new_with_flow_logging(agent_name, None)?) as Box<dyn Agent + Send>;
+        let mut llm_agent = LlmAgent::new_with_flow_logging(agent_name, None)?;
+        info!("[Runner] Setting session_id on LlmAgent: {}", session_id);
+        llm_agent.set_session_id(session_id.clone());
+        info!("[Runner] Session_id set successfully");
+        let mut agent = Box::new(llm_agent) as Box<dyn Agent + Send>;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
         let options = serde_json::to_value(&test_case)
@@ -413,52 +420,48 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
 
 /// Extract tool calls from agent's enhanced otel log files
 /// This is needed because agent runs in separate process from runner
-async fn extract_tool_calls_from_agent_logs(_session_id: &str) -> Vec<reev_flow::EnhancedToolCall> {
+async fn extract_tool_calls_from_agent_logs(session_id: &str) -> Vec<reev_flow::EnhancedToolCall> {
     use std::fs;
     use std::path::Path;
 
-    // Find all otel log files in logs/sessions directory
+    // Look for specific otel log file for this session
     let logs_dir = Path::new("logs/sessions");
+    let otel_filename = format!("otel_{}.json", session_id);
+    let otel_filepath = logs_dir.join(&otel_filename);
     let mut all_tool_calls = Vec::new();
 
-    if let Ok(entries) = fs::read_dir(logs_dir) {
-        for entry in entries.flatten() {
-            if let Ok(file_type) = entry.file_type() {
-                if file_type.is_file() {
-                    let path = entry.path();
-                    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                        // Look for otel_* files created by agent
-                        if filename.starts_with("otel_") && filename.ends_with(".json") {
-                            info!("Checking otel file for tool calls: {}", filename);
+    info!("Looking for otel file: {}", otel_filename);
 
-                            if let Ok(content) = fs::read_to_string(&path) {
-                                // Parse JSON lines from file
-                                for line in content.lines() {
-                                    if line.trim().is_empty() || line.trim().starts_with('#') {
-                                        continue; // Skip empty lines and comments
-                                    }
+    if otel_filepath.exists() {
+        info!("Found otel file for session: {}", otel_filename);
 
-                                    if let Ok(tool_call) =
-                                        serde_json::from_str::<reev_flow::EnhancedToolCall>(line)
-                                    {
-                                        // Check if this tool call belongs to our session timeframe
-                                        // For now, include all calls as they're recent
-                                        all_tool_calls.push(tool_call);
-                                    } else if !line.trim().is_empty() {
-                                        warn!("Failed to parse tool call from otel log: {}", line);
-                                    }
-                                }
-                            }
-                        }
+        if let Ok(content) = fs::read_to_string(&otel_filepath) {
+            // Parse JSON lines from file
+            for line in content.lines() {
+                if line.trim().is_empty() || line.trim().starts_with('#') {
+                    continue; // Skip empty lines and comments
+                }
+
+                if let Ok(tool_call) = serde_json::from_str::<reev_flow::EnhancedToolCall>(line) {
+                    // Verify this tool call belongs to our session
+                    if tool_call.session_id == session_id {
+                        all_tool_calls.push(tool_call);
                     }
+                } else if !line.trim().is_empty() {
+                    warn!("Failed to parse tool call from otel log: {}", line);
                 }
             }
+        } else {
+            warn!("Failed to read otel file: {}", otel_filename);
         }
+    } else {
+        warn!("Otel file not found for session: {}", otel_filename);
     }
 
     info!(
-        "Extracted {} tool calls from agent logs",
-        all_tool_calls.len()
+        "Extracted {} tool calls from agent log file: {}",
+        all_tool_calls.len(),
+        otel_filename
     );
     all_tool_calls
 }
@@ -470,6 +473,7 @@ async fn run_flow_benchmark(
     agent_name: &str,
     _benchmark_path: &str,
     _db: Arc<FlowDatabaseWriter>,
+    session_id: &str,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -485,7 +489,8 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        Some(FlowLogger::new(
+        Some(FlowLogger::new_with_session(
+            session_id.to_string(),
             test_case.id.clone(),
             agent_name.to_string(),
             path,
@@ -493,6 +498,7 @@ async fn run_flow_benchmark(
     };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
+    agent.set_session_id(session_id.to_string());
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
     let mut all_actions = Vec::new();
     let mut flow_trace = ExecutionTrace::new(test_case.prompt.clone());

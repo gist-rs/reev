@@ -76,6 +76,33 @@ impl FlowLogger {
         }
     }
 
+    /// Create a new flow logger instance with specific session ID
+    pub fn new_with_session(
+        session_id: String,
+        benchmark_id: String,
+        agent_type: String,
+        output_path: PathBuf,
+    ) -> Self {
+        let start_time = SystemTime::now();
+
+        info!(
+            session_id = %session_id,
+            benchmark_id = %benchmark_id,
+            agent_type = %agent_type,
+            "Initializing flow logger with session"
+        );
+
+        Self {
+            session_id,
+            benchmark_id,
+            agent_type,
+            start_time,
+            events: Vec::new(),
+            output_path,
+            database: None,
+        }
+    }
+
     /// Create a new flow logger with database support
     pub fn new_with_database(
         benchmark_id: String,

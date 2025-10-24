@@ -20,6 +20,7 @@ pub struct LlmAgent {
     pub flow_logger: Option<FlowLogger>,
     current_depth: u32,
     is_glm: bool,
+    session_id: Option<String>,
 }
 
 impl LlmAgent {
@@ -124,12 +125,18 @@ impl LlmAgent {
             flow_logger,
             current_depth: 0,
             is_glm,
+            session_id: None,
         })
     }
 
     /// Get the model name for this agent
     pub fn model_name(&self) -> &str {
         &self.model_name
+    }
+
+    /// Set the session ID for this agent
+    pub fn set_session_id(&mut self, session_id: String) {
+        self.session_id = Some(session_id);
     }
 }
 
@@ -153,13 +160,38 @@ impl Agent for LlmAgent {
             let path = PathBuf::from(output_path);
             std::fs::create_dir_all(&path)?;
 
-            self.flow_logger = Some(FlowLogger::new(
-                id.to_string(),
-                self.model_name.clone(),
-                path,
-            ));
+            // Use session_id if available, otherwise fallback to id (benchmark_id)
+            if let Some(ref session_id) = self.session_id {
+                self.flow_logger = Some(FlowLogger::new_with_session(
+                    session_id.clone(),
+                    id.to_string(),
+                    self.model_name.clone(),
+                    path,
+                ));
+            } else {
+                self.flow_logger = Some(FlowLogger::new(
+                    id.to_string(),
+                    self.model_name.clone(),
+                    path,
+                ));
+            }
 
-            info!("[LlmAgent] Flow logging enabled for benchmark: {}", id);
+            info!(
+                "[LlmAgent] Flow logging enabled for session: {}",
+                self.session_id.as_ref().unwrap_or(&id.to_string())
+            );
+        }
+
+        // Initialize flow tracing with session_id if available
+        if let Some(ref session_id) = self.session_id {
+            if let Ok(log_file) = reev_flow::init_flow_tracing_with_session(session_id.clone()) {
+                info!(
+                    "[LlmAgent] Flow tracing initialized for session: {}",
+                    log_file
+                );
+            } else {
+                warn!("[LlmAgent] Failed to initialize flow tracing with session_id");
+            }
         }
         // 1. Serialize the full context to YAML to create the context prompt.
         let context_yaml = serde_yaml::to_string(&json!({
@@ -174,10 +206,13 @@ impl Agent for LlmAgent {
         // 2. Determine available tools based on context
         let available_tools = self.determine_available_tools(prompt, &context_prompt);
 
+        // Debug: Check if session_id is available
+        info!("[LlmAgent] Session ID available: {:?}", self.session_id);
+
         // 3. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
             // GLM routes through reev-agent, use reev-agent format
-            json!({
+            let mut payload = json!({
                 "id": id,
                 "context_prompt": context_prompt,
                 "prompt": prompt,
@@ -188,7 +223,21 @@ impl Agent for LlmAgent {
                 }),
                 "allowed_tools": available_tools,
                 "account_states": observation.account_states,
-            })
+            });
+
+            // Add session_id if available
+            if let Some(ref session_id) = self.session_id {
+                payload["session_id"] = json!(session_id);
+                info!("[LlmAgent] Added session_id to GLM payload: {}", session_id);
+            } else {
+                warn!("[LlmAgent] No session_id available for GLM payload");
+            }
+
+            info!(
+                "[LlmAgent] Final GLM payload: {}",
+                serde_json::to_string_pretty(&payload)?
+            );
+            payload
         } else {
             // Default reev API format
             json!({

@@ -15,6 +15,7 @@
 - search for related code, tests, examples to get an idea and current context before impl
 - fix warning diag before commit but be reason about unused because maybe it meant to use, remove if not used
 - Always diagnostic and fix error before run
+- Must use `RUST_LOG=info` to reduce log noise and better filter the log by target keyword.
 
 ## DONT
 - DONT Add a test on each file, place it in tests folder.

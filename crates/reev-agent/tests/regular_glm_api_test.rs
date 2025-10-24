@@ -20,6 +20,7 @@ async fn test_regular_glm_api_support() -> Result<()> {
     // Create a simple test request
     let payload = LlmRequest {
         id: "test-regular-glm".to_string(),
+        session_id: "test-session-123".to_string(),
         prompt: "Hello, please introduce yourself briefly.".to_string(),
         context_prompt: "".to_string(),
         model_name: "glm-4.6".to_string(),
@@ -74,6 +75,7 @@ async fn test_api_priority_order() -> Result<()> {
     // Note: This will fail with invalid keys, but we're testing the priority logic
     let payload = LlmRequest {
         id: "test-priority".to_string(),
+        session_id: "test-session-priority".to_string(),
         prompt: "test".to_string(),
         context_prompt: "".to_string(),
         model_name: "glm-4.6".to_string(),
@@ -128,6 +130,7 @@ async fn test_local_fallback() -> Result<()> {
 
     let payload = LlmRequest {
         id: "test-fallback".to_string(),
+        session_id: "test-session-fallback".to_string(),
         prompt: "test".to_string(),
         context_prompt: "".to_string(),
         model_name: "local".to_string(),

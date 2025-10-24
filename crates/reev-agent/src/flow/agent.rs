@@ -9,6 +9,7 @@ use solana_sdk::signature::Signer;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::{error, info};
+use uuid;
 
 use crate::{
     flow::{
@@ -45,6 +46,8 @@ pub struct FlowAgent {
     /// Key mapping for placeholder pubkeys to real values
     #[allow(dead_code)]
     key_map: HashMap<String, String>,
+    /// Session ID for tracking
+    session_id: String,
 }
 
 impl FlowAgent {
@@ -59,6 +62,7 @@ impl FlowAgent {
             _tools: std::collections::HashMap::new(), // Tools created by model agents
             state,
             key_map: std::collections::HashMap::new(), // Managed by context resolver
+            session_id: uuid::Uuid::new_v4().to_string(),
         })
     }
 
@@ -253,6 +257,7 @@ impl FlowAgent {
 
         let llm_request = LlmRequest {
             id: format!("{}-step-{}", benchmark.id, step.step),
+            session_id: self.session_id.clone(),
             prompt: enhanced_prompt.clone(),
             context_prompt,
             model_name: self.model_name.clone(),

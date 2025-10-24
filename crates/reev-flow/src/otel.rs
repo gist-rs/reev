@@ -247,6 +247,30 @@ pub fn init_flow_tracing() -> Result<String, Box<dyn std::error::Error>> {
     Ok(log_file)
 }
 
+/// Initialize flow tracing with specific session ID
+pub fn init_flow_tracing_with_session(
+    session_id: String,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let default_log_file = format!("logs/sessions/otel_{session_id}.json");
+    let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or(default_log_file);
+
+    // Ensure logs directory exists
+    if let Some(parent) = std::path::Path::new(&log_file).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    info!(
+        "OpenTelemetry enhanced logging enabled with session: {}",
+        session_id
+    );
+    info!(
+        "Tool call traces will be captured and extracted to: {}",
+        log_file
+    );
+
+    Ok(log_file)
+}
+
 /// Shutdown tracer provider
 pub fn shutdown_tracer_provider() {
     info!("Shutting down tracer provider");
