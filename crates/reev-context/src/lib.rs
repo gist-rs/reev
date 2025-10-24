@@ -57,6 +57,8 @@ impl ContextResolver {
     }
 
     /// Resolve initial context from benchmark configuration
+    /// Resolve initial context from YAML initial_state and surfpool data
+    /// Includes ALL key_map accounts regardless of balance
     pub async fn resolve_initial_context(
         &self,
         initial_state: &[InitialState],
@@ -256,43 +258,132 @@ impl ContextResolver {
     }
 
     /// Validate that all placeholders in context are resolved to real addresses
+    /// Validate the resolved context for completeness and correctness
+    /// Throws error if prerequisite context is missing
     pub fn validate_resolved_context(&self, context: &AgentContext) -> Result<()> {
         info!("[ContextResolver] Validating resolved context");
 
+        // Validate all key_map addresses are valid
         for (placeholder, address) in &context.key_map {
             // Check if address is a valid base58 string
             if let Err(e) = Pubkey::from_str(address) {
                 return Err(anyhow::anyhow!(
-                    "Placeholder '{placeholder}' resolves to invalid address '{address}': {e}"
+                    "INVALID CONTEXT: Placeholder '{placeholder}' resolves to invalid address '{address}': {e}"
                 ));
             }
         }
 
-        // Check that critical placeholders are present
+        // Check that critical placeholders are present from YAML
         let required_placeholders = ["USER_WALLET_PUBKEY"];
         for required in &required_placeholders {
             if !context.key_map.contains_key(*required) {
                 return Err(anyhow::anyhow!(
-                    "Required placeholder '{required}' missing from context"
+                    "MISSING PREREQUISITE: Required placeholder '{required}' missing from context. Check YAML initial_state definition."
                 ));
             }
         }
 
+        // Validate account states are complete
+        for (placeholder, _) in &context.key_map {
+            let real_address = &context.key_map[placeholder];
+            if !context.account_states.contains_key(real_address)
+                && !context.account_states.contains_key(placeholder)
+            {
+                info!("[ContextResolver] Warning: No account state found for placeholder '{}' with address '{}'", placeholder, real_address);
+            }
+        }
+
+        // Validate step dependencies if this is multi-step flow
+        if let Some(current_step) = context.current_step {
+            if current_step > 0 {
+                // Check for previous step results
+                for step_num in 0..current_step {
+                    let step_key = format!("step_{}", step_num);
+                    if !context.step_results.contains_key(&step_key) {
+                        return Err(anyhow::anyhow!(
+                            "MISSING PREREQUISITE: Multi-step flow requires result from step_{} for step {}", step_num, current_step
+                        ));
+                    }
+                }
+            }
+        }
+
         info!(
-            "[ContextResolver] Context validation passed for {} placeholders",
-            context.key_map.len()
+            "[ContextResolver] Context validation passed: {} placeholders, {} account states",
+            context.key_map.len(),
+            context.account_states.len()
         );
         Ok(())
     }
 
-    /// Export context to YAML string for LLM consumption
+    /// Export context to YAML string for LLM consumption (legacy format)
     pub fn context_to_yaml(&self, context: &AgentContext) -> Result<String> {
-        let yaml_str =
-            serde_yaml::to_string(context).context("Failed to serialize context to YAML")?;
+        // Use the enhanced YAML format with comments
+        self.context_to_yaml_with_comments(context)
+    }
 
-        Ok(format!(
-            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{yaml_str}\n\n---"
-        ))
+    /// Export context to properly formatted YAML string with comments for LLM consumption
+    pub fn context_to_yaml_with_comments(&self, context: &AgentContext) -> Result<String> {
+        use std::collections::BTreeMap;
+
+        // Convert to sorted structure for consistent output
+        let mut sorted_key_map = BTreeMap::new();
+        for (key, value) in &context.key_map {
+            sorted_key_map.insert(key.clone(), value.clone());
+        }
+
+        let mut sorted_account_states = BTreeMap::new();
+        for (key, value) in &context.account_states {
+            sorted_account_states.insert(key.clone(), value.clone());
+        }
+
+        let mut yaml_lines = Vec::new();
+        yaml_lines.push("# Current On-Chain Context".to_string());
+        yaml_lines.push("# Generated from YAML initial_state + surfpool account info".to_string());
+        yaml_lines
+            .push("# All accounts from key_map are included regardless of balance".to_string());
+        yaml_lines.push("".to_string());
+        yaml_lines.push("# Key Map: Placeholder names resolved to real addresses".to_string());
+        yaml_lines.push("key_map:".to_string());
+
+        for (placeholder, address) in sorted_key_map {
+            yaml_lines.push(format!("  {}: {}", placeholder, address));
+        }
+
+        yaml_lines.push("".to_string());
+        yaml_lines.push("# Account States: Current on-chain information".to_string());
+        yaml_lines.push("account_states:".to_string());
+
+        for (address, state) in sorted_account_states {
+            yaml_lines.push(format!("  {}:", address));
+            if let Some(obj) = state.as_object() {
+                for (key, value) in obj {
+                    yaml_lines.push(format!("    {}: {}", key, value));
+                }
+            } else {
+                yaml_lines.push(format!("    {}", state));
+            }
+        }
+
+        if let Some(current_step) = context.current_step {
+            yaml_lines.push("".to_string());
+            yaml_lines.push("# Multi-step Flow Information".to_string());
+            yaml_lines.push(format!("current_step: {}", current_step));
+        }
+
+        if !context.step_results.is_empty() {
+            yaml_lines.push("".to_string());
+            yaml_lines.push("# Previous Step Results".to_string());
+            yaml_lines.push("step_results:".to_string());
+            for (step, result) in &context.step_results {
+                yaml_lines.push(format!("  {}: {}", step, serde_yaml::to_string(result)?));
+            }
+        }
+
+        yaml_lines.push("".to_string());
+        yaml_lines.push("---".to_string());
+
+        Ok(yaml_lines.join("\n"))
     }
 
     /// Extract address derivation from ground truth assertion
