@@ -323,6 +323,7 @@ impl ContextResolver {
     }
 
     /// Export context to properly formatted YAML string with comments for LLM consumption
+    /// Only includes transaction-relevant data (balance, ownership, existence)
     pub fn context_to_yaml_with_comments(&self, context: &AgentContext) -> Result<String> {
         use std::collections::BTreeMap;
 
@@ -338,10 +339,8 @@ impl ContextResolver {
         }
 
         let mut yaml_lines = Vec::new();
-        yaml_lines.push("# Current On-Chain Context".to_string());
-        yaml_lines.push("# Generated from YAML initial_state + surfpool account info".to_string());
-        yaml_lines
-            .push("# All accounts from key_map are included regardless of balance".to_string());
+        yaml_lines.push("# On-Chain Context for Transaction Processing".to_string());
+        yaml_lines.push("# Only balance, ownership, and existence information".to_string());
         yaml_lines.push("".to_string());
         yaml_lines.push("# Key Map: Placeholder names resolved to real addresses".to_string());
         yaml_lines.push("key_map:".to_string());
@@ -351,17 +350,28 @@ impl ContextResolver {
         }
 
         yaml_lines.push("".to_string());
-        yaml_lines.push("# Account States: Current on-chain information".to_string());
+        yaml_lines.push("# Account States: Current balance and ownership".to_string());
         yaml_lines.push("account_states:".to_string());
 
         for (address, state) in sorted_account_states {
             yaml_lines.push(format!("  {}:", address));
             if let Some(obj) = state.as_object() {
-                for (key, value) in obj {
-                    yaml_lines.push(format!("    {}: {}", key, value));
+                // Only include transaction-relevant fields
+                if let Some(lamports) = obj.get("lamports") {
+                    yaml_lines.push(format!("    lamports: {}", lamports));
                 }
-            } else {
-                yaml_lines.push(format!("    {}", state));
+                if let Some(owner) = obj.get("owner") {
+                    yaml_lines.push(format!("    owner: {}", owner));
+                }
+                if let Some(mint) = obj.get("mint") {
+                    yaml_lines.push(format!("    mint: {}", mint));
+                }
+                if let Some(amount) = obj.get("amount") {
+                    yaml_lines.push(format!("    amount: {}", amount));
+                }
+                if let Some(exists) = obj.get("exists") {
+                    yaml_lines.push(format!("    exists: {}", exists));
+                }
             }
         }
 
