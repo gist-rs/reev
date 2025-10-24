@@ -68,7 +68,7 @@ async fn test_llm_mode_ground_truth_blocking() -> Result<()> {
     let benchmark = create_test_benchmark_with_ground_truth();
 
     // Test LLM mode detection
-    let _agent = FlowAgent::new("gpt-4");
+    let _agent = FlowAgent::new("local");
 
     // Verify LLM mode is NOT deterministic
     let benchmark_id = benchmark
@@ -86,12 +86,12 @@ async fn test_llm_mode_ground_truth_blocking() -> Result<()> {
         .unwrap_or_default();
 
     assert!(
-        !is_deterministic_mode("gpt-4", benchmark_id, &benchmark_tags),
+        !is_deterministic_mode("local", benchmark_id, &benchmark_tags),
         "Should NOT detect deterministic mode for LLM agent"
     );
 
     // Test that LLM mode CANNOT access ground truth
-    let should_use_ground_truth = is_deterministic_mode("gpt-4", benchmark_id, &benchmark_tags);
+    let should_use_ground_truth = is_deterministic_mode("local", benchmark_id, &benchmark_tags);
 
     // Verify ground truth is NOT accessible
     assert!(
@@ -114,7 +114,7 @@ async fn test_ground_truth_leakage_prevention() -> Result<()> {
     let benchmark = create_test_benchmark_with_ground_truth();
 
     // Test with non-deterministic agent (LLM mode)
-    let agent_name = "gpt-4";
+    let agent_name = "local";
 
     let benchmark_id = benchmark
         .get("id")
@@ -195,7 +195,7 @@ async fn test_multi_step_context_consolidation_no_leakage() -> Result<()> {
     let benchmark = create_multi_step_benchmark();
 
     // Test LLM mode context consolidation
-    let agent_name = "gpt-4";
+    let agent_name = "local";
 
     let benchmark_id = benchmark
         .get("id")
@@ -267,7 +267,6 @@ async fn test_agent_type_ground_truth_access() -> Result<()> {
 
     let test_cases = vec![
         ("deterministic", true, "Should access ground truth"),
-        ("gpt-4", false, "Should NOT access ground truth"),
         ("glm-4", false, "Should NOT access ground truth"),
         ("local", false, "Should NOT access ground truth"),
         ("zai-agent", false, "Should NOT access ground truth"),
@@ -346,7 +345,7 @@ async fn test_environment_deterministic_mode() -> Result<()> {
     // Test with REEV_DETERMINISTIC environment variable
     std::env::set_var("REEV_DETERMINISTIC", "1");
 
-    let is_deterministic = is_deterministic_mode("gpt-4", benchmark_id, &benchmark_tags);
+    let is_deterministic = is_deterministic_mode("local", benchmark_id, &benchmark_tags);
 
     assert!(
         is_deterministic,
@@ -360,7 +359,7 @@ async fn test_environment_deterministic_mode() -> Result<()> {
 
     // Verify cleanup worked
     let is_deterministic_after_cleanup =
-        is_deterministic_mode("gpt-4", benchmark_id, &benchmark_tags);
+        is_deterministic_mode("local", benchmark_id, &benchmark_tags);
 
     assert!(
         !is_deterministic_after_cleanup,

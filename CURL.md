@@ -98,7 +98,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
   -d '{
     "agent": "local",
     "config": {
-      "model": "gpt-4",
+      "model": "qwen3-coder-30b-a3b-instruct-mlx",
       "api_base": "http://localhost:8000",
       "api_key": "your-api-key-here",
       "max_tokens": 2000,
@@ -140,7 +140,7 @@ curl -X POST http://localhost:3001/api/v1/agents/config \
   -H "Content-Type: application/json" \
   -d '{
     "agent_type": "local",
-    "model": "gpt-4",
+    "model": "qwen3-coder-30b-a3b-instruct-mlx",
     "api_base": "http://localhost:8000",
     "api_key": "your-api-key"
   }'
@@ -153,7 +153,7 @@ curl -X POST http://localhost:3001/api/v1/agents/test \
   -H "Content-Type: application/json" \
   -d '{
     "agent_type": "local",
-    "model": "gpt-4",
+    "model": "qwen3-coder-30b-a3b-instruct-mlx",
     "api_base": "http://localhost:8000",
     "api_key": "your-api-key"
   }'

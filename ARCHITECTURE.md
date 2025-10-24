@@ -485,14 +485,13 @@ curl -X POST http://127.0.0.1:8899 -d '{"jsonrpc":"2.0","id":1,"method":"getHeal
 curl http://127.0.0.1:9090/health
 
 # Run integration tests with specific agent
-cargo test -p reev-runner benchmarks_test -- --nocapture --agent gpt-4
+cargo test -p reev-runner benchmarks_test -- --nocapture --agent local
 ```
 
 ### Agent Configuration Issues
 ```bash
 # Available agents for integration tests:
 cargo run -p reev-runner -- --agent deterministic benchmarks/    # Perfect responses
-cargo run -p reev-runner -- --agent gpt-4 benchmarks/          # OpenAI
 cargo run -p reev-runner -- --agent glm-4.6 benchmarks/        # GLM via ZAI
 cargo run -p reev-runner -- --agent local benchmarks/            # Local LM Studio
 ```

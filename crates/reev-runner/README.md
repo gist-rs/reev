@@ -97,32 +97,13 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --nocapture
     
     # Run with specific agent
-    cargo test -p reev-runner --test benchmarks_test -- --agent gpt-4 -- --nocapture
+    cargo test -p reev-runner --test benchmarks_test -- --agent local -- --nocapture
     ```
 
 *   **Deterministic Agent Test (`deterministic_agent_test.rs`):**
     Validates core framework functionality using predefined instructions.
     ```sh
     RUST_LOG=info cargo test -p reev-runner --test deterministic_agent_test -- --nocapture
-    ```
-
-*   **LLM Agent Test (`llm_agent_test.rs`):**
-    Validates full AI agent pipeline by calling external LLM services.
-    ```sh
-    RUST_LOG=info cargo test -p reev-runner --test llm_agent_test -- --nocapture
-    ```
-
-*   **Dependency Management Test (`dependency_management_test.rs`):**
-    Validates service startup, health checks, and graceful shutdown.
-    ```sh
-    RUST_LOG=info cargo test -p reev-runner --test dependency_management_test -- --nocapture
-    ```
-
-*   **Database Tests:**
-    - `database_ordering_test.rs` - Database consistency validation
-    - `shared_flow_converter_test.rs` - Flow serialization tests
-    ```sh
-    RUST_LOG=info cargo test -p reev-runner --test database_ordering_test -- --nocapture
     ```
 
 *   **LLM Agent Test (`llm_agent_test.rs`):**

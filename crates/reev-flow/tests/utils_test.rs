@@ -47,7 +47,7 @@ fn test_llm_event_creation() {
         1,
         "test prompt".to_string(),
         100,
-        "gpt-4".to_string(),
+        "qwen3-coder-30b-a3b-instruct-mlx".to_string(),
         "req-123".to_string(),
     );
 
@@ -83,7 +83,7 @@ fn test_event_counting() {
         1,
         "test prompt".to_string(),
         100,
-        "gpt-4".to_string(),
+        "qwen3-coder-30b-a3b-instruct-mlx".to_string(),
         "req-123".to_string(),
     );
 
@@ -117,7 +117,7 @@ fn test_flow_summary() {
         1,
         "test prompt".to_string(),
         100,
-        "gpt-4".to_string(),
+        "qwen3-coder-30b-a3b-instruct-mlx".to_string(),
         "req-123".to_string(),
     );
 
@@ -146,7 +146,7 @@ fn test_llm_event_creation_with_response() {
         1,
         "test prompt".to_string(),
         100,
-        "gpt-4".to_string(),
+        "qwen3-coder-30b-a3b-instruct-mlx".to_string(),
         "req-123".to_string(),
     );
 
