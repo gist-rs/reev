@@ -650,6 +650,27 @@ Enhanced the YAML parsing logic in the mock context creation to handle multiple 
 Mock data handling needs to match production data structures exactly. YAML value type diversity (strings, numbers, booleans) requires comprehensive parsing logic to avoid data loss.
 
 #### Impact Assessment
+### Ground Truth Separation Validation Tests ✅ [NEW]
+#### Problem Understanding
+Needed comprehensive tests to validate ground truth separation logic works correctly for both deterministic and LLM modes.
+#### Solution Implementation
+Created `crates/reev-agent/tests/ground_truth_separation_test.rs` with 6 comprehensive test cases:
+- Deterministic mode ground truth access validation
+- LLM mode ground truth blocking verification  
+- Multi-step context consolidation without leakage
+- Error handling for invalid ground truth usage
+- Agent type access pattern validation
+- Environment variable override testing
+#### Technical Details
+- Made `is_deterministic_mode()` function public for testing
+- Used `serial_test` crate to prevent test interference from environment variables
+- All tests validate proper mode detection and ground truth access patterns
+#### Results Achieved
+All 6 tests passing successfully, providing complete coverage of ground truth separation architecture.
+#### Impact Assessment
+Provides robust validation that critical architectural principle (no information leakage) is working correctly.
+
+#### Impact Assessment
 This fix resolves the critical SPL token transfer issue where LLMs couldn't see available token balances, enabling proper token transfer decision-making in the reev evaluation framework.
 - Eliminates "Invalid Base58 string" errors
 - Enables proper multi-step flow support

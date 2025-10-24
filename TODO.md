@@ -1,83 +1,13 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
 
- 🚨 **Critical Issue Identified:**
 
- **Line 165**: `&serde_json::to_value(&benchmark.ground_truth).unwrap_or_default()`
-
- ### 📋 **The Problem:**
-
- **FlowAgent is passing `ground_truth` data into `resolve_initial_context()`** - this means:
-
- 1. **🔥 Leaking Future Information**: LLM can see final expected state before acting
- 2. **🔥 Invalid Context Resolution**: Real blockchain state gets overridden by ground truth
- 3. **🔥 Broken Multi-Step Logic**: Steps don't build on real transaction results
-
- ### 💡 **Your Suggestions:**
-
- 1. **✅ YML Ground Truth for Tests**: Perfect for fast validation without surfpool
- 2. **✅ YML Ground Truth for Scoring**: Perfect for final evaluation
- 3. **❌ YML Ground Truth in FlowAgent**: **BREAKS** real-time decision making
-
- ## 🔧 **The Fix Needed:**
-
- ### **Option A: Clean Separation (Recommended)**
- ```rust
- // Remove ground_truth from context resolution
- .resolve_initial_context(
-     &initial_state,
-     // &serde_json::to_value(&benchmark.ground_truth).unwrap_or_default(), // ❌ DELETE THIS LINE
-     None,
- )
- ```
-
----
 
 
 update TASKS.md then fix it step by step with test proof
 
 fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code
 
----
-
-# Improve context
-
-refer to
-```
- In the `FlowAgent`, the tools are being created with `key_map.clone()` which contains placeholder names instead of resolved addresses. But in the `run_agent`, the tools are created properly with resolved addresses. The problem is that tools are constructed twice - once in the run_agent logic and once in the flow agent.
-
- and
-
- I see the issue now! In the native transfer tool, it's using `recipient_pubkey` directly from args, but in the SPL transfer tool, it's calculating the recipient ATA. Let me check how recipient is being passed in the agent:
-
-and
-
- The issue is clear now. The SPL transfer tool is using the same error enum `NativeTransferError`. This is wrong - it should have its own error enum. The problem is that when SPL transfer tool tries to parse `RECIPIENT_WALLET_PUBKEY` as a base58 address, it fails because that's not a valid base58 string (it's a placeholder name).
- ```
- current logic seem to mess up, let's refactor that by explore the old one first.
-
-## Static Context
-
-1. we must include all key_map account from yml no matter it has balance or not
-2. consolidate with balance after get info from surfpool
-3. crate context as yml format so we can parse and validate, currently we use markdown and json and it hard to validate and has problem with newline and else also we can add comment in between line for more clarify.
-4. throw error if prereqisite context missing, in yml it should assert context(related, account info, token info), instructions, user_prompt
-5. this context prepare as test case and test against all yml in benchmarks via surfpool without slow llm calling just to ensure context is correct first.
-6. It may need re consolidate for each step in multiple step flow like 200-jup-swap-then-lend-deposit.yml but i think it already handle by FlowAgent
-7. Replace USER_WALLET_PUBKEY, RECIPIENT_WALLET_PUBKEY and else with real address from key_map and surfpool, in the end it should contain only real address from yml and surfpool whether it has balance or not (default 0).
-
-add this to next task, this is critical and we made it wrong many time, we careless about context and it take long time to test against llm. let's change that by get serious about correct context before send to llm.
-plan first, dont code yet.
-
-## Dynamics context
-
-Once we finish Static Context
-
-1. Replace USER_WALLET_PUBKEY, RECIPIENT_WALLET_PUBKEY with real address from key_map and surfpool after, in the end it should contain only real address.
-2. Add step to refine user_prompt in think it's in crates/reev-agent/src/enhanced? the idea is refine user prompt and make it ready for next step e.g. "Send 1 sol to"
-3.
-
----
 
 # Add required to when make a tool calling
 refer to
@@ -104,9 +34,6 @@ The tool_choice parameter is crucial for building robust applications that integ
 can you check that we use it correct everywhere, grep for that
 
 ---
-
-- llm is not allow to generate tx or account
-
 
 - Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Docker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
 

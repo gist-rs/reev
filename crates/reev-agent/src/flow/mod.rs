@@ -17,7 +17,7 @@ pub mod secure;
 pub mod selector;
 pub mod state;
 
-pub use agent::FlowAgent;
+pub use agent::{is_deterministic_mode, FlowAgent};
 pub use benchmark::FlowBenchmark;
 // Tool tracking is now handled by OpenTelemetry + rig framework
 // No manual tool wrapper imports needed

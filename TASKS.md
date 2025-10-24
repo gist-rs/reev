@@ -114,11 +114,14 @@ if !is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags)
 - [x] Add validation to prevent ground truth usage in LLM mode
 
 **Implementation Details**:
-- Added `is_deterministic_mode()` function with multiple checks
+- Add `is_deterministic_mode()` function with multiple checks
 - Implemented conditional ground truth usage based on mode
 - Fixed compilation errors with proper imports and type conversions
 - Added validation to prevent ground truth leakage
 - All clippy warnings resolved
+- Created comprehensive ground truth separation validation tests
+- Made `is_deterministic_mode()` function public for testing
+- All 6 validation tests passing with proper serial execution
 
 ### Phase 3: Update Documentation ✅
 - Update ARCHITECTURE.md with ground truth separation rules
@@ -126,12 +129,15 @@ if !is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags)
 - Add validation rules for benchmark vs execution modes
 - Files: `ARCHITECTURE.md`, `TASKS.md`
 
-### Phase 4: Add Validation Tests (PENDING)
-**File**: `crates/reev-agent/tests/flow/`
-- [ ] Test deterministic mode with ground_truth access
-- [ ] Test LLM mode without ground_truth access  
-- [ ] Test multi-step context consolidation without leakage
-- [ ] Test error handling for invalid ground_truth usage
+### Phase 4: Add Validation Tests ✅ COMPLETED
+**File**: `crates/reev-agent/tests/ground_truth_separation_test.rs`
+- [x] Test deterministic mode with ground_truth access
+- [x] Test LLM mode without ground_truth access  
+- [x] Test multi-step context consolidation without leakage
+- [x] Test error handling for invalid ground_truth usage
+- [x] Test various agent types and their ground truth access patterns
+- [x] Test environment variable override for deterministic mode
+- [x] Use `serial_test` to prevent test interference from environment variables
 
 ### Phase 5: Update Multi-Step Flows (PENDING)
 **Files**: All deterministic flow agents in `crates/reev-agent/src/agents/coding/`
@@ -146,7 +152,7 @@ if !is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags)
 3. Multi-step flows build on previous step results ✅
 4. No ground truth leakage into LLM context ✅
 5. All flow agents respect context consolidation ✅
-6. Comprehensive test coverage for both modes 🔄
+6. Comprehensive test coverage for both modes ✅
 
 ### Phase 6: Fix SPL Token Amount YAML Output ✅
 **Files**: 

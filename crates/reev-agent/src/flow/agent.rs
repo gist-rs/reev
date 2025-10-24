@@ -23,7 +23,11 @@ use reev_context::{ContextResolver, InitialState};
 /// Helper function to detect if agent is running in deterministic mode
 /// Deterministic mode uses ground_truth for reproducible test behavior
 /// LLM mode uses real blockchain state to prevent information leakage
-fn is_deterministic_mode(model_name: &str, benchmark_id: &str, tags: &[String]) -> bool {
+/// Check if the agent should run in deterministic mode
+///
+/// Deterministic mode allows access to ground truth data for reproducible testing.
+/// LLM mode blocks ground truth access to prevent information leakage.
+pub fn is_deterministic_mode(model_name: &str, benchmark_id: &str, tags: &[String]) -> bool {
     model_name == "deterministic"
         || std::env::var("REEV_DETERMINISTIC").is_ok()
         || tags.contains(&"deterministic".to_string())
