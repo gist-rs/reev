@@ -42,9 +42,9 @@ async fn test_sol_transfer_context_resolution() -> Result<()> {
 
     // Check YAML export
     let yaml_output = resolver.context_to_yaml(&mock_context)?;
-    assert!(yaml_output.contains("CURRENT ON-CHAIN CONTEXT"));
-    assert!(yaml_output.contains("key_map"));
-    assert!(yaml_output.contains("account_states"));
+    assert!(yaml_output.contains("# On-Chain Context for Transaction Processing"));
+    assert!(yaml_output.contains("key_map:"));
+    assert!(yaml_output.contains("account_states:"));
 
     println!("✅ SOL transfer context validation passed");
     println!("Resolved {} placeholders", mock_context.key_map.len());
@@ -94,9 +94,9 @@ async fn test_spl_transfer_context_resolution() -> Result<()> {
 
     // Check YAML export
     let yaml_output = resolver.context_to_yaml(&mock_context)?;
-    assert!(yaml_output.contains("CURRENT ON-CHAIN CONTEXT"));
-    assert!(yaml_output.contains("key_map"));
-    assert!(yaml_output.contains("account_states"));
+    assert!(yaml_output.contains("# On-Chain Context for Transaction Processing"));
+    assert!(yaml_output.contains("key_map:"));
+    assert!(yaml_output.contains("account_states:"));
 
     println!("✅ SPL transfer context validation passed");
     println!("Resolved {} placeholders", mock_context.key_map.len());
