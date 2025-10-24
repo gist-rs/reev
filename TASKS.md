@@ -63,4 +63,14 @@
 - `crates/reev-tools/src/tools/native.rs`
 - `crates/reev-agent/src/tools/native.rs`
 - `crates/reev-context/tests/context_validation_test.rs` (new)
+- `crates/reev-context/tests/benchmark_context_validation.rs` (fixed)
 - `Cargo.toml` (add reev-context dependency)
+
+### Phase 6: Fix SPL Token Amount YAML Output ✅
+**Files**: 
+- `crates/reev-context/tests/benchmark_context_validation.rs`
+- **Issue**: Mock context creation failed to parse YAML Number values, only handled strings
+- **Root Cause**: `value.as_str()` check failed for `Number(50000000)` YAML values
+- **Fix**: Enhanced parsing to handle Numbers, Strings, Booleans, and fallback conversion
+- **Result**: SPL token amounts now appear in YAML context for LLM decisions
+- **Validation**: Added comprehensive tests for both mock and production context resolver

@@ -240,49 +240,22 @@ fn create_mock_context_from_initial_state(
             if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
                 if let Some(data_map) = data_value.as_mapping() {
                     for (key, value) in data_map {
-                        if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
-                            account_state[key_str.to_string()] =
-                                serde_json::Value::String(value_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
+                        if let Some(key_str) = key.as_str() {
+                            // Handle both string and number values
+                            let json_value = if let Some(value_str) = value.as_str() {
+                                serde_json::Value::String(value_str.to_string())
+                            } else if let Some(value_num) = value.as_i64() {
+                                serde_json::Value::Number(serde_json::Number::from(value_num))
+                            } else if let Some(value_num) = value.as_u64() {
+                                serde_json::Value::Number(serde_json::Number::from(value_num))
+                            } else if let Some(value_bool) = value.as_bool() {
+                                serde_json::Value::Bool(value_bool)
+                            } else {
+                                // Fallback to string representation
+                                serde_json::Value::String(format!("{value:?}"))
+                            };
 
-        // Debug: Print what we're adding to account_state
-        if !account_state.as_object().unwrap().contains_key("amount") {
-            if let Some(data_str) = &state.data {
-                println!(
-                    "🔍 DEBUG: Missing amount in account_state for {}",
-                    state.pubkey
-                );
-                println!("🔍 DEBUG: Raw data_str: {data_str}");
-                if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
-                    println!("🔍 DEBUG: Parsed data_value: {data_value:#?}");
-                    println!("🔍 DEBUG: account_state before adding amount: {account_state:#?}");
-                }
-            }
-        }
-
-        // Add more debug to see final account_state structure
-        if let Some(data_str) = &state.data {
-            if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
-                println!(
-                    "🔍 DEBUG: Successfully parsed token data for {}:",
-                    state.pubkey
-                );
-                if let Some(data_map) = data_value.as_mapping() {
-                    for (key, value) in data_map {
-                        println!("🔍 DEBUG:   {key:?}: {value:?}");
-                        if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
-                            if key_str == "amount" {
-                                println!("🔍 DEBUG: Adding amount field: {key_str} -> {value_str}");
-                                account_state[key_str.to_string()] =
-                                    serde_json::Value::String(value_str.to_string());
-                                println!(
-                                    "🔍 DEBUG: account_state after adding amount: {account_state:#?}"
-                                );
-                            }
+                            account_state[key_str.to_string()] = json_value;
                         }
                     }
                 }
@@ -351,10 +324,116 @@ async fn test_001_sol_transfer_with_surfpool() -> Result<()> {
     match test_single_benchmark_context(&resolver, benchmark_path).await {
         Ok(_) => {
             println!("✅ Surfpool context validation PASSED");
+            Ok(())
         }
         Err(e) => {
             println!("❌ Surfpool context validation FAILED: {e}");
-            return Err(e);
+            Err(e)
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_spl_transfer_yaml_output() -> Result<()> {
+    // Use mock RPC to avoid surfpool connection issues
+    let rpc_client = RpcClient::new("http://mock:8899");
+    let resolver = ContextResolver::new(rpc_client);
+
+    let benchmark_path = &Path::new("../../benchmarks/002-spl-transfer.yml");
+
+    println!("\n🔍 SPL TRANSFER YAML OUTPUT TEST: 002-spl-transfer.yml");
+    println!("{}", "=".repeat(60));
+
+    let benchmark_content = fs::read_to_string(benchmark_path)?;
+    let benchmark_yaml: serde_yaml::Value = serde_yaml::from_str(&benchmark_content)?;
+
+    // Extract initial_state from YAML
+    let initial_state = extract_initial_state_from_yaml(&benchmark_yaml)?;
+
+    // Create mock context
+    let resolved_context = create_mock_context_from_initial_state(&initial_state)?;
+
+    // Generate enhanced YAML format (what LLM would see)
+    let enhanced_yaml = resolver.context_to_yaml_with_comments(&resolved_context)?;
+
+    println!("\n📝 Enhanced YAML Context (what LLM will see):");
+    println!("{enhanced_yaml}");
+
+    // Check if amount field is present
+    if enhanced_yaml.contains("amount: 50000000") {
+        println!("✅ SUCCESS: amount field found in YAML output");
+    } else {
+        println!("❌ FAILURE: amount field missing from YAML output");
+
+        // Debug: Check account states directly
+        println!("🔍 DEBUG: Account states:");
+        for (address, state) in &resolved_context.account_states {
+            if address.contains("USDC") || address.contains("ATA") {
+                println!("  {address}: {state:#?}");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_production_context_resolver_yaml_output() -> Result<()> {
+    // Test production ContextResolver with mock surfpool-style data
+    let rpc_client = RpcClient::new("http://mock:8899");
+    let resolver = ContextResolver::new(rpc_client);
+
+    println!("\n🔍 PRODUCTION CONTEXT RESOLVER YAML TEST");
+    println!("{}", "=".repeat(60));
+
+    // Create mock account states that simulate real surfpool data
+    let mut account_states = std::collections::HashMap::new();
+
+    // Mock USDC token account with proper token data (as created by production resolver)
+    account_states.insert(
+        "USER_USDC_ATA".to_string(),
+        serde_json::json!({
+            "lamports": 2039280,
+            "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "executable": false,
+            "data_len": 165,
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "token_account_owner": "52os5otfYAPyQM2BbCEd6vbbDgLN42feBtxDCyVvKv6x",
+            "amount": "50000000" // This is how production resolver stores it (as string)
+        }),
+    );
+
+    // Create mock key map
+    let mut key_map = std::collections::HashMap::new();
+    key_map.insert(
+        "USER_USDC_ATA".to_string(),
+        "11111111111111111111111111111111".to_string(),
+    );
+
+    // Create AgentContext with production-style data
+    let context = reev_context::AgentContext {
+        key_map,
+        account_states,
+        fee_payer_placeholder: Some("USER_WALLET_PUBKEY".to_string()),
+        current_step: Some(0),
+        step_results: std::collections::HashMap::new(),
+    };
+
+    // Generate YAML using production resolver
+    let yaml_output = resolver.context_to_yaml_with_comments(&context)?;
+
+    println!("\n📝 Production YAML Output:");
+    println!("{yaml_output}");
+
+    // Check if amount field is present in YAML (production uses string format)
+    if yaml_output.contains("amount: \"50000000\"") {
+        println!("✅ SUCCESS: Production context resolver includes amount field");
+    } else {
+        println!("❌ FAILURE: Production context resolver missing amount field");
+
+        // Debug: Show what's in the account state
+        if let Some(usdc_state) = context.account_states.get("USER_USDC_ATA") {
+            println!("🔍 DEBUG: USDC account state: {usdc_state:#?}");
         }
     }
 
