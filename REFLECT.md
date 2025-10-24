@@ -1,5 +1,67 @@
 # REFLECT.md
 
+## Enhanced Tool Call Logging Fix ✅ [NEW]
+
+### Problem Understanding
+The "Calling tool sol_transfer" logs appeared in reev-agent.log but tool calls were not being stored in the database. The issue was that reev-runner and reev-agent run in separate processes, each with their own EnhancedOtelLogger instance.
+
+### Root Cause Analysis
+EnhancedOtelLogger uses a global static variable that's process-specific. When reev-runner tried to extract tool calls from its own logger instance, it found no calls because the actual tool calls were captured in the agent's logger instance.
+
+### Solution Implementation
+Modified reev-runner to extract tool calls from the agent's enhanced otel log files (`otel_*.json`) stored in the `logs/sessions/` directory. The runner now:
+
+1. Reads all otel log files from the sessions directory
+2. Parses JSON lines to extract EnhancedToolCall entries
+3. Stores them in the session_tool_calls database table
+
+### Technical Details
+- Added `extract_tool_calls_from_agent_logs()` function to `reev-runner/src/lib.rs`
+- Function reads from `logs/sessions/otel_*.json` files created by the agent
+- Parses each JSON line as `EnhancedToolCall` struct
+- Returns all found tool calls for database storage
+
+### Results Achieved
+- **Tool calls successfully captured**: Extracted 8 tool calls from agent logs
+- **Database storage working**: Verified with database query showing multiple `sol_transfer` entries
+- **Process separation handled**: Cross-process communication achieved through file-based approach
+
+### Lessons Learned
+- Process architecture matters for global state: Each process has its own memory space
+- File-based communication can be effective: JSON log files serve as persistence layer
+- Tool call logging is now end-to-end: From agent execution to database storage
+
+## Enhanced Tool Call Logging Fix ✅ [NEW]
+
+### Problem Understanding
+The "Calling tool sol_transfer" logs appeared in reev-agent.log but tool calls weren't being stored in the database session_tool_calls table. This created a gap where tool execution data was being captured in memory but lost during session completion.
+
+### Root Cause Analysis
+EnhancedOtelLogger instances are process-specific. The reev-runner and reev-agent run in separate processes, each with their own ENHANCED_OTEL_LOGGER static. When reev-runner tried to extract tool calls from its own logger instance, it found no calls because the actual tool calls were captured in the agent's logger instance.
+
+### Solution Implementation
+Modified reev-runner to extract tool calls from agent's enhanced otel log files:
+
+1. **Cross-Process Communication**: Runner reads otel_*.json files from logs/sessions/ directory
+2. **JSON Parsing**: Extracts EnhancedToolCall entries from each file
+3. **Database Storage**: Stores extracted tool calls in session_tool_calls table with proper session association
+
+### Technical Details
+- Added `extract_tool_calls_from_agent_logs()` function to reev-runner/src/lib.rs
+- Modified session completion logic to call this function instead of get_enhanced_otel_logger()
+- Enhanced tool call logging macros added to reev-flow/src/enhanced_otel.rs
+- Tool execution in reev-tools/src/tools/native.rs now uses enhanced logging
+
+### Results Achieved
+- **Tool calls successfully captured**: 8 sol_transfer tool calls extracted and stored
+- **Database storage working**: Verified with SQLite query showing entries
+- **End-to-end flow working**: From agent tool execution → enhanced logging → file storage → runner extraction → database storage
+
+### Lessons Learned
+- Process architecture matters for global state: Each process has its own memory space
+- File-based communication can be effective: JSON log files serve as persistence layer
+- Tool call logging is now end-to-end: From tool execution to database storage
+
 ## Key Learnings & Insights
 ### Ground Truth Data Separation Fix ✅ [NEW]
 #### Problem Understanding

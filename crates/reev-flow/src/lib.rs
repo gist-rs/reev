@@ -25,6 +25,9 @@ pub use enhanced_otel::{
 
 // Re-export macros at crate level (they're exported from enhanced_otel module)
 pub use error::{FlowError, FlowResult};
+
+// Export logging macros for use by other crates
+// Macros are now defined directly in enhanced_otel.rs and exported via #[macro_export]
 // Macros are exported at crate level via #[macro_export] - no need for pub use
 pub use logger::{init_flow_tracing, AgentPerformanceData, DatabaseWriter, FlowLogger};
 pub use otel::FlowTracer;

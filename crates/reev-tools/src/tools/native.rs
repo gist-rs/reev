@@ -2,7 +2,7 @@
 //!
 //! These tools provide AI agent access to native Solana operations
 //! including SOL transfers and SPL token transfers, acting as thin wrappers
-//! around the protocol handlers.
+//! around protocol handlers.
 
 use crate::tool_names::SOL_TRANSFER;
 use spl_associated_token_account::get_associated_token_address;
@@ -18,6 +18,10 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
+
+// Import enhanced logging macros
+use reev_flow::log_tool_call;
+use reev_flow::log_tool_completion;
 use tracing::{info, instrument};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
@@ -135,6 +139,10 @@ impl Tool for SolTransferTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Use enhanced logging macro for consistent otel tracking
+        log_tool_call!("sol_transfer", &args);
+
+        let _start_time = Instant::now();
         info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
         // Validate and parse arguments
         let user_pubkey = self
@@ -207,10 +215,13 @@ impl Tool for SolTransferTool {
             raw_instructions.len()
         );
 
-        // Serialize the Vec<RawInstruction> to a JSON string.
-        let output = serde_json::to_string(&raw_instructions)?;
+        let execution_time = start_time.elapsed().as_millis() as u32;
+        let result = serde_json::to_string(&raw_instructions)?;
 
-        Ok(output)
+        // Log tool completion with enhanced otel
+        log_tool_completion!("sol_transfer", execution_time as u64, &result, true);
+
+        Ok(result)
     }
 }
 

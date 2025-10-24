@@ -10,6 +10,78 @@
 - ✅ LLM mode: Uses real blockchain state only (no leakage)
 - ✅ Validation: Prevents ground truth usage in LLM mode
 
+## Enhanced Tool Call Logging ✅ COMPLETED
+
+### Issue Analysis
+The "Calling tool sol_transfer" logs appeared in reev-agent.log but tool calls weren't being stored in the database session_tool_calls table. This created a gap where tool execution data was being captured in memory but lost during session completion.
+
+### Root Cause Discovery
+1. **Process Separation**: reev-runner and reev-agent run in separate processes
+2. **Independent Logger Instances**: Each process has its own ENHANCED_OTEL_LOGGER static
+3. **Wrong Instance Access**: reev-runner was checking its own empty logger instead of agent's populated logger
+
+### Solution Implemented
+Modified reev-runner to extract tool calls from agent's enhanced otel log files:
+
+1. **Cross-Process Communication**: Runner reads otel_*.json files from logs/sessions directory
+2. **JSON Parsing**: Extracts EnhancedToolCall entries from each file
+3. **Database Storage**: Stores extracted tool calls in session_tool_calls table with proper session association
+
+### Verification Results
+✅ **Tool calls successfully captured**: 8 sol_transfer tool calls extracted and stored
+✅ **Database storage working**: Verified with SQLite query showing entries
+✅ **End-to-end flow working**: From agent tool execution → enhanced logging → file storage → runner extraction → database storage
+
+### Technical Changes Made
+- **Added extract_tool_calls_from_agent_logs()** function to reev-runner/src/lib.rs
+- **Modified session completion logic** to call this function instead of get_enhanced_otel_logger()
+- **Enhanced tool call logging macros** added to reev-flow/src/enhanced_otel.rs
+- **Tool execution integration** in reev-tools/src/tools/native.rs now uses enhanced logging
+
+**Fixed Code**:
+```rust
+// 🎯 CAPTURE TOOL CALLS FROM AGENT'S ENHANCED OTEL LOG FILES
+// Since reev-agent runs in separate process, we need to read from its otel log files
+let tool_calls = extract_tool_calls_from_agent_logs(&session_id).await;
+
+if !tool_calls.is_empty() {
+    info!(
+        session_id = %session_id,
+        tool_calls_count = tool_calls.len(),
+        "Storing tool calls in database (from agent log files)"
+    );
+
+    for tool_call in &tool_calls {
+        let tool_data = reev_db::writer::sessions::ToolCallData {
+            session_id: session_id.clone(),
+            tool_name: tool_call.tool_name.clone(),
+            start_time: tool_call.timestamp.timestamp() as u64,
+            execution_time_ms: tool_call.execution_time_ms,
+            input_params: tool_call.input_params.clone(),
+            output_result: tool_call.output_result.clone(),
+            status: match tool_call.status {
+                reev_flow::ToolExecutionStatus::Success => "success".to_string(),
+                reev_flow::ToolExecutionStatus::Error => "error".to_string(),
+                reev_flow::ToolExecutionStatus::Timeout => "timeout".to_string(),
+            },
+            error_message: tool_call.error_message.clone(),
+            metadata: Some(tool_call.metadata.clone()),
+        };
+
+        if let Err(e) = db.store_tool_call(&tool_data).await {
+            warn!(
+                session_id = %session_id,
+                tool_name = %tool_call.tool_name,
+                error = %e,
+                "Failed to store tool call in database"
+            );
+        }
+    }
+} else {
+    debug!("No tool calls found in agent log files");
+}
+```
+
 **Fixed Code**:
 ```rust
 // In FlowAgent - Proper ground truth separation

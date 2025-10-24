@@ -6,7 +6,6 @@
 
 use super::types::*;
 use tracing::{debug, info, info_span, instrument, warn, Span};
-use tracing_subscriber::prelude::*;
 
 /// Simple flow tracer with OpenTelemetry backend
 pub struct FlowTracer {

@@ -47,15 +47,29 @@ macro_rules! log_tool_call {
                 "📝 [{}] Attempting to log to enhanced otel system",
                 $tool_name
             );
-            $crate::log_enhanced_tool_call!(
-                $tool_name,
-                0, // Will be updated on completion
-                input_params,
-                serde_json::Value::Object(Default::default()),
-                $crate::enhanced_otel::ToolExecutionStatus::Success,
-                None::<&str>
-            );
-            tracing::info!("✅ [{}] Enhanced otel log call completed", $tool_name);
+
+            // Check if EnhancedOtelLogger is available before trying to log
+            if let Ok(logger) = reev_flow::get_enhanced_otel_logger() {
+                tracing::info!(
+                    "🔍 [{}] EnhancedOtelLogger found with session_id: {}",
+                    $tool_name,
+                    logger.session_id()
+                );
+                reev_flow::log_enhanced_tool_call!(
+                    $tool_name,
+                    0, // Will be updated on completion
+                    input_params,
+                    serde_json::Value::Object(Default::default()),
+                    reev_flow::ToolExecutionStatus::Success,
+                    None::<&str>
+                );
+                tracing::info!("✅ [{}] Enhanced otel log call completed", $tool_name);
+            } else {
+                tracing::warn!(
+                    "❌ [{}] EnhancedOtelLogger NOT AVAILABLE - tool calls will not be captured!",
+                    $tool_name
+                );
+            }
         } else {
             tracing::info!("🚫 [{}] Enhanced otel logging DISABLED", $tool_name);
         }
@@ -96,7 +110,7 @@ macro_rules! log_tool_completion {
             // Also log to enhanced file-based system
             let input_params = serde_json::json!({}); // Will be populated from earlier call
             if $success {
-                $crate::log_enhanced_tool_success!(
+                reev_flow::log_enhanced_tool_success!(
                     $tool_name,
                     $execution_time_ms,
                     input_params,
@@ -108,7 +122,7 @@ macro_rules! log_tool_completion {
                 } else {
                     "Unknown error"
                 };
-                $crate::log_enhanced_tool_error!(
+                reev_flow::log_enhanced_tool_error!(
                     $tool_name,
                     $execution_time_ms,
                     input_params,

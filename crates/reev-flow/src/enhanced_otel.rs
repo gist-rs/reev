@@ -327,10 +327,99 @@ macro_rules! log_enhanced_tool_error {
     };
 }
 
+/// Enhanced tool logging macro for consistent OpenTelemetry tracking
+#[macro_export]
+macro_rules! log_tool_call {
+    ($tool_name:expr, $args:expr) => {
+        // Enhanced otel logging is enabled by default (can be disabled with REEV_ENHANCED_OTEL=0)
+        if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
+            tracing::info!("🔧 [{}] Enhanced otel logging ENABLED", $tool_name);
+
+            // Also log to enhanced file-based system
+            let input_params = serde_json::to_value($args)
+                .unwrap_or_else(|_| serde_json::Value::Object(Default::default()));
+            tracing::info!(
+                "📝 [{}] Attempting to log to enhanced otel system",
+                $tool_name
+            );
+
+            // Check if EnhancedOtelLogger is available before trying to log
+            if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
+                tracing::info!(
+                    "🔍 [{}] EnhancedOtelLogger found with session_id: {}",
+                    $tool_name,
+                    logger.session_id()
+                );
+                $crate::log_enhanced_tool_call!(
+                    $tool_name,
+                    0, // Will be updated on completion
+                    input_params,
+                    serde_json::Value::Object(Default::default()),
+                    $crate::enhanced_otel::ToolExecutionStatus::Success,
+                    None::<&str>
+                );
+                tracing::info!("✅ [{}] Enhanced otel log call completed", $tool_name);
+            } else {
+                tracing::warn!(
+                    "❌ [{}] EnhancedOtelLogger NOT AVAILABLE - tool calls will not be captured!",
+                    $tool_name
+                );
+            }
+        } else {
+            tracing::info!("🚫 [{}] Enhanced otel logging DISABLED", $tool_name);
+        }
+        tracing::info!("[{}] Tool execution started", $tool_name);
+    };
+}
+
+/// Enhanced tool completion logging macro
+#[macro_export]
+macro_rules! log_tool_completion {
+    ($tool_name:expr, $execution_time_ms:expr, $result:expr, $success:expr) => {
+        // Enhanced otel logging is enabled by default (can be disabled with REEV_ENHANCED_OTEL=0)
+        if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
+            // Also log to enhanced file-based system
+            let input_params = serde_json::json!({}); // Will be populated from earlier call
+            if $success {
+                // Convert result to JSON value for enhanced logging
+                let result_value = serde_json::to_value(&$result).unwrap_or_default();
+                $crate::log_enhanced_tool_success!(
+                    $tool_name,
+                    $execution_time_ms,
+                    input_params,
+                    result_value
+                );
+            } else {
+                // Handle error case - convert result to string for error message
+                let error_msg = $result.to_string();
+                $crate::log_enhanced_tool_error!(
+                    $tool_name,
+                    $execution_time_ms,
+                    input_params,
+                    error_msg
+                );
+            }
+        }
+        if $success {
+            tracing::info!(
+                "[{}] Tool execution completed in {}ms",
+                $tool_name,
+                $execution_time_ms
+            );
+        } else {
+            tracing::error!(
+                "[{}] Tool execution failed in {}ms: {}",
+                $tool_name,
+                $execution_time_ms,
+                serde_json::to_value($result).unwrap_or_default()
+            );
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_enhanced_otel_logger_creation() -> Result<()> {

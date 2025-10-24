@@ -14,6 +14,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .try_init();
 
+    // Initialize Enhanced OpenTelemetry logging for tool call tracking
+    if let Ok(log_file) = reev_flow::init_enhanced_otel_logging() {
+        tracing::info!(
+            "Enhanced OpenTelemetry logging initialized in agent: {}",
+            log_file
+        );
+    } else {
+        tracing::warn!("Failed to initialize Enhanced OpenTelemetry logging in agent");
+    }
+
     // Run the server.
     run_server().await
 }
