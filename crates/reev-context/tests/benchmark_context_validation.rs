@@ -35,16 +35,16 @@ async fn test_all_benchmark_context_preparation() -> Result<()> {
         if path.extension().and_then(|s| s.to_str()) == Some("yml") {
             let filename = path.file_name().unwrap().to_str().unwrap();
 
-            println!("\n=== Testing Benchmark: {} ===", filename);
+            println!("\n=== Testing Benchmark: {filename} ===");
 
             match test_single_benchmark_context(&resolver, &path).await {
                 Ok(_) => {
-                    println!("✅ {} - Context validation PASSED", filename);
-                    test_results.push(format!("✅ {} - PASSED", filename));
+                    println!("✅ {filename} - Context validation PASSED");
+                    test_results.push(format!("✅ {filename} - PASSED"));
                 }
                 Err(e) => {
-                    println!("❌ {} - Context validation FAILED: {}", filename, e);
-                    test_results.push(format!("❌ {} - FAILED: {}", filename, e));
+                    println!("❌ {filename} - Context validation FAILED: {e}");
+                    test_results.push(format!("❌ {filename} - FAILED: {e}"));
                     all_passed = false;
                 }
             }
@@ -53,7 +53,7 @@ async fn test_all_benchmark_context_preparation() -> Result<()> {
 
     println!("\n=== SUMMARY ===");
     for result in &test_results {
-        println!("{}", result);
+        println!("{result}");
     }
 
     if !all_passed {
@@ -75,9 +75,9 @@ async fn test_single_benchmark_context(
     let initial_state = extract_initial_state_from_yaml(&benchmark_yaml)?;
 
     // Extract ground_truth
-    let ground_truth = if let Some(gt) = benchmark_yaml.get("ground_truth") {
+    let _ground_truth = if let Some(gt) = benchmark_yaml.get("ground_truth") {
         serde_json::to_value(gt)
-            .map_err(|e| anyhow::anyhow!("Failed to convert ground_truth: {}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to convert ground_truth: {e}"))?
     } else {
         serde_json::Value::Object(serde_json::Map::new())
     };
@@ -97,7 +97,7 @@ async fn test_single_benchmark_context(
     let enhanced_yaml = resolver.context_to_yaml_with_comments(&resolved_context)?;
 
     println!("\n📝 Enhanced YAML Context (what LLM will see):");
-    println!("{}", enhanced_yaml);
+    println!("{enhanced_yaml}");
 
     // Log the complete enhanced prompt that LLM will receive
     let prompt = benchmark_yaml
@@ -107,8 +107,8 @@ async fn test_single_benchmark_context(
 
     println!("\n🚀 COMPLETE ENHANCED PROMPT FOR LLM:");
     println!("{}", "-".repeat(80));
-    println!("USER PROMPT:\n{}", prompt);
-    println!("\nCONTEXT:\n{}", enhanced_yaml);
+    println!("USER PROMPT:\n{prompt}");
+    println!("\nCONTEXT:\n{enhanced_yaml}");
     println!("{}", "-".repeat(80));
 
     Ok(())
@@ -148,9 +148,33 @@ fn extract_initial_state_from_yaml(
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
 
-        let data = state_map
-            .get("data")
-            .map(|v| serde_json::to_string(v).unwrap_or_default());
+        let data = state_map.get("data").and_then(|v| {
+            // Extract token balance from data field for SPL accounts
+            v.as_mapping().and_then(|obj| {
+                // Parse token account data into structured fields
+                let mut parsed_data = String::new();
+                for (key, value) in obj {
+                    if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
+                        match key_str {
+                            "amount" => {
+                                parsed_data = format!("amount: {value_str}");
+                            }
+                            "mint" => {
+                                parsed_data = format!("mint: {value_str}");
+                            }
+                            "owner" => {
+                                parsed_data = format!("owner: {value_str}");
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if !parsed_data.is_empty() {
+                    return Some(parsed_data);
+                }
+                None
+            })
+        });
 
         initial_state.push(InitialState {
             pubkey,
@@ -201,17 +225,31 @@ fn create_mock_context_from_initial_state(
 
         key_map.insert(state.pubkey.clone(), mock_address.to_string());
 
-        account_states.insert(
-            state.pubkey.clone(),
-            json!({
-                "lamports": state.lamports,
-                "owner": state.owner,
-                "executable": false,
-                "data_len": state.data.as_ref().map(|d| d.len()).unwrap_or(0),
-                "data": state.data.as_ref().unwrap_or(&String::new()),
-                "mock_note": "Generated without surfpool connection"
-            }),
-        );
+        // Create account state with token data properly parsed
+        let mut account_state = json!({
+            "lamports": state.lamports,
+            "owner": state.owner,
+            "executable": false,
+            "data_len": state.data.as_ref().map(|d| d.len()).unwrap_or(0),
+            "mock_note": "Generated without surfpool connection"
+        });
+
+        // Parse and add token data fields if present
+        if let Some(data_str) = &state.data {
+            // Parse the structured token data (amount, mint, owner)
+            if let Ok(data_value) = serde_yaml::from_str::<serde_yaml::Value>(data_str) {
+                if let Some(data_map) = data_value.as_mapping() {
+                    for (key, value) in data_map {
+                        if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
+                            account_state[key_str.to_string()] =
+                                serde_json::Value::String(value_str.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        account_states.insert(state.pubkey.clone(), account_state);
     }
 
     Ok(reev_context::AgentContext {
@@ -235,13 +273,10 @@ async fn test_001_sol_transfer_detailed_context() -> Result<()> {
     println!("\n🔍 DETAILED CONTEXT TEST: 001-sol-transfer.yml");
     println!("{}", "=".repeat(60));
 
-    test_single_benchmark_context(&resolver, &benchmark_path).await?;
+    test_single_benchmark_context(&resolver, benchmark_path).await?;
 
     Ok(())
 }
-
-/// Test specific benchmark with real surfpool connection
-/// This test will only run if surfpool is available
 
 /// Test specific benchmark with real surfpool connection (multi-threaded)
 #[tokio::test(flavor = "multi_thread")]
@@ -258,10 +293,7 @@ async fn test_001_sol_transfer_with_surfpool() -> Result<()> {
             }
             Err(e) => {
                 if i == 19 {
-                    println!(
-                        "⚠️  Skipping surfpool test - validator not available: {}",
-                        e
-                    );
+                    println!("⚠️  Skipping surfpool test - validator not available: {e}");
                     return Ok(()); // Skip test gracefully
                 }
                 thread::sleep(Duration::from_millis(500));
@@ -281,7 +313,7 @@ async fn test_001_sol_transfer_with_surfpool() -> Result<()> {
             println!("✅ Surfpool context validation PASSED");
         }
         Err(e) => {
-            println!("❌ Surfpool context validation FAILED: {}", e);
+            println!("❌ Surfpool context validation FAILED: {e}");
             return Err(e);
         }
     }

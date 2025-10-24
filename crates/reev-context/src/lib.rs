@@ -284,7 +284,7 @@ impl ContextResolver {
         }
 
         // Validate account states are complete
-        for (placeholder, _) in &context.key_map {
+        for placeholder in context.key_map.keys() {
             let real_address = &context.key_map[placeholder];
             if !context.account_states.contains_key(real_address)
                 && !context.account_states.contains_key(placeholder)
@@ -298,10 +298,10 @@ impl ContextResolver {
             if current_step > 0 {
                 // Check for previous step results
                 for step_num in 0..current_step {
-                    let step_key = format!("step_{}", step_num);
+                    let step_key = format!("step_{step_num}");
                     if !context.step_results.contains_key(&step_key) {
                         return Err(anyhow::anyhow!(
-                            "MISSING PREREQUISITE: Multi-step flow requires result from step_{} for step {}", step_num, current_step
+                            "MISSING PREREQUISITE: Multi-step flow requires result from step_{step_num} for step {current_step}"
                         ));
                     }
                 }
@@ -338,15 +338,16 @@ impl ContextResolver {
             sorted_account_states.insert(key.clone(), value.clone());
         }
 
-        let mut yaml_lines = Vec::new();
-        yaml_lines.push("# On-Chain Context for Transaction Processing".to_string());
-        yaml_lines.push("# Only balance, ownership, and existence information".to_string());
-        yaml_lines.push("".to_string());
-        yaml_lines.push("# Key Map: Placeholder names resolved to real addresses".to_string());
-        yaml_lines.push("key_map:".to_string());
+        let mut yaml_lines = vec![
+            "# On-Chain Context for Transaction Processing".to_string(),
+            "# Only balance, ownership, and existence information".to_string(),
+            "".to_string(),
+            "# Key Map: Placeholder names resolved to real addresses".to_string(),
+            "key_map:".to_string(),
+        ];
 
         for (placeholder, address) in sorted_key_map {
-            yaml_lines.push(format!("  {}: {}", placeholder, address));
+            yaml_lines.push(format!("  {placeholder}: {address}"));
         }
 
         yaml_lines.push("".to_string());
@@ -354,23 +355,23 @@ impl ContextResolver {
         yaml_lines.push("account_states:".to_string());
 
         for (address, state) in sorted_account_states {
-            yaml_lines.push(format!("  {}:", address));
+            yaml_lines.push(format!("  {address}:"));
             if let Some(obj) = state.as_object() {
                 // Only include transaction-relevant fields
                 if let Some(lamports) = obj.get("lamports") {
-                    yaml_lines.push(format!("    lamports: {}", lamports));
+                    yaml_lines.push(format!("    lamports: {lamports}"));
                 }
                 if let Some(owner) = obj.get("owner") {
-                    yaml_lines.push(format!("    owner: {}", owner));
+                    yaml_lines.push(format!("    owner: {owner}"));
                 }
                 if let Some(mint) = obj.get("mint") {
-                    yaml_lines.push(format!("    mint: {}", mint));
+                    yaml_lines.push(format!("    mint: {mint}"));
                 }
                 if let Some(amount) = obj.get("amount") {
-                    yaml_lines.push(format!("    amount: {}", amount));
+                    yaml_lines.push(format!("    amount: {amount}"));
                 }
                 if let Some(exists) = obj.get("exists") {
-                    yaml_lines.push(format!("    exists: {}", exists));
+                    yaml_lines.push(format!("    exists: {exists}"));
                 }
             }
         }
@@ -378,7 +379,7 @@ impl ContextResolver {
         if let Some(current_step) = context.current_step {
             yaml_lines.push("".to_string());
             yaml_lines.push("# Multi-step Flow Information".to_string());
-            yaml_lines.push(format!("current_step: {}", current_step));
+            yaml_lines.push(format!("current_step: {current_step}"));
         }
 
         if !context.step_results.is_empty() {
