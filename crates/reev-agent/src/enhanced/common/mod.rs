@@ -60,7 +60,7 @@ macro_rules! log_tool_call {
                     0, // Will be updated on completion
                     input_params,
                     serde_json::Value::Object(Default::default()),
-                    reev_flow::ToolExecutionStatus::Success,
+                    reev_flow::enhanced_otel::ToolExecutionStatus::Success,
                     None::<&str>
                 );
                 tracing::info!("✅ [{}] Enhanced otel log call completed", $tool_name);

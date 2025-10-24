@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -221,42 +221,19 @@ impl Drop for EnhancedOtelLogger {
 }
 
 /// Global enhanced otel logger instance
-static mut ENHANCED_OTEL_LOGGER: Option<EnhancedOtelLogger> = None;
-static LOGGER_INIT: Mutex<bool> = Mutex::new(false);
+static ENHANCED_OTEL_LOGGER: OnceLock<EnhancedOtelLogger> = OnceLock::new();
 
 /// Initialize enhanced OpenTelemetry logging globally
 pub fn init_enhanced_otel_logging() -> Result<String> {
     info!("=== INITIALIZING ENHANCED OPENTELEMETRY LOGGING ===");
 
-    let mut is_init = LOGGER_INIT
-        .lock()
-        .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
-
-    if *is_init {
-        info!("Enhanced otel logging already initialized, returning existing log file");
-        // Return existing session ID
-        unsafe {
-            if let Some(ref logger) = ENHANCED_OTEL_LOGGER {
-                let existing_file = logger.log_file().to_string();
-                info!(
-                    "Returning existing enhanced otel log file: {}",
-                    existing_file
-                );
-                return Ok(existing_file);
-            }
-        }
-    }
-
-    info!("Creating new enhanced otel logger...");
+    // Use OnceLock's set method which returns error if already set
     let logger = EnhancedOtelLogger::new()?;
-
     let log_file = logger.log_file().to_string();
 
-    unsafe {
-        ENHANCED_OTEL_LOGGER = Some(logger);
-    }
-
-    *is_init = true;
+    ENHANCED_OTEL_LOGGER
+        .set(logger)
+        .map_err(|_| EnhancedOtelError::Mutex("Logger already initialized".to_string()))?;
 
     info!("✅ Enhanced OpenTelemetry logging initialized globally");
     info!("📁 Log file: {}", log_file);
@@ -266,11 +243,9 @@ pub fn init_enhanced_otel_logging() -> Result<String> {
 
 /// Get the global enhanced otel logger
 pub fn get_enhanced_otel_logger() -> Result<&'static EnhancedOtelLogger> {
-    unsafe {
-        ENHANCED_OTEL_LOGGER
-            .as_ref()
-            .ok_or(EnhancedOtelError::NotInitialized)
-    }
+    ENHANCED_OTEL_LOGGER
+        .get()
+        .ok_or(EnhancedOtelError::NotInitialized)
 }
 
 /// Enhanced logging macro for tool calls
