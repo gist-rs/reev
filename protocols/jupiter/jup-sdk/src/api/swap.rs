@@ -10,7 +10,7 @@ use solana_sdk::pubkey::Pubkey;
 pub async fn get_quote(params: &SwapParams) -> Result<Value> {
     let client = api_client::api_client();
     let quote_url = format!(
-        "{}/swap/v1/quote?inputMint={}&outputMint={}&amount={}&slippageBps={}&onlyDirectRoutes=true",
+        "{}/swap/v1/quote?inputMint={}&outputMint={}&amount={}&slippageBps={}&onlyDirectRoutes=true&maxAccounts=15&minLamports=10000",
         config::base_url(),
         params.input_mint,
         params.output_mint,
@@ -42,11 +42,14 @@ pub async fn get_swap_instructions(
         "quoteResponse": quote_response,
         "prioritizationFeeLamports": {
             "priorityLevelWithMaxLamports": {
-                "maxLamports": 10000000,
-                "priorityLevel": "veryHigh"
+                "maxLamports": 3000000,
+                "priorityLevel": "medium"
             }
         },
-        "dynamicComputeUnitLimit": true
+        "dynamicComputeUnitLimit": true,
+        "useSharedAccounts": true,
+        "asLegacyTransaction": false,
+        "skipUserAccountsRpcCalls": true
     });
 
     let instructions_response = client

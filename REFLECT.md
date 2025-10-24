@@ -671,11 +671,56 @@ All 6 tests passing successfully, providing complete coverage of ground truth se
 Provides robust validation that critical architectural principle (no information leakage) is working correctly.
 
 #### Impact Assessment
-This fix resolves the critical SPL token transfer issue where LLMs couldn't see available token balances, enabling proper token transfer decision-making in the reev evaluation framework.
+This fix resolves critical SPL token transfer issue where LLMs couldn't see available token balances, enabling proper token transfer decision-making in the reev evaluation framework.
 - Eliminates "Invalid Base58 string" errors
 - Enables proper multi-step flow support
 - Improves error attribution and debugging
 - Provides robust validation without LLM calls
 - ✅ Fixed regression: 001-sol-transfer.yml now scores 1.0 (was 0.0)
 - ✅ No regression: 100-jup-swap-sol-usdc.yml still scores 1.0
+
+### Jupiter Compute Unit Optimization Success ✅ [NEW]
+#### Problem Understanding
+Jupiter swap transaction in 100-jup-swap-sol-usdc.yml benchmark was failing due to compute unit exhaustion. The routing program `SV2EYYJyRz2YhfXwXnhNAevDEui5Q6yrfyo13WtupPF` consumed exactly 962,922 compute units (maximum available) and failed with "exceeded CUs meter at BPF instruction".
+
+#### Root Cause Analysis
+- Jupiter API was generating overly complex routing paths with too many intermediate hops
+- High priority fees ("veryHigh" with 10M lamports) encouraged computationally expensive routes
+- No limits on account count or minimum amounts led to inefficient routing
+- Missing compute unit optimization parameters in swap API calls
+
+#### Solution Implementation
+Modified `reev/protocols/jupiter/jup-sdk/src/api/swap.rs` with optimized parameters:
+
+**Quote API Changes:**
+- Added `maxAccounts=15`: Limits route complexity by reducing maximum accounts
+- Added `minLamports=10000`: Filters out tiny, inefficient routes
+
+**Swap Instructions Changes:**
+- Reduced priority fee: `maxLamports: 3000000` (from 10M) and `priorityLevel: "medium"` (from "veryHigh")
+- Added `useSharedAccounts: true`: Reuse common accounts to reduce overhead
+- Added `skipUserAccountsRpcCalls: true`: Reduce unnecessary RPC calls
+- Maintained `dynamicComputeUnitLimit: true`: Allow adaptive compute limits
+
+#### Technical Details
+The optimizations force Jupiter to:
+1. Use simpler routes with fewer intermediate hops
+2. Reduce computational overhead from lower priority fees
+3. Implement more efficient account management
+4. Skip redundant RPC calls
+
+#### Results Achieved
+- ✅ **100% score achieved**: 100-jup-swap-sol-usdc.yml now scores 1.0 (was 0.75)
+- Transaction completed successfully without compute unit exhaustion
+- Maintained swap effectiveness while staying within Solana's compute limits
+- No impact on other Jupiter-based benchmarks
+
+#### Lessons Learned
+- Compute unit management is critical for complex DeFi transactions
+- API parameter tuning can significantly impact transaction success rates
+- Conservative routing parameters often yield better results in testing environments
+- Priority fees directly correlate with routing complexity and compute usage
+
+#### Impact Assessment
+This optimization enables reliable Jupiter swap execution in deterministic testing, providing a template for other compute-intensive DeFi operations. The approach balances transaction efficiency with success probability.
 - ✅ Both formats now work seamlessly with same parser
