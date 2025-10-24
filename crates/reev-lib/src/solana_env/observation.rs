@@ -70,6 +70,21 @@ pub(crate) fn get_observation(
                 }
             }
             account_states.insert(name.clone(), state);
+        } else {
+            // Account doesn't exist on-chain (0 lamports), include it from initial_state
+            // This ensures recipients with 0 balance are included in context
+            info!(
+                "Account {} ({}) not found on-chain, including as non-existent",
+                name, pubkey
+            );
+            let state = json!({
+                "lamports": 0,
+                "owner": "11111111111111111111111111111111", // System Program by default
+                "executable": false,
+                "data_len": 0,
+                "exists": false
+            });
+            account_states.insert(name.clone(), state);
         }
     }
 

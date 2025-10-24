@@ -2,6 +2,7 @@
 
 use crate::context::{AccountContext, ContextBuilder};
 use reev_lib::benchmark::InitialStateItem;
+use reev_lib::constants::addresses::programs::SYSTEM_PROGRAM;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
 
@@ -300,6 +301,19 @@ impl ContextBuilder {
         Ok(context)
     }
 
+    /// Helper method to guess token type from account name
+    fn guess_token_from_account_name(&self, account_name: &str) -> Option<String> {
+        if account_name.contains("USDC") {
+            Some("USDC".to_string())
+        } else if account_name.contains("USDT") {
+            Some("USDT".to_string())
+        } else if account_name.contains("SOL") {
+            Some("SOL".to_string())
+        } else {
+            None
+        }
+    }
+
     /// Internal method to build context from observation state
     fn build_context_from_observation_internal(
         &self,
@@ -315,7 +329,7 @@ impl ContextBuilder {
             let owner = state.get("owner").and_then(|v| v.as_str()).unwrap_or("");
 
             // Check if this is a SOL account (System Program owned)
-            if owner == "11111111111111111111111111111111" {
+            if owner == SYSTEM_PROGRAM {
                 sol_balance = Some(lamports);
             }
 
@@ -381,6 +395,25 @@ impl ContextBuilder {
             }
         }
 
+        // Add resolved addresses from key_map that might not exist on-chain yet
+        for (account_name, resolved_address) in key_map {
+            if !account_states.contains_key(account_name) {
+                // This account might be a placeholder that was resolved but doesn't exist on-chain yet
+                if account_name.contains("WALLET")
+                    && (account_name.contains("RECIPIENT") || account_name.contains("USER"))
+                {
+                    info!(
+                        "[ContextBuilder] Adding non-existent wallet account to context: {} -> {}...{}",
+                        account_name, &resolved_address[..8], &resolved_address[resolved_address.len() - 8..]
+                    );
+                    // For wallet accounts, show as 0 SOL if not on-chain
+                    if account_name.contains("RECIPIENT") && sol_balance.is_none() {
+                        sol_balance = Some(0);
+                    }
+                }
+            }
+        }
+
         // Build formatted context string
         let formatted_context = self.build_formatted_context(
             &sol_balance,
@@ -388,6 +421,25 @@ impl ContextBuilder {
             &lending_positions,
             key_map,
         );
+
+        // Add resolved addresses from key_map that might not exist on-chain yet
+        for (account_name, resolved_address) in key_map {
+            if !account_states.contains_key(account_name) {
+                // This account might be a placeholder that was resolved but doesn't exist on-chain yet
+                if account_name.contains("WALLET")
+                    && (account_name.contains("RECIPIENT") || account_name.contains("USER"))
+                {
+                    info!(
+                        "[ContextBuilder] Adding non-existent wallet account to context: {} -> {}",
+                        account_name, resolved_address
+                    );
+                    // For wallet accounts, show as 0 SOL if not on-chain
+                    if account_name.contains("RECIPIENT") {
+                        sol_balance = sol_balance.or(Some(0)); // Don't override existing balance
+                    }
+                }
+            }
+        }
 
         Ok(crate::context::AccountContext {
             sol_balance,

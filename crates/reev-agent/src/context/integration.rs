@@ -230,6 +230,7 @@ impl ContextIntegration {
             );
             enhanced.push_str("Avoid unnecessary balance or position checks since the information is already provided.\n");
             enhanced.push_str("Focus on executing the requested action efficiently.\n");
+            enhanced.push_str("📝 IMPORTANT: Placeholders like RECIPIENT_WALLET_PUBKEY are already resolved to real addresses shown above.\n");
         } else {
             enhanced.push_str("=== INSTRUCTION ===\n");
             enhanced.push_str("Account information is limited. Use tools to discover current state before acting.\n");
