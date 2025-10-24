@@ -71,6 +71,14 @@ pub enum DatabaseError {
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
+    /// General operation errors
+    #[error("Operation failed: {message}")]
+    OperationError {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
     /// Filesystem I/O errors
     #[error("Filesystem error: {path}")]
     FilesystemError {
@@ -320,10 +328,24 @@ impl DatabaseError {
     }
 
     /// Create a new operation error
-    pub fn operation<S: Into<String>, E: Into<turso::Error>>(message: S, source: E) -> Self {
-        Self::QueryError {
-            query: message.into(),
-            source: source.into(),
+    pub fn operation<S: Into<String>>(message: S) -> Self {
+        Self::OperationError {
+            message: message.into(),
+            source: None,
+        }
+    }
+
+    /// Create a new operation error with source
+    pub fn operation_with_source<
+        S: Into<String>,
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    >(
+        message: S,
+        source: E,
+    ) -> Self {
+        Self::OperationError {
+            message: message.into(),
+            source: Some(source.into()),
         }
     }
 

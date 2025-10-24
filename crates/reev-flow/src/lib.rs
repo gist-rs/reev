@@ -9,6 +9,7 @@
 //! 3. Easily convertible to/from domain-specific types
 //! 4. Serializable and deserializable for storage and API communication
 
+pub mod enhanced_otel;
 pub mod error;
 pub mod logger;
 pub mod otel;
@@ -18,7 +19,13 @@ pub mod utils;
 pub mod website_exporter;
 
 // Re-export specific items to avoid ambiguity
+pub use enhanced_otel::{
+    init_enhanced_otel_logging, EnhancedOtelLogger, EnhancedToolCall, ToolExecutionStatus,
+};
+
+// Re-export macros at crate level (they're exported from enhanced_otel module)
 pub use error::{FlowError, FlowResult};
+// Macros are exported at crate level via #[macro_export] - no need for pub use
 pub use logger::{init_flow_tracing, AgentPerformanceData, DatabaseWriter, FlowLogger};
 pub use otel::FlowTracer;
 pub use renderer::{render_flow_file_as_ascii_tree, FlowLogRenderer};

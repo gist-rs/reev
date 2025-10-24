@@ -188,6 +188,7 @@ cargo run -p reev-runner -- benchmarks/115-jup-lend-mint-usdc.yml --agent local
 cargo run -p reev-runner -- benchmarks/116-jup-lend-redeem-usdc.yml --agent local
 
 # Multi-step flows (swap + lend) with OpenTelemetry tracking
+# Enhanced otel logging is enabled by default
 export REEV_TRACE_FILE=traces.log
 cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent glm-4.6
 
@@ -211,14 +212,17 @@ cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministi
 
 **🌊 OpenTelemetry-Enabled Agents:**
 ```bash
-# Tool call tracking is always enabled
+# Enhanced otel logging is enabled by default
 export REEV_TRACE_FILE=traces.log
 
-# Run with automatic tool call extraction
+# Run with automatic tool call extraction (enhanced logging included)
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 
 # View extracted tool calls for Mermaid diagrams
 curl http://localhost:3001/api/v1/flows/{session_id}
+
+# Disable enhanced otel logging if needed
+REEV_ENHANCED_OTEL=0 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 ```
 
 **Local Model Agent:**
@@ -251,15 +255,18 @@ The framework now includes **automatic OpenTelemetry integration** for tool call
 ### 🔧 OpenTelemetry Setup
 
 ```bash
-# OpenTelemetry tracing is always enabled
+# OpenTelemetry tracing with enhanced logging (enabled by default)
 export REEV_TRACE_FILE=traces.log
 export RUST_LOG=info
 
-# Run any agent with automatic tool call tracking
+# Run any agent with automatic enhanced tool call tracking
 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 
-# View captured traces
+# View captured traces with detailed tool info
 cat traces.log
+
+# Disable enhanced logging for minimal output
+REEV_ENHANCED_OTEL=0 cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
 ```
 
 ### 📊 Flow Diagram Generation

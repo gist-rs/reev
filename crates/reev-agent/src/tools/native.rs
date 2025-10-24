@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
+use tracing::instrument;
 use tracing::{info, instrument};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
@@ -134,7 +135,11 @@ impl Tool for SolTransferTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
+        // Use enhanced logging macro for consistent otel tracking
+        crate::log_tool_call!("sol_transfer", &args);
+
+        let start_time = Instant::now();
+
         // Validate and parse arguments
         let user_pubkey = self
             .key_map
@@ -142,8 +147,15 @@ impl Tool for SolTransferTool {
             .unwrap_or(&args.user_pubkey)
             .clone();
 
-        let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
-            .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
+        let user_pubkey_parsed = Pubkey::from_str(&user_pubkey).map_err(|e| {
+            let error_data = json!({
+                "error": "PubkeyParse",
+                "field": "user_pubkey",
+                "message": e.to_string()
+            });
+            crate::log_tool_completion!("sol_transfer", 0, &error_data, false);
+            NativeTransferError::PubkeyParse(e.to_string())
+        })?;
 
         let recipient_pubkey = self
             .key_map
@@ -151,18 +163,29 @@ impl Tool for SolTransferTool {
             .unwrap_or(&args.recipient_pubkey)
             .clone();
 
-        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
-            .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
+        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey).map_err(|e| {
+            let error_data = json!({
+                "error": "PubkeyParse",
+                "field": "recipient_pubkey",
+                "message": e.to_string()
+            });
+            crate::log_tool_completion!("sol_transfer", 0, &error_data, false);
+            NativeTransferError::PubkeyParse(e.to_string())
+        })?;
 
         // Validate business logic
         if args.amount == 0 {
+            let error_data = json!({
+                "error": "InvalidAmount",
+                "message": "Amount must be greater than 0"
+            });
+            crate::log_tool_completion!("sol_transfer", 0, &error_data, false);
             return Err(NativeTransferError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
         }
 
-        // Start timing for flow tracking
-        let start_time = Instant::now();
+        // Start timing for flow tracking (already started above)
 
         // Call the appropriate protocol handler
         let raw_instructions = match args.operation {
@@ -173,7 +196,14 @@ impl Tool for SolTransferTool {
                 &self.key_map,
             )
             .await
-            .map_err(NativeTransferError::ProtocolCall)?,
+            .map_err(|e| {
+                let span = tracing::Span::current();
+                span.record("tool.error", "ProtocolCall");
+                span.record("tool.error.message", &e.to_string());
+                span.record("tool.error.operation", "handle_sol_transfer");
+                span.record("tool.status", "error");
+                NativeTransferError::ProtocolCall(e)
+            })?,
             NativeTransferOperation::Spl => {
                 let mint_address = args
                     .mint_address
@@ -201,16 +231,25 @@ impl Tool for SolTransferTool {
                     &self.key_map,
                 )
                 .await
-                .map_err(SplTransferError::ProtocolCall)?;
+                .map_err(|e| {
+                    let span = tracing::Span::current();
+                    span.record("tool.error", "ProtocolCall");
+                    span.record("tool.error.message", &e.to_string());
+                    span.record("tool.error.operation", "handle_spl_transfer");
+                    span.record("tool.status", "error");
+                    SplTransferError::ProtocolCall(e)
+                })?;
             }
         };
 
         let execution_time = start_time.elapsed().as_millis() as u32;
 
-        info!(
-            "[SolTransferTool] Tool execution completed - total_time: {}ms, operation: {:?}",
-            execution_time, args.operation
-        );
+        // Use enhanced completion logging macro
+        let result_data = json!({
+            "instructions_count": raw_instructions.len(),
+            "operation": format!("{:?}", args.operation)
+        });
+        crate::log_tool_completion!("sol_transfer", execution_time, &result_data, true);
 
         // Record flow data
         let tool_args = json!({

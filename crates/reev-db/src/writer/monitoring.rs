@@ -96,7 +96,9 @@ impl DatabaseWriter {
                     ],
                 )
                 .await
-                .map_err(|e| DatabaseError::operation("Failed to cleanup duplicates", e))?;
+                .map_err(|e| {
+                    DatabaseError::operation_with_source("Failed to cleanup duplicates", e)
+                })?;
 
             total_cleaned += rows_affected;
             debug!(
@@ -406,7 +408,7 @@ impl DatabaseWriter {
         self.conn
             .execute("ANALYZE", ())
             .await
-            .map_err(|e| DatabaseError::operation("Failed to analyze database", e))?;
+            .map_err(|e| DatabaseError::operation_with_source("Failed to analyze database", e))?;
 
         debug!("[DB] Database ANALYZE completed");
 

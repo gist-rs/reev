@@ -205,6 +205,10 @@ fn is_tool_span(span: &OtelSpanData) -> bool {
         "get_account_balance",
         "get_lend_earn_tokens",
         "jupiter_earn",
+        "jupiter_deposit",
+        "jupiter_withdraw",
+        "jupiter_mint",
+        "jupiter_redeem",
     ];
 
     let span_name_lower = span.span_name.to_lowercase();
@@ -216,8 +220,12 @@ fn is_tool_span(span: &OtelSpanData) -> bool {
         }
     }
 
-    // Check attributes for tool indicators
-    if span.attributes.contains_key("tool_name") || span.attributes.contains_key("rig.tool.name") {
+    // Check attributes for tool indicators (enhanced detection)
+    if span.attributes.contains_key("tool_name")
+        || span.attributes.contains_key("rig.tool.name")
+        || span.attributes.contains_key("tool.name")
+        || span.attributes.contains_key("tool.args.user_pubkey")
+    {
         return true;
     }
 
@@ -263,7 +271,11 @@ fn extract_tool_call_from_span(span: OtelSpanData) -> Option<ToolCallInfo> {
 
 /// Extract tool name from span data
 fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
-    // Try attributes first
+    // Try attributes first (enhanced priority)
+    if let Some(tool_name) = span.attributes.get("tool.name") {
+        return Some(tool_name.clone());
+    }
+
     if let Some(tool_name) = span.attributes.get("tool_name") {
         return Some(tool_name.clone());
     }
@@ -275,7 +287,7 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     // Try to parse from span name
     let span_name = &span.span_name;
 
-    // Common tool name patterns in rig
+    // Common tool name patterns in rig (enhanced matching)
     if span_name.contains("sol_transfer") {
         return Some("sol_transfer".to_string());
     }
@@ -287,6 +299,18 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     }
     if span_name.contains("jupiter_lend") {
         return Some("jupiter_lend".to_string());
+    }
+    if span_name.contains("jupiter_deposit") {
+        return Some("jupiter_lend_earn_deposit".to_string());
+    }
+    if span_name.contains("jupiter_withdraw") {
+        return Some("jupiter_lend_earn_withdraw".to_string());
+    }
+    if span_name.contains("jupiter_mint") {
+        return Some("jupiter_lend_earn_mint".to_string());
+    }
+    if span_name.contains("jupiter_redeem") {
+        return Some("jupiter_lend_earn_redeem".to_string());
     }
     if span_name.contains("get_account_balance") {
         return Some("get_account_balance".to_string());
@@ -308,14 +332,16 @@ fn extract_tool_args_from_span(span: &OtelSpanData) -> String {
     let mut tool_args = HashMap::new();
 
     for (key, value) in &span.attributes {
-        if key.starts_with("tool.")
+        if key.starts_with("tool.args.")
             || key.starts_with("param.")
             || key == "pubkey"
             || key == "amount"
             || key == "input_mint"
             || key == "output_mint"
         {
-            tool_args.insert(key.clone(), value.clone());
+            // Remove "tool.args." prefix for cleaner output
+            let clean_key = key.strip_prefix("tool.args.").unwrap_or(key);
+            tool_args.insert(clean_key.to_string(), value.clone());
         }
     }
 
@@ -329,13 +355,32 @@ fn extract_result_data_from_span(span: &OtelSpanData) -> Option<serde_json::Valu
     // Collect result-relevant attributes
     for (key, value) in &span.attributes {
         if key.starts_with("result.")
-            || key.starts_with("output.")
+            || key.starts_with("tool.")
             || key == "balance"
             || key == "output_amount"
             || key == "signatures"
         {
-            result_data.insert(key.clone(), value.clone());
+            // Remove "tool." prefix for cleaner output, but keep result.* prefix
+            let clean_key = if key.starts_with("tool.") {
+                key.strip_prefix("tool.").unwrap_or(key)
+            } else {
+                key
+            };
+            result_data.insert(clean_key.to_string(), value.clone());
         }
+    }
+
+    // Add execution metrics if available
+    if let Some(duration) = span.duration_ms {
+        result_data.insert("execution_time_ms".to_string(), duration.to_string());
+    }
+
+    if !span.status.is_empty() {
+        result_data.insert("status".to_string(), span.status.clone());
+    }
+
+    if let Some(ref error) = span.error_message {
+        result_data.insert("error".to_string(), error.clone());
     }
 
     if result_data.is_empty() {

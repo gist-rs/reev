@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+use reev_flow::enhanced_otel::get_enhanced_otel_logger;
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
@@ -20,6 +21,7 @@ use std::{
     time::SystemTime,
 };
 use tracing::{debug, info, instrument, warn};
+
 pub mod dependency;
 pub mod renderer;
 
@@ -313,6 +315,48 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
             score,
             final_status: final_status.to_string(),
         };
+
+        // 🎯 CAPTURE TOOL CALLS FROM ENHANCED OTEL LOGGER
+        if let Ok(otel_logger) = get_enhanced_otel_logger() {
+            if let Ok(tool_calls) = otel_logger.get_tool_calls() {
+                info!(
+                    session_id = %session_id,
+                    tool_calls_count = tool_calls.len(),
+                    "Storing tool calls in database"
+                );
+
+                for tool_call in tool_calls {
+                    let tool_data = reev_db::writer::sessions::ToolCallData {
+                        session_id: session_id.clone(),
+                        tool_name: tool_call.tool_name.clone(),
+                        start_time: tool_call.timestamp.timestamp() as u64,
+                        execution_time_ms: tool_call.execution_time_ms,
+                        input_params: tool_call.input_params,
+                        output_result: tool_call.output_result,
+                        status: match tool_call.status {
+                            reev_flow::ToolExecutionStatus::Success => "success".to_string(),
+                            reev_flow::ToolExecutionStatus::Error => "error".to_string(),
+                            reev_flow::ToolExecutionStatus::Timeout => "timeout".to_string(),
+                        },
+                        error_message: tool_call.error_message,
+                        metadata: Some(tool_call.metadata),
+                    };
+
+                    if let Err(e) = db.store_tool_call(&tool_data).await {
+                        warn!(
+                            session_id = %session_id,
+                            tool_name = %tool_call.tool_name,
+                            error = %e,
+                            "Failed to store tool call in database"
+                        );
+                    }
+                }
+            } else {
+                warn!("Failed to get tool calls from otel logger");
+            }
+        } else {
+            debug!("No enhanced otel logger available for tool call capture");
+        }
 
         if let Err(e) = db.complete_session(&session_id, &session_result).await {
             warn!(

@@ -1,7 +1,16 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
 
+agent must use sol_tool via llm tool calling, other than that is wrong, totally wrong and not allow.
 
+can you check context prompt? we must provide all tools
+and check the code, we must not have any code that can create tx by ourself, only via llm tool calling
+
+and use 001-sol-transfer.yml for faster test
+
+can session_id same id as logs/sessions/session_283ffd95-e5b3-4d6c-92ba-b8f4d6ddf940.json
+
+so we can track both? if it's hard todo, that's fine.
 
 
 update TASKS.md then fix it step by step with test proof

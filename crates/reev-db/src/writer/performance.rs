@@ -105,7 +105,7 @@ impl DatabaseWriter {
                 ],
             )
             .await
-            .map_err(|e| DatabaseError::operation("Failed to insert agent performance", e))?;
+            .map_err(|e| DatabaseError::operation_with_source("Failed to insert agent performance", e))?;
 
         info!("[DB] Agent performance stored successfully");
         Ok(())
@@ -343,7 +343,9 @@ impl DatabaseWriter {
                 [session_id],
             )
             .await
-            .map_err(|e| DatabaseError::operation("Failed to delete performance records", e))?;
+            .map_err(|e| {
+                DatabaseError::operation_with_source("Failed to delete performance records", e)
+            })?;
 
         info!(
             "[DB] Deleted {} performance records for session: {}",

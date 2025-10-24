@@ -28,6 +28,7 @@ reev-lib = { path = "../reev-lib" }
 reev-tools = { path = "../reev-tools" }
 reev-protocols = { path = "../reev-protocols" }
 reev-context = { path = "../reev-context" }
+reev-flow = { path = "../reev-flow" }
 solana-client = { workspace = true }
 anyhow = { workspace = true }
 serial_test = { workspace = true }

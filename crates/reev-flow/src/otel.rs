@@ -5,9 +5,6 @@
 //! opentelemetry_stdout examples.
 
 use super::types::*;
-use opentelemetry::global;
-use opentelemetry_sdk::trace as sdktrace;
-use std::fs::File;
 use tracing::{debug, info, info_span, instrument, warn, Span};
 use tracing_subscriber::prelude::*;
 
@@ -231,42 +228,24 @@ impl FlowTracer {
 }
 
 /// Initialize flow tracing with file output
-pub fn init_flow_tracing() -> Result<(), Box<dyn std::error::Error>> {
-    // OpenTelemetry is always enabled
-    info!("Initializing flow tracing with file output...");
+pub fn init_flow_tracing() -> Result<String, Box<dyn std::error::Error>> {
+    // Generate unique session ID and create default log file path
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let default_log_file = format!("logs/sessions/otel_{session_id}.json");
+    let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or(default_log_file);
 
-    // Set up stdout exporter for OpenTelemetry traces
-    let exporter = opentelemetry_stdout::SpanExporter::default();
+    // Ensure logs directory exists
+    if let Some(parent) = std::path::Path::new(&log_file).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
-    let tracer_provider = sdktrace::SdkTracerProvider::builder()
-        .with_simple_exporter(exporter)
-        .build();
-    global::set_tracer_provider(tracer_provider);
-
-    // Specify the log file
-    let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or_else(|_| "traces.log".to_string());
-    let file = File::create(&log_file)?;
-    let log_file_for_info = log_file.clone();
-
-    // Set up tracing subscriber to write to the file
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .pretty()
-                .with_writer(move || {
-                    file.try_clone()
-                        .unwrap_or_else(|_| std::fs::File::create(&log_file).unwrap())
-                }),
-        )
-        .init();
-
+    info!("OpenTelemetry enhanced logging enabled");
     info!(
-        "Flow tracing initialized with file output: {}",
-        log_file_for_info
+        "Tool call traces will be captured and extracted to: {}",
+        log_file
     );
-    info!("Tool calls will be automatically traced to file");
 
-    Ok(())
+    Ok(log_file)
 }
 
 /// Shutdown tracer provider

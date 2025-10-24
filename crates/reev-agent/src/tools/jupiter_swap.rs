@@ -7,6 +7,7 @@ use reev_protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use reev_lib::constants::{sol_mint, usdc_mint};
+use reev_tools::tools::ToolResultStatus;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,8 +15,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
-use thiserror::Error;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -138,7 +138,8 @@ impl Tool for JupiterSwapTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[JupiterSwapTool] Starting tool execution with OpenTelemetry tracing");
+        // Use enhanced logging macro for consistent otel tracking
+        crate::log_tool_call!("jupiter_swap", &args);
         let start_time = Instant::now();
 
         // Prepare tool args for logging
@@ -153,22 +154,53 @@ impl Tool for JupiterSwapTool {
         // Execute the swap operation and log both success and failure
         let result = self.execute_swap_internal(&args, start_time).await;
 
+        let execution_time = start_time.elapsed().as_millis() as u32;
+
         match &result {
             Ok(output) => {
                 // Try to extract instruction count for logging
-                if let Ok(response) = serde_json::from_str::<serde_json::Value>(output) {
-                    if let Some(instruction_count) =
-                        response.get("transaction_count").and_then(|v| v.as_u64())
-                    {
-                        // Jupiter swap successful with instruction_count instructions
-                        info!(
-                            "[JupiterSwapTool] Successfully created swap with {} instructions",
-                            instruction_count
-                        );
-                    }
-                }
+                let result_data =
+                    if let Ok(response) = serde_json::from_str::<serde_json::Value>(output) {
+                        if let Some(instruction_count) =
+                            response.get("transaction_count").and_then(|v| v.as_u64())
+                        {
+                            // Jupiter swap successful with instruction_count instructions
+                            info!(
+                                "[JupiterSwapTool] Successfully created swap with {} instructions",
+                                instruction_count
+                            );
+                            json!({
+                                "transaction_count": instruction_count,
+                                "input_mint": args.input_mint,
+                                "output_mint": args.output_mint,
+                                "amount": args.amount
+                            })
+                        } else {
+                            json!({
+                                "input_mint": args.input_mint,
+                                "output_mint": args.output_mint,
+                                "amount": args.amount
+                            })
+                        }
+                    } else {
+                        json!({
+                            "input_mint": args.input_mint,
+                            "output_mint": args.output_mint,
+                            "amount": args.amount
+                        })
+                    };
+
+                crate::log_tool_completion!("jupiter_swap", execution_time, &result_data, true);
             }
             Err(e) => {
+                let error_data = json!({
+                    "error": "JupiterSwapFailed",
+                    "message": e.to_string(),
+                    "input_mint": args.input_mint,
+                    "output_mint": args.output_mint,
+                    "amount": args.amount
+                });
+                crate::log_tool_completion!("jupiter_swap", execution_time, &error_data, false);
                 warn!("[JupiterSwapTool] Swap failed: {}", e);
             }
         }
