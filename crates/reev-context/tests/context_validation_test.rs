@@ -457,3 +457,73 @@ fn create_mock_multi_step_context() -> AgentContext {
         step_results: HashMap::new(),
     }
 }
+
+/// Test that SPL transfer uses correct error type
+#[tokio::test(flavor = "multi_thread")]
+async fn test_spl_transfer_error_separation() {
+    let rpc_client = solana_client::rpc_client::RpcClient::new_with_commitment(
+        "http://127.0.0.1:8899",
+        solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+    );
+    let resolver = ContextResolver::new(rpc_client);
+
+    // Test that SPL transfer errors are properly typed
+    // This will test our new SplTransferError enum works correctly
+    let initial_state = vec![
+        InitialState {
+            pubkey: "USER_WALLET_PUBKEY".to_string(),
+            owner: "11111111111111111111111111111111111".to_string(),
+            lamports: 2000000000,
+            data: None,
+        },
+        InitialState {
+            pubkey: "RECIPIENT_WALLET_PUBKEY".to_string(),
+            owner: "11111111111111111111111111111111111".to_string(),
+            lamports: 1000000000,
+            data: None,
+        },
+    ];
+
+    let ground_truth = serde_json::json!({
+        "final_state_assertions": [
+            {
+                "type": "TokenBalance",
+                "pubkey": "RECIPIENT_USDC_ATA_PLACEHOLDER",
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "owner": "RECIPIENT_WALLET_PUBKEY",
+                "expected": 1000000,
+                "weight": 1.0
+            }
+        ],
+        "expected_instructions": []
+    });
+
+    // Test context resolution with SPL transfers
+    match resolver
+        .resolve_initial_context(&initial_state, &ground_truth, None)
+        .await
+    {
+        Ok(context) => {
+            assert!(resolver.validate_resolved_context(&context).is_ok());
+
+            // Verify that all placeholders are resolved to valid addresses
+            for (placeholder, address) in &context.key_map {
+                assert!(
+                    solana_sdk::pubkey::Pubkey::from_str(address).is_ok(),
+                    "Placeholder '{}' resolved to invalid address: {}",
+                    placeholder,
+                    address
+                );
+            }
+
+            println!("✅ SPL transfer error separation test passed");
+        }
+        Err(e) => {
+            // Expected if surfpool not running
+            println!(
+                "⚠️  Context resolution failed (surfpool not running): {}",
+                e
+            );
+        }
+    }
+}

@@ -4,7 +4,8 @@
 //! including SOL transfers and SPL token transfers, acting as thin wrappers
 //! around the protocol handlers.
 
-use crate::tool_names::{SOL_TRANSFER, SPL_TRANSFER};
+use crate::tool_names::SOL_TRANSFER;
+use spl_associated_token_account::get_associated_token_address;
 // Tool tracking is now handled by OpenTelemetry + rig framework
 // No manual tool wrapper imports needed
 use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
@@ -52,6 +53,25 @@ pub enum NativeTransferError {
     ProtocolCall(#[from] anyhow::Error),
     #[error("Failed to serialize instruction: {0}")]
     Serialization(#[from] serde_json::Error),
+}
+
+/// A custom error type for SPL transfer tool.
+#[derive(Debug, Error)]
+pub enum SplTransferError {
+    #[error("Failed to parse pubkey: {0}")]
+    PubkeyParse(String),
+    #[error("Mint address required for SPL transfers")]
+    MintAddressRequired,
+    #[error("Invalid amount: {0}")]
+    InvalidAmount(String),
+    #[error("SPL protocol call failed: {0}")]
+    ProtocolCall(#[from] anyhow::Error),
+    #[error("Failed to serialize instruction: {0}")]
+    Serialization(#[from] serde_json::Error),
+    #[error("Failed to create associated token account: {0}")]
+    AssociatedTokenAccount(String),
+    #[error("Invalid token account: {0}")]
+    InvalidTokenAccount(String),
 }
 
 /// A `rig` tool for performing native Solana transfers.
@@ -145,7 +165,7 @@ impl Tool for SolTransferTool {
         // Start timing for flow tracking
         let start_time = Instant::now();
 
-        // Call the appropriate protocol handler
+        // Only handle SOL transfers - SPL transfers use separate SplTransferTool
         let raw_instructions = match args.operation {
             NativeTransferOperation::Sol => handle_sol_transfer(
                 user_pubkey_parsed,
@@ -156,33 +176,8 @@ impl Tool for SolTransferTool {
             .await
             .map_err(NativeTransferError::ProtocolCall)?,
             NativeTransferOperation::Spl => {
-                let mint_address = args
-                    .mint_address
-                    .clone()
-                    .ok_or_else(|| NativeTransferError::MintAddressRequired)?;
-                let _mint_pubkey = Pubkey::from_str(&mint_address)
-                    .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
-
-                // For SPL transfers, we need to determine the source and destination token accounts
-                // using the mint to find associated token accounts
-                let source = spl_associated_token_account::get_associated_token_address(
-                    &user_pubkey_parsed,
-                    &_mint_pubkey,
-                );
-
-                // The agent should provide the correct recipient ATA address directly
-                // Use recipient_pubkey as the destination ATA without recalculating
-                let destination = recipient_pubkey_parsed;
-
-                handle_spl_transfer(
-                    source,
-                    destination,
-                    user_pubkey_parsed,
-                    args.amount,
-                    &self.key_map,
-                )
-                .await
-                .map_err(NativeTransferError::ProtocolCall)?
+                // SPL transfers should use SplTransferTool, not SolTransferTool
+                return Err(NativeTransferError::MintAddressRequired);
             }
         };
 
@@ -226,8 +221,8 @@ pub struct SplTransferTool {
 }
 
 impl Tool for SplTransferTool {
-    const NAME: &'static str = SPL_TRANSFER;
-    type Error = NativeTransferError;
+    const NAME: &'static str = "spl_transfer";
+    type Error = SplTransferError;
     type Args = NativeTransferArgs;
     type Output = String;
 
@@ -274,21 +269,60 @@ impl Tool for SplTransferTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[SplTransferTool] Starting tool execution with OpenTelemetry tracing");
-        // Force SPL operation and validate mint address
-        if args.mint_address.is_none() {
-            return Err(NativeTransferError::MintAddressRequired);
+        info!("[SplTransferTool] Starting SPL transfer execution");
+
+        // Start timing for flow tracking
+        let start_time = std::time::Instant::now();
+
+        // Parse and validate all addresses - this will catch "Invalid Base58 string" error
+        let user_pubkey_parsed = Pubkey::from_str(&args.user_pubkey)
+            .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
+        let recipient_pubkey_parsed = Pubkey::from_str(&args.recipient_pubkey)
+            .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
+
+        // Validate mint address
+        let mint_address = args
+            .mint_address
+            .ok_or_else(|| SplTransferError::MintAddressRequired)?;
+        let mint_pubkey = Pubkey::from_str(&mint_address)
+            .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
+
+        // Validate amount
+        if args.amount == 0 {
+            return Err(SplTransferError::InvalidAmount(
+                "Amount must be greater than 0".to_string(),
+            ));
         }
 
-        let mut spl_args = args;
-        spl_args.operation = NativeTransferOperation::Spl;
+        // Get associated token accounts
+        let source_ata = get_associated_token_address(&user_pubkey_parsed, &mint_pubkey);
+        let destination_ata = get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
 
-        info!("[SplTransferTool] Delegating to SOL transfer tool with SPL operation");
+        info!(
+            "[SplTransferTool] Transferring {} tokens from {} to {}",
+            args.amount, source_ata, destination_ata
+        );
 
-        // Delegate to the SOL transfer tool with SPL operation
-        let sol_tool = SolTransferTool {
-            key_map: self.key_map.clone(),
-        };
-        sol_tool.call(spl_args).await
+        // Handle SPL transfer
+        let raw_instructions = handle_spl_transfer(
+            source_ata,
+            destination_ata,
+            user_pubkey_parsed,
+            args.amount,
+            &self.key_map,
+        )
+        .await
+        .map_err(SplTransferError::ProtocolCall)?;
+
+        let execution_time = start_time.elapsed().as_millis() as u32;
+
+        info!(
+            "[SplTransferTool] SPL transfer completed - total_time: {}ms, instructions: {}",
+            execution_time,
+            raw_instructions.len()
+        );
+
+        // Serialize the Vec<RawInstruction> to a JSON string.
+        serde_json::to_string(&raw_instructions).map_err(SplTransferError::Serialization)
     }
 }

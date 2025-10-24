@@ -54,6 +54,25 @@ pub enum NativeTransferError {
     Serialization(#[from] serde_json::Error),
 }
 
+/// A custom error type for SPL transfer tool.
+#[derive(Debug, Error)]
+pub enum SplTransferError {
+    #[error("Failed to parse pubkey: {0}")]
+    PubkeyParse(String),
+    #[error("Mint address required for SPL transfers")]
+    MintAddressRequired,
+    #[error("Invalid amount: {0}")]
+    InvalidAmount(String),
+    #[error("SPL protocol call failed: {0}")]
+    ProtocolCall(#[from] anyhow::Error),
+    #[error("Failed to serialize instruction: {0}")]
+    Serialization(#[from] serde_json::Error),
+    #[error("Failed to create associated token account: {0}")]
+    AssociatedTokenAccount(String),
+    #[error("Invalid token account: {0}")]
+    InvalidTokenAccount(String),
+}
+
 /// A `rig` tool for performing native Solana transfers.
 /// This tool provides access to both SOL and SPL token transfers.
 #[derive(Deserialize, Serialize)]
@@ -161,7 +180,7 @@ impl Tool for SolTransferTool {
                     .clone()
                     .ok_or_else(|| NativeTransferError::MintAddressRequired)?;
                 let _mint_pubkey = Pubkey::from_str(&mint_address)
-                    .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
+                    .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
 
                 // For SPL transfers, we need to determine the source and destination token accounts
                 // using the mint to find associated token accounts
@@ -182,7 +201,7 @@ impl Tool for SolTransferTool {
                     &self.key_map,
                 )
                 .await
-                .map_err(NativeTransferError::ProtocolCall)?
+                .map_err(SplTransferError::ProtocolCall)?;
             }
         };
 
@@ -228,7 +247,7 @@ pub struct SplTransferTool {
 
 impl Tool for SplTransferTool {
     const NAME: &'static str = "spl_transfer";
-    type Error = NativeTransferError;
+    type Error = SplTransferError;
     type Args = NativeTransferArgs;
     type Output = String;
 
@@ -278,7 +297,7 @@ impl Tool for SplTransferTool {
         info!("[SplTransferTool] Starting tool execution with OpenTelemetry tracing");
         // Force SPL operation and validate mint address
         if args.mint_address.is_none() {
-            return Err(NativeTransferError::MintAddressRequired);
+            return Err(SplTransferError::MintAddressRequired);
         }
 
         let mut spl_args = args;
