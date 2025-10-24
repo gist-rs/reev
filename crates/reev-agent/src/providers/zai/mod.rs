@@ -2,7 +2,7 @@
 //!
 //! # Example
 //! ```
-//! use rig::providers::zai;
+//! use reev_agent::providers::zai;
 //!
 //! let client = zai::Client::new("ZAI_API_KEY");
 //!
