@@ -2,23 +2,46 @@
 
 fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code
 
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml --agent local
+---
 
-seem to fail after refactor[@openai.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fopenai.rs) , you may see git history to get some idea (it work before but not sure when)
+# Improve context
 
-also maybe start with deterministics which also fail and it work before too (maybe share same bug), this one is faster test btw
+refer to
+```
+ In the `FlowAgent`, the tools are being created with `key_map.clone()` which contains placeholder names instead of resolved addresses. But in the `run_agent`, the tools are created properly with resolved addresses. The problem is that tools are constructed twice - once in the run_agent logic and once in the flow agent.
 
-RUST_LOG=info cargo run -p reev-runner -- benchmarks/200-jup-swap-then-lend-deposit.yml
+ and
 
-fyI: 
-- DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api" > logs/reev-api.log 2>&1 &` so server will reflect the latest code.
+ I see the issue now! In the native transfer tool, it's using `recipient_pubkey` directly from args, but in the SPL transfer tool, it's calculating the recipient ATA. Let me check how recipient is being passed in the agent:
 
-try run other test too
+and
 
+ The issue is clear now. The SPL transfer tool is using the same error enum `NativeTransferError`. This is wrong - it should have its own error enum. The problem is that when SPL transfer tool tries to parse `RECIPIENT_WALLET_PUBKEY` as a base58 address, it fails because that's not a valid base58 string (it's a placeholder name).
+ ```
+ current logic seem to mess up, let's refactor that by explore the old one first.
 
-commit and DRY [@openai.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fopenai.rs) and [@zai_agent.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-agent%2Fsrc%2Fenhanced%2Fzai_agent.rs), create common helper
+## Static Context
+
+1. we must include all key_map account from yml no matter it has balance or not
+2. consolidate with balance after get info from surfpool
+3. crate context as yml format so we can parse and validate, currently we use markdown and json and it hard to validate and has problem with newline and else.
+4. throw error if prereqisite context missing, in yml it should assert context(relaated, account info, token info), instructions, user_prompt
+5. this context prepare as test case and test against all yml in benchmarks via surfpool without slow llm calling just to ensure context is correct first.
+6. It may need re consolidate for each step in multiple step flow like 200-jup-swap-then-lend-deposit.yml but i think it already handle by FlowAgent
+
+add this to next task, this is critical and we made it wrong many time, we careless about context and it take long time to test against llm. let's change that by get serious about correct context before send to llm.
+
+## Dynamics context
+
+Once we finish Static Context
+
+1. Replace USER_WALLET_PUBKEY, RECIPIENT_WALLET_PUBKEY with real address from key_map and surfpool after, in the end it should contain only real address.
+2. Add step to refine user_prompt in think it's in crates/reev-agent/src/enhanced? the idea is refine user prompt and make it ready for next step e.g. "Send 1 sol to"
+3.
 
 ---
+
+# Add required to when make a tool calling
 refer to
 
 Here are the common settings for tool_choice:
@@ -44,24 +67,7 @@ can you check that we use it correct everywhere, grep for that
 
 ---
 
-plz note do and dont in the head of this file, you always go the wrong way for 10 times, we lost 3 days already for this feature.
-
-rig framework allow us to inject provider and intercept response like we did so we should able to mod and back to the flow without mod the rig lib directly.
-
----
-
-
-currently we mak a custom tool calling for glm and that cumbersome and not same otel.
-
-refer to
-i think we can impl new glm provider like this:
-and modify the response to make it openai compatible.
-then using it as custom provider like this
-
-what you think?
-
-
-- llm is not allow to generate tx
+- llm is not allow to generate tx or account
 
 
 - Dokerfile with preload surfpool specfific verison by `.env`, we already have this surfpool loder in the code and it's gonna be better if we prelaod via Docker and use code to check for extracted binary and use current code as a fallback in case we not run via Docker. Anyhow this code should respect same specfific verison by `.env` and throw error yell for either docker, or manually run surfpool service via `https://docs.surfpool.run/install` if fallback load github didn't work.
