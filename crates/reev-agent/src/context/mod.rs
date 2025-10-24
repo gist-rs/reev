@@ -352,6 +352,7 @@ mod tests {
     use super::ContextBuilder;
     use serde_json::json;
     use std::collections::HashMap;
+    use tracing::info;
 
     #[test]
     fn test_build_context_from_observation() {
@@ -402,8 +403,8 @@ mod tests {
             .unwrap();
 
         // Debug: Show actual context
-        println!("Actual context: {}", context.formatted_context);
-        println!("Key map used: {:?}", key_map);
+        info!("Actual context: {}", context.formatted_context);
+        info!("Key map used: {key_map:?}");
 
         // Verify the context contains real balances
         assert!(context.formatted_context.contains("1.0000 SOL"));
@@ -421,8 +422,8 @@ mod tests {
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         );
 
-        println!("✅ SUCCESS: Context shows real balances from observation!");
-        println!("Context: {}", context.formatted_context);
+        info!("✅ SUCCESS: Context shows real balances from observation!");
+        info!("Context: {}", context.formatted_context);
     }
 }
 
