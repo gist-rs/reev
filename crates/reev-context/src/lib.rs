@@ -124,7 +124,7 @@ impl ContextResolver {
         // Third pass: Fetch account states for all resolved addresses
         for (placeholder, pubkey_str) in &key_map {
             let pubkey = Pubkey::from_str(pubkey_str)
-                .context(format!("Invalid pubkey string in key_map: {}", pubkey_str))?;
+                .context(format!("Invalid pubkey string in key_map: {pubkey_str}"))?;
             if let Ok(account) = self.rpc_client.get_account(&pubkey) {
                 let mut state = serde_json::json!({
                     "lamports": account.lamports,
@@ -207,12 +207,12 @@ impl ContextResolver {
         // Store step result
         context
             .step_results
-            .insert(format!("step_{}", step_number), step_result.clone());
+            .insert(format!("step_{step_number}"), step_result.clone());
 
         // Refresh account states to reflect changes after the step
         for (placeholder, pubkey_str) in &context.key_map {
             let pubkey = Pubkey::from_str(pubkey_str)
-                .context(format!("Invalid pubkey string in key_map: {}", pubkey_str))?;
+                .context(format!("Invalid pubkey string in key_map: {pubkey_str}"))?;
             if let Ok(account) = self.rpc_client.get_account(&pubkey) {
                 let mut state = serde_json::json!({
                     "lamports": account.lamports,
@@ -263,10 +263,7 @@ impl ContextResolver {
             // Check if address is a valid base58 string
             if let Err(e) = Pubkey::from_str(address) {
                 return Err(anyhow::anyhow!(
-                    "Placeholder '{}' resolves to invalid address '{}': {}",
-                    placeholder,
-                    address,
-                    e
+                    "Placeholder '{placeholder}' resolves to invalid address '{address}': {e}"
                 ));
             }
         }
@@ -276,8 +273,7 @@ impl ContextResolver {
         for required in &required_placeholders {
             if !context.key_map.contains_key(*required) {
                 return Err(anyhow::anyhow!(
-                    "Required placeholder '{}' missing from context",
-                    required
+                    "Required placeholder '{required}' missing from context"
                 ));
             }
         }
@@ -295,8 +291,7 @@ impl ContextResolver {
             serde_yaml::to_string(context).context("Failed to serialize context to YAML")?;
 
         Ok(format!(
-            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{}\n\n---",
-            yaml_str
+            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{yaml_str}\n\n---"
         ))
     }
 
@@ -403,7 +398,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("Expected failure without test validator: {}", e);
+                println!("Expected failure without test validator: {e}");
             }
         }
     }

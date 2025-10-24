@@ -3746,6 +3746,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "hex",
+ "reev-context",
  "reev-lib",
  "reev-protocols",
  "reev-tools",
@@ -3756,6 +3757,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "serial_test",
+ "solana-client",
  "solana-sdk",
  "spl-associated-token-account 7.0.0",
  "spl-token 8.0.0",
@@ -3788,6 +3790,25 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "reev-context"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bs58",
+ "reev-tools",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "solana-client",
+ "solana-program",
+ "solana-sdk",
+ "spl-associated-token-account 7.0.0",
+ "spl-token 8.0.0",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

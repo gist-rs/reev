@@ -1,5 +1,0 @@
-
-<tool_call>create_file
-<arg_key>path</arg_key>
-<arg_value>/Users/katopz/git/gist/reev/tests/Cargo.toml</arg_value>
-</tool_call>

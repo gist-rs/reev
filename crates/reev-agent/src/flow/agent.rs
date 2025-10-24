@@ -160,12 +160,12 @@ impl FlowAgent {
                     None,
                 )
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to resolve initial context: {}", e))?
+                .map_err(|e| anyhow::anyhow!("Failed to resolve initial context: {e}"))?
         } else {
             info!("[FlowAgent] Updating context after previous step");
             // For multi-step flows, update context from previous step results
             let step_result = serde_json::to_value(&self.state.last_step_result)
-                .map_err(|e| anyhow::anyhow!("Failed to serialize step result: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to serialize step result: {e}"))?;
             context_resolver
                 .update_context_after_step(
                     self.state.current_context.clone(),
@@ -173,18 +173,18 @@ impl FlowAgent {
                     step_result,
                 )
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to update context after step: {}", e))?
+                .map_err(|e| anyhow::anyhow!("Failed to update context after step: {e}"))?
         };
 
         // Validate the resolved context
         context_resolver
             .validate_resolved_context(&resolved_context)
-            .map_err(|e| anyhow::anyhow!("Resolved context validation failed: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Resolved context validation failed: {e}"))?;
 
         // Export context to YAML for LLM
         let context_prompt = context_resolver
             .context_to_yaml(&resolved_context)
-            .map_err(|e| anyhow::anyhow!("Failed to export context to YAML: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to export context to YAML: {e}"))?;
 
         // Store resolved context for next step
         self.state.current_context = resolved_context.clone();
@@ -298,7 +298,7 @@ impl FlowAgent {
 
         // Store step result for context updates
         self.state.last_step_result = serde_json::to_value(&step_result)
-            .map_err(|e| anyhow::anyhow!("Failed to convert step result to JSON: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to convert step result to JSON: {e}"))?;
 
         Ok(step_result)
     }
@@ -348,9 +348,6 @@ impl FlowAgent {
             serde_yaml::to_string(&context_yaml).expect("Failed to serialize key_map")
         )
     }
-
-    /// Build the context prompt for the agent with provided key_map
-    // Removed: build_context_prompt_with_keymap - now handled by ContextResolver
 
     /// Get the current flow state
     pub fn get_state(&self) -> &FlowState {

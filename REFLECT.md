@@ -535,6 +535,41 @@ ACCOUNT BALANCES AND POSITIONS:
 Fixes the critical issue where agents were making blind decisions. All operations now have access to real balance information, enabling proper decision making without unnecessary balance checks.
 
 #### Impact Assessment
+
+### Context Resolution & Validation System ✅
+#### Problem Understanding
+FlowAgent was creating tools with placeholder names like "RECIPIENT_WALLET_PUBKEY" instead of resolved addresses. This caused "Invalid Base58 string" errors when tools tried to parse placeholder names as addresses.
+
+#### Root Cause Analysis
+1. FlowAgent created duplicate tools with placeholder key_map
+2. Context resolution happened at wrong layer (tools vs FlowAgent)
+3. Multi-step flows lacked proper context consolidation
+4. SPL transfer used wrong error enum (NativeTransferError instead of SplTransferError)
+
+#### Solution Implementation
+1. Created centralized ContextResolver module
+2. Integrated ContextResolver into FlowAgent workflow
+3. Separated error types for SPL vs Native transfers
+4. Added comprehensive validation test suite
+5. Fixed multi-step context management
+
+#### Technical Details
+- ContextResolver resolves placeholders to real addresses
+- FlowAgent uses resolved context for all LLM calls
+- Tools receive proper addresses, not placeholder names
+- Multi-step flows track context changes between steps
+
+#### Lessons Learned
+- Context resolution must happen before tool creation
+- Mock-based tests enable validation without external dependencies
+- Error separation improves debugging and attribution
+- Multi-step flows require state management at orchestrator level
+
+#### Impact Assessment
+- Eliminates "Invalid Base58 string" errors
+- Enables proper multi-step flow support
+- Improves error attribution and debugging
+- Provides robust validation without LLM calls
 - ✅ Fixed regression: 001-sol-transfer.yml now scores 1.0 (was 0.0)
 - ✅ No regression: 100-jup-swap-sol-usdc.yml still scores 1.0
 - ✅ Both formats now work seamlessly with same parser

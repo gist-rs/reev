@@ -1,5 +1,7 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+update TASKS.md then fix it step by step with test proof
+
 fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code
 
 ---
@@ -24,12 +26,14 @@ and
 
 1. we must include all key_map account from yml no matter it has balance or not
 2. consolidate with balance after get info from surfpool
-3. crate context as yml format so we can parse and validate, currently we use markdown and json and it hard to validate and has problem with newline and else.
-4. throw error if prereqisite context missing, in yml it should assert context(relaated, account info, token info), instructions, user_prompt
+3. crate context as yml format so we can parse and validate, currently we use markdown and json and it hard to validate and has problem with newline and else also we can add comment in between line for more clarify.
+4. throw error if prereqisite context missing, in yml it should assert context(related, account info, token info), instructions, user_prompt
 5. this context prepare as test case and test against all yml in benchmarks via surfpool without slow llm calling just to ensure context is correct first.
 6. It may need re consolidate for each step in multiple step flow like 200-jup-swap-then-lend-deposit.yml but i think it already handle by FlowAgent
+7. Replace USER_WALLET_PUBKEY, RECIPIENT_WALLET_PUBKEY and else with real address from key_map and surfpool, in the end it should contain only real address from yml and surfpool whether it has balance or not (default 0).
 
 add this to next task, this is critical and we made it wrong many time, we careless about context and it take long time to test against llm. let's change that by get serious about correct context before send to llm.
+plan first, dont code yet.
 
 ## Dynamics context
 
