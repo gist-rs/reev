@@ -61,6 +61,68 @@ surfpool → SolanaEnv → scoring → database
 7. Transactions sent to surfpool (port 8899)
 8. Results scored and stored
 
+## Ground Truth Data Separation Rules
+
+### 🚨 Critical Architecture Principle
+**Ground truth data MUST be separated from real-time context resolution** to prevent information leakage and ensure valid multi-step flow evaluation.
+
+### ✅ Valid Ground Truth Usage
+1. **Test Mode**: Use `ground_truth` for fast validation without surfpool
+2. **Scoring System**: Use `ground_truth` for final result validation
+3. **Deterministic Mode**: Use `ground_truth` for reproducible test behavior
+
+### ❌ Invalid Ground Truth Usage  
+1. **LLM Mode**: Ground truth injected into context leaks future information
+2. **Context Resolution**: Real blockchain state gets corrupted by expected outcomes
+3. **Multi-Step Logic**: Steps become predetermined instead of reactive
+
+### 🛡️ Implementation Rules
+
+#### In Test Files (benchmarks/*.yml)
+- `ground_truth`: Final expected state for validation and scoring
+- `initial_state`: Starting blockchain state for test setup
+
+#### In FlowAgent (production mode)
+```rust
+// ❌ WRONG - Leaks future information
+context_resolver.resolve_initial_context(
+    &initial_state,
+    &serde_json::to_value(&benchmark.ground_truth).unwrap_or_default(), // GROUND TRUTH LEAK!
+    None,
+).await
+
+// ✅ CORRECT - Real-time state only
+let ground_truth_for_context = if is_deterministic_mode() {
+    Some(&benchmark.ground_truth)
+} else {
+    None // LLM gets real blockchain state
+};
+
+context_resolver.resolve_initial_context(
+    &initial_state,
+    ground_truth_for_context, // No leakage in LLM mode
+    None,
+).await
+```
+
+#### Mode Detection
+```rust
+fn is_deterministic_mode() -> bool {
+    // Check agent type, environment variable, or benchmark tag
+    matches!(agent_name, "deterministic") || 
+    std::env::var("REEV_DETERMINISTIC").is_ok() ||
+    benchmark.tags.contains(&"deterministic".to_string())
+}
+```
+
+#### Validation Rules
+```rust
+// Prevent ground truth usage in LLM mode
+if !is_deterministic_mode() && !benchmark.ground_truth.is_null() {
+    return Err(anyhow!("Ground truth not allowed in LLM mode"));
+}
+```
+
 ### Tool Categories
 - **Native**: SOL transfers (program_id: 111111111...)
 - **SPL**: Token operations (TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA)

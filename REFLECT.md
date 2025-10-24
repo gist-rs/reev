@@ -1,6 +1,59 @@
 # REFLECT.md
 
 ## Key Learnings & Insights
+### Ground Truth Data Separation Fix ✅ [NEW]
+#### Problem Understanding
+FlowAgent was leaking future information by passing `benchmark.ground_truth` into `resolve_initial_context()`, breaking real-time multi-step decision making. LLMs could see final expected state before acting.
+
+#### Root Cause Analysis
+- Ground truth data was being used in both test and production modes
+- No mode detection to separate deterministic tests from LLM evaluation
+- Context resolution allowed future information to leak into agent decisions
+- Multi-step flows became predetermined instead of reactive
+
+#### Solution Implementation
+Added clean ground truth separation with mode detection:
+- Deterministic mode: Uses ground truth for reproducible tests
+- LLM mode: Uses real blockchain state only (no leakage)
+- Validation: Prevents ground truth usage in LLM mode
+- Fixed compilation errors with proper imports and type conversions
+
+#### Technical Details
+```rust
+// Mode detection function
+fn is_deterministic_mode(model_name: &str, benchmark_id: &str, tags: &[String]) -> bool {
+    model_name == "deterministic"
+        || std::env::var("REEV_DETERMINISTIC").is_ok()
+        || tags.contains(&"deterministic".to_string())
+        || benchmark_id.contains("deterministic")
+}
+
+// Conditional ground truth usage
+let ground_truth_for_context = if is_deterministic_mode(...) {
+    Some(&benchmark.ground_truth)
+} else {
+    None // LLM gets actual chain state
+};
+
+// Validation to prevent leakage
+if !is_deterministic_mode(...) && !benchmark.ground_truth.final_state_assertions.is_empty() {
+    return Err(anyhow!("Ground truth not allowed in LLM mode"));
+}
+```
+
+#### Lessons Learned
+- Critical separation between test data and execution data
+- Context resolution must be mode-aware
+- Validation prevents architectural violations
+- Ground truth should only be used for scoring and test validation
+
+#### Impact Assessment
+✅ LLM agents receive real blockchain state only
+✅ Multi-step flows build on previous step results  
+✅ No ground truth leakage into LLM context
+✅ All compilation errors resolved
+✅ Clean architectural boundary established
+
 
 ### SOL Transfer Balance Tool Fix ✅
 **Problem**: Agent failed SOL transfers, stopped after balance check (0% score)

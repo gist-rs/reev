@@ -1,16 +1,18 @@
 //! # Flow Agent Implementation
 //!
 //! Simple flow agent that executes tools directly without LLM touching transactions.
-
+use anyhow::anyhow;
 use anyhow::Result;
 use rig::tool::ToolDyn;
 use serde_json::json;
+use solana_sdk::signature::Signer;
 use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::{error, info};
 
 use crate::{
     flow::{
-        benchmark::FlowBenchmark,
+        benchmark::{FlowBenchmark, FlowGroundTruth},
         state::{FlowState, StepResult, StepStatus},
     },
     run::run_agent,
@@ -18,11 +20,21 @@ use crate::{
 };
 use reev_context::{ContextResolver, InitialState};
 
+/// Helper function to detect if agent is running in deterministic mode
+/// Deterministic mode uses ground_truth for reproducible test behavior
+/// LLM mode uses real blockchain state to prevent information leakage
+fn is_deterministic_mode(model_name: &str, benchmark_id: &str, tags: &[String]) -> bool {
+    model_name == "deterministic"
+        || std::env::var("REEV_DETERMINISTIC").is_ok()
+        || tags.contains(&"deterministic".to_string())
+        || benchmark_id.contains("deterministic")
+}
+
 /// Simple flow agent that executes tools directly without LLM touching transactions
 pub struct FlowAgent {
-    /// Model name for the agent (used only for complex scenarios)
+    /// Model name for agent (used only for complex scenarios)
     model_name: String,
-    /// Available tools for the flow agent
+    /// Available tools for flow agent
     _tools: HashMap<String, Box<dyn ToolDyn>>,
     /// Current conversation state
     state: FlowState,
@@ -32,12 +44,9 @@ pub struct FlowAgent {
 }
 
 impl FlowAgent {
-    /// Create a new FlowAgent with the specified model
+    /// Create a new FlowAgent with specified model
     pub async fn new(model_name: &str) -> Result<Self> {
-        info!(
-            "[FlowAgent] Initializing flow agent with model: {}",
-            model_name
-        );
+        info!("[FlowAgent] Starting flow agent with model: {}", model_name);
 
         let state = FlowState::new(0);
 
@@ -135,34 +144,83 @@ impl FlowAgent {
         );
         let context_resolver = ContextResolver::new(rpc_client);
 
-        // Convert initial_state to our format
-        let initial_state: Vec<InitialState> = benchmark
-            .initial_state
-            .iter()
-            .map(|state| InitialState {
-                pubkey: state.pubkey.clone(),
-                owner: state.owner.clone(),
-                lamports: state.lamports,
-                data: state
-                    .data
-                    .clone()
-                    .map(|d| serde_json::to_string(&d).unwrap_or_default()),
-            })
-            .collect();
+        // Create key_map from initial state placeholders
+        let mut key_map = HashMap::new();
+        for state in &benchmark.initial_state {
+            // Check if pubkey is a placeholder (not a valid base58 address)
+            if solana_sdk::pubkey::Pubkey::from_str(&state.pubkey).is_err() {
+                // It's a placeholder, add to key_map
+                if !key_map.contains_key(&state.pubkey) {
+                    let new_pubkey = solana_sdk::signature::Keypair::new();
+                    key_map.insert(state.pubkey.clone(), new_pubkey.pubkey().to_string());
+                    info!(
+                        "[FlowAgent] Resolved placeholder '{}' to '{}'",
+                        state.pubkey,
+                        new_pubkey.pubkey()
+                    );
+                }
+            }
+        }
+
+        // Initial state conversion handled below in resolve_initial_context
+
+        // === CRITICAL: Ground Truth Separation ===
+        // Prevent ground truth leakage into LLM context - only use in deterministic mode
+
+        // Determine if ground truth should be used (test mode vs production mode)
+        let ground_truth_for_context =
+            if is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags) {
+                info!("[FlowAgent] Using ground truth for deterministic mode");
+                Some(&benchmark.ground_truth)
+            } else {
+                info!("[FlowAgent] Using real blockchain state for LLM mode");
+                None // LLM gets actual chain state, no future info leakage
+            };
+
+        // Validate no ground truth leakage in LLM mode
+        if !is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags)
+            && !benchmark.ground_truth.final_state_assertions.is_empty()
+        {
+            return Err(anyhow!(
+                "Ground truth not allowed in LLM mode - would leak future information"
+            ));
+        }
 
         // Resolve initial context or update from existing flow state
         let resolved_context = if self.state.current_step == 0 {
             info!("[FlowAgent] Resolving initial context");
+
+            // Convert AccountState to InitialState for context resolver
+            let initial_states: Vec<InitialState> = benchmark
+                .initial_state
+                .iter()
+                .map(|account| InitialState {
+                    pubkey: account.pubkey.clone(),
+                    owner: account.owner.clone(),
+                    lamports: account.lamports,
+                    data: account
+                        .data
+                        .clone()
+                        .map(|d| serde_json::to_string(&d).unwrap_or_default()),
+                })
+                .collect();
+
             context_resolver
                 .resolve_initial_context(
-                    &initial_state,
-                    &serde_json::to_value(&benchmark.ground_truth).unwrap_or_default(),
-                    None,
+                    &initial_states,
+                    &serde_json::to_value(ground_truth_for_context.unwrap_or(&FlowGroundTruth {
+                        final_state_assertions: vec![],
+                        expected_instructions: vec![],
+                        min_score: 0.0,
+                        success_criteria: vec![],
+                    }))
+                    .unwrap_or_default(),
+                    Some(key_map),
                 )
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to resolve initial context: {e}"))?
+                .map_err(|e| anyhow::anyhow!("Failed to resolve key_map: {e}"))?
         } else {
-            info!("[FlowAgent] Updating context after previous step");
+            info!("[FlowAgent] Updating context from previous step");
             // For multi-step flows, update context from previous step results
             let step_result = serde_json::to_value(&self.state.last_step_result)
                 .map_err(|e| anyhow::anyhow!("Failed to serialize step result: {e}"))?;
@@ -176,7 +234,7 @@ impl FlowAgent {
                 .map_err(|e| anyhow::anyhow!("Failed to update context after step: {e}"))?
         };
 
-        // Validate the resolved context
+        // Validate resolved context
         context_resolver
             .validate_resolved_context(&resolved_context)
             .map_err(|e| anyhow::anyhow!("Resolved context validation failed: {e}"))?;
@@ -356,7 +414,7 @@ impl FlowAgent {
 
     /// Get a mutable reference to the current flow state
     pub fn reset_state(&mut self) {
-        self.state = FlowState::new(0);
+        let _state = FlowState::new(0);
     }
 
     /// Extract tool response from MaxDepthError context

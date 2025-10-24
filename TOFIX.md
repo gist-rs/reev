@@ -7,7 +7,8 @@
 All critical context handling problems have been resolved:
 
 ### ✅ Fixed Issues
-1. **SPL Token Amount YAML Output** - Mock context creation now properly handles YAML Number values
+1. **Ground Truth Data Separation** - FlowAgent no longer leaks future information into LLM context
+2. **SPL Token Amount YAML Output** - Mock context creation now properly handles YAML Number values
 2. **Context Resolution** - All placeholders correctly resolve to real addresses  
 3. **Multi-step Context Management** - Context properly consolidates between flow steps
 4. **Error Types** - SPL transfer uses correct SplTransferError enum

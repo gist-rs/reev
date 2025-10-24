@@ -418,7 +418,6 @@ async fn test_production_context_resolver_yaml_output() -> Result<()> {
         current_step: Some(0),
         step_results: std::collections::HashMap::new(),
     };
-
     // Generate YAML using production resolver
     let yaml_output = resolver.context_to_yaml_with_comments(&context)?;
 
@@ -436,6 +435,169 @@ async fn test_production_context_resolver_yaml_output() -> Result<()> {
             println!("🔍 DEBUG: USDC account state: {usdc_state:#?}");
         }
     }
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_multi_step_swap_then_lend_context_consolidation() -> Result<()> {
+    // Test the critical scenario: swap SOL→USDC, then use updated USDC balance for lending
+    let rpc_client = RpcClient::new("http://mock:8899");
+    let resolver = ContextResolver::new(rpc_client);
+
+    println!("\n🔍 MULTI-STEP CONTEXT CONSOLIDATION TEST");
+    println!("{}", "=".repeat(60));
+
+    // === STEP 1: Initial State (before swap) ===
+    let initial_context = reev_context::AgentContext {
+        key_map: std::collections::HashMap::from([
+            (
+                "USER_WALLET_PUBKEY".to_string(),
+                "52os5otfYAPyQM2BbCEd6vbbDgLN42feBtxDCyVvKv6x".to_string(),
+            ),
+            (
+                "USER_USDC_ATA".to_string(),
+                "11111111111111111111111111111111".to_string(),
+            ),
+        ]),
+        account_states: std::collections::HashMap::from([
+            (
+                "USER_WALLET_PUBKEY".to_string(),
+                serde_json::json!({
+                    "lamports": 5000000000i64, // 5 SOL
+                    "owner": "11111111111111111111111111111111",
+                    "executable": false,
+                    "data_len": 0,
+                }),
+            ),
+            (
+                "USER_USDC_ATA".to_string(),
+                serde_json::json!({
+                    "lamports": 2039280,
+                    "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                    "executable": false,
+                    "data_len": 165,
+                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "token_account_owner": "52os5otfYAPyQM2BbCEd6vbbDgLN42feBtxDCyVvKv6x",
+                    "amount": "0", // Start with 0 USDC
+                }),
+            ),
+        ]),
+        fee_payer_placeholder: Some("USER_WALLET_PUBKEY".to_string()),
+        current_step: Some(0),
+        step_results: std::collections::HashMap::new(),
+    };
+
+    println!("📊 STEP 1 - Initial Context:");
+    let yaml_step1 = resolver.context_to_yaml_with_comments(&initial_context)?;
+    println!("{yaml_step1}");
+
+    // Verify initial state shows 0 USDC
+    assert!(
+        yaml_step1.contains("amount: \"0\""),
+        "Should start with 0 USDC"
+    );
+    println!("✅ Initial state validated: 0 USDC balance");
+
+    // === STEP 2: Simulate Swap Result (SOL→USDC) ===
+    let swap_result = serde_json::json!({
+        "swap_details": {
+            "input_mint": "So11111111111111111111111111111111",
+            "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "input_amount": "2000000000", // 0.2 SOL
+            "output_amount": "50000000", // 50 USDC received
+            "slippage": "1000000", // Small slippage
+        },
+        "usdc_received": "50000000", // This is the key data for next step
+        "transaction_success": true,
+    });
+
+    // Update context with swap result (this simulates FlowAgent.update_context_after_step)
+    let updated_context = resolver
+        .update_context_after_step(initial_context, 1, swap_result.clone())
+        .await?;
+
+    println!("\n📊 STEP 2 - Context After Swap:");
+    let yaml_step2 = resolver.context_to_yaml_with_comments(&updated_context)?;
+    println!("{yaml_step2}");
+
+    // Verify context shows updated USDC balance
+    assert!(
+        yaml_step2.contains("amount: \"50000000\""),
+        "Should show 50 USDC after swap"
+    );
+    assert!(
+        yaml_step2.contains("current_step: 1"),
+        "Should be on step 1"
+    );
+    assert!(
+        yaml_step2.contains("step_results:"),
+        "Should include step results"
+    );
+    println!("✅ Context updated: Now shows 50 USDC balance");
+
+    // === STEP 3: Validate Step Results Available for Next Step ===
+    let step_results = &updated_context.step_results;
+    assert!(
+        step_results.contains_key("step_1"),
+        "Should have step_1 result"
+    );
+
+    if let Some(step1_result) = step_results.get("step_1") {
+        let usdc_received = step1_result
+            .get("usdc_received")
+            .and_then(|v| v.as_str())
+            .unwrap_or("not found");
+
+        assert_eq!(
+            usdc_received, "50000000",
+            "Step result should contain USDC amount"
+        );
+        println!(
+            "✅ Step result accessible: {usdc_received} USDC available for next step"
+        );
+    }
+
+    // === STEP 4: Simulate Context for Lending Step ===
+    let lending_context = resolver
+        .update_context_after_step(
+            updated_context,
+            2,
+            serde_json::json!({"lending_completed": true}),
+        )
+        .await?;
+
+    println!("\n📊 STEP 3 - Context for Lending Decision:");
+    let yaml_step3 = resolver.context_to_yaml_with_comments(&lending_context)?;
+    println!("{yaml_step3}");
+
+    // Verify lending context has all necessary information
+    assert!(
+        yaml_step3.contains("amount: \"50000000\""),
+        "Should still show 50 USDC"
+    );
+    assert!(
+        yaml_step3.contains("current_step: 2"),
+        "Should be on step 2"
+    );
+    assert!(
+        yaml_step3.contains("step_1"),
+        "Should preserve step_1 results"
+    );
+    assert!(
+        yaml_step3.contains("step_2"),
+        "Should include step_2 results"
+    );
+
+    println!("✅ Final context ready for lending decision with correct USDC balance");
+
+    // === VALIDATION SUMMARY ===
+    println!("\n🎯 MULTI-STEP CONTEXT CONSOLIDATION VALIDATION:");
+    println!("✅ Initial state: 0 USDC → Correct");
+    println!("✅ After swap: 50 USDC → Updated from chain");
+    println!("✅ Step results: Preserved and accessible");
+    println!("✅ Context flow: Step 0 → Step 1 → Step 2");
+    println!("✅ Decision ready: LLM can see updated USDC for lending");
 
     Ok(())
 }

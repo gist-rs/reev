@@ -1,5 +1,39 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+
+ 🚨 **Critical Issue Identified:**
+
+ **Line 165**: `&serde_json::to_value(&benchmark.ground_truth).unwrap_or_default()`
+
+ ### 📋 **The Problem:**
+
+ **FlowAgent is passing `ground_truth` data into `resolve_initial_context()`** - this means:
+
+ 1. **🔥 Leaking Future Information**: LLM can see final expected state before acting
+ 2. **🔥 Invalid Context Resolution**: Real blockchain state gets overridden by ground truth
+ 3. **🔥 Broken Multi-Step Logic**: Steps don't build on real transaction results
+
+ ### 💡 **Your Suggestions:**
+
+ 1. **✅ YML Ground Truth for Tests**: Perfect for fast validation without surfpool
+ 2. **✅ YML Ground Truth for Scoring**: Perfect for final evaluation
+ 3. **❌ YML Ground Truth in FlowAgent**: **BREAKS** real-time decision making
+
+ ## 🔧 **The Fix Needed:**
+
+ ### **Option A: Clean Separation (Recommended)**
+ ```rust
+ // Remove ground_truth from context resolution
+ .resolve_initial_context(
+     &initial_state,
+     // &serde_json::to_value(&benchmark.ground_truth).unwrap_or_default(), // ❌ DELETE THIS LINE
+     None,
+ )
+ ```
+
+---
+
+
 update TASKS.md then fix it step by step with test proof
 
 fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code

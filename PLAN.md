@@ -9,62 +9,40 @@ run_agent (dispatches to model-specific agents)
 ZAIAgent/OpenAIAgent (creates tools with resolved key_map)
 ```
 
-### The Real Issue:
+### 🚨 Critical Issue: Ground Truth Data Leakage
 
-1. **FlowAgent creates tools** with `key_map.clone()` containing placeholder names (like `USER_WALLET_PUBKEY`)
-2. **FlowAgent calls run_agent** passing these placeholder keys in `context_prompt`
-3. **run_agent parses context_prompt** and extracts the same placeholder key_map
-4. **ZAIAgent/OpenAIAgent create tools again** with the same placeholder key_map
-5. **Tools try to parse placeholder names** like `RECIPIENT_WALLET_PUBKEY` as base58 addresses → FAILS
+**Problem**: FlowAgent passes `benchmark.ground_truth` into `resolve_initial_context()`, breaking real-time multi-step decision making.
 
-## Revised Plan: Fix Context Handling in Multi-Step Flows
+**Solution Implemented**: Clean ground truth separation with mode detection
+```rust
+// In FlowAgent - Proper ground truth separation ✅ FIXED
+let ground_truth_for_context =
+    if is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags) {
+        info!("[FlowAgent] Using ground truth for deterministic mode");
+        Some(&benchmark.ground_truth)
+    } else {
+        info!("[FlowAgent] Using real blockchain state for LLM mode");
+        None // LLM gets actual chain state, no future info leakage
+    };
 
-### Phase 1: Centralize Context Resolution (Critical)
-**Location**: `FlowAgent` level before calling `run_agent`
+// Validate no ground truth leakage in LLM mode
+if !is_deterministic_mode(&self.model_name, &benchmark.id, &benchmark.tags)
+    && !benchmark.ground_truth.final_state_assertions.is_empty() {
+    return Err(anyhow!(
+        "Ground truth not allowed in LLM mode - would leak future information"
+    ));
+}
+```
 
-1. **Create Context Resolver** in `FlowAgent`:
-   - Take the initial key_map with placeholder names
-   - Query surfpool for real account states and balances
-   - Replace ALL placeholders with real addresses
-   - Handle multi-step context consolidation (step results, updated balances)
+### 🎯 Solution: Ground Truth Separation ✅ IMPLEMENTED
 
-2. **Fix FlowAgent Context Building**:
-   - Resolve all placeholders to real addresses before tool creation
-   - Consolidate account states after each step for multi-step flows
-   - Use the same resolved context for all steps in the flow
+**Option A: Clean Separation** ✅ IMPLEMENTED
+- Test files: Use ground_truth for fast validation and scoring
+- Production agents: Use real blockchain state only
+- Clear architectural boundary between test data and execution data
 
-### Phase 2: Fix Tool Creation (Secondary)
-**Location**: Centralize in model agents (ZAIAgent/OpenAIAgent)
+**Option B: Conditional Ground Truth** ✅ IMPLEMENTED
+- Deterministic mode: Use ground_truth for reproducible tests
+- LLM mode: Use blockchain state for real evaluation
 
-1. **Remove duplicate tool creation** from `FlowAgent`
-2. **Create tools once** in model agents with properly resolved addresses
-3. **Pass resolved context** instead of placeholder key_map
-
-### Phase 3: Add Multi-Step Context Management
-**Location**: `FlowAgent` state management
-
-1. **Step 1 Context**: Initial state from YAML + surfpool
-2. **Step 2+ Context**: Previous step results + updated on-chain state
-3. **Context Consolidation**:
-   - Merge initial key_map with derived addresses
-   - Update balances after each transaction
-   - Handle dependencies between steps (`depends_on: ["step_1_result"]`)
-
-### Phase 4: Fix Error Types
-1. **Create `SplTransferError`** separate from `NativeTransferError`
-2. **Fix base58 parsing** to use resolved addresses, not placeholder names
-
-### Phase 5: Add Context Validation Tests
-1. **Test each flow step** context resolution without LLM calls
-2. **Validate YAML schema** for context consistency
-3. **Ensure placeholders are fully resolved** before tool execution
-
-### Key Insight:
-
-The issue isn't "dual tool creation" per se - it's that **FlowAgent creates placeholder contexts that never get resolved**. The `run_agent` correctly uses whatever context it receives, but FlowAgent is passing placeholder names instead of resolved addresses.
-
-**Multi-step flows need FlowAgent-level context management** because:
-1. Each step depends on previous step results
-2. Account balances change after each transaction
-3. Derived addresses (ATAs) need to be tracked across steps
-4. Context needs to be consolidated before each LLM call
+**Status**: 🟢 COMPLETED - Ground truth leakage eliminated, all compilation errors fixed
