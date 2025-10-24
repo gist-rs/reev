@@ -47,6 +47,9 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     });
     let key_map = context.key_map;
 
+    // Debug: Log the key_map being passed to tools
+    info!("[run_agent] Key map for tools: {:?}", key_map);
+
     // Route to appropriate enhanced agent based on model type
     if model_name.starts_with("glm-") {
         if std::env::var("ZAI_API_KEY").is_ok() {
