@@ -38,14 +38,15 @@ reev-tools → reev-protocols → jupiter-sdk → surfpool
 - `reev-tools`: Tool wrappers for AI agents
 - `reev-protocols`: Protocol implementations
 - `jupiter-sdk`: Jupiter DeFi operations
-- `surfpool`: Mainnet fork simulation
+- `surfpool`: High-performance mainnet fork with real program execution
 
 ### Execution & Scoring
 ```
 surfpool → SolanaEnv → scoring → database
 ```
-- `surfpool`: Mock RPC with mainnet state
+- `surfpool`: High-performance mainnet fork with real program execution
 - `SolanaEnv`: Transaction execution environment
+- `surfpool`: Mock RPC with mainnet state
 - `scoring`: Two-tier system (75% instruction + 25% execution)
 - `database`: Session and result persistence
 
@@ -131,6 +132,206 @@ if !is_deterministic_mode() && !benchmark.ground_truth.is_null() {
 ### Response Formats
 - **Jupiter**: `{"transactions": [{"instructions": [...], "completed": true}]}`
 - **Simple**: `{"transactions": [{"program_id": "...", "accounts": [...], "data": "..."}]}`
+
+## 🤖 LLM Context Understanding
+
+### 🎯 What LLM Needs to Know
+
+#### Initial Context Access
+- **Complete Account State**: All account balances and data from `initial_state`
+- **Resolved Addresses**: Real addresses instead of placeholders
+- **Available Tools**: Tool catalog with capabilities and descriptions
+- **Execution Constraints**: Real Solana programs via surfpool with actual state
+
+#### Execution Capabilities  
+- **SOL Transfers**: Move native SOL between accounts
+- **SPL Token Operations**: Transfer and manage any SPL tokens
+- **Jupiter DEX**: Aggregate swaps across multiple DEXs
+- **Jupiter Lending**: Deposit, withdraw, earn yield with real protocols
+- **Flow Orchestration**: Multi-step workflows with state management
+
+#### ⚠️ Operational Constraints
+- **Real Mainnet State**: All operations affect real account balances via surfpool
+- **Gas Requirements**: Each transaction consumes SOL for fees
+- **Slippage Impact**: Market operations may have price impact
+- **Account Dependencies**: Some operations require specific account types
+
+#### 🚫 Prohibited Directives
+- **No Raw Instructions**: Cannot generate raw Solana instructions directly
+- **No System Program Access**: Limited to exposed tool interfaces
+- **No Future State Access**: Ground truth separated to prevent leakage
+- **No Program Execution**: Limited to available tools and protocols
+
+### ✅ Available Operations
+Based on surfpool's mainnet fork capabilities, LLM can perform:
+
+#### Native Operations
+```rust
+// SOL transfer - works with real mainnet accounts
+SolTransferInstruction {
+    from: user_wallet,
+    to: recipient_wallet,
+    lamports: 1000000, // 0.001 SOL
+}
+```
+
+#### SPL Token Operations
+```rust
+// USDC transfer - uses real USDC mint and accounts
+SplTransferInstruction {
+    mint: usdc_mint,        // Real mainnet USDC mint
+    from_account: user_token_account,
+    to_account: recipient_token_account,
+    authority: user_wallet,
+    amount: 1000000,          // 1 USDC (6 decimals)
+}
+```
+
+#### Jupiter DeFi Operations
+```rust
+// Jupiter swap - interacts with real DEXs and liquidity
+JupiterSwapInstruction {
+    input_mint: sol_mint,     // Real SOL mint
+    output_mint: usdc_mint,   // Real USDC mint  
+    input_amount: 1000000000,  // 1 SOL
+    slippage_bps: 100,      // 1% slippage
+}
+```
+
+#### Flow Operations
+```rust
+// Multi-step workflows with real state transitions
+let flow_steps = vec![
+    FlowStep {
+        step_id: 1,
+        depends_on: None,        // First step has no dependencies
+        // ... other fields
+    },
+    FlowStep {
+        step_id: 2,
+        depends_on: Some(vec![1]), // Step 2 depends on step 1 completion
+        // ... other fields
+    }
+];
+```
+
+### 🌊 Surfpool: Mainnet Fork Reality
+
+#### Real Program Execution
+- **Complete Solana Programs**: Jupiter, SPL Token, native programs
+- **Actual Account States**: Real balances from live mainnet fork
+- **Dynamic State Fetching**: Account data fetched on-demand from mainnet
+- **Transaction Validation**: Real transaction processing with actual fees
+
+#### State Manipulation Capabilities
+For advanced testing scenarios, surfpool provides cheat codes for direct blockchain state manipulation:
+
+```bash
+# Fund account with SOL
+curl -X POST http://127.0.0.1:8899 -d '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "surfnet_setAccount",
+  "params": [
+    "USER_WALLET_PUBKEY",
+    {
+      "lamports": 1000000000
+    }
+  ]
+}'
+
+# Fund account with USDC (ATA creation + balance)
+curl -X POST http://127.0.0.1:8899 -d '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "surfnet_setTokenAccount",
+  "params": [
+    "USER_WALLET_PUBKEY",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC mint
+    {
+      "amount": 100000000 // 100 USDC (6 decimals)
+    },
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" // USDC token program
+  ]
+}'
+```
+
+#### Time Control
+```bash
+# Jump to specific slot for testing time-sensitive logic
+curl -X POST http://127.0.0.1:8899 -d '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "surfnet_timeTravel",
+  "params": [
+    150000000  // Jump to slot 150M
+  ]
+}'
+```
+
+### 🎯 LLM Best Practices
+
+#### State-Aware Decision Making
+1. **Query Balance First**: Always check current state before operations
+2. **Use Appropriate Tools**: Match tool to operation (transfer/swap/lend)
+3. **Handle Slippage**: Set reasonable limits for market operations
+4. **Account for Fees**: Ensure sufficient SOL for transaction costs
+5. **Multi-Step Planning**: Consider dependencies between operations
+
+#### Error Recovery
+1. **Transaction Failures**: Handle insufficient funds, failed swaps
+2. **Network Issues**: Retry with exponential backoff
+3. **Invalid Instructions**: Validate tool inputs before execution
+4. **Partial Success**: Handle operations with multiple steps
+
+### 🚫 What LLM CANNOT Do
+
+```rust
+// ❌ CANNOT generate raw Solana instructions directly
+let raw_instruction = Instruction::new_with_bytes(
+    program_id,
+    accounts,
+    data
+); // This is not allowed!
+
+// ✅ MUST use tool-based approach
+let transfer_result = sol_transfer_tool.execute(transfer_args)?;
+let swap_result = jupiter_swap_tool.execute(swap_args)?;
+```
+
+### 🔍 Debugging LLM Context
+
+#### Enable Detailed Logging
+```rust
+RUST_LOG=debug cargo test -p reev-runner benchmarks_test -- --nocapture
+```
+
+#### Check Context Structure
+```rust
+println!("Initial state: {:?}", initial_state);
+println!("Resolved addresses: {:?}", context.key_map);
+println!("Available tools: {:?}", tool_registry.get_all_tools());
+```
+
+#### Validate Tool Access
+```rust
+// Ensure placeholder resolution worked
+assert!(context.key_map.contains_key("USER_WALLET_PUBKEY"));
+
+// Check account states are populated
+assert!(!context.account_states.is_empty());
+```
+
+### 🎮 Integration with Reev Architecture
+
+```mermaid
+graph TD
+    A[Runner loads YAML] --> B[Surfpool provides real mainnet state]
+    C[LLM receives resolved context] --> D[Tools execute with real programs]
+    B --> C
+    D --> E[Transactions processed by surfpool]
+    E --> F[Results scored and stored]
+```
 
 ## Critical Integration Points
 
