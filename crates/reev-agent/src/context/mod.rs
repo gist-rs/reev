@@ -314,7 +314,7 @@ impl ContextBuilder {
                     &resolved_address[..8],
                     &resolved_address[resolved_address.len() - 8..]
                 );
-                context.push_str(&format!("  • {} → {}\n", account_name, short_addr));
+                context.push_str(&format!("  • {account_name} → {short_addr}\n"));
             }
         }
 

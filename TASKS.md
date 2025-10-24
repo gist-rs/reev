@@ -48,6 +48,33 @@
   - `crates/reev-lib/src/llm_agent.rs` - Pass observation account_states to agent
 - **Result**: Context now shows real balances (1.0000 SOL, 50 USDC) from surfpool state
 
+### #005: Recipient Account Missing Issue - FIXED ✅
+**Problem**: Recipient accounts with 0 lamports not appearing in context, causing agent confusion
+- **Error**: Agent sees RECIPIENT_WALLET_PUBKEY as placeholder instead of resolved address
+- **Root Cause**: Accounts with 0 lamports don't exist on-chain, so get_account() fails and they're excluded from observation
+- **Symptoms**:
+  - Context only shows USER_WALLET_PUBKEY, missing RECIPIENT_WALLET_PUBKEY
+  - Agent asks for "actual recipient address" instead of using resolved address
+  - Benchmarks 001-004 fail with "Agent returned no actions to execute"
+- **Status**: ✅ FIXED - Context now includes resolved addresses and clarity notes
+- **Priority**: High - Affects basic transfer benchmarks
+- **Solution**: 
+  - Add missing accounts from initial_state to observation even if they don't exist on-chain
+  - Include resolved addresses section in context for clarity
+  - Add explicit note about placeholder resolution in agent prompt
+- **Implementation**:
+  - ✅ Updated observation.rs to include non-existent accounts with 0 lamports
+  - ✅ Added resolved addresses section to formatted context
+  - ✅ Added clarity note about placeholder resolution in agent prompt
+  - ✅ Fixed System Program constant reference
+  - ✅ Context now shows: "📋 RESOLVED ADDRESSES: RECIPIENT_WALLET_PUBKEY → 9SEmW...ifcp"
+- **Files Modified**:
+  - `crates/reev-lib/src/solana_env/observation.rs` - Include missing accounts
+  - `crates/reev-agent/src/context/builder.rs` - Improve context building
+  - `crates/reev-agent/src/context/mod.rs` - Add resolved addresses section
+  - `crates/reev-agent/src/context/integration.rs` - Add clarity note in prompt
+- **Result**: Agent should now understand placeholders are resolved and execute transfers properly
+
 ### #003: Dynamic Tool Selection System (POSTPONED)
 **Goal**: Implement LLM+dynamic tool routing for context-aware tool selection
 - **Status**: 🚫 POSTPONED - Will address after context issues are fully resolved

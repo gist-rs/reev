@@ -301,19 +301,6 @@ impl ContextBuilder {
         Ok(context)
     }
 
-    /// Helper method to guess token type from account name
-    fn guess_token_from_account_name(&self, account_name: &str) -> Option<String> {
-        if account_name.contains("USDC") {
-            Some("USDC".to_string())
-        } else if account_name.contains("USDT") {
-            Some("USDT".to_string())
-        } else if account_name.contains("SOL") {
-            Some("SOL".to_string())
-        } else {
-            None
-        }
-    }
-
     /// Internal method to build context from observation state
     fn build_context_from_observation_internal(
         &self,
