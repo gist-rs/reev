@@ -95,7 +95,7 @@ impl Tool for SolTransferTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Transfer SOL or SPL tokens between Solana accounts. This tool can perform native SOL transfers or SPL token transfers with proper instruction generation. NOTE: If you don't see account balance information in the context, use get_account_balance tool first to verify sufficient funds before transferring.".to_string(),
+            description: "Transfer SOL or SPL tokens between Solana accounts. This tool can perform native SOL transfers or SPL token transfers with proper instruction generation. NOTE: Account balance is provided in the context - verify sufficient funds before transferring.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

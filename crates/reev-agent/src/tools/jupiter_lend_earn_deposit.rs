@@ -66,7 +66,7 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. IMPORTANT: This tool will automatically validate the balance against available funds. If you need to check the available balance first, use the get_account_balance tool. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
+            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. IMPORTANT: This tool will automatically validate the balance against available funds. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -193,7 +193,7 @@ impl Tool for JupiterLendEarnDepositTool {
                     } = boxed_err.as_ref()
                     {
                         warn!(
-                            "💡 Suggestion: Use get_account_balance tool to check available balance before depositing. \
+                            "💡 Suggestion: Check available balance before depositing. \
                             Available: {}, Requested: {}",
                             available, requested
                         );

@@ -59,7 +59,7 @@ impl Tool for JupiterEarnTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Access Jupiter's earn functionality including positions and earnings data. This tool can fetch lending positions, earnings history, or both in a single call. NOTE: If you need current token prices or APY information, use get_lend_earn_tokens tool first. For account balance validation, use get_account_balance tool.".to_string(),
+            description: "Access Jupiter's earn functionality including positions and earnings data. This tool can fetch lending positions, earnings history, or both in a single call. NOTE: If you need current token prices or APY information, use get_lend_earn_tokens tool first.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {

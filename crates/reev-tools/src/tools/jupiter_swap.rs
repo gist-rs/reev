@@ -94,7 +94,7 @@ impl Tool for JupiterSwapTool {
 
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "PRIMARY tool for swapping tokens using Jupiter. Supports SOL, USDC, and other tokens. Use when user says 'swap', 'exchange', or mentions token conversion. IMPORTANT: This tool will automatically validate the input token balance. If you need to check available balance first, use the get_account_balance tool. If user mentions 'lend', 'deposit', 'mint', or 'redeem', use Jupiter lending tools instead.".to_string(),
+            description: "PRIMARY tool for swapping tokens using Jupiter. Supports SOL, USDC, and other tokens. Use when user says 'swap', 'exchange', or mentions token conversion. IMPORTANT: This tool will automatically validate the input token balance. If user mentions 'lend', 'deposit', 'mint', or 'redeem', use Jupiter lending tools instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -293,7 +293,7 @@ impl JupiterSwapTool {
                     } = boxed_err.as_ref()
                     {
                         warn!(
-                            "💡 Suggestion: Use get_account_balance tool to check available balance before swapping. \
+                            "💡 Suggestion: Check available balance before swapping. \
                             Available: {}, Requested: {}",
                             available, requested
                         );

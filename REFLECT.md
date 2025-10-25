@@ -65,3 +65,37 @@
 - Phase 4: Full integration testing to confirm 100% success rate
 
 **Expected Outcome**: Return 002-spl-transfer.yml to 100% success rate
+
+## Multi-Turn Loop Not Stopping - Completed ✅
+**Issue**: Agent continued conversation after tool success, causing MaxDepthError
+**Root Cause**: Fixed conversation depth (7) regardless of operation complexity
+- Simple SPL transfers used 7-turn multi-turn conversation
+- Tool completed successfully on turn 1 with completion signals
+- Agent continued for 6 more turns, generating extra transactions
+- Completion signals detected but not used to stop early
+
+**Technical Evidence**:
+- Log showed "Conversation depth: 7" for simple SPL transfer
+- Tool returned "status: ready" and "action: transfer_complete"
+- Completion signals detected: `has_completion_signals = false` (bug in detection)
+- Agent continued instead of stopping immediately
+
+**Solution Implemented**: Smart operation detection with adaptive depth
+1. **Added simple operation detection** in `determine_conversation_depth()`
+   - Pattern 1: SPL transfers -> depth 1
+   - Pattern 2: SOL transfers -> depth 1  
+   - Pattern 3: Pre-funded token accounts + simple prompt -> depth 1
+   - Pattern 4: Simple Jupiter swaps -> depth 2
+
+2. **Fixed completion signal detection** with helper function
+   - `check_completion_signals()` centralizes signal detection logic
+   - Returns boolean for easy early termination decisions
+
+**Results**:
+- ✅ "Simple SPL transfer pattern detected" in logs
+- ✅ "Final Conversation Depth: 1" instead of 7
+- ✅ "Is Single Turn: true" 
+- ✅ Agent executes once and stops immediately
+- ✅ No extra tool calls or MaxDepthError
+
+**Performance Impact**: 86% reduction in conversation turns (7→1) for simple operations
