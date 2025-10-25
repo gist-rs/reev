@@ -2,6 +2,8 @@
 
 ## SPL Transfer Address Resolution Race Condition - CRITICAL 🚨
 
+RUST_LOG=info cargo run --quiet -p reev-runner -- benchmarks/002-spl-transfer.yml --agent local
+
 ### Problem Description
 **002-spl-transfer.yml regression from 100% to 56% after context enrichment**
 
@@ -10,17 +12,17 @@ Root cause: **Address generation race condition** between environment reset and 
 ### Current Architecture Flow
 ```
 1. env.reset() → Generates random addresses for ALL placeholders
-2. setup_spl_scenario() → Attempts to overwrite with correct derived addresses  
+2. setup_spl_scenario() → Attempts to overwrite with correct derived addresses
 3. run_evaluation_loop() → LLM receives mixed/incorrect addresses
 ```
 
 ### Specific Issue
 ```rust
 // RESET: Creates random addresses
-USER_WALLET_PUBKEY → address_A  
+USER_WALLET_PUBKEY → address_A
 RECIPIENT_WALLET_PUBKEY → address_B
 
-// SETUP: Derives ATAs from random addresses  
+// SETUP: Derives ATAs from random addresses
 USER_USDC_ATA → derived_from(address_A)  ✅
 RECIPIENT_USDC_ATA → derived_from(address_B)  ❌
 
@@ -41,8 +43,8 @@ INFO [setup] Set state for 8Yvk3sMeu615qH4FKmn2Ye35z3Kxo7S5yh2BkPQaRru6 with own
 Environment reset generates addresses for placeholders that test scenarios should control. But current logic allows generating base wallet addresses for SPL benchmarks, creating race conditions.
 
 ### Current Fix Status
-✅ **Context Resolver**: Fixed to skip SPL placeholder generation  
-✅ **Environment Reset**: Partially fixed - still generates base wallet addresses  
+✅ **Context Resolver**: Fixed to skip SPL placeholder generation
+✅ **Environment Reset**: Partially fixed - still generates base wallet addresses
 ❌ **Integration**: Still has race condition between reset and setup
 
 ### Required Fix

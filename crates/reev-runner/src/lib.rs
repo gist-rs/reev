@@ -11,7 +11,6 @@ use reev_lib::{
     score::calculate_final_score,
     server_utils::{kill_existing_reev_agent, kill_existing_surfpool},
     solana_env::environment::SolanaEnv,
-    test_scenarios,
     trace::ExecutionTrace,
 };
 use std::{
@@ -208,10 +207,7 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
 
         let options = serde_json::to_value(&test_case)
             .context("Failed to serialize test case for env options")?;
-        let mut initial_observation = env.reset(None, Some(options)).await?;
-        test_scenarios::setup_spl_scenario(&mut env, &test_case, &mut initial_observation)
-            .await
-            .context("Failed to set up SPL scenario")?;
+        let initial_observation = env.reset(None, Some(options)).await?;
 
         let (final_observation, trace, actions) =
             run_evaluation_loop(&mut env, agent.as_mut(), &test_case, &initial_observation)
@@ -506,9 +502,6 @@ async fn run_flow_benchmark(
     let options =
         serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
     let mut initial_observation = env.reset(None, Some(options)).await?;
-    test_scenarios::setup_spl_scenario(&mut env, test_case, &mut initial_observation)
-        .await
-        .context("Failed to set up SPL scenario")?;
 
     // Execute each step in the flow
     for step in flow_steps.iter() {

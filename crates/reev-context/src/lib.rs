@@ -86,7 +86,7 @@ impl ContextResolver {
                     // Use a deterministic placeholder that will be replaced by test scenarios
                     // For ATAs, the test scenarios will derive the correct addresses
                     // For wallet placeholders, test scenarios will assign real addresses
-                    key_map.insert(pubkey_str.clone(), format!("PLACEHOLDER_{}", pubkey_str));
+                    key_map.insert(pubkey_str.clone(), format!("PLACEHOLDER_{pubkey_str}"));
                     info!(
                         "[ContextResolver] Deferring resolution for placeholder '{}' (will be resolved by test scenarios)",
                         pubkey_str

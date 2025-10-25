@@ -158,6 +158,7 @@ impl ZAIAgent {
             .tool(jupiter_earn_tool_def)
             // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
             // .tool(balance_tool_def)
+            .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
             .build();
 
         let result = model.completion(request).await?;
