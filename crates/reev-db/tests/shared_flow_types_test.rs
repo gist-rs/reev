@@ -2,7 +2,6 @@
 
 use reev_db::shared::flow::types::FlowLogUtils;
 use reev_flow::{EventContent, FlowEvent, FlowEventType};
-use std::collections::HashMap;
 
 #[test]
 fn test_flow_log_creation() {
@@ -27,7 +26,6 @@ fn test_event_serialization() {
         depth: 1,
         content: EventContent {
             data: serde_json::json!({"test": "data"}),
-            metadata: HashMap::new(),
         },
     };
 

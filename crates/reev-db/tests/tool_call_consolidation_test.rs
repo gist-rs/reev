@@ -33,7 +33,6 @@ async fn test_sol_transfer_consolidation() -> Result<(), Box<dyn std::error::Err
         output_result: json!({}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     // Create second tool call entry (completion with empty input, actual output)
@@ -61,7 +60,6 @@ async fn test_sol_transfer_consolidation() -> Result<(), Box<dyn std::error::Err
         }]),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     // Store both calls using consolidation logic
@@ -129,7 +127,6 @@ async fn test_consolidation_with_execution_time() -> Result<(), Box<dyn std::err
         output_result: json!({}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     // Second call with actual execution time
@@ -142,7 +139,6 @@ async fn test_consolidation_with_execution_time() -> Result<(), Box<dyn std::err
         output_result: json!({"result": "success"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     db.store_tool_call_consolidated(&zero_time_call).await?;
@@ -181,7 +177,6 @@ async fn test_no_consolidation_different_tools() -> Result<(), Box<dyn std::erro
         output_result: json!({"result": "sol_success"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     let swap_call = ToolCallData {
@@ -193,7 +188,6 @@ async fn test_no_consolidation_different_tools() -> Result<(), Box<dyn std::erro
         output_result: json!({"result": "swap_success"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     db.store_tool_call_consolidated(&sol_call).await?;
@@ -234,7 +228,6 @@ async fn test_consolidation_time_window() -> Result<(), Box<dyn std::error::Erro
         output_result: json!({}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     // Second call at timestamp 1000.5 (within 1 second window)
@@ -247,7 +240,6 @@ async fn test_consolidation_time_window() -> Result<(), Box<dyn std::error::Erro
         output_result: json!({"final": "result"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     db.store_tool_call_consolidated(&first_call).await?;
@@ -288,7 +280,6 @@ async fn test_no_consolidation_outside_time_window() -> Result<(), Box<dyn std::
         output_result: json!({"result": "early"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     // Second call at timestamp 1002 (outside 1-second window)
@@ -301,7 +292,6 @@ async fn test_no_consolidation_outside_time_window() -> Result<(), Box<dyn std::
         output_result: json!({"result": "late"}),
         status: "success".to_string(),
         error_message: None,
-        metadata: Some(json!({})),
     };
 
     db.store_tool_call_consolidated(&early_call).await?;

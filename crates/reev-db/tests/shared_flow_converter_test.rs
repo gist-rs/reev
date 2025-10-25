@@ -56,7 +56,6 @@ impl FlowLogConverter<TestFlowLog> for TestFlowLog {
                     depth: 0,
                     content: EventContent {
                         data: e.data.clone(),
-                        metadata: HashMap::new(),
                     },
                 })
             })
