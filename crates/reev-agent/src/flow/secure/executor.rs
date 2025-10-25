@@ -62,13 +62,6 @@ impl SecureExecutor {
             instructions: transactions,
             status: StepStatus::Success,
             completed_at: format!("{start_time:?}"),
-            metadata: {
-                let mut meta = HashMap::new();
-                meta.insert("execution_mode".to_string(), "direct_tool_only".to_string());
-                meta.insert("security_level".to_string(), "maximum".to_string());
-                meta.insert("llm_bypassed".to_string(), "true".to_string());
-                meta
-            },
         };
 
         Ok(step_result)

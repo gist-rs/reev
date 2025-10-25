@@ -903,7 +903,6 @@ pub async fn store_flow_log_from_result(
                         "failed"
                     }
                 }),
-                metadata: std::collections::HashMap::new(),
             },
         }],
         final_result: Some(ExecutionResult {
@@ -984,7 +983,6 @@ pub async fn store_flow_log(
                     "trace": trace_data,
                     "status": "completed"
                 }),
-                metadata: std::collections::HashMap::new(),
             },
         }],
         final_result: Some(ExecutionResult {

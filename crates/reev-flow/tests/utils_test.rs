@@ -1,10 +1,11 @@
 //! Tests for reev-flow utils module
 
+use std::collections::HashMap;
+
 use reev_flow::{
     types::{ExecutionResult, ExecutionStatistics, FlowEventType, ToolResultStatus},
     utils::FlowUtils,
 };
-use std::collections::HashMap;
 
 #[test]
 fn test_flow_log_creation() {
@@ -34,7 +35,6 @@ fn test_add_event() {
         FlowEventType::LlmRequest,
         1,
         serde_json::json!({"test": "data"}),
-        HashMap::new(),
     );
 
     FlowUtils::add_event(&mut flow_log, event);

@@ -23,7 +23,6 @@ pub struct ToolCallData {
     pub output_result: Value,
     pub status: String,
     pub error_message: Option<String>,
-    pub metadata: Option<Value>,
 }
 
 impl DatabaseWriter {
@@ -374,18 +373,13 @@ impl DatabaseWriter {
         let output_result_json = serde_json::to_string(&tool_call.output_result)
             .map_err(|e| DatabaseError::serialization("Failed to serialize output_result", e))?;
 
-        let metadata_json = tool_call
-            .metadata
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()
-            .map_err(|e| DatabaseError::serialization("Failed to serialize metadata", e))?;
+        // Metadata field removed
 
         self.conn
             .execute(
                 "INSERT INTO session_tool_calls
-                 (session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message, metadata)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 (session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     tool_call.session_id.clone(),
                     tool_call.tool_name.clone(),
@@ -395,7 +389,6 @@ impl DatabaseWriter {
                     output_result_json,
                     tool_call.status.clone(),
                     tool_call.error_message.clone().unwrap_or_default(),
-                    metadata_json.unwrap_or_default(),
                 ],
             )
             .await
@@ -560,15 +553,6 @@ impl DatabaseWriter {
                 DatabaseError::serialization("Failed to deserialize output_result", e)
             })?;
 
-            let metadata: String = row.get(8).unwrap_or_default();
-            let metadata_value: Option<Value> = if metadata.is_empty() {
-                None
-            } else {
-                Some(serde_json::from_str(&metadata).map_err(|e| {
-                    DatabaseError::serialization("Failed to deserialize metadata", e)
-                })?)
-            };
-
             tool_calls.push(ToolCallData {
                 session_id: row.get(0)?,
                 tool_name: row.get(1)?,
@@ -578,7 +562,6 @@ impl DatabaseWriter {
                 output_result: output_result_value,
                 status: row.get(6)?,
                 error_message: row.get(7).ok(),
-                metadata: metadata_value,
             });
         }
 

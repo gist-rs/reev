@@ -114,9 +114,7 @@ async fn main() -> Result<()> {
             result.llm_response.len()
         );
 
-        if !result.metadata.is_empty() {
-            println!("    Metadata: {:?}", result.metadata);
-        }
+        // Metadata field removed
         println!();
     }
 

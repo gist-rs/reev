@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS session_tool_calls (
     output_result TEXT NOT NULL, -- JSON string
     status TEXT NOT NULL CHECK (status IN ('success', 'error', 'timeout')),
     error_message TEXT,
-    metadata TEXT, -- JSON string for additional data
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id) ON DELETE CASCADE
 );

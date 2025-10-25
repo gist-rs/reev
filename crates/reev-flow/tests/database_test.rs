@@ -5,7 +5,6 @@ use reev_flow::{
     types::{ExecutionResult, ExecutionStatistics, FlowEventType},
     DBFlowLogConverter,
 };
-use std::collections::HashMap;
 
 #[test]
 fn test_db_flow_log_creation() {
@@ -84,7 +83,6 @@ fn test_add_event_to_db_flow() {
         FlowEventType::LlmRequest,
         1,
         serde_json::json!({"test": "data"}),
-        HashMap::new(),
     )
     .unwrap();
 

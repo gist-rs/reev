@@ -65,8 +65,6 @@ pub struct SessionLog {
     pub events: Vec<SessionEvent>,
     /// Final execution result
     pub final_result: Option<ExecutionResult>,
-    /// Session metadata
-    pub metadata: std::collections::HashMap<String, String>,
 }
 
 /// Tool call information for flow diagram generation
@@ -111,7 +109,6 @@ pub struct SessionFileLogger {
     start_time: SystemTime,
     log_file: PathBuf,
     events: Vec<SessionEvent>,
-    metadata: std::collections::HashMap<String, String>,
     active_tools: std::collections::HashMap<String, u64>,
 }
 
@@ -146,15 +143,11 @@ impl SessionFileLogger {
             start_time: SystemTime::now(),
             log_file,
             events: Vec::new(),
-            metadata: std::collections::HashMap::new(),
             active_tools: std::collections::HashMap::new(),
         })
     }
 
-    /// Add metadata to the session
-    pub fn add_metadata(&mut self, key: String, value: String) {
-        self.metadata.insert(key, value);
-    }
+    // Metadata field and add_metadata method removed
 
     /// Log an event to the session
     pub fn log_event(&mut self, event_type: SessionEventType, depth: u32, data: serde_json::Value) {
@@ -316,7 +309,6 @@ impl SessionFileLogger {
             end_time: Some(end_timestamp),
             events: self.events.clone(),
             final_result: Some(result_with_tools),
-            metadata: self.metadata,
         };
 
         // Write session log to file
@@ -397,7 +389,6 @@ impl SessionFileLogger {
                 data: serde_json::to_value(trace).unwrap_or_default(),
                 tools: self.extract_tools_from_events(),
             }),
-            metadata: self.metadata,
         };
 
         // Write session log to file
@@ -487,7 +478,6 @@ impl SessionFileLogger {
                 }),
                 tools: tool_calls, // Add tool calls to ExecutionResult
             }),
-            metadata: self.metadata,
         };
 
         // Write session log to file

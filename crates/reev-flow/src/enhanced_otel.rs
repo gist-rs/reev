@@ -427,7 +427,7 @@ macro_rules! log_enhanced_tool_error {
 }
 
 /// Update existing tool call with completion data
-#[allow(dead_code)]
+#[allow(unused)]
 macro_rules! log_enhanced_tool_update {
     ($tool_name:expr, $execution_time_ms:expr, $output_result:expr, $status:expr) => {
         if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
@@ -441,7 +441,7 @@ macro_rules! log_enhanced_tool_update {
 }
 
 /// Update tool call with success status
-#[allow(dead_code)]
+#[allow(unused)]
 macro_rules! log_enhanced_tool_success_update {
     ($tool_name:expr, $execution_time_ms:expr, $output_result:expr) => {
         $crate::log_enhanced_tool_update!(
@@ -454,7 +454,7 @@ macro_rules! log_enhanced_tool_success_update {
 }
 
 /// Update tool call with error status
-#[allow(dead_code)]
+#[allow(unused)]
 macro_rules! log_enhanced_tool_error_update {
     ($tool_name:expr, $execution_time_ms:expr, $error_message:expr) => {
         $crate::log_enhanced_tool_update!(

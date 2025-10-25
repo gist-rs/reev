@@ -351,11 +351,6 @@ impl FlowAgent {
             instructions: Vec::new(), // LLM NEVER produces transactions
             status: StepStatus::Success,
             completed_at: format!("{start_time:?}"),
-            metadata: {
-                let mut meta = HashMap::new();
-                meta.insert("execution_mode".to_string(), "llm_fallback".to_string());
-                meta
-            },
         };
 
         // Add conversation turn to state

@@ -117,9 +117,6 @@ pub struct FlowBenchmark {
     pub flow: Vec<FlowStep>,
     /// Ground truth for evaluation
     pub ground_truth: FlowGroundTruth,
-    /// Optional metadata
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub metadata: HashMap<String, serde_json::Value>,
 }
 
 /// Ground truth for evaluating multi-step flows

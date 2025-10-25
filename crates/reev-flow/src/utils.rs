@@ -42,13 +42,12 @@ impl FlowUtils {
         event_type: FlowEventType,
         depth: u32,
         data: serde_json::Value,
-        metadata: HashMap<String, String>,
     ) -> FlowEvent {
         FlowEvent {
             timestamp: SystemTime::now(),
             event_type,
             depth,
-            content: EventContent { data, metadata },
+            content: EventContent { data },
         }
     }
 
@@ -68,7 +67,7 @@ impl FlowUtils {
         })
         .unwrap();
 
-        Self::create_event(FlowEventType::LlmRequest, depth, data, HashMap::new())
+        Self::create_event(FlowEventType::LlmRequest, depth, data)
     }
 
     /// Create a tool call event
@@ -91,7 +90,7 @@ impl FlowUtils {
         })
         .unwrap();
 
-        Self::create_event(FlowEventType::ToolCall, depth, data, HashMap::new())
+        Self::create_event(FlowEventType::ToolCall, depth, data)
     }
 
     /// Create a transaction execution event
@@ -112,12 +111,7 @@ impl FlowUtils {
         })
         .unwrap();
 
-        Self::create_event(
-            FlowEventType::TransactionExecution,
-            depth,
-            data,
-            HashMap::new(),
-        )
+        Self::create_event(FlowEventType::TransactionExecution, depth, data)
     }
 
     /// Create an error event
@@ -136,7 +130,7 @@ impl FlowUtils {
         })
         .unwrap();
 
-        Self::create_event(FlowEventType::Error, depth, data, HashMap::new())
+        Self::create_event(FlowEventType::Error, depth, data)
     }
 
     /// Mark a flow log as completed with a result

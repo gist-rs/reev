@@ -33,7 +33,6 @@ fn test_flow_tracing_disabled() {
                 request_id: "test-123".to_string(),
             })
             .unwrap(),
-            metadata: std::collections::HashMap::new(),
         },
     };
 
@@ -58,7 +57,6 @@ fn test_flow_tracing_enabled() {
                 "tool_name": "test_tool",
                 "execution_time_ms": 1500
             }),
-            metadata: std::collections::HashMap::new(),
         },
     };
 

@@ -8,7 +8,6 @@ use crate::types::*;
 use crate::utils::FlowUtils;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Database-friendly flow log structure
 ///
@@ -205,9 +204,8 @@ impl FlowLogDB {
         event_type: FlowEventType,
         depth: u32,
         data: serde_json::Value,
-        metadata: HashMap<String, String>,
     ) -> Result<(), FlowError> {
-        let event = FlowUtils::create_event(event_type, depth, data, metadata);
+        let event = FlowUtils::create_event(event_type, depth, data);
         FlowUtils::add_event(&mut db_flow_log.flow, event);
         Ok(())
     }

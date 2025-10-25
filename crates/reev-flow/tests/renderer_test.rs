@@ -42,7 +42,6 @@ fn test_render_flow_with_events() {
                     "context_tokens": 100,
                     "prompt": "test prompt"
                 }),
-                metadata: std::collections::HashMap::new(),
             },
         }],
         final_result: None,

@@ -142,7 +142,6 @@ impl FlowLogUtils {
             event.event_type,
             event.depth,
             event.content.data,
-            event.content.metadata,
         )?;
         Ok(())
     }

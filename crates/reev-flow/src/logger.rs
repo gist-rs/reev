@@ -139,7 +139,6 @@ impl FlowLogger {
             depth,
             content: EventContent {
                 data: serde_json::to_value(content).unwrap_or_default(),
-                metadata: std::collections::HashMap::new(),
             },
         };
         self.events.push(event);
@@ -154,7 +153,6 @@ impl FlowLogger {
             depth,
             content: EventContent {
                 data: serde_json::to_value(content).unwrap_or_default(),
-                metadata: std::collections::HashMap::new(),
             },
         };
         self.events.push(event);
@@ -169,7 +167,6 @@ impl FlowLogger {
             depth,
             content: EventContent {
                 data: serde_json::to_value(content).unwrap_or_default(),
-                metadata: std::collections::HashMap::new(),
             },
         };
         self.events.push(event);
@@ -184,7 +181,6 @@ impl FlowLogger {
             depth,
             content: EventContent {
                 data: serde_json::to_value(content).unwrap_or_default(),
-                metadata: std::collections::HashMap::new(),
             },
         };
         self.events.push(event);
@@ -193,17 +189,17 @@ impl FlowLogger {
 
     /// Log an error event
     pub fn log_error(&mut self, content: ErrorContent, depth: u32) {
+        let message = content.message.clone();
         let event = FlowEvent {
             timestamp: SystemTime::now(),
             event_type: FlowEventType::Error,
             depth,
             content: EventContent {
-                data: serde_json::to_value(&content).unwrap_or_default(),
-                metadata: std::collections::HashMap::new(),
+                data: serde_json::to_value(content).unwrap_or_default(),
             },
         };
         self.events.push(event);
-        debug!("Logged error: {}", content.message);
+        debug!("Logged error: {}", message);
     }
 
     /// Complete the flow log with final results

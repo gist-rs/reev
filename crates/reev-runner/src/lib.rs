@@ -348,7 +348,6 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                         reev_flow::ToolExecutionStatus::Timeout => "timeout".to_string(),
                     },
                     error_message: tool_call.error_message.clone(),
-                    metadata: Some(tool_call.metadata.clone()),
                 };
 
                 if let Err(e) = db.store_tool_call_consolidated(&tool_data).await {

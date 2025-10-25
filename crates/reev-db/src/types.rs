@@ -50,7 +50,6 @@ pub struct LogEvent {
     pub timestamp: i64,     // Unix timestamp
     pub event_type: String, // 'prompt', 'tool_call', 'transaction', 'result'
     pub data: serde_json::Value,
-    pub metadata: HashMap<String, String>,
 }
 
 /// Complete session log structure
@@ -119,8 +118,6 @@ pub struct TestResult {
     pub prompt_md5: Option<String>,
     /// Execution duration in milliseconds
     pub execution_time_ms: Option<u64>,
-    /// Additional metadata
-    pub metadata: HashMap<String, serde_json::Value>,
 }
 
 // FlowLog is now imported from shared module

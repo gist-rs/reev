@@ -57,7 +57,6 @@ async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
             depth: 1,
             content: reev_flow::EventContent {
                 data: serde_json::to_value(request_content)?,
-                metadata: std::collections::HashMap::new(),
             },
         },
         reev_flow::FlowEvent {
@@ -66,7 +65,6 @@ async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
             depth: 2,
             content: reev_flow::EventContent {
                 data: serde_json::to_value(tool_call_content)?,
-                metadata: std::collections::HashMap::new(),
             },
         },
         reev_flow::FlowEvent {
@@ -75,7 +73,6 @@ async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
             depth: 3,
             content: reev_flow::EventContent {
                 data: serde_json::to_value(transaction_content)?,
-                metadata: std::collections::HashMap::new(),
             },
         },
     ];
@@ -141,7 +138,6 @@ async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         depth: 1,
         content: reev_flow::EventContent {
             data: serde_json::json!({"prompt": "Execute action"}),
-            metadata: std::collections::HashMap::new(),
         },
     });
 
@@ -151,7 +147,6 @@ async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         depth: 2,
         content: reev_flow::EventContent {
             data: serde_json::to_value(tool_call_content)?,
-            metadata: std::collections::HashMap::new(),
         },
     });
 
@@ -161,7 +156,6 @@ async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         depth: 3,
         content: reev_flow::EventContent {
             data: serde_json::to_value(error_content)?,
-            metadata: std::collections::HashMap::new(),
         },
     });
 
@@ -233,7 +227,6 @@ async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
             depth: i,
             content: reev_flow::EventContent {
                 data: serde_json::json!({"prompt": format!("Step {} prompt", i)}),
-                metadata: std::collections::HashMap::new(),
             },
         });
     }
@@ -249,7 +242,6 @@ async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
             depth: i + 3,
             content: reev_flow::EventContent {
                 data: serde_json::json!({"tool_name": tool_name, "step": i}),
-                metadata: std::collections::HashMap::new(),
             },
         });
     }
@@ -261,7 +253,6 @@ async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
         depth: 6,
         content: reev_flow::EventContent {
             data: serde_json::to_value(transaction_content)?,
-            metadata: std::collections::HashMap::new(),
         },
     });
 
@@ -341,7 +332,6 @@ async fn test_tool_result_statuses() -> Result<(), Box<dyn std::error::Error>> {
             depth: 1,
             content: reev_flow::EventContent {
                 data: serde_json::to_value(tool)?,
-                metadata: std::collections::HashMap::new(),
             },
         });
     }
@@ -373,7 +363,6 @@ async fn test_event_creation() -> Result<(), Box<dyn std::error::Error>> {
                 "prompt": "Test prompt",
                 "model": "test-model"
             }),
-            metadata: std::collections::HashMap::new(),
         },
     };
 
@@ -386,7 +375,6 @@ async fn test_event_creation() -> Result<(), Box<dyn std::error::Error>> {
                 "tool_name": "test_tool",
                 "execution_time_ms": 100
             }),
-            metadata: std::collections::HashMap::new(),
         },
     };
 
@@ -399,7 +387,6 @@ async fn test_event_creation() -> Result<(), Box<dyn std::error::Error>> {
                 "error_type": "TestError",
                 "message": "Test error message"
             }),
-            metadata: std::collections::HashMap::new(),
         },
     };
 

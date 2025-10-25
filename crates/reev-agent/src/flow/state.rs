@@ -45,8 +45,6 @@ pub struct StepResult {
     pub status: StepStatus,
     /// Timestamp when step was completed
     pub completed_at: String,
-    /// Any additional metadata
-    pub metadata: HashMap<String, String>,
 }
 
 /// Represents a single Solana instruction
@@ -214,10 +212,6 @@ impl FlowState {
                 step_id, result.description, result.status
             ));
             result_lines.push(format!("  Instructions: {}", result.instructions.len()));
-
-            if !result.metadata.is_empty() {
-                result_lines.push(format!("  Metadata: {:?}", result.metadata));
-            }
         }
 
         result_lines.join("\n")

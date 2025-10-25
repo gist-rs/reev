@@ -68,8 +68,6 @@ pub enum FlowEventType {
 pub struct EventContent {
     /// Event-specific data
     pub data: serde_json::Value,
-    /// Additional metadata
-    pub metadata: HashMap<String, String>,
 }
 
 /// LLM request content

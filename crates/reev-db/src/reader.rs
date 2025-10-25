@@ -216,7 +216,6 @@ impl DatabaseReader {
                     .map_err(|e| DatabaseError::generic_with_source("Failed to get score", e))?,
                 prompt_md5: row.get(8).ok(),
                 execution_time_ms: row.get(9).ok(),
-                metadata: HashMap::new(),
             });
         }
 

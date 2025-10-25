@@ -64,8 +64,6 @@ pub struct TestResult {
     pub prompt_md5: Option<String>,
     /// Execution duration in milliseconds
     pub execution_time_ms: Option<u64>,
-    /// Additional metadata
-    pub metadata: HashMap<String, serde_json::Value>,
 }
 
 /// YAML-based test result for structured testing
