@@ -28,12 +28,11 @@ struct Cli {
     render_flow: bool,
 }
 
-/// Initializes OpenTelemetry pipeline for tracing with enhanced file output.
+/// Initializes OpenTelemetry pipeline for tracing with console output.
 fn init_tracing() -> Result<sdktrace::SdkTracerProvider> {
-    // Initialize enhanced OpenTelemetry logging with unique session file
-    let log_file = reev_flow::init_enhanced_otel_logging()
-        .context("Failed to initialize enhanced otel logging")?;
-    info!("Enhanced OpenTelemetry log file: {}", log_file);
+    // Use regular tracing instead of enhanced otel logging to avoid file conflicts
+    // Agent will handle enhanced otel logging for tool calls
+    info!("Initializing runner tracing (agent will handle tool call logging)");
 
     let provider = sdktrace::SdkTracerProvider::builder()
         .with_resource(Resource::builder().with_service_name("reev-runner").build())

@@ -230,7 +230,7 @@ impl FlowTracer {
 pub fn init_flow_tracing() -> Result<String, Box<dyn std::error::Error>> {
     // Generate unique session ID and create default log file path
     let session_id = uuid::Uuid::new_v4().to_string();
-    let default_log_file = format!("logs/sessions/otel_{session_id}.json");
+    let default_log_file = format!("logs/sessions/otel_{session_id}.jsonl");
     let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or(default_log_file);
 
     // Ensure logs directory exists
@@ -251,7 +251,7 @@ pub fn init_flow_tracing() -> Result<String, Box<dyn std::error::Error>> {
 pub fn init_flow_tracing_with_session(
     session_id: String,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let default_log_file = format!("logs/sessions/otel_{session_id}.json");
+    let default_log_file = format!("logs/sessions/otel_{session_id}.jsonl");
     let log_file = std::env::var("REEV_TRACE_FILE").unwrap_or(default_log_file);
 
     // Ensure logs directory exists

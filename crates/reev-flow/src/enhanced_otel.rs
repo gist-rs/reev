@@ -77,7 +77,7 @@ impl EnhancedOtelLogger {
     /// Create new enhanced otel logger with unique session ID
     pub fn new() -> Result<Self> {
         let session_id = Uuid::new_v4().to_string();
-        let log_file = format!("logs/sessions/otel_{session_id}.json");
+        let log_file = format!("logs/sessions/otel_{session_id}.jsonl");
 
         // Ensure logs directory exists
         if let Some(parent) = Path::new(&log_file).parent() {
@@ -105,7 +105,7 @@ impl EnhancedOtelLogger {
 
     /// Create new enhanced otel logger with specific session ID
     pub fn with_session_id(session_id: String) -> Result<Self> {
-        let log_file = format!("logs/sessions/otel_{session_id}.json");
+        let log_file = format!("logs/sessions/otel_{session_id}.jsonl");
 
         // Ensure logs directory exists
         if let Some(parent) = Path::new(&log_file).parent() {
