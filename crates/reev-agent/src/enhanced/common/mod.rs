@@ -107,13 +107,11 @@ macro_rules! log_tool_completion {
                 }
             }
 
-            // Also log to enhanced file-based system
-            let input_params = serde_json::json!({}); // Will be populated from earlier call
+            // Also log to enhanced file-based system using update pattern
             if $success {
-                reev_flow::log_enhanced_tool_success!(
+                reev_flow::log_enhanced_tool_success_update!(
                     $tool_name,
                     $execution_time_ms,
-                    input_params,
                     $result
                 );
             } else {
@@ -122,10 +120,9 @@ macro_rules! log_tool_completion {
                 } else {
                     "Unknown error"
                 };
-                reev_flow::log_enhanced_tool_error!(
+                reev_flow::log_enhanced_tool_error_update!(
                     $tool_name,
                     $execution_time_ms,
-                    input_params,
                     error_msg
                 );
             }

@@ -182,6 +182,74 @@ impl EnhancedOtelLogger {
         Ok(calls.clone())
     }
 
+    /// Update existing tool call with completion data
+    pub fn update_tool_call(
+        &self,
+        tool_name: &str,
+        execution_time_ms: u64,
+        output_result: serde_json::Value,
+        status: ToolExecutionStatus,
+    ) -> Result<()> {
+        // Update in memory collection
+        {
+            let mut calls = self
+                .tool_calls
+                .lock()
+                .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+
+            // Find the most recent matching tool call
+            if let Some(call) = calls.iter_mut().rev().find(|c| {
+                c.tool_name == tool_name && matches!(c.status, ToolExecutionStatus::Success)
+            }) {
+                call.execution_time_ms = execution_time_ms;
+                call.output_result = output_result.clone();
+                call.status = status.clone();
+            } else {
+                // If no matching call found, create a new one
+                let new_call = EnhancedToolCall {
+                    session_id: self.session_id().to_string(),
+                    tool_name: tool_name.to_string(),
+                    timestamp: chrono::Utc::now(),
+                    execution_time_ms,
+                    input_params: serde_json::json!({}),
+                    output_result: output_result.clone(),
+                    status: status.clone(),
+                    error_message: None,
+                    metadata: serde_json::json!({}),
+                };
+                calls.push(new_call);
+            }
+        }
+
+        // Append update to file as new entry (append-only pattern)
+        {
+            let mut writer = self
+                .file_writer
+                .lock()
+                .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+
+            let update_call = EnhancedToolCall {
+                session_id: self.session_id().to_string(),
+                tool_name: tool_name.to_string(),
+                timestamp: chrono::Utc::now(),
+                execution_time_ms,
+                input_params: serde_json::json!({}),
+                output_result: output_result.clone(),
+                status: status.clone(),
+                error_message: None,
+                metadata: serde_json::json!({}),
+            };
+
+            let json_line =
+                serde_json::to_string(&update_call).map_err(EnhancedOtelError::Serialization)?;
+
+            writeln!(writer, "{json_line}").map_err(EnhancedOtelError::Io)?;
+            writer.flush().map_err(EnhancedOtelError::Io)?;
+        }
+
+        Ok(())
+    }
+
     /// Get session ID
     pub fn session_id(&self) -> &str {
         &self.session_id
@@ -347,6 +415,46 @@ macro_rules! log_enhanced_tool_error {
             serde_json::json!({}),
             $crate::enhanced_otel::ToolExecutionStatus::Error,
             Some($error_message)
+        );
+    };
+}
+
+/// Update existing tool call with completion data
+#[allow(dead_code)]
+macro_rules! log_enhanced_tool_update {
+    ($tool_name:expr, $execution_time_ms:expr, $output_result:expr, $status:expr) => {
+        if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
+            logger
+                .update_tool_call($tool_name, $execution_time_ms, $output_result, $status)
+                .unwrap_or_else(|e| {
+                    tracing::error!("Failed to update tool call {}: {}", $tool_name, e);
+                });
+        }
+    };
+}
+
+/// Update tool call with success status
+#[allow(dead_code)]
+macro_rules! log_enhanced_tool_success_update {
+    ($tool_name:expr, $execution_time_ms:expr, $output_result:expr) => {
+        $crate::log_enhanced_tool_update!(
+            $tool_name,
+            $execution_time_ms,
+            $output_result,
+            $crate::enhanced_otel::ToolExecutionStatus::Success
+        );
+    };
+}
+
+/// Update tool call with error status
+#[allow(dead_code)]
+macro_rules! log_enhanced_tool_error_update {
+    ($tool_name:expr, $execution_time_ms:expr, $error_message:expr) => {
+        $crate::log_enhanced_tool_update!(
+            $tool_name,
+            $execution_time_ms,
+            serde_json::json!({"error": $error_message}),
+            $crate::enhanced_otel::ToolExecutionStatus::Error
         );
     };
 }

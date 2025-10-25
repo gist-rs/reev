@@ -113,7 +113,7 @@
 - Runner extracts from specific file: `extract_tool_calls_from_agent_logs(session_id)`
 - Clean separation: `id` for benchmark_id, `session_id` for tracing
 
-### Business Impact: 🏁 COMPLETE SUCCESS
+**Business Impact**: 🏁 COMPLETE SUCCESS
 **100% Complete**: Session ID unification architecture fully implemented and working
 - All routing logic issues resolved
 - Core tracing and data integrity systems are operational  
@@ -122,6 +122,71 @@
 
 **Before**: Runner `f0133fcd...`, Flow `791450d6...`, Agent `7229967a...` (4+ different IDs)  
 **After**: Single unified session_id flows through entire system from start to finish
+
+## Sol Transfer Tool Call Consolidation - NEW TASK
+
+### 🚨 Problem Analysis
+**Duplicate Tool Calls**: Each `sol_transfer` operation creates 2 database rows instead of 1:
+
+```sql
+-- Row 1: Initial call with input params, empty output  
+1 | 9973fce4-2379-449c-8048-a88942205cc4 | sol_transfer | 1761359959 | 0 | {"amount":100000000,...} | {} | success | | {} | 1761359965
+
+-- Row 2: Completion call with empty input, actual output
+2 | 9973fce4-2379-449c-8048-a88942205cc4 | sol_transfer | 1761359959 | 0 | {} | "[{program_id...}]" | success | | {} | 1761359965
+```
+
+**Root Cause**: 
+- `log_tool_call!` macro creates initial entry with placeholder data
+- `log_tool_completion!` macro creates second entry with actual results  
+- No consolidation logic exists in database writer
+- Both entries have same (session_id, tool_name, start_time) but different input/output
+
+### Phase 1: Database Consolidation Logic ✅ COMPLETED
+**File**: `crates/reev-db/src/writer/sessions.rs`
+- [x] Add `store_tool_call_consolidated()` method to DatabaseWriter
+- [x] Detect duplicates by (session_id, tool_name, start_time) within 1-second window
+- [x] Merge input_params from first call + output_result from second call
+- [x] Use execution_time from completion call, discard initial 0ms placeholder
+
+### Phase 2: Enhanced Tool Call Tracking ✅ COMPLETED
+**File**: `crates/reev-agent/src/enhanced/common/mod.rs`  
+- [x] Modify `log_tool_call!` to mark as "in_progress" status
+- [x] Modify `log_tool_completion!` to update existing entry instead of creating new
+- [x] Add tool call ID tracking between start and completion
+
+### Phase 3: Database Schema Updates ✅ COMPLETED
+**File**: `crates/reev-db/.schema/current_schema.sql`
+- [x] Add status enum: 'in_progress', 'success', 'error', 'timeout'
+- [x] Add `updated_at` timestamp for tracking modifications
+- [x] Create unique index on (session_id, tool_name, start_time) to prevent duplicates
+
+### Expected Results ✅ ACHIEVED
+- Single consolidated row per tool execution with complete input/output data
+- Eliminate database storage waste and query confusion
+- Improve data integrity for analytics and debugging
+
+### Implementation Summary
+✅ **Phase 1-3 FULLY COMPLETED**:
+- **Consolidation Logic**: Added `store_tool_call_consolidated()` method that detects duplicates within 1-second window and merges input_params + output_result correctly
+- **Enhanced Tracking**: Updated logging macros to use update pattern instead of creating new entries
+- **Schema Updates**: Added proper constraints and indexes for deduplication
+- **Test Coverage**: Created comprehensive test suite covering all consolidation scenarios
+
+🧪 **Test Results**: All 5 consolidation tests passing
+- Sol transfer consolidation with input/output merging
+- Execution time precedence (non-zero preferred)
+- Time window detection (within 1 second)
+- Different tool separation
+- Outside window handling
+
+🔧 **Technical Details**:
+- Smart merging logic: input_params from first call, output_result from second call
+- Execution time consolidation: prefers actual execution time over 0ms placeholder
+- Time-based detection: uses 1-second window for grouping related calls
+- Database constraints: unique indexes prevent future duplicates
+- Runner integration: uses consolidated method for database storage
+
 
 ### Implementation Priority
 1. ✅ LlmRequest struct update (foundation)

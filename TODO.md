@@ -1,5 +1,20 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+---
+
+the db look like this
+
+1	9973fce4-2379-449c-8048-a88942205cc4	sol_transfer	1761359959	0	{"amount":100000000,"mint_address":null,"operation":"sol","recipient_pubkey":"Df2x6LiqRXEgQvXxiWNE668tBiFfhSecYHNFuC4oB265","user_pubkey":"5Q1NPFhnupvj52dAZjkWkMr4uvRMu7heuq9GBmoLJm6C"}	{}	success		{}	1761359965
+2	9973fce4-2379-449c-8048-a88942205cc4	sol_transfer	1761359959	0	{}	"[{\"program_id\":\"11111111111111111111111111111111\",\"accounts\":[{\"pubkey\":\"5Q1NPFhnupvj52dAZjkWkMr4uvRMu7heuq9GBmoLJm6C\",\"is_signer\":true,\"is_writable\":true},{\"pubkey\":\"Df2x6LiqRXEgQvXxiWNE668tBiFfhSecYHNFuC4oB265\",\"is_signer\":false,\"is_writable\":true}],\"data\":\"3Bxs411Dtc7pkFQj\"}]"	success		{}	1761359965
+
+
+it should consolidate to 1 row when write, scan code and plan
+
+---
+
+- what's metadata field btw why it's empty?
+
+- did this schema ready for scoring how good llm call the tool with times taken, low tools call with low latency should have good score (refine/suggest me on this metrics) do search code/md for score/scoring and learn from current scoring first, we
 
 agent must use sol_tool via llm tool calling, other than that is wrong, totally wrong and not allow.
 

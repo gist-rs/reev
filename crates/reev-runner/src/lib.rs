@@ -351,12 +351,12 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
                     metadata: Some(tool_call.metadata.clone()),
                 };
 
-                if let Err(e) = db.store_tool_call(&tool_data).await {
+                if let Err(e) = db.store_tool_call_consolidated(&tool_data).await {
                     warn!(
                         session_id = %session_id,
                         tool_name = %tool_call.tool_name,
                         error = %e,
-                        "Failed to store tool call in database"
+                        "Failed to store consolidated tool call in database"
                     );
                 }
             }

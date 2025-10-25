@@ -404,7 +404,7 @@ impl DatabaseWriter {
         Ok(())
     }
 
-    /// Store multiple tool calls for a session
+    /// Store multiple tool calls for a session with consolidation
     pub async fn store_tool_calls(&self, tool_calls: &[ToolCallData]) -> Result<()> {
         if tool_calls.is_empty() {
             return Ok(());
@@ -413,10 +413,107 @@ impl DatabaseWriter {
         info!(
             session_id = %tool_calls[0].session_id,
             count = tool_calls.len(),
-            "Storing multiple tool call details"
+            "Storing multiple tool call details with consolidation"
         );
 
         for tool_call in tool_calls {
+            self.store_tool_call_consolidated(tool_call).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Store tool call with automatic consolidation logic
+    /// Detects and merges duplicate entries for the same tool execution
+    pub async fn store_tool_call_consolidated(&self, tool_call: &ToolCallData) -> Result<()> {
+        info!(
+            session_id = %tool_call.session_id,
+            tool_name = %tool_call.tool_name,
+            execution_time_ms = tool_call.execution_time_ms,
+            status = %tool_call.status,
+            "Storing tool call with consolidation logic"
+        );
+
+        // Check for existing entry with same session_id, tool_name, and similar start_time
+        let mut existing_calls = self
+            .conn
+            .query(
+                "SELECT id, input_params, output_result, execution_time_ms, status
+                 FROM session_tool_calls
+                 WHERE session_id = ? AND tool_name = ?
+                 AND ABS(start_time - ?) <= 1
+                 ORDER BY created_at DESC",
+                [
+                    tool_call.session_id.clone(),
+                    tool_call.tool_name.clone(),
+                    tool_call.start_time.to_string(),
+                ],
+            )
+            .await
+            .map_err(|e| DatabaseError::query("Failed to check for existing tool calls", e))?;
+
+        if let Some(row) = existing_calls.next().await? {
+            // Found existing entry - consolidate with new data
+            let existing_id: i64 = row.get(0)?;
+            let existing_input: String = row.get(1)?;
+            let existing_output: String = row.get(2)?;
+            let existing_execution_time: i64 = row.get(3)?;
+            let _existing_status: String = row.get(4)?;
+
+            // Merge input_params (prefer non-empty)
+            let merged_input = if existing_input.trim().is_empty() || existing_input == "{}" {
+                serde_json::to_string(&tool_call.input_params).map_err(|e| {
+                    DatabaseError::serialization("Failed to serialize input_params", e)
+                })?
+            } else {
+                existing_input
+            };
+
+            // Merge output_result (prefer non-empty from either source)
+            let new_output_has_content = match &tool_call.output_result {
+                serde_json::Value::Object(o) => !o.is_empty(),
+                serde_json::Value::Array(a) => !a.is_empty(),
+                serde_json::Value::String(s) => !s.is_empty(),
+                _ => false,
+            };
+
+            let merged_output = if new_output_has_content {
+                serde_json::to_string(&tool_call.output_result).map_err(|e| {
+                    DatabaseError::serialization("Failed to serialize output_result", e)
+                })?
+            } else {
+                existing_output
+            };
+
+            // Prefer the non-zero execution time
+            let merged_execution_time = if tool_call.execution_time_ms > 0 {
+                tool_call.execution_time_ms
+            } else {
+                existing_execution_time as u64
+            };
+
+            // Update the existing entry with merged data
+            self.conn
+                .execute(
+                    "UPDATE session_tool_calls
+                     SET input_params = ?, output_result = ?, execution_time_ms = ?, status = ?
+                     WHERE id = ?",
+                    [
+                        merged_input,
+                        merged_output,
+                        merged_execution_time.to_string(),
+                        tool_call.status.clone(),
+                        existing_id.to_string(),
+                    ],
+                )
+                .await
+                .map_err(|_e| {
+                    DatabaseError::operation("Failed to update consolidated tool call")
+                })?;
+
+            info!(existing_id, "Consolidated tool call with existing entry");
+        } else {
+            // No existing entry - create new one
             self.store_tool_call(tool_call).await?;
         }
 

@@ -114,10 +114,11 @@ CREATE TABLE IF NOT EXISTS session_tool_calls (
     execution_time_ms INTEGER NOT NULL,
     input_params TEXT NOT NULL,
     output_result TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('success', 'error', 'timeout')),
+    status TEXT NOT NULL CHECK (status IN ('in_progress', 'success', 'error', 'timeout')),
     error_message TEXT,
     metadata TEXT,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    updated_at INTEGER DEFAULT (strftime('%s', 'now')),
     FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id) ON DELETE CASCADE
 );
 
@@ -145,6 +146,8 @@ CREATE INDEX IF NOT EXISTS idx_session_tool_calls_tool_name ON session_tool_call
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_status ON session_tool_calls(status);
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_start_time ON session_tool_calls(start_time);
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_session_tool ON session_tool_calls(session_id, tool_name);
+CREATE INDEX IF NOT EXISTS idx_session_tool_calls_consolidation ON session_tool_calls(session_id, tool_name, start_time);
+CREATE INDEX IF NOT EXISTS idx_session_tool_calls_updated_at ON session_tool_calls(updated_at);
 
 -- Initial data (skip auto-insertion for compatibility)
 -- INSERT OR IGNORE INTO schema_version (version, description) VALUES ('1.0', 'Phase 25: Unified logging system with session management');
