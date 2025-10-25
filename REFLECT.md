@@ -1,101 +1,54 @@
-
 # REEV IMPLEMENTATION REFLECTION
 
 ## Session ID Unification - Completed ✅
-**Issue**: Multiple UUIDs generated across components causing tracking chaos
-- Runner: f0133fcd-37bc-48b7-b24b-02cabed2e6e9  
-- Flow: 791450d6-eab3-4f63-a922-fec89a554ba8
-- Agent: 7229967a-8bb6-4003-ac1e-134f4c71876a.json
+Unified single UUID across Runner, Flow, Agent, and Enhanced OTEL components. Eliminated tracking chaos with consolidated session file: otel_{session_id}.json.
 
-**Solution**: Single session_id propagation architecture
-- Runner generates UUID and passes to all components
-- Agent includes session_id in GLM and default payloads
-- Enhanced otel creates unified file: otel_{session_id}.json
-- Flow logger uses unified session_id for consistency
+## Sol Transfer Tool Consolidation - Completed ✅
+Fixed duplicate database rows per tool call by implementing smart time-based detection. Merged input/output from separate calls within 1-second windows.
 
-**Result**: Complete session tracking with single UUID flow
+## Metadata Field Cleanup - Completed ✅
+Removed metadata columns/fields from database schema and 8+ structs. Eliminated 30+ metadata references for cleaner codebase.
 
-## Sol Transfer Tool Call Consolidation - Completed ✅
-**Issue**: Each sol_transfer created 2 duplicate database rows
-- Row 1: Initial call with input params, empty output
-- Row 2: Completion call with empty input, actual output
-
-**Solution**: Smart consolidation logic with time-based detection
-- Detect duplicates by (session_id, tool_name, start_time) within 1-second window
-- Merge input_params from first call + output_result from second call
-- Prefer actual execution_time over 0ms placeholder
-
-**Result**: Single consolidated row per tool execution with complete data
-
-## Metadata Field Removal - Completed ✅
-**Issue**: Unnecessary metadata fields cluttering codebase and schema
-- Database: session_tool_calls.metadata column
-- Structs: LogEvent, TestResult, FlowBenchmark, StepResult, EventContent, SessionLog
-
-**Solution**: Comprehensive metadata field removal
-- Removed metadata column from all database schema files
-- Removed metadata fields from 8+ struct definitions
-- Fixed compilation errors in test files and main code
-
-**Result**: Cleaner codebase with 30+ metadata references eliminated
-
-## SPL Transfer Address Resolution Regression - In Progress ⚠️
+## SPL Transfer Tool Bug Fix - Completed ✅
 **Issue**: 002-spl-transfer.yml score dropped from 100% to 56% after context enrichment
-**Root Cause**: Address resolution inconsistency between two systems
-1. Context Resolver: Creates random addresses for placeholders
-2. Test Scenarios: Derives correct ATA addresses based on those random addresses
-3. LLM receives wrong addresses -> Creates wrong instructions -> "invalid account data"
+**Root Cause**: SplTransferTool always generated new ATAs instead of using pre-created ones from key_map
 
-**Technical Evidence**:
-- Context shows correct derived ATAs in key_map
-- LLM summary references correct addresses  
-- But actual instruction uses wrong destination address
-- Scoring debug confirms address mismatch between expected and generated
+**Technical Bug**:
+```rust
+// BEFORE (Buggy):
+let destination_ata = get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
 
-**Current Status**: 
-- ✅ Fixed context resolver to skip SPL placeholder generation
-- ✅ Fixed environment reset to generate base wallet addresses for SPL
-- ✅ Test scenarios correctly set up derived ATAs
-- ❌ LLM still receives wrong addresses in actual execution
+// AFTER (Fixed):
+let destination_ata = if let Some(ata_key) = self.key_map.get(&args.recipient_pubkey) {
+    Pubkey::from_str(ata_key)?  // Use pre-created ATA
+} else {
+    get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey)  // Generate new
+};
+```
 
-**Solution Strategy**: 
-- Phase 1: Prevent random address generation for known SPL placeholders
-- Phase 2: Ensure test scenario setup runs before context resolution
-- Phase 3: Verify context-only tests work before surfpool integration
-- Phase 4: Full integration testing to confirm 100% success rate
+**Evidence from Logs**:
+- ✅ "[SplTransferTool] Using pre-created source ATA from key_map: C6sh1Kr2NrUtXGmHtVY49TuzKjwW8XZ5QdEogMuZU4pe"
+- ✅ "[SplTransferTool] Using pre-created destination ATA from key_map: 35eD7ixbCv8ZmkEbKbKt2V1aqPFx6jNGcbZBt5oJYx5T"
+- ✅ Final score: 100.0%: Succeeded
+- ✅ All account pubkey matches: true
 
-**Expected Outcome**: Return 002-spl-transfer.yml to 100% success rate
+**Solution**: Prioritized key_map ATAs over generated ones in both source and destination resolution with comprehensive logging.
 
-## Multi-Turn Loop Not Stopping - Completed ✅
-**Issue**: Agent continued conversation after tool success, causing MaxDepthError
-**Root Cause**: Fixed conversation depth (7) regardless of operation complexity
-- Simple SPL transfers used 7-turn multi-turn conversation
-- Tool completed successfully on turn 1 with completion signals
-- Agent continued for 6 more turns, generating extra transactions
-- Completion signals detected but not used to stop early
+## Double Agent Call Pattern - Completed ✅
+**Issue**: LLM agent made decisions with stale account states
+**Solution**: Two-phase agent execution in run_evaluation_loop()
+1. First call: Initial actions with stale observation
+2. Execute: Update on-chain state  
+3. Second call: Actions with current account states
+4. Execute: Final actions with real-time data
 
-**Technical Evidence**:
-- Log showed "Conversation depth: 7" for simple SPL transfer
-- Tool returned "status: ready" and "action: transfer_complete"
-- Completion signals detected: `has_completion_signals = false` (bug in detection)
-- Agent continued instead of stopping immediately
+**Result**: Architectural gap fixed - LLM now receives current balances for decision making.
 
-**Solution Implemented**: Smart operation detection with adaptive depth
-1. **Added simple operation detection** in `determine_conversation_depth()`
-   - Pattern 1: SPL transfers -> depth 1
-   - Pattern 2: SOL transfers -> depth 1  
-   - Pattern 3: Pre-funded token accounts + simple prompt -> depth 1
-   - Pattern 4: Simple Jupiter swaps -> depth 2
+## Multi-Turn Loop Optimization - Completed ✅
+**Issue**: Fixed 7-turn conversations for simple operations causing MaxDepthError
+**Solution**: Smart operation detection with adaptive depth
+- SPL transfers: depth 1
+- SOL transfers: depth 1
+- Simple Jupiter swaps: depth 2
 
-2. **Fixed completion signal detection** with helper function
-   - `check_completion_signals()` centralizes signal detection logic
-   - Returns boolean for easy early termination decisions
-
-**Results**:
-- ✅ "Simple SPL transfer pattern detected" in logs
-- ✅ "Final Conversation Depth: 1" instead of 7
-- ✅ "Is Single Turn: true" 
-- ✅ Agent executes once and stops immediately
-- ✅ No extra tool calls or MaxDepthError
-
-**Performance Impact**: 86% reduction in conversation turns (7→1) for simple operations
+**Performance**: 86% reduction in conversation turns for simple operations

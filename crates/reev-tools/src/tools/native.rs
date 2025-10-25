@@ -285,23 +285,21 @@ impl Tool for SplTransferTool {
         // Start timing for flow tracking
         let start_time = std::time::Instant::now();
 
-        // Resolve addresses using key_map (like SolTransferTool does)
+        // Log the full key_map for debugging
+        info!(
+            "[SplTransferTool] Available key_map entries: {:?}",
+            self.key_map
+        );
+
+        // Resolve user pubkey first
         let user_pubkey = self
             .key_map
             .get("USER_WALLET_PUBKEY")
             .unwrap_or(&args.user_pubkey)
             .clone();
 
+        info!("[SplTransferTool] Resolved user_pubkey: {}", user_pubkey);
         let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
-            .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
-
-        let recipient_pubkey = self
-            .key_map
-            .get(&args.recipient_pubkey)
-            .unwrap_or(&args.recipient_pubkey)
-            .clone();
-
-        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
             .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
 
         // Validate mint address
@@ -311,6 +309,57 @@ impl Tool for SplTransferTool {
         let mint_pubkey = Pubkey::from_str(&mint_address)
             .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
 
+        // Resolve source ATA - prioritize key_map ATAs over generated ones
+        let source_ata = if let Some(user_ata_key) = self.key_map.get("USER_USDC_ATA") {
+            info!(
+                "[SplTransferTool] Using pre-created source ATA from key_map: {}",
+                user_ata_key
+            );
+            Pubkey::from_str(user_ata_key)
+                .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?
+        } else {
+            let generated_ata = get_associated_token_address(&user_pubkey_parsed, &mint_pubkey);
+            info!(
+                "[SplTransferTool] Generated new source ATA: {}",
+                generated_ata
+            );
+            generated_ata
+        };
+
+        // Resolve destination ATA - prioritize key_map ATAs over generated ones
+        let destination_ata = if let Some(recipient_ata_key) =
+            self.key_map.get(&args.recipient_pubkey)
+        {
+            info!(
+                "[SplTransferTool] Using pre-created destination ATA from key_map: {} (key: {})",
+                recipient_ata_key, args.recipient_pubkey
+            );
+            Pubkey::from_str(recipient_ata_key)
+                .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?
+        } else {
+            // Only parse recipient pubkey if we need to generate ATA
+            let recipient_pubkey = self
+                .key_map
+                .get(&args.recipient_pubkey)
+                .unwrap_or(&args.recipient_pubkey)
+                .clone();
+
+            info!(
+                "[SplTransferTool] Resolving recipient pubkey for ATA generation: {}",
+                recipient_pubkey
+            );
+            let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
+                .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
+
+            let generated_ata =
+                get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
+            info!(
+                "[SplTransferTool] Generated new destination ATA: {}",
+                generated_ata
+            );
+            generated_ata
+        };
+
         // Validate amount
         if args.amount == 0 {
             return Err(SplTransferError::InvalidAmount(
@@ -318,13 +367,9 @@ impl Tool for SplTransferTool {
             ));
         }
 
-        // Get associated token accounts
-        let source_ata = get_associated_token_address(&user_pubkey_parsed, &mint_pubkey);
-        let destination_ata = get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
-
         info!(
-            "[SplTransferTool] Transferring {} tokens from {} to {}",
-            args.amount, source_ata, destination_ata
+            "[SplTransferTool] Transferring {} tokens from {} to {} (mint: {})",
+            args.amount, source_ata, destination_ata, mint_pubkey
         );
 
         // Handle SPL transfer

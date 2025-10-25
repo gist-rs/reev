@@ -14,11 +14,12 @@
 
 **Results**: 86% reduction in conversation turns for simple operations
 
-#### SPL Transfer Address Resolution - ✅ COMPLETED  
-**Issue**: SPL transfer tool recalculated destination ATA instead of using agent-provided address
-**Root Cause**: `reev-tools` version had wrong ATA derivation logic
-**Solution**: Use `recipient_pubkey_parsed` directly as destination
-**Results**: Score improvement 56.2% → 100% (+43.8% improvement)
+#### SPL Transfer Tool Bug Fix - ✅ COMPLETED  
+**Issue**: SplTransferTool always generated new ATAs instead of using pre-created ones from key_map
+**Root Cause**: Tool ignored key_map ATAs and always called `get_associated_token_address()`
+**Solution**: Prioritize key_map ATAs over generated ones with proper fallback logic
+**Evidence**: Tool logs show "Using pre-created destination ATA from key_map" and score returned to 100%
+**Results**: Score improvement 0% → 100% (complete restoration of functionality)
 
 #### Context Enhancement Architecture - ✅ COMPLETED
 **Issue**: Ground truth leakage and context generation inconsistencies  

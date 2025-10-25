@@ -37,7 +37,7 @@ impl Drop for DependencyManagerGuard {
     fn drop(&mut self) {
         info!("Dependency manager dropped - processes will be cleaned up on next startup");
         // Note: Actual cleanup is handled at startup to avoid runtime-in-runtime issues
-        // This ensures clean state for the next run
+        // This ensures clean state for next run
     }
 }
 
@@ -76,7 +76,7 @@ async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::Depe
     Ok((guard, urls))
 }
 
-/// Runs all benchmarks found at the given path and returns the results.
+/// Runs all benchmarks found at given path and returns results.
 pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestResult>> {
     let benchmark_paths = discover_benchmarks(&path)?;
     if benchmark_paths.is_empty() {
@@ -522,7 +522,7 @@ async fn run_flow_benchmark(
             ground_truth: test_case.ground_truth.clone(),
         };
 
-        // Execute the step
+        // Execute step
         let (step_observation, step_trace, step_actions) =
             run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
                 .await
@@ -687,4 +687,31 @@ async fn run_evaluation_loop(
     Vec<reev_lib::agent::AgentAction>,
 )> {
     let mut trace = ExecutionTrace::new(test_case.prompt.clone());
+
+    let fee_payer = env.fee_payer_placeholder();
+    // The agent now returns a vector of actions.
+    let actions = agent
+        .get_action(
+            &test_case.id,
+            &test_case.prompt,
+            initial_observation,
+            Some(&fee_payer.to_owned()),
+            Some(test_case.ground_truth.skip_instruction_validation),
+            Some(&test_case.initial_state),
+        )
+        .await?;
+
+    // The environment's step function now takes a vector of actions to be bundled
+    // into a single transaction.
+    let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
+
+    let trace_step = reev_lib::trace::TraceStep {
+        thought: None,
+        action: actions.clone(),
+        observation: step_result.observation.clone(),
+        info: step_result.info,
+    };
+    trace.add_step(trace_step);
+    info!("Episode finished.");
+    Ok((step_result.observation, trace, actions))
 }
