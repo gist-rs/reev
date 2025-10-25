@@ -9,7 +9,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use solana_sdk::{program_pack::Pack, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{program_pack::Pack, pubkey::Pubkey};
 use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -80,14 +80,16 @@ impl ContextResolver {
 
             // Check if it's a placeholder or a literal pubkey
             if Pubkey::from_str(pubkey_str).is_err() {
-                // It's a placeholder, resolve to real address
+                // It's a placeholder - defer resolution to test scenarios
+                // Don't generate random addresses here as they won't match derived addresses
                 if !key_map.contains_key(pubkey_str) {
-                    let new_pubkey = solana_sdk::signature::Keypair::new();
-                    key_map.insert(pubkey_str.clone(), new_pubkey.pubkey().to_string());
+                    // Use a deterministic placeholder that will be replaced by test scenarios
+                    // For ATAs, the test scenarios will derive the correct addresses
+                    // For wallet placeholders, test scenarios will assign real addresses
+                    key_map.insert(pubkey_str.clone(), format!("PLACEHOLDER_{}", pubkey_str));
                     info!(
-                        "[ContextResolver] Resolved placeholder '{}' to '{}'",
-                        pubkey_str,
-                        new_pubkey.pubkey()
+                        "[ContextResolver] Deferring resolution for placeholder '{}' (will be resolved by test scenarios)",
+                        pubkey_str
                     );
                 }
             } else {

@@ -285,10 +285,23 @@ impl Tool for SplTransferTool {
         // Start timing for flow tracking
         let start_time = std::time::Instant::now();
 
-        // Parse and validate all addresses - this will catch "Invalid Base58 string" error
-        let user_pubkey_parsed = Pubkey::from_str(&args.user_pubkey)
+        // Resolve addresses using key_map (like SolTransferTool does)
+        let user_pubkey = self
+            .key_map
+            .get("USER_WALLET_PUBKEY")
+            .unwrap_or(&args.user_pubkey)
+            .clone();
+
+        let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
             .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
-        let recipient_pubkey_parsed = Pubkey::from_str(&args.recipient_pubkey)
+
+        let recipient_pubkey = self
+            .key_map
+            .get(&args.recipient_pubkey)
+            .unwrap_or(&args.recipient_pubkey)
+            .clone();
+
+        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
             .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
 
         // Validate mint address

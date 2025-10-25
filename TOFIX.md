@@ -1,75 +1,63 @@
 # TOFIX.md
 
-## Remaining Issues
+## SPL Transfer Address Resolution Race Condition - CRITICAL 🚨
 
-### ✅ RESOLVED: Session ID Unification - Fixed
+### Problem Description
+**002-spl-transfer.yml regression from 100% to 56% after context enrichment**
 
-**Previous Problem**: 
-Session ID was missing from LLM API requests when `agent_name="local"`, causing 422 Unprocessable Entity errors due to missing `session_id` field.
+Root cause: **Address generation race condition** between environment reset and test scenario setup
 
-**Root Cause**: 
-The "default reev API format" payload in `LlmAgent::get_action()` did not include the `session_id` field, even when it was available on the agent instance.
+### Current Architecture Flow
+```
+1. env.reset() → Generates random addresses for ALL placeholders
+2. setup_spl_scenario() → Attempts to overwrite with correct derived addresses  
+3. run_evaluation_loop() → LLM receives mixed/incorrect addresses
+```
 
-**Solution Applied**:
-- Modified `crates/reev-lib/src/llm_agent.rs` to add `session_id` to default payload format
-- Added proper logging to confirm session_id inclusion
-- Both GLM and default API routes now include session_id when available
+### Specific Issue
+```rust
+// RESET: Creates random addresses
+USER_WALLET_PUBKEY → address_A  
+RECIPIENT_WALLET_PUBKEY → address_B
 
-**Verification**:
-- ✅ Session ID now included in LLM payloads: `"session_id": "1fdc9e9f-5688-4ab5-8dad-2bfc22de58c3"`
-- ✅ LLM API requests succeed without 422 errors
-- ✅ Tool calls logged with correct session_id in otel files
-- ✅ Single session_id flow achieved: runner → agent → otel → runner extraction
+// SETUP: Derives ATAs from random addresses  
+USER_USDC_ATA → derived_from(address_A)  ✅
+RECIPIENT_USDC_ATA → derived_from(address_B)  ❌
 
-**Architecture Status**: 
-- Session ID unification is **COMPLETE**
-- Single session_id flows through entire system
-- Clean separation: `id` for benchmark_id, `session_id` for tracing
-- Ready for production use
+// RACE: If reset runs again after setup
+USER_WALLET_PUBKEY → address_C (overwrites address_A!)
+RECIPIENT_WALLET_PUBKEY → address_D (overwrites address_B!)
 
-## Minor Cleanup Items
+// LLM gets inconsistent context and creates wrong instructions
+```
 
-### 📝 FlowAgent Session ID Enhancement
-- Added `new_with_session()` method to FlowAgent for consistency
-- Maintains backward compatibility with existing `new()` method
-- Not currently used in runner flow but available for future use
+### Evidence from Logs
+```
+INFO [reset] Generated new address for placeholder 'USER_WALLET_PUBKEY': DBGZHPxVD4hds2LjXw46keEuRpJjM5Gva3ciQMChmL7
+INFO [setup] Set state for 8Yvk3sMeu615qH4FKmn2Ye35z3Kxo7S5yh2BkPQaRru6 with owner DBGZHPxVD4hds2LjXw46keEuRpJjM5Gva3ciQMChmL7 and amount 50000000
+```
 
-### 📝 Empty Otel Files 
-- Runner's early tracing initialization creates empty otel file
-- Does not affect functionality - actual tool calls go to session-specific file
-- Consider minor improvement in future to avoid empty file creation
+### Root Cause
+Environment reset generates addresses for placeholders that test scenarios should control. But current logic allows generating base wallet addresses for SPL benchmarks, creating race conditions.
 
-### ✅ Remove Metadata Fields - COMPLETED
-**Problem**: Multiple metadata fields exist throughout codebase that need removal:
-- Database schema: `session_tool_calls.metadata` column
-- Struct definitions: `LogEvent`, `TestResult`, `FlowBenchmark`, `StepResult`, `EventContent`, `SessionLog`
-- No actual database files found - can delete without migration
+### Current Fix Status
+✅ **Context Resolver**: Fixed to skip SPL placeholder generation  
+✅ **Environment Reset**: Partially fixed - still generates base wallet addresses  
+❌ **Integration**: Still has race condition between reset and setup
 
-**Solution Applied**:
-1. ✅ Removed metadata column from database schema files
-2. ✅ Removed metadata fields from all struct definitions
-3. ✅ Removed metadata-related code usage (serialization, assignments, logging)
-4. ✅ Updated all function calls and test files
-5. ✅ Fixed compilation errors and borrow checker issues
+### Required Fix
+**Split responsibility cleanly**:
+- **Environment Reset**: Only generate SYSTEM accounts (fee payer), not benchmark-specific accounts
+- **Test Scenarios**: Handle ALL benchmark-specific address generation (wallets + derived ATAs)
 
-**Files Modified**:
-- `crates/reev-db/.schema/current_schema.sql`
-- `crates/reev-db/.schema/003_add_tool_calls_table.sql`
-- `crates/reev-db/src/types.rs`
-- `crates/reev-db/src/shared/benchmark.rs`
-- `crates/reev-agent/src/flow/state.rs`
-- `crates/reev-agent/src/flow/benchmark.rs`
-- `crates/reev-agent/src/flow/agent.rs`
-- `crates/reev-agent/src/flow/secure/executor.rs`
-- `crates/reev-agent/examples/200-jup-swap-then-lend-deposit.rs`
-- `crates/reev-flow/src/types.rs`
-- `crates/reev-flow/src/utils.rs`
-- `crates/reev-flow/src/logger.rs`
-- `crates/reev-flow/src/database.rs`
-- `crates/reev-lib/src/session_logger/mod.rs`
-- `crates/reev-db/src/writer/sessions.rs`
-- `crates/reev-db/src/reader.rs`
-- `crates/reev-runner/src/lib.rs`
-- Multiple test files in `crates/reev-flow/tests/`
+This eliminates the race condition by ensuring clear ownership of address generation.
 
-**Status**: All metadata fields removed, project compiles successfully
+### Files to Modify
+1. `crates/reev-lib/src/solana_env/reset.rs` - Line ~55
+2. `crates/reev-lib/src/test_scenarios.rs` - Review setup ordering
+3. Consider if additional coordination needed in `crates/reev-runner/src/lib.rs`
+
+### Success Criteria
+- `002-spl-transfer.yml` returns to 100% success rate
+- All other SPL benchmarks work correctly
+- SOL transfer benchmarks remain unaffected

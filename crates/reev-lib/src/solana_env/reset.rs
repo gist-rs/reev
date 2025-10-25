@@ -50,11 +50,39 @@ pub(crate) async fn handle_reset(
         let pubkey_placeholder = &account_config.pubkey;
         if Pubkey::from_str(pubkey_placeholder).is_err() {
             // It's a placeholder, so create a keypair for it if one doesn't exist.
-            if !env.keypair_map.contains_key(pubkey_placeholder) {
+            // IMPORTANT: Don't generate random addresses for known SPL-related placeholders
+            // that will be derived properly by test scenarios
+            let should_generate = match pubkey_placeholder.as_str() {
+                // For SPL benchmarks, generate base wallet addresses so test scenarios can derive ATAs
+                // but don't generate ATA placeholders as those will be derived
+                "USER_USDC_ATA" | "RECIPIENT_USDC_ATA" => false,
+                "USER_WALLET_PUBKEY" | "RECIPIENT_WALLET_PUBKEY" => true,
+                // For other placeholders, generate as before
+                _ => true,
+            };
+
+            if should_generate && !env.pubkey_map.contains_key(pubkey_placeholder) {
                 let keypair = Keypair::new();
-                env.pubkey_map
-                    .insert(pubkey_placeholder.clone(), keypair.pubkey());
+                let pubkey = keypair.pubkey();
+                env.pubkey_map.insert(pubkey_placeholder.clone(), pubkey);
                 env.keypair_map.insert(pubkey_placeholder.clone(), keypair);
+                info!(
+                    "[reset] Generated new address for placeholder '{}': {}",
+                    pubkey_placeholder, pubkey
+                );
+            } else if env.pubkey_map.contains_key(pubkey_placeholder) {
+                // Address already exists (likely from test scenarios), preserve it
+                let existing_pubkey = env.pubkey_map.get(pubkey_placeholder).unwrap();
+                info!(
+                    "[reset] Preserving existing address for placeholder '{}': {}",
+                    pubkey_placeholder, existing_pubkey
+                );
+            } else {
+                // Known placeholder that should be handled by test scenarios
+                info!(
+                    "[reset] Skipping address generation for known SPL placeholder '{}'",
+                    pubkey_placeholder
+                );
             }
         }
 
