@@ -84,10 +84,7 @@ pub(crate) fn get_observation(
                             "token_account_owner".to_string(),
                             json!(token_account.owner.to_string()),
                         );
-                        obj.insert(
-                            "amount".to_string(),
-                            json!(token_account.amount.to_string()),
-                        );
+                        obj.insert("amount".to_string(), json!(token_account.amount));
                     }
                 }
             }

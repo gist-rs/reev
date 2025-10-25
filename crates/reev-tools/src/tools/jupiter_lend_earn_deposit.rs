@@ -66,7 +66,7 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. IMPORTANT: This tool will automatically validate the balance against available funds. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
+            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. CRITICAL: Read the CURRENT ON-CHAIN CONTEXT to check available token balances BEFORE calling this tool. The amount parameter MUST be in the token's smallest denomination (e.g., lamports for SOL, smallest units for USDC). For USDC with 6 decimals, 1 USDC = 1,000,000 units. This tool will automatically validate the balance against available funds. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -80,7 +80,7 @@ impl Tool for JupiterLendEarnDepositTool {
                     },
                     "amount": {
                         "type": "number",
-                        "description": "The amount of the token to deposit, in its smallest denomination (e.g., lamports for SOL). This will be validated against available balance."
+                        "description": "The amount of token to deposit, in its smallest denomination (e.g., lamports for SOL, 1,000,000 = 1 USDC for 6 decimals). CRITICAL: Read the EXACT balance from CURRENT ON-CHAIN CONTEXT and use that PRECISE value. For 'deposit all', use the EXACT amount shown in context (e.g., if context shows 'amount: 383193564', use 383193564). The context provides balances as NUMBERS. Do NOT interpret as decimals or add zeros. This will be validated against available balance."
                     }
                 },
                 "required": ["user_pubkey", "asset_mint", "amount"],

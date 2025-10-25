@@ -1,8 +1,8 @@
 ## DO
 - DO add test to tests folder.
-- Always diag after edit, fix diag error, follow PLAN.md TASKS.md, update plan PLAN.md TASKS.md when complete
-- Add what to fix in TOFIX.md for fix anything and updated when fixed.
-- Then fixed add reflect to REFLECT.md, but keep it short.
+- Always diag after edit, fix diag error, follow PLAN.md TASKS.md, update plan `PLAN.md` when complete
+- Add issue in `ISSUES.md` for fix anything and updated when fixed, keep only last 10 issues, ideally open issues should not over 50%.
+- Then fixed add reflect to `REFLECT.md`, but keep it short, only critical one.
 - Try to keep all md under 320 lines, keep only important and use short word, less noise, keep revise for compact.
 - Follow modular architecture, Keep coding files under 320-512 lines, sparate to smalelr files if need.
 - Always run `cargo clippy --fix --allow-dirty` and fix after done edit.

@@ -153,7 +153,7 @@ impl ContextResolver {
                             );
                             obj.insert(
                                 "amount".to_string(),
-                                serde_json::json!(token_account.amount.to_string()),
+                                serde_json::json!(token_account.amount),
                             );
                         }
                     }
@@ -245,7 +245,7 @@ impl ContextResolver {
                             );
                             obj.insert(
                                 "amount".to_string(),
-                                serde_json::json!(token_account.amount.to_string()),
+                                serde_json::json!(token_account.amount),
                             );
                         }
                     }
@@ -281,10 +281,8 @@ impl ContextResolver {
                         if let Some(current_mint) = account.get("mint").and_then(|v| v.as_str()) {
                             if current_mint == output_mint {
                                 // Update the amount with the swap result
-                                account.insert(
-                                    "amount".to_string(),
-                                    serde_json::json!(output_amount.to_string()),
-                                );
+                                account
+                                    .insert("amount".to_string(), serde_json::json!(output_amount));
                                 info!(
                                     "[ContextResolver] Updated {} balance to {} from swap result",
                                     placeholder, output_amount
@@ -307,10 +305,7 @@ impl ContextResolver {
             for (placeholder, account_state) in &mut context.account_states {
                 if placeholder.contains("USDC") || placeholder.contains("usdc") {
                     if let Some(account) = account_state.as_object_mut() {
-                        account.insert(
-                            "amount".to_string(),
-                            serde_json::json!(usdc_received.to_string()),
-                        );
+                        account.insert("amount".to_string(), serde_json::json!(usdc_received));
                         info!(
                             "[ContextResolver] Updated USDC account {} balance to {}",
                             placeholder, usdc_received

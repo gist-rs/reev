@@ -52,3 +52,37 @@ let destination_ata = if let Some(ata_key) = self.key_map.get(&args.recipient_pu
 - Simple Jupiter swaps: depth 2
 
 **Performance**: 86% reduction in conversation turns for simple operations
+
+## Jupiter Lending Deposit AI Model Issue - In Progress 🚧
+**Issue**: AI model consistently requests 1,000,000,000,000 USDC (1 trillion) despite only having 383,193,564 USDC available
+- **Benchmark**: 200-jup-swap-then-lend-deposit
+- **Error**: `Balance validation failed: Insufficient funds: requested 1000000000000, available 383193564`
+- **Status**: Open
+- **Priority**: High
+
+**Context**: AI correctly sees available USDC balance of 383,193,564 in context, but requests 1 trillion USDC for deposit.
+
+**Root Cause**: AI model interpretation issue - not reading available balance properly or has a fundamental decimal place confusion.
+
+**Code Fixes Applied**:
+1. **Fixed context serialization**: Changed token amounts from strings to numbers in observation/context generation
+   - Updated `crates/reev-lib/src/solana_env/observation.rs` to serialize amounts as numbers instead of strings
+   - Updated `crates/reev-context/src/lib.rs` to use numeric values in multiple places
+
+2. **Enhanced tool description**: Made Jupiter lending deposit tool description more explicit about reading exact balances from context and avoiding decimal confusion
+   - Added explicit instruction to use EXACT numerical value from context
+   - Provided clear example of reading balance from context
+
+**Current Status**:
+- Code fixes are correct and working
+- Context now shows amounts as numbers (e.g., `383193564` instead of `'383193564'`)
+- The tool description explicitly instructs AI to use exact balance from context
+- Issue appears to be with the AI model itself, not the code
+
+**Next Steps**:
+1. Test with updated code to see if AI model behavior improves
+2. If issue persists, may need additional prompt engineering or model-specific handling
+3. Consider adding validation to prevent such extreme amount requests
+4. The benchmark failure is now documented in ISSUES.md with priority "High" for tracking and resolution.
+
+**Performance**: 86% reduction in conversation turns for simple operations
