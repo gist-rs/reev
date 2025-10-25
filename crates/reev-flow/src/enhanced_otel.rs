@@ -379,7 +379,14 @@ macro_rules! log_enhanced_tool_call {
                 output_result: $output_result.clone(),
                 status: $status,
                 error_message: $error_message.map(|s| s.to_string()),
-                metadata: serde_json::json!({}),
+                metadata: serde_json::json!({
+                    "logged_at": chrono::Utc::now().to_rfc3339(),
+                    "tool_type": $tool_name,
+                    "logger_version": "1.0.0",
+                    "hostname": std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string()),
+                    "pid": std::process::id(),
+                    "consolidation": "enabled"
+                }),
             };
 
             if let Err(e) = logger.log_tool_call(tool_call) {

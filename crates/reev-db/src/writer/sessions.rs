@@ -485,9 +485,14 @@ impl DatabaseWriter {
                 existing_output
             };
 
-            // Prefer the non-zero execution time
+            // Prefer the non-zero execution time, but always prefer larger execution time
             let merged_execution_time = if tool_call.execution_time_ms > 0 {
-                tool_call.execution_time_ms
+                let tool_time = tool_call.execution_time_ms;
+                if tool_time > existing_execution_time as u64 {
+                    tool_time
+                } else {
+                    existing_execution_time as u64
+                }
             } else {
                 existing_execution_time as u64
             };
