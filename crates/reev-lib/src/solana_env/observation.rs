@@ -20,32 +20,54 @@ pub(crate) fn get_observation(
     last_tx_logs: Vec<String>,
 ) -> Result<AgentObservation> {
     let mut account_states = HashMap::new();
-    let mut key_map = env.pubkey_map.clone();
+    let mut key_map: HashMap<String, Pubkey> = env.pubkey_map.clone();
 
     // --- 1. Ensure all derived addresses are in the environment's key_map ---
     for assertion in &ground_truth.final_state_assertions {
         if let Some(derivation) = assertion.address_derivation() {
             let placeholder = assertion.pubkey();
-            // Only derive and insert if the placeholder is not already mapped.
+
+            // For SPL placeholders, skip processing to preserve environment addresses
+            // SPECIAL HANDLING FOR SPL TRANSFERS: Never regenerate known placeholders
+            let is_spl_placeholder = placeholder.contains("USDC_ATA")
+                || placeholder.contains("USER_USDC_ATA")
+                || (placeholder.contains("USER_WALLET_PUBKEY")
+                    && env.pubkey_map.contains_key(placeholder));
+
+            info!(
+                "[observation] Processing placeholder: {}, is_spl_placeholder: {}",
+                placeholder, is_spl_placeholder
+            );
+
+            if is_spl_placeholder {
+                // Skip SPL placeholders - their addresses should already be in env.pubkey_map
+                info!(
+                    "[Observation] Skipping SPL placeholder {} to preserve environment address",
+                    placeholder
+                );
+                continue;
+            }
+
+            // Only derive and insert if placeholder is not already mapped.
             if !env.pubkey_map.contains_key(placeholder) {
                 let AddressDerivation::AssociatedTokenAccount { owner, mint } = derivation;
                 if let Some(owner_pubkey) = key_map.get(owner) {
                     let mint_pubkey = Pubkey::from_str(mint)?;
                     let derived_ata = get_associated_token_address(owner_pubkey, &mint_pubkey);
-                    let placeholder = assertion.pubkey();
+                    let placeholder_str = placeholder.to_string();
                     info!(
                         "Mapping derived ATA {} to placeholder '{}'",
-                        derived_ata, placeholder
+                        derived_ata, placeholder_str
                     );
                     // Add the derived address to the list of accounts to fetch
-                    key_map.insert(placeholder.to_string(), derived_ata);
+                    key_map.insert(placeholder_str, derived_ata);
                 }
             }
         }
     }
 
     // --- 2. Fetch all account states ---
-    for (name, pubkey) in &env.pubkey_map {
+    for (name, pubkey) in &key_map {
         if let Ok(account) = env.rpc_client.get_account(pubkey) {
             let mut state = json!({
                 "lamports": account.lamports,
@@ -88,8 +110,7 @@ pub(crate) fn get_observation(
         }
     }
 
-    let final_key_map = env
-        .pubkey_map
+    let final_key_map = key_map
         .iter()
         .map(|(k, v)| (k.clone(), v.to_string()))
         .collect();

@@ -23,6 +23,18 @@ pub(crate) fn handle_step(
     let mut info = json!({});
     let mut reward = 0.0;
 
+    // Debug: Log what's in ground_truth
+    info!(
+        "[handle_step] ground_truth has {} final_state_assertions",
+        ground_truth.final_state_assertions.len()
+    );
+    for assertion in &ground_truth.final_state_assertions {
+        info!(
+            "[handle_step] Processing assertion for placeholder: {}",
+            assertion.pubkey()
+        );
+    }
+
     // --- 2. Handle API benchmarks (skip_instruction_validation) ---
     if ground_truth.skip_instruction_validation {
         // For API benchmarks, success is determined by making tool calls, not transactions

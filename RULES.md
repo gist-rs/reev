@@ -21,9 +21,10 @@
 - **Test Coverage**: All features must have benchmarks with 100% success rates
 - **Clippy First**: Run `cargo clippy --fix --allow-dirty` before commits
 
-### 4. Jupiter Integration Rules
+### 4. TX and Jupiter Integration Rules
+- **Tool-Only Instructions**: All instructions must come from tool calls
 - **API-Only Instructions**: All Jupiter instructions must come from official API calls
-- **No LLM Generation**: LLM is forbidden from generating Jupiter transaction data
+- **No LLM Generation**: LLM is forbidden from generating any transaction data
 - **Exact API Extraction**: Preserve complete API response structure
 - **SDK Enforcement**: Use only official Jupiter SDK methods
 

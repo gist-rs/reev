@@ -292,10 +292,10 @@ impl AgentHelper {
         benchmark_id: &str,
         initial_state: &[reev_lib::benchmark::InitialStateItem],
     ) -> Option<usize> {
-        // Pattern 1: Simple SPL transfers (direct token transfers between known accounts)
+        // Pattern 1: SPL transfers need 5 turns for proper discovery and execution
         if benchmark_id.contains("spl-transfer") || benchmark_id.contains("002-spl-transfer") {
-            info!("[AgentHelper] 🎯 Simple SPL transfer pattern detected");
-            return Some(1); // Single turn for simple transfers
+            info!("[AgentHelper] 🎯 SPL transfer pattern detected - using 5 turns");
+            return Some(5); // Allow 5 turns for SPL transfers to succeed
         }
 
         // Pattern 2: Native SOL transfers (simple account-to-account transfers)
