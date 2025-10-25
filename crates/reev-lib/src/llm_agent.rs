@@ -226,12 +226,25 @@ impl Agent for LlmAgent {
             payload
         } else {
             // Default reev API format
-            json!({
+            let mut payload = json!({
                 "id": id,
                 "context_prompt": context_prompt,
                 "prompt": prompt,
                 "model_name": self.model_name,
-            })
+            });
+
+            // Add session_id if available
+            if let Some(ref session_id) = self.session_id {
+                payload["session_id"] = json!(session_id);
+                info!(
+                    "[LlmAgent] Added session_id to default payload: {}",
+                    session_id
+                );
+            } else {
+                warn!("[LlmAgent] No session_id available for default payload");
+            }
+
+            payload
         };
 
         // 3. Log the raw request for debugging.

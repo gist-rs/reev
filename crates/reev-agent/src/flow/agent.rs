@@ -53,7 +53,13 @@ pub struct FlowAgent {
 impl FlowAgent {
     /// Create a new FlowAgent with specified model
     pub async fn new(model_name: &str) -> Result<Self> {
+        Self::new_with_session(model_name, uuid::Uuid::new_v4().to_string()).await
+    }
+
+    /// Create a new FlowAgent with specified model and session_id
+    pub async fn new_with_session(model_name: &str, session_id: String) -> Result<Self> {
         info!("[FlowAgent] Starting flow agent with model: {}", model_name);
+        info!("[FlowAgent] Using session_id: {}", session_id);
 
         let state = FlowState::new(0);
 
@@ -62,7 +68,7 @@ impl FlowAgent {
             _tools: std::collections::HashMap::new(), // Tools created by model agents
             state,
             key_map: std::collections::HashMap::new(), // Managed by context resolver
-            session_id: uuid::Uuid::new_v4().to_string(),
+            session_id,
         })
     }
 

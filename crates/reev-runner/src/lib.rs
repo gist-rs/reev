@@ -426,7 +426,7 @@ async fn extract_tool_calls_from_agent_logs(session_id: &str) -> Vec<reev_flow::
 
     // Look for specific otel log file for this session
     let logs_dir = Path::new("logs/sessions");
-    let otel_filename = format!("otel_{}.json", session_id);
+    let otel_filename = format!("otel_{session_id}.json");
     let otel_filepath = logs_dir.join(&otel_filename);
     let mut all_tool_calls = Vec::new();
 
