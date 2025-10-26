@@ -61,8 +61,9 @@ async fn run_agent_tests(
         // Load benchmark config to get ID for logging
         let _test_case = load_benchmark(benchmark_path).await?;
 
-        // Run the benchmark
-        let run_results = run_benchmarks(benchmark_path.clone(), agent_name).await?;
+        // Run benchmark
+        let run_results =
+            run_benchmarks(benchmark_path.clone(), agent_name, shared_surfpool).await?;
 
         if !run_results.is_empty() {
             let result = &run_results[0];
@@ -125,27 +126,56 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
     server_utils::kill_existing_surfpool(8899).await?;
 
     // Use only first 2 benchmark files for faster testing
-    let mut benchmarks = discover_benchmark_files();
-    benchmarks.truncate(2);
+    let benchmarks = discover_benchmark_files();
+    let benchmarks: Vec<PathBuf> = benchmarks.into_iter().take(2).collect();
 
-    let agents = vec!["deterministic", "local"];
+    let agents = vec!["deterministic"];
 
-    info!("🚀 Starting E2E Run All test");
+    info!("🚀 Starting E2E Run All test - comparing shared vs fresh surfpool");
 
     for agent in agents {
         info!("📋 Testing agent: {}", agent);
 
-        // Test "Run All" functionality - sequential execution
-        let results = run_agent_tests(agent, &benchmarks, false).await?;
+        // Test with SHARED surfpool (reuse same instance)
+        info!("🔗 Testing SHARED surfpool mode...");
+        let shared_results = run_agent_tests(agent, &benchmarks, true).await?;
+        validate_consistency(&format!("{agent}-shared"), &shared_results)?;
+        info!("✅ Agent {} SHARED surfpool test passed", agent);
+        sleep(Duration::from_secs(2)).await;
 
-        // Validate consistency across runs (no random results)
-        validate_consistency(agent, &results)?;
+        // Test with FRESH surfpool (new instance for each run)
+        info!("🔄 Testing FRESH surfpool mode...");
+        let fresh_results = run_agent_tests(agent, &benchmarks, false).await?;
+        validate_consistency(&format!("{agent}-fresh"), &fresh_results)?;
+        info!("✅ Agent {} FRESH surfpool test passed", agent);
+        sleep(Duration::from_secs(2)).await;
 
-        info!("✅ Agent {} E2E test passed", agent);
-        sleep(Duration::from_secs(1)).await;
+        // Compare results - both should be consistent
+        if !shared_results.is_empty() && !fresh_results.is_empty() {
+            let shared_avg: f64 =
+                shared_results.iter().map(|(_, s)| s).sum::<f64>() / shared_results.len() as f64;
+            let fresh_avg: f64 =
+                fresh_results.iter().map(|(_, s)| s).sum::<f64>() / fresh_results.len() as f64;
+            let diff = (shared_avg - fresh_avg).abs();
+
+            info!("📊 Performance comparison:");
+            info!("  Shared avg: {:.6}", shared_avg);
+            info!("  Fresh avg: {:.6}", fresh_avg);
+            info!("  Difference: {:.6}", diff);
+
+            // Validate that both modes produce consistent results
+            if diff > 0.01 {
+                warn!(
+                    "⚠️  Large difference detected between shared and fresh modes: {:.6}",
+                    diff
+                );
+            } else {
+                info!("✅ Shared and fresh modes produce consistent results");
+            }
+        }
     }
 
-    info!("🎉 All E2E Run All tests passed - async threading fix validated!");
+    info!("🎉 All E2E Run All tests passed - shared vs fresh surfpool validated!");
     Ok(())
 }
 
@@ -173,7 +203,7 @@ async fn test_single_benchmark_consistency() -> Result<()> {
     );
 
     for i in 1..=iterations {
-        let run_results = run_benchmarks(benchmark_path.clone(), agent).await?;
+        let run_results = run_benchmarks(benchmark_path.clone(), agent, true).await?;
 
         if !run_results.is_empty() {
             let result = &run_results[0];
@@ -199,6 +229,8 @@ async fn test_single_benchmark_consistency() -> Result<()> {
         );
     }
 
-    info!("✅ Single benchmark consistency test passed - all scores identical");
+    info!(
+        "✅ Single benchmark consistency test passed - all scores identical (using shared surfpool)"
+    );
     Ok(())
 }

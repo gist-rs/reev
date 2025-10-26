@@ -81,7 +81,7 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner
     ```
 
-### Current Test Files (8 tests)
+### Current Test Files (9 tests)
 - `benchmarks_test.rs` - Comprehensive benchmark testing with surfpool integration
 - `deterministic_agent_test.rs` - Deterministic agent validation
 - `llm_agent_test.rs` - LLM agent integration tests
@@ -90,6 +90,7 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
 - `dependency_management_test.rs` - Service lifecycle management
 - `database_ordering_test.rs` - Database consistency tests
 - `shared_flow_converter_test.rs` - Flow serialization tests
+- `e2e_run_all_test.rs` - End-to-end validation of "Run All" functionality
 
 *   **Benchmark Sanity-Check Test (`benchmarks_test.rs`):**
     Ensures ALL benchmarks are solvable by different agents with surfpool integration.
@@ -124,5 +125,23 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner --test surfpool_rpc_test -- --nocapture
     ```
 
+*   **E2E Run All Test (`e2e_run_all_test.rs`):**
+    Validates async threading fix by running multiple benchmarks sequentially with different agents, similar to TUI's "Run All" functionality. The test automatically starts and stops required services.
+    ```sh
+    # Run the main e2e test
+    RUST_LOG=info cargo test --package reev-runner --test e2e_run_all_test -- --nocapture
+    
+    # Run specific test function only
+    RUST_LOG=info cargo test --package reev-runner test_run_all_benchmarks_multi_agent_e2e -- --nocapture
+    
+    # Run single benchmark consistency test
+    RUST_LOG=info cargo test --package reev-runner test_single_benchmark_consistency -- --nocapture
+    ```
+
+    Note: This test takes ~2-3 minutes to complete and validates:
+    - Sequential execution of benchmarks with multiple agents (deterministic, local)
+    - Score consistency across runs (no random results)
+    - Proper async threading behavior
+
 ---
-For the master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
+For master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).

@@ -123,25 +123,26 @@ pub async fn execute_benchmark_background(
     }
 
     info!("CALLING BENCHMARK RUNNER");
-    let execution_result = match reev_runner::run_benchmarks(benchmark_path.clone(), &agent).await {
-        Ok(mut results) => {
-            info!("Benchmark runner returned {} results", results.len());
-            if let Some(result) = results.pop() {
-                info!("Successfully got result from benchmark runner");
-                Ok(result)
-            } else {
-                error!("Benchmark runner returned no results");
-                Err(anyhow::anyhow!("Benchmark runner returned no results"))
+    let execution_result =
+        match reev_runner::run_benchmarks(benchmark_path.clone(), &agent, false).await {
+            Ok(mut results) => {
+                info!("Benchmark runner returned {} results", results.len());
+                if let Some(result) = results.pop() {
+                    info!("Successfully got result from benchmark runner");
+                    Ok(result)
+                } else {
+                    error!("Benchmark runner returned no results");
+                    Err(anyhow::anyhow!("Benchmark runner returned no results"))
+                }
             }
-        }
-        Err(e) => {
-            error!("BENCHMARK RUNNER FAILED");
-            error!("Detailed error: {:?}", e);
-            error!("Error source chain: {}", e);
-            error!("Error debug: {:?}", e);
-            Err(e)
-        }
-    };
+            Err(e) => {
+                error!("BENCHMARK RUNNER FAILED");
+                error!("Detailed error: {:?}", e);
+                error!("Error source chain: {}", e);
+                error!("Error debug: {:?}", e);
+                Err(e)
+            }
+        };
 
     info!("BENCHMARK RUNNER CALL COMPLETED");
 

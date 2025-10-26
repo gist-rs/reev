@@ -21,6 +21,8 @@ use std::{
 };
 use tracing::{debug, info, instrument, warn};
 
+use crate::dependency::{DependencyConfig, DependencyManager};
+
 pub mod dependency;
 pub mod renderer;
 
@@ -41,21 +43,23 @@ impl Drop for DependencyManagerGuard {
     }
 }
 
-/// Initialize dependency management and ensure services are running
-async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
+/// Initialize dependencies with custom configuration
+async fn init_dependencies_with_config(
+    config: DependencyConfig,
+) -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
     debug!("Initializing dependency management...");
 
-    // Clean up any existing processes before starting new ones
-    kill_existing_reev_agent(9090)
-        .await
-        .context("Failed to cleanup existing reev-agent processes")?;
-    kill_existing_surfpool(8899)
-        .await
-        .context("Failed to cleanup existing surfpool processes")?;
+    // Clean up any existing processes before starting new ones (unless shared_instances is true)
+    if !config.shared_instances {
+        kill_existing_reev_agent(9090)
+            .await
+            .context("Failed to cleanup existing reev-agent processes")?;
+        kill_existing_surfpool(8899)
+            .await
+            .context("Failed to cleanup existing surfpool processes")?;
+    }
 
-    let config = dependency::DependencyConfig::from_env();
-    let mut manager = dependency::DependencyManager::new(config)
-        .context("Failed to create dependency manager")?;
+    let mut manager = DependencyManager::new(config)?;
 
     // Set up signal handlers for graceful shutdown
     manager
@@ -77,7 +81,13 @@ async fn init_dependencies() -> Result<(DependencyManagerGuard, dependency::Depe
 }
 
 /// Runs all benchmarks found at given path and returns results.
-pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestResult>> {
+/// If shared_surfpool is true, reuses existing service instances.
+/// If false, creates fresh instances for each run.
+pub async fn run_benchmarks(
+    path: PathBuf,
+    agent_name: &str,
+    shared_surfpool: bool,
+) -> Result<Vec<TestResult>> {
     let benchmark_paths = discover_benchmarks(&path)?;
     if benchmark_paths.is_empty() {
         return Ok(vec![]);
@@ -86,11 +96,24 @@ pub async fn run_benchmarks(path: PathBuf, agent_name: &str) -> Result<Vec<TestR
     // Kill any existing API processes to prevent database lock conflicts
     reev_lib::server_utils::kill_existing_api(3001).await?;
 
-    // Initialize dependency management system
-    info!("Starting dependency initialization...");
-    let _dependency_guard = init_dependencies()
+    // Initialize dependency management system based on shared_surfpool flag
+    if shared_surfpool {
+        info!("🔴 Using shared surfpool mode - reusing existing instances...");
+        let _dependency_guard = init_dependencies_with_config(DependencyConfig {
+            shared_instances: true,
+            ..Default::default()
+        })
         .await
-        .context("Failed to initialize dependencies")?;
+        .context("Failed to initialize shared dependencies")?;
+    } else {
+        info!("✨ Using fresh surfpool mode - creating new instances...");
+        let _dependency_guard = init_dependencies_with_config(DependencyConfig {
+            shared_instances: false,
+            ..Default::default()
+        })
+        .await
+        .context("Failed to initialize fresh dependencies")?;
+    }
     info!("Dependency initialization completed successfully");
 
     info!("Initializing database...");
