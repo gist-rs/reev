@@ -379,7 +379,28 @@ struct LlmResponse {
     flows: Option<reev_lib::agent::FlowData>,
 }
 
-/// Structs for deserializing the `context_prompt` YAML.
+/// Structs for deserializing the multi-step flow context YAML.
+#[derive(Debug, Deserialize)]
+struct MultiStepFlowContext {
+    #[serde(rename = "🔄 MULTI-STEP FLOW CONTEXT")]
+    _flow_content: String,
+}
+
+/// Structs for deserializing the enhanced `context_prompt` YAML.
+#[derive(Debug, Deserialize)]
+struct EnhancedContext {
+    #[serde(rename = "🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS")]
+    resolved_addresses: HashMap<String, String>,
+    #[allow(dead_code)]
+    account_states: HashMap<String, serde_json::Value>,
+    #[allow(dead_code)]
+    fee_payer_placeholder: Option<String>,
+    #[serde(rename = "📝 INSTRUCTIONS")]
+    #[allow(dead_code)]
+    instructions: Option<serde_json::Value>,
+}
+
+/// Legacy AgentContext for backward compatibility
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct AgentContext {
@@ -391,6 +412,41 @@ struct AgentContext {
 struct MockParams {
     #[serde(default)]
     mock: bool,
+}
+
+/// Helper function to extract key_map from multi-step flow context content
+fn extract_key_map_from_multi_step_flow(yaml_str: &str) -> HashMap<String, String> {
+    let mut key_map = HashMap::new();
+
+    // Look for the "🔑 RESOLVED ADDRESSES FOR OPERATIONS:" section
+    let lines: Vec<&str> = yaml_str.lines().collect();
+    let mut in_resolved_section = false;
+
+    for line in lines {
+        if line.contains("🔑 RESOLVED ADDRESSES FOR OPERATIONS:") {
+            in_resolved_section = true;
+            continue;
+        }
+        if line.contains("💡 IMPORTANT:") || line.contains("🔑 CRITICAL:") {
+            in_resolved_section = false;
+            continue;
+        }
+        if in_resolved_section && line.trim().is_empty() {
+            continue;
+        }
+        if in_resolved_section {
+            // Parse lines like "USER_WALLET_PUBKEY: D3kpfdQaTT4WpnQzGH7zA3cwMDP84Vy1b2m9rdY6Yo9G"
+            if let Some(colon_pos) = line.find(':') {
+                let key = line[..colon_pos].trim();
+                let value = line[colon_pos + 1..].trim();
+                if !key.is_empty() && !value.is_empty() {
+                    key_map.insert(key.to_string(), value.to_string());
+                }
+            }
+        }
+    }
+
+    key_map
 }
 
 /// Axum handler for the `GET /health` endpoint.
@@ -554,14 +610,32 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         payload.id
     );
 
+    let _yaml_str = payload
+        .context_prompt
+        .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
+        .trim_end_matches("\n\n---")
+        .trim();
+
     let yaml_str = payload
         .context_prompt
         .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
-        .trim_end_matches("\n\n\n---")
+        .trim_end_matches("\n\n---")
         .trim();
-    let context: AgentContext =
-        serde_yaml::from_str(yaml_str).context("Failed to parse context_prompt YAML")?;
-    let key_map = context.key_map;
+
+    // Check if it contains multi-step flow markers first
+    let key_map = if yaml_str.contains("🔄 MULTI-STEP FLOW CONTEXT") {
+        extract_key_map_from_multi_step_flow(yaml_str)
+    } else if let Ok(enhanced_context) = serde_yaml::from_str::<EnhancedContext>(yaml_str) {
+        enhanced_context.resolved_addresses
+    } else if let Ok(legacy_context) = serde_yaml::from_str::<AgentContext>(yaml_str) {
+        legacy_context.key_map
+    } else {
+        let enhanced_err = serde_yaml::from_str::<EnhancedContext>(_yaml_str).unwrap_err();
+        let legacy_err = serde_yaml::from_str::<AgentContext>(_yaml_str).unwrap_err();
+        anyhow::bail!(
+            "Failed to parse context_prompt YAML. Enhanced error: {enhanced_err}, Legacy error: {legacy_err}"
+        );
+    };
 
     // The coding agents return one or more instructions. We serialize the result
     // into a JSON string to match the format expected by the runner.

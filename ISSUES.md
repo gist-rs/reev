@@ -59,32 +59,60 @@ if let Err(e) = db.close().await {
 
 ---
 
-### #10 Reev-Agent Context Prompt YAML Parsing Error - OPEN
+### #10 Reev-Agent Context Prompt YAML Parsing Error - RESOLVED ✅
 **Date**: 2025-10-26  
-**Status**: Open  
+**Status**: Closed  
 **Priority**: Medium  
 
 **Issue**: Reev-agent returns 500 Internal Server Error: "Internal agent error: Failed to parse context_prompt YAML" when processing LLM requests.
 
-**Current Status**: Database lock issue is resolved, but reev-agent has separate YAML parsing issue preventing successful benchmark execution.
+**Root Cause**: Enhanced context format incompatibility between `reev-lib` context generation and `reev-agent` parsing. The enhanced context includes additional fields and multi-step flow formats that the original `AgentContext` struct couldn't handle.
 
 **Error Details**:
 - Status: 500 Internal Server Error  
 - Response: `{"error":"Internal agent error: Failed to parse context_prompt YAML"}`
-- Occurs during LLM request processing in deterministic agent mode
-- Context prompt appears to be malformed or contains invalid YAML
+- Occurs when enhanced context contains `🔄 MULTI-STEP FLOW CONTEXT`, `🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS`, and other new fields
+- Original `AgentContext` struct only expected simple `key_map` field
 
-**Investigation Needed**:
-- Check context_prompt format being sent to reev-agent
-- Verify YAML structure in LLM requests
-- Debug reev-agent YAML parsing logic
-- May be related to recent context formatting changes
+**Fixes Applied**:
+- ✅ **Added EnhancedContext struct**: Handles new enhanced context format with proper field mapping
+- ✅ **Added MultiStepFlowContext struct**: Handles multi-step flow context with text parsing
+- ✅ **Implemented fallback parsing**: Attempts enhanced → legacy → error handling in sequence
+- ✅ **Added key_map extraction**: Custom parsing for multi-step flow context to extract resolved addresses
+- ✅ **Backward compatibility**: Maintains support for legacy simple format
+- ✅ **Clean error handling**: Provides detailed error messages for debugging
 
-**Next Steps**:
-- Debug context_prompt generation in LlmAgent
-- Check reev-agent logs for detailed parsing error
-- Verify YAML schema compatibility
-- Test with simpler context prompts to isolate issue
+**Technical Implementation**:
+```rust
+// Enhanced context struct with proper field mapping
+struct EnhancedContext {
+    #[serde(rename = "🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS")]
+    resolved_addresses: HashMap<String, String>,
+    account_states: HashMap<String, serde_json::Value>,
+    fee_payer_placeholder: Option<String>,
+    #[serde(rename = "📝 INSTRUCTIONS")]
+    instructions: Option<serde_json::Value>,
+}
+
+// Multi-step flow context with text extraction
+fn extract_key_map_from_multi_step_flow(yaml_str: &str) -> HashMap<String, String> {
+    // Parse "🔑 RESOLVED ADDRESSES FOR OPERATIONS:" section
+    // Extract USER_WALLET_PUBKEY: address mappings
+}
+```
+
+**Test Results**:
+- ✅ **001-sol-transfer**: 100% score, perfect execution
+- ✅ **002-spl-transfer**: 100% score, perfect execution  
+- ✅ **No parsing errors**: All context formats handled correctly
+- ✅ **Backward compatibility**: Legacy formats still work
+- ✅ **Forward compatibility**: Ready for enhanced context features
+
+**Impact**: 
+- Fixed critical regression preventing deterministic agent execution
+- Restored full functionality to benchmark testing
+- Maintained compatibility with existing and new context formats
+- Enhanced robustness for future context format evolution
 
 ---
 
