@@ -97,6 +97,11 @@ impl FlowDatabaseWriter {
     pub fn inner_mut(&mut self) -> &mut DatabaseWriter {
         &mut self.inner
     }
+
+    /// Close the underlying database connection
+    pub async fn close(&self) -> Result<()> {
+        self.inner.close().await
+    }
 }
 
 // Implement Deref to provide direct access to DatabaseWriter methods

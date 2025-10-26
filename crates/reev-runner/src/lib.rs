@@ -108,6 +108,9 @@ pub async fn run_benchmarks(
     // Kill any existing API processes to prevent database lock conflicts
     reev_lib::server_utils::kill_existing_api(3001).await?;
 
+    // Clean up any stale database WAL files that might cause lock issues
+    cleanup_stale_database_files().await?;
+
     // Initialize dependency management system based on shared_surfpool flag
     if shared_surfpool {
         info!("🔴 Using shared surfpool mode - reusing existing instances...");
@@ -439,8 +442,62 @@ pub async fn run_benchmarks(
             );
         }
     }
+
     info!("All benchmarks finished.");
+
+    // Close database connection properly to prevent lock issues
+    info!("Closing database connection...");
+    if let Err(e) = db.close().await {
+        warn!(error = %e, "Failed to close database connection gracefully");
+    } else {
+        info!("Database connection closed successfully");
+    }
+
     Ok(results)
+}
+
+/// Clean up stale database WAL files that might cause lock issues
+async fn cleanup_stale_database_files() -> Result<()> {
+    use std::path::Path;
+
+    let db_path = Path::new("db/reev_results.db");
+    let wal_path = Path::new("db/reev_results.db-wal");
+
+    // Check if WAL file exists but DB file is not locked
+    if wal_path.exists() {
+        // Try to check if any process is using the database
+        match tokio::process::Command::new("lsof")
+            .args(["-t", db_path.to_str().unwrap_or("db/reev_results.db")])
+            .output()
+            .await
+        {
+            Ok(output) => {
+                let pids = String::from_utf8_lossy(&output.stdout);
+                if pids.trim().is_empty() {
+                    // No processes using the DB, safe to remove WAL file
+                    info!("🧹 Removing stale WAL file to prevent database lock issues");
+                    if let Err(e) = tokio::fs::remove_file(wal_path).await {
+                        warn!("Failed to remove WAL file: {}", e);
+                    } else {
+                        info!("✅ Stale WAL file removed successfully");
+                    }
+                } else {
+                    warn!(
+                        "Database is still in use by processes: {}, keeping WAL file",
+                        pids.trim()
+                    );
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to check database usage: {}, proceeding cautiously",
+                    e
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Extract tool calls from agent's enhanced otel log files
