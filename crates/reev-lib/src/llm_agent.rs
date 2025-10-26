@@ -287,6 +287,8 @@ impl Agent for LlmAgent {
                 "context_prompt": context_prompt,
                 "prompt": prompt,
                 "model_name": self.model_name,
+                "account_states": observation.account_states,
+                "key_map": observation.key_map,
             });
 
             // Add session_id if available

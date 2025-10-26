@@ -63,17 +63,22 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
         return Ok(response_text);
     }
 
-    // Parse the context to extract key_map for tools
-    let yaml_str = payload
-        .context_prompt
-        .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
-        .trim_end_matches("\n\n\n---")
-        .trim();
+    // Extract key_map from payload first (primary source)
+    let mut key_map = payload.key_map.clone().unwrap_or_default();
 
-    let context: AgentContext = serde_yaml::from_str(yaml_str).unwrap_or(AgentContext {
-        key_map: HashMap::new(),
-    });
-    let key_map = context.key_map;
+    // If no key_map in payload, try to extract from YAML context (fallback)
+    if key_map.is_empty() {
+        let yaml_str = payload
+            .context_prompt
+            .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")
+            .trim_end_matches("\n\n\n---")
+            .trim();
+
+        let context: AgentContext = serde_yaml::from_str(yaml_str).unwrap_or(AgentContext {
+            key_map: HashMap::new(),
+        });
+        key_map = context.key_map;
+    }
 
     // Debug: Log key_map being passed to tools
     debug!("[run_agent] Key map for tools: {:?}", key_map);

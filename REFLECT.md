@@ -18,6 +18,19 @@ struct EnhancedContext {
 }
 
 // Fallback parsing: enhanced → legacy → error handling
+```
+
+## USER_WALLET_PUBKEY Placeholder Resolution Issue - RESOLVED ✅
+**Issue**: LLM agent was using placeholder names (e.g., "USER_WALLET_PUBKEY") directly as pubkeys instead of resolved addresses, causing "Invalid Base58 string" parsing errors.
+
+**Root Cause**: `key_map` containing resolved addresses was not being passed from reev-lib to reev-agent service in the default API path (used by "local" agent).
+
+**Fix Applied**:
+1. Added `key_map` and `account_states` to default payload in `reev-lib/src/llm_agent.rs`
+2. Updated context builder to show placeholder names with [PLACEHOLDER] markers instead of resolved addresses
+3. Updated instruction text to guide LLM to use placeholder names that tools will resolve
+
+**Result**: 001-sol-transfer.yml now executes successfully with perfect score (1.0) using resolved addresses.
 let key_map = if yaml_str.contains("🔄 MULTI-STEP FLOW CONTEXT") {
     extract_key_map_from_multi_step_flow(yaml_str)
 } else if let Ok(enhanced_context) = serde_yaml::from_str::<EnhancedContext>(yaml_str) {
