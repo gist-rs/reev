@@ -1,18 +1,22 @@
+//! 🤖 Enhanced OpenAI Agent with Superior Multi-Turn Capabilities
+//!
+//! This agent leverages the Rig framework's multi-turn conversation to enable
+//! step-by-step reasoning, adaptive execution, and superior decision making
+//! that demonstrates AI capabilities beyond deterministic approaches.
+//!
+//! 🎯 IMPORTANT: For GLM models, this agent uses unified GLM logic to ensure
+//! identical context and wallet handling as ZAIAgent. Only the OpenAI-specific
+//! request/response handling differs from other implementations.
+
 use anyhow::Result;
 use rig::{completion::Prompt, prelude::*, providers::openai::Client};
 use std::collections::HashMap;
 use tracing::{info, warn};
 
 use crate::{
-    enhanced::common::{extract_execution_results, AgentHelper, AgentTools},
+    enhanced::common::{extract_execution_results, AgentHelper, AgentTools, UnifiedGLMAgent},
     LlmRequest,
 };
-
-/// 🤖 Enhanced OpenAI Agent with Superior Multi-Turn Capabilities
-///
-/// This agent leverages the Rig framework's multi-turn conversation to enable
-/// step-by-step reasoning, adaptive execution, and superior decision making
-/// that demonstrates AI capabilities beyond deterministic approaches.
 pub struct OpenAIAgent;
 
 impl OpenAIAgent {
@@ -27,6 +31,11 @@ impl OpenAIAgent {
         key_map: HashMap<String, String>,
     ) -> Result<String> {
         info!("[OpenAIAgent] Running enhanced multi-turn agent with model: {model_name}");
+
+        // 🎯 Check if this is a GLM model that should use unified logic
+        if model_name.starts_with("glm-") {
+            return Self::run_glm_with_unified_logic(model_name, payload, key_map).await;
+        }
 
         // 🚨 Check for allowed tools filtering (for flow operations)
         let allowed_tools = payload.allowed_tools.as_ref();
@@ -232,5 +241,91 @@ impl OpenAIAgent {
             Some(tool_calls),
             "OpenAIAgent",
         )
+    }
+
+    /// 🧠 Run GLM models using unified logic for identical context and wallet handling
+    ///
+    /// This method ensures that GLM models routed through OpenAIAgent use the same
+    /// context building, wallet creation, and prompt mapping as ZAIAgent. Only the
+    /// OpenAI-specific request/response handling differs.
+    async fn run_glm_with_unified_logic(
+        model_name: &str,
+        payload: LlmRequest,
+        key_map: HashMap<String, String>,
+    ) -> Result<String> {
+        info!("[OpenAIAgent] Running GLM model with unified logic: {model_name}");
+
+        // 🎯 Use unified GLM logic for shared components
+        let unified_data = UnifiedGLMAgent::run(model_name, payload, key_map).await?;
+
+        info!("[OpenAIAgent] === OPENAI-SPECIFIC GLM REQUEST HANDLING ===");
+        info!(
+            "[OpenAIAgent] Conversation Depth: {}",
+            unified_data.conversation_depth
+        );
+
+        // 🔑 Initialize OpenAI client for GLM models
+        let (client, actual_model_name) = if let Ok(zai_api_key) = std::env::var("ZAI_API_KEY") {
+            let zai_api_url = std::env::var("ZAI_API_URL")
+                .unwrap_or_else(|_| "https://api.z.ai/api/paas/v4".to_string());
+
+            info!(
+                "[OpenAIAgent] Using GLM via OpenAI client with ZAI endpoint: {}",
+                zai_api_url
+            );
+
+            let client = Client::builder(&zai_api_key)
+                .base_url(&zai_api_url)
+                .build()?;
+            (client, model_name.to_string())
+        } else {
+            return Err(anyhow::anyhow!(
+                "GLM model '{model_name}' requires ZAI_API_KEY environment variable"
+            ));
+        };
+
+        // 🛠️ Build agent using unified tools and context
+        let agent = client
+            .completion_model(&actual_model_name)
+            .completions_api()
+            .into_agent_builder()
+            .preamble(&unified_data.enhanced_prompt)
+            .tool(unified_data.tools.sol_tool)
+            .tool(unified_data.tools.spl_tool)
+            .tool(unified_data.tools.jupiter_swap_tool)
+            .tool(unified_data.tools.jupiter_lend_earn_deposit_tool)
+            .tool(unified_data.tools.jupiter_lend_earn_withdraw_tool)
+            .tool(unified_data.tools.jupiter_lend_earn_mint_tool)
+            .tool(unified_data.tools.jupiter_lend_earn_redeem_tool)
+            .tool(unified_data.tools.jupiter_earn_tool)
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // .tool(unified_data.tools.balance_tool)
+            .tool(unified_data.tools.lend_earn_tokens_tool)
+            .build();
+
+        info!("[OpenAIAgent] === OPENAI GLM EXECUTION START ===");
+        info!(
+            "[OpenAIAgent] Final request being sent to agent:\n{}",
+            unified_data.enhanced_user_request
+        );
+
+        // Execute the request using OpenAI's multi-turn agent
+        let response = agent
+            .prompt(&unified_data.enhanced_user_request)
+            .multi_turn(unified_data.conversation_depth as usize)
+            .await?;
+
+        let response_str = response.to_string();
+        info!("[OpenAIAgent] OpenAI GLM execution completed");
+        info!(
+            "[OpenAIAgent] Raw response from OpenAI GLM agent: {}",
+            response_str
+        );
+
+        // 🎯 Extract tool calls from OpenTelemetry traces
+        let tool_calls = AgentHelper::extract_tool_calls_from_otel();
+
+        // 🎯 Use unified response formatting
+        UnifiedGLMAgent::format_response(&response_str, "OpenAIAgent-GM", Some(tool_calls)).await
     }
 }

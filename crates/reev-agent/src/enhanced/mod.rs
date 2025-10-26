@@ -23,7 +23,10 @@ pub mod openai;
 pub mod zai_agent;
 
 // Re-export main components for easier access
-pub use common::{extract_execution_results, AgentHelper, AgentTools, ExecutionResult};
+pub use common::{
+    extract_execution_results, AgentHelper, AgentTools, ExecutionResult, UnifiedGLMAgent,
+    UnifiedGLMData,
+};
 pub use enhanced_context::{EnhancedContextAgent, RequestAnalysis};
 // pub use glm_coding_agent::GlmCodingAgent; // Removed - now using ZAIAgent for GLM models
 // pub use gemini::GeminiAgent; // Not implemented yet

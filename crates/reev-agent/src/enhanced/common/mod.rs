@@ -453,6 +453,152 @@ impl AgentHelper {
     }
 }
 
+/// 🤖 Unified GLM Agent for Shared Logic
+///
+/// This function contains all the shared logic for GLM models regardless of
+/// which provider (OpenAI or ZAI) handles the request/response. The only
+/// difference should be the request/response wrapper.
+///
+/// ## Shared Components:
+/// - ✅ Context building and wallet info creation
+/// - ✅ Tool instantiation and configuration
+/// - ✅ Prompt enhancement and depth determination
+/// - ✅ Execution result extraction
+/// - ✅ Response formatting
+///
+/// ## Provider-Specific (parameterized):
+/// - 🔄 Request handling (OpenAI vs ZAI completion APIs)
+/// - 🔄 Response parsing
+pub struct UnifiedGLMAgent;
+
+impl UnifiedGLMAgent {
+    /// 🧠 Run unified GLM agent with shared logic
+    ///
+    /// This function ensures identical context and wallet handling for all GLM models,
+    /// whether routed through OpenAIAgent or ZAIAgent.
+    pub async fn run(
+        model_name: &str,
+        payload: LlmRequest,
+        key_map: HashMap<String, String>,
+    ) -> Result<UnifiedGLMData> {
+        info!("[UnifiedGLMAgent] Running unified GLM agent with model: {model_name}");
+
+        // 🚨 Check for allowed tools filtering (for flow operations)
+        let allowed_tools = payload.allowed_tools.as_ref();
+        if let Some(tools) = allowed_tools {
+            info!(
+                "[UnifiedGLMAgent] Flow mode: Only allowing {} tools: {:?}",
+                tools.len(),
+                tools
+            );
+        }
+
+        // 🧠 Build enhanced context with account information using common helper
+        let (context_integration, enhanced_prompt_data, enhanced_prompt) =
+            AgentHelper::build_enhanced_context(&payload, &key_map)?;
+
+        // 🧠 ADAPTIVE CONVERSATION DEPTH: Use context-aware depth optimization
+        let conversation_depth = AgentHelper::determine_conversation_depth(
+            &context_integration,
+            &enhanced_prompt_data,
+            payload.initial_state.as_deref().unwrap_or(&[]),
+            &key_map,
+            &payload.id,
+        );
+
+        // Log prompt information using common helper
+        AgentHelper::log_prompt_info(
+            "UnifiedGLMAgent",
+            &payload,
+            &enhanced_prompt_data,
+            &enhanced_prompt,
+            conversation_depth,
+        );
+
+        // 🛠️ Instantiate tools using common helper
+        let tools = AgentTools::new(key_map.clone());
+
+        // 🚨 CRITICAL LOGGING: Log the full enhanced prompt being sent to LLM
+        info!("[UnifiedGLMAgent] === FULL PROMPT BEING SENT TO LLM ===");
+        info!(
+            "[UnifiedGLMAgent] Final prompt length: {} chars",
+            enhanced_prompt.len()
+        );
+        info!("[UnifiedGLMAgent] === END FULL PROMPT ===");
+
+        // Add explicit stop instruction to the user request for simple operations
+        let enhanced_user_request = AgentHelper::enhance_user_request(
+            &enhanced_prompt_data.prompt,
+            conversation_depth,
+            "UnifiedGLMAgent",
+        );
+
+        info!("[UnifiedGLMAgent] === UNIFIED GLM EXECUTION START ===");
+        info!(
+            "[UnifiedGLMAgent] Final request being sent to agent:\n{}",
+            enhanced_user_request
+        );
+        info!("[UnifiedGLMAgent] Available tools: SolTransferTool, SplTransferTool, JupiterSwapTool, AccountBalanceTool, etc.");
+        info!(
+            "[UnifiedGLMAgent] KeyMap keys: {:?}",
+            key_map.keys().collect::<Vec<_>>()
+        );
+
+        // Return unified data structure for provider-specific handling
+        Ok(UnifiedGLMData {
+            execution_result: ExecutionResult {
+                transactions: Vec::new(), // Will be populated by provider
+                summary: String::new(),   // Will be populated by provider
+                signatures: Vec::new(),   // Will be populated by provider
+            },
+            tool_calls: Vec::new(), // Tool calls will be extracted by provider
+            context_integration,
+            enhanced_prompt_data,
+            enhanced_prompt,
+            enhanced_user_request,
+            tools,
+            conversation_depth,
+        })
+    }
+
+    /// 🎯 Extract and format comprehensive response (shared)
+    pub async fn format_response(
+        response_str: &str,
+        agent_name: &str,
+        tool_calls: Option<Vec<serde_json::Value>>,
+    ) -> Result<String> {
+        // 🎯 Extract execution results from response
+        info!("[{agent_name}] === EXTRACTION PHASE ===");
+        info!("[{agent_name}] Raw response: {}", response_str);
+
+        let execution_result = extract_execution_results(response_str, agent_name).await?;
+        info!(
+            "[{agent_name}] Extracted {} transactions",
+            execution_result.transactions.len()
+        );
+        info!("[{agent_name}] Summary: {}", execution_result.summary);
+        info!(
+            "[{agent_name}] Signatures: {:?}",
+            execution_result.signatures
+        );
+
+        // 🎯 Format final response using common helper
+        AgentHelper::format_comprehensive_response(execution_result, tool_calls, agent_name)
+    }
+}
+
+/// 📦 Unified GLM execution data structure
+pub struct UnifiedGLMData {
+    pub execution_result: ExecutionResult,
+    pub tool_calls: Vec<serde_json::Value>,
+    pub context_integration: ContextIntegration,
+    pub enhanced_prompt_data: EnhancedPromptData,
+    pub enhanced_prompt: String,
+    pub enhanced_user_request: String,
+    pub tools: AgentTools,
+    pub conversation_depth: usize,
+}
+
 /// 🛑 Check if tool execution has completed successfully
 /// Returns true if any completion signals are detected
 pub fn check_completion_signals(response_str: &str, agent_name: &str) -> bool {

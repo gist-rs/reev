@@ -2,23 +2,35 @@
 
 ## Open Issues
 
-### #1 AI Model Amount Request Issue - High
-**Date**: 2025-06-17  
-**Status**: Open  
-**Priority**: High  
+### #2 GLM SPL Transfer ATA Resolution Issue - Medium
+**Date**: 2025-10-26  
+**Status**: In Progress  
+**Priority**: Medium  
 
-AI model was requesting 1,000,000,000,000 USDC (1 trillion) for deposit in benchmark `200-jup-swap-then-lend-deposit` step 2, despite only having 383,193,564 USDC available in context.
+**Issue**: GLM models (glm-4.6-coding) through reev-agent are generating wrong recipient ATAs for SPL transfers. Instead of using pre-created ATAs from benchmark setup, the LLM generates new ATAs or uses incorrect ATA names.
 
-**Status**: Significant Improvement 🎉
-- **Before**: Complete failure due to trillion USDC requests
-- **After**: 75% score with custom program errors (0x1, 0xffff)
-- **Issue**: No longer requesting insane amounts, now has execution errors
+**Symptoms**:
+- `002-spl-transfer` score: 56.2% with "invalid account data for instruction" error
+- LLM generates transaction with wrong recipient ATA: "8RXifzZ34i3E7qTcvYFaUvCRaswcJBDBXrPGgrwPZxTo" instead of expected "BmCGQJCPZHrAzbLCjHd1JBQAxF24jrReU3fPwN6ri6a7"
+- Local agent works perfectly (100% score)
+
+**Root Cause**:
+- LLM should use placeholder name `"RECIPIENT_USDC_ATA"` in tool calls, but is generating new recipient ATA.
+- Context confusion from RESOLVED ADDRESSES section (already fixed but still affecting GLM behavior)
+- Possible misinterpretation of recipient parameters vs ATA placeholders
 
 **Fixes Applied**:
+- ✅ **UNIFIED GLM LOGIC IMPLEMENTED**: Created `UnifiedGLMAgent` with shared context and wallet handling
+- ✅ **IDENTICAL CONTEXT**: Both `OpenAIAgent` and `ZAIAgent` now use same context building logic
+- ✅ **SHARED COMPONENTS**: Wallet info creation and prompt mapping are now identical
+- 🔄 **PROVIDER-SPECIFIC WRAPPER**: Only request/response handling differs between implementations
 - Fixed context serialization to use numbers instead of strings
 - Enhanced tool description to be more explicit about reading exact balances
 
-**Next Steps**: Test with updated code, may require prompt engineering if issue persists.
+**Next Steps**: 
+- Test unified GLM logic with updated code
+- Verify SPL transfer tool prioritizes pre-created ATAs from key_map
+- Check if LLM correctly uses placeholder names in recipient_pubkey field
 
 ---
 
