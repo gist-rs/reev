@@ -17,7 +17,7 @@ use rig::{
 };
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::providers::zai;
 use crate::{
@@ -45,7 +45,7 @@ impl ZAIAgent {
         info!("[ZAIAgent] Running ZAI agent with unified GLM logic: {model_name}");
 
         // 🔥 DEBUG: Check full incoming payload
-        info!("[ZAIAgent] DEBUG - full LlmRequest payload: {:?}", payload);
+        debug!("[ZAIAgent] DEBUG - full LlmRequest payload: {:?}", payload);
 
         // 🔧 FIX: Extract key_map from payload if not provided as parameter
         // 🔧 Extract key_map from payload - it should be populated in enhanced context
@@ -54,15 +54,7 @@ impl ZAIAgent {
             .as_ref()
             .cloned()
             .unwrap_or_else(|| key_map.clone());
-        info!(
-            "[ZAIAgent] DEBUG - key_map being used: {:?}",
-            key_map_to_use
-        );
-
-        info!(
-            "[ZAIAgent] DEBUG - key_map being used: {:?}",
-            key_map_to_use
-        );
+        debug!("[ZAIAgent] key_map being used: {:?}", key_map_to_use);
 
         // 🚨 Check for allowed tools filtering (for flow operations)
         let allowed_tools = payload.allowed_tools.clone();

@@ -65,7 +65,7 @@ impl GymEnv for SolanaEnv {
         reset::handle_reset(self, options).await
     }
 
-    #[tracing::instrument(skip_all, name = "env.step")]
+    #[tracing::instrument(skip(self, actions, ground_truth), name = "env.step")]
     fn step(
         &mut self,
         actions: Vec<Self::Action>,

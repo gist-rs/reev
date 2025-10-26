@@ -13,7 +13,7 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr, time::Instant};
 use thiserror::Error;
-use tracing::{info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 /// The arguments for the Jupiter lend earn deposit tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug)]
@@ -102,9 +102,11 @@ impl Tool for JupiterLendEarnDepositTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[JupiterLendEarnDepositTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
-        info!("DEBUG: JupiterLendEarnDepositTool called with user_pubkey={}, asset_mint={}, amount={}",
-              args.user_pubkey, args.asset_mint, args.amount);
-        info!("DEBUG: Tool key_map contains: {:?}", self.key_map);
+        debug!(
+            "JupiterLendEarnDepositTool called with user_pubkey={}, asset_mint={}, amount={}",
+            args.user_pubkey, args.asset_mint, args.amount
+        );
+        debug!("Tool key_map contains: {:?}", self.key_map);
 
         // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")

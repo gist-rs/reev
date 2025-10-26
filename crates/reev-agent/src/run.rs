@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{enhanced::openai::OpenAIAgent, enhanced::zai_agent::ZAIAgent, LlmRequest};
 
@@ -75,8 +75,8 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
     });
     let key_map = context.key_map;
 
-    // Debug: Log the key_map being passed to tools
-    info!("[run_agent] Key map for tools: {:?}", key_map);
+    // Debug: Log key_map being passed to tools
+    debug!("[run_agent] Key map for tools: {:?}", key_map);
 
     // Route to appropriate enhanced agent based on model type
     if model_name.starts_with("glm-") {

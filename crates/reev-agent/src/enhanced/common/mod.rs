@@ -6,7 +6,7 @@
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{context::integration::ContextIntegration, prompt::SYSTEM_PREAMBLE, LlmRequest};
 
@@ -22,8 +22,6 @@ macro_rules! log_tool_call {
     ($tool_name:expr, $args:expr) => {
         // Enhanced otel logging is enabled by default (can be disabled with REEV_ENHANCED_OTEL=0)
         if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
-            tracing::info!("🔧 [{}] Enhanced otel logging ENABLED", $tool_name);
-
             // Record traditional otel span attributes for compatibility
             let span = tracing::Span::current();
             span.record("tool.name", $tool_name);
@@ -43,14 +41,11 @@ macro_rules! log_tool_call {
             // Also log to enhanced file-based system
             let input_params = serde_json::to_value($args)
                 .unwrap_or_else(|_| serde_json::Value::Object(Default::default()));
-            tracing::info!(
-                "📝 [{}] Attempting to log to enhanced otel system",
-                $tool_name
-            );
+            tracing::debug!("📝 [{}] Logging to enhanced otel system", $tool_name);
 
             // Check if EnhancedOtelLogger is available before trying to log
             if let Ok(logger) = reev_flow::get_enhanced_otel_logger() {
-                tracing::info!(
+                tracing::debug!(
                     "🔍 [{}] EnhancedOtelLogger found with session_id: {}",
                     $tool_name,
                     logger.session_id()
@@ -63,7 +58,7 @@ macro_rules! log_tool_call {
                     reev_flow::enhanced_otel::ToolExecutionStatus::Success,
                     None::<&str>
                 );
-                tracing::info!("✅ [{}] Enhanced otel log call completed", $tool_name);
+                tracing::debug!("✅ [{}] Enhanced otel log call completed", $tool_name);
             } else {
                 tracing::warn!(
                     "❌ [{}] EnhancedOtelLogger NOT AVAILABLE - tool calls will not be captured!",
@@ -516,7 +511,7 @@ impl UnifiedGLMAgent {
         );
 
         // 🛠️ DEBUG: Log key_map before creating tools
-        info!(
+        debug!(
             "[UnifiedGLMAgent] DEBUG - key_map being passed to AgentTools::new: {:?}",
             key_map
         );
@@ -574,15 +569,15 @@ impl UnifiedGLMAgent {
         tool_calls: Option<Vec<serde_json::Value>>,
     ) -> Result<String> {
         // 🎯 Extract execution results from response
-        info!("[{agent_name}] === EXTRACTION PHASE ===");
-        info!("[{agent_name}] Raw response: {}", response_str);
+        debug!("[{agent_name}] === EXTRACTION PHASE ===");
+        debug!("[{agent_name}] Raw response: {}", response_str);
 
         let execution_result = extract_execution_results(response_str, agent_name).await?;
         info!(
-            "[{agent_name}] Extracted {} transactions",
-            execution_result.transactions.len()
+            "[{agent_name}] Extracted {} transactions: {}",
+            execution_result.transactions.len(),
+            execution_result.summary
         );
-        info!("[{agent_name}] Summary: {}", execution_result.summary);
         info!(
             "[{agent_name}] Signatures: {:?}",
             execution_result.signatures
@@ -613,22 +608,11 @@ pub fn check_completion_signals(response_str: &str, agent_name: &str) -> bool {
     let has_final_response =
         response_str.contains("final_response") && response_str.contains("true");
 
-    info!("[{agent_name}] Completion Signal Analysis:");
-    info!(
-        "[{agent_name}] - Has 'status: ready': {}",
-        has_completion_signals
-    );
-    info!(
-        "[{agent_name}] - Has 'action: *_complete': {}",
-        has_action_complete
-    );
-    info!(
-        "[{agent_name}] - Has 'final_response: true': {}",
-        has_final_response
-    );
-
     let is_complete = has_completion_signals || has_action_complete || has_final_response;
-    info!("[{agent_name}] 🎯 Operation Complete: {}", is_complete);
+    debug!(
+        "[{agent_name}] Completion signals: ready={}, action_complete={}, final_response={}, complete={}",
+        has_completion_signals, has_action_complete, has_final_response, is_complete
+    );
 
     is_complete
 }
@@ -638,18 +622,16 @@ pub async fn extract_execution_results(
     response_str: &str,
     agent_name: &str,
 ) -> Result<ExecutionResult> {
-    info!("[{agent_name}] === EXECUTION RESULT EXTRACTION ===");
-    info!("[{agent_name}] Extracting execution results from response");
-    info!(
-        "[{agent_name}] Debug - Raw response string (length: {}): {}",
+    debug!("[{agent_name}] === EXECUTION RESULT EXTRACTION ===");
+    debug!(
+        "[{agent_name}] Raw response (length: {}): {}",
         response_str.len(),
-        if response_str.len() > 500 {
-            format!("{}...", &response_str[..500])
+        if response_str.len() > 200 {
+            format!("{}...", &response_str[..200])
         } else {
             response_str.to_string()
         }
     );
-
     // Use the helper function to check completion signals
     let _has_completion = check_completion_signals(response_str, agent_name);
 

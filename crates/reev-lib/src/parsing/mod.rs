@@ -10,7 +10,7 @@
 
 use anyhow::{Context, Result};
 use serde_json::Value;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::agent::{LlmResponse, RawInstruction};
 
@@ -224,20 +224,20 @@ impl ResponseParser {
                                 instructions
                                     .iter()
                                     .filter_map(|instruction| {
-                                        info!("[ResponseParser] Debug - Attempting to parse Jupiter instruction: {:?}", instruction);
+                                        debug!("[ResponseParser] Attempting to parse Jupiter instruction: {:?}", instruction);
                                         match serde_json::from_value::<RawInstruction>(
                                             instruction.clone(),
                                         ) {
                                             Ok(raw_instruction) => {
-                                                info!(
-                                                    "[ResponseParser] Debug - Successfully parsed Jupiter RawInstruction with program_id: {}",
+                                                debug!(
+                                                    "[ResponseParser] Successfully parsed Jupiter RawInstruction with program_id: {}",
                                                     raw_instruction.program_id
                                                 );
                                                 Some(raw_instruction)
                                             }
                                             Err(e) => {
                                                 warn!(
-                                                    "[ResponseParser] Debug - Failed to parse Jupiter RawInstruction: {}. Instruction: {}",
+                                                    "[ResponseParser] Failed to parse Jupiter RawInstruction: {}. Instruction: {}",
                                                     e, instruction
                                                 );
                                                 None
@@ -247,21 +247,21 @@ impl ResponseParser {
                                     .collect::<Vec<RawInstruction>>()
                             } else if let Some(tx_array) = tx.as_array() {
                                 // Handle GLM double-nested format: transactions[[{...}]]
-                                info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
+                                debug!("[ResponseParser] Transaction is array, trying GLM double-nested format");
                                 tx_array
                                     .iter()
                                     .filter_map(|inner_tx| {
                                         match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
                                             Ok(raw_instruction) => {
-                                                info!(
-                                                    "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
+                                                debug!(
+                                                    "[ResponseParser] Successfully parsed GLM nested RawInstruction with program_id: {}",
                                                     raw_instruction.program_id
                                                 );
                                                 Some(raw_instruction)
                                             }
                                             Err(e) => {
                                                 warn!(
-                                                    "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
+                                                    "[ResponseParser] Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
                                                     e, inner_tx
                                                 );
                                                 None
@@ -271,21 +271,21 @@ impl ResponseParser {
                                     .collect::<Vec<RawInstruction>>()
                             } else {
                                 // Try to parse transaction as direct instruction (simple format)
-                                info!("[ResponseParser] Debug - Transaction has no instructions array, trying direct instruction format");
+                                debug!("[ResponseParser] Transaction has no instructions array, trying direct instruction format");
                                 match serde_json::from_value::<RawInstruction>(tx.clone()) {
                                     Ok(raw_instruction) => {
-                                        info!(
-                                            "[ResponseParser] Debug - Successfully parsed direct RawInstruction with program_id: {}",
+                                        debug!(
+                                            "[ResponseParser] Successfully parsed direct RawInstruction with program_id: {}",
                                             raw_instruction.program_id
                                         );
                                         vec![raw_instruction]
                                     }
                                     Err(e) => {
                                         warn!(
-                                            "[ResponseParser] Debug - Failed to parse direct RawInstruction: {}. Transaction: {}",
+                                            "[ResponseParser] Failed to parse direct RawInstruction: {}. Transaction: {}",
                                             e, tx
                                         );
-                                        Vec::new()
+                                        vec![]
                                     }
                                 }
                             }
@@ -332,8 +332,8 @@ impl ResponseParser {
 
     /// Parse transaction array from response (shared by GLM and Jupiter parsers)
     fn parse_transaction_array(&self, response: &Value, transactions: &[Value]) -> LlmResponse {
-        info!(
-            "[ResponseParser] Debug - Raw transactions array: {:?}",
+        debug!(
+            "[ResponseParser] Raw transactions array: {:?}",
             transactions
         );
 
@@ -341,27 +341,27 @@ impl ResponseParser {
             transactions
                 .iter()
                 .flat_map(|tx| {
-                    info!("[ResponseParser] Debug - Processing transaction: {:?}", tx);
+                    debug!("[ResponseParser] Processing transaction: {:?}", tx);
 
                     // First try to extract instructions array (Jupiter format)
                     if let Some(instructions) = tx.get("instructions").and_then(|i| i.as_array()) {
                         instructions
                             .iter()
                             .filter_map(|instruction| {
-                                info!("[ResponseParser] Debug - Attempting to parse nested instruction: {:?}", instruction);
+                                debug!("[ResponseParser] Attempting to parse nested instruction: {:?}", instruction);
                                 match serde_json::from_value::<RawInstruction>(
                                     instruction.clone(),
                                 ) {
                                     Ok(raw_instruction) => {
-                                        info!(
-                                            "[ResponseParser] Debug - Successfully parsed nested RawInstruction with program_id: {}",
+                                        debug!(
+                                            "[ResponseParser] Successfully parsed nested RawInstruction with program_id: {}",
                                             raw_instruction.program_id
                                         );
                                         Some(raw_instruction)
                                     }
                                     Err(e) => {
                                         warn!(
-                                            "[ResponseParser] Debug - Failed to parse nested RawInstruction: {}. Instruction: {}",
+                                            "[ResponseParser] Failed to parse nested RawInstruction: {}. Instruction: {}",
                                             e, instruction
                                         );
                                         None
@@ -371,45 +371,21 @@ impl ResponseParser {
                             .collect::<Vec<RawInstruction>>()
                     } else if let Some(tx_array) = tx.as_array() {
                         // Handle GLM double-nested format: transactions[[{...}]]
-                        info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
+                        debug!("[ResponseParser] Transaction is array, trying GLM double-nested format");
                         tx_array
                             .iter()
                             .filter_map(|inner_tx| {
                                 match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
                                     Ok(raw_instruction) => {
-                                        info!(
-                                            "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
+                                        debug!(
+                                            "[ResponseParser] Successfully parsed GLM nested RawInstruction with program_id: {}",
                                             raw_instruction.program_id
                                         );
                                         Some(raw_instruction)
                                     }
                                     Err(e) => {
                                         warn!(
-                                            "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
-                                            e, inner_tx
-                                        );
-                                        None
-                                    }
-                                }
-                            })
-                            .collect::<Vec<RawInstruction>>()
-                    } else if let Some(tx_array) = tx.as_array() {
-                        // Handle GLM double-nested format: transactions[[{...}]]
-                        info!("[ResponseParser] Debug - Transaction is array, trying GLM double-nested format");
-                        tx_array
-                            .iter()
-                            .filter_map(|inner_tx| {
-                                match serde_json::from_value::<RawInstruction>(inner_tx.clone()) {
-                                    Ok(raw_instruction) => {
-                                        info!(
-                                            "[ResponseParser] Debug - Successfully parsed GLM nested RawInstruction with program_id: {}",
-                                            raw_instruction.program_id
-                                        );
-                                        Some(raw_instruction)
-                                    }
-                                    Err(e) => {
-                                        warn!(
-                                            "[ResponseParser] Debug - Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
+                                            "[ResponseParser] Failed to parse GLM nested RawInstruction: {}. Transaction: {}",
                                             e, inner_tx
                                         );
                                         None
@@ -419,21 +395,21 @@ impl ResponseParser {
                             .collect::<Vec<RawInstruction>>()
                     } else {
                         // Try to parse transaction as direct instruction (simple format)
-                        info!("[ResponseParser] Debug - Transaction has no instructions array, trying direct instruction format");
+                        debug!("[ResponseParser] Transaction has no instructions array, trying direct instruction format");
                         match serde_json::from_value::<RawInstruction>(tx.clone()) {
                             Ok(raw_instruction) => {
-                                info!(
-                                    "[ResponseParser] Debug - Successfully parsed direct RawInstruction with program_id: {}",
+                                debug!(
+                                    "[ResponseParser] Successfully parsed direct RawInstruction with program_id: {}",
                                     raw_instruction.program_id
                                 );
                                 vec![raw_instruction]
                             }
                             Err(e) => {
                                 warn!(
-                                    "[ResponseParser] Debug - Failed to parse direct RawInstruction: {}. Transaction: {}",
+                                    "[ResponseParser] Failed to parse direct RawInstruction: {}. Transaction: {}",
                                     e, tx
                                 );
-                                Vec::new()
+                                vec![]
                             }
                         }
                     }
@@ -460,11 +436,19 @@ impl ResponseParser {
                     .collect()
             });
 
-        info!(
-            "[ResponseParser] Root level extracted {} transactions, summary: {}",
-            parsed_transactions.as_ref().map_or(0, |t| t.len()),
-            summary.as_deref().unwrap_or("none")
-        );
+        let tx_count = parsed_transactions.as_ref().map_or(0, |t| t.len());
+        if tx_count > 0 {
+            info!(
+                "[ResponseParser] Parsed {} transactions successfully: {}",
+                tx_count,
+                summary.as_deref().unwrap_or("no summary")
+            );
+        } else {
+            debug!(
+                "[ResponseParser] No transactions parsed, summary: {}",
+                summary.as_deref().unwrap_or("none")
+            );
+        }
 
         LlmResponse {
             transactions: parsed_transactions,

@@ -22,7 +22,7 @@ use thiserror::Error;
 // Import enhanced logging macros
 use reev_flow::log_tool_call;
 use reev_flow::log_tool_completion;
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
 #[derive(Serialize, Deserialize, Debug)]
@@ -144,14 +144,8 @@ impl Tool for SolTransferTool {
 
         let _start_time = Instant::now();
         info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
-
-        // DEBUG: Show what key_map contains
-        info!(
-            "[SolTransferTool] DEBUG - key_map entries: {:?}",
-            self.key_map
-        );
-        info!(
-            "[SolTransferTool] DEBUG - tool args: user_pubkey='{}', recipient_pubkey='{}'",
+        debug!(
+            "[SolTransferTool] tool args: user_pubkey='{}', recipient_pubkey='{}'",
             args.user_pubkey, args.recipient_pubkey
         );
 
@@ -162,10 +156,7 @@ impl Tool for SolTransferTool {
             .unwrap_or(&args.user_pubkey)
             .clone();
 
-        info!(
-            "[SolTransferTool] DEBUG - resolved user_pubkey: '{}'",
-            user_pubkey
-        );
+        debug!("[SolTransferTool] resolved user_pubkey: '{}'", user_pubkey);
 
         let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
             .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
@@ -192,8 +183,8 @@ impl Tool for SolTransferTool {
             args.recipient_pubkey.clone()
         };
 
-        info!(
-            "[SolTransferTool] DEBUG - resolved recipient_pubkey: '{}'",
+        debug!(
+            "[SolTransferTool] resolved recipient_pubkey: '{}'",
             recipient_pubkey
         );
 

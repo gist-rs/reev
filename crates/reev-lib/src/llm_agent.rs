@@ -142,7 +142,17 @@ impl LlmAgent {
 
 #[async_trait]
 impl Agent for LlmAgent {
-    #[instrument(skip(self, prompt, observation), name = "agent.get_action")]
+    #[instrument(
+        skip(
+            self,
+            prompt,
+            observation,
+            fee_payer,
+            skip_instruction_validation,
+            initial_state
+        ),
+        name = "agent.get_action"
+    )]
     async fn get_action(
         &mut self,
         id: &str,
@@ -250,13 +260,23 @@ impl Agent for LlmAgent {
             // Add session_id if available
             if let Some(ref session_id) = self.session_id {
                 payload["session_id"] = json!(session_id);
-                info!("[LlmAgent] Added session_id to GLM payload: {}", session_id);
+                debug!("[LlmAgent] Added session_id to GLM payload: {}", session_id);
             } else {
                 warn!("[LlmAgent] No session_id available for GLM payload");
             }
 
+            // Log consolidated payload with key information at INFO level
             info!(
-                "[LlmAgent] Final GLM payload with enhanced context: {}",
+                "[LlmAgent] GLM request - ID: {}, Model: {}, Session: {}, Context length: {} chars",
+                payload["id"],
+                payload["model_name"],
+                payload
+                    .get("session_id")
+                    .map_or("none", |v| v.as_str().unwrap_or("invalid")),
+                context_prompt.len()
+            );
+            debug!(
+                "[LlmAgent] Full GLM payload: {}",
                 serde_json::to_string_pretty(&payload)?
             );
             payload
@@ -272,7 +292,7 @@ impl Agent for LlmAgent {
             // Add session_id if available
             if let Some(ref session_id) = self.session_id {
                 payload["session_id"] = json!(session_id);
-                info!(
+                debug!(
                     "[LlmAgent] Added session_id to default payload: {}",
                     session_id
                 );
@@ -283,9 +303,20 @@ impl Agent for LlmAgent {
             payload
         };
 
-        // 3. Log the raw request for debugging.
+        // 3. Log the request summary (full payload at DEBUG level)
         info!(
-            "[LlmAgent] Sending raw request to LLM:\n{}",
+            "[LlmAgent] LLM request sent - Model: {}, ID: {}",
+            request_payload
+                .get("model_name")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown"),
+            request_payload
+                .get("id")
+                .and_then(|i| i.as_str())
+                .unwrap_or("unknown")
+        );
+        debug!(
+            "[LlmAgent] Full LLM request payload: {}",
             serde_json::to_string_pretty(&request_payload)?
         );
 
@@ -387,15 +418,12 @@ impl Agent for LlmAgent {
         // We need to recreate the response since we consumed it with .text()
         let llm_response_text = response_text;
 
-        info!(
-            "[LlmAgent] Debug - Raw response text: {}",
-            llm_response_text
-        );
+        debug!("[LlmAgent] Raw response text: {}", llm_response_text);
 
         let parser = ResponseParser::new(self.is_glm);
         let llm_response = parser.parse_with_fallback(&llm_response_text);
 
-        info!("[LlmAgent] Debug - Parsed LlmResponse: {:?}", llm_response);
+        debug!("[LlmAgent] Parsed LlmResponse: {:?}", llm_response);
 
         // 9. Handle both old and new response formats
         let actions: Vec<AgentAction> = if let Some(transactions) = llm_response.transactions {

@@ -705,7 +705,7 @@ fn discover_benchmarks(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(benchmark_paths)
 }
 
-#[instrument(skip_all, fields(benchmark_id = %test_case.id))]
+#[instrument(skip_all, name = "run_evaluation_loop")]
 async fn run_evaluation_loop(
     env: &mut SolanaEnv,
     agent: &mut (dyn Agent + Send),
