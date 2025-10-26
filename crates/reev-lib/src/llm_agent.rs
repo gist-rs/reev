@@ -216,11 +216,7 @@ impl Agent for LlmAgent {
                     };
 
                 format!(
-                    "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{}\n\n# STEP {} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {}) for operations\n---",
-                    initial_yaml,
-                    step_number,
-                    current_yaml,
-                    step_number
+                    "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{initial_yaml}\n\n# STEP {step_number} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{current_yaml}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {step_number}) for operations\n---"
                 )
             } else {
                 // Single-step flow: Use current context only
