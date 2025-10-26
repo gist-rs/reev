@@ -26,6 +26,10 @@ struct Cli {
     /// Render flow log as ASCII tree (only works with .yml flow files)
     #[arg(long)]
     render_flow: bool,
+
+    /// Use shared surfpool instances instead of creating fresh ones
+    #[arg(long)]
+    shared_surfpool: bool,
 }
 
 /// Initializes OpenTelemetry pipeline for tracing with console output.
@@ -95,7 +99,8 @@ async fn main() -> Result<()> {
         );
 
         // Run the benchmarks using the library function.
-        let results = reev_runner::run_benchmarks(cli.path, &cli.agent, false).await?;
+        let results =
+            reev_runner::run_benchmarks(cli.path, &cli.agent, cli.shared_surfpool).await?;
 
         // Render the results.
         for result in &results {

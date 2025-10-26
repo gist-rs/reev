@@ -49,6 +49,18 @@ async fn init_dependencies_with_config(
 ) -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
     debug!("Initializing dependency management...");
 
+    // Set environment variable for reset logic to know about shared vs fresh mode
+    unsafe {
+        std::env::set_var(
+            "REEV_SHARED_INSTANCES",
+            if config.shared_instances {
+                "true"
+            } else {
+                "false"
+            },
+        );
+    }
+
     // Clean up any existing processes before starting new ones (unless shared_instances is true)
     if !config.shared_instances {
         kill_existing_reev_agent(9090)
@@ -99,21 +111,16 @@ pub async fn run_benchmarks(
     // Initialize dependency management system based on shared_surfpool flag
     if shared_surfpool {
         info!("🔴 Using shared surfpool mode - reusing existing instances...");
-        let _dependency_guard = init_dependencies_with_config(DependencyConfig {
-            shared_instances: true,
-            ..Default::default()
-        })
-        .await
-        .context("Failed to initialize shared dependencies")?;
     } else {
         info!("✨ Using fresh surfpool mode - creating new instances...");
-        let _dependency_guard = init_dependencies_with_config(DependencyConfig {
-            shared_instances: false,
-            ..Default::default()
-        })
-        .await
-        .context("Failed to initialize fresh dependencies")?;
     }
+
+    let _dependency_guard = init_dependencies_with_config(DependencyConfig {
+        shared_instances: shared_surfpool,
+        ..Default::default()
+    })
+    .await
+    .context("Failed to initialize dependencies")?;
     info!("Dependency initialization completed successfully");
 
     info!("Initializing database...");
