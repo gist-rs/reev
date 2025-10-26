@@ -80,6 +80,7 @@ async fn main() -> Result<()> {
             initial_state: None,
             allowed_tools: None,
             account_states: None,
+            key_map: Some(key_map.clone()),
         };
 
         match ZAIAgent::run("glm-4.6", request, key_map.clone()).await {

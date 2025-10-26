@@ -17,6 +17,8 @@ async fn test_regular_glm_api_support() -> Result<()> {
 
     println!("✅ ZAI_API_KEY is set, testing regular GLM API");
 
+    let key_map = HashMap::new();
+
     // Create a simple test request
     let payload = LlmRequest {
         id: "test-regular-glm".to_string(),
@@ -28,9 +30,8 @@ async fn test_regular_glm_api_support() -> Result<()> {
         initial_state: None,
         allowed_tools: None,
         account_states: None,
+        key_map: Some(key_map.clone()),
     };
-
-    let key_map = HashMap::new();
 
     println!("🚀 Testing regular GLM API with model: glm-4.6");
 
@@ -72,6 +73,8 @@ async fn test_api_priority_order() -> Result<()> {
 
     println!("✅ Testing API priority: ZAI_API_KEY should take priority");
 
+    let key_map = HashMap::new();
+
     // Note: This will fail with invalid keys, but we're testing the priority logic
     let payload = LlmRequest {
         id: "test-priority".to_string(),
@@ -83,9 +86,8 @@ async fn test_api_priority_order() -> Result<()> {
         initial_state: None,
         allowed_tools: None,
         account_states: None,
+        key_map: Some(key_map.clone()),
     };
-
-    let key_map = HashMap::new();
     let result = OpenAIAgent::run("glm-4.6", payload, key_map).await;
 
     // Should attempt ZAI_API_KEY first (will fail with invalid key, but that's expected)
@@ -128,6 +130,8 @@ async fn test_local_fallback() -> Result<()> {
 
     println!("✅ Testing local model fallback (no API keys)");
 
+    let key_map = HashMap::new();
+
     let payload = LlmRequest {
         id: "test-fallback".to_string(),
         session_id: "test-session-fallback".to_string(),
@@ -138,9 +142,8 @@ async fn test_local_fallback() -> Result<()> {
         initial_state: None,
         allowed_tools: None,
         account_states: None,
+        key_map: Some(key_map.clone()),
     };
-
-    let key_map = HashMap::new();
     let result = OpenAIAgent::run("glm-4.6", payload, key_map).await;
 
     // Should attempt local model (will likely fail if no local server running)

@@ -2,6 +2,60 @@
 
 ## Open Issues
 
+### #5 Regular GLM API Test Missing key_map Field - RESOLVED ✅
+**Date**: 2025-01-20  
+**Status**: Closed  
+**Priority**: Medium  
+
+**Issue**: `regular_glm_api_test.rs` failing due to missing `key_map` field in `LlmRequest` struct initialization.
+
+**Root Cause**: 
+- `LlmRequest` struct requires `key_map: Option<HashMap<String, String>>` field
+- Test was creating `LlmRequest` without this required field
+- Variable ordering issue caused ownership conflicts
+
+**Fixes Applied**:
+- ✅ Added `key_map: Some(key_map.clone())` to all `LlmRequest` instances in test
+- ✅ Fixed variable ordering to define `key_map` before use
+- ✅ Used `clone()` to resolve ownership issues between payload and function calls
+- ✅ Fixed same issue in `glm_tool_call_demo.rs` example file
+
+**Test Results**:
+- ✅ All diagnostic errors resolved
+- ✅ Tests compile and run successfully: `2 passed; 0 failed; 1 ignored`
+- ✅ Example file compiles without errors
+- ✅ Zero clippy warnings
+
+---
+
+### #6 Duplicate Tools Directory Cleanup - RESOLVED ✅
+**Date**: 2025-01-20  
+**Status**: Closed  
+**Priority**: Medium  
+
+**Issue**: Duplicate tools directory in `crates/reev-agent/src/tools/` causing code duplication and maintenance overhead.
+
+**Root Cause**:
+- Tools were duplicated between `crates/reev-agent/src/tools/` and `crates/reev-tools/src/tools/`
+- `reev-agent` was correctly importing from `reev-tools` crate
+- Local tools directory was unused and causing confusion
+
+**Fixes Applied**:
+- ✅ Removed entire `crates/reev-agent/src/tools/` directory
+- ✅ Verified `reev-agent` properly imports tools from `reev-tools` crate
+- ✅ Confirmed no broken references after removal
+- ✅ All tests still pass after cleanup
+
+**Impact**: 
+- Eliminated code duplication
+- Simplified maintenance
+- Clear separation of concerns: `reev-tools` crate is the single source of truth for tools
+- Reduced build complexity
+
+---
+
+## Open Issues
+
 ### #2 Jupiter Lend Deposit Amount Parsing Issue - RESOLVED ✅
 **Date**: 2025-10-26  
 **Status**: Closed  
