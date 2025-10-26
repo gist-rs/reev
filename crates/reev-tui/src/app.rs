@@ -140,6 +140,7 @@ impl<'a> App<'a> {
             log_scroll: 0,
             log_horizontal_scroll: 0,
             log_scroll_state: ScrollbarState::default(),
+            shared_surfpool: false, // Default to fresh mode for consistency
         }
     }
 
@@ -282,30 +283,28 @@ impl<'a> App<'a> {
         if self.is_running_benchmark || self.benchmarks.is_empty() {
             return;
         }
-        self.is_running_all = true;
-        self.benchmark_state.select(Some(0));
-        self.on_run();
     }
+}
 
-    pub fn on_toggle_shared_surfpool(&mut self) {
-        self.shared_surfpool = !self.shared_surfpool;
-        let mode = if self.shared_surfpool {
-            "🔴 Shared (reuse instances)"
-        } else {
-            "✨ Fresh (new instances)"
-        };
-        // Update status for first benchmark to show current mode
-        if !self.benchmarks.is_empty() {
-            if let Some(benchmark) = self.benchmarks.get_mut(0) {
-                benchmark.details = Text::from(format!(
-                    "> Ready to run.\n> Current mode: {}",
-                    mode
-                ));
-            }
+pub fn on_toggle_shared_surfpool(&mut self) {
+    self.shared_surfpool = !self.shared_surfpool;
+    let mode = if self.shared_surfpool {
+        "🔴 Shared (reuse instances)"
+    } else {
+        "✨ Fresh (new instances)"
+    };
+    // Update status for first benchmark to show current mode
+    if !self.benchmarks.is_empty() {
+        if let Some(benchmark) = self.benchmarks.get_mut(0) {
+            benchmark.details = Text::from(format!(
+                "> Ready to run.\n> Current mode: {}",
+                mode
+            ));
         }
     }
+}
 
-    pub fn reset_benchmarks(&mut self) {
+pub fn reset_benchmarks(&mut self) {
         for benchmark in &mut self.benchmarks {
             benchmark.status = BenchmarkStatus::Pending;
             benchmark.result = None;
