@@ -287,8 +287,8 @@ impl ContextBuilder {
             for (pubkey, balance) in token_balances {
                 let account_name = self.get_account_name(pubkey, key_map);
                 context.push_str(&format!(
-                    "  • {}: {}\n",
-                    account_name, balance.formatted_amount
+                    "  • {}: {} (RAW: {})\n",
+                    account_name, balance.formatted_amount, balance.amount
                 ));
             }
         }

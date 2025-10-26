@@ -20,10 +20,16 @@
 - Possible confusion about amount field interpretation in context vs tool parameter
 - Tool description may not be clear enough about using exact balance from context
 
-**Required Fix**:
-- Improve Jupiter lend deposit tool description to be more explicit about balance reading
-- Add clearer instructions for reading amounts from context
-- Possibly add balance validation hints in tool description
+**Fixes Applied**:
+- ✅ **Enhanced tool description**: Made Jupiter lend deposit tool more explicit about reading exact balance from context
+- ✅ **Added RAW balance display**: Context now shows both formatted and raw amounts (e.g., "394,358.118 USDC (RAW: 394358118)")
+- ✅ **Improved debugging**: Added better error messages to show available vs requested amounts
+- ✅ **Clearer instructions**: Tool description now includes explicit example of copying amount from context
+
+**Remaining**:
+- Test with updated tool description and context format
+- Verify LLM correctly reads raw amounts from context
+- Monitor Jupiter lend deposit operations after swaps
 
 **Impact**: Affects all Jupiter lend deposit operations after successful swaps
 

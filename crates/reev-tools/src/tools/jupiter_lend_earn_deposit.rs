@@ -66,13 +66,13 @@ impl Tool for JupiterLendEarnDepositTool {
         );
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. CRITICAL: Read the CURRENT ON-CHAIN CONTEXT to check available token balances BEFORE calling this tool. The amount parameter MUST be in the token's smallest denomination (e.g., lamports for SOL, smallest units for USDC). For USDC with 6 decimals, 1 USDC = 1,000,000 units. This tool will automatically validate the balance against available funds. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
+            description: "PRIMARY tool for DEPOSITING tokens into Jupiter lending. Use ONLY when user says 'deposit', 'lend', or mentions depositing token amounts. CRITICAL: Read the CURRENT ON-CHAIN CONTEXT to find the token account with your target asset_mint, then copy the EXACT 'amount' value from that account. The amount parameter MUST be in the token's smallest denomination (e.g., lamports for SOL, smallest units for USDC). For USDC with 6 decimals, 1 USDC = 1,000,000 units. This tool will automatically validate the balance against available funds. DO NOT use for 'mint' or 'redeem' operations. If user mentions 'mint', use jupiter_lend_earn_mint instead.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "user_pubkey": {
                         "type": "string",
-                        "description": "The public key of the user's wallet performing the deposit."
+                        "description": "The public key of user's wallet performing the deposit."
                     },
                     "asset_mint": {
                         "type": "string",
@@ -80,7 +80,7 @@ impl Tool for JupiterLendEarnDepositTool {
                     },
                     "amount": {
                         "type": "number",
-                        "description": "The amount of token to deposit, in its smallest denomination (e.g., lamports for SOL, 1,000,000 = 1 USDC for 6 decimals). CRITICAL: Read the EXACT balance from CURRENT ON-CHAIN CONTEXT and use that PRECISE value. For 'deposit all', use the EXACT amount shown in context (e.g., if context shows 'amount: 383193564', use 383193564). The context provides balances as NUMBERS. Do NOT interpret as decimals or add zeros. This will be validated against available balance."
+                        "description": "The amount of token to deposit, in its smallest denomination (e.g., lamports for SOL, 1,000,000 = 1 USDC for 6 decimals). 🔥 CRITICAL: Find your target asset_mint in CURRENT ON-CHAIN CONTEXT, locate the corresponding token account, and COPY the EXACT 'amount' value shown. Example: if context shows 'USER_USDC_ATA': {'amount': 394358118, ...}, use amount: 394358118. NEVER use 0, never estimate, always copy the exact number from context. This will be validated against available balance."
                     }
                 },
                 "required": ["user_pubkey", "asset_mint", "amount"],
@@ -154,6 +154,16 @@ impl Tool for JupiterLendEarnDepositTool {
 
         // Validate business logic
         if args.amount == 0 {
+            // Log available balance for debugging
+            let balance_validator = BalanceValidator::new(self.key_map.clone());
+            if let Ok(available) =
+                balance_validator.get_token_balance(&asset_mint.to_string(), &args.user_pubkey)
+            {
+                warn!(
+                    "💡 DEBUG: Available balance for mint {} is {}, but requested amount is {}",
+                    asset_mint, available, args.amount
+                );
+            }
             return Err(JupiterLendEarnDepositError::InvalidAmount(
                 "Amount must be greater than 0".to_string(),
             ));
@@ -172,7 +182,7 @@ impl Tool for JupiterLendEarnDepositTool {
                     args.amount, asset_mint
                 );
 
-                // Log the available balance for debugging
+                // Log available balance for debugging
                 if let Ok(available) =
                     balance_validator.get_token_balance(&asset_mint.to_string(), &args.user_pubkey)
                 {
