@@ -3,6 +3,10 @@
 //! This test validates the async threading fix by running multiple benchmarks
 //! sequentially with different agents, similar to TUI's "Run All" functionality.
 //! Tests both shared surfpool (no re-init) and fresh surfpool modes.
+//!
+//! Usage:
+//!   cargo test -p reev-runner --test e2e_run_all_test -- --agent glm-4.6
+//!   cargo test -p reev-runner --test e2e_run_all_test -- --agent local
 
 use anyhow::{Context, Result};
 use glob::glob;
@@ -11,7 +15,7 @@ use reev_lib::benchmark::TestCase;
 use reev_lib::server_utils;
 use reev_runner::run_benchmarks;
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -116,9 +120,32 @@ fn validate_consistency(agent_name: &str, results: &[(PathBuf, f64)]) -> Result<
     Ok(())
 }
 
+/// Parse command line arguments to get specific agent to test
+fn get_test_agent() -> Vec<String> {
+    let args: Vec<String> = env::args().collect();
+
+    // Look for --agent flag in command line arguments
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--agent" && i + 1 < args.len() {
+            return vec![args[i + 1].clone()];
+        }
+    }
+
+    // Default agents if no --agent specified
+    vec![
+        "deterministic".to_string(),
+        "local".to_string(),
+        "glm-4.6".to_string(),
+    ]
+}
+
 /// Main E2E test: Run All functionality with multiple agents
 #[tokio::test(flavor = "multi_thread")]
 async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
+    // Get agents from command line or use defaults
+    let agents = get_test_agent();
+    info!("🎯 Testing agents: {:?}", agents);
+
     // Clean up any existing processes before starting
     info!("🧹 Cleaning up existing processes...");
     server_utils::kill_existing_api(3001).await?;
@@ -129,11 +156,9 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
     let benchmarks = discover_benchmark_files();
     let benchmarks: Vec<PathBuf> = benchmarks.into_iter().take(2).collect();
 
-    let agents = vec!["deterministic", "local", "glm-4.6"];
-
     info!("🚀 Starting E2E Run All test - comparing shared vs fresh surfpool");
 
-    for agent in agents {
+    for agent in &agents {
         info!("📋 Testing agent: {}", agent);
 
         // Test with SHARED surfpool (reuse same instance)
