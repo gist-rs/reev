@@ -172,6 +172,39 @@
 
 ---
 
+### #7 SPL Transfer Uses Wrong Recipient Address - RESOLVED ✅
+**Date**: 2025-10-26  
+**Status**: Closed  
+**Priority**: High  
+
+**Issue**: GLM-4.6 agent uses `RECIPIENT_WALLET_PUBKEY` instead of `RECIPIENT_USDC_ATA` for SPL transfers, causing "invalid account data for instruction" errors.
+
+**Root Cause**:
+- User request: "send 15 USDC... to the recipient's token account (RECIPIENT_USDC_ATA)"
+- Agent ignores the explicit ATA placeholder and uses wallet placeholder instead
+- Context shows resolved addresses but agent doesn't use correct placeholder
+- Agent misinterprets "recipient's token account" as needing to find the wallet address
+
+**Fixes Applied**:
+- ✅ **Enhanced tool descriptions**: Updated `SplTransferTool` description to clarify ATA usage: "The public key of the recipient's token account (ATA) for SPL transfers. Use placeholder names like RECIPIENT_USDC_ATA, not wallet addresses."
+- ✅ **Enhanced SOL tool description**: Updated `SolTransferTool` description for wallet-specific usage: "The public key of the recipient wallet for SOL transfers. Use placeholder names like RECIPIENT_WALLET_PUBKEY."
+- ✅ **Clear parameter guidance**: Tool descriptions now explicitly guide agents to use correct placeholder types (ATA vs wallet)
+
+**Test Results**:
+- ✅ **Benchmark Score**: `002-spl-transfer` improved from 56.2% to 100.0%
+- ✅ **Correct Tool Usage**: Agent now calls: `{"recipient_pubkey":"RECIPIENT_USDC_ATA",...}`
+- ✅ **Proper Resolution**: Tool resolves to correct ATA: `"9schhcuL7AaY5xNcemwdrWaNtcnDaLPqGajBkQECq2hx (key: RECIPIENT_USDC_ATA)"`
+- ✅ **Transaction Success**: `"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"`
+- ✅ **Score Achievement**: `final_score=1.0` (perfect score)
+
+**Impact**: 
+- Fixed SPL transfer benchmark failures
+- Improved agent understanding of ATA vs wallet addresses
+- Enhanced tool descriptions prevent confusion between SOL and SPL transfers
+- Critical for proper token operations
+
+---
+
 ## Closed Issues
 
 ### #2 Jupiter Lend Deposit Amount Parsing Issue - Fixed ✅

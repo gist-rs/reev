@@ -1,5 +1,33 @@
 # REEV IMPLEMENTATION REFLECTION
 
+## SPL Transfer Recipient ATA Resolution - Completed ✅
+**Issue**: GLM-4.6 agent uses `RECIPIENT_WALLET_PUBKEY` instead of `RECIPIENT_USDC_ATA` for SPL transfers, causing "invalid account data for instruction" errors.
+**Root Cause**: Tool description ambiguity between wallet addresses and token accounts for different transfer types.
+
+**Technical Fix**: Enhanced tool parameter descriptions to clearly distinguish between SOL and SPL transfer requirements:
+```rust
+// BEFORE (Ambiguous):
+"description": "The public key of the recipient wallet."
+
+// AFTER (SplTransferTool - Clear):
+"description": "The public key of the recipient's token account (ATA) for SPL transfers. Use placeholder names like RECIPIENT_USDC_ATA, not wallet addresses."
+
+// AFTER (SolTransferTool - Clear):
+"description": "The public key of the recipient wallet for SOL transfers. Use placeholder names like RECIPIENT_WALLET_PUBKEY."
+```
+
+**Evidence of Fix**:
+- **Before**: Agent called `{"recipient_pubkey":"RECIPIENT_WALLET_PUBKEY"}` → resolved to wallet address → "invalid account data for instruction"
+- **After**: Agent calls `{"recipient_pubkey":"RECIPIENT_USDC_ATA"}` → resolved to correct ATA → transaction successful
+- **Score Improvement**: `002-spl-transfer` improved from 56.2% to 100.0%
+
+**Results**: 
+- ✅ Perfect benchmark score achieved (1.0)
+- ✅ Transaction simulation successful: `"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"`
+- ✅ Correct recipient ATA used: `"9schhcuL7AaY5xNcemwdrWaNtcnDaLPqGajBkQECq2hx"`
+
+**Impact**: Critical fix for SPL transfer operations, resolves agent confusion between wallet and token account addresses.
+
 ## Test Fix and Tools Cleanup - Completed ✅
 **Issue**: Two separate issues affecting code quality and test reliability
 **Root Causes**:
@@ -151,6 +179,10 @@ let destination_ata = if let Some(ata_key) = self.key_map.get(&args.recipient_pu
 ---
 
 **Performance**: 86% reduction in conversation turns for simple operations
+
+---
+
+**Key Achievement**: The SPL transfer fix demonstrates how precise tool descriptions can dramatically improve AI agent behavior, resulting in perfect benchmark execution and resolving critical ATA vs wallet address confusion.
 
 ## Jupiter Lending Deposit AI Model Issue - In Progress 🚧
 **Issue**: AI model consistently requests 1,000,000,000,000 USDC (1 trillion) despite only having 383,193,564 USDC available

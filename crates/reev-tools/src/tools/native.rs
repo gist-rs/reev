@@ -105,7 +105,7 @@ impl Tool for SolTransferTool {
                     },
                     "recipient_pubkey": {
                         "type": "string",
-                        "description": "The public key of the recipient wallet."
+                        "description": "The public key of the recipient wallet for SOL transfers. Use placeholder names like RECIPIENT_WALLET_PUBKEY."
                     },
                     "amount": {
                         "type": "number",
@@ -289,7 +289,7 @@ impl Tool for SplTransferTool {
                     },
                     "recipient_pubkey": {
                         "type": "string",
-                        "description": "The public key of the recipient wallet."
+                        "description": "The public key of the recipient's token account (ATA) for SPL transfers. Use placeholder names like RECIPIENT_USDC_ATA, not wallet addresses."
                     },
                     "amount": {
                         "type": "number",
