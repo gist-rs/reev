@@ -1,5 +1,41 @@
 # REEV IMPLEMENTATION REFLECTION
 
+## Dependency Guard Scope Regression - Fixed ✅
+**Issue**: Critical regression after shared vs fresh surfpool implementation where processes were terminated before benchmark execution
+**Root Cause**: `_dependency_guard` scoped inside if/else blocks causing premature dropping
+```rust
+// BROKEN CODE:
+if shared_surfpool {
+    let _dependency_guard = init_dependencies_with_config(...).await?;
+} else {
+    let _dependency_guard = init_dependencies_with_config(...).await?;
+} // <- Guard dropped here, killing processes!
+
+// FIXED CODE:
+if shared_surfpool {
+    info!("🔴 Using shared surfpool mode - reusing existing instances...");
+} else {
+    info!("✨ Using fresh surfpool mode - creating new instances...");
+}
+let _dependency_guard = init_dependencies_with_config(DependencyConfig {
+    shared_instances: shared_surfpool,
+    ..Default::default()
+}).await.context("Failed to initialize dependencies")?;
+```
+
+**Fixes Applied**:
+- Moved guard declaration outside if/else blocks to maintain proper lifecycle
+- Restored clear mode logging for user visibility
+- Added `--shared-surfpool` CLI option for explicit mode selection
+- Both fresh and shared surfpool modes now work correctly
+
+**Results**: ✅ All benchmarks now execute without RPC connection errors
+- 001-sol-transfer: 100% ✅
+- 002-spl-transfer: 100% ✅  
+- 100-jup-swap-sol-usdc: 100% ✅
+- 111-jup-lend-deposit-usdc: 100% ✅
+- 200-jup-swap-then-lend-deposit: 75% ⚠️ (improved from failure)
+
 ## Session ID Unification - Completed ✅
 Unified single UUID across Runner, Flow, Agent, and Enhanced OTEL components. Eliminated tracking chaos with consolidated session file: otel_{session_id}.json.
 

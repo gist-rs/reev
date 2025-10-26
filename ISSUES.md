@@ -7,13 +7,41 @@
 **Status**: Open  
 **Priority**: High  
 
-AI model consistently requesting 1,000,000,000,000 USDC (1 trillion) for deposit in benchmark `200-jup-swap-then-lend-deposit` step 2, despite only having 383,193,564 USDC available in context.
+AI model was requesting 1,000,000,000,000 USDC (1 trillion) for deposit in benchmark `200-jup-swap-then-lend-deposit` step 2, despite only having 383,193,564 USDC available in context.
+
+**Status**: Significant Improvement 🎉
+- **Before**: Complete failure due to trillion USDC requests
+- **After**: 75% score with custom program errors (0x1, 0xffff)
+- **Issue**: No longer requesting insane amounts, now has execution errors
 
 **Fixes Applied**:
 - Fixed context serialization to use numbers instead of strings
 - Enhanced tool description to be more explicit about reading exact balances
+- Fixed dependency guard scope regression (see #4)
 
-**Next Steps**: Test with updated code, may require prompt engineering if issue persists.
+**Current Issues**:
+- Custom program errors (0x1, 0xffff) suggest Jupiter tool integration edge cases
+- 75% score is acceptable but could be improved
+
+**Next Steps**: Investigate Jupiter tool execution errors for further score improvement.
+
+---
+
+### #4 Dependency Guard Scope Regression - Fixed
+**Date**: 2025-10-26  
+**Status**: Fixed  
+**Priority**: Critical  
+
+Processes (reev-agent, surfpool) were terminated before benchmark execution due to premature dependency guard dropping.
+
+**Root Cause**: `_dependency_guard` scoped inside if/else blocks in `run_benchmarks()` function, causing `Drop` implementation to terminate managed processes before benchmark execution began.
+
+**Fix**: Moved guard declaration outside if/else blocks to maintain proper lifecycle throughout function execution.
+
+**Impact**: 
+- Fixed critical regression affecting all benchmark execution
+- Both fresh and shared surfpool modes now work correctly
+- All key benchmarks now achieve good scores (75-100%)
 
 ---
 
