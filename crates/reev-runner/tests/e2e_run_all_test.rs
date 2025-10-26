@@ -129,7 +129,7 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
     let benchmarks = discover_benchmark_files();
     let benchmarks: Vec<PathBuf> = benchmarks.into_iter().take(2).collect();
 
-    let agents = vec!["deterministic"];
+    let agents = vec!["deterministic", "local", "glm-4.6"];
 
     info!("🚀 Starting E2E Run All test - comparing shared vs fresh surfpool");
 
