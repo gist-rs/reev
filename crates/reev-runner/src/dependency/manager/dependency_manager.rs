@@ -86,7 +86,6 @@ impl DependencyManager {
         }
 
         debug!("Initializing dependencies...");
-        let start_time = std::time::Instant::now();
 
         // Clear log files for clean debugging
         debug!("Clearing log files...");
