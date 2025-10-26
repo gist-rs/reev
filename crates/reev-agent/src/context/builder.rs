@@ -66,7 +66,7 @@ impl ContextBuilder {
             }
         }
 
-        context.push_str("\n💡 Limited account information provided. Use jupiter_earn tools to check positions and balances first.");
+        context.push_str("\n💡 Limited account information provided. Use available tools to check positions and balances first.");
         context.push_str("\n\n🚨 IMPORTANT: When making transfers, use the exact placeholder names above (e.g., 'RECIPIENT_USDC_ATA') rather than generating new addresses.");
 
         AccountContext {
@@ -257,9 +257,7 @@ impl ContextBuilder {
             }
         }
 
-        context.push_str(
-            "\n💡 Start by calling jupiter_earn or token tools to discover current state.",
-        );
+        context.push_str("\n💡 Start by calling available tools to discover current state.");
 
         AccountContext {
             sol_balance: None,

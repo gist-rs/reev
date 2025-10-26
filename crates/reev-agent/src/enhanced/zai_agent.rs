@@ -44,6 +44,9 @@ impl ZAIAgent {
     ) -> Result<String> {
         info!("[ZAIAgent] Running ZAI agent with unified GLM logic: {model_name}");
 
+        // 🚨 Check for allowed tools filtering (for flow operations)
+        let allowed_tools = payload.allowed_tools.clone();
+
         // 🎯 Use unified GLM logic for shared components
         let unified_data = UnifiedGLMAgent::run(model_name, payload, key_map).await?;
 
@@ -96,16 +99,29 @@ impl ZAIAgent {
             .jupiter_lend_earn_redeem_tool
             .definition(String::new())
             .await;
-        let jupiter_earn_tool_def = unified_data
-            .tools
-            .jupiter_earn_tool
-            .definition(String::new())
-            .await;
+
+        // Only include jupiter_earn tool if allowed (for position/earnings benchmarks like 114-*.yml)
+        let jupiter_earn_tool_def = if let Some(allowed_tools) = allowed_tools.as_ref() {
+            if allowed_tools.contains(&"jupiter_earn".to_string()) {
+                Some(
+                    unified_data
+                        .tools
+                        .jupiter_earn_tool
+                        .definition(String::new())
+                        .await,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
         // let balance_tool_def = unified_data.tools.balance_tool.definition(String::new()).await;
 
         // Build completion request using unified enhanced user request
-        let request =
+        let mut request_builder =
             CompletionRequestBuilder::new(model.clone(), &unified_data.enhanced_user_request)
                 .tool(sol_tool_def)
                 .tool(spl_tool_def)
@@ -113,12 +129,18 @@ impl ZAIAgent {
                 .tool(jupiter_lend_deposit_tool_def)
                 .tool(jupiter_lend_withdraw_tool_def)
                 .tool(jupiter_lend_mint_tool_def)
-                .tool(jupiter_lend_redeem_tool_def)
-                .tool(jupiter_earn_tool_def)
-                // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-                // .tool(balance_tool_def)
-                .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
-                .build();
+                .tool(jupiter_lend_redeem_tool_def);
+
+        // Add jupiter_earn tool only if allowed
+        if let Some(tool_def) = jupiter_earn_tool_def {
+            request_builder = request_builder.tool(tool_def);
+        }
+
+        let request = request_builder
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // .tool(balance_tool_def)
+            .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
+            .build();
 
         let result = model.completion(request).await?;
 
@@ -143,7 +165,8 @@ impl ZAIAgent {
             info!("[ZAIAgent] Arguments: {}", tool_call.function.arguments);
 
             // Route tool call to appropriate tool using unified tools
-            let tool_result = Self::execute_tool_call(tool_call, &unified_data.tools).await?;
+            let tool_result =
+                Self::execute_tool_call(tool_call, &unified_data.tools, &allowed_tools).await?;
 
             info!("[ZAIAgent] Tool result: {}", tool_result);
 
@@ -186,6 +209,7 @@ impl ZAIAgent {
     async fn execute_tool_call(
         tool_call: &rig::message::ToolCall,
         tools: &AgentTools,
+        allowed_tools: &Option<Vec<String>>,
     ) -> Result<serde_json::Value> {
         match tool_call.function.name.as_str() {
             "sol_transfer" => {
@@ -266,13 +290,25 @@ impl ZAIAgent {
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
             "jupiter_earn" => {
+                // This should only be called if tool was allowed, but add extra safety check
+                if let Some(ref allowed_tools) = allowed_tools {
+                    if !allowed_tools.contains(&"jupiter_earn".to_string()) {
+                        return Err(anyhow::anyhow!(
+                            "jupiter_earn tool not allowed for this benchmark"
+                        ));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "jupiter_earn tool not allowed for this benchmark"
+                    ));
+                }
                 let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools
                     .jupiter_earn_tool
                     .call(args)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter earn error: {e}"))?;
+                    .map_err(|e| anyhow::anyhow!("jupiter_earn execution error: {e}"))?;
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
@@ -295,12 +331,10 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            _ => {
-                Err(anyhow::anyhow!(
-                    "Unknown tool called: {}",
-                    tool_call.function.name
-                ))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Unknown tool called: {}",
+                tool_call.function.name
+            )),
         }
     }
 

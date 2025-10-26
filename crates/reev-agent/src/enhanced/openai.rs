@@ -183,7 +183,7 @@ impl OpenAIAgent {
                 .tool(tools.jupiter_lend_earn_withdraw_tool)
                 .tool(tools.jupiter_lend_earn_mint_tool)
                 .tool(tools.jupiter_lend_earn_redeem_tool)
-                .tool(tools.jupiter_earn_tool)
+                // jupiter_earn_tool only available for position/earnings benchmarks (114-*.yml)
                 // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
                 // .tool(tools.balance_tool)
                 .tool(tools.lend_earn_tokens_tool)
@@ -297,7 +297,7 @@ impl OpenAIAgent {
             .tool(unified_data.tools.jupiter_lend_earn_withdraw_tool)
             .tool(unified_data.tools.jupiter_lend_earn_mint_tool)
             .tool(unified_data.tools.jupiter_lend_earn_redeem_tool)
-            .tool(unified_data.tools.jupiter_earn_tool)
+            // jupiter_earn_tool only available for position/earnings benchmarks (114-*.yml)
             // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
             // .tool(unified_data.tools.balance_tool)
             .tool(unified_data.tools.lend_earn_tokens_tool)

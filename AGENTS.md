@@ -16,6 +16,7 @@
 - fix warning diag before commit but be reason about unused because maybe it meant to use, remove if not used
 - Always diagnostic and fix error before run
 - Must use `RUST_LOG=info` to reduce log noise and better filter the log by target keyword.
+- RESTRICT jupiter_earn tool to position/earnings benchmarks (114-*.yml) only, never add to normal agent tool list.
 
 ## DONT
 - DONT Add a test on each file, place it in tests folder.

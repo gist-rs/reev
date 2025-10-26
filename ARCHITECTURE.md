@@ -129,6 +129,13 @@ if !is_deterministic_mode() && !benchmark.ground_truth.is_null() {
 - **SPL**: Token operations (TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA)
 - **Jupiter**: Swap/lend/earn (JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4)
 
+### 🚨 Jupiter Earn Tool Restriction
+- **jupiter_earn** tool is RESTRICTED to position/earnings benchmarks (114-*.yml) ONLY
+- Never add jupiter_earn_tool to normal agent tool lists
+- Jupiter earn calls live mainnet APIs directly, bypassing surfpool's forked mainnet state
+- Only include when `include_position_tools` is true or in `allowed_tools`
+- Maintains data consistency between surfpool fork state and direct API calls
+
 ### Response Formats
 - **Jupiter**: `{"transactions": [{"instructions": [...], "completed": true}]}`
 - **Simple**: `{"transactions": [{"program_id": "...", "accounts": [...], "data": "..."}]}`

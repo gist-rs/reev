@@ -229,7 +229,7 @@ impl From<rig::completion::ToolDefinition> for ZaiToolDefinition {
 
         // Verify the conversion worked
         if let Ok(json) = serde_json::to_value(&result) {
-            info!(
+            debug!(
                 "ZAI: Converted tool JSON: {}",
                 serde_json::to_string_pretty(&json).unwrap()
             );
@@ -505,7 +505,7 @@ struct StreamingCompletionChunk {
 
 // Re-use OpenAI's streaming response structure
 pub use rig::providers::openai::StreamingCompletionResponse;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::providers::zai::Client;
 

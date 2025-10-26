@@ -2,7 +2,34 @@
 
 ## Open Issues
 
-### #2 GLM SPL Transfer ATA Resolution Issue - Medium
+### #2 Jupiter Lend Deposit Amount Parsing Issue - Medium
+**Date**: 2025-10-26  
+**Status**: Open  
+**Priority**: Medium  
+
+**Issue**: GLM-4.6 model passes `amount: 0` to Jupiter lend deposit tool instead of reading actual balance from context, even when correct balance is clearly visible in context.
+
+**Symptoms**:
+- Context shows `"USER_USDC_ATA": {"amount": 394358118, ...}` (correct)
+- LLM tool call: `{"amount":0,"asset_mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","user_pubkey":"USER_WALLET_PUBKEY"}` (wrong)
+- Error: `Jupiter lend deposit error: Invalid amount: Amount must be greater than 0`
+- Step 1 (Jupiter swap) works perfectly, step 2 (lend deposit) fails
+
+**Root Cause**:
+- LLM can see correct balance in context but doesn't parse it correctly for amount parameter
+- Possible confusion about amount field interpretation in context vs tool parameter
+- Tool description may not be clear enough about using exact balance from context
+
+**Required Fix**:
+- Improve Jupiter lend deposit tool description to be more explicit about balance reading
+- Add clearer instructions for reading amounts from context
+- Possibly add balance validation hints in tool description
+
+**Impact**: Affects all Jupiter lend deposit operations after successful swaps
+
+---
+
+### #3 GLM SPL Transfer ATA Resolution Issue - Medium
 **Date**: 2025-10-26  
 **Status**: In Progress  
 **Priority**: Medium  
@@ -31,6 +58,40 @@
 - Test unified GLM logic with updated code
 - Verify SPL transfer tool prioritizes pre-created ATAs from key_map
 - Check if LLM correctly uses placeholder names in recipient_pubkey field
+
+---
+
+## Closed Issues
+
+### #1 Jupiter Earn Tool Scope Issue - Fixed
+**Date**: 2025-10-26  
+**Status**: Fixed  
+**Priority**: Critical  
+
+**Issue**: `jupiter_earn` tool is incorrectly available to all benchmarks instead of only `114-jup-positions-and-earnings.yml`, causing API calls that bypass surfpool's forked mainnet state.
+
+**Symptoms**:
+- `200-jup-swap-then-lend-deposit.yml` shows "0 balance" errors from jupiter_earn calls
+- Jupiter earn tool fetches data directly from live mainnet APIs, bypassing surfpool
+- Data inconsistency between surfpool's forked state and Jupiter API responses
+
+**Root Cause**:
+- `jupiter_earn_tool` added unconditionally in OpenAIAgent normal mode
+- Tool should only be available for position/earnings benchmarks (114-*.yml)
+- Surfpool is a forked mainnet, but jupiter_earn calls live mainnet APIs directly, bypassing the fork
+
+**Fixes Applied**:
+- ✅ Removed jupiter_earn_tool from OpenAIAgent normal mode
+- ✅ Made jupiter_earn_tool conditional in ZAI agent based on allowed_tools
+- ✅ Removed jupiter_earn references from general agent contexts
+- ✅ Added safety checks in tool execution
+- ✅ Updated documentation (AGENTS.md, ARCHITECTURE.md, RULES.md)
+- ✅ Code compiles successfully with restrictions in place
+
+**Resolution**: Jupiter earn tool now properly restricted to position/earnings benchmarks only, preventing API calls that bypass surfpool's forked mainnet state.
+
+**Impact**: Fixed for all benchmarks except 114-jup-positions-and-earnings.yml (where it's intended to be used)
+
 
 ---
 

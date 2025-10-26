@@ -34,7 +34,15 @@
 - **Agent Consistency**: Deterministic and AI agents handle flows identically
 - **Error Isolation**: Step failures don't cascade to other steps
 
-### 6. OpenTelemetry Tracking Rules ✅ NEW
+### 6. Jupiter Earn Tool Restriction 🚨 CRITICAL
+- **RESTRICTED ACCESS**: `jupiter_earn` tool ONLY for position/earnings benchmarks (114-*.yml)
+- **NO NORMAL MODE**: Never add `jupiter_earn_tool` to normal agent tool lists
+- **MAINNET API**: Jupiter earn calls live mainnet APIs directly, bypassing surfpool's forked mainnet state
+- **CONDITIONAL INCLUSION**: Only include when `include_position_tools` is true or in `allowed_tools`
+- **CONTEXT RESTRICTION**: Remove jupiter_earn references from general agent contexts
+- **DATA CONSISTENCY**: Prevents inconsistencies between surfpool fork state and direct API calls
+
+### 7. OpenTelemetry Tracking Rules ✅ NEW
 - **No Manual Tool Tracking**: Use rig's built-in OpenTelemetry, never manual interception
 - **Automatic Extraction**: Tool calls extracted via `extract_current_otel_trace()` and `parse_otel_trace_to_tools()`
 - **Session Format Compliance**: Convert to FLOW.md session format for Mermaid diagrams
