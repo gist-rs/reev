@@ -198,9 +198,38 @@ impl Agent for LlmAgent {
         // 3. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
             // GLM routes through reev-agent, use reev-agent format
+
+            // Create enhanced context that clearly separates initial vs current state
+            let enhanced_context = if let Some(initial_state) = initial_state {
+                // Multi-step flow: Show both states with clear labels
+                let initial_yaml = serde_yaml::to_string(&initial_state).unwrap_or_default();
+                let current_yaml =
+                    serde_yaml::to_string(&observation.account_states).unwrap_or_default();
+
+                // Detect if this is likely a multi-step flow by checking if we have both states
+                let step_number =
+                    if !initial_state.is_empty() && !observation.account_states.is_empty() {
+                        // This appears to be a multi-step flow, estimate step from context
+                        2 // Assume step 2 (after initial swap)
+                    } else {
+                        1 // Single step flow
+                    };
+
+                format!(
+                    "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{}\n\n# STEP {} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {}) for operations\n---",
+                    initial_yaml,
+                    step_number,
+                    current_yaml,
+                    step_number
+                )
+            } else {
+                // Single-step flow: Use current context only
+                context_prompt.clone()
+            };
+
             let mut payload = json!({
                 "id": id,
-                "context_prompt": context_prompt,
+                "context_prompt": enhanced_context,
                 "prompt": prompt,
                 "model_name": self.agent_type, // Use agent_type for routing
                 "mock": false,
@@ -220,7 +249,7 @@ impl Agent for LlmAgent {
             }
 
             info!(
-                "[LlmAgent] Final GLM payload: {}",
+                "[LlmAgent] Final GLM payload with enhanced context: {}",
                 serde_json::to_string_pretty(&payload)?
             );
             payload

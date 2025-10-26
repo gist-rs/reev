@@ -25,11 +25,18 @@
 - ✅ **Added RAW balance display**: Context now shows both formatted and raw amounts (e.g., "394,358.118 USDC (RAW: 394358118)")
 - ✅ **Improved debugging**: Added better error messages to show available vs requested amounts
 - ✅ **Clearer instructions**: Tool description now includes explicit example of copying amount from context
+- ✅ **Enhanced Context Format**: Implemented step-aware context that clearly separates INITIAL vs CURRENT state with visual indicators
+- ✅ **Step Numbering**: Added STEP 0 (initial) and STEP 2+ (current) labels to reduce LLM confusion
+
+**Test Results**:
+- Step 1 (Jupiter swap): Enhanced context shows clear separation between initial (0 USDC) and current states
+- LLM still shows some confusion with placeholder resolution but context format is much clearer
+- Need to test Step 2 (Jupiter lend deposit) to verify amount parsing improvement
 
 **Remaining**:
-- Test with updated tool description and context format
-- Verify LLM correctly reads raw amounts from context
-- Monitor Jupiter lend deposit operations after swaps
+- Complete testing of Step 2 to verify LLM uses CURRENT STATE amounts correctly
+- Monitor Jupiter lend deposit operations after enhanced context implementation
+- Consider adding visual separators and more explicit amount highlighting
 
 **Impact**: Affects all Jupiter lend deposit operations after successful swaps
 
