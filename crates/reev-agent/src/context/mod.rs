@@ -317,6 +317,10 @@ impl ContextBuilder {
                 context.push_str(&format!("  • {account_name} → {short_addr}\n"));
             }
         }
+        context.push_str("\n💡 IMPORTANT: Use the PLACEHOLDER NAMES (like RECIPIENT_WALLET_PUBKEY) in tool calls, not the truncated addresses above.\n");
+        context.push_str(
+            "📝 The placeholders will be automatically resolved to full addresses by the tools.\n",
+        );
 
         context.push_str("\n💡 You have sufficient account information above. Use this context to make decisions without unnecessary balance checks.");
         context.push_str("\n📝 NOTE: Placeholders like RECIPIENT_WALLET_PUBKEY are already resolved to real addresses shown above.");
