@@ -565,7 +565,7 @@ mod tests {
         let logger = EnhancedOtelLogger::new()?;
         assert!(!logger.session_id().is_empty());
         assert!(logger.log_file().contains("otel_"));
-        assert!(logger.log_file().ends_with(".json"));
+        assert!(logger.log_file().ends_with(".jsonl"));
         Ok(())
     }
 

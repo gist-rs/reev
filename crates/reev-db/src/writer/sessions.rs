@@ -528,7 +528,7 @@ impl DatabaseWriter {
         let mut rows = self
             .conn
             .query(
-                "SELECT session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message, metadata
+                "SELECT session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message
                  FROM session_tool_calls
                  WHERE session_id = ?
                  ORDER BY start_time ASC",

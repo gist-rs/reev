@@ -51,6 +51,31 @@ let destination_ata = if let Some(ata_key) = self.key_map.get(&args.recipient_pu
 - SOL transfers: depth 1
 - Simple Jupiter swaps: depth 2
 
+## Test Infrastructure Fixes - Completed ✅
+**Issue**: Two test failures in CI pipeline
+- `reev-db` test: SQL error "no such column: metadata" 
+- `reev-flow` test: Assertion failed expecting ".json" but got ".jsonl"
+
+**Root Causes**:
+1. SQL query in `get_session_tool_calls` referenced non-existent `metadata` column
+2. Test assertion mismatched with actual log file extension (.jsonl vs .json)
+
+**Fixes Applied**:
+1. **Database Fix**: Removed `metadata` column from SELECT query in `crates/reev-db/src/writer/sessions.rs`
+   ```sql
+   -- BEFORE:
+   SELECT session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message, metadata
+   
+   -- AFTER:  
+   SELECT session_id, tool_name, start_time, execution_time_ms, input_params, output_result, status, error_message
+   ```
+
+2. **Test Fix**: Updated assertion in `crates/reev-flow/src/enhanced_otel.rs` to expect correct `.jsonl` extension
+
+**Results**: All 5 reev-db consolidation tests + 3 reev-flow tests now pass. Zero clippy warnings.
+
+---
+
 **Performance**: 86% reduction in conversation turns for simple operations
 
 ## Jupiter Lending Deposit AI Model Issue - In Progress 🚧
