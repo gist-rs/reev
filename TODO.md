@@ -1,19 +1,9 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
----
-
-do tell me that context is provided properly. focus on this context validity
-
-refer to `Now I need to remove the duplicate calls to `setup_spl_scenario` since it's already handled in the reset function:`
-What about in multi-step? reset will call in each step to setup account or what you just remove set that? i need to ensure it work in all case
-
----
 
 - did this schema ready for scoring how good llm call the tool with times taken, low tools call with low latency should have good score (refine/suggest me on this metrics) do search code/md for score/scoring and learn from current scoring first,
 
 ---
-
-agent must use sol_tool via llm tool calling, other than that is wrong, totally wrong and not allow.
 
 can you check context prompt? we must provide all tools
 and check the code, we must not have any code that can create tx by ourself, only via llm tool calling
