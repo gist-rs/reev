@@ -109,6 +109,9 @@ pub struct App<'a> {
     pub details_scroll_state: ScrollbarState,
     pub transaction_log_content: Text<'a>,
     pub shared_surfpool: bool,
+    pub log_scroll: u16,
+    pub log_horizontal_scroll: u16,
+    pub log_scroll_state: ScrollbarState,
 }
 
 impl<'a> App<'a> {
@@ -132,7 +135,6 @@ impl<'a> App<'a> {
             event_sender,
             event_receiver,
             shared_surfpool: false, // Default to fresh mode for consistency
-        }
             details_scroll: 0,
             details_horizontal_scroll: 0,
             details_scroll_state: ScrollbarState::default(),
@@ -248,6 +250,7 @@ impl<'a> App<'a> {
             let path = self.benchmarks[selected_index].path.clone();
             let sender = self.event_sender.clone();
             let agent_name = self.selected_agent.to_agent_name();
+            let shared_surfpool = self.shared_surfpool;
 
             tokio::task::spawn_blocking(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
@@ -258,7 +261,7 @@ impl<'a> App<'a> {
                         .send(TuiEvent::BenchmarkStarted(selected_index))
                         .await;
 
-                    reev_runner::run_benchmarks(path, agent_name, self.shared_surfpool).await
+                    reev_runner::run_benchmarks(path, agent_name, shared_surfpool).await
                 });
 
                 let final_result = match result {
@@ -297,10 +300,7 @@ impl<'a> App<'a> {
         // Update status for first benchmark to show current mode
         if !self.benchmarks.is_empty() {
             if let Some(benchmark) = self.benchmarks.get_mut(0) {
-                benchmark.details = Text::from(format!(
-                    "> Ready to run.\n> Current mode: {}",
-                    mode
-                ));
+                benchmark.details = Text::from(format!("> Ready to run.\n> Current mode: {mode}"));
             }
         }
     }

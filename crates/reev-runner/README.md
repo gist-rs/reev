@@ -135,24 +135,7 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner --test surfpool_rpc_test -- --nocapture
     ```
 
-*   **E2E Run All Test (`e2e_run_all_test.rs`):**
-    Validates shared vs fresh surfpool functionality by running multiple benchmarks sequentially with different agents, similar to TUI's "Run All" functionality. The test automatically starts and stops required services.
-    ```sh
-    # Run the main e2e test (tests deterministic, local, glm-4.6 agents)
-    RUST_LOG=info cargo test --package reev-runner --test e2e_run_all_test -- --nocapture
-    
-    # Run specific test function only
-    RUST_LOG=info cargo test --package reev-runner test_run_all_benchmarks_multi_agent_e2e -- --nocapture
-    
-    # Run single benchmark consistency test
-    RUST_LOG=info cargo test --package reev-runner test_single_benchmark_consistency -- --nocapture
-    ```
 
-    Note: This test takes ~2-3 minutes to complete and validates:
-    - Sequential execution of benchmarks with multiple agents (deterministic, local, glm-4.6)
-    - Shared vs fresh surfpool mode comparison
-    - Score consistency across runs (no random results)
-    - Proper async threading behavior
 
 ---
 For master project plan and more detailed architectural documentation, please see the main [repository `README.md`](../../README.md).
