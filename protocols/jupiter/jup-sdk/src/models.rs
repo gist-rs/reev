@@ -92,3 +92,121 @@ pub struct ApiResponse {
     #[serde(rename = "addressLookupTableAddresses")]
     pub address_lookup_table_addresses: Option<Vec<String>>,
 }
+
+// --- Token API Data Structures ---
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenInfo {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub icon: Option<String>,
+    pub decimals: u8,
+    #[serde(rename = "circSupply")]
+    pub circ_supply: Option<f64>,
+    #[serde(rename = "totalSupply")]
+    pub total_supply: Option<f64>,
+    #[serde(rename = "tokenProgram")]
+    pub token_program: String,
+    #[serde(rename = "mintAuthority")]
+    pub mint_authority: Option<String>,
+    #[serde(rename = "freezeAuthority")]
+    pub freeze_authority: Option<String>,
+    #[serde(rename = "firstPool")]
+    pub first_pool: Option<FirstPool>,
+    #[serde(rename = "holderCount")]
+    pub holder_count: Option<u64>,
+    pub audit: Option<AuditInfo>,
+    pub apy: Option<ApyInfo>,
+    #[serde(rename = "organicScore")]
+    pub organic_score: Option<f64>,
+    #[serde(rename = "organicScoreLabel")]
+    pub organic_score_label: Option<String>,
+    #[serde(rename = "isVerified")]
+    pub is_verified: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub fdv: Option<f64>,
+    pub mcap: Option<f64>,
+    #[serde(rename = "usdPrice")]
+    pub usd_price: Option<f64>,
+    #[serde(rename = "priceBlockId")]
+    pub price_block_id: Option<u64>,
+    pub liquidity: Option<f64>,
+    #[serde(rename = "stats5m")]
+    pub stats_5m: Option<TokenStats>,
+    #[serde(rename = "stats1h")]
+    pub stats_1h: Option<TokenStats>,
+    #[serde(rename = "stats6h")]
+    pub stats_6h: Option<TokenStats>,
+    #[serde(rename = "stats24h")]
+    pub stats_24h: Option<TokenStats>,
+    #[serde(rename = "ctLikes")]
+    pub ct_likes: Option<u32>,
+    #[serde(rename = "smartCtLikes")]
+    pub smart_ct_likes: Option<u32>,
+    pub twitter: Option<String>,
+    pub website: Option<String>,
+    pub dev: Option<String>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstPool {
+    pub id: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuditInfo {
+    #[serde(rename = "mintAuthorityDisabled")]
+    pub mint_authority_disabled: Option<bool>,
+    #[serde(rename = "freezeAuthorityDisabled")]
+    pub freeze_authority_disabled: Option<bool>,
+    #[serde(rename = "topHoldersPercentage")]
+    pub top_holders_percentage: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ApyInfo {
+    #[serde(rename = "jupEarn")]
+    pub jup_earn: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenStats {
+    #[serde(rename = "priceChange")]
+    pub price_change: Option<f64>,
+    #[serde(rename = "liquidityChange")]
+    pub liquidity_change: Option<f64>,
+    #[serde(rename = "volumeChange")]
+    pub volume_change: Option<f64>,
+    #[serde(rename = "buyVolume")]
+    pub buy_volume: Option<f64>,
+    #[serde(rename = "sellVolume")]
+    pub sell_volume: Option<f64>,
+    #[serde(rename = "buyOrganicVolume")]
+    pub buy_organic_volume: Option<f64>,
+    #[serde(rename = "sellOrganicVolume")]
+    pub sell_organic_volume: Option<f64>,
+    #[serde(rename = "numBuys")]
+    pub num_buys: Option<u64>,
+    #[serde(rename = "numSells")]
+    pub num_sells: Option<u64>,
+    #[serde(rename = "numTraders")]
+    pub num_traders: Option<u64>,
+    #[serde(rename = "numOrganicBuyers")]
+    pub num_organic_buyers: Option<u64>,
+    #[serde(rename = "numNetBuyers")]
+    pub num_net_buyers: Option<u64>,
+}
+
+/// Parameters for searching tokens
+#[derive(Debug, Clone)]
+pub struct TokenSearchParams {
+    pub query: String,
+}
