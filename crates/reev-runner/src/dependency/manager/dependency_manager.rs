@@ -93,9 +93,9 @@ impl DependencyManager {
         self.clear_log_files().await?;
         debug!("Log files cleared");
 
-        // Start both services with small delays for staggered parallel startup
-        debug!("Starting both services with staggered approach...");
-        let parallel_start = std::time::Instant::now();
+        // Start both services with optimized staggered approach for faster startup
+        debug!("Starting both services with optimized staggered approach...");
+        let start_time = std::time::Instant::now();
 
         // Start reev-agent first
         debug!("Starting reev-agent service...");
@@ -105,8 +105,8 @@ impl DependencyManager {
         }
         debug!("reev-agent started");
 
-        // Start surfpool with a small delay to avoid resource contention
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // Start surfpool with minimal delay to avoid resource contention
+        tokio::time::sleep(Duration::from_millis(100)).await; // Reduced from 200ms to 100ms
         debug!("Starting surfpool service...");
         if let Err(e) = self.start_surfpool().await {
             error!(error = %e, "Failed to start surfpool");
@@ -115,8 +115,8 @@ impl DependencyManager {
         debug!("surfpool started");
 
         debug!(
-            "Both services started with staggered approach in {:?}",
-            parallel_start.elapsed()
+            "Both services started with optimized staggered approach in {:?}",
+            start_time.elapsed()
         );
 
         // No continuous monitoring needed - services will be checked individually
@@ -197,10 +197,10 @@ impl DependencyManager {
         let _pid = self.process_manager.start_process(process_config).await?;
         debug!("reev-agent process started with PID {:?}", _pid);
 
-        // Wait for health check with simple polling
+        // Wait for health check with shorter timeout for faster startup
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
-        let timeout = self.config.startup_timeout;
+        let timeout = Duration::from_secs(30); // Reduced from 60s to 30s
         debug!("Waiting for reev-agent to be healthy...");
 
         let mut check_count = 0;
@@ -330,10 +330,10 @@ impl DependencyManager {
         let _pid = self.process_manager.start_process(process_config).await?;
         debug!("surfpool process started with PID {:?}", _pid);
 
-        // Wait for health check with shorter timeout and better error handling
+        // Wait for health check with even shorter timeout for faster startup
         let health_url = format!("http://localhost:{port}");
         let start_time = std::time::Instant::now();
-        let timeout = Duration::from_secs(30); // Shorter timeout for faster startup
+        let timeout = Duration::from_secs(20); // Reduced from 30s to 20s for faster startup
         debug!("Waiting for surfpool to be healthy...");
 
         let mut check_count = 0;
