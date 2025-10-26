@@ -21,7 +21,7 @@ To run a specific benchmark, provide the path to the benchmark YAML file. You ca
 ### Command Structure
 
 ```sh
-RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>]
+RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NAME>] [--shared-surfpool]
 ```
 
 ### Examples
@@ -45,13 +45,23 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
     ```
 
 *   **GLM 4.6 Agent:**
-    To run using GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm` agent name.
+    To run using GLM 4.6 model with OpenAI-compatible API, set the required environment variables and use the `glm-4.6` agent name.
     ```sh
     export GLM_API_KEY="your-glm-api-key"
     export GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
-    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
     ```
     > **Note:** Both `GLM_API_KEY` and `GLM_API_URL` environment variables must be set for GLM 4.6 to work.
+
+*   **Shared vs Fresh Surfpool Mode:**
+    Control whether to reuse existing service instances or create fresh ones for each run.
+    ```sh
+    # Use existing instances (faster, shared state)
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic --shared-surfpool
+    
+    # Create fresh instances (isolated, clean state)
+    RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent deterministic
+    ```
 
 ## Testing
 
@@ -81,7 +91,7 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     RUST_LOG=info cargo test -p reev-runner
     ```
 
-### Current Test Files (9 tests)
+### Current Test Files (10 tests)
 - `benchmarks_test.rs` - Comprehensive benchmark testing with surfpool integration
 - `deterministic_agent_test.rs` - Deterministic agent validation
 - `llm_agent_test.rs` - LLM agent integration tests
@@ -126,9 +136,9 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     ```
 
 *   **E2E Run All Test (`e2e_run_all_test.rs`):**
-    Validates async threading fix by running multiple benchmarks sequentially with different agents, similar to TUI's "Run All" functionality. The test automatically starts and stops required services.
+    Validates shared vs fresh surfpool functionality by running multiple benchmarks sequentially with different agents, similar to TUI's "Run All" functionality. The test automatically starts and stops required services.
     ```sh
-    # Run the main e2e test
+    # Run the main e2e test (tests deterministic, local, glm-4.6 agents)
     RUST_LOG=info cargo test --package reev-runner --test e2e_run_all_test -- --nocapture
     
     # Run specific test function only
@@ -139,7 +149,8 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     ```
 
     Note: This test takes ~2-3 minutes to complete and validates:
-    - Sequential execution of benchmarks with multiple agents (deterministic, local)
+    - Sequential execution of benchmarks with multiple agents (deterministic, local, glm-4.6)
+    - Shared vs fresh surfpool mode comparison
     - Score consistency across runs (no random results)
     - Proper async threading behavior
 
