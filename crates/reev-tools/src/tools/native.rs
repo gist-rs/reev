@@ -22,7 +22,7 @@ use thiserror::Error;
 // Import enhanced logging macros
 use reev_flow::log_tool_call;
 use reev_flow::log_tool_completion;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument, warn};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.
 #[derive(Serialize, Deserialize, Debug)]
@@ -144,24 +144,71 @@ impl Tool for SolTransferTool {
 
         let _start_time = Instant::now();
         info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
-        // Validate and parse arguments
+
+        // DEBUG: Show what key_map contains
+        info!(
+            "[SolTransferTool] DEBUG - key_map entries: {:?}",
+            self.key_map
+        );
+        info!(
+            "[SolTransferTool] DEBUG - tool args: user_pubkey='{}', recipient_pubkey='{}'",
+            args.user_pubkey, args.recipient_pubkey
+        );
+
+        // Simple resolution for now - use what key_map provides or fallback
         let user_pubkey = self
             .key_map
-            .get("USER_WALLET_PUBKEY")
+            .get(&args.user_pubkey)
             .unwrap_or(&args.user_pubkey)
             .clone();
+
+        info!(
+            "[SolTransferTool] DEBUG - resolved user_pubkey: '{}'",
+            user_pubkey
+        );
 
         let user_pubkey_parsed = Pubkey::from_str(&user_pubkey)
             .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
-        let recipient_pubkey = self
-            .key_map
-            .get(&args.recipient_pubkey)
-            .unwrap_or(&args.recipient_pubkey)
-            .clone();
+        // Enhanced recipient_pubkey resolution with debugging
+        info!(
+            "[SolTransferTool] Resolving recipient_pubkey: '{}', available keys: {:?}",
+            args.recipient_pubkey,
+            self.key_map.keys().collect::<Vec<_>>()
+        );
 
-        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
-            .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
+        let recipient_pubkey = if let Some(resolved) = self.key_map.get(&args.recipient_pubkey) {
+            info!(
+                "[SolTransferTool] Directly resolved '{}' to '{}'",
+                args.recipient_pubkey, resolved
+            );
+            resolved.clone()
+        } else {
+            warn!(
+                "[SolTransferTool] '{}' not found in key_map, available keys: {:?}",
+                args.recipient_pubkey,
+                self.key_map.keys().collect::<Vec<_>>()
+            );
+            args.recipient_pubkey.clone()
+        };
+
+        info!(
+            "[SolTransferTool] DEBUG - resolved recipient_pubkey: '{}'",
+            recipient_pubkey
+        );
+
+        info!(
+            "[SolTransferTool] Final resolved '{}' to '{}'",
+            args.recipient_pubkey, recipient_pubkey
+        );
+
+        let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey).map_err(|e| {
+            error!(
+                "[SolTransferTool] Failed to parse recipient_pubkey '{}' (original: '{}'): {}",
+                recipient_pubkey, args.recipient_pubkey, e
+            );
+            NativeTransferError::PubkeyParse(e.to_string())
+        })?;
 
         // Validate business logic
         if args.amount == 0 {
@@ -327,38 +374,37 @@ impl Tool for SplTransferTool {
         };
 
         // Resolve destination ATA - prioritize key_map ATAs over generated ones
-        let destination_ata = if let Some(recipient_ata_key) =
-            self.key_map.get(&args.recipient_pubkey)
-        {
-            info!(
+        let destination_ata =
+            if let Some(recipient_ata_key) = self.key_map.get(&args.recipient_pubkey) {
+                info!(
                 "[SplTransferTool] Using pre-created destination ATA from key_map: {} (key: {})",
                 recipient_ata_key, args.recipient_pubkey
             );
-            Pubkey::from_str(recipient_ata_key)
-                .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?
-        } else {
-            // Only parse recipient pubkey if we need to generate ATA
-            let recipient_pubkey = self
-                .key_map
-                .get(&args.recipient_pubkey)
-                .unwrap_or(&args.recipient_pubkey)
-                .clone();
+                Pubkey::from_str(recipient_ata_key)
+                    .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?
+            } else {
+                // Only parse recipient pubkey if we need to generate ATA
+                let recipient_pubkey = self
+                    .key_map
+                    .get(&args.recipient_pubkey)
+                    .unwrap_or(&args.recipient_pubkey)
+                    .clone();
 
-            info!(
-                "[SplTransferTool] Resolving recipient pubkey for ATA generation: {}",
-                recipient_pubkey
-            );
-            let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
-                .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
+                info!(
+                    "[SplTransferTool] Resolving recipient pubkey for ATA generation: {}",
+                    recipient_pubkey
+                );
+                let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey)
+                    .map_err(|e| SplTransferError::PubkeyParse(e.to_string()))?;
 
-            let generated_ata =
-                get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
-            info!(
-                "[SplTransferTool] Generated new destination ATA: {}",
+                let generated_ata =
+                    get_associated_token_address(&recipient_pubkey_parsed, &mint_pubkey);
+                info!(
+                    "[SplTransferTool] Generated new destination ATA: {}",
+                    generated_ata
+                );
                 generated_ata
-            );
-            generated_ata
-        };
+            };
 
         // Validate amount
         if args.amount == 0 {

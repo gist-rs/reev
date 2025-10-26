@@ -183,14 +183,21 @@ impl Agent for LlmAgent {
         }
 
         // 1. Serialize the full context to YAML to create the context prompt.
+        // Enhanced format with clear address resolution guidance
         let context_yaml = serde_yaml::to_string(&json!({
-            "fee_payer_placeholder": fee_payer,
+            "🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS": observation.key_map,
             "account_states": observation.account_states,
-            "key_map": observation.key_map,
+            "fee_payer_placeholder": fee_payer,
+            "📝 INSTRUCTIONS": {
+                "use_resolved_addresses": "ALWAYS use addresses from 🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS section, NOT placeholder names",
+                "example": "Use '3FHqkBwzaasvorCVvS6wSgzVHE7T8mhWmYD6F2Jjyqmg' instead of 'RECIPIENT_WALLET_PUBKEY'"
+            }
         }))
         .context("Failed to serialize full context to YAML")?;
 
-        let context_prompt = format!("---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n---");
+        let context_prompt = format!(
+            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n🔑 CRITICAL: ALWAYS use addresses from '🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS' section - NEVER use placeholder names directly\n---"
+        );
 
         // 2. Determine available tools based on context
         let available_tools = self.determine_available_tools(prompt, &context_prompt);
@@ -215,8 +222,11 @@ impl Agent for LlmAgent {
                         1 // Single step flow
                     };
 
+                // Include resolved addresses in the context
+                let key_map_yaml = serde_yaml::to_string(&observation.key_map).unwrap_or_default();
+
                 format!(
-                    "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{initial_yaml}\n\n# STEP {step_number} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{current_yaml}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {step_number}) for operations\n---"
+                    "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{initial_yaml}\n\n# STEP {step_number} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{current_yaml}\n\n🔑 RESOLVED ADDRESSES FOR OPERATIONS:\n{key_map_yaml}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {step_number}) for operations\n🔑 CRITICAL: ALWAYS use resolved addresses from '🔑 RESOLVED ADDRESSES FOR OPERATIONS' section above - NEVER use placeholder names\n---"
                 )
             } else {
                 // Single-step flow: Use current context only
@@ -234,6 +244,7 @@ impl Agent for LlmAgent {
                 }),
                 "allowed_tools": available_tools,
                 "account_states": observation.account_states,
+                "key_map": observation.key_map,
             });
 
             // Add session_id if available

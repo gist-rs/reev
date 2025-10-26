@@ -44,11 +44,31 @@ impl ZAIAgent {
     ) -> Result<String> {
         info!("[ZAIAgent] Running ZAI agent with unified GLM logic: {model_name}");
 
+        // 🔥 DEBUG: Check full incoming payload
+        info!("[ZAIAgent] DEBUG - full LlmRequest payload: {:?}", payload);
+
+        // 🔧 FIX: Extract key_map from payload if not provided as parameter
+        // 🔧 Extract key_map from payload - it should be populated in enhanced context
+        let key_map_to_use = payload
+            .key_map
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| key_map.clone());
+        info!(
+            "[ZAIAgent] DEBUG - key_map being used: {:?}",
+            key_map_to_use
+        );
+
+        info!(
+            "[ZAIAgent] DEBUG - key_map being used: {:?}",
+            key_map_to_use
+        );
+
         // 🚨 Check for allowed tools filtering (for flow operations)
         let allowed_tools = payload.allowed_tools.clone();
 
         // 🎯 Use unified GLM logic for shared components
-        let unified_data = UnifiedGLMAgent::run(model_name, payload, key_map).await?;
+        let unified_data = UnifiedGLMAgent::run(model_name, payload, key_map_to_use).await?;
 
         info!("[ZAIAgent] === ZAI-SPECIFIC REQUEST HANDLING ===");
         info!(

@@ -44,38 +44,45 @@
 - Placeholder names like 'RECIPIENT_WALLET_PUBKEY' look like valid pubkeys to LLM
 
 **Fixes Applied**:
-- ✅ **Enhanced tool description**: Made Jupiter tools more explicit about reading exact balance from context
+- ✅ **Enhanced tool description**: Made tools more explicit about using resolved addresses
 - ✅ **Added RAW balance display**: Context now shows both formatted and raw amounts (e.g., "394,358.118 USDC (RAW: 394358118)")
 - ✅ **Improved debugging**: Added better error messages to show available vs requested amounts
 - ✅ **Enhanced context format**: Step-aware separation of INITIAL vs CURRENT state
-- 🔍 **New Fix Needed**: Explicit placeholder resolution guidance required
-+✅ **Enhanced Context Format**: Implemented step-aware context that clearly separates INITIAL vs CURRENT state with visual indicators
-+- ✅ **Step Numbering**: Added STEP 0 (initial) and STEP 2+ (current) labels to reduce LLM confusion
-+
-+**New Issue #4: SOL Transfer Placeholder Resolution**
-+- Error: "Failed to parse pubkey: Invalid Base58 string" 
-+- LLM using placeholder 'RECIPIENT_WALLET_PUBKEY' instead of resolved address
-+- Context enhancement helps but doesn't resolve placeholder vs address confusion
-+
-+**Test Results**:
-+- Step 1 (Jupiter swap): Enhanced context shows clear separation between initial (0 USDC) and current states
-+- ✅ **Context clarity improved**: LLM now sees clearly labeled STEP 0 vs STEP 2 sections
-+- ⚠️ **New pattern identified**: LLM still struggles with placeholder vs resolved address distinction
-- ✅ **New Issue #4**: SOL transfer error - "Failed to parse pubkey: Invalid Base58 string"
--   LLM trying to use placeholder 'RECIPIENT_WALLET_PUBKEY' directly instead of resolved address
--   Context enhancement helps but doesn't resolve placeholder vs address confusion
--- Need to test Step 2 (Jupiter lend deposit) to verify amount parsing improvement
+- ✅ **Enhanced context display**: Added explicit "🔑 RESOLVED ADDRESSES FOR OPERATIONS" section
+- ✅ **Tool description updates**: Explicit instructions to use resolved addresses, not placeholders
+- 🔍 **Current Issue**: Despite all context enhancements, LLM still passes placeholder names to tools
 
-**Remaining**:
-- Complete testing of Step 2 (Jupiter lend deposit) to verify amount parsing improvement  
-- 🔍 **Investigate Issue #4**: LLM placeholder resolution confusion needs addressing
-- Monitor Jupiter operations after both context and placeholder resolution improvements
-- Consider adding visual separators and more explicit amount highlighting
+**Auto-Resolution Implementation Applied**:
+- ✅ **Smart placeholder detection**: Identifies placeholders using `_` and keywords like WALLET/PUBKEY/TOKEN/ATA
+- ✅ **Automatic resolution**: `self.key_map.get(&args.recipient_pubkey)` resolves placeholders to addresses
+- ✅ **Fallback handling**: Uses original address if placeholder not found in key_map
+- ✅ **Debug logging**: Auto-resolution logging to track behavior
+
+**Current Debugging Findings**:
+- Context properly includes resolved addresses: `"RECIPIENT_WALLET_PUBKEY": "AFsX1jD6JTb2hLFsLBzkHMWGy6UWDMaEY8UVnacwRWUH"`
+- Tool receives correct key_map with resolved addresses  
+- Auto-resolution logic: detects placeholder and should resolve to real address
+- LLM still calls tool with: `{"recipient_pubkey":"RECIPIENT_WALLET_PUBKEY"}`
+- Issue: Despite auto-resolution, parsing still fails with "Invalid Base58 string"
+- Root cause: Tool execution may not be using new binary or caching issue
+
+**Investigation Required**:
+- Debug messages not appearing in logs suggests binary caching issue
+- Need to verify auto-resolution code is actually being executed
+- May need to restart processes or rebuild completely
+- Alternative: Consider resolving at prompt level instead of tool level
+
+**Next Steps Required**:
+- 🔍 **Binary Caching**: Verify new code is actually executing in running processes
+- 🛠️ **Force Restart**: Kill all reev-agent processes and rebuild to ensure new code
+- 📝 **Alternative Approach**: Consider prompt-level placeholder resolution if tool-level fails
+- 🔧 **Test Auto-Resolution**: Verify resolved address appears in parsing step
+- 📊 **Monitor Behavior**: Track whether LLM adapts to better error messages
 
 **Impact**: 
 - Issue #2: Resolved - Enhanced context prevents amount confusion
-- Issue #4: Active - LLM still confused about placeholders vs resolved addresses
-- Affects multi-step flows where LLM needs to use resolved addresses from key_map
+- Issue #4: Active - LLM still ignores resolved address guidance despite clear context
+- Affects all operations requiring resolved addresses from key_map
 
 ---
 

@@ -352,6 +352,8 @@ pub struct LlmRequest {
     pub allowed_tools: Option<Vec<String>>,
     #[serde(default)]
     pub account_states: Option<std::collections::HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub key_map: Option<std::collections::HashMap<String, String>>,
 }
 
 fn default_model() -> String {

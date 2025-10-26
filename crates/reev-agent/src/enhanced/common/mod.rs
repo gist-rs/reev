@@ -515,6 +515,12 @@ impl UnifiedGLMAgent {
             conversation_depth,
         );
 
+        // 🛠️ DEBUG: Log key_map before creating tools
+        info!(
+            "[UnifiedGLMAgent] DEBUG - key_map being passed to AgentTools::new: {:?}",
+            key_map
+        );
+
         // 🛠️ Instantiate tools using common helper
         let tools = AgentTools::new(key_map.clone());
 

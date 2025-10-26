@@ -268,6 +268,7 @@ impl FlowAgent {
             context_prompt,
             model_name: self.model_name.clone(),
             initial_state: None,
+            key_map: Some(resolved_context.key_map.clone()),
             mock: false,
             allowed_tools: Some(all_tools.clone()),
             account_states: None,

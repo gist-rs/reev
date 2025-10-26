@@ -91,17 +91,17 @@ impl Tool for SolTransferTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Transfer SOL or SPL tokens between Solana accounts. This tool can perform native SOL transfers or SPL token transfers with proper instruction generation. NOTE: Account balance is provided in the context - verify sufficient funds before transferring.".to_string(),
+            description: "Transfer SOL or SPL tokens between Solana accounts. This tool can perform native SOL transfers or SPL token transfers with proper instruction generation. CRITICAL: Always use resolved addresses from the context '🔑 RESOLVED ADDRESSES FOR OPERATIONS' section - NEVER use placeholder names like 'RECIPIENT_WALLET_PUBKEY'. Example: Use 'Fq1SVfDEWCVRYWp8tfwXdoUU9HQggDVNpSpLzPfsNqex' instead of 'RECIPIENT_WALLET_PUBKEY'. NOTE: Account balance is provided in the context - verify sufficient funds before transferring.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "user_pubkey": {
                         "type": "string",
-                        "description": "The public key of the user's wallet sending the transfer."
+                        "description": "The public key of the user's wallet sending the transfer. Use resolved address from '🔑 RESOLVED ADDRESSES FOR OPERATIONS' section."
                     },
                     "recipient_pubkey": {
                         "type": "string",
-                        "description": "The public key of the recipient wallet."
+                        "description": "The public key of the recipient wallet. CRITICAL: Use resolved address from '🔑 RESOLVED ADDRESSES FOR OPERATIONS' section - NEVER use placeholder names like 'RECIPIENT_WALLET_PUBKEY'."
                     },
                     "amount": {
                         "type": "number",
@@ -157,33 +157,67 @@ impl Tool for SolTransferTool {
             NativeTransferError::PubkeyParse(e.to_string())
         })?;
 
-        let recipient_pubkey = self
-            .key_map
-            .get(&args.recipient_pubkey)
-            .unwrap_or(&args.recipient_pubkey)
-            .clone();
-
-        // Debug logging to track address resolution
+        // Debug logging to show full key_map contents
         info!(
-            "[SolTransferTool] Address resolution - args.recipient_pubkey: {}, found_in_key_map: {}, resolved_address: {}",
-            args.recipient_pubkey,
-            self.key_map.contains_key(&args.recipient_pubkey),
-            recipient_pubkey
+            "[SolTransferTool] Full key_map contents: {:?}",
+            self.key_map
         );
 
-        // Debug logging to track address resolution
+        // Check if recipient_pubkey is a placeholder that needs resolution
+        let is_placeholder = args.recipient_pubkey.contains('_')
+            && (args.recipient_pubkey.contains("WALLET")
+                || args.recipient_pubkey.contains("PUBKEY")
+                || args.recipient_pubkey.contains("TOKEN")
+                || args.recipient_pubkey.contains("ATA"));
+
+        // Debug logging immediately
         info!(
-            "[SolTransferTool] Address resolution - args.recipient_pubkey: {}, found_in_key_map: {}, resolved_address: {}",
+            "[SolTransferTool] DEBUG: args.recipient_pubkey='{}', is_placeholder={}, key_map_contains={}",
             args.recipient_pubkey,
-            self.key_map.contains_key(&args.recipient_pubkey),
-            recipient_pubkey
+            is_placeholder,
+            self.key_map.contains_key(&args.recipient_pubkey)
         );
 
+        // Auto-resolve placeholders before validation
+        let recipient_pubkey = if args.recipient_pubkey.contains('_')
+            && (args.recipient_pubkey.contains("WALLET")
+                || args.recipient_pubkey.contains("PUBKEY")
+                || args.recipient_pubkey.contains("TOKEN")
+                || args.recipient_pubkey.contains("ATA"))
+        {
+            // This appears to be a placeholder, try to resolve it
+            match self.key_map.get(&args.recipient_pubkey) {
+                Some(resolved) => {
+                    info!(
+                        "[SolTransferTool] Auto-resolved placeholder '{}' to '{}'",
+                        args.recipient_pubkey, resolved
+                    );
+                    resolved.clone()
+                }
+                None => {
+                    warn!(
+                        "[SolTransferTool] Placeholder '{}' not found in key_map, using as-is",
+                        args.recipient_pubkey
+                    );
+                    args.recipient_pubkey.clone()
+                }
+            }
+        } else {
+            // This appears to be a real address, use as-is
+            args.recipient_pubkey.clone()
+        };
+
+        info!(
+            "[SolTransferTool] Auto-resolved placeholder '{}' to resolved address: '{}'",
+            args.recipient_pubkey, recipient_pubkey
+        );
         let recipient_pubkey_parsed = Pubkey::from_str(&recipient_pubkey).map_err(|e| {
             let error_data = json!({
                 "error": "PubkeyParse",
                 "field": "recipient_pubkey",
-                "message": e.to_string()
+                "message": format!("Invalid pubkey: {}", e.to_string()),
+                "provided_address": args.recipient_pubkey,
+                "resolved_address": recipient_pubkey
             });
             crate::log_tool_completion!("sol_transfer", 0, &error_data, false);
             NativeTransferError::PubkeyParse(e.to_string())
