@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use glob::glob;
 use project_root::get_project_root;
 use reev_lib::benchmark::TestCase;
+use reev_lib::server_utils;
 use reev_runner::run_benchmarks;
 use std::{
     fs,
@@ -117,6 +118,12 @@ fn validate_consistency(agent_name: &str, results: &[(PathBuf, f64)]) -> Result<
 /// Main E2E test: Run All functionality with multiple agents
 #[tokio::test(flavor = "multi_thread")]
 async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
+    // Clean up any existing processes before starting
+    info!("🧹 Cleaning up existing processes...");
+    server_utils::kill_existing_api(3001).await?;
+    server_utils::kill_existing_reev_agent(9090).await?;
+    server_utils::kill_existing_surfpool(8899).await?;
+
     // Use simple benchmarks for fast feedback
     let benchmarks = vec!["001-sol-transfer.yml", "002-spl-transfer.yml"]
         .into_iter()
@@ -147,6 +154,12 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
 /// Test individual benchmark runs for quick debugging
 #[tokio::test(flavor = "multi_thread")]
 async fn test_single_benchmark_consistency() -> Result<()> {
+    // Clean up any existing processes before starting
+    info!("🧹 Cleaning up existing processes...");
+    server_utils::kill_existing_api(3001).await?;
+    server_utils::kill_existing_reev_agent(9090).await?;
+    server_utils::kill_existing_surfpool(8899).await?;
+
     let benchmark_path = get_project_root()
         .unwrap()
         .join("benchmarks")
