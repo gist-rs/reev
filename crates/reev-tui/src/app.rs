@@ -178,6 +178,8 @@ impl<'a> App<'a> {
                     benchmark.details = Text::from("Benchmark is running...");
                     benchmark.result = None;
                 }
+                // Reset transaction log display when benchmark starts
+                self.update_log_content_from_selection();
             }
             TuiEvent::BenchmarkCompleted(index, result) => {
                 self.is_running_benchmark = false;
