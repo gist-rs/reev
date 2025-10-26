@@ -10,7 +10,8 @@ use event::handle_events;
 use tui::Tui;
 use ui::ui;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Load environment variables from a .env file.
     dotenvy::dotenv().ok();
 
@@ -28,7 +29,7 @@ fn main() -> Result<()> {
     std::env::set_current_dir(&workspace_root)
         .with_context(|| format!("Failed to set current directory to {workspace_root:?}"))?;
 
-    let mut app = App::new();
+    let mut app = App::new().await;
     let mut tui = Tui::new()?;
 
     // Main application loop
@@ -37,7 +38,7 @@ fn main() -> Result<()> {
         tui.terminal().draw(|f| ui(f, &mut app))?;
 
         // Handle events
-        handle_events(&mut app)?;
+        handle_events(&mut app).await?;
     }
 
     Ok(())

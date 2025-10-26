@@ -4,13 +4,9 @@ use ratatui::{
     widgets::{ListState, ScrollbarState},
 };
 use reev_lib::results::{FinalStatus, TestResult};
-use std::{
-    fs,
-    path::PathBuf,
-    sync::mpsc::{self, Receiver, Sender},
-    thread,
-};
+use std::{fs, path::PathBuf};
 use strum::{Display, EnumIter, FromRepr};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum BenchmarkStatus {
@@ -117,15 +113,9 @@ pub struct App<'a> {
     pub log_scroll_state: ScrollbarState,
 }
 
-impl<'a> Default for App<'a> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<'a> App<'a> {
-    pub fn new() -> Self {
-        let (event_sender, event_receiver) = mpsc::channel();
+    pub async fn new() -> Self {
+        let (event_sender, event_receiver) = mpsc::channel(100);
         let mut benchmark_state = ListState::default();
         let benchmarks = Self::discover_benchmarks().unwrap_or_else(|_| vec![]);
         if !benchmarks.is_empty() {
@@ -254,13 +244,17 @@ impl<'a> App<'a> {
             let sender = self.event_sender.clone();
             let agent_name = self.selected_agent.to_agent_name();
 
-            thread::spawn(move || {
-                sender
-                    .send(TuiEvent::BenchmarkStarted(selected_index))
-                    .unwrap();
-
+            tokio::task::spawn_blocking(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let result = rt.block_on(reev_runner::run_benchmarks(path, agent_name));
+                let rt_handle = rt.enter();
+
+                let result = rt.block_on(async {
+                    let _ = sender
+                        .send(TuiEvent::BenchmarkStarted(selected_index))
+                        .await;
+
+                    reev_runner::run_benchmarks(path, agent_name).await
+                });
 
                 let final_result = match result {
                     Ok(mut results) => results
@@ -269,9 +263,12 @@ impl<'a> App<'a> {
                     Err(e) => Err(e),
                 };
 
-                sender
-                    .send(TuiEvent::BenchmarkCompleted(selected_index, final_result))
-                    .unwrap();
+                drop(rt_handle);
+                rt.block_on(async {
+                    let _ = sender
+                        .send(TuiEvent::BenchmarkCompleted(selected_index, final_result))
+                        .await;
+                });
             });
         }
     }

@@ -2,13 +2,16 @@ use crate::app::{ActivePanel, App};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use std::time::Duration;
+use tokio::time::timeout;
 
-pub fn handle_events(app: &mut App) -> Result<()> {
-    if let Ok(event) = app.event_receiver.try_recv() {
+pub async fn handle_events(app: &mut App<'_>) -> Result<()> {
+    // Try to receive TUI events with timeout to keep UI responsive
+    if let Ok(Some(event)) = timeout(Duration::from_millis(10), app.event_receiver.recv()).await {
         app.handle_tui_event(event);
     }
 
-    if event::poll(Duration::from_millis(50))? {
+    // Handle keyboard events
+    if event::poll(Duration::from_millis(0))? {
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
                 match key.code {
