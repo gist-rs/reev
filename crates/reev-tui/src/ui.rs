@@ -304,6 +304,8 @@ fn render_footer(f: &mut Frame, area: Rect) {
         Span::raw("un | "),
         Span::styled("[A]", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw("ll | "),
+        Span::styled("[S]", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw("hared | "),
         Span::styled("[Q]", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw("uit"),
     ])

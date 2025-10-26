@@ -22,6 +22,9 @@ pub async fn handle_events(app: &mut App<'_>) -> Result<()> {
                         app.on_run()
                     }
                     KeyCode::Char('a') if !app.is_running_benchmark => app.on_run_all(),
+                    KeyCode::Char('s') if !app.is_running_benchmark => {
+                        app.on_toggle_shared_surfpool()
+                    }
                     _ => match app.active_panel {
                         ActivePanel::BenchmarkNavigator => match key.code {
                             KeyCode::Up | KeyCode::Char('k') => app.on_up(),

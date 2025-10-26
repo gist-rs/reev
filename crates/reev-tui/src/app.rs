@@ -108,9 +108,7 @@ pub struct App<'a> {
     pub details_horizontal_scroll: u16,
     pub details_scroll_state: ScrollbarState,
     pub transaction_log_content: Text<'a>,
-    pub log_scroll: u16,
-    pub log_horizontal_scroll: u16,
-    pub log_scroll_state: ScrollbarState,
+    pub shared_surfpool: bool,
 }
 
 impl<'a> App<'a> {
@@ -133,6 +131,8 @@ impl<'a> App<'a> {
             benchmark_state,
             event_sender,
             event_receiver,
+            shared_surfpool: false, // Default to fresh mode for consistency
+        }
             details_scroll: 0,
             details_horizontal_scroll: 0,
             details_scroll_state: ScrollbarState::default(),
@@ -258,7 +258,7 @@ impl<'a> App<'a> {
                         .send(TuiEvent::BenchmarkStarted(selected_index))
                         .await;
 
-                    reev_runner::run_benchmarks(path, agent_name, false).await
+                    reev_runner::run_benchmarks(path, agent_name, self.shared_surfpool).await
                 });
 
                 let final_result = match result {
@@ -285,6 +285,24 @@ impl<'a> App<'a> {
         self.is_running_all = true;
         self.benchmark_state.select(Some(0));
         self.on_run();
+    }
+
+    pub fn on_toggle_shared_surfpool(&mut self) {
+        self.shared_surfpool = !self.shared_surfpool;
+        let mode = if self.shared_surfpool {
+            "🔴 Shared (reuse instances)"
+        } else {
+            "✨ Fresh (new instances)"
+        };
+        // Update status for first benchmark to show current mode
+        if !self.benchmarks.is_empty() {
+            if let Some(benchmark) = self.benchmarks.get_mut(0) {
+                benchmark.details = Text::from(format!(
+                    "> Ready to run.\n> Current mode: {}",
+                    mode
+                ));
+            }
+        }
     }
 
     pub fn reset_benchmarks(&mut self) {
