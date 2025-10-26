@@ -124,11 +124,9 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
     server_utils::kill_existing_reev_agent(9090).await?;
     server_utils::kill_existing_surfpool(8899).await?;
 
-    // Use simple benchmarks for fast feedback
-    let benchmarks = vec!["001-sol-transfer.yml", "002-spl-transfer.yml"]
-        .into_iter()
-        .map(|name| get_project_root().unwrap().join("benchmarks").join(name))
-        .collect::<Vec<PathBuf>>();
+    // Use only first 2 benchmark files for faster testing
+    let mut benchmarks = discover_benchmark_files();
+    benchmarks.truncate(2);
 
     let agents = vec!["deterministic", "local"];
 
