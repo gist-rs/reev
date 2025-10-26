@@ -305,7 +305,7 @@ impl ContextBuilder {
             }
         }
 
-        // Add resolved addresses section for clarity
+        // Add resolved addresses section for clarity - but explicitly mark NOT to use truncated addresses
         context.push_str("\n📋 RESOLVED ADDRESSES:\n");
         for (account_name, resolved_address) in key_map {
             if account_name.contains("RECIPIENT") || account_name.contains("USER") {
@@ -317,10 +317,11 @@ impl ContextBuilder {
                 context.push_str(&format!("  • {account_name} → {short_addr}\n"));
             }
         }
-        context.push_str("\n💡 IMPORTANT: Use the PLACEHOLDER NAMES (like RECIPIENT_WALLET_PUBKEY) in tool calls, not the truncated addresses above.\n");
-        context.push_str(
-            "📝 The placeholders will be automatically resolved to full addresses by the tools.\n",
-        );
+        context.push_str("\n🚨 CRITICAL: NEVER use truncated addresses above in tool calls!\n");
+        context
+            .push_str("📝 ALWAYS use placeholder names (like RECIPIENT_USDC_ATA) in tool calls.\n");
+        context
+            .push_str("✅ Tools will automatically resolve placeholder names to full addresses.\n");
 
         context.push_str("\n💡 You have sufficient account information above. Use this context to make decisions without unnecessary balance checks.");
         context.push_str("\n📝 NOTE: Placeholders like RECIPIENT_WALLET_PUBKEY are already resolved to real addresses shown above.");
