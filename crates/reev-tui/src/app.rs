@@ -205,6 +205,9 @@ impl<'a> App<'a> {
                 }
 
                 if self.is_running_all {
+                    // Add strategic delay to prevent race conditions between benchmarks
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+
                     let next_index = index + 1;
                     if next_index < self.benchmarks.len() {
                         self.benchmark_state.select(Some(next_index));
