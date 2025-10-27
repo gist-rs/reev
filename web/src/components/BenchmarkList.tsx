@@ -435,9 +435,10 @@ export function BenchmarkList({
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string): any => {
-      // First check current executions
+      // First check current executions for the selected agent
       const execution = Array.from(executions.values()).find(
-        (exec) => exec.benchmark_id === benchmarkId,
+        (exec) =>
+          exec.benchmark_id === benchmarkId && exec.agent === selectedAgent,
       );
 
       // If no current execution, check historical results

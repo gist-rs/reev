@@ -31,19 +31,34 @@ export function AgentPerformanceCard({
   selectedAgent,
   isAnyRunning = false,
 }: AgentPerformanceCardProps) {
-  const finalAgentData = useMemo(
-    () =>
-      agentData || {
-        agent_type: agentType,
-        total_benchmarks: 0,
-        average_score: 0,
-        success_rate: 0,
-        best_benchmarks: [],
-        worst_benchmarks: [],
-        results: [],
-      },
-    [agentData, agentType],
-  );
+  const finalAgentData = useMemo(() => {
+    const baseData = agentData || {
+      agent_type: agentType,
+      total_benchmarks: 0,
+      average_score: 0,
+      success_rate: 0,
+      best_benchmarks: [],
+      worst_benchmarks: [],
+      results: [],
+    };
+
+    // Critical: Filter results to only include those for this specific agent type
+    // This prevents cross-agent contamination when switching tabs
+    const filteredResults = (baseData.results || []).filter(
+      (result) => result.agent_type === agentType,
+    );
+
+    console.log(`🔍 [AgentPerformanceCard] ${agentType}: Filtering results`, {
+      originalCount: baseData.results?.length || 0,
+      filteredCount: filteredResults.length,
+      agentType,
+    });
+
+    return {
+      ...baseData,
+      results: filteredResults,
+    };
+  }, [agentData, agentType]);
 
   const filteredBenchmarks = useMemo(() => {
     return Array.isArray(allBenchmarks)
@@ -158,7 +173,7 @@ export function AgentPerformanceCard({
     calculateDayPercentage,
   ]);
 
-  const renderTestRuns = () => {
+  const renderTestRuns = useCallback(() => {
     const testRuns = (finalAgentData.results || []).reduce(
       (runs, result) => {
         const date = result.timestamp.substring(0, 10);
@@ -200,8 +215,22 @@ export function AgentPerformanceCard({
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
                   const benchmarkResult = results.find(
-                    (r) => r.benchmark_id === benchmark.id,
+                    (r) =>
+                      r.benchmark_id === benchmark.id &&
+                      r.agent_type === agentType,
                   );
+
+                  // Debug logging for result finding
+                  if (benchmarkResult) {
+                    console.log(
+                      `✅ [AgentPerformanceCard] ${agentType}: Found result for ${benchmark.id}`,
+                      {
+                        resultAgent: benchmarkResult.agent_type,
+                        expectedAgent: agentType,
+                        benchmarkId: benchmark.id,
+                      },
+                    );
+                  }
 
                   const isRunning =
                     isMostRecentRun &&
@@ -272,7 +301,15 @@ export function AgentPerformanceCard({
           );
         }
       });
-  };
+  }, [
+    finalAgentData.results,
+    agentType,
+    filteredBenchmarks,
+    runningBenchmarks,
+    runningBenchmarkExecutions,
+    selectedBenchmark,
+    selectedAgent,
+  ]);
 
   const handleCardClick = () => {
     if (onCardClick) {
