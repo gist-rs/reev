@@ -737,12 +737,7 @@ fn create_entry_node(entry: &LogEntry, _is_last: bool, show_cu: bool) -> Result<
     let program_display = entry
         .program_name
         .clone()
-        .or_else(|| {
-            entry
-                .program_id
-                .as_ref()
-                .map(|id| format!("Program {}...", &id[..8]))
-        })
+        .or_else(|| entry.program_id.as_ref().map(|id| format!("Program {id}")))
         .unwrap_or_else(|| "Unknown Program".to_string());
 
     let icon = get_program_icon(&entry.program_id);

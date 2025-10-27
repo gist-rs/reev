@@ -399,8 +399,8 @@ impl ContextBuilder {
                     && (account_name.contains("RECIPIENT") || account_name.contains("USER"))
                 {
                     info!(
-                        "[ContextBuilder] Adding non-existent wallet account to context: {} -> {}...{}",
-                        account_name, &resolved_address[..8], &resolved_address[resolved_address.len() - 8..]
+                        "[ContextBuilder] Adding non-existent wallet account to context: {} -> {}",
+                        account_name, resolved_address
                     );
                     // For wallet accounts, show as 0 SOL if not on-chain
                     if account_name.contains("RECIPIENT") && sol_balance.is_none() {

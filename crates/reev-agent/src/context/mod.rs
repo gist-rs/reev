@@ -305,19 +305,14 @@ impl ContextBuilder {
             }
         }
 
-        // Add resolved addresses section for clarity - but explicitly mark NOT to use truncated addresses
+        // Add resolved addresses section for clarity - show full addresses
         context.push_str("\n📋 RESOLVED ADDRESSES:\n");
         for (account_name, resolved_address) in key_map {
             if account_name.contains("RECIPIENT") || account_name.contains("USER") {
-                let short_addr = format!(
-                    "{}...{}",
-                    &resolved_address[..8],
-                    &resolved_address[resolved_address.len() - 8..]
-                );
-                context.push_str(&format!("  • {account_name} → {short_addr}\n"));
+                context.push_str(&format!("  • {account_name} → {resolved_address}\n"));
             }
         }
-        context.push_str("\n🚨 CRITICAL: NEVER use truncated addresses above in tool calls!\n");
+        context.push_str("\n🚨 CRITICAL: ALWAYS use full addresses above in tool calls!\n");
         context
             .push_str("📝 ALWAYS use placeholder names (like RECIPIENT_USDC_ATA) in tool calls.\n");
         context
@@ -338,11 +333,7 @@ impl ContextBuilder {
         }
 
         // Fallback to shortened pubkey
-        if pubkey.len() > 12 {
-            format!("{}...{}", &pubkey[..6], &pubkey[pubkey.len() - 6..])
-        } else {
-            pubkey.to_string()
-        }
+        pubkey.to_string()
     }
 }
 
