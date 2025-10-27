@@ -5,11 +5,12 @@ use crate::types::{
     ApiState, BenchmarkExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus,
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use chrono;
+use std::collections::HashMap;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -189,6 +190,14 @@ pub async fn get_execution_status(
     State(state): State<ApiState>,
     Path((benchmark_id, execution_id)): Path<(String, Option<String>)>,
 ) -> impl IntoResponse {
+    get_execution_status_with_agent(State(state), Path((benchmark_id, execution_id)), None).await
+}
+
+pub async fn get_execution_status_with_agent(
+    State(state): State<ApiState>,
+    Path((benchmark_id, execution_id)): Path<(String, Option<String>)>,
+    agent_type: Option<String>,
+) -> impl IntoResponse {
     // If execution_id is provided, check in-memory executions first
     if let Some(ref exec_id) = execution_id {
         let executions = state.executions.lock().await;
@@ -227,7 +236,7 @@ pub async fn get_execution_status(
         // No execution_id provided - get the most recent execution for this benchmark
         let filter = reev_db::types::SessionFilter {
             benchmark_id: Some(benchmark_id.clone()),
-            agent_type: None, // Get any agent
+            agent_type, // Use provided agent type or None for any agent
             interface: None,
             status: None,
             limit: Some(1), // Get the most recent
@@ -381,8 +390,10 @@ fn format_execution_trace(
 pub async fn get_execution_status_no_id(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    get_execution_status(State(state), Path((benchmark_id, None))).await
+    let agent_type = params.get("agent").cloned();
+    get_execution_status_with_agent(State(state), Path((benchmark_id, None)), agent_type).await
 }
 
 /// Stop a running benchmark

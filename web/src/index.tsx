@@ -117,9 +117,10 @@ export function App() {
 
       // Keep current tab selection (don't auto-switch to Transaction Log)
 
-      // Update current execution if we have one for this benchmark
+      // Update current execution if we have one for this benchmark and agent
       const execution = Array.from(executions.values()).find(
-        (exec) => exec.benchmark_id === benchmarkId,
+        (exec) =>
+          exec.benchmark_id === benchmarkId && exec.agent === selectedAgent,
       );
 
       // Debug log to help with troubleshooting
@@ -139,7 +140,7 @@ export function App() {
               );
             }
             const response = await fetch(
-              `/api/v1/benchmarks/${benchmarkId}/status`,
+              `/api/v1/benchmarks/${benchmarkId}/status?agent=${selectedAgent}`,
             );
 
             if (response.ok) {

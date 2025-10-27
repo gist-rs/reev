@@ -2,17 +2,7 @@
 
 ## Open Issues
 
-### #11 Port Conflict When Running Multiple Benchmarks - FULLY RESOLVED ✅
-**Date**: 2025-10-27  
-**Status**: Closed  
-**Priority**: High  
 
-**Issue**: When running multiple benchmarks sequentially from web UI, benchmarks 2 and 3 fail with "Port conflict for reev-agent: port 9090 is in use"
-
-**Root Cause**:
-- `update_config_and_restart_agent` always stops and restarts reev-agent for each benchmark
-- Previous process hasn't fully terminated when trying to start new one
-- No logic to reuse existing healthy reev-agent processes
 - Port remains in use during process shutdown transition
 
 **Solution Implemented**:
@@ -23,21 +13,56 @@
 5. Added tests to verify proper reuse and restart behavior
 
 **Files Modified**:
-- `crates/reev-runner/src/dependency/manager/dependency_manager.rs`
-- `crates/reev-runner/src/lib.rs`
-- `crates/reev-runner/tests/agent_restart_test.rs`
+### #12 Critical Session ID Collision - IDENTIFIED ⚠️ HIGH PRIORITY
 
-**Tests Added**:
-- `test_reev_agent_reuse_existing_process` - Verifies reuse when config unchanged
-- `test_reev_agent_restart_on_config_change` - Verifies restart when config changes
-- `test_port_released_after_stop` - Verifies proper port cleanup
+**Date**: 2025-10-27  
+**Status**: Open  
+**Priority**: Critical  
 
-**Additional Fix**: Removed duplicate `update_config_and_restart_agent` call for flow benchmarks in `lib.rs` - flow benchmarks were starting reev-agent twice, causing port conflicts even after the main fix.
+**Issue**: 
+- **CRITICAL**: FlowLogger::with_database() generates NEW UUID instead of preserving existing session_id
+- **Impact**: Sequential benchmark runs overwrite each other's log files due to session_id collision
+- **Example**: Benchmark 114 logs overwrite benchmark 116 logs → 116 logs appear empty
 
+**Root Cause Analysis**:
+- In `LlmAgent::get_action()`: session_id passed to `FlowLogger::new_with_database(session_id, ...)`
+- But `FlowLogger::with_database()` calls `uuid::Uuid::new_v4()` internally, ignoring passed session_id
+- Result: Different session_id in flow logger vs agent session_id
 
-### #9 Database Lock Issue from Stale WAL Files - RESOLVED ✅
-**Date**: 2025-10-26  
-**Status**: Closed  
+**Fix Status**: 🔧 IMPLEMENTED - Fix applied but requires verification testing
+
+**Critical Files Modified**:
+- `crates/reev-flow/src/logger.rs`: Added `new_with_database_preserve_session()` method
+- `crates/reev-runner/src/lib.rs`: Updated to use new session-preserving method
+
+**Fix Details**:
+```rust
+// PROBLEM: Original code generates new UUID
+FlowLogger::new_with_database(session_id, ...) // ❌ Ignores session_id parameter
+
+// SOLUTION: Preserve existing session_id  
+FlowLogger::new_with_database_preserve_session(
+    benchmark_id,
+    agent_type, 
+    output_path,
+    database,
+    Some(session_id.to_string()), // ✅ Preserves existing session_id
+))
+```
+
+**Testing Required**:
+- Run benchmark 114 then 116 sequentially
+- Verify logs are isolated: `logs/flows/flow_*_[session_id].yml`  
+- Verify database sessions have unique session_ids
+- Check that each benchmark's logs contain correct data
+
+**Risk Assessment**: 
+- **Risk**: Session isolation broken across sequential runs
+- **Impact**: Logs corrupted, debugging impossible, results unreliable
+- **Action**: MUST TEST before considering issue resolved
+
+- API benchmarks get automatic 1.0 score regardless of tool execution
+
 **Priority**: High  
 
 **Issue**: Runner fails with "SQL execution failure: Locking error: Failed locking file. File is locked by another process" due to stale WAL files not being cleaned up after runs.

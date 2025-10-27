@@ -145,7 +145,7 @@ export function BenchmarkList({
         expandedBenchmark === benchmarkId ? null : benchmarkId,
       );
     },
-    [expandedBenchmark, onBenchmarkSelect],
+    [expandedBenchmark, onBenchmarkSelect, selectedAgent],
   );
 
   // Use agent performance data passed as props instead of duplicate API call
@@ -445,26 +445,13 @@ export function BenchmarkList({
       if (!execution) {
         const historicalResult = historicalResults.get(benchmarkId);
         if (historicalResult) {
-          console.log(
-            `🔍 [getBenchmarkStatus] Found historical result for ${benchmarkId}:`,
-            historicalResult.final_status,
-          );
           // Map historical result status to execution status format
           return {
             ...historicalResult,
             status: historicalResult.final_status,
             progress: 100,
           };
-        } else {
-          console.log(
-            `🔍 [getBenchmarkStatus] No historical result for ${benchmarkId} (selectedAgent: ${selectedAgent})`,
-          );
         }
-      } else {
-        console.log(
-          `🔍 [getBenchmarkStatus] Found current execution for ${benchmarkId}:`,
-          execution.status,
-        );
       }
 
       return execution;

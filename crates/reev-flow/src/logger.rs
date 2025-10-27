@@ -139,7 +139,9 @@ impl FlowLogger {
         database: Arc<dyn DatabaseWriter>,
         existing_session_id: Option<String>,
     ) -> Self {
-        let session_id = existing_session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let session_id = existing_session_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let start_time = SystemTime::now();
 
         info!(
