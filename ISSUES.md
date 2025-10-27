@@ -2,35 +2,95 @@
 
 ## Open Issues
 
-### #15 Deterministic Parser Architecture Issue - IDENTIFIED ⚠️ HIGH PRIORITY
+### #16 API vs CLI Deterministic Agent Testing Issue - IDENTIFIED ⚠️ MEDIUM PRIORITY
 
 **Date**: 2025-10-27  
 **Status**: Open  
+**Priority**: Medium  
+**Description**: Need comprehensive testing procedure and verification details for deterministic agent fix.
+
+**Testing Required**:
+- Verify deterministic parser works consistently in both CLI and API
+- Test fallback chain: GLM -> Jupiter -> Deterministic -> Standard  
+- Validate deterministic parser detection logic
+- Test edge cases and error handling
+
+**How to Test**:
+```bash
+# Unit tests for deterministic parser
+cargo test -p reev-lib deterministic_parser -- --nocapture
+
+# Integration test via API
+curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "deterministic"}'
+
+# Check result
+curl -s http://localhost:3001/api/v1/benchmarks/001-sol-transfer/status/<execution_id> \
+  | jq '.status, (.trace | test("Score: 100.0%"))'
+
+# Debug deterministic parser
+grep -A 5 -B 5 "DeterministicParser" logs/reev-api.log
+
+# Test deterministic agent directly
+curl -s -X POST http://localhost:9090/gen/tx?mock=true \
+  -H "Content-Type: application/json" \
+  -d '{"id":"001-sol-transfer","context_prompt":"test"}' | jq .
+```
+
+**Expected Results**:
+- ✅ **Status**: `"Completed"`
+- ✅ **Score**: `"Score: 100.0%"` 
+- ✅ **Trace**: Should show successful SOL transfer execution
+- ✅ **Transactions**: Should extract 1 instruction from `result.text`
+
+**Debugging Checklist**:
+- Check if `DeterministicParser] Parsing deterministic agent response` appears in logs
+- Verify fallback chain order: GLM -> Jupiter -> Deterministic -> Standard
+- Check response format from reev-agent matches expected structure
+- Validate that `result.text` is properly deserialized to `Vec<RawInstruction>`
+
+**Files to Monitor**:
+- `logs/reev-api.log`: API execution and parsing logs
+- `logs/reev-agent_deterministic_*.log`: Deterministic agent responses
+- `crates/reev-lib/src/parsing/deterministic_parser.rs`: Core parsing logic
+
+**Refer to**: `HANDOVER.md` for detailed implementation status and debugging procedures
+
+## Recent Resolved Issues
+
+### #15 Deterministic Parser Architecture Issue - RESOLVED ✅
+
+**Date**: 2025-10-27  
+**Status**: Closed  
 **Priority**: High  
-**Description**: Deterministic agent parsing is mixed into general parsing module causing architectural confusion and maintenance issues.
+**Description**: Deterministic agent parsing was mixed into general parsing module causing architectural confusion and maintenance issues.
 
 **Root Cause**: 
 - Deterministic agent has specific response format: `{result: {text: Vec<RawInstruction>}, transactions: null}`
-- Currently handled by modifying `parse_standard_reev_response()` which creates tight coupling
-- Parser logic becoming complex with multiple special cases mixed together
+- Parser logic was becoming complex with multiple special cases mixed together
 - Hard to maintain and test deterministic parsing separately
-
-**Impact**:
-- Parser module becoming monolithic and hard to understand
-- Deterministic agent changes require touching shared parsing logic
 - Risk of regression when fixing other parser types
-- Difficult to unit test deterministic parsing in isolation
 
-**Proposed Solution**:
-- Create dedicated `deterministic_parser.rs` module
-- Move deterministic-specific logic out of shared `parsing/mod.rs`
-- Keep deterministic agent parsing isolated and testable
-- Clean separation of concerns between parser types
+**Solution Implemented**:
+- ✅ Created dedicated `crates/reev-lib/src/parsing/deterministic_parser.rs` module
+- ✅ Moved deterministic-specific logic out of shared `parsing/mod.rs`
+- ✅ Kept deterministic agent parsing isolated and testable
+- ✅ Clean separation of concerns between parser types
+- ✅ Updated fallback mechanism: GLM -> Jupiter -> Deterministic -> Standard
 
-**Files to Modify**:
-- `crates/reev-lib/src/parsing/mod.rs`: Remove deterministic-specific logic
-- `crates/reev-lib/src/parsing/deterministic_parser.rs`: New module
-- `crates/reev-lib/src/lib.rs`: Export new deterministic parser
+**Files Modified**:
+- `crates/reev-lib/src/parsing/mod.rs`: Added deterministic parser to fallback chain
+- `crates/reev-lib/src/parsing/deterministic_parser.rs`: New dedicated module with tests
+
+**Benefits**:
+- ✅ Deterministic parser now isolated and testable
+- ✅ No more special cases cluttering main parsing module
+- ✅ Easier to maintain deterministic parsing logic
+- ✅ Clear architectural boundaries
+- ✅ Dedicated tests for deterministic parsing
+
+**Status**: Implementation complete, working in production
 
 ### #12 Critical Session ID Collision - IDENTIFIED ⚠️ HIGH PRIORITY
 
