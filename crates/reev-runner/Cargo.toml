@@ -33,6 +33,10 @@ path = "tests/deterministic_agent_test.rs"
 name = "llm_agent_test"
 path = "tests/llm_agent_test.rs"
 
+[[test]]
+name = "agent_restart_test"
+path = "tests/agent_restart_test.rs"
+
 [dependencies]
  reev-lib = { path = "../reev-lib" }
  reev-flow = { path = "../reev-flow" }

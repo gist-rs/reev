@@ -2,6 +2,36 @@
 
 ## Open Issues
 
+### #11 Port Conflict When Running Multiple Benchmarks - RESOLVED ✅
+**Date**: 2025-10-27  
+**Status**: Closed  
+**Priority**: High  
+
+**Issue**: When running multiple benchmarks sequentially from web UI, benchmarks 2 and 3 fail with "Port conflict for reev-agent: port 9090 is in use"
+
+**Root Cause**:
+- `update_config_and_restart_agent` always stops and restarts reev-agent for each benchmark
+- Previous process hasn't fully terminated when trying to start new one
+- No logic to reuse existing healthy reev-agent processes
+- Port remains in use during process shutdown transition
+
+**Solution Implemented**:
+1. Modified `update_config_and_restart_agent` to check for existing healthy reev-agent
+2. Added configuration change detection - only restart if config actually changed
+3. Enhanced `start_reev_agent` to detect and reuse healthy instances
+4. Added port release waiting logic with retries
+5. Added tests to verify proper reuse and restart behavior
+
+**Files Modified**:
+- `crates/reev-runner/src/dependency/manager/dependency_manager.rs`
+- `crates/reev-runner/tests/agent_restart_test.rs`
+
+**Tests Added**:
+- `test_reev_agent_reuse_existing_process` - Verifies reuse when config unchanged
+- `test_reev_agent_restart_on_config_change` - Verifies restart when config changes
+- `test_port_released_after_stop` - Verifies proper port cleanup
+
+
 ### #9 Database Lock Issue from Stale WAL Files - RESOLVED ✅
 **Date**: 2025-10-26  
 **Status**: Closed  

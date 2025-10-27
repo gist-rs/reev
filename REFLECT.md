@@ -1,5 +1,26 @@
 # REEV IMPLEMENTATION REFLECTION
 
+## Reev-Agent Port Conflict When Running Multiple Benchmarks - RESOLVED ✅
+**Issue**: Port 9090 conflict when running sequential benchmarks - reev-agent not properly reused
+
+**Root Cause**: `update_config_and_restart_agent` always stopped and restarted reev-agent for each benchmark without checking if existing process was healthy and config unchanged.
+
+**Solution**: Enhanced dependency manager with smart reuse logic:
+- Check for existing healthy reev-agent before restarting
+- Only restart when configuration actually changes
+- Add port release waiting with retries
+- Better process lifecycle management
+
+**Key Changes**:
+```rust
+// Check if existing service is healthy and config unchanged
+let config_changed = self.config.agent_type != agent_type || self.config.benchmark_id != benchmark_id;
+if !config_changed && is_existing_healthy {
+    debug!("Reusing existing healthy reev-agent");
+    return Ok(());
+}
+```
+
 ## Reev-Agent Context Prompt YAML Parsing Error - RESOLVED ✅
 **Issue**: Reev-agent returns 500 Internal Server Error: "Internal agent error: Failed to parse context_prompt YAML" when processing LLM requests in deterministic agent mode.
 

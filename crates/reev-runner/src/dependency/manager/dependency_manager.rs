@@ -125,27 +125,43 @@ impl DependencyManager {
 
         debug!(port, "Starting reev-agent service");
 
-        // Check if reev-agent is already running
+        // Check if reev-agent is already running and healthy
         debug!("Checking for existing reev-agent processes...");
-        if let Ok(pids) = ProcessUtils::find_process_by_name(dependency_type.process_name()) {
-            if !pids.is_empty() && self.config.shared_instances {
-                debug!(
-                    "Found {} existing reev-agent process(es), using shared instance",
-                    pids.len()
-                );
-                let mut service =
-                    DependencyService::new(dependency_type.process_name().to_string(), Some(port));
-                service.add_url("api".to_string(), format!("http://localhost:{port}"));
+        let mut existing_healthy = false;
 
-                let mut services = self.services.write().await;
-                services.insert(dependency_type, service);
-                return Ok(());
+        // First check if port is in use and service is healthy
+        if super::ProcessDetector::is_port_in_use(port)? {
+            let health_url = format!("http://localhost:{port}");
+            let result = self.health_checker.check_reev_agent(&health_url).await;
+            if result.is_healthy() {
+                debug!("Found healthy reev-agent on port {}", port);
+                existing_healthy = true;
+
+                // Use existing instance if shared_instances is enabled
+                if self.config.shared_instances {
+                    let mut service = DependencyService::new(
+                        dependency_type.process_name().to_string(),
+                        Some(port),
+                    );
+                    service.add_url("api".to_string(), format!("http://localhost:{port}"));
+                    service.set_health(ServiceHealth::Healthy);
+
+                    let mut services = self.services.write().await;
+                    services.insert(dependency_type, service);
+                    info!("Reusing existing healthy reev-agent (shared mode)");
+                    return Ok(());
+                }
             }
         }
-        debug!("No existing reev-agent processes found, starting new instance");
 
-        // Check if port is available
-        if super::ProcessDetector::is_port_in_use(port)? {
+        if !existing_healthy {
+            debug!("No healthy reev-agent instance found, starting new one");
+        } else {
+            debug!("Found existing reev-agent but not in shared mode, will restart");
+        }
+
+        // Check if port is available (skip if we know we have a healthy instance we're replacing)
+        if super::ProcessDetector::is_port_in_use(port)? && !existing_healthy {
             return Err(DependencyError::PortConflict {
                 service: dependency_type.process_name().to_string(),
                 port,
@@ -489,12 +505,53 @@ impl DependencyManager {
             agent_type, benchmark_id
         );
 
+        let dependency_type = DependencyType::ReevAgent;
+        let port = self.config.get_port(dependency_type);
+
+        // Check if a healthy reev-agent is already running on the expected port
+        let _existing_service = {
+            let services = self.services.read().await;
+            services.get(&dependency_type).cloned()
+        };
+
+        // Check if configuration actually changed
+        let config_changed =
+            self.config.agent_type != agent_type || self.config.benchmark_id != benchmark_id;
+
+        // Check if existing service is healthy
+        let is_existing_healthy = if let Some(_service) = &_existing_service {
+            let health_url = format!("http://localhost:{port}");
+            let result = self.health_checker.check_reev_agent(&health_url).await;
+            result.is_healthy()
+        } else {
+            false
+        };
+
         // Update config
         self.config.agent_type = agent_type;
         self.config.benchmark_id = benchmark_id;
 
+        // If we have a healthy service and config hasn't changed, reuse it
+        if !config_changed && is_existing_healthy {
+            debug!("Reusing existing healthy reev-agent (port {})", port);
+            info!("reev-agent is already running with correct configuration");
+            return Ok(());
+        }
+
         // Stop existing reev-agent if running
         self.stop_reev_agent().await?;
+
+        // Wait a bit for the port to be released
+        let mut retry_count = 0;
+        while super::ProcessDetector::is_port_in_use(port)? && retry_count < 10 {
+            debug!(
+                "Waiting for port {} to be released... (attempt {})",
+                port,
+                retry_count + 1
+            );
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            retry_count += 1;
+        }
 
         // Start reev-agent with new config
         self.start_reev_agent().await?;
