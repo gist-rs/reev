@@ -416,7 +416,23 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 ## Jupiter Lending Deposit AI Model Interpretation Issue - RESOLVED ✅ [L374-375]
 
-## Failed Test Color Display Issue - RESOLVED ✅ [L376-383]
+## Failed Test Color Display Issue - RESOLVED ✅ [L376-383] [L419-420]
+## Jupiter Earn Tool Regression in Normal Mode - RESOLVED ✅ [L421-422]
+**Issue**: The `jupiter_earn` tool was incorrectly available in normal agent mode, allowing benchmarks like `116-jup-lend-redeem-usdc.yml` to access position/earnings data instead of executing proper redeem transactions.
+
+**Root Cause**: 
+1. OpenAI agent normal mode was adding `jupiter_earn_tool` to all tools
+2. ZAI agent was returning `true` for all tools when `allowed_tools` was `None`
+
+**Fix Applied**:
+1. **OpenAI Agent**: Removed `.tool(tools.jupiter_earn_tool)` from normal mode tool list
+2. **ZAI Agent**: Added explicit restriction to return `false` for `jupiter_earn` when `allowed_tools` is `None`
+
+**Result**: 
+- Before: Step 2 failed with "Agent returned no actions to execute" (75% score)
+- After: Both steps succeed with proper Jupiter lend/redeem transactions (100% score)
+
+**Security**: Maintained architecture rule that `jupiter_earn` tool is restricted to position/earnings benchmarks (114-*.yml) only.
 **Issue**: When glm-4.6-coding agent failed tests, web interface showed grey (untest) instead of red (failed), while deterministic agent showed correct red color for failures.
 
 **Root Cause**: 

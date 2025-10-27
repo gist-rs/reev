@@ -2,6 +2,31 @@
 
 ## Open Issues
 
+### #18 Jupiter Earn Tool Regression in Normal Mode - RESOLVED ✅
+
+**Date**: 2025-10-27  
+**Status**: Closed  
+**Priority**: High  
+**Description**: The `jupiter_earn` tool was incorrectly available in normal agent mode, allowing benchmarks like `116-jup-lend-redeem-usdc.yml` to access position/earnings data instead of executing proper redeem transactions.
+
+**Root Cause**: 
+1. OpenAI agent normal mode was adding `jupiter_earn_tool` to all tools
+2. ZAI agent was returning `true` for all tools when `allowed_tools` was `None`
+
+**Fix Applied**:
+1. **OpenAI Agent**: Removed `.tool(tools.jupiter_earn_tool)` from normal mode tool list
+2. **ZAI Agent**: Added explicit restriction to return `false` for `jupiter_earn` when `allowed_tools` is `None`
+
+**Result**: 
+- Before: Step 2 failed with "Agent returned no actions to execute" (75% score)
+- After: Both steps succeed with proper Jupiter lend/redeem transactions (100% score)
+
+**Security**: Maintained architecture rule that `jupiter_earn` tool is restricted to position/earnings benchmarks (114-*.yml) only.
+
+**Files Modified**: 
+- `crates/reev-agent/src/enhanced/openai.rs` - Line 208
+- `crates/reev-agent/src/enhanced/zai_agent.rs` - Line 88-95
+
 ### #17 GLM Context Leaking to Non-GLM Models - RESOLVED ✅
 
 **Date**: 2025-10-27  

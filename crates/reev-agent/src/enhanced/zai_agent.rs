@@ -87,7 +87,10 @@ impl ZAIAgent {
         let is_tool_allowed = |tool_name: &str| -> bool {
             match &allowed_tools {
                 Some(tools) => tools.contains(&tool_name.to_string()),
-                None => true, // No restrictions when allowed_tools is None
+                None => {
+                    // SECURITY: Restrict jupiter_earn tool in normal mode (only available for position/earnings benchmarks 114-*.yml)
+                    tool_name != "jupiter_earn"
+                }
             }
         };
 
