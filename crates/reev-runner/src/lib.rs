@@ -185,20 +185,6 @@ pub async fn run_benchmarks(
             // Generate session_id for flow benchmark
             let session_id = uuid::Uuid::new_v4().to_string();
 
-            // Start reev-agent for this specific flow benchmark
-            info!(
-                "Starting reev-agent for flow benchmark: {} with agent: {}",
-                test_case.id, agent_name
-            );
-            dependency_guard
-                .manager
-                .update_config_and_restart_agent(
-                    Some(agent_name.to_string()),
-                    Some(test_case.id.clone()),
-                )
-                .await
-                .context("Failed to start reev-agent for flow benchmark")?;
-
             let result = run_flow_benchmark(
                 &test_case,
                 flow_steps,
