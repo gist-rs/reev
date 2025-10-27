@@ -20,12 +20,18 @@
 **Status**: Open  
 **Priority**: Critical
 
-### #13 Empty Log Files - IDENTIFIED 🔴 CRITICAL
+### #13 Empty Log Files - RESOLVED ✅
 
 **Date**: 2025-10-27  
-**Status**: Open  
+**Status**: Closed  
 **Priority**: Critical  
-**Description**: All benchmark log files are empty across all benchmark executions. reev-runner cannot open log files for any process (reev-agent, surfpool), causing immediate benchmark failures.
+**Description**: All benchmark log files were empty across all benchmark executions. reev-runner could not open log files for any process (reev-agent, surfpool), causing immediate benchmark failures.
+
+**Root Cause**: `OpenOptions::new().append(true).open()` fails when file doesn't exist - missing `.create(true)` flag.
+
+**Fix Applied**: Added `.create(true)` flag to ProcessManager for stdout/stderr file creation.
+
+**Verification**: ✅ Log files now created and contain proper output for both reev-agent and surfpool processes.
 
 **Impact**: Benchmarks fail immediately without any execution or logging, preventing any debugging or result capture.
 
@@ -126,11 +132,43 @@ if let Err(e) = db.close().await {
 - Enhanced debugging with better logging
 
 ---
+### #14 Web API "Run All" Missing key_map Field - RESOLVED ✅
 
-### #10 Reev-Agent Context Prompt YAML Parsing Error - RESOLVED ✅
-**Date**: 2025-10-26  
+**Date**: 2025-10-27  
 **Status**: Closed  
+**Priority**: Critical  
+**Description**: Web API "run all" benchmark execution was failing with YAML parsing error for all benchmarks, while individual CLI execution worked fine.
+
+**Root Cause**: Base `context_prompt` in `reev-lib/src/llm_agent.rs` was wrapping YAML with `---` document separators at both ends for single-step flows, creating multi-document YAML that the parser couldn't handle.
+
+**Fix Applied**: Removed `---` wrapper from base `context_prompt` format string in `reev-lib/src/llm_agent.rs` to generate single-document YAML consistently with CLI.
+
+**Files Modified**:
+- `crates/reev-lib/src/llm_agent.rs`: Fixed base context format to avoid multi-document YAML
+
+**Testing**: ✅ Verified both 001-sol-transfer and 002-spl-transfer benchmarks work correctly via web API and CLI.
+
+**Impact**: Web API benchmark execution now works for all benchmarks, enabling batch testing via web interface without breaking CLI functionality.
+
+### #15 Log File Override Issue - IDENTIFIED ⚠️ MEDIUM
+
+**Date**: 2025-10-27  
+**Status**: Open  
 **Priority**: Medium  
+**Description**: Previous log files being overwritten when new benchmark executions start.
+
+**Issue**: 
+- logs/reev-agent_deterministic_001-sol-transfer_20251027_105034.log created correctly
+- logs/reev-agent_deterministic_002-spl-transfer_20251027_105504.log created correctly  
+- logs/reev-agent_deterministic_100-jup-swap-sol-usdc_20251027_105514.log overwrites previous file with empty content
+
+**Root Cause**: Process file handle management issue when starting new reev-agent processes.
+
+### #11 Agent Performance Summary Not Recording All Runs - RESOLVED ✅
+
+**Date**: 2025-10-27  
+**Status**: Closed  
+**Priority**: Medium
 
 **Issue**: Reev-agent returns 500 Internal Server Error: "Internal agent error: Failed to parse context_prompt YAML" when processing LLM requests.
 

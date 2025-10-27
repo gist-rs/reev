@@ -55,7 +55,10 @@ async fn start_agent_for_test() -> Result<AgentProcessGuard> {
     let log_dir = PathBuf::from("logs");
     fs::create_dir_all(&log_dir)?;
     let log_file_path = log_dir.join("reev-agent-rpc-test.log");
-    let log_file = fs::File::create(&log_file_path)?;
+    let log_file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file_path)?;
     let stderr_log = log_file.try_clone()?;
 
     info!("Starting reev-agent for RPC test...");

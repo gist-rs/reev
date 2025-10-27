@@ -223,6 +223,7 @@ impl ProcessManager {
             );
 
             let stdout_file = std::fs::OpenOptions::new()
+                .create(true)
                 .append(true)
                 .open(stdout_path)
                 .with_context(|| {
@@ -247,6 +248,7 @@ impl ProcessManager {
             );
 
             let stderr_file = std::fs::OpenOptions::new()
+                .create(true)
                 .append(true)
                 .open(stderr_path)
                 .with_context(|| {

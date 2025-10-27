@@ -202,7 +202,7 @@ impl Agent for LlmAgent {
         .context("Failed to serialize full context to YAML")?;
 
         let context_prompt = format!(
-            "---\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n🔑 CRITICAL: ALWAYS use addresses from '🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS' section - NEVER use placeholder names directly\n---"
+            "\n\nCURRENT ON-CHAIN CONTEXT:\n{context_yaml}\n\n🔑 CRITICAL: ALWAYS use addresses from '🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS' section - NEVER use placeholder names directly"
         );
 
         // 2. Determine available tools based on context

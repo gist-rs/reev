@@ -628,8 +628,8 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
     } else if let Ok(legacy_context) = serde_yaml::from_str::<AgentContext>(yaml_str) {
         legacy_context.key_map
     } else {
-        let enhanced_err = serde_yaml::from_str::<EnhancedContext>(_yaml_str).unwrap_err();
-        let legacy_err = serde_yaml::from_str::<AgentContext>(_yaml_str).unwrap_err();
+        let enhanced_err = serde_yaml::from_str::<EnhancedContext>(yaml_str).unwrap_err();
+        let legacy_err = serde_yaml::from_str::<AgentContext>(yaml_str).unwrap_err();
         anyhow::bail!(
             "Failed to parse context_prompt YAML. Enhanced error: {enhanced_err}, Legacy error: {legacy_err}"
         );

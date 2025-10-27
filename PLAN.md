@@ -1,3 +1,22 @@
+## Priority Tasks - Critical Issues (2025-10-27)
+
+### ✅ COMPLETED: Fixed Web API "Run All" Issue (#14)
+**Status**: Resolved - Web API benchmarks now working
+**Root Cause**: Base `context_prompt` in `reev-lib/src/llm_agent.rs` was wrapping YAML with `---` document separators at both ends for single-step flows, creating multi-document YAML that deterministic agent couldn't parse
+**Fix Applied**: Removed `---` wrapper from base `context_prompt` format string in `reev-lib/src/llm_agent.rs` to generate single-document YAML consistently with CLI
+**Files Modified**:
+- `crates/reev-lib/src/llm_agent.rs`: Fixed base context format to avoid multi-document YAML
+**Testing**: ✅ Verified both 001-sol-transfer and 002-spl-transfer benchmarks work correctly via web API and CLI
+**Impact**: Web API benchmark execution now works for all benchmarks, enabling batch testing via web interface without breaking CLI functionality
+
+### ⚠️ REMAINING: Fix Log File Override Issue (#15)  
+**Status**: Medium - Log files being overwritten  
+**Root Cause**: Process file handle management when starting new reev-agent processes
+**Impact**: Previous logs lost, debugging capabilities reduced
+**Action**: Fix process file handle management in ProcessManager
+
+---
+
 ## Architecture Analysis
 
 ### Current Flow:
