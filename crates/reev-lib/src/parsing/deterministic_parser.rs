@@ -8,7 +8,7 @@
 
 use anyhow::Result;
 use serde_json::Value;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::agent::LlmResponse;
 
@@ -38,7 +38,10 @@ impl DeterministicParser {
             if response.transactions.is_none() {
                 if let Some(result) = &response.result {
                     // result.text should contain Vec<RawInstruction> after deserialization
-                    debug!("[DeterministicParser] Result text length: {}", result.text.len());
+                    debug!(
+                        "[DeterministicParser] Result text length: {}",
+                        result.text.len()
+                    );
                     if !result.text.is_empty() {
                         info!(
                             "[DeterministicParser] Successfully extracted {} transactions from result.text",
@@ -69,12 +72,10 @@ impl DeterministicParser {
         }
 
         // Parse failed completely
-        warn!("[DeterministicParser] Failed to parse response as valid JSON: {}", response_text);
-        Ok(None)
-    }
-
-        // Parse failed completely
-        warn!("[DeterministicParser] Failed to parse response as valid JSON");
+        warn!(
+            "[DeterministicParser] Failed to parse response as valid JSON: {}",
+            response_text
+        );
         Ok(None)
     }
 
