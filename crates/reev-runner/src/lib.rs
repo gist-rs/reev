@@ -91,18 +91,22 @@ async fn init_dependencies_with_config(config: DependencyConfig) -> Result<Depen
 /// Runs all benchmarks found at given path and returns results.
 /// If shared_surfpool is true, reuses existing service instances.
 /// If false, creates fresh instances for each run.
+/// If kill_api is true, kills existing API processes (default: false for safety).
 pub async fn run_benchmarks(
     path: PathBuf,
     agent_name: &str,
     shared_surfpool: bool,
+    kill_api: bool,
 ) -> Result<Vec<TestResult>> {
     let benchmark_paths = discover_benchmarks(&path)?;
     if benchmark_paths.is_empty() {
         return Ok(vec![]);
     }
 
-    // Kill any existing API processes to prevent database lock conflicts
-    reev_lib::server_utils::kill_existing_api(3001).await?;
+    // Kill any existing API processes only if explicitly requested
+    if kill_api {
+        reev_lib::server_utils::kill_existing_api(3001).await?;
+    }
 
     // Clean up any stale database WAL files that might cause lock issues
     cleanup_stale_database_files().await?;
@@ -500,6 +504,15 @@ pub async fn run_benchmarks(
     }
 
     Ok(results)
+}
+
+/// Backward compatibility function - defaults to safe behavior (no API killing)
+pub async fn run_benchmarks_legacy(
+    path: PathBuf,
+    agent_name: &str,
+    shared_surfpool: bool,
+) -> Result<Vec<TestResult>> {
+    run_benchmarks(path, agent_name, shared_surfpool, false).await
 }
 
 /// Clean up stale database WAL files that might cause lock issues

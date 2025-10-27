@@ -67,7 +67,7 @@ async fn run_agent_tests(
 
         // Run benchmark
         let run_results =
-            run_benchmarks(benchmark_path.clone(), agent_name, shared_surfpool).await?;
+            run_benchmarks(benchmark_path.clone(), agent_name, shared_surfpool, true).await?;
 
         if !run_results.is_empty() {
             let result = &run_results[0];
@@ -228,7 +228,7 @@ async fn test_single_benchmark_consistency() -> Result<()> {
     );
 
     for i in 1..=iterations {
-        let run_results = run_benchmarks(benchmark_path.clone(), agent, true).await?;
+        let run_results = run_benchmarks(benchmark_path.clone(), agent, true, true).await?;
 
         if !run_results.is_empty() {
             let result = &run_results[0];

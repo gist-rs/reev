@@ -124,7 +124,7 @@ pub async fn execute_benchmark_background(
 
     info!("CALLING BENCHMARK RUNNER");
     let execution_result =
-        match reev_runner::run_benchmarks(benchmark_path.clone(), &agent, false).await {
+        match reev_runner::run_benchmarks(benchmark_path.clone(), &agent, false, false).await {
             Ok(mut results) => {
                 info!("Benchmark runner returned {} results", results.len());
                 if let Some(result) = results.pop() {
