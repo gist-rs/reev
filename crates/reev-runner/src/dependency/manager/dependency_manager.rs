@@ -613,7 +613,7 @@ impl DependencyManager {
             }
         }
 
-        // Clear all reev-agent log files (both fixed and dynamic names)
+        // Clear only stale reev-agent log files (older than 1 hour)
         let log_dir = PathBuf::from(&self.config.log_dir);
         if log_dir.exists() && log_dir.is_dir() {
             match fs::read_dir(&log_dir) {
@@ -622,16 +622,60 @@ impl DependencyManager {
                         let file_name = entry.file_name();
                         let file_name_str = file_name.to_string_lossy();
 
-                        // Clear all reev-agent log files
+                        // Only clear reev-agent log files that are stale
                         if file_name_str.starts_with("reev-agent")
                             && file_name_str.ends_with(".log")
                         {
-                            match fs::write(entry.path(), "") {
-                                Ok(()) => {
-                                    debug!("Cleared log file: {}", file_name_str);
+                            // Check file modification time to determine if it's stale
+                            match entry.metadata() {
+                                Ok(metadata) => {
+                                    if let Ok(modified_time) = metadata.modified() {
+                                        let current_time = std::time::SystemTime::now();
+                                        let age_threshold = std::time::Duration::from_secs(3600); // 1 hour
+
+                                        if let Ok(age) = current_time.duration_since(modified_time)
+                                        {
+                                            if age > age_threshold {
+                                                match fs::write(entry.path(), "") {
+                                                    Ok(()) => {
+                                                        debug!(
+                                                            "Cleared stale log file: {} (age: {}s)",
+                                                            file_name_str,
+                                                            age.as_secs()
+                                                        );
+                                                    }
+                                                    Err(e) => {
+                                                        warn!(
+                                                            "Failed to clear stale log file {}: {}",
+                                                            file_name_str, e
+                                                        );
+                                                    }
+                                                }
+                                            } else {
+                                                debug!(
+                                                    "Skipping recent log file: {} (age: {}s)",
+                                                    file_name_str,
+                                                    age.as_secs()
+                                                );
+                                            }
+                                        } else {
+                                            warn!(
+                                                "Failed to calculate age for log file: {}",
+                                                file_name_str
+                                            );
+                                        }
+                                    } else {
+                                        warn!(
+                                            "Failed to get modified time for log file: {}",
+                                            file_name_str
+                                        );
+                                    }
                                 }
                                 Err(e) => {
-                                    warn!("Failed to clear log file {}: {}", file_name_str, e);
+                                    warn!(
+                                        "Failed to get metadata for log file {}: {}",
+                                        file_name_str, e
+                                    );
                                 }
                             }
                         }
