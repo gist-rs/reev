@@ -31,8 +31,7 @@ const AGENT_PORT: u16 = 9090;
 
 /// RAII guard for dependency management
 struct DependencyManagerGuard {
-    #[allow(dead_code)]
-    manager: dependency::DependencyManager,
+    pub manager: dependency::DependencyManager,
 }
 
 impl Drop for DependencyManagerGuard {
@@ -44,9 +43,7 @@ impl Drop for DependencyManagerGuard {
 }
 
 /// Initialize dependencies with custom configuration
-async fn init_dependencies_with_config(
-    config: DependencyConfig,
-) -> Result<(DependencyManagerGuard, dependency::DependencyUrls)> {
+async fn init_dependencies_with_config(config: DependencyConfig) -> Result<DependencyManagerGuard> {
     debug!("Initializing dependency management...");
 
     // Set environment variable for reset logic to know about shared vs fresh mode
@@ -79,17 +76,16 @@ async fn init_dependencies_with_config(
         .context("Failed to setup signal handlers")?;
 
     // Ensure all dependencies are running
-    let urls = manager
+    manager
         .ensure_dependencies()
         .await
         .context("Failed to ensure dependencies are running")?;
 
     info!("Dependencies initialized successfully");
-    info!("reev-agent: {}", urls.reev_agent);
-    info!("surfpool: {}", urls.surfpool_rpc);
+    info!("surfpool: ready (reev-agent will be started per benchmark)");
 
     let guard = DependencyManagerGuard { manager };
-    Ok((guard, urls))
+    Ok(guard)
 }
 
 /// Runs all benchmarks found at given path and returns results.
@@ -118,8 +114,9 @@ pub async fn run_benchmarks(
         info!("✨ Using fresh surfpool mode - creating new instances...");
     }
 
-    let _dependency_guard = init_dependencies_with_config(DependencyConfig {
+    let mut dependency_guard = init_dependencies_with_config(DependencyConfig {
         shared_instances: shared_surfpool,
+        agent_type: Some(agent_name.to_string()),
         ..Default::default()
     })
     .await
@@ -159,6 +156,20 @@ pub async fn run_benchmarks(
         let test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
 
+        // Start reev-agent for this specific benchmark
+        info!(
+            "Starting reev-agent for benchmark: {} with agent: {}",
+            test_case.id, agent_name
+        );
+        dependency_guard
+            .manager
+            .update_config_and_restart_agent(
+                Some(agent_name.to_string()),
+                Some(test_case.id.clone()),
+            )
+            .await
+            .context("Failed to start reev-agent for benchmark")?;
+
         // Check if this is a flow benchmark
         if let Some(flow_steps) = &test_case.flow {
             info!(
@@ -170,6 +181,20 @@ pub async fn run_benchmarks(
             // Generate session_id for flow benchmark
             let session_id = uuid::Uuid::new_v4().to_string();
 
+            // Start reev-agent for this specific flow benchmark
+            info!(
+                "Starting reev-agent for flow benchmark: {} with agent: {}",
+                test_case.id, agent_name
+            );
+            dependency_guard
+                .manager
+                .update_config_and_restart_agent(
+                    Some(agent_name.to_string()),
+                    Some(test_case.id.clone()),
+                )
+                .await
+                .context("Failed to start reev-agent for flow benchmark")?;
+
             let result = run_flow_benchmark(
                 &test_case,
                 flow_steps,
@@ -180,6 +205,17 @@ pub async fn run_benchmarks(
             )
             .await?;
             results.push(result);
+
+            // Stop reev-agent after flow benchmark completion
+            info!("Stopping reev-agent after flow benchmark: {}", test_case.id);
+            if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    error = %e,
+                    "Failed to stop reev-agent gracefully after flow benchmark"
+                );
+            }
+
             continue;
         }
 
@@ -439,6 +475,16 @@ pub async fn run_benchmarks(
                 benchmark_id = %test_case.id,
                 error = %e,
                 "Failed to close environment gracefully"
+            );
+        }
+
+        // Stop reev-agent after benchmark completion
+        info!("Stopping reev-agent after benchmark: {}", test_case.id);
+        if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
+            warn!(
+                benchmark_id = %test_case.id,
+                error = %e,
+                "Failed to stop reev-agent gracefully"
             );
         }
     }

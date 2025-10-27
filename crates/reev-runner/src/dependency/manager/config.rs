@@ -20,6 +20,12 @@ pub struct DependencyConfig {
     /// Whether to allow multiple runner processes to share the same service instances
     pub shared_instances: bool,
 
+    /// Agent type for log filename (e.g., "glm-4.6", "deterministic")
+    pub agent_type: Option<String>,
+
+    /// Benchmark ID for log filename (e.g., "001-sol-transfer")
+    pub benchmark_id: Option<String>,
+
     /// Default ports for services (can be overridden by environment variables)
     pub reev_agent_port: u16,
     pub surfpool_rpc_port: u16,
@@ -55,6 +61,8 @@ impl Default for DependencyConfig {
             verbose_logging: false,
             cache_dir: ".surfpool/cache".to_string(),
             log_dir: "logs".to_string(),
+            agent_type: None,
+            benchmark_id: None,
         }
     }
 }

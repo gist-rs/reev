@@ -92,35 +92,20 @@ impl DependencyManager {
         self.clear_log_files().await?;
         debug!("Log files cleared");
 
-        // Start both services with optimized staggered approach for faster startup
-        debug!("Starting both services with optimized staggered approach...");
+        // Start surfpool service (reev-agent will be started per benchmark)
+        debug!("Starting surfpool service...");
         let start_time = std::time::Instant::now();
 
-        // Start reev-agent first
-        debug!("Starting reev-agent service...");
-        if let Err(e) = self.start_reev_agent().await {
-            error!(error = %e, "Failed to start reev-agent");
-            return Err(e);
-        }
-        debug!("reev-agent started");
-
-        // Start surfpool with minimal delay to avoid resource contention
-        tokio::time::sleep(Duration::from_millis(100)).await; // Reduced from 200ms to 100ms
-        debug!("Starting surfpool service...");
         if let Err(e) = self.start_surfpool().await {
             error!(error = %e, "Failed to start surfpool");
             return Err(e);
         }
         debug!("surfpool started");
 
-        debug!(
-            "Both services started with optimized staggered approach in {:?}",
-            start_time.elapsed()
-        );
+        debug!("Surfpool service started in {:?}", start_time.elapsed());
 
-        // No continuous monitoring needed - services will be checked individually
         debug!(
-            "Dependencies initialized successfully in {:?}",
+            "Dependencies initialized successfully in {:?} (reev-agent will be started per benchmark)",
             start_time.elapsed()
         );
 
@@ -172,7 +157,21 @@ impl DependencyManager {
         std::fs::create_dir_all(&self.config.log_dir)
             .with_context(|| format!("Failed to create log directory: {}", self.config.log_dir))?;
 
-        let log_file = PathBuf::from(&self.config.log_dir).join("reev-agent.log");
+        // Build log filename with agent type and benchmark ID if available
+        let log_filename = match (&self.config.agent_type, &self.config.benchmark_id) {
+            (Some(agent), Some(benchmark)) => {
+                format!("reev-agent_{agent}_{benchmark}.log")
+            }
+            (Some(agent), None) => {
+                format!("reev-agent_{agent}.log")
+            }
+            (None, Some(benchmark)) => {
+                format!("reev-agent_{benchmark}.log")
+            }
+            (None, None) => "reev-agent.log".to_string(),
+        };
+
+        let log_file = PathBuf::from(&self.config.log_dir).join(log_filename);
 
         // Create process configuration
         debug!("Creating reev-agent process configuration...");
@@ -479,6 +478,55 @@ impl DependencyManager {
         &self.config
     }
 
+    /// Update the configuration and restart reev-agent with new settings
+    pub async fn update_config_and_restart_agent(
+        &mut self,
+        agent_type: Option<String>,
+        benchmark_id: Option<String>,
+    ) -> Result<()> {
+        debug!(
+            "Updating reev-agent config: agent_type={:?}, benchmark_id={:?}",
+            agent_type, benchmark_id
+        );
+
+        // Update config
+        self.config.agent_type = agent_type;
+        self.config.benchmark_id = benchmark_id;
+
+        // Stop existing reev-agent if running
+        self.stop_reev_agent().await?;
+
+        // Start reev-agent with new config
+        self.start_reev_agent().await?;
+
+        info!("reev-agent restarted with new configuration");
+        Ok(())
+    }
+
+    /// Stop the reev-agent service
+    pub async fn stop_reev_agent(&mut self) -> Result<()> {
+        let dependency_type = DependencyType::ReevAgent;
+
+        debug!("Stopping reev-agent service...");
+
+        // Remove service from services map
+        let mut services = self.services.write().await;
+        services.remove(&dependency_type);
+
+        // Stop the process
+        let mut processes = self.processes.write().await;
+        if let Some(process_guard) = processes.remove(&dependency_type) {
+            debug!("Shutting down reev-agent process...");
+            if let Err(e) = process_guard.shutdown().await {
+                warn!(error = %e, "Failed to shutdown reev-agent gracefully");
+            } else {
+                debug!("reev-agent stopped successfully");
+            }
+        }
+
+        Ok(())
+    }
+
     /// Update configuration
     pub fn update_config(&mut self, config: DependencyConfig) -> Result<()> {
         config.validate()?;
@@ -490,18 +538,45 @@ impl DependencyManager {
     async fn clear_log_files(&self) -> Result<()> {
         debug!("Clearing log files for clean debugging...");
 
-        let log_files = ["reev-agent.log", "surfpool.log"];
+        // Clear surfpool.log (always fixed name)
+        let surfpool_log = PathBuf::from(&self.config.log_dir).join("surfpool.log");
+        if surfpool_log.exists() {
+            match fs::write(&surfpool_log, "") {
+                Ok(()) => {
+                    debug!("Cleared log file: surfpool.log");
+                }
+                Err(e) => {
+                    warn!("Failed to clear log file surfpool.log: {}", e);
+                }
+            }
+        }
 
-        for log_file in &log_files {
-            let log_path = PathBuf::from(&self.config.log_dir).join(log_file);
-            if log_path.exists() {
-                match fs::write(&log_path, "") {
-                    Ok(()) => {
-                        debug!("Cleared log file: {}", log_file);
+        // Clear all reev-agent log files (both fixed and dynamic names)
+        let log_dir = PathBuf::from(&self.config.log_dir);
+        if log_dir.exists() && log_dir.is_dir() {
+            match fs::read_dir(&log_dir) {
+                Ok(entries) => {
+                    for entry in entries.flatten() {
+                        let file_name = entry.file_name();
+                        let file_name_str = file_name.to_string_lossy();
+
+                        // Clear all reev-agent log files
+                        if file_name_str.starts_with("reev-agent")
+                            && file_name_str.ends_with(".log")
+                        {
+                            match fs::write(entry.path(), "") {
+                                Ok(()) => {
+                                    debug!("Cleared log file: {}", file_name_str);
+                                }
+                                Err(e) => {
+                                    warn!("Failed to clear log file {}: {}", file_name_str, e);
+                                }
+                            }
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to clear log file {}: {}", log_file, e);
-                    }
+                }
+                Err(e) => {
+                    warn!("Failed to read log directory {}: {}", log_dir.display(), e);
                 }
             }
         }
