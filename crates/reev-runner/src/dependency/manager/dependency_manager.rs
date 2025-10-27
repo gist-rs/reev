@@ -180,6 +180,20 @@ impl DependencyManager {
 
         let log_file = PathBuf::from(&self.config.log_dir).join(log_filename);
 
+        // DEBUG: Log file information to track potential conflicts
+        info!(
+            "Log file for benchmark {} with agent {}: {}",
+            self.config
+                .benchmark_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            self.config
+                .agent_type
+                .as_ref()
+                .unwrap_or(&"unknown".to_string()),
+            log_file.display()
+        );
+
         // Create process configuration
         debug!("Creating reev-agent process configuration...");
         let process_config = ProcessConfig::new(
