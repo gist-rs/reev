@@ -102,7 +102,10 @@ impl LlmAgent {
                     }
                 };
 
-                (api_url, api_key, model_name, agent_name.to_string(), false)
+                // Deterministic agent needs GLM-style parsing to extract from result.text
+                let is_glm = agent_name == "deterministic";
+
+                (api_url, api_key, model_name, agent_name.to_string(), is_glm)
             }
         };
 

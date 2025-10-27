@@ -1,4 +1,16 @@
 # REEV IMPLEMENTATION REFLECTION
+## Deterministic Agent Parsing Issue - RESOLVED ✅
+
+**Issue**: Deterministic agent worked in CLI (100% score) but failed in API (0% score)
+
+**Root Cause**: Response parsing mismatch between CLI and API paths:
+- CLI used GLM-style parsing (is_glm=true) which correctly extracts transactions from result.text
+- API used standard parsing (is_glm=false) which couldn't find instructions in deterministic agent's response
+
+**Fix**: Modified LlmAgent to set is_glm=true for deterministic agent regardless of environment variables, ensuring it always uses parsing logic that can extract from result.text field.
+
+**Key Learning**: Deterministic agent returns data in GLM-compatible format (result.text containing JSON instructions), so it needs GLM-style parser even though it's not actually GLM.
+
 
 ## Web API YAML Parsing Issue - RESOLVED ✅
 **Issue**: Web API "run all" benchmark execution failed with YAML parsing error for all benchmarks, while individual CLI execution worked fine
