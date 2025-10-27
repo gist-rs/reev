@@ -163,18 +163,19 @@ impl DependencyManager {
         std::fs::create_dir_all(&self.config.log_dir)
             .with_context(|| format!("Failed to create log directory: {}", self.config.log_dir))?;
 
-        // Build log filename with agent type and benchmark ID if available
+        // Build log filename with agent type, benchmark ID, and timestamp to prevent conflicts
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
         let log_filename = match (&self.config.agent_type, &self.config.benchmark_id) {
             (Some(agent), Some(benchmark)) => {
-                format!("reev-agent_{agent}_{benchmark}.log")
+                format!("reev-agent_{agent}_{benchmark}_{timestamp}.log")
             }
             (Some(agent), None) => {
-                format!("reev-agent_{agent}.log")
+                format!("reev-agent_{agent}_{timestamp}.log")
             }
             (None, Some(benchmark)) => {
-                format!("reev-agent_{benchmark}.log")
+                format!("reev-agent_{benchmark}_{timestamp}.log")
             }
-            (None, None) => "reev-agent.log".to_string(),
+            (None, None) => format!("reev-agent_{timestamp}.log"),
         };
 
         let log_file = PathBuf::from(&self.config.log_dir).join(log_filename);
