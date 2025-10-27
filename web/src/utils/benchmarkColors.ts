@@ -8,7 +8,7 @@ import { BenchmarkResult } from "../types/benchmark";
  */
 export function getBenchmarkColorClass(
   result: BenchmarkResult,
-  isRunning: boolean = false
+  isRunning: boolean = false,
 ): string {
   // If running, don't apply static background color - animation will handle it
   if (isRunning) return "";
@@ -33,11 +33,23 @@ export function getBenchmarkColorClass(
  */
 export function getBenchmarkStatusColor(
   status: string,
-  result?: BenchmarkResult
+  result?: BenchmarkResult,
 ): string {
   // If we have a result with color_class, use it for more accurate coloring
   if (result) {
-    return getBenchmarkColorClass(result);
+    // Check if result has a successful score regardless of status (handle race conditions)
+    if (result.score && result.score >= 1.0) {
+      return "bg-green-500";
+    }
+    if (result.color_class && result.color_class !== "gray") {
+      return getBenchmarkColorClass(result);
+    }
+    // If result has valid score but no color_class, use score-based logic
+    if (result.score !== undefined && result.score !== null) {
+      if (result.score >= 1.0) return "bg-green-500"; // 100%
+      if (result.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
+      return "bg-red-500"; // <25%
+    }
   }
 
   // Fallback to status-based logic

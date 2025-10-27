@@ -65,11 +65,26 @@ export function App() {
   } = useAgentPerformance();
 
   // Refresh performance data when a benchmark completes
+  // Refetch agent performance data when refresh trigger changes
   useEffect(() => {
     if (performanceOverviewRefresh > 0) {
       refetchAgentPerformance();
+
+      // Add retry mechanism for database locks - retry after 2 seconds if initial fetch fails
+      setTimeout(() => {
+        if (agentPerformanceError) {
+          console.log(
+            "🔄 [App] Retrying performance data fetch due to potential database lock",
+          );
+          refetchAgentPerformance();
+        }
+      }, 2000);
     }
-  }, [performanceOverviewRefresh, refetchAgentPerformance]);
+  }, [
+    performanceOverviewRefresh,
+    refetchAgentPerformance,
+    agentPerformanceError,
+  ]);
 
   // Derive running benchmarks by benchmark ID and agent type
   const runningBenchmarkIds = useMemo(() => {
@@ -509,6 +524,7 @@ export function App() {
               agentPerformanceData={agentPerformanceData}
               agentPerformanceLoading={agentPerformanceLoading}
               agentPerformanceError={agentPerformanceError}
+              refreshTrigger={performanceOverviewRefresh}
               setIsRunningAll={setIsRunningAll}
               setCompletionCallback={setCompletionCallback}
               runAllCompletionCallback={runAllCompletionCallback}

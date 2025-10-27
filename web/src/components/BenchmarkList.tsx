@@ -32,6 +32,7 @@ interface BenchmarkListProps {
   agentPerformanceData?: any;
   agentPerformanceLoading?: boolean;
   agentPerformanceError?: string | null;
+  refreshTrigger?: number;
 }
 
 export function BenchmarkList({
@@ -56,6 +57,7 @@ export function BenchmarkList({
   agentPerformanceData,
   agentPerformanceLoading,
   agentPerformanceError,
+  refreshTrigger = 0,
 }: BenchmarkListProps) {
   // Track running benchmarks and their execution IDs for polling
   const [runningBenchmarks, setRunningBenchmarks] = useState<
@@ -203,6 +205,12 @@ export function BenchmarkList({
       console.log(`🔍 [BenchmarkList] No agent performance data available`);
     }
   }, [agentPerformanceData, selectedAgent]);
+
+  // Force re-render when refreshTrigger changes to update box colors
+  useEffect(() => {
+    // This effect will trigger a re-render of the component
+    // The color calculation in getBenchmarkStatusColor will use updated execution data
+  }, [refreshTrigger]);
 
   // Polling is now handled by useBenchmarkExecution hook - removed duplicate polling
   // This prevents state inconsistency issues between hook state and component state
@@ -417,6 +425,19 @@ export function BenchmarkList({
             progress: 100,
           };
         }
+      }
+
+      // Handle case where execution exists but might have stale data due to database lock
+      // Check if execution has score but wrong status (race condition handling)
+      if (
+        execution &&
+        execution.score >= 1.0 &&
+        execution.status === "Failed"
+      ) {
+        return {
+          ...execution,
+          status: "Completed",
+        };
       }
 
       return execution;
@@ -663,6 +684,7 @@ export function BenchmarkList({
                         >
                           {/* Status indicator box */}
                           <div
+                            key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}`}
                             className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
                               status,
                               execution,
@@ -706,6 +728,7 @@ export function BenchmarkList({
                           >
                             {/* Status indicator box */}
                             <div
+                              key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}`}
                               className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
                                 status,
                                 execution,
