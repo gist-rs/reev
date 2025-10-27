@@ -2,22 +2,32 @@
 
 ## Open Issues
 
-
 - Port remains in use during process shutdown transition
+- **NEW**: Log files are empty across all benchmarks - reev-runner can't open any log files
 
-**Solution Implemented**:
-1. Modified `update_config_and_restart_agent` to check for existing healthy reev-agent
-2. Added configuration change detection - only restart if config actually changed
-3. Enhanced `start_reev_agent` to detect and reuse healthy instances
-4. Added port release waiting logic with retries
-5. Added tests to verify proper reuse and restart behavior
+**Root Cause Identified**: reev-runner unable to open ANY log files due to file system permissions or path issues
+
+**Next Steps Required**:
+1. Check reev-runner process permissions
+2. Verify logs directory exists and is writable  
+3. Debug file system operations in process manager
+4. Test with manual file creation to isolate issue
 
 **Files Modified**:
 ### #12 Critical Session ID Collision - IDENTIFIED ⚠️ HIGH PRIORITY
 
 **Date**: 2025-10-27  
 **Status**: Open  
+**Priority**: Critical
+
+### #13 Empty Log Files - IDENTIFIED 🔴 CRITICAL
+
+**Date**: 2025-10-27  
+**Status**: Open  
 **Priority**: Critical  
+**Description**: All benchmark log files are empty across all benchmark executions. reev-runner cannot open log files for any process (reev-agent, surfpool), causing immediate benchmark failures.
+
+**Impact**: Benchmarks fail immediately without any execution or logging, preventing any debugging or result capture.
 
 **Issue**: 
 - **CRITICAL**: FlowLogger::with_database() generates NEW UUID instead of preserving existing session_id
