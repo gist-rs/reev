@@ -600,7 +600,9 @@ impl DependencyManager {
     async fn clear_log_files(&self) -> Result<()> {
         debug!("Clearing log files for clean debugging...");
 
-        // Clear surfpool.log (always fixed name)
+        // Skip clearing surfpool.log by default to preserve debugging information
+        // Uncomment below section if you want to clear surfpool.log
+        /*
         let surfpool_log = PathBuf::from(&self.config.log_dir).join("surfpool.log");
         if surfpool_log.exists() {
             match fs::write(&surfpool_log, "") {
@@ -612,8 +614,9 @@ impl DependencyManager {
                 }
             }
         }
+        */
 
-        // Clear only stale reev-agent log files (older than 1 hour)
+        // Clear only stale reev-agent log files (older than 1 day)
         let log_dir = PathBuf::from(&self.config.log_dir);
         if log_dir.exists() && log_dir.is_dir() {
             match fs::read_dir(&log_dir) {
@@ -631,7 +634,7 @@ impl DependencyManager {
                                 Ok(metadata) => {
                                     if let Ok(modified_time) = metadata.modified() {
                                         let current_time = std::time::SystemTime::now();
-                                        let age_threshold = std::time::Duration::from_secs(3600); // 1 hour
+                                        let age_threshold = std::time::Duration::from_secs(86400); // 1 day
 
                                         if let Ok(age) = current_time.duration_since(modified_time)
                                         {
@@ -639,7 +642,7 @@ impl DependencyManager {
                                                 match fs::write(entry.path(), "") {
                                                     Ok(()) => {
                                                         debug!(
-                                                            "Cleared stale log file: {} (age: {}s)",
+                                                            "Cleared stale log file: {} (age: {}s, threshold: 1 day)",
                                                             file_name_str,
                                                             age.as_secs()
                                                         );
