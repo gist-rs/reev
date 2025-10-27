@@ -100,15 +100,11 @@ export function BenchmarkList({
   useEffect(() => {
     console.log("=== BenchmarkList useEffect for selectedBenchmark ===");
     console.log("selectedBenchmark:", selectedBenchmark);
-    console.log("runningBenchmarks.size:", runningBenchmarks.size);
-    console.log(
-      "runningBenchmarks.keys():",
-      Array.from(runningBenchmarks.keys()),
-    );
+    console.log("executions.size:", executions.size);
 
     if (selectedBenchmark) {
       // Check if any benchmark is currently running
-      const runningBenchmark = Array.from(runningBenchmarks.keys()).find(
+      const runningBenchmark = Array.from(executions.keys()).find(
         (benchmarkId) => {
           const execution = executions.get(benchmarkId);
           return execution?.status === ExecutionStatus.RUNNING;
@@ -116,7 +112,6 @@ export function BenchmarkList({
       );
 
       console.log("runningBenchmark found:", runningBenchmark);
-      console.log("executions.size:", executions.size);
 
       // Only expand if no benchmark is running (to avoid interfering with auto-expand during execution)
       if (!runningBenchmark) {
@@ -129,7 +124,7 @@ export function BenchmarkList({
         );
       }
     }
-  }, [selectedBenchmark, runningBenchmarks, executions]);
+  }, [selectedBenchmark, executions]);
 
   // Clean up completed benchmarks from runningBenchmarks
   useEffect(() => {
@@ -692,12 +687,12 @@ export function BenchmarkList({
               const isSelected = selectedBenchmark === benchmark.id;
 
               // Find if any benchmark is currently running
-              const runningBenchmark = Array.from(
-                runningBenchmarks.keys(),
-              ).find((benchmarkId) => {
-                const execution = executions.get(benchmarkId);
-                return execution?.status === ExecutionStatus.RUNNING;
-              });
+              const runningBenchmark = Array.from(executions.keys()).find(
+                (benchmarkId) => {
+                  const execution = executions.get(benchmarkId);
+                  return execution?.status === ExecutionStatus.RUNNING;
+                },
+              );
 
               const isExpanded =
                 status === ExecutionStatus.RUNNING
@@ -705,6 +700,18 @@ export function BenchmarkList({
                   : runningBenchmark
                     ? false // Collapse all others when something is running
                     : expandedBenchmark === benchmark.id; // Normal expansion logic when nothing is running
+
+              // Debug logging for expansion state
+              if (benchmark.id === selectedBenchmark) {
+                console.log("=== BenchmarkItem Expansion Debug ===");
+                console.log("benchmark.id:", benchmark.id);
+                console.log("selectedBenchmark:", selectedBenchmark);
+                console.log("expandedBenchmark:", expandedBenchmark);
+                console.log("runningBenchmark:", runningBenchmark);
+                console.log("status:", status);
+                console.log("isExpanded:", isExpanded);
+                console.log("isSelected:", isSelected);
+              }
 
               return (
                 <div
