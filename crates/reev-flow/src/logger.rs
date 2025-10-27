@@ -131,6 +131,36 @@ impl FlowLogger {
         }
     }
 
+    /// Create a new flow logger with database support, preserving existing session_id
+    pub fn new_with_database_preserve_session(
+        benchmark_id: String,
+        agent_type: String,
+        output_path: PathBuf,
+        database: Arc<dyn DatabaseWriter>,
+        existing_session_id: Option<String>,
+    ) -> Self {
+        let session_id = existing_session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let start_time = SystemTime::now();
+
+        info!(
+            session_id = %session_id,
+            benchmark_id = %benchmark_id,
+            agent_type = %agent_type,
+            "Initializing flow logger with database support, preserving session_id: {:?}",
+            existing_session_id
+        );
+
+        Self {
+            session_id,
+            benchmark_id,
+            agent_type,
+            start_time,
+            events: Vec::new(),
+            output_path,
+            database: Some(database),
+        }
+    }
+
     /// Set database on existing logger instance
     pub fn with_database(mut self, database: Arc<dyn DatabaseWriter>) -> Self {
         self.database = Some(database);

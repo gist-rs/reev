@@ -644,15 +644,13 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        Some(
-            FlowLogger::new_with_session(
-                session_id.to_string(),
-                test_case.id.clone(),
-                agent_name.to_string(),
-                path,
-            )
-            .with_database(_db.clone() as Arc<dyn reev_flow::logger::DatabaseWriter>),
-        )
+        Some(FlowLogger::new_with_database_preserve_session(
+            test_case.id.clone(),
+            agent_name.to_string(),
+            path,
+            _db.clone() as Arc<dyn reev_flow::logger::DatabaseWriter>,
+            Some(session_id.to_string()), // Preserve existing session_id
+        ))
     };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
