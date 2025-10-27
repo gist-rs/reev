@@ -57,13 +57,9 @@ impl LlmAgent {
                 } else {
                     "http://localhost:9090/gen/tx".to_string()
                 };
-                (
-                    final_url,
-                    None,
-                    "glm-4.6".to_string(),
-                    agent_name.to_string(),
-                    true,
-                )
+                // Preserve the original model name instead of hardcoding
+                let model_name = agent_name.to_string();
+                (final_url, None, model_name, agent_name.to_string(), true)
             }
             (Some(_), None) => {
                 anyhow::bail!("GLM_CODING_API_KEY is set but GLM_CODING_API_URL is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");

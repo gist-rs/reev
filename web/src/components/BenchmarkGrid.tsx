@@ -29,6 +29,7 @@ export function BenchmarkGrid({
     "local",
     "gemini-2.5-flash-lite",
     "glm-4.6",
+    "glm-4.6-coding",
   ];
   const allBenchmarks = benchmarks || [];
   const runningBenchmarks = new Set<string>(runningBenchmarkIds);
