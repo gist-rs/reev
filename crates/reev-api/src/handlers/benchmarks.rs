@@ -71,34 +71,45 @@ pub async fn list_benchmarks(
                                             .unwrap_or("")
                                             .to_string();
 
-                                        benchmarks.push(crate::types::BenchmarkInfo {
-                                            id: benchmark_id,
-                                            description,
-                                            tags,
-                                            prompt,
-                                        });
+                                        // Filter out position/earnings benchmarks (114-*) from web interface
+                                        // These benchmarks use jupiter_earn tool which is restricted to specialized testing
+                                        if !benchmark_id.starts_with("114") {
+                                            benchmarks.push(crate::types::BenchmarkInfo {
+                                                id: benchmark_id,
+                                                description,
+                                                tags,
+                                                prompt,
+                                            });
+                                        }
                                     }
                                     Err(e) => {
                                         error!("Failed to parse YAML file {:?}: {}", path, e);
                                         // Fallback to minimal info
-                                        benchmarks.push(crate::types::BenchmarkInfo {
-                                            id: benchmark_id,
-                                            description: "Failed to parse description".to_string(),
-                                            tags: vec![],
-                                            prompt: "".to_string(),
-                                        });
+                                        // Filter out position/earnings benchmarks (114-*) from web interface even for error cases
+                                        if !benchmark_id.starts_with("114") {
+                                            benchmarks.push(crate::types::BenchmarkInfo {
+                                                id: benchmark_id,
+                                                description: "Failed to parse description"
+                                                    .to_string(),
+                                                tags: vec![],
+                                                prompt: "".to_string(),
+                                            });
+                                        }
                                     }
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to read YAML file {:?}: {}", path, e);
                                 // Fallback to minimal info
-                                benchmarks.push(crate::types::BenchmarkInfo {
-                                    id: benchmark_id,
-                                    description: "Failed to read description".to_string(),
-                                    tags: vec![],
-                                    prompt: "".to_string(),
-                                });
+                                // Filter out position/earnings benchmarks (114-*) from web interface even for read error cases
+                                if !benchmark_id.starts_with("114") {
+                                    benchmarks.push(crate::types::BenchmarkInfo {
+                                        id: benchmark_id,
+                                        description: "Failed to read description".to_string(),
+                                        tags: vec![],
+                                        prompt: "".to_string(),
+                                    });
+                                }
                             }
                         }
                     }
