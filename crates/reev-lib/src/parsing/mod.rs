@@ -14,6 +14,9 @@ use tracing::{debug, info, warn};
 
 use crate::agent::{LlmResponse, RawInstruction};
 
+mod deterministic_parser;
+pub use deterministic_parser::DeterministicParser;
+
 /// Main response parser with fallback mechanism
 ///
 /// Attempts to parse responses in order: GLM -> Jupiter -> Standard reev format
@@ -28,7 +31,7 @@ impl ResponseParser {
         Self { is_glm }
     }
 
-    /// Parse LLM response with fallback mechanism: GLM -> Jupiter -> Standard reev format
+    /// Parse LLM response with fallback mechanism: GLM -> Jupiter -> Deterministic -> Standard
     pub fn parse_with_fallback(&self, response_text: &str) -> LlmResponse {
         if self.is_glm {
             info!("[ResponseParser] Attempting GLM-style response parsing");
@@ -39,6 +42,11 @@ impl ResponseParser {
 
         info!("[ResponseParser] Attempting Jupiter-style response parsing");
         if let Some(response) = self.parse_jupiter_response(response_text) {
+            return response;
+        }
+
+        info!("[ResponseParser] Attempting deterministic agent response parsing");
+        if let Some(response) = DeterministicParser::parse_response(response_text).unwrap_or(None) {
             return response;
         }
 
@@ -325,36 +333,9 @@ impl ResponseParser {
         None
     }
 
-    /// Parse standard reev API responses
+    /// Parse standard reev API responses (non-deterministic, non-Jupiter, non-GLM)
     fn parse_standard_reev_response(&self, response_text: &str) -> Result<LlmResponse> {
-        // Try to parse as regular LlmResponse first
-        if let Ok(response) = serde_json::from_str::<LlmResponse>(response_text) {
-            // Handle deterministic agent responses with transactions in result.text
-            if response.transactions.is_none() {
-                if let Some(result) = &response.result {
-                    // result.text is Vec<RawInstruction> after deserialization
-                    if !result.text.is_empty() {
-                        info!(
-                            "[ResponseParser] Standard parser - Successfully extracted {} transactions from result.text",
-                            result.text.len()
-                        );
-                        return Ok(LlmResponse {
-                            transactions: Some(result.text.clone()),
-                            result: response.result,
-                            summary: response.summary,
-                            signatures: response.signatures,
-                            flows: response.flows,
-                        });
-                    }
-                }
-            }
-            // Return original response if no result.text transactions found
-            return Ok(response);
-        }
-
-        // Fallback to error if parsing fails completely
-        serde_json::from_str::<LlmResponse>(response_text)
-            .context("Failed to deserialize LLM API response")
+        serde_json::from_str(response_text).context("Failed to deserialize LLM API response")
     }
 
     /// Parse transaction array from response (shared by GLM and Jupiter parsers)

@@ -43,6 +43,9 @@ impl LlmAgent {
         let glm_api_key = std::env::var("GLM_CODING_API_KEY").ok();
         let glm_api_url = std::env::var("GLM_CODING_API_URL").ok();
 
+        // Check if GLM environment is set (for determining parsing mode)
+        let glm_env_available = glm_api_key.is_some() && glm_api_url.is_some();
+
         let (api_url, api_key, model_name, agent_name_for_type, is_glm) = match (
             glm_api_key,
             glm_api_url,
@@ -102,8 +105,7 @@ impl LlmAgent {
                     }
                 };
 
-                // Deterministic agent needs GLM-style parsing to extract from result.text
-                let is_glm = agent_name == "deterministic";
+                let is_glm = glm_env_available;
 
                 (api_url, api_key, model_name, agent_name.to_string(), is_glm)
             }

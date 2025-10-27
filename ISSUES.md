@@ -2,6 +2,36 @@
 
 ## Open Issues
 
+### #15 Deterministic Parser Architecture Issue - IDENTIFIED ⚠️ HIGH PRIORITY
+
+**Date**: 2025-10-27  
+**Status**: Open  
+**Priority**: High  
+**Description**: Deterministic agent parsing is mixed into general parsing module causing architectural confusion and maintenance issues.
+
+**Root Cause**: 
+- Deterministic agent has specific response format: `{result: {text: Vec<RawInstruction>}, transactions: null}`
+- Currently handled by modifying `parse_standard_reev_response()` which creates tight coupling
+- Parser logic becoming complex with multiple special cases mixed together
+- Hard to maintain and test deterministic parsing separately
+
+**Impact**:
+- Parser module becoming monolithic and hard to understand
+- Deterministic agent changes require touching shared parsing logic
+- Risk of regression when fixing other parser types
+- Difficult to unit test deterministic parsing in isolation
+
+**Proposed Solution**:
+- Create dedicated `deterministic_parser.rs` module
+- Move deterministic-specific logic out of shared `parsing/mod.rs`
+- Keep deterministic agent parsing isolated and testable
+- Clean separation of concerns between parser types
+
+**Files to Modify**:
+- `crates/reev-lib/src/parsing/mod.rs`: Remove deterministic-specific logic
+- `crates/reev-lib/src/parsing/deterministic_parser.rs`: New module
+- `crates/reev-lib/src/lib.rs`: Export new deterministic parser
+
 ### #12 Critical Session ID Collision - IDENTIFIED ⚠️ HIGH PRIORITY
 
 **Date**: 2025-10-27  
