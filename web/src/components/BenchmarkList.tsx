@@ -6,6 +6,7 @@ import { BenchmarkItem } from "../types/configuration";
 import { ExecutionStatus } from "../types/benchmark";
 import { AgentConfig } from "./AgentConfig";
 import { Tooltip } from "./ui/Tooltip";
+import { getBenchmarkStatusColor } from "../utils/benchmarkColors";
 
 interface BenchmarkListProps {
   selectedAgent: string;
@@ -698,15 +699,10 @@ export function BenchmarkList({
                         >
                           {/* Status indicator box */}
                           <div
-                            className={`w-4 h-4 rounded-sm ${
-                              status === ExecutionStatus.COMPLETED
-                                ? "bg-green-500"
-                                : status === ExecutionStatus.FAILED
-                                  ? "bg-red-500"
-                                  : status === ExecutionStatus.RUNNING
-                                    ? "bg-blue-500"
-                                    : "bg-gray-300 dark:bg-gray-600"
-                            }`}
+                            className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
+                              status,
+                              execution,
+                            )}`}
                           />
                         </div>
                         <div className="flex-1">
@@ -746,15 +742,10 @@ export function BenchmarkList({
                           >
                             {/* Status indicator box */}
                             <div
-                              className={`w-4 h-4 rounded-sm ${
-                                status === ExecutionStatus.COMPLETED
-                                  ? "bg-green-500"
-                                  : status === ExecutionStatus.FAILED
-                                    ? "bg-red-500"
-                                    : status === ExecutionStatus.RUNNING
-                                      ? "bg-blue-500"
-                                      : "bg-gray-300 dark:bg-gray-600"
-                              }`}
+                              className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
+                                status,
+                                execution,
+                              )}`}
                             />
                           </div>
                           {/* Benchmark Name */}

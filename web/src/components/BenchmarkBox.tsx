@@ -1,6 +1,7 @@
 // BenchmarkBox component for individual 16x16 result display
 
 import { BenchmarkResult } from "../types/benchmark";
+import { getBenchmarkColorClass } from "../utils/benchmarkColors";
 
 interface BenchmarkBoxProps {
   result: BenchmarkResult;
@@ -21,22 +22,6 @@ export function BenchmarkBox({
   isSelected = false,
   disabled = false,
 }: BenchmarkBoxProps) {
-  const getColorClass = (result: BenchmarkResult): string => {
-    // If running, don't apply static background color - animation will handle it
-    if (isRunning) return "";
-
-    // Use color_class if specified, otherwise fall back to score-based logic
-    if (result.color_class === "gray") return "bg-gray-400";
-    if (result.color_class === "green") return "bg-green-500";
-    if (result.color_class === "yellow") return "bg-yellow-500";
-    if (result.color_class === "red") return "bg-red-500";
-
-    // Fallback to score-based logic
-    if (result.score >= 1.0) return "bg-green-500"; // 100%
-    if (result.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
-    return "bg-red-500"; // <25%
-  };
-
   const getAnimationClass = () => {
     if (isRunning) {
       return "animate-blink-fade";
@@ -44,7 +29,7 @@ export function BenchmarkBox({
     return "";
   };
 
-  const baseClasses = `${getColorClass(result)} ${disabled ? "cursor-not-allowed opacity-50" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
+  const baseClasses = `${getBenchmarkColorClass(result, isRunning)} ${disabled ? "cursor-not-allowed opacity-50" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,
