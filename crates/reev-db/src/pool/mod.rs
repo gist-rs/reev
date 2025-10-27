@@ -65,6 +65,20 @@ impl ConnectionPool {
 
         debug!("[POOL] Creating new database connection");
 
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = std::path::Path::new(&self.config.path).parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                DatabaseError::connection_with_source(
+                    format!("Failed to create database directory: {}", parent.display()),
+                    e,
+                )
+            })?;
+            debug!(
+                "[POOL] Database directory created/verified: {}",
+                parent.display()
+            );
+        }
+
         let db = Builder::new_local(&self.config.path)
             .build()
             .await
