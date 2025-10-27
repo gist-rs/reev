@@ -327,7 +327,34 @@ impl ResponseParser {
 
     /// Parse standard reev API responses
     fn parse_standard_reev_response(&self, response_text: &str) -> Result<LlmResponse> {
-        serde_json::from_str(response_text).context("Failed to deserialize the LLM API response")
+        // Try to parse as regular LlmResponse first
+        if let Ok(response) = serde_json::from_str::<LlmResponse>(response_text) {
+            // Handle deterministic agent responses with transactions in result.text
+            if response.transactions.is_none() {
+                if let Some(result) = &response.result {
+                    // result.text is Vec<RawInstruction> after deserialization
+                    if !result.text.is_empty() {
+                        info!(
+                            "[ResponseParser] Standard parser - Successfully extracted {} transactions from result.text",
+                            result.text.len()
+                        );
+                        return Ok(LlmResponse {
+                            transactions: Some(result.text.clone()),
+                            result: response.result,
+                            summary: response.summary,
+                            signatures: response.signatures,
+                            flows: response.flows,
+                        });
+                    }
+                }
+            }
+            // Return original response if no result.text transactions found
+            return Ok(response);
+        }
+
+        // Fallback to error if parsing fails completely
+        serde_json::from_str::<LlmResponse>(response_text)
+            .context("Failed to deserialize LLM API response")
     }
 
     /// Parse transaction array from response (shared by GLM and Jupiter parsers)
