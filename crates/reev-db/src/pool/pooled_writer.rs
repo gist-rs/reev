@@ -282,6 +282,15 @@ impl PooledDatabaseWriter {
         Ok(sessions)
     }
 
+    /// Get a single session by session_id
+    pub async fn get_session(&self, session_id: &str) -> Result<Option<crate::types::SessionInfo>> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+
+        writer.get_session(session_id).await
+    }
+
     // Performance operations
     pub async fn insert_agent_performance(
         &self,

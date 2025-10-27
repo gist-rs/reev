@@ -852,6 +852,38 @@ pub async fn update_execution_failed(
         }
     }
 
+    // Create agent performance record for failed execution
+    // This ensures failed tests appear properly in UI (red instead of grey)
+    if let Ok(Some(session_info)) = state.db.get_session(session_id).await {
+        let failed_performance = reev_db::types::AgentPerformance {
+            id: None,
+            session_id: session_id.to_string(),
+            benchmark_id: session_info.benchmark_id.clone(),
+            agent_type: session_info.agent_type.clone(),
+            score: 0.0,
+            final_status: "failed".to_string(),
+            execution_time_ms: Some(0),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            flow_log_id: None,
+            prompt_md5: None,
+            additional_metrics: std::collections::HashMap::new(),
+        };
+
+        if let Err(e) = state.db.insert_agent_performance(&failed_performance).await {
+            error!(
+                "Failed to insert agent performance record for failed session {}: {:?}",
+                session_id, e
+            );
+        } else {
+            info!(
+                "Created agent performance record for failed session {}: {} (score: 0.0)",
+                session_id, session_info.benchmark_id
+            );
+        }
+    }
+
+    // Store error log
+
     // Store error log
     let error_log = format!("Execution failed: {error_message}");
     info!(
