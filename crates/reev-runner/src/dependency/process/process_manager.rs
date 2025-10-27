@@ -214,11 +214,12 @@ impl ProcessManager {
             // Debug: Check file existence and properties before opening
             let file_exists = std::path::Path::new(stdout_path).exists();
             let file_metadata = std::path::Path::new(stdout_path).metadata().ok();
+            let file_size = file_metadata.as_ref().map(|m| m.len()).unwrap_or(0);
             info!(
-                "FILE DEBUG: Opening stdout file: {}, exists: {}, size: {:?}",
+                "FILE DEBUG: Opening stdout file: {}, exists: {}, size: {}",
                 stdout_path.display(),
                 file_exists,
-                file_metadata.as_ref().and_then(|m| m.len()).unwrap_or(0)
+                file_size
             );
 
             let stdout_file = std::fs::OpenOptions::new()
@@ -233,12 +234,16 @@ impl ProcessManager {
         }
 
         if let Some(stderr_path) = &config.stderr {
-            // Debug: Check stderr file existence before opening
-            let stderr_exists = std::path::Path::new(stderr_path).exists();
+            // Debug: Check stderr file existence and size before opening
+            let stderr_path_obj = std::path::Path::new(stderr_path);
+            let stderr_exists = stderr_path_obj.exists();
+            let stderr_metadata = stderr_path_obj.metadata().ok();
+            let stderr_size = stderr_metadata.as_ref().map(|m| m.len()).unwrap_or(0);
             info!(
-                "FILE DEBUG: Opening stderr file: {}, exists: {}",
+                "FILE DEBUG: Opening stderr file: {}, exists: {}, size: {}",
                 stderr_path.display(),
-                stderr_exists
+                stderr_exists,
+                stderr_size
             );
 
             let stderr_file = std::fs::OpenOptions::new()
