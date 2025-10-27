@@ -244,11 +244,6 @@ export function App() {
     [selectedBenchmark, setPerformanceOverviewRefresh],
   );
 
-  const handleStopExecution = useCallback(() => {
-    setIsRunning(false);
-    // TODO: Add actual stop execution logic
-  }, []);
-
   const handleRunBenchmark = useCallback(
     async (benchmarkId: string, agentType?: string) => {
       if (isRunning) return;
@@ -537,16 +532,6 @@ export function App() {
                   ? `Benchmark: ${selectedBenchmark}`
                   : "Execution Details"}
               </h2>
-              <div className="flex space-x-2">
-                {currentExecution && currentExecution.status === "Running" && (
-                  <button
-                    onClick={handleStopExecution}
-                    className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                  >
-                    Stop Execution
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 

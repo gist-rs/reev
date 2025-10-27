@@ -234,12 +234,6 @@ export function ExecutionTrace({
           >
             Copy
           </button>
-
-          {isRunning && (
-            <button className="px-3 py-1 text-sm bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/30 transition-colors">
-              Stop
-            </button>
-          )}
         </div>
       </div>
 

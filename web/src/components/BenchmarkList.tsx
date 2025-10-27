@@ -277,42 +277,6 @@ export function BenchmarkList({
     [selectedAgent, isRunning, onExecutionStart, refetch],
   );
 
-  const handleStopBenchmark = useCallback(
-    async (benchmark: BenchmarkItem) => {
-      const executionId = runningBenchmarks.get(benchmark.id);
-      if (!executionId) {
-        console.warn("No running execution found for benchmark:", benchmark.id);
-        return;
-      }
-
-      try {
-        await apiClient.stopBenchmark(benchmark.id, executionId);
-
-        // Update execution state to show it's stopped
-        updateExecution(benchmark.id, {
-          ...executions.get(benchmark.id),
-          status: "Failed",
-          progress: 0,
-        });
-
-        // Remove from running benchmarks
-        setRunningBenchmarks((prev) => {
-          const updated = new Map(prev);
-          updated.delete(benchmark.id);
-          return updated;
-        });
-
-        console.log("✅ Benchmark stopped:", benchmark.id);
-      } catch (error) {
-        console.error("❌ Failed to stop benchmark:", error);
-        alert(
-          `Failed to stop benchmark: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      }
-    },
-    [runningBenchmarks, executions, updateExecution],
-  );
-
   const handleRunAllBenchmarks = useCallback(async () => {
     if (isRunning || !benchmarks) return;
 
@@ -771,27 +735,31 @@ export function BenchmarkList({
                           </div>
                         </div>
 
-                        {/* Run/Stop Button */}
+                        {/* Run/Running Button */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (status === ExecutionStatus.RUNNING) {
-                              handleStopBenchmark(benchmark);
+                              // Do nothing when running - just show Running...
+                              return;
                             } else {
                               handleRunBenchmark(benchmark);
                             }
                           }}
                           disabled={
-                            status !== ExecutionStatus.RUNNING &&
-                            (isRunning || isRunningAll)
+                            status === ExecutionStatus.RUNNING ||
+                            isRunning ||
+                            isRunningAll
                           }
                           className={`px-3 py-1 text-white text-sm rounded transition-colors ${
                             status === ExecutionStatus.RUNNING
-                              ? "bg-red-600 hover:bg-red-700"
+                              ? "bg-gray-500"
                               : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                           }`}
                         >
-                          {status === ExecutionStatus.RUNNING ? "Stop" : "Run"}
+                          {status === ExecutionStatus.RUNNING
+                            ? "Running..."
+                            : "Run"}
                         </button>
                       </div>
 

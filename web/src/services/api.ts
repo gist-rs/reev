@@ -155,18 +155,6 @@ class ApiClient {
     );
   }
 
-  async stopBenchmark(
-    benchmarkId: string,
-    executionId: string,
-  ): Promise<{ status: string }> {
-    return this.request<{ status: string }>(
-      `/api/v1/benchmarks/${benchmarkId}/stop/${executionId}`,
-      {
-        method: "POST",
-      },
-    );
-  }
-
   // Agent configuration
   async saveAgentConfig(config: AgentConfig): Promise<{ status: string }> {
     return this.request<{ status: string }>("/api/v1/agents/config", {
@@ -245,8 +233,7 @@ export const apiClient = {
     apiClientInstance.runBenchmark(benchmarkId, request),
   getExecutionStatus: (benchmarkId: string, executionId: string) =>
     apiClientInstance.getExecutionStatus(benchmarkId, executionId),
-  stopBenchmark: (benchmarkId: string, executionId: string) =>
-    apiClientInstance.stopBenchmark(benchmarkId, executionId),
+
   saveAgentConfig: (config: AgentConfig) =>
     apiClientInstance.saveAgentConfig(config),
   getAgentConfig: (agentType: string) =>
