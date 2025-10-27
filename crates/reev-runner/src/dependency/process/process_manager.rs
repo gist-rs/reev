@@ -212,7 +212,6 @@ impl ProcessManager {
         // Configure stdout/stderr
         if let Some(stdout_path) = &config.stdout {
             let stdout_file = std::fs::OpenOptions::new()
-                .create(true)
                 .append(true)
                 .open(stdout_path)
                 .with_context(|| {
@@ -225,7 +224,6 @@ impl ProcessManager {
 
         if let Some(stderr_path) = &config.stderr {
             let stderr_file = std::fs::OpenOptions::new()
-                .create(true)
                 .append(true)
                 .open(stderr_path)
                 .with_context(|| {
