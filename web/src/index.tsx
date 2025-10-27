@@ -107,10 +107,7 @@ export function App() {
       console.log("=== BENCHMARK SELECTED ===");
       console.log("benchmarkId:", benchmarkId);
       console.log("agentType:", agentType);
-      console.log("Previous selectedBenchmark:", selectedBenchmark);
-      console.log("Current selectedAgent:", selectedAgent);
       setSelectedBenchmark(benchmarkId);
-      console.log("Set selectedBenchmark to:", benchmarkId);
 
       // Update selected agent if provided
       if (agentType) {

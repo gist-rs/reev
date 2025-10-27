@@ -1,21 +1,5 @@
 # Issues
 
-## 1. API Server Killed During Benchmark Execution - Fixed ✅
-- **Date**: 2025-10-27
-- **Status**: Fixed ✅
-- **Description**: API server crashes when running benchmarks from web interface
-- **Root Cause**: Benchmark runner always called `kill_existing_api(3001)` which kills the running API server
-- **Schema Error**: `Schema error: Failed to execute schema statement: CREATE TABLE IF NOT EXISTS benchmarks` (Fixed by removing duplicate table definitions in schema)
-- **Kill Issue**: `run_benchmarks()` killed API server unconditionally during benchmark execution
-- **Location**: `reev_runner::lib.rs::run_benchmarks` and `reev_lib::server_utils::kill_existing_api`
-- **Impact**: Prevents benchmark execution from web interface, API server becomes unresponsive
-- **Fix Applied**: 
-  1. Removed duplicate table definitions from current_schema.sql
-  2. Added `kill_api: bool` parameter to `run_benchmarks()` with safe default `false`
-  3. Updated API service to call with `kill_api: false` (preserves API)
-  4. Updated CLI/TUI/Tests to call with `kill_api: true` (explicit opt-in)
-- **Result**: Web interface can now run benchmarks without killing the API server
-
 ## Open Issues
 
 ### #9 Database Lock Issue from Stale WAL Files - RESOLVED ✅
