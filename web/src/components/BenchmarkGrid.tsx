@@ -55,6 +55,9 @@ export function BenchmarkGrid({
                   selectedAgent={selectedAgent}
                   isAnyRunning={runningBenchmarkIds.length > 0}
                   onBenchmarkClick={(result) => {
+                    console.log("=== Grid BenchmarkBox clicked ===");
+                    console.log("result.benchmark_id:", result.benchmark_id);
+                    console.log("agentType:", agentType);
                     if (onBenchmarkSelect) {
                       onBenchmarkSelect(result.benchmark_id, agentType);
                     }
