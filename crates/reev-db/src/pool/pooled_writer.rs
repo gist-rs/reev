@@ -127,6 +127,7 @@ impl PooledDatabaseWriter {
         session_id: &str,
         status: &str,
         final_status: Option<&str>,
+        score: f64,
     ) -> Result<()> {
         let conn = self.get_connection().await?;
         let writer =
@@ -135,8 +136,12 @@ impl PooledDatabaseWriter {
         // Create a session result to complete the session
         let result = crate::types::SessionResult {
             end_time: chrono::Utc::now().timestamp(),
-            score: 0.0, // Would need to be provided
-            final_status: final_status.unwrap_or(status).to_string(),
+            score,
+            final_status: final_status
+                .or(Some(status))
+                .filter(|s| !s.is_empty())
+                .unwrap_or("unknown")
+                .to_lowercase(),
         };
 
         writer.complete_session(session_id, &result).await

@@ -131,6 +131,12 @@ impl FlowLogger {
         }
     }
 
+    /// Set database on existing logger instance
+    pub fn with_database(mut self, database: Arc<dyn DatabaseWriter>) -> Self {
+        self.database = Some(database);
+        self
+    }
+
     /// Log an LLM request event
     pub fn log_llm_request(&mut self, content: LlmRequestContent, depth: u32) {
         let event = FlowEvent {

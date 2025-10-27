@@ -8,7 +8,7 @@ initial_state:
     owner: "11111111111111111111111111111111" # System Program
     lamports: 2000000000 # 2 SOL
 
-prompt: "Show me my complete Jupiter lending portfolio including all positions and their earnings. Use the jupiter_earn tool with operation 'both' to get positions and earnings data in a single call."
+prompt: "Can you check my Jupiter lending positions and show me how much I've earned? I'd like to see both my current positions and the earnings from them. Please use the jupiter_earn tool to get this information."
 
 ground_truth:
   min_score: 0.6

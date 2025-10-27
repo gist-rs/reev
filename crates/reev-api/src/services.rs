@@ -219,7 +219,12 @@ pub async fn execute_benchmark_background(
 
             if let Err(e) = state
                 .db
-                .update_session_status(&session_id, "completed", Some(final_status))
+                .update_session_status(
+                    &session_id,
+                    "completed",
+                    Some(final_status),
+                    test_result.score,
+                )
                 .await
             {
                 error!(
@@ -817,7 +822,7 @@ pub async fn update_execution_failed(
     );
     if let Err(e) = state
         .db
-        .update_session_status(session_id, "failed", Some("failed"))
+        .update_session_status(session_id, "failed", Some("failed"), 0.0)
         .await
     {
         error!(

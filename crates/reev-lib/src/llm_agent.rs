@@ -206,7 +206,7 @@ impl Agent for LlmAgent {
         );
 
         // 2. Determine available tools based on context
-        let available_tools = self.determine_available_tools(prompt, &context_prompt);
+        let available_tools = self.determine_available_tools(id, &context_prompt);
 
         // 3. Create the final JSON payload for the API.
         let request_payload = if self.is_glm {
@@ -553,14 +553,17 @@ impl Agent for LlmAgent {
 impl LlmAgent {
     /// Determine tool availability - return None for normal mode (all tools in OpenAIAgent)
     /// Only return Some(tools) for specific flow operations that need tool filtering
-    fn determine_available_tools(
-        &self,
-        _prompt: &str,
-        _context_prompt: &str,
-    ) -> Option<Vec<String>> {
+    fn determine_available_tools(&self, id: &str, _context_prompt: &str) -> Option<Vec<String>> {
+        // SECURITY: Restrict jupiter_earn tool to benchmark 114 only (positions & earnings)
+        // This prevents other benchmarks from accessing real Jupiter mainnet API
+        if id.starts_with("114-jup-positions-and-earnings") {
+            info!("[LlmAgent] Jupiter positions & earnings benchmark detected - allowing jupiter_earn tool");
+            return Some(vec!["jupiter_earn".to_string()]);
+        }
+
         // For normal operation, return None so OpenAIAgent uses "Normal mode: add all discovery tools"
         // This allows the LLM to choose from all available tools
-        info!("[LlmAgent] Normal mode: OpenAIAgent will provide all tools");
+        info!("[LlmAgent] Normal mode: OpenAIAgent will provide all tools (no jupiter_earn for security)");
         None
     }
 

@@ -11,7 +11,7 @@
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
 - when user say `handover` you must summarize current state and incompleted issues to `HANDOVER.md` for next thread can follow up easily, refer to `ISSUES.md` number/title if has.
-- use macos cli commad not linux.
+- use macos cli commad not linux .e.g `timeout` is not exist use `sleep`.
 - search for related code, tests, examples to get an idea and current context before impl.
 - if user say `regression` try dig to git history to get more idea.
 - fix warning diag before commit but be reason about unused because it maybe meant to use but we forget to use, remove if not used

@@ -67,10 +67,11 @@ impl DatabaseWriter {
         self.conn
             .execute(
                 "UPDATE execution_sessions
-             SET end_time = ?, status = 'completed', score = ?, final_status = ?
+             SET end_time = ?, status = ?, score = ?, final_status = ?
              WHERE session_id = ?",
                 [
                     result.end_time.to_string(),
+                    result.final_status.clone(),
                     result.score.to_string(),
                     result.final_status.clone(),
                     session_id.to_string(),

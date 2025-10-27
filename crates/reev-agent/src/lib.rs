@@ -6,10 +6,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use reev_lib::constants::{
-    usdc, usdc_mint, EIGHT_PERCENT, FIVE_PERCENT, SOL_SWAP_AMOUNT, SOL_SWAP_AMOUNT_MEDIUM,
-    USDC_LEND_AMOUNT, USDC_LEND_AMOUNT_LARGE, USDC_MINT_AMOUNT,
-};
+
+use reev_lib::constants::{sol, usdc, usdc_mint, EIGHT_PERCENT, FIVE_PERCENT, USDC_MINT_AMOUNT};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -154,7 +152,7 @@ async fn handle_flow_benchmarks(
             info!("[reev-agent] Step 1: Swapping 0.1 SOL to USDC");
             let input_mint = native_mint::ID;
             let output_mint = usdc_mint();
-            let swap_amount = SOL_SWAP_AMOUNT; // 0.1 SOL
+            let swap_amount = sol::HALF * 4; // 2.0 SOL (matching benchmark prompt)
             let slippage_bps = FIVE_PERCENT; // 5%
 
             let swap_instructions = handle_jupiter_swap(
@@ -176,8 +174,8 @@ async fn handle_flow_benchmarks(
 
             // For lending, we use the USDC mint and deposit the expected amount from the swap
             // Note: In a real scenario, we'd calculate the exact amount received from the swap
-            // For deterministic purposes, we estimate ~0.5 SOL worth of USDC (accounting for slippage)
-            let deposit_amount = USDC_LEND_AMOUNT_LARGE; // ~9 USDC (accounting for slippage and fees)
+            // For deterministic purposes, we estimate ~2.0 SOL worth of USDC (accounting for slippage)
+            let deposit_amount = usdc::FORTY; // 40 USDC (expected from 2.0 SOL swap)
             let usdc_mint = usdc_mint();
 
             let lend_instructions =
@@ -250,7 +248,7 @@ async fn handle_flow_step_benchmarks(
 
             let input_mint = native_mint::ID;
             let output_mint = usdc_mint();
-            let amount = SOL_SWAP_AMOUNT_MEDIUM; // 0.5 SOL for step 1
+            let amount = sol::HALF * 4; // 2.0 SOL for step 1 (matching benchmark prompt)
             let slippage_bps = EIGHT_PERCENT; // 8%
 
             let instructions =
@@ -271,7 +269,7 @@ async fn handle_flow_step_benchmarks(
             let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
             let usdc_mint = usdc_mint();
-            let deposit_amount = USDC_LEND_AMOUNT; // 10 USDC
+            let deposit_amount = usdc::FORTY; // 40 USDC (expected from 2.0 SOL swap)
 
             let instructions =
                 handle_jupiter_lend_deposit(user_pubkey, usdc_mint, deposit_amount).await?;

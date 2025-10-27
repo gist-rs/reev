@@ -186,6 +186,7 @@ impl OpenAIAgent {
                 // jupiter_earn_tool only available for position/earnings benchmarks (114-*.yml)
                 // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
                 // .tool(tools.balance_tool)
+                .tool(tools.jupiter_earn_tool)
                 .tool(tools.lend_earn_tokens_tool)
                 .build()
         };

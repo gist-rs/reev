@@ -10,6 +10,7 @@
 - Only restart when configuration actually changes
 - Add port release waiting with retries
 - Better process lifecycle management
+```
 
 **Key Changes**:
 ```rust
@@ -20,6 +21,8 @@ if !config_changed && is_existing_healthy {
     return Ok(());
 }
 ```
+
+**Additional Fix**: Found duplicate `update_config_and_restart_agent` call for flow benchmarks in `lib.rs` - flow benchmarks were starting reev-agent twice (once for regular benchmarks and again specifically for flow benchmarks), causing port conflicts even after main fix. Removed the redundant call.
 
 ## Reev-Agent Context Prompt YAML Parsing Error - RESOLVED ✅
 **Issue**: Reev-agent returns 500 Internal Server Error: "Internal agent error: Failed to parse context_prompt YAML" when processing LLM requests in deterministic agent mode.

@@ -12,8 +12,8 @@ pub enum FinalStatus {
 impl Display for FinalStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FinalStatus::Succeeded => write!(f, "Succeeded"),
-            FinalStatus::Failed => write!(f, "Failed"),
+            FinalStatus::Succeeded => write!(f, "succeeded"),
+            FinalStatus::Failed => write!(f, "failed"),
         }
     }
 }

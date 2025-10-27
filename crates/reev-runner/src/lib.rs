@@ -269,11 +269,39 @@ pub async fn run_benchmarks(
         let initial_observation = env.reset(None, Some(options)).await?;
 
         let (final_observation, trace, actions) =
-            run_evaluation_loop(&mut env, agent.as_mut(), &test_case, &initial_observation)
+            match run_evaluation_loop(&mut env, agent.as_mut(), &test_case, &initial_observation)
                 .await
-                .with_context(|| {
-                    format!("Evaluation loop failed for benchmark: {}", test_case.id)
-                })?;
+            {
+                Ok(result) => result,
+                Err(e) => {
+                    // Ensure session is marked as failed even if evaluation loop fails
+                    let error_session_result = reev_lib::db::SessionResult {
+                        end_time: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs() as i64,
+                        score: 0.0,
+                        final_status: FinalStatus::Failed.to_string(),
+                    };
+
+                    if let Err(db_err) = db
+                        .complete_session(&session_id, &error_session_result)
+                        .await
+                    {
+                        warn!(
+                            benchmark_id = %test_case.id,
+                            session_id = %session_id,
+                            error = %db_err,
+                            "Failed to complete session after evaluation failure"
+                        );
+                    }
+
+                    return Err(e).context(format!(
+                        "Evaluation loop failed for benchmark: {}",
+                        test_case.id
+                    ));
+                }
+            };
 
         // Use the new comprehensive scoring function from reev-lib.
         // Use the new comprehensive scoring function.
@@ -442,7 +470,7 @@ pub async fn run_benchmarks(
             agent_type: agent_name.to_string(),
             score,
             final_status: match final_status {
-                FinalStatus::Succeeded => "completed".to_string(),
+                FinalStatus::Succeeded => "succeeded".to_string(),
                 FinalStatus::Failed => "failed".to_string(),
             },
             execution_time_ms: (end_time - start_time) as u64,
@@ -616,12 +644,15 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        Some(FlowLogger::new_with_session(
-            session_id.to_string(),
-            test_case.id.clone(),
-            agent_name.to_string(),
-            path,
-        ))
+        Some(
+            FlowLogger::new_with_session(
+                session_id.to_string(),
+                test_case.id.clone(),
+                agent_name.to_string(),
+                path,
+            )
+            .with_database(_db.clone() as Arc<dyn reev_flow::logger::DatabaseWriter>),
+        )
     };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;

@@ -12,6 +12,40 @@ tui/api → runner → agent → tools → protocols → jupiter → surfpool �
 - **reev-agent**: LLM service (port: 9090)
 - **surfpool**: Forked mainnet (port: 8899)
 
+## 🔄 Pubkey Generation Strategy
+
+### 🎯 Per-Benchmark Isolation
+**YES** - Current implementation generates fresh pubkeys for each benchmark run to ensure test isolation:
+
+```rust
+// In reset.rs - cleared at start of each benchmark
+env.keypair_map.clear();
+env.pubkey_map.clear();
+
+// New keypair generated for each placeholder like USER_WALLET_PUBKEY
+let keypair = Keypair::new(); // Always generates new address
+let pubkey = keypair.pubkey();
+```
+
+### 📋 Address Generation Rules
+- **USER_WALLET_PUBKEY**: New address per benchmark (acts as fee payer)
+- **RECIPIENT_WALLET_PUBKEY**: New address per benchmark 
+- **SPL ATA Placeholders**: Derived from wallet addresses, not generated directly
+- **Program IDs**: Preserved as literal addresses (e.g., Jupiter, USDC mint)
+
+### 🔍 Implementation Details
+1. **Reset Phase**: All existing addresses cleared before each benchmark
+2. **Placeholder Resolution**: Each `*_PUBKEY` placeholder gets fresh `Keypair::new()`
+3. **ATA Derivation**: Token accounts derived from newly generated wallet addresses
+4. **Funding**: Fresh addresses funded via validator airdrop mechanism
+5. **Isolation**: No state leakage between different benchmark runs
+
+### ✅ Benefits
+- **Test Isolation**: Each benchmark runs with completely fresh state
+- **Deterministic Setup**: Reproducible environment for testing
+- **No Cross-Contamination**: Previous run state cannot affect current execution
+- **Clean Scoring**: Ground truth validation works on pristine state
+
 ## Component Layers
 
 ### Entry Points
