@@ -2,6 +2,31 @@
 
 ## Open Issues
 
+### #17 GLM Context Leaking to Non-GLM Models - RESOLVED ✅
+
+**Date**: 2025-10-27  
+**Status**: Closed  
+**Priority**: High  
+**Description**: `is_glm` flag was incorrectly set to `true` for ALL non-deterministic models when GLM environment was available, not just for GLM models.
+
+**Root Cause**: 
+- Logic was: `is_glm = agent_name != "deterministic"` in GLM environment path
+- Logic was: `is_glm = glm_env_available && agent_name != "deterministic"` in fallback path  
+- This meant local, jupiter, and other models were incorrectly getting GLM parsing
+
+**Fix Applied**: Modified logic to `is_glm = agent_name.starts_with("glm")` in both paths, ensuring:
+- ✅ **GLM models** (glm-4.6, glm-coding, etc.) → `is_glm = true` 
+- ✅ **Deterministic agent** → `is_glm = false` (no GLM context knowledge)
+- ✅ **Other models** (local, jupiter, etc.) → `is_glm = false`
+
+**Testing Verified**:
+- ✅ Deterministic agent: 100% score, no GLM parsing
+- ✅ GLM-4.6 agent: 100% score, proper GLM parsing  
+- ✅ Local agent: runs without GLM context
+- ✅ Fallback chain: `GLM -> Jupiter -> Deterministic -> Standard`
+
+**Files Modified**: `crates/reev-lib/src/llm_agent.rs` - Lines 65 and 110
+
 ### #16 API vs CLI Deterministic Agent Testing Issue - IDENTIFIED ⚠️ MEDIUM PRIORITY
 
 **Date**: 2025-10-27  

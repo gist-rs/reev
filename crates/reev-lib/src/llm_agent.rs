@@ -44,7 +44,7 @@ impl LlmAgent {
         let glm_api_url = std::env::var("GLM_CODING_API_URL").ok();
 
         // Check if GLM environment is set (for determining parsing mode)
-        let glm_env_available = glm_api_key.is_some() && glm_api_url.is_some();
+        let _glm_env_available = glm_api_key.is_some() && glm_api_url.is_some();
 
         let (api_url, api_key, model_name, agent_name_for_type, is_glm) = match (
             glm_api_key,
@@ -62,7 +62,9 @@ impl LlmAgent {
                 };
                 // Preserve the original model name instead of hardcoding
                 let model_name = agent_name.to_string();
-                (final_url, None, model_name, agent_name.to_string(), true)
+                // GLM parsing should only be used for models starting with 'glm'
+                let is_glm = agent_name.starts_with("glm");
+                (final_url, None, model_name, agent_name.to_string(), is_glm)
             }
             (Some(_), None) => {
                 anyhow::bail!("GLM_CODING_API_KEY is set but GLM_CODING_API_URL is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");
@@ -105,7 +107,8 @@ impl LlmAgent {
                     }
                 };
 
-                let is_glm = glm_env_available;
+                // GLM parsing should only be used for models starting with 'glm'
+                let is_glm = agent_name.starts_with("glm");
 
                 (api_url, api_key, model_name, agent_name.to_string(), is_glm)
             }

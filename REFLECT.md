@@ -1,4 +1,19 @@
 # REEV IMPLEMENTATION REFLECTION
+## GLM Context Leaking to Non-GLM Models - RESOLVED ✅
+
+**Issue**: `is_glm` flag was incorrectly set to `true` for ALL non-deterministic models when GLM environment was available, causing non-GLM models to receive GLM parsing context.
+
+**Root Cause**: Logic was: `is_glm = agent_name != "deterministic"` instead of checking if model actually starts with "glm"
+- Local, Jupiter, and other models incorrectly got GLM parsing
+- Deterministic agent had GLM context knowledge when it shouldn't
+
+**Fix**: Modified logic to `is_glm = agent_name.starts_with("glm")` in both GLM and fallback paths:
+- ✅ GLM models (glm-4.6, etc.) → `is_glm = true` 
+- ✅ Deterministic agent → `is_glm = false` (no GLM context)
+- ✅ Other models (local, jupiter) → `is_glm = false`
+
+**Testing**: Verified deterministic agent 100% score without GLM context, GLM models still work correctly.
+
 ## Deterministic Agent Parsing Issue - RESOLVED ✅
 
 **Issue**: Deterministic agent worked in CLI (100% score) but failed in API (0% score)
