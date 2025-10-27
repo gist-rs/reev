@@ -371,7 +371,32 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 - Enhanced tool descriptions prevent confusion between SOL and SPL transfers
 - Critical for proper token operations
 
-## Jupiter Lending Deposit AI Model Interpretation Issue - RESOLVED ✅
+## Jupiter Lending Deposit AI Model Interpretation Issue - RESOLVED ✅ [L374-375]
+
+## Failed Test Color Display Issue - RESOLVED ✅ [L376-383]
+**Issue**: When glm-4.6-coding agent failed tests, web interface showed grey (untest) instead of red (failed), while deterministic agent showed correct red color for failures.
+
+**Root Cause**: 
+- Successful executions → FlowLogger::complete() → Creates agent performance record → Shows red color
+- Failed executions → Only session status update → No agent performance record → Shows grey color
+
+**Solution**: Added agent performance record creation in update_execution_failed() function:
+- Creates AgentPerformance record with score: 0.0 and final_status: "failed"
+- Ensures score < 0.25 threshold for red color display
+- Maintains data consistency between success/failure paths
+
+**Technical Details**:
+- Database schema mismatch initially caused corruption errors
+- Fixed by matching actual database column structure (8 columns vs 10 in struct)
+- Added get_session() method to pooled_writer.rs for session info retrieval
+- Failed records now properly integrate with existing performance tracking system
+
+**Verification**:
+- ✅ Failed execution creates performance record with correct score/status
+- ✅ Agent performance summary shows accurate metrics (0.0 avg score, 0.0% success rate)
+- ✅ Frontend will display red color for failed tests instead of grey
+- ✅ No database corruption or type errors
+
 **Date**: 2025-10-26  
 **Status**: Closed  
 **Priority**: Medium  

@@ -1,5 +1,10 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+---
+
+- DRY `reev_db::types::AgentPerformance {...}`
+
+---
 
 - did this schema ready for scoring how good llm call the tool with times taken, low tools call with low latency should have good score (refine/suggest me on this metrics) do search code/md for score/scoring and learn from current scoring first,
 
