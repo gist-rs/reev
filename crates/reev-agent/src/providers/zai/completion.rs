@@ -385,7 +385,7 @@ impl CompletionModel {
             );
             for (i, tool) in tool_definitions.iter().enumerate() {
                 let tool_json = serde_json::to_value(tool).unwrap();
-                info!(
+                debug!(
                     "ZAI: Tool {}: {}",
                     i,
                     serde_json::to_string_pretty(&tool_json).unwrap()
