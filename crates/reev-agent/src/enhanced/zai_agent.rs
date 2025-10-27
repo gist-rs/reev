@@ -83,50 +83,12 @@ impl ZAIAgent {
         // Create completion model using unified data
         let model = client.completion_model(zai::GLM_4_6);
 
-        // Create tool definitions using unified tools
-        let sol_tool_def = unified_data.tools.sol_tool.definition(String::new()).await;
-        let spl_tool_def = unified_data.tools.spl_tool.definition(String::new()).await;
-        let jupiter_swap_tool_def = unified_data
-            .tools
-            .jupiter_swap_tool
-            .definition(String::new())
-            .await;
-        let jupiter_lend_deposit_tool_def = unified_data
-            .tools
-            .jupiter_lend_earn_deposit_tool
-            .definition(String::new())
-            .await;
-        let jupiter_lend_withdraw_tool_def = unified_data
-            .tools
-            .jupiter_lend_earn_withdraw_tool
-            .definition(String::new())
-            .await;
-        let jupiter_lend_mint_tool_def = unified_data
-            .tools
-            .jupiter_lend_earn_mint_tool
-            .definition(String::new())
-            .await;
-        let jupiter_lend_redeem_tool_def = unified_data
-            .tools
-            .jupiter_lend_earn_redeem_tool
-            .definition(String::new())
-            .await;
-
-        // Only include jupiter_earn tool if allowed (for position/earnings benchmarks like 114-*.yml)
-        let jupiter_earn_tool_def = if let Some(allowed_tools) = allowed_tools.as_ref() {
-            if allowed_tools.contains(&"jupiter_earn".to_string()) {
-                Some(
-                    unified_data
-                        .tools
-                        .jupiter_earn_tool
-                        .definition(String::new())
-                        .await,
-                )
-            } else {
-                None
+        // Helper function to check if a tool is allowed
+        let is_tool_allowed = |tool_name: &str| -> bool {
+            match &allowed_tools {
+                Some(tools) => tools.contains(&tool_name.to_string()),
+                None => true, // No restrictions when allowed_tools is None
             }
-        } else {
-            None
         };
 
         // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
@@ -134,19 +96,72 @@ impl ZAIAgent {
 
         // Build completion request using unified enhanced user request
         let mut request_builder =
-            CompletionRequestBuilder::new(model.clone(), &unified_data.enhanced_user_request)
-                .tool(sol_tool_def)
-                .tool(spl_tool_def)
-                .tool(jupiter_swap_tool_def)
-                .tool(jupiter_lend_deposit_tool_def)
-                .tool(jupiter_lend_withdraw_tool_def)
-                .tool(jupiter_lend_mint_tool_def)
-                .tool(jupiter_lend_redeem_tool_def);
+            CompletionRequestBuilder::new(model.clone(), &unified_data.enhanced_user_request);
 
-        // Add jupiter_earn tool only if allowed
-        if let Some(tool_def) = jupiter_earn_tool_def {
-            request_builder = request_builder.tool(tool_def);
+        // Add each tool only if it's allowed
+        if is_tool_allowed("sol_transfer") {
+            request_builder =
+                request_builder.tool(unified_data.tools.sol_tool.definition(String::new()).await);
         }
+        if is_tool_allowed("spl_transfer") {
+            request_builder =
+                request_builder.tool(unified_data.tools.spl_tool.definition(String::new()).await);
+        }
+        if is_tool_allowed("jupiter_swap") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_swap_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        if is_tool_allowed("jupiter_lend_earn_deposit") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_deposit_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        if is_tool_allowed("jupiter_lend_earn_withdraw") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_withdraw_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        if is_tool_allowed("jupiter_lend_earn_mint") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_mint_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        if is_tool_allowed("jupiter_lend_earn_redeem") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_redeem_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        if is_tool_allowed("jupiter_earn") {
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_earn_tool
+                    .definition(String::new())
+                    .await,
+            );
+        }
+        let request_builder = request_builder;
 
         let request = request_builder
             // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
@@ -221,7 +236,7 @@ impl ZAIAgent {
     async fn execute_tool_call(
         tool_call: &rig::message::ToolCall,
         tools: &AgentTools,
-        allowed_tools: &Option<Vec<String>>,
+        _allowed_tools: &Option<Vec<String>>,
     ) -> Result<serde_json::Value> {
         match tool_call.function.name.as_str() {
             "sol_transfer" => {
@@ -302,18 +317,6 @@ impl ZAIAgent {
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
             "jupiter_earn" => {
-                // This should only be called if tool was allowed, but add extra safety check
-                if let Some(ref allowed_tools) = allowed_tools {
-                    if !allowed_tools.contains(&"jupiter_earn".to_string()) {
-                        return Err(anyhow::anyhow!(
-                            "jupiter_earn tool not allowed for this benchmark"
-                        ));
-                    }
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "jupiter_earn tool not allowed for this benchmark"
-                    ));
-                }
                 let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools

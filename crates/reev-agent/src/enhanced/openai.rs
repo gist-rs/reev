@@ -143,27 +143,46 @@ impl OpenAIAgent {
                 allowed_tools.len(),
                 allowed_tools
             );
+            // Helper function to check if a tool is allowed
+            let is_tool_allowed =
+                |tool_name: &str| -> bool { allowed_tools.contains(&tool_name.to_string()) };
+
             let mut builder = client
                 .completion_model(&actual_model_name)
                 .completions_api()
                 .into_agent_builder()
-                .preamble(&enhanced_prompt)
-                .tool(tools.sol_tool)
-                .tool(tools.spl_tool)
-                .tool(tools.jupiter_swap_tool)
-                .tool(tools.jupiter_lend_earn_deposit_tool)
-                .tool(tools.jupiter_lend_earn_withdraw_tool)
-                .tool(tools.jupiter_lend_earn_mint_tool)
-                .tool(tools.jupiter_lend_earn_redeem_tool);
+                .preamble(&enhanced_prompt);
 
-            if allowed_tools.contains(&"get_lend_earn_tokens".to_string()) {
+            // Add each tool only if it's allowed
+            if is_tool_allowed("sol_transfer") {
+                builder = builder.tool(tools.sol_tool);
+            }
+            if is_tool_allowed("spl_transfer") {
+                builder = builder.tool(tools.spl_tool);
+            }
+            if is_tool_allowed("jupiter_swap") {
+                builder = builder.tool(tools.jupiter_swap_tool);
+            }
+            if is_tool_allowed("jupiter_lend_earn_deposit") {
+                builder = builder.tool(tools.jupiter_lend_earn_deposit_tool);
+            }
+            if is_tool_allowed("jupiter_lend_earn_withdraw") {
+                builder = builder.tool(tools.jupiter_lend_earn_withdraw_tool);
+            }
+            if is_tool_allowed("jupiter_lend_earn_mint") {
+                builder = builder.tool(tools.jupiter_lend_earn_mint_tool);
+            }
+            if is_tool_allowed("jupiter_lend_earn_redeem") {
+                builder = builder.tool(tools.jupiter_lend_earn_redeem_tool);
+            }
+            if is_tool_allowed("get_lend_earn_tokens") {
                 builder = builder.tool(tools.lend_earn_tokens_tool);
             }
             // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // if allowed_tools.contains(&"get_account_balance".to_string()) {
+            // if is_tool_allowed("get_account_balance") {
             //     builder = builder.tool(tools.balance_tool);
             // }
-            if allowed_tools.contains(&"jupiter_earn".to_string()) {
+            if is_tool_allowed("jupiter_earn") {
                 builder = builder.tool(tools.jupiter_earn_tool);
             }
 

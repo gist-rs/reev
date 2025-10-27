@@ -2,6 +2,24 @@
 
 ---
 
+I found the issue. The `determine_available_tools` function in `LlmAgent` correctly returns `Some(vec!["jupiter_earn".to_string()])` for benchmark 114, but somehow this is not being used properly.
+
+Looking at the logs again:
+
+**CLI (Working) - FlowAgent:**
+```
+[UnifiedGLMAgent] Flow mode: Only allowing 1 tools: ["jupiter_earn"]
+```
+
+**API (Failing) - Should also use FlowAgent but isn't:**
+```
+[UnifiedGLMAgent] Available tools: SolTransferTool, SplTransferTool, JupiterSwapTool, AccountBalanceTool, etc.
+```
+
+The issue is that the API call is going through a different path that doesn't use FlowAgent properly. The LlmAgent is calling `determine_available_tools` correctly, but when it makes the HTTP request to `http://localhost:9090/gen/tx`, the reev-agent service is not properly using the `allowed_tools` field.
+
+---
+
 - DRY `reev_db::types::AgentPerformance {...}`
 
 ---

@@ -26,7 +26,6 @@
 
 **Solution**: Added `.create(true)` flag to ProcessManager for stdout/stderr file creation, plus fixed test files to use append mode instead of truncating
 
-
 ## Reev-Agent Port Conflict When Running Multiple Benchmarks - RESOLVED ✅
 **Issue**: Port 9090 conflict when running sequential benchmarks - reev-agent not properly reused
 
@@ -48,6 +47,23 @@ if !config_changed && is_existing_healthy {
     return Ok(());
 }
 ```
+
+## API vs CLI Tool Selection Issue - RESOLVED ✅
+**Issue**: API calls to benchmark 114-jup-positions-and-earnings failed with wrong tool selection while CLI worked
+
+**Root Cause**: `AgentTools::new()` in UnifiedGLMAgent was ignoring `allowed_tools` parameter - always creating ALL tools instead of filtering
+
+**Solution**: Modified both ZAIAgent and OpenAIAgent to properly respect `allowed_tools`:
+- Filter tools at request builder level based on `allowed_tools`
+- Only include tools that are explicitly allowed for the benchmark
+- For benchmark 114, restrict to just `["jupiter_earn"]` as required
+
+**Fix Applied**:
+- Modified ZAIAgent to check `allowed_tools` before adding tools to request builder
+- Modified OpenAIAgent to check `allowed_tools` before adding tools to request builder  
+- Both agents now properly restrict to only allowed tools (e.g., `jupiter_earn` for benchmark 114)
+
+**Result**: API now correctly calls `jupiter_earn` with `operation=Both` and succeeds, matching CLI behavior ✅
 
 **Additional Fix**: Found duplicate `update_config_and_restart_agent` call for flow benchmarks in `lib.rs` - flow benchmarks were starting reev-agent twice (once for regular benchmarks and again specifically for flow benchmarks), causing port conflicts even after main fix. Removed the redundant call.
 

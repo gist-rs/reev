@@ -5,6 +5,22 @@
 - Port remains in use during process shutdown transition
 - **NEW**: Log files are empty across all benchmarks - reev-runner can't open any log files
 
+- **RESOLVED ✅**: API calls to benchmark 114-jup-positions-and-earnings now correctly use jupiter_earn tool like CLI
+- Port remains in use during process shutdown transition
+- **NEW**: Log files are empty across all benchmarks - reev-runner can't open any log files
+
+**API vs CLI Tool Selection Issue - RESOLVED ✅**:
+- API: NOW correctly calls `jupiter_earn` with operation=Both → works correctly ✅
+- CLI: Calls `jupiter_earn` with operation=Both → works correctly ✅
+- Address truncation fix working perfectly - both show full addresses
+- Root cause: AgentTools::new() in UnifiedGLMAgent was ignoring allowed_tools parameter - FIXED by filtering tools at builder level in both ZAIAgent and OpenAIAgent
+
+**Fix Applied**:
+- Modified ZAIAgent to check `allowed_tools` before adding tools to request builder
+- Modified OpenAIAgent to check `allowed_tools` before adding tools to request builder  
+- Both agents now properly restrict to only allowed tools (e.g., `jupiter_earn` for benchmark 114)
+
+**Log Files Issue**:
 **Root Cause Identified**: reev-runner unable to open ANY log files due to file system permissions or path issues
 
 **Next Steps Required**:
