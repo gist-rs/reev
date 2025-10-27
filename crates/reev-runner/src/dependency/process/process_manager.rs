@@ -211,6 +211,16 @@ impl ProcessManager {
 
         // Configure stdout/stderr
         if let Some(stdout_path) = &config.stdout {
+            // Debug: Check file existence and properties before opening
+            let file_exists = std::path::Path::new(stdout_path).exists();
+            let file_metadata = std::path::Path::new(stdout_path).metadata().ok();
+            info!(
+                "FILE DEBUG: Opening stdout file: {}, exists: {}, size: {:?}",
+                stdout_path.display(),
+                file_exists,
+                file_metadata.as_ref().and_then(|m| m.len()).unwrap_or(0)
+            );
+
             let stdout_file = std::fs::OpenOptions::new()
                 .append(true)
                 .open(stdout_path)
@@ -223,6 +233,14 @@ impl ProcessManager {
         }
 
         if let Some(stderr_path) = &config.stderr {
+            // Debug: Check stderr file existence before opening
+            let stderr_exists = std::path::Path::new(stderr_path).exists();
+            info!(
+                "FILE DEBUG: Opening stderr file: {}, exists: {}",
+                stderr_path.display(),
+                stderr_exists
+            );
+
             let stderr_file = std::fs::OpenOptions::new()
                 .append(true)
                 .open(stderr_path)
