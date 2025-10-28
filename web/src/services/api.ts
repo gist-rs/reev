@@ -129,19 +129,10 @@ class ApiClient {
 
   // Execution trace
   async getExecutionTrace(benchmarkId: string): Promise<any> {
-    console.log(
-      "📡 API Client - getExecutionTrace called with benchmarkId:",
-      benchmarkId,
-    );
-    console.log(
-      "📡 API Client - Making request to:",
-      `/api/v1/execution-logs/${benchmarkId}`,
-    );
     try {
       const result = await this.request<any>(
         `/api/v1/execution-logs/${benchmarkId}`,
       );
-      console.log("✅ API Client - getExecutionTrace success:", result);
       return result;
     } catch (error) {
       console.error("❌ API Client - getExecutionTrace failed:", error);

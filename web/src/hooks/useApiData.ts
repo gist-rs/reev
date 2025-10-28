@@ -128,13 +128,6 @@ export function useAgentPerformance() {
     }
 
     const transformed = data.map((agent: any) => {
-      console.log(`🔍 Transforming agent: ${agent.agent_type}`, {
-        total_benchmarks: agent.total_benchmarks,
-        average_score: agent.average_score,
-        success_rate: agent.success_rate,
-        results_count: agent.results?.length,
-      });
-
       return {
         ...agent,
         results: (agent.results || []).map((result: any) => {
