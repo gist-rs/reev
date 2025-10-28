@@ -1,4 +1,5 @@
 import { BenchmarkResult, ExecutionStatus } from "../../types/benchmark";
+import { ExecutionState } from "../../types/configuration";
 
 export interface AgentPerformanceSummary {
   agent_type: string;
@@ -23,7 +24,7 @@ export interface AgentPerformanceCardProps {
   agentType: string;
   agentData?: AgentPerformanceSummary;
   allBenchmarks: any[];
-  runningBenchmarks: Set<string>;
+  runningBenchmarks: ExecutionState[];
   onBenchmarkClick: (
     result: BenchmarkResult,
     agentType: string,
@@ -52,7 +53,7 @@ export interface BenchmarkGridProps {
   onCardClick?: (agentType: string) => void;
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
-  runningBenchmarkIds?: string[];
+  runningBenchmarkIds?: ExecutionState[];
   runningBenchmarkExecutions?: Map<
     string,
     { agent: string; status: string; progress: number }

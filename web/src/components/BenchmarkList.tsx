@@ -227,9 +227,9 @@ export function BenchmarkList({
               (result.score && result.score > (existingResult.score || 0))
             ) {
               // Overwrite with better result
-              console.log(
-                `🔍 [BenchmarkList] Setting ${result.benchmark_id} result: score=${result.score}, status=${result.final_status} (replaced score=${existingResult?.score || "none"})`,
-              );
+              // console.log(
+              //   `🔍 [BenchmarkList] Setting ${result.benchmark_id} result: score=${result.score}, status=${result.final_status} (replaced score=${existingResult?.score || "none"})`,
+              // );
               resultsMap.set(key, {
                 ...result,
                 status: result.final_status,
@@ -242,21 +242,21 @@ export function BenchmarkList({
                 isEmpty: false, // Flag to identify real entries
               });
             } else {
-              console.log(
-                `🔍 [BenchmarkList] Keeping existing ${result.benchmark_id} result: score=${existingResult?.score}, status=${existingResult?.final_status} (skipped score=${result.score}, status=${result.final_status})`,
-              );
+              // console.log(
+              //   `🔍 [BenchmarkList] Keeping existing ${result.benchmark_id} result: score=${existingResult?.score}, status=${existingResult?.final_status} (skipped score=${result.score}, status=${result.final_status})`,
+              // );
             }
             resultsCount++;
           });
         }
       });
 
-      console.log(
-        `🔍 [BenchmarkList] Set ${resultsCount} real results + ${resultsMap.size - resultsCount} empty placeholders for ${selectedAgent}`,
-      );
+      // console.log(
+      //   `🔍 [BenchmarkList] Set ${resultsCount} real results + ${resultsMap.size - resultsCount} empty placeholders for ${selectedAgent}`,
+      // );
       setHistoricalResults(resultsMap);
     } else {
-      console.log(`🔍 [BenchmarkList] No agent performance data available`);
+      // console.log(`🔍 [BenchmarkList] No agent performance data available`);
       setHistoricalResults(new Map());
     }
   }, [agentPerformanceData, selectedAgent, benchmarks]);

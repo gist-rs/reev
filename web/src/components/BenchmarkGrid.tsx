@@ -11,7 +11,7 @@ export function BenchmarkGrid({
   onCardClick,
   isRunning = false,
   onRunBenchmark,
-  runningBenchmarkIds = [],
+  runningBenchmarkIds: runningBenchmarkExecutionIds = [],
   executions,
   agentPerformanceData,
   agentPerformanceLoading,
@@ -33,14 +33,14 @@ export function BenchmarkGrid({
     "glm-4.6-coding",
   ];
   const allBenchmarks = benchmarks || [];
-  const runningBenchmarks = new Set<string>(runningBenchmarkIds);
+  const runningBenchmarks = runningBenchmarkExecutionIds; //new Set<string>(runningBenchmarkExecutionIds);
 
-  console.log(`🌐 [BenchmarkGrid] Running state:`, {
-    runningBenchmarkIds,
-    runningBenchmarks: Array.from(runningBenchmarks),
-    executions: Array.from(executions?.entries() || []),
-    isAnyRunning: runningBenchmarkIds.length > 0,
-  });
+  // console.log(`🌐 [BenchmarkGrid] Running state:`, {
+  //   runningBenchmarkIds: runningBenchmarkExecutionIds,
+  //   runningBenchmarks: Array.from(runningBenchmarks),
+  //   executions: Array.from(executions?.entries() || []),
+  //   isAnyRunning: runningBenchmarkExecutionIds.length > 0,
+  // });
 
   return (
     <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
@@ -64,7 +64,7 @@ export function BenchmarkGrid({
                   selectedBenchmark={selectedBenchmark}
                   selectedAgent={selectedAgent}
                   selectedDate={selectedDate}
-                  isAnyRunning={runningBenchmarkIds.length > 0}
+                  isAnyRunning={runningBenchmarkExecutionIds.length > 0}
                   onBenchmarkClick={(result, agentType, date) => {
                     if (onBenchmarkSelect) {
                       onBenchmarkSelect(result.benchmark_id, agentType, date);

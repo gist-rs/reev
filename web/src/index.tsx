@@ -135,9 +135,52 @@ export function App() {
         (execution.progress !== undefined && execution.progress < 100),
     );
 
-    // Return just benchmark IDs for now - we'll handle agent-specific logic in the components
-    return runningEntries.map(([benchmarkId, _]) => benchmarkId);
+    // console.log("🔥 runningEntries:", runningEntries);
+    // runningEntries = [
+    //     [
+    //         "ca95e3f9-47a6-4ce5-b3c5-0272b8f56003",
+    //         {
+    //             "id": "ca95e3f9-47a6-4ce5-b3c5-0272b8f56003",
+    //             "benchmark_id": "002-spl-transfer",
+    //             "agent": "deterministic",
+    //             "status": "Pending",
+    //             "progress": 0,
+    //             "start_time": "2025-10-28T13:14:59.860571Z",
+    //             "end_time": null,
+    //             "trace": "",
+    //             "logs": "",
+    //             "error": null
+    //         }
+    //     ]
+    // ]
+
+    // Return composite keys that boxes expect: "agent|benchmark_id|date"
+    const benchmarkIds = runningEntries.map(([_, execution]) => {
+      // const date =
+      //   execution.start_time?.substring(0, 10) ||
+      //   new Date().toISOString().substring(0, 10);
+      // const key = `${execution.agent}|${execution.benchmark_id}|${date}`;
+      return execution;
+    });
+
+    console.log("🔥 benchmarkIds:", benchmarkIds);
+    // 🔥 benchmarkIds: ['deterministic|002-spl-transfer|2025-10-28']
+
+    return benchmarkIds;
   }, [executions]);
+
+  // // Transform executions map to use composite keys for box matching
+  // const transformedExecutions = useMemo(() => {
+  //   const transformed = new Map();
+  //   executions.forEach((execution, executionId) => {
+  //     const date =
+  //       execution.start_time?.substring(0, 10) ||
+  //       new Date().toISOString().substring(0, 10);
+  //     const compositeKey = `${execution.agent}|${execution.benchmark_id}|${date}`;
+  //     transformed.set(compositeKey, execution);
+  //   });
+  //   return transformed;
+  // }, [executions]);
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {

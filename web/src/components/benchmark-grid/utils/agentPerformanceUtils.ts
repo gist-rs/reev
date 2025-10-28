@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from "preact/hooks";
 import { BenchmarkResult, ExecutionStatus } from "../../../types/benchmark";
 import { AgentPerformanceSummary } from "../types";
+import { ExecutionState } from "../../../types/configuration";
 
 export function useFilteredAgentData(
   agentData: AgentPerformanceSummary | undefined,
@@ -121,11 +122,14 @@ export function useOverallPercentage(
 }
 
 export function hasRunningBenchmark(
-  runningBenchmarks: Set<string>,
-  runningBenchmarkExecutions: Map<string, { agent: string; status: string; progress: number }> | undefined,
+  runningBenchmarks: ExecutionState[],
+  runningBenchmarkExecutions:
+    | Map<string, { agent: string; status: string; progress: number }>
+    | undefined,
   agentType: string,
 ): boolean {
-  return Array.from(runningBenchmarks.keys()).some((benchmarkId) => {
-    return runningBenchmarkExecutions?.get(benchmarkId)?.agent === agentType;
-  });
+  return runningBenchmarks.filter((e) => e.agent === agentType).length > 0;
+  // return Array.from(runningBenchmarks.keys()).some((benchmarkId) => {
+  //   return runningBenchmarkExecutions?.get(benchmarkId)?.agent === agentType;
+  // });
 }

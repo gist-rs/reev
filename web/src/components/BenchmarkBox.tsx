@@ -9,6 +9,7 @@ interface BenchmarkBoxProps {
   onClick?: (result: BenchmarkResult) => void;
   className?: string;
   isRunning?: boolean;
+  isAnyRunning?: boolean;
   isSelected?: boolean;
   disabled?: boolean;
   showDate?: boolean;
@@ -25,31 +26,13 @@ export function BenchmarkBox({
   showDate = false,
 }: BenchmarkBoxProps) {
   const getAnimationClass = () => {
-    // HARDCODED TEST: Keep 001 hardcoded, add 002 for dynamic testing
-    if (
-      result.agent_type === "deterministic" &&
-      !result.isEmpty && // Only first row is not a placeholder
-      (result.benchmark_id === "001-sol-transfer" || // Keep 001 hardcoded
-        (result.benchmark_id.includes("002") && isRunning)) // Dynamic test for 002 - only if running
-    ) {
-      console.log(
-        `🧪 [BenchmarkBox] HARDCODED TEST: Applying animation to ${result.benchmark_id}, agent ${result.agent_type}, date ${result.timestamp?.substring(0, 10)}`,
-      );
-      return "animate-blink-fade";
-    }
-
     if (isRunning) {
       return "animate-blink-fade";
     }
     return "";
   };
 
-  // HARDCODED TEST: Override background color for deterministic 001-sol-transfer
-  const shouldOverrideColor =
-    result.agent_type === "deterministic" &&
-    result.benchmark_id === "001-sol-transfer";
-
-  const baseClasses = `${shouldOverrideColor ? "" : getBenchmarkColorClass(result, isRunning)} ${disabled ? "cursor-not-allowed opacity-50" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
+  const baseClasses = `${getBenchmarkColorClass(result, isRunning)} ${disabled ? "cursor-not-allowed opacity-50" : "hover:opacity-80 cursor-pointer"} transition-opacity ${isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""}`;
   const styleProps = {
     width: `${size}px`,
     height: `${size}px`,

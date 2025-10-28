@@ -5,12 +5,13 @@ import {
   useFilteredBenchmarks,
   createPlaceholderResult,
 } from "../utils/agentPerformanceUtils";
+import { ExecutionState } from "../../../types/configuration";
 
 interface TestRunsRendererProps {
   finalAgentData: any;
   agentType: string;
   allBenchmarks: any[];
-  runningBenchmarks: Set<string>;
+  runningBenchmarks: ExecutionState[];
   runningBenchmarkExecutions?: Map<
     string,
     { agent: string; status: string; progress: number }
@@ -52,6 +53,21 @@ export function TestRunsRenderer({
     showDate = false,
     date?: string,
   ) => {
+    // console.log("🔥🔥 runningBenchmarks:", runningBenchmarks);
+    // [
+    //     {
+    //         "id": "ccb25664-3881-4385-b8e2-40b828ea5d54",
+    //         "benchmark_id": "002-spl-transfer",
+    //         "agent": "deterministic",
+    //         "status": "Running",
+    //         "progress": 50,
+    //         "start_time": "2025-10-28T13:44:04.503736Z",
+    //         "end_time": null,
+    //         "trace": "Starting benchmark 002-spl-transfer with agent deterministic\nFound benchmark file: benchmarks/002-spl-transfer.yml\nInitializing dependencies...\nStarting benchmark execution...\n",
+    //         "logs": "",
+    //         "error": null
+    //     }
+    // ]
     const result =
       benchmarkResult ||
       createPlaceholderResult(
@@ -170,34 +186,37 @@ export function TestRunsRenderer({
                 // Check if this benchmark is running even in placeholder rows
                 const isRunning =
                   index === 0 && // Only check running state in first placeholder row
-                  runningBenchmarks.has(placeholderResult.benchmark_id) &&
-                  runningBenchmarkExecutions?.get(
-                    placeholderResult.benchmark_id,
-                  )?.agent === agentType;
+                  runningBenchmarks.some(
+                    (e) =>
+                      e.benchmark_id === placeholderResult.benchmark_id &&
+                      e.agent === agentType,
+                  );
+                console.log("🔥🔥🔥 isRunning:", isRunning);
+                console.log("🔥🔥🔥 placeholderResult:", placeholderResult);
 
                 // Debug logging for placeholder running state
-                console.log(
-                  `🏃 [TestRunsRenderer] Placeholder: ${placeholderResult.benchmark_id} for ${agentType}`,
-                  {
-                    index,
-                    isPlaceholderRow: true,
-                    inRunningBenchmarks: runningBenchmarks.has(
-                      placeholderResult.benchmark_id,
-                    ),
-                    executionAgent: runningBenchmarkExecutions?.get(
-                      placeholderResult.benchmark_id,
-                    )?.agent,
-                    matchesAgent:
-                      runningBenchmarkExecutions?.get(
-                        placeholderResult.benchmark_id,
-                      )?.agent === agentType,
-                    isRunning,
-                    allRunningBenchmarks: Array.from(runningBenchmarks),
-                    allExecutions: Array.from(
-                      runningBenchmarkExecutions?.entries() || [],
-                    ),
-                  },
-                );
+                // console.log(
+                //   `🏃 [TestRunsRenderer] Placeholder: ${placeholderResult.benchmark_id} for ${agentType}`,
+                //   {
+                //     index,
+                //     isPlaceholderRow: true,
+                //     inRunningBenchmarks: runningBenchmarks.has(
+                //       placeholderResult.benchmark_id,
+                //     ),
+                //     executionAgent: runningBenchmarkExecutions?.get(
+                //       placeholderResult.benchmark_id,
+                //     )?.agent,
+                //     matchesAgent:
+                //       runningBenchmarkExecutions?.get(
+                //         placeholderResult.benchmark_id,
+                //       )?.agent === agentType,
+                //     isRunning,
+                //     allRunningBenchmarks: Array.from(runningBenchmarks),
+                //     allExecutions: Array.from(
+                //       runningBenchmarkExecutions?.entries() || [],
+                //     ),
+                //   },
+                // );
 
                 return renderBenchmarkBox(
                   placeholderResult, // Use placeholder result as both benchmark and result
@@ -261,30 +280,31 @@ export function TestRunsRenderer({
 
               const isRunning =
                 isMostRecentRun &&
-                runningBenchmarks.has(benchmark.id) &&
-                runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
-                  agentType;
+                runningBenchmarks.some(
+                  (e) =>
+                    e.benchmark_id === benchmark.id && e.agent === agentType,
+                );
 
-              // Debug logging for running state
-              console.log(
-                `🏃 [TestRunsRenderer] Regular: ${benchmark.id} for ${agentType}`,
-                {
-                  isMostRecentRun,
-                  isPlaceholderRow: false,
-                  inRunningBenchmarks: runningBenchmarks.has(benchmark.id),
-                  executionAgent: runningBenchmarkExecutions?.get(benchmark.id)
-                    ?.agent,
-                  matchesAgent:
-                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
-                    agentType,
-                  isRunning,
-                  allRunningBenchmarks: Array.from(runningBenchmarks),
-                  allExecutions: Array.from(
-                    runningBenchmarkExecutions?.entries() || [],
-                  ),
-                  date,
-                },
-              );
+              // // Debug logging for running state
+              // console.log(
+              //   `🏃 [TestRunsRenderer] Regular: ${benchmark.id} for ${agentType}`,
+              //   {
+              //     isMostRecentRun,
+              //     isPlaceholderRow: false,
+              //     inRunningBenchmarks: runningBenchmarks.has(benchmark.id),
+              //     executionAgent: runningBenchmarkExecutions?.get(benchmark.id)
+              //       ?.agent,
+              //     matchesAgent:
+              //       runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
+              //       agentType,
+              //     isRunning,
+              //     allRunningBenchmarks: Array.from(runningBenchmarks),
+              //     allExecutions: Array.from(
+              //       runningBenchmarkExecutions?.entries() || [],
+              //     ),
+              //     date,
+              //   },
+              // );
 
               const isSelected =
                 selectedBenchmark === benchmark.id &&
