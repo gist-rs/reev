@@ -3,10 +3,10 @@
 import { useState, useCallback, useEffect } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkItem } from "../types/configuration";
-import { ExecutionStatus } from "../types/benchmark";
+import { BenchmarkResult, ExecutionStatus } from "../types/benchmark";
 import { AgentConfig } from "./AgentConfig";
 import { Tooltip } from "./ui/Tooltip";
-import { getBenchmarkStatusColor } from "../utils/benchmarkColors";
+import { getBenchmarkColorClass } from "../utils/benchmarkColors";
 
 interface BenchmarkListProps {
   selectedAgent: string;
@@ -159,7 +159,7 @@ export function BenchmarkList({
 
   // Use agent performance data passed as props instead of duplicate API call
 
-  // Process shared data into results map with date grouping and empty data structure
+  // Process shared data into results map with date grouping
   useEffect(() => {
     if (agentPerformanceData && benchmarks) {
       // Get all unique dates from agent performance data
@@ -182,23 +182,7 @@ export function BenchmarkList({
       let resultsCount = 0;
 
       // First, create empty placeholder entries for all benchmark-date combinations
-      benchmarks.benchmarks.forEach((benchmark) => {
-        sortedDates.forEach((date) => {
-          const key = `${benchmark.id}|${date}`;
-          resultsMap.set(key, {
-            id: `empty-${benchmark.id}-${date}`,
-            benchmark_id: benchmark.id,
-            agent_type: selectedAgent,
-            score: 0,
-            final_status: ExecutionStatus.UNKNOWN,
-            execution_time_ms: 0,
-            timestamp: `${date}T00:00:00.000Z`, // Placeholder timestamp
-            color_class: "gray" as const,
-            date: date,
-            isEmpty: true, // Flag to identify empty entries
-          });
-        });
-      });
+      // Don't create placeholder data initially - only create when needed
 
       // Now fill with real data where available
       agentPerformanceData.forEach((agentSummary) => {
@@ -215,17 +199,9 @@ export function BenchmarkList({
               !existingResult ||
               (result.score && result.score > (existingResult.score || 0))
             ) {
-              // Overwrite with better result
+              // Set the real result
               resultsMap.set(key, {
                 ...result,
-                status: result.final_status,
-                progress: 100,
-                execution_id: result.id,
-                agent_type: result.agent_type,
-                benchmarkId: result.benchmark_id,
-                timestamp: result.timestamp,
-                date: date,
-                isEmpty: false, // Flag to identify real entries
               });
             } else {
               // Keep existing better result
@@ -243,7 +219,7 @@ export function BenchmarkList({
   // Force re-render when refreshTrigger changes to update box colors
   useEffect(() => {
     // This effect will trigger a re-render of the component
-    // The color calculation in getBenchmarkStatusColor will use updated execution data
+    // The color calculation in getBenchmarkColorClass will use updated execution data
   }, [refreshTrigger]);
 
   // Polling is now handled by useBenchmarkExecution hook - removed duplicate polling
@@ -424,42 +400,64 @@ export function BenchmarkList({
   ]);
 
   const getBenchmarkStatus = useCallback(
-    (benchmarkId: string, date?: string | null): any => {
-      // First check current executions for the selected agent
+    (benchmarkId: string, date?: string | null): BenchmarkResult | null => {
+      // Prioritize historical data like the grid does for consistency
+      if (date !== null && date !== undefined) {
+        const dateKey = `${benchmarkId}|${date}`;
+        const historicalResult = historicalResults.get(dateKey);
+        if (historicalResult) {
+          return historicalResult as BenchmarkResult;
+        }
+      } else {
+        // If no date specified, try to get the most recent historical result
+        const sortedDates = Array.from(historicalResults.keys())
+          .filter((key) => key.startsWith(`${benchmarkId}|`))
+          .map((key) => key.split("|")[1])
+          .sort((a, b) => b.localeCompare(a));
+
+        if (sortedDates.length > 0) {
+          const mostRecentDate = sortedDates[0];
+          const dateKey = `${benchmarkId}|${mostRecentDate}`;
+          const historicalResult = historicalResults.get(dateKey);
+          if (historicalResult) {
+            return historicalResult as BenchmarkResult;
+          }
+        }
+      }
+
+      // Fall back to current executions if no historical data found
       const execution = Array.from(executions.values()).find(
         (exec) =>
           exec.benchmark_id === benchmarkId &&
           (!selectedAgent || exec.agent === selectedAgent),
       );
 
-      // Return current execution for selected agent immediately
       if (execution) {
-        // Handle case where execution has score but wrong status (race condition handling)
-        if (execution.score >= 1.0 && execution.status === "Failed") {
-          return {
-            ...execution,
-            status: "Completed",
-          };
-        }
-        return execution;
+        // Convert ExecutionState to BenchmarkResult format
+        const benchmarkResult = {
+          id: execution.id,
+          benchmark_id: execution.benchmark_id,
+          agent_type: execution.agent,
+          score: execution.score || 0,
+          final_status: execution.status,
+          execution_time_ms: execution.execution_time_ms || 0,
+          timestamp: execution.timestamp || execution.start_time,
+          color_class:
+            execution.color_class ||
+            (execution.score && execution.score >= 1.0
+              ? "green"
+              : execution.score && execution.score >= 0.25
+                ? "yellow"
+                : execution.status === "Completed"
+                  ? "green"
+                  : execution.status === "Failed"
+                    ? "red"
+                    : "gray"),
+        };
+        return benchmarkResult as BenchmarkResult;
       }
 
-      // If no current execution, check historical results for selected agent and date
-      if (date !== null && date !== undefined) {
-        const dateKey = `${benchmarkId}|${date}`;
-        const historicalResult = historicalResults.get(dateKey);
-        if (historicalResult) {
-          // Return the result directly - it's already in the right format
-          return {
-            ...historicalResult,
-            status: historicalResult.final_status || historicalResult.status,
-            progress: historicalResult.progress || 100,
-          };
-        }
-        return null; // No data for this specific date
-      }
-
-      // No date specified - return null to show empty state
+      // No data found
       return null;
     },
     [executions, historicalResults, selectedAgent],
@@ -468,7 +466,7 @@ export function BenchmarkList({
   const getBenchmarkScore = useCallback(
     (benchmarkId: string, date?: string | null): number => {
       const execution = getBenchmarkStatus(benchmarkId, date);
-      if (execution?.status === ExecutionStatus.COMPLETED) {
+      if (execution?.final_status === ExecutionStatus.COMPLETED) {
         return execution.score || 1.0;
       }
       return 0;
@@ -694,13 +692,12 @@ export function BenchmarkList({
             })
             .map((benchmark) => {
               const execution = getBenchmarkStatus(benchmark.id, selectedDate);
-              const status = execution?.status || null;
+
+              const status = execution?.final_status || null;
               const score =
-                execution?.status === ExecutionStatus.COMPLETED
+                execution?.final_status === ExecutionStatus.COMPLETED
                   ? getBenchmarkScore(benchmark.id, selectedDate)
-                  : execution?.status === ExecutionStatus.COMPLETED
-                    ? execution.score || 1.0
-                    : 0;
+                  : 0;
               const isSelected = selectedBenchmark === benchmark.id;
 
               // Find if any benchmark is currently running
@@ -740,10 +737,37 @@ export function BenchmarkList({
                           {/* Status indicator box */}
                           <div
                             key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}-${selectedDate || "latest"}`}
-                            className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
-                              status,
-                              execution,
-                            )}`}
+                            className={`w-4 h-4 rounded-sm ${(() => {
+                              if (!execution) {
+                                // Create placeholder only when actually needed
+                                const placeholderResult = {
+                                  id: `empty-${benchmark.id}-${selectedDate || "latest"}`,
+                                  benchmark_id: benchmark.id,
+                                  agent_type: selectedAgent,
+                                  score: 0,
+                                  final_status: ExecutionStatus.UNKNOWN,
+                                  execution_time_ms: 0,
+                                  timestamp: new Date().toISOString(),
+                                  color_class: "gray" as const,
+                                };
+                                return getBenchmarkColorClass(
+                                  placeholderResult,
+                                  false,
+                                );
+                              }
+
+                              try {
+                                return getBenchmarkColorClass(execution, false);
+                              } catch (error) {
+                                console.error(
+                                  `❌ Color calculation failed for ${benchmark.id}:`,
+                                  error,
+                                  execution,
+                                );
+                                // Return gray as fallback
+                                return "bg-gray-400";
+                              }
+                            })()}`}
                           />
                         </div>
                         <div className="flex-1">
@@ -784,10 +808,40 @@ export function BenchmarkList({
                             {/* Status indicator box */}
                             <div
                               key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}-${selectedDate || "latest"}`}
-                              className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
-                                status,
-                                execution,
-                              )}`}
+                              className={`w-4 h-4 rounded-sm ${(() => {
+                                if (!execution) {
+                                  // Create placeholder only when actually needed
+                                  const placeholderResult = {
+                                    id: `empty-${benchmark.id}-${selectedDate || "latest"}`,
+                                    benchmark_id: benchmark.id,
+                                    agent_type: selectedAgent,
+                                    score: 0,
+                                    final_status: ExecutionStatus.UNKNOWN,
+                                    execution_time_ms: 0,
+                                    timestamp: new Date().toISOString(),
+                                    color_class: "gray" as const,
+                                  };
+                                  return getBenchmarkColorClass(
+                                    placeholderResult,
+                                    false,
+                                  );
+                                }
+
+                                try {
+                                  return getBenchmarkColorClass(
+                                    execution,
+                                    false,
+                                  );
+                                } catch (error) {
+                                  console.error(
+                                    `❌ Color calculation failed for ${benchmark.id}:`,
+                                    error,
+                                    execution,
+                                  );
+                                  // Return gray as fallback
+                                  return "bg-gray-400";
+                                }
+                              })()}`}
                             />
                           </div>
                           {/* Benchmark Name */}
@@ -880,7 +934,16 @@ export function BenchmarkList({
                                     : "bg-blue-600"
                               }`}
                               style={{
-                                width: `${getBenchmarkStatus(benchmark.id, selectedDate)?.progress || 0}%`,
+                                width: `${(() => {
+                                  const execution = Array.from(
+                                    executions.values(),
+                                  ).find(
+                                    (exec) =>
+                                      exec.benchmark_id === benchmark.id &&
+                                      exec.agent === selectedAgent,
+                                  );
+                                  return execution?.progress || 0;
+                                })()}%`,
                               }}
                             ></div>
                           </div>

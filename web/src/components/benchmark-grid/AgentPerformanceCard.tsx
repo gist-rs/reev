@@ -1,5 +1,4 @@
 import { useMemo, useCallback } from "preact/hooks";
-import { BenchmarkResult } from "../../types/benchmark";
 import { AgentPerformanceSummary, AgentPerformanceCardProps } from "./types";
 import { TestRunsRenderer } from "./components/TestRunsRenderer";
 import { AgentCardHeader } from "./components/AgentCardHeader";

@@ -1,6 +1,54 @@
 import { BenchmarkResult } from "../types/benchmark";
 
 /**
+ * Validates and normalizes a result object to BenchmarkResult format
+ * @param result The result object to validate
+ * @returns Validated BenchmarkResult
+ * @throws Error if the result doesn't match expected structure
+ */
+function validateAndNormalizeResult(result: any): BenchmarkResult {
+  if (!result || typeof result !== "object") {
+    throw new Error(`Invalid result: expected object, got ${typeof result}`);
+  }
+
+  // Required fields
+  const required = [
+    "id",
+    "benchmark_id",
+    "agent_type",
+    "score",
+    "final_status",
+    "execution_time_ms",
+    "timestamp",
+    "color_class",
+  ];
+  for (const field of required) {
+    if (!(field in result)) {
+      throw new Error(
+        `Missing required field: ${field} in result: ${JSON.stringify(result)}`,
+      );
+    }
+  }
+
+  // Validate color_class
+  const validColors = ["green", "yellow", "red", "gray"];
+  if (!validColors.includes(result.color_class)) {
+    throw new Error(
+      `Invalid color_class: ${result.color_class}, must be one of: ${validColors.join(", ")}`,
+    );
+  }
+
+  // Validate score
+  if (typeof result.score !== "number" || result.score < 0) {
+    throw new Error(
+      `Invalid score: ${result.score}, must be a non-negative number`,
+    );
+  }
+
+  return result as BenchmarkResult;
+}
+
+/**
  * Gets the appropriate color class for a benchmark result
  * @param result The benchmark result to evaluate
  * @param isRunning Whether the benchmark is currently running
@@ -13,55 +61,17 @@ export function getBenchmarkColorClass(
   // If running, don't apply static background color - animation will handle it
   if (isRunning) return "";
 
+  // Validate result structure
+  const validatedResult = validateAndNormalizeResult(result);
+
   // Use color_class if specified, otherwise fall back to score-based logic
-  if (result.color_class === "gray") return "bg-gray-400";
-  if (result.color_class === "green") return "bg-green-500";
-  if (result.color_class === "yellow") return "bg-yellow-500";
-  if (result.color_class === "red") return "bg-red-500";
+  if (validatedResult.color_class === "gray") return "bg-gray-400";
+  if (validatedResult.color_class === "green") return "bg-green-500";
+  if (validatedResult.color_class === "yellow") return "bg-yellow-500";
+  if (validatedResult.color_class === "red") return "bg-red-500";
 
   // Fallback to score-based logic
-  if (result.score >= 1.0) return "bg-green-500"; // 100%
-  if (result.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
+  if (validatedResult.score >= 1.0) return "bg-green-500"; // 100%
+  if (validatedResult.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
   return "bg-red-500"; // <25%
-}
-
-/**
- * Gets the appropriate color class for a benchmark status
- * @param status The execution status
- * @param result The benchmark result (optional, for more accurate coloring)
- * @returns Tailwind CSS class name for the background color
- */
-export function getBenchmarkStatusColor(
-  status: string,
-  result?: BenchmarkResult,
-): string {
-  // If we have a result with color_class, use it for more accurate coloring
-  if (result) {
-    // Check if result has a successful score regardless of status (handle race conditions)
-    if (result.score && result.score >= 1.0) {
-      return "bg-green-500";
-    }
-    // Handle color_class including "gray" for untested benchmarks
-    if (result.color_class) {
-      return getBenchmarkColorClass(result);
-    }
-    // If result has valid score but no color_class, use score-based logic
-    if (result.score !== undefined && result.score !== null) {
-      if (result.score >= 1.0) return "bg-green-500"; // 100%
-      if (result.score >= 0.25) return "bg-yellow-500"; // <100% but >=25%
-      return "bg-red-500"; // <25%
-    }
-  }
-
-  // Fallback to status-based logic
-  switch (status) {
-    case "Completed":
-      return "bg-green-500";
-    case "Failed":
-      return "bg-red-500";
-    case "Running":
-      return "bg-blue-500";
-    default:
-      return "bg-gray-300 dark:bg-gray-600";
-  }
 }
