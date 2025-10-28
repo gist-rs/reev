@@ -62,17 +62,23 @@ export function TestRunsRenderer({
 
     return (
       <BenchmarkBox
-        key={benchmark.id}
+        key={`${benchmark.id}-${date || "no-date"}`}
         result={result}
-        onClick={(result) => {
+        onClick={() => {
           // Don't allow clicks when any benchmark is running (except the running one)
           if (isAnyRunning && !isRunning) return;
+
+          // Create result with the correct benchmark_id from the clicked benchmark
+          const clickResult = {
+            ...result,
+            benchmark_id: benchmark.id,
+            agent_type: agentType,
+          };
+
           // Click handling for date-aware benchmark selection
-          const resultDate =
-            date !== null
-              ? date || result.date || result.timestamp?.substring(0, 10)
-              : null;
-          onBenchmarkClick(result, agentType, resultDate);
+          const resultDate = date !== null ? date : null;
+
+          onBenchmarkClick(clickResult, agentType, resultDate);
           // Also trigger card click to change tab focus
           if (onCardClick) {
             onCardClick(agentType);
