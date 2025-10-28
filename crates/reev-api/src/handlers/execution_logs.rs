@@ -1,13 +1,14 @@
 use crate::types::ExecutionStatus;
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     response::IntoResponse,
     Json,
 };
 
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::types::ApiState;
 
@@ -86,15 +87,111 @@ pub async fn get_execution_trace(
         }
     }
 
-    // If no active execution found, return appropriate message
-    info!("No active execution found for benchmark: {}", benchmark_id);
+    // If no active execution found, look for sessions in database
+    info!(
+        "No active execution found for benchmark: {}, checking database sessions",
+        benchmark_id
+    );
 
-    let response = json!({
-        "benchmark_id": benchmark_id,
-        "trace": "",
-        "is_running": false,
-        "message": "No active execution found for this benchmark"
-    });
+    // Get most recent session for this benchmark
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: Some(benchmark_id.clone()),
+        agent_type: None,
+        interface: None,
+        status: None,
+        limit: Some(1), // Get the most recent session
+    };
 
-    return Json(response).into_response();
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            if let Some(session) = sessions.first() {
+                info!("Found session for benchmark: {}", benchmark_id);
+
+                // Get the session log which contains execution trace
+                info!(
+                    "DEBUG: Attempting to get session log for session: {}",
+                    session.session_id
+                );
+
+                match state.db.get_session_log(&session.session_id).await {
+                    Ok(Some(log_content)) => {
+                        info!("DEBUG: Got session log content");
+
+                        let log_preview = if log_content.len() > 200 {
+                            format!("{}...", &log_content[..200])
+                        } else {
+                            log_content.clone()
+                        };
+
+                        info!("DEBUG: Session log preview: {}", log_preview);
+
+                        let response = json!({
+                            "benchmark_id": benchmark_id,
+                            "execution_id": session.session_id,
+                            "agent_type": session.agent_type,
+                            "interface": "web",
+                            "status": format!("{:?}", session.status).to_lowercase(),
+                            "final_status": session.status,
+                            "trace": log_content,
+                            "is_running": false,
+                            // Note: SessionInfo doesn't have progress field, using default
+                            "progress": 0
+                        });
+
+                        info!("DEBUG: Successfully created execution trace response");
+                        return Json(response).into_response();
+                    }
+                    Ok(None) => {
+                        warn!("No session log found for session: {}", session.session_id);
+
+                        let response = json!({
+                            "benchmark_id": benchmark_id,
+                            "execution_id": session.session_id,
+                            "trace": "",
+                            "is_running": false,
+                            "message": "No session log found for execution"
+                        });
+
+                        info!("DEBUG: Successfully created no-log response");
+                        return Json(response).into_response();
+                    }
+                    Err(e) => {
+                        warn!("Failed to get session log: {}", e);
+
+                        let response = json!({
+                            "benchmark_id": benchmark_id,
+                            "trace": "",
+                            "is_running": false,
+                            "message": format!("Database error: {}", e)
+                        });
+
+                        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+                    }
+                }
+            } else {
+                info!("No sessions found for benchmark: {}", benchmark_id);
+
+                let response = json!({
+                    "benchmark_id": benchmark_id,
+                    "trace": "",
+                    "is_running": false,
+                    "message": "No execution history found for this benchmark"
+                });
+
+                return Json(response).into_response();
+            }
+        }
+        Err(e) => {
+            warn!("Failed to get sessions for benchmark: {}", e);
+
+            let response = json!({
+                "benchmark_id": benchmark_id,
+                "trace": "",
+                "is_running": false,
+                "message": format!("Database error: {}", e)
+            });
+
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+        }
+    }
 }

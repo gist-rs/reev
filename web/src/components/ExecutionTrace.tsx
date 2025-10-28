@@ -142,8 +142,20 @@ export function ExecutionTrace({
         status: execution.status,
         hasTrace: !!execution.trace,
       });
+    } else {
+      console.log("🔍 ExecutionTrace - No execution found");
     }
   }, [execution, benchmarkId]);
+
+  // Log traceData for debugging
+  useEffect(() => {
+    console.log("🔍 ExecutionTrace - Trace data updated:", {
+      traceData,
+      hasData: !!traceData,
+      hasTrace: !!traceData?.trace,
+      keys: traceData ? Object.keys(traceData) : null,
+    });
+  }, [traceData]);
 
   // Load execution trace from API
   const loadExecutionTrace = async () => {
