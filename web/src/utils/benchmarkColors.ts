@@ -41,7 +41,8 @@ export function getBenchmarkStatusColor(
     if (result.score && result.score >= 1.0) {
       return "bg-green-500";
     }
-    if (result.color_class && result.color_class !== "gray") {
+    // Handle color_class including "gray" for untested benchmarks
+    if (result.color_class) {
       return getBenchmarkColorClass(result);
     }
     // If result has valid score but no color_class, use score-based logic

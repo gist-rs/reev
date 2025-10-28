@@ -66,9 +66,7 @@ export function BenchmarkBox({
             maxWidth: "14px",
             fontWeight: "bold",
           }}
-        >
-          {dateText}
-        </span>
+        ></span>
       )}
     </div>
   );
