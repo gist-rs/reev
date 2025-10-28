@@ -1,4 +1,4 @@
-import { BenchmarkResult } from "../../types/benchmark";
+import { BenchmarkResult, ExecutionStatus } from "../../types/benchmark";
 
 export interface AgentPerformanceSummary {
   agent_type: string;
@@ -8,6 +8,37 @@ export interface AgentPerformanceSummary {
   best_benchmarks: string[];
   worst_benchmarks: string[];
   results: BenchmarkResult[];
+}
+
+export interface BenchmarkBoxProps {
+  result: BenchmarkResult;
+  onClick: (result: BenchmarkResult) => void;
+  isRunning?: boolean;
+  isSelected?: boolean;
+  disabled?: boolean;
+  showDate?: boolean;
+}
+
+export interface AgentPerformanceCardProps {
+  agentType: string;
+  agentData?: AgentPerformanceSummary;
+  allBenchmarks: any[];
+  runningBenchmarks: Set<string>;
+  onBenchmarkClick: (
+    result: BenchmarkResult,
+    agentType: string,
+    date?: string,
+  ) => void;
+  onCardClick?: (agentType: string) => void;
+  runningBenchmarkExecutions?: Map<
+    string,
+    { agent: string; status: string; progress: number }
+  >;
+  executions?: Map<string, any>;
+  selectedBenchmark?: string | null;
+  selectedAgent?: string;
+  selectedDate?: string | null;
+  isAnyRunning?: boolean;
 }
 
 export interface BenchmarkGridProps {
