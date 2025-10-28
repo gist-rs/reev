@@ -344,30 +344,6 @@ impl JupiterSwapFlowTool {
             Ok(args.amount)
         }
     }
-
-    /// Enhance result with flow context metadata
-    fn enhance_result_with_flow_context(
-        &self,
-        result: String,
-    ) -> Result<String, JupiterSwapFlowError> {
-        let mut enhanced_result = result.clone();
-
-        // Add flow metadata to the result
-        if let Some(context) = &self.flow_context {
-            let flow_metadata = json!({
-                "flow_context": {
-                    "stage": context.flow_stage,
-                    "previous_results": context.previous_results,
-                    "current_balances": context.current_balances,
-                },
-                "tool_enhancement": "flow_aware_jupiter_swap"
-            });
-
-            enhanced_result = format!("{result}\n--- Flow Metadata ---\n{flow_metadata}");
-        }
-
-        Ok(enhanced_result)
-    }
 }
 
 /// Custom error type for Jupiter swap flow tool
