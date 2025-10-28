@@ -119,9 +119,3 @@ main {
 }
 
 /* Dark mode is now managed via ThemeContext and Tailwind dark: variants */
-
-pre {
-    font-family:
-        "SFMono-Regular", "Consolas", "Liberation Mono", "Courier",
-        "Courier New", monospace;
-}

@@ -35,6 +35,13 @@ export function BenchmarkGrid({
   const allBenchmarks = benchmarks || [];
   const runningBenchmarks = new Set<string>(runningBenchmarkIds);
 
+  console.log(`🌐 [BenchmarkGrid] Running state:`, {
+    runningBenchmarkIds,
+    runningBenchmarks: Array.from(runningBenchmarks),
+    executions: Array.from(executions?.entries() || []),
+    isAnyRunning: runningBenchmarkIds.length > 0,
+  });
+
   return (
     <div className={`bg-gray-50 dark:bg-gray-900/50 ${className}`}>
       <main className="max-w-7xl mx-auto p-4 overflow-x-auto">

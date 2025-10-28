@@ -32,11 +32,22 @@ export function AgentPerformanceCard({
   );
 
   const hasRunning = useMemo(() => {
-    return hasRunningBenchmark(
+    const result = hasRunningBenchmark(
       runningBenchmarks,
       runningBenchmarkExecutions,
       agentType,
     );
+
+    console.log(`🏃 [AgentPerformanceCard] ${agentType} running check:`, {
+      hasRunning: result,
+      runningBenchmarks: Array.from(runningBenchmarks),
+      runningBenchmarkExecutions: Array.from(
+        runningBenchmarkExecutions?.entries() || [],
+      ),
+      agentType,
+    });
+
+    return result;
   }, [runningBenchmarks, runningBenchmarkExecutions, agentType]);
 
   const handleCardClick = useCallback(() => {
@@ -44,6 +55,14 @@ export function AgentPerformanceCard({
       onCardClick(agentType);
     }
   }, [onCardClick, agentType]);
+
+  console.log(`🔍 [AgentPerformanceCard] ${agentType} props:`, {
+    agentType,
+    hasRunning,
+    isAnyRunning,
+    runningBenchmarksCount: runningBenchmarks.size,
+    executionsCount: runningBenchmarkExecutions?.size || 0,
+  });
 
   return (
     <div

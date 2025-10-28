@@ -2,23 +2,9 @@
 
 ---
 
-I found the issue. The `determine_available_tools` function in `LlmAgent` correctly returns `Some(vec!["jupiter_earn".to_string()])` for benchmark 114, but somehow this is not being used properly.
+in web when run each bench it usually have loading effect in  [@BenchmarkGrid.tsx](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fweb%2Fsrc%2Fcomponents%2FBenchmarkGrid.tsx) 16x16 box but we lost that while refactor to separated file, the animate css is  `animate-blink-fade` and it stop animate when run complete
 
-Looking at the logs again:
-
-**CLI (Working) - FlowAgent:**
-```
-[UnifiedGLMAgent] Flow mode: Only allowing 1 tools: ["jupiter_earn"]
-```
-
-**API (Failing) - Should also use FlowAgent but isn't:**
-```
-[UnifiedGLMAgent] Available tools: SolTransferTool, SplTransferTool, JupiterSwapTool, AccountBalanceTool, etc.
-```
-
-The issue is that the API call is going through a different path that doesn't use FlowAgent properly. The LlmAgent is calling `determine_available_tools` correctly, but when it makes the HTTP request to `http://localhost:9090/gen/tx`, the reev-agent service is not properly using the `allowed_tools` field.
-
----
+anyway we will need agent_name+benchmark_id to select right box to apply loading, the thing is we dont need excution_id because we have 3 rows of that benchmark_id but only first row can run so just apply effect to first row by agent_name+benchmark_id
 
 - DRY `reev_db::types::AgentPerformance {...}`
 

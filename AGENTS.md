@@ -5,7 +5,7 @@
 - Then fixed add reflect to `REFLECT.md`, but keep it short, only critical one.
 - Try to keep all md under 320 lines, keep only important and use short word, less noise, keep revise for compact.
 - Follow modular architecture, Keep coding files under 320-512 lines, sparate to smalelr files if need.
-- Always run `cargo clippy --fix --allow-dirty` and fix after done edit.
+- Always run `cargo clippy --fix --allow-dirty` and fix after done edit for Rust files, for frontend just run diagnostic.
 - Ask user for commit when done impl or fixed for each task and run success result without error with git convention e.g. `feat:...`, `fix:...`, `refactor:...` for each task with important list of impl and shrot reflect for later ref, but wait for confirm first.
 - use `types.rs`, `mod.rs` is for index only, keep `main.rs` and `lib.rs` minimal, less or no logic.
 - prefer `match` more than `if`.

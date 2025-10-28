@@ -62,7 +62,7 @@ export function TestRunsRenderer({
 
     return (
       <BenchmarkBox
-        key={`${benchmark.id}-${date || "no-date"}`}
+        key={benchmark.id}
         result={result}
         onClick={() => {
           // Don't allow clicks when any benchmark is running (except the running one)
@@ -174,6 +174,31 @@ export function TestRunsRenderer({
                   runningBenchmarkExecutions?.get(
                     placeholderResult.benchmark_id,
                   )?.agent === agentType;
+
+                // Debug logging for placeholder running state
+                console.log(
+                  `🏃 [TestRunsRenderer] Placeholder: ${placeholderResult.benchmark_id} for ${agentType}`,
+                  {
+                    index,
+                    isPlaceholderRow: true,
+                    inRunningBenchmarks: runningBenchmarks.has(
+                      placeholderResult.benchmark_id,
+                    ),
+                    executionAgent: runningBenchmarkExecutions?.get(
+                      placeholderResult.benchmark_id,
+                    )?.agent,
+                    matchesAgent:
+                      runningBenchmarkExecutions?.get(
+                        placeholderResult.benchmark_id,
+                      )?.agent === agentType,
+                    isRunning,
+                    allRunningBenchmarks: Array.from(runningBenchmarks),
+                    allExecutions: Array.from(
+                      runningBenchmarkExecutions?.entries() || [],
+                    ),
+                  },
+                );
+
                 return renderBenchmarkBox(
                   placeholderResult, // Use placeholder result as both benchmark and result
                   placeholderResult,
@@ -239,6 +264,27 @@ export function TestRunsRenderer({
                 runningBenchmarks.has(benchmark.id) &&
                 runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
                   agentType;
+
+              // Debug logging for running state
+              console.log(
+                `🏃 [TestRunsRenderer] Regular: ${benchmark.id} for ${agentType}`,
+                {
+                  isMostRecentRun,
+                  isPlaceholderRow: false,
+                  inRunningBenchmarks: runningBenchmarks.has(benchmark.id),
+                  executionAgent: runningBenchmarkExecutions?.get(benchmark.id)
+                    ?.agent,
+                  matchesAgent:
+                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
+                    agentType,
+                  isRunning,
+                  allRunningBenchmarks: Array.from(runningBenchmarks),
+                  allExecutions: Array.from(
+                    runningBenchmarkExecutions?.entries() || [],
+                  ),
+                  date,
+                },
+              );
 
               const isSelected =
                 selectedBenchmark === benchmark.id &&
