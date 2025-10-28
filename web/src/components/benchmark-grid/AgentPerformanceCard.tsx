@@ -342,7 +342,6 @@ export function AgentPerformanceCard({
                   agentType;
 
               const isSelected =
-                isMostRecentRun &&
                 selectedBenchmark === benchmark.id &&
                 selectedAgent === agentType;
 
@@ -361,7 +360,6 @@ export function AgentPerformanceCard({
                   (r) => r.benchmark_id === benchmark.id && r.isEmpty,
                 );
                 const isSelected =
-                  isMostRecentRun &&
                   selectedBenchmark === benchmark.id &&
                   selectedAgent === agentType;
                 return renderBenchmarkBox(
