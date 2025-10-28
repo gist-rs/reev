@@ -145,50 +145,8 @@ export function App() {
         console.log("Found execution:", execution);
       }
 
-      // If no current execution, try to load flow logs from database
-      if (!execution) {
-        (async () => {
-          try {
-            if (import.meta.env.DEV) {
-              console.log(
-                "No execution found, loading flow logs from database...",
-              );
-            }
-            const response = await fetch(
-              `/api/v1/benchmarks/${benchmarkId}/status?agent=${selectedAgent}`,
-            );
-
-            if (response.ok) {
-              const execution = await response.json();
-              if (import.meta.env.DEV) {
-                console.log("Execution status loaded:", execution);
-              }
-              const historicalExecution = execution;
-
-              if (import.meta.env.DEV) {
-                console.log(
-                  "Created historical execution:",
-                  historicalExecution,
-                );
-              }
-              setCurrentExecution(historicalExecution);
-            } else if (response.status === 404) {
-              if (import.meta.env.DEV) {
-                console.log("No ASCII tree found for benchmark:", benchmarkId);
-              }
-              setCurrentExecution(null);
-            } else {
-              console.error("Failed to get ASCII tree:", response.statusText);
-              setCurrentExecution(null);
-            }
-          } catch (error) {
-            console.error("Failed to load flow logs:", error);
-            setCurrentExecution(null);
-          }
-        })();
-      } else {
-        setCurrentExecution(execution);
-      }
+      // Set current execution directly, no history loading
+      setCurrentExecution(execution || null);
     },
     [executions, currentExecution],
   );

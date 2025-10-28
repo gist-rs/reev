@@ -2,6 +2,38 @@
 
 ## Open Issues
 
+### #20 Web Benchmark History State Loading Bug - RESOLVED ✅
+
+**Date**: 2025-10-28  
+**Status**: Closed  
+**Priority**: Medium  
+**Description**: When finishing benchmark runs on web, there was problematic history state loading logic that interfered with the run complete state display.
+
+**Root Cause**: In `handleBenchmarkSelect()` function, when no current execution was found, the system would attempt to load historical execution data from database via API call `/api/v1/benchmarks/${benchmarkId}/status?agent=${selectedAgent}`. This caused confusion between current execution state and historical data.
+
+**Fix Applied**: Removed the entire history state loading logic section and simplified to only set current execution directly:
+```typescript
+// Before: Complex async history loading with fallbacks
+// After: Simple direct execution setting
+setCurrentExecution(execution || null);
+```
+
+**Benefits**:
+- ✅ Eliminated state confusion between current and historical executions  
+- ✅ Cleaner benchmark completion handling
+- ✅ Reduced unnecessary API calls
+- ✅ Immediate display of run complete state without history interference
+
+**Files Modified**: 
+- `web/src/index.tsx` - Lines 145-193 (removed history loading logic)
+
+**Verification**: 
+- ✅ Build successful: `npm run build` completed without errors
+- ✅ No TypeScript diagnostics issues
+- ✅ Simplified state management for benchmark execution
+
+## Open Issues
+
 ### #19 Jupiter Swap Tool Response Format Inconsistency - CRITICAL 🔥
 
 **Date**: 2025-10-28  

@@ -1,4 +1,25 @@
 # REEV IMPLEMENTATION REFLECTION
+
+## Web Benchmark History State Loading Bug - RESOLVED ✅
+
+**Issue**: Web benchmark completion had problematic history state loading that interfered with run complete state display.
+
+**Root Cause**: `handleBenchmarkSelect()` function was loading historical execution data when no current execution existed, causing state confusion between current runs and historical data.
+
+**Solution**: Removed complex async history loading logic and simplified to direct execution state setting:
+```typescript
+// Simplified from 50+ lines of async history loading to:
+setCurrentExecution(execution || null);
+```
+
+**Benefits**: 
+- Eliminated state confusion between current and historical executions
+- Cleaner benchmark completion handling  
+- Reduced unnecessary API calls
+- Immediate display of run complete state
+
+**Files**: `web/src/index.tsx` - Removed lines 145-193 (history loading logic)
+
 ## GLM Context Leaking to Non-GLM Models - RESOLVED ✅
 
 **Issue**: `is_glm` flag was incorrectly set to `true` for ALL non-deterministic models when GLM environment was available, causing non-GLM models to receive GLM parsing context.
