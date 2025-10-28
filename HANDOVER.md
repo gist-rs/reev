@@ -1,103 +1,153 @@
-CLI: amount=394358118 (394.358 USDC) → ✅ SUCCESS
-API: amount=1000000000 (1000 USDC) → ❌ INSUFFICIENT FUNDS  
+---
+
+## 🚨 **CURRENT INVESTIGATION: API vs CLI Flow Execution Issue**
+
+### **Status**: 🔄 IN PROGRESS (Active Investigation)
+
+#### **Problem Statement**:
+- **CLI Path**: `cargo run --benchmarks/200-jup-swap-then-lend-deposit.yml --agent glm-4.6` ✅ WORKS
+- **API Path**: Web UI run with `glm-4.6` agent ❌ FAILS on Step 2
+- **Both paths call**: `reev_runner::run_benchmarks()` → `run_flow_benchmark()` → `LlmAgent`
+
+#### **Current Bug Evidence**:
+```
+Step 1 (CLI): Jupiter swap → receives 394358118 USDC ✅
+Step 1 (API): Jupiter swap → receives 394358118 USDC ✅
+
+Step 2 (CLI): "Deposit all USDC received" → uses correct amount ✅  
+Step 2 (API): "Deposit all USDC received" → amount=0 ❌
+```
+
+#### **Critical Finding**:
+Both CLI and API use **same function** but behave differently for **step result context passing**.
+
+---
+
+## 🔍 **ROOT CAUSE IDENTIFIED**
+
+### **Missing Step Context Enrichment**:
+
+**Location**: `crates/reev-runner/src/lib.rs` - `run_flow_benchmark()` function
+
+**Bug**: Step 2 prompt is not enriched with Step 1 results:
+```rust
+let step_test_case = TestCase {
+    id: format!("{}-step-{}", test_case.id, step.step),
+    description: step.description.clone(),
+    tags: test_case.tags.clone(),
+    initial_state: test_case.initial_state.clone(),
+    prompt: step.prompt.clone(), // ← Original prompt only, NO Step 1 context!
+    flow: None,
+    ground_truth: test_case.ground_truth.clone(),
+};
+```
+
+**Expected**: Step 2 should receive enriched prompt with swap amount from Step 1  
+**Actual**: Step 2 receives original prompt only (no swap amount context)
+
+#### **Why CLI Works vs API Fails**:
+- **Same function**: Both call `run_flow_benchmark()` identically
+- **Different environment**: Some execution context affects step result communication
+- **Missing piece**: Step result → context → next step prompt enrichment
+
+---
+
+## 🛠️ **INVESTIGATION STATUS**
+
+### **Confirmed Issues**:
+1. ✅ **API self-killing**: Fixed with `kill_api=false`
+2. ❌ **Step context loss**: Still investigating root cause
+3. ✅ **Same function execution**: Confirmed CLI and API use identical code path
+4. ❌ **Environment differences**: Need to identify what affects context passing
+
+### **Key Files Under Investigation**:
+- `crates/reev-runner/src/lib.rs` - `run_flow_benchmark()` step execution logic
+- `crates/reev-agent/src/enhanced/common/mod.rs` - Tool selection and flow mode detection
+- `crates/reev-context/src/lib.rs` - Context building with step results
+
+### **Critical Code Path**:
+```
+Step 1: run_evaluation_loop() → LlmAgent → Jupiter tool → blockchain state update
+Step 2: run_evaluation_loop() → LlmAgent → Should get Step 1 context ❌
 ```
 
 ---
 
-## 🎯 **ROOT CAUSE IDENTIFIED**
-
-**Two different Jupiter swap tool implementations** with inconsistent response formats:
-
-1. **`jupiter_swap_flow.rs`** - Flow-aware tool with proper `swap_details`
-2. **`jupiter_swap.rs`** - Standard tool without `swap_details`
-
-**Critical Logic Flow**:
-- CLI path routes to flow-aware tool
-- API path routes to standard tool
-- Both should use same tool for consistency
-
----
-
-## 📋 **INVESTIGATION FINDINGS**
-
-### Files Involved
-
-#### **Primary Issue**:
-- **`crates/reev-tools/src/tools/jupiter_swap_flow.rs`** - Flow-aware implementation
-- **`crates/reev-tools/src/tools/jupiter_swap.rs`** - Standard implementation  
-- **`crates/reev-context/src/lib.rs`** - Expects `swap_details` in `process_step_result_for_context()`
-
-#### **Secondary Issue**:
-- Tool routing logic in agent selection
-- API vs CLI execution path differences
-
----
-
-## 🛠️ **FIX STRATEGY**
-
-### **Option A: Tool Unification** (Recommended)
-- Merge both implementations into single flow-aware Jupiter swap tool
-- Ensure consistent `swap_details` response format
-- Update tool registration to use unified tool only
-
-### **Option B: Response Format Standardization**
-- Modify `jupiter_swap.rs` to also return `swap_details` structure
-- Ensure both tools provide same data format
-
-### **Option C: Routing Fix** (Quick)
-- Force API path to use `jupiter_swap_flow.rs` like CLI
-- Update tool discovery logic to prefer flow-aware tools
-
----
-
-## 🧪 **NEXT STEPS**
+## 🎯 **NEXT INVESTIGATION STEPS**
 
 ### **Immediate Priority**:
-1. **Investigate routing logic** - Why do CLI and API use different tools?
-2. **Compare response formats** - Document exact structure differences
-3. **Implement unification** - Choose Option A or B based on complexity
+1. **Compare environment variables** between CLI and API execution
+2. **Trace step result serialization** - Is Step 1 result properly captured?
+3. **Verify observation building** - Does Step 2 prompt include Step 1 context?
+4. **Test with deterministic agent** - Is issue agent-specific or universal?
 
-### **Acceptance Criteria**:
-- [ ] CLI path continues working (no regression)
-- [ ] API path achieves same success rate as CLI
-- [ ] Both paths use identical Jupiter swap tool
-- [ ] Step 2 consistently receives swap result data
-- [ ] No performance regression
--   [ ] Comprehensive testing across multiple benchmarks
--   [ ] Unified tool response format for Jupiter swap tools
--   [ ] CLI path preserved (no regression)
--   [ ] API path achieves same success rate as CLI
+### **Hypothesis**:
+- **A. Session handling differences**: API vs CLI create different session contexts
+- **B. Database state differences**: Flow logging persistence affects context building  
+- **C. Tool selection differences**: Flow mode detection works differently
+- **D. Agent initialization differences**: LlmAgent setup varies by execution path
 
 ---
 
-## 🔍 **DEBUGGING CHECKLIST**
+## 📋 **DELIVERABLES NEEDED**
 
-### **For Investigation**:
-- [ ] Compare actual tool calls in CLI vs API logs
-- [ ] Verify tool registration lists in both paths  
-- [ ] Check response parsing in `process_step_result_for_context()`
-- [ ] Test with different agents to isolate routing vs response format
+### **For Complete Fix**:
+1. **Root cause analysis**: Identify exact difference between CLI and API execution
+2. **Step context enrichment**: Ensure Step 2 receives Step 1 swap amount  
+3. **Unified behavior**: Make API and CLI produce identical results
+4. **Comprehensive testing**: Verify fix across all agents (local, glm-4.6, etc.)
 
-### **For Implementation**:
-- [ ] Preserve CLI functionality completely
-- [ ] Create comprehensive tests for both paths
-- [ ] Update documentation for tool usage patterns
-- [ ] Verify no regression in other benchmarks
+---
+
+## 🔍 **DEBUGGING APPROACH**
+
+### **Step-by-Step Investigation**:
+1. **Instrument step execution**: Add logging for prompt content and context building
+2. **Compare raw requests**: Verify what agent actually receives in Step 2 for CLI vs API
+3. **Trace result serialization**: Check if Step 1 results are properly stored and retrieved
+4. **Validate context injection**: Ensure swap amounts flow between steps correctly
+
+### **Key Questions to Answer**:
+- Why does same `run_flow_benchmark()` behave differently?
+- What environment/context affects step result communication?
+- How does CLI successfully pass Step 1 results to Step 2 when API doesn't?
+- Is the bug in prompt enrichment, context building, or result serialization?
 
 ---
 
 ## 💡 **TECHNICAL NOTES**
 
-### **Context Flow**:
+### **Expected Flow**:
 ```
-Step 1: Jupiter Swap → swap_details.output_amount
-Step 2: Context Building → process_step_result_for_context() → Correct Amount
+Step 1: "Swap 2.0 SOL for USDC" → Jupiter swap → 394358118 USDC
+Step 2: "Deposit [394358118] USDC into Jupiter" → Jupiter deposit → SUCCESS
+```
+
+### **Current Broken Flow**:
+```
+Step 1: "Swap 2.0 SOL for USDC" → Jupiter swap → 394358118 USDC ✅
+Step 2: "Deposit USDC into Jupiter" → Jupiter deposit → amount=0 → INSUFFICIENT FUNDS ❌
 ```
 
 ### **Critical Method**:
-- **`process_step_result_for_context()`** in `crates/reev-context/src/lib.rs` (lines 290-320)
-- Expects: `step_result.get("swap_details").get("output_amount")`
-- CLI receives: ✅ Structured data  
+- **Step result context building** between flow execution steps
+- **Agent prompt enrichment** with previous step results  
+- **Context serialization/deserialization** across step boundaries
+- **Environment state preservation** between multi-step flows
+
+---
+
+## 🧪 **HANDOFF CHECKLIST**
+
+### **Complete When**:
+- [ ] Root cause identified (environment/session/tooling/context difference)
+- [ ] Step context enrichment implemented and tested
+- [ ] CLI and API produce identical execution results
+- [ ] Fix verified across all agents (local, glm-4.6, glm-4.6-coding)
+- [ ] No regression in single-step benchmarks
+- [ ] Documentation updated with flow execution behavior
+- [ ] Comprehensive test coverage added for multi-step flows
+
 - API receives: ❌ Missing structured data
 
 ---

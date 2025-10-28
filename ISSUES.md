@@ -11,41 +11,38 @@
 
 **Analysis**: Root cause identified as Jupiter swap tool response format inconsistency between CLI and API execution paths. However, discovered that API path is not using flow system at all, but regular enhanced agent system.
 
-**Current Findings**:
-- **CLI Path**: Uses `jupiter_swap_flow.rs` (flow-aware tool) ✅ 
-- **API Path**: Uses `jupiter_swap.rs` (standard tool) with regular enhanced agent
-- **Core Issue**: API should use flow system for multi-step benchmarks but currently doesn't
+**Current Investigation Status**:
+- ✅ **CLI Path**: Uses same `run_flow_benchmark()` function as API
+- ✅ **API Path**: Uses same `run_flow_benchmark()` function as CLI  
+- ❌ **Core Issue**: API Step 2 receives `amount=0` instead of correct swap result amount
+- ✅ **API Process Fix**: Set `kill_api=false` to prevent API from killing itself
 
-**Partial Fix Implemented**:
-✅ **Flow-Aware Tool Selection**: Modified `AgentTools` to detect flow mode via `allowed_tools` parameter
-✅ **Unified Tool Interface**: Updated `JupiterSwapFlowTool` to provide proper `swap_details` structure
-✅ **Enhanced Context Processing**: Flow tool now calls actual Jupiter protocol and returns structured response
-✅ **Tool Registration**: Both OpenAI and ZAI agents now use flow-aware tool when in flow mode
+**Root Cause Identified**:
+Step result communication from Step 1 → Step 2 fails in API mode. Both paths call same `run_flow_benchmark()` function but:
+- **CLI**: Step 2 gets correct amount from Step 1 result (e.g., 394358118 USDC)
+- **API**: Step 2 gets wrong amount (0) - agent context missing step results
 
-**Test Results**:
-- ✅ **CLI Execution**: Successfully uses `JupiterSwapFlowTool` with correct amount propagation
-- ❌ **API Execution**: Still uses regular agent system (not flow system), hits MaxDepthError
+**Critical Bug Location**:
+In `run_flow_benchmark()`, step prompts are passed without enrichment from previous step results:
+```rust
+let step_test_case = TestCase {
+    id: format!("{}-step-{}", test_case.id, step.step),
+    prompt: step.prompt.clone(), // ← Original prompt only, no Step 1 context!
+    // ...
+};
+```
 
-**Critical Architectural Issue Discovered**:
-The API execution path (`run_benchmark()` in reev-runner) uses regular `LlmAgent` instead of the flow system (`FlowAgent`) for multi-step benchmarks. This is the root cause preventing proper multi-step flow execution.
+**Missing Feature**: Step 2 prompt should be enriched with Step 1 results (swap amount) but currently only gets original prompt.
 
-**Fix Strategy Updated**:
-1. **Immediate Fix Applied**: Tool selection now works correctly when flow system is used
-2. **Deeper Fix Required**: API benchmark runner needs to route multi-step benchmarks through flow system
-3. **Alternative Approach**: Enhance regular agent system to properly handle multi-step flows
+**Investigation Status**: 🔄 IN PROGRESS
+- Need to identify why same `run_flow_benchmark()` behaves differently for CLI vs API
+- Need to implement prompt enrichment with previous step results for flow execution
+- Both CLI and API should receive identical step context and produce same results
 
-**Files Modified**:
-- `crates/reev-agent/src/enhanced/common/mod.rs` - Added flow mode detection and `jupiter_swap_flow_tool` support
-- `crates/reev-agent/src/enhanced/openai.rs` - Updated to use flow-aware tool in flow mode
-- `crates/reev-agent/src/enhanced/zai_agent.rs` - Updated to use flow-aware tool in flow mode  
-- `crates/reev-tools/src/tools/flow/jupiter_swap_flow.rs` - Enhanced to call actual Jupiter protocol with `swap_details`
-
-**Next Steps**:
-- Fix reev-runner to route flow benchmarks through flow system instead of regular agent
-- OR enhance regular agent system to properly handle multi-step scenarios
-- Test complete end-to-end flow execution for both CLI and API paths
-
-**Not Jupiter Earn Issue**: Both correctly use `jupiter_lend_earn_deposit` tool - this is tool response format inconsistency, not earn vs deposit tool confusion.
+**Files Under Investigation**:
+- `crates/reev-runner/src/lib.rs` - `run_flow_benchmark()` function 
+- `crates/reev-agent/src/flow/agent.rs` - FlowAgent with proper context handling
+- Step context building mechanism between flow steps
 
 **Key Logic Flow Difference Found**:
 - CLI: Successfully gets swap result amount `394358118` (394.358 USDC) from step 1
