@@ -585,10 +585,10 @@ export function BenchmarkList({
 
               // Show selected date if available, otherwise show empty state
               if (selectedDate === null || selectedDate === undefined) {
-                return "(no data - ready to run)";
+                return "no data";
               }
               if (selectedDate) {
-                return `(date: ${selectedDate})`;
+                return selectedDate;
               }
 
               const selectedExecution = getBenchmarkStatus(
