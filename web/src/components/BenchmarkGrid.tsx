@@ -11,7 +11,7 @@ export function BenchmarkGrid({
   onCardClick,
   isRunning = false,
   onRunBenchmark,
-  runningBenchmarkIds: runningBenchmarkExecutionIds = [],
+  runningBenchmarks: runningBenchmarkExecutionIds = [],
   executions,
   agentPerformanceData,
   agentPerformanceLoading,
@@ -33,11 +33,7 @@ export function BenchmarkGrid({
     "glm-4.6-coding",
   ];
   const allBenchmarks = benchmarks || [];
-  const runningBenchmarks = runningBenchmarkExecutionIds; //new Set<string>(runningBenchmarkExecutionIds);
 
-  // console.log(`🌐 [BenchmarkGrid] Running state:`, {
-  //   runningBenchmarkIds: runningBenchmarkExecutionIds,
-  //   runningBenchmarks: Array.from(runningBenchmarks),
   //   executions: Array.from(executions?.entries() || []),
   //   isAnyRunning: runningBenchmarkExecutionIds.length > 0,
   // });
@@ -58,8 +54,8 @@ export function BenchmarkGrid({
                   agentType={agentType}
                   agentData={agentData}
                   allBenchmarks={allBenchmarks}
-                  runningBenchmarks={runningBenchmarks}
-                  runningBenchmarkExecutions={executions}
+                  runningBenchmarks={runningBenchmarkExecutionIds}
+                  runningExecutionDetails={executions}
                   executions={executions}
                   selectedBenchmark={selectedBenchmark}
                   selectedAgent={selectedAgent}

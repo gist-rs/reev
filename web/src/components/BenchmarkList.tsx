@@ -161,14 +161,6 @@ export function BenchmarkList({
 
   // Process shared data into results map with date grouping and empty data structure
   useEffect(() => {
-    console.log(
-      `🔍 [BenchmarkList] Processing data for selectedAgent: ${selectedAgent}`,
-    );
-    console.log(
-      `🔍 [BenchmarkList] Available agents:`,
-      agentPerformanceData?.map((a) => a.agent_type),
-    );
-
     if (agentPerformanceData && benchmarks) {
       // Get all unique dates from agent performance data
       const allDates = new Set<string>();
@@ -211,9 +203,6 @@ export function BenchmarkList({
       // Now fill with real data where available
       agentPerformanceData.forEach((agentSummary) => {
         if (agentSummary.agent_type === selectedAgent) {
-          console.log(
-            `🔍 [BenchmarkList] Found agent ${selectedAgent} with ${agentSummary.results.length} results`,
-          );
           agentSummary.results.forEach((result) => {
             const date = result.timestamp.substring(0, 10);
             const key = `${result.benchmark_id}|${date}`;
@@ -227,9 +216,6 @@ export function BenchmarkList({
               (result.score && result.score > (existingResult.score || 0))
             ) {
               // Overwrite with better result
-              // console.log(
-              //   `🔍 [BenchmarkList] Setting ${result.benchmark_id} result: score=${result.score}, status=${result.final_status} (replaced score=${existingResult?.score || "none"})`,
-              // );
               resultsMap.set(key, {
                 ...result,
                 status: result.final_status,
@@ -242,21 +228,13 @@ export function BenchmarkList({
                 isEmpty: false, // Flag to identify real entries
               });
             } else {
-              // console.log(
-              //   `🔍 [BenchmarkList] Keeping existing ${result.benchmark_id} result: score=${existingResult?.score}, status=${existingResult?.final_status} (skipped score=${result.score}, status=${result.final_status})`,
-              // );
+              // Keep existing better result
             }
             resultsCount++;
           });
         }
       });
-
-      // console.log(
-      //   `🔍 [BenchmarkList] Set ${resultsCount} real results + ${resultsMap.size - resultsCount} empty placeholders for ${selectedAgent}`,
-      // );
-      setHistoricalResults(resultsMap);
     } else {
-      // console.log(`🔍 [BenchmarkList] No agent performance data available`);
       setHistoricalResults(new Map());
     }
   }, [agentPerformanceData, selectedAgent, benchmarks]);
@@ -316,11 +294,6 @@ export function BenchmarkList({
         // Only set completion callback for individual benchmark runs (not Run All)
         if (!isRunAll) {
           setCompletionCallback((benchmarkId: string, execution: any) => {
-            console.log(
-              "🔍 Individual benchmark completed:",
-              benchmarkId,
-              execution.status,
-            );
             onExecutionComplete(benchmarkId, execution);
             // Clear the completion callback
             setCompletionCallback(() => () => {});
@@ -360,11 +333,6 @@ export function BenchmarkList({
         !benchmark.id.includes("003") && !benchmark.id.includes("004"),
     );
     currentRunAllIndex.current = 0;
-
-    console.log(
-      "🔍 Run All - Queue:",
-      runAllQueue.current.map((b) => b.id),
-    );
 
     // Start first benchmark
     const firstBenchmark = runAllQueue.current[0];
@@ -434,17 +402,10 @@ export function BenchmarkList({
     runAllQueue.current = filteredBenchmarks.slice(startIndex);
     currentRunAllIndex.current = 0;
 
-    console.log(
-      "🔍 Run Current & Below - Queue:",
-      runAllQueue.current.map((b) => b.id),
-    );
-    console.log("🔍 Starting from index:", startIndex);
-
     // Start first benchmark in the filtered queue
     const firstBenchmark = runAllQueue.current[0];
 
     try {
-      console.log("🚀 Starting benchmark:", firstBenchmark.id);
       await handleRunBenchmark(firstBenchmark, true); // Pass isRunAll=true
     } catch (error) {
       console.error(`Failed to start benchmark ${firstBenchmark.id}:`, error);

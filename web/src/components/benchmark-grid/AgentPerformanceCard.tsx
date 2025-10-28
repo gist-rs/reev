@@ -15,50 +15,41 @@ export function AgentPerformanceCard({
   agentData,
   allBenchmarks,
   runningBenchmarks,
+  runningExecutionDetails,
   onBenchmarkClick,
   onCardClick,
-  runningBenchmarkExecutions,
   executions,
   selectedBenchmark,
   selectedAgent,
   selectedDate,
   isAnyRunning = false,
 }: AgentPerformanceCardProps) {
-  const finalAgentData = useFilteredAgentData(agentData, agentType);
+  const filteredAgentData = useFilteredAgentData(agentData, agentType);
   const filteredBenchmarks = useFilteredBenchmarks(allBenchmarks);
   const overallPercentage = useOverallPercentage(
-    finalAgentData.results,
+    filteredAgentData.results,
     filteredBenchmarks,
   );
 
   const hasRunning = useMemo(() => {
     const result = hasRunningBenchmark(
       runningBenchmarks,
-      runningBenchmarkExecutions,
+      runningExecutionDetails,
       agentType,
     );
-
-    // console.log(`🏃 [AgentPerformanceCard] ${agentType} running check:`, {
-    //   hasRunning: result,
-    //   runningBenchmarks: Array.from(runningBenchmarks),
-    //   runningBenchmarkExecutions: Array.from(
     //     runningBenchmarkExecutions?.entries() || [],
     //   ),
     //   agentType,
     // });
 
     return result;
-  }, [runningBenchmarks, runningBenchmarkExecutions, agentType]);
+  }, [runningBenchmarks, runningExecutionDetails, agentType]);
 
   const handleCardClick = useCallback(() => {
     if (onCardClick) {
       onCardClick(agentType);
     }
   }, [onCardClick, agentType]);
-
-  // console.log(`🔍 [AgentPerformanceCard] ${agentType} props:`, {
-  //   agentType,
-  //   hasRunning,
   //   isAnyRunning,
   //   runningBenchmarksCount: runningBenchmarks.size,
   //   executionsCount: runningBenchmarkExecutions?.size || 0,
@@ -79,11 +70,11 @@ export function AgentPerformanceCard({
       />
 
       <TestRunsRenderer
-        finalAgentData={finalAgentData}
+        agentPerformanceData={filteredAgentData}
         agentType={agentType}
         allBenchmarks={allBenchmarks}
         runningBenchmarks={runningBenchmarks}
-        runningBenchmarkExecutions={runningBenchmarkExecutions}
+        runningExecutionDetails={runningExecutionDetails}
         executions={executions}
         selectedBenchmark={selectedBenchmark}
         selectedAgent={selectedAgent}

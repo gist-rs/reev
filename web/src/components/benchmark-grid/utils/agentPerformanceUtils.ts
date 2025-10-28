@@ -23,12 +23,6 @@ export function useFilteredAgentData(
       (result) => result.agent_type === agentType,
     );
 
-    console.log(`🔍 [AgentPerformanceCard] ${agentType}: Filtering results`, {
-      originalCount: baseData.results?.length || 0,
-      filteredCount: filteredResults.length,
-      agentType,
-    });
-
     return {
       ...baseData,
       results: filteredResults,
@@ -41,7 +35,6 @@ export function useFilteredBenchmarks(allBenchmarks: any[]) {
     return Array.isArray(allBenchmarks)
       ? allBenchmarks.filter((benchmark) => {
           if (!benchmark?.id) {
-            console.warn("Invalid benchmark:", benchmark);
             return false;
           }
           return !benchmark.id.includes("003") && !benchmark.id.includes("004");
@@ -128,8 +121,5 @@ export function hasRunningBenchmark(
     | undefined,
   agentType: string,
 ): boolean {
-  return runningBenchmarks.filter((e) => e.agent === agentType).length > 0;
-  // return Array.from(runningBenchmarks.keys()).some((benchmarkId) => {
-  //   return runningBenchmarkExecutions?.get(benchmarkId)?.agent === agentType;
-  // });
+  return runningBenchmarks.some((e) => e.agent === agentType);
 }

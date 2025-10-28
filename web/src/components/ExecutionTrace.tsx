@@ -133,29 +133,9 @@ export function ExecutionTrace({
   const [error, setError] = useState<string | null>(null);
 
   // Log component state for debugging
-  useEffect(() => {
-    if (execution) {
-      console.log("🔍 ExecutionTrace - Execution found:", {
-        benchmarkId,
-        executionId: execution.id,
-        agent: execution.agent,
-        status: execution.status,
-        hasTrace: !!execution.trace,
-      });
-    } else {
-      console.log("🔍 ExecutionTrace - No execution found");
-    }
-  }, [execution, benchmarkId]);
+  useEffect(() => {}, [execution, benchmarkId]);
 
   // Log traceData for debugging
-  useEffect(() => {
-    console.log("🔍 ExecutionTrace - Trace data updated:", {
-      traceData,
-      hasData: !!traceData,
-      hasTrace: !!traceData?.trace,
-      keys: traceData ? Object.keys(traceData) : null,
-    });
-  }, [traceData]);
 
   // Load execution trace from API
   const loadExecutionTrace = async () => {
@@ -167,10 +147,6 @@ export function ExecutionTrace({
     try {
       const data = await apiClient.getExecutionTrace(benchmarkId);
       setTraceData(data);
-      console.log("✅ ExecutionTrace - Loaded trace for", benchmarkId, {
-        hasData: !!data,
-        isRunning: data?.is_running,
-      });
     } catch (err) {
       console.error("❌ ExecutionTrace - Failed to load trace:", err);
       setError(
@@ -205,7 +181,6 @@ export function ExecutionTrace({
 
   const handleClearTrace = () => {
     // This would need to be handled by parent component
-    console.log("Clear trace requested");
   };
 
   if (!benchmarkId) {

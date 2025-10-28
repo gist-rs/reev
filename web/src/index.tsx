@@ -113,9 +113,6 @@ export function App() {
       // Add retry mechanism for database locks - retry after 2 seconds if initial fetch fails
       setTimeout(() => {
         if (agentPerformanceError) {
-          console.log(
-            "🔄 [App] Retrying performance data fetch due to potential database lock",
-          );
           refetchAgentPerformance();
         }
       }, 2000);
@@ -127,7 +124,7 @@ export function App() {
   ]);
 
   // Derive running benchmarks by benchmark ID and agent type
-  const runningBenchmarkIds = useMemo(() => {
+  const runningBenchmarks = useMemo(() => {
     const runningEntries = Array.from(executions.entries()).filter(
       ([_, execution]) =>
         execution.status === "Running" ||
@@ -135,52 +132,13 @@ export function App() {
         (execution.progress !== undefined && execution.progress < 100),
     );
 
-    // console.log("🔥 runningEntries:", runningEntries);
-    // runningEntries = [
-    //     [
-    //         "ca95e3f9-47a6-4ce5-b3c5-0272b8f56003",
-    //         {
-    //             "id": "ca95e3f9-47a6-4ce5-b3c5-0272b8f56003",
-    //             "benchmark_id": "002-spl-transfer",
-    //             "agent": "deterministic",
-    //             "status": "Pending",
-    //             "progress": 0,
-    //             "start_time": "2025-10-28T13:14:59.860571Z",
-    //             "end_time": null,
-    //             "trace": "",
-    //             "logs": "",
-    //             "error": null
-    //         }
-    //     ]
-    // ]
-
     // Return composite keys that boxes expect: "agent|benchmark_id|date"
     const benchmarkIds = runningEntries.map(([_, execution]) => {
-      // const date =
-      //   execution.start_time?.substring(0, 10) ||
-      //   new Date().toISOString().substring(0, 10);
-      // const key = `${execution.agent}|${execution.benchmark_id}|${date}`;
       return execution;
     });
 
-    console.log("🔥 benchmarkIds:", benchmarkIds);
-    // 🔥 benchmarkIds: ['deterministic|002-spl-transfer|2025-10-28']
-
     return benchmarkIds;
   }, [executions]);
-
-  // // Transform executions map to use composite keys for box matching
-  // const transformedExecutions = useMemo(() => {
-  //   const transformed = new Map();
-  //   executions.forEach((execution, executionId) => {
-  //     const date =
-  //       execution.start_time?.substring(0, 10) ||
-  //       new Date().toISOString().substring(0, 10);
-  //     const compositeKey = `${execution.agent}|${execution.benchmark_id}|${date}`;
-  //     transformed.set(compositeKey, execution);
-  //   });
-  //   return transformed;
-  // }, [executions]);
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
@@ -213,7 +171,6 @@ export function App() {
 
       // Update selected agent if provided
       if (agentType) {
-        console.log("Setting selectedAgent to:", agentType);
         setSelectedAgent(agentType);
       }
 
@@ -232,11 +189,6 @@ export function App() {
 
   const handleExecutionStart = useCallback(
     (executionId: string) => {
-      if (import.meta.env.DEV) {
-        console.log("=== EXECUTION START ===");
-        console.log("executionId:", executionId);
-        console.log("selectedBenchmark:", selectedBenchmark);
-      }
       setIsRunning(true);
 
       // Trigger performance overview refresh for execution start
@@ -247,22 +199,10 @@ export function App() {
         (exec) => exec.id === executionId,
       );
 
-      if (import.meta.env.DEV) {
-        console.log("=== App.handleExecutionStart ===");
-        console.log("Execution started with ID:", executionId);
-        console.log("Found execution:", execution);
-      }
-
       if (execution) {
         setCurrentExecution(execution);
         updateExecution(execution.id, execution);
-        if (import.meta.env.DEV) {
-          console.log("Set current execution to:", execution);
-        }
       } else {
-        if (import.meta.env.DEV) {
-          console.log("No execution found for ID:", executionId);
-        }
       }
     },
     [
@@ -277,11 +217,6 @@ export function App() {
 
   const handleExecutionComplete = useCallback(
     (benchmarkId: string, execution: any) => {
-      console.log("=== App.handleExecutionComplete ===");
-      console.log("benchmarkId:", benchmarkId);
-      console.log("execution:", execution);
-      console.log("selectedBenchmark:", selectedBenchmark);
-
       setIsRunning(false);
 
       // Trigger performance overview refresh for individual benchmark completion
@@ -289,7 +224,6 @@ export function App() {
 
       // If this is the currently selected benchmark, update currentExecution immediately
       if (selectedBenchmark === benchmarkId) {
-        console.log("Updating currentExecution for completed benchmark");
         setCurrentExecution(execution);
       }
     },
@@ -324,12 +258,6 @@ export function App() {
           config,
         });
 
-        console.log(
-          "Starting benchmark execution from modal:",
-          benchmarkId,
-          response.execution_id,
-        );
-
         // Select the benchmark for Execution Details display
         handleBenchmarkSelect(benchmarkId);
 
@@ -350,13 +278,12 @@ export function App() {
 
         // Set completion callback for modal execution
         setCompletionCallback((benchmarkId: string, execution: any) => {
-          console.log("🎯 Modal execution completion callback:", benchmarkId);
           handleExecutionComplete(benchmarkId, execution);
           // Clear the completion callback
           setCompletionCallback(() => () => {});
         });
       } catch (error) {
-        console.error("Failed to start benchmark:", error);
+        console.error("Failed to run benchmark from modal:", error);
       }
     },
     [
@@ -373,10 +300,6 @@ export function App() {
   // Run All completion callback - simplified approach
   const runAllCompletionCallback = useCallback(
     async (benchmarkId: string, execution: any) => {
-      console.log(
-        `🎯 App: Run All completion callback triggered for ${benchmarkId}`,
-      );
-
       // Notify BenchmarkList component
       handleExecutionComplete(benchmarkId, execution);
 
@@ -388,9 +311,6 @@ export function App() {
 
       if (currentRunAllIndex.current < runAllQueue.current.length) {
         const nextBenchmark = runAllQueue.current[currentRunAllIndex.current];
-        console.log(
-          `🚀 App: Starting next benchmark ${currentRunAllIndex.current + 1}/${runAllQueue.current.length}: ${nextBenchmark.id}`,
-        );
 
         // Auto-select the next benchmark for Execution Details display
         handleBenchmarkSelect(nextBenchmark.id);
@@ -401,16 +321,12 @@ export function App() {
             agent: selectedAgent,
           });
 
-          console.log(
-            `🚀 App: Started next benchmark ${nextBenchmark.id} with execution ID: ${response.execution_id}`,
-          );
-
           // Update execution state
           updateExecution(response.execution_id, {
             id: response.execution_id,
             benchmark_id: nextBenchmark.id,
             agent: selectedAgent,
-            status: ExecutionStatus.PENDING,
+            status: ExecutionStatus.RUNNING,
             progress: 0,
             start_time: new Date().toISOString(),
             trace: "",
@@ -421,42 +337,31 @@ export function App() {
           handleExecutionStart(response.execution_id);
         } catch (error) {
           console.error(
-            `Failed to start benchmark ${nextBenchmark.id}:`,
+            `Failed to start next benchmark ${nextBenchmark.id}:`,
             error,
           );
-          // Continue to next one even on failure
-          runAllCompletionCallback(nextBenchmark.id, {
-            status: "Failed",
-            error,
-          });
+          setIsRunningAll(false);
         }
       } else {
         // All benchmarks completed
-        if (import.meta.env.DEV) {
-          console.log("✅ App: All benchmarks completed, refreshing overview");
-        }
         setIsRunningAll(false);
         runAllQueue.current = [];
         currentRunAllIndex.current = 0;
 
         // Clear the completion callback after a delay
         setTimeout(() => {
-          if (import.meta.env.DEV) {
-            console.log(
-              "🧹 App: Clearing completion callback after Run All completion",
-            );
-          }
           setCompletionCallback(null);
         }, 1000);
       }
     },
     [
       handleExecutionComplete,
+      setPerformanceOverviewRefresh,
       handleBenchmarkSelect,
-      setCompletionCallback,
       selectedAgent,
       updateExecution,
       handleExecutionStart,
+      setIsRunningAll,
     ],
   );
 
@@ -516,7 +421,7 @@ export function App() {
             }}
             isRunning={isRunning}
             onRunBenchmark={handleRunBenchmark}
-            runningBenchmarkIds={runningBenchmarkIds}
+            runningBenchmarks={runningBenchmarks}
             executions={executions}
             agentPerformanceData={agentPerformanceData}
             agentPerformanceLoading={agentPerformanceLoading}

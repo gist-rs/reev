@@ -31,7 +31,7 @@ export interface AgentPerformanceCardProps {
     date?: string,
   ) => void;
   onCardClick?: (agentType: string) => void;
-  runningBenchmarkExecutions?: Map<
+  runningExecutionDetails?: Map<
     string,
     { agent: string; status: string; progress: number }
   >;
@@ -53,8 +53,8 @@ export interface BenchmarkGridProps {
   onCardClick?: (agentType: string) => void;
   isRunning?: boolean;
   onRunBenchmark?: (benchmarkId: string, agentType?: string) => void;
-  runningBenchmarkIds?: ExecutionState[];
-  runningBenchmarkExecutions?: Map<
+  runningBenchmarks?: ExecutionState[];
+  runningExecutionDetails?: Map<
     string,
     { agent: string; status: string; progress: number }
   >;

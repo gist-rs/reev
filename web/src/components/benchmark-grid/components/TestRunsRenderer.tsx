@@ -8,11 +8,11 @@ import {
 import { ExecutionState } from "../../../types/configuration";
 
 interface TestRunsRendererProps {
-  finalAgentData: any;
+  agentPerformanceData: any;
   agentType: string;
   allBenchmarks: any[];
   runningBenchmarks: ExecutionState[];
-  runningBenchmarkExecutions?: Map<
+  runningExecutionDetails?: Map<
     string,
     { agent: string; status: string; progress: number }
   >;
@@ -30,11 +30,11 @@ interface TestRunsRendererProps {
 }
 
 export function TestRunsRenderer({
-  finalAgentData,
+  agentPerformanceData,
   agentType,
   allBenchmarks,
   runningBenchmarks,
-  runningBenchmarkExecutions,
+  runningExecutionDetails,
   executions,
   selectedBenchmark,
   selectedAgent,
@@ -53,21 +53,6 @@ export function TestRunsRenderer({
     showDate = false,
     date?: string,
   ) => {
-    // console.log("🔥🔥 runningBenchmarks:", runningBenchmarks);
-    // [
-    //     {
-    //         "id": "ccb25664-3881-4385-b8e2-40b828ea5d54",
-    //         "benchmark_id": "002-spl-transfer",
-    //         "agent": "deterministic",
-    //         "status": "Running",
-    //         "progress": 50,
-    //         "start_time": "2025-10-28T13:44:04.503736Z",
-    //         "end_time": null,
-    //         "trace": "Starting benchmark 002-spl-transfer with agent deterministic\nFound benchmark file: benchmarks/002-spl-transfer.yml\nInitializing dependencies...\nStarting benchmark execution...\n",
-    //         "logs": "",
-    //         "error": null
-    //     }
-    // ]
     const result =
       benchmarkResult ||
       createPlaceholderResult(
@@ -107,7 +92,7 @@ export function TestRunsRenderer({
   const renderTestRuns = useCallback(() => {
     // Get all unique dates from agent results, sorted descending
     const allDates = new Set<string>();
-    (finalAgentData.results || []).forEach((result: BenchmarkResult) => {
+    (agentPerformanceData.results || []).forEach((result: BenchmarkResult) => {
       allDates.add(result.timestamp.substring(0, 10));
     });
 
@@ -122,7 +107,7 @@ export function TestRunsRenderer({
       // Create placeholder results for all benchmarks
       filteredBenchmarks.forEach((benchmark) => {
         // Find real result for this benchmark and date
-        const realResult = (finalAgentData.results || []).find(
+        const realResult = (agentPerformanceData.results || []).find(
           (result: BenchmarkResult) =>
             result.benchmark_id === benchmark.id &&
             result.timestamp.substring(0, 10) === date &&
@@ -191,32 +176,6 @@ export function TestRunsRenderer({
                       e.benchmark_id === placeholderResult.benchmark_id &&
                       e.agent === agentType,
                   );
-                console.log("🔥🔥🔥 isRunning:", isRunning);
-                console.log("🔥🔥🔥 placeholderResult:", placeholderResult);
-
-                // Debug logging for placeholder running state
-                // console.log(
-                //   `🏃 [TestRunsRenderer] Placeholder: ${placeholderResult.benchmark_id} for ${agentType}`,
-                //   {
-                //     index,
-                //     isPlaceholderRow: true,
-                //     inRunningBenchmarks: runningBenchmarks.has(
-                //       placeholderResult.benchmark_id,
-                //     ),
-                //     executionAgent: runningBenchmarkExecutions?.get(
-                //       placeholderResult.benchmark_id,
-                //     )?.agent,
-                //     matchesAgent:
-                //       runningBenchmarkExecutions?.get(
-                //         placeholderResult.benchmark_id,
-                //       )?.agent === agentType,
-                //     isRunning,
-                //     allRunningBenchmarks: Array.from(runningBenchmarks),
-                //     allExecutions: Array.from(
-                //       runningBenchmarkExecutions?.entries() || [],
-                //     ),
-                //   },
-                // );
 
                 return renderBenchmarkBox(
                   placeholderResult, // Use placeholder result as both benchmark and result
@@ -246,33 +205,34 @@ export function TestRunsRenderer({
           <div className="flex flex-wrap gap-1">
             {filteredBenchmarks.map((benchmark) => {
               // First check if there's live execution data for this benchmark
-              const liveExecution = executions?.get(benchmark.id);
+              const liveExecutionData = executions?.get(benchmark.id);
               let benchmarkResult = results.find(
                 (r) =>
                   r.benchmark_id === benchmark.id && r.agent_type === agentType,
               );
 
               // Prioritize live execution data over historical results
-              if (liveExecution && liveExecution.agent === agentType) {
+              if (liveExecutionData && liveExecutionData.agent === agentType) {
                 // Create a result object from live execution data
                 benchmarkResult = {
-                  id: `live-${liveExecution.id}`,
+                  id: `live-${liveExecutionData.id}`,
                   benchmark_id: benchmark.id,
                   agent_type: agentType,
-                  score: liveExecution.score || 0,
+                  score: liveExecutionData.score || 0,
                   final_status:
-                    liveExecution.status === "Completed"
+                    liveExecutionData.status === "Completed"
                       ? ExecutionStatus.COMPLETED
-                      : liveExecution.status === "Failed"
+                      : liveExecutionData.status === "Failed"
                         ? ExecutionStatus.FAILED
                         : ExecutionStatus.UNKNOWN,
-                  execution_time_ms: liveExecution.execution_time_ms || 0,
+                  execution_time_ms: liveExecutionData.execution_time_ms || 0,
                   timestamp:
-                    liveExecution.timestamp || new Date().toISOString(),
+                    liveExecutionData.timestamp || new Date().toISOString(),
                   color_class:
-                    liveExecution.score && liveExecution.score >= 1.0
+                    liveExecutionData.score && liveExecutionData.score >= 1.0
                       ? "green"
-                      : liveExecution.score && liveExecution.score >= 0.25
+                      : liveExecutionData.score &&
+                          liveExecutionData.score >= 0.25
                         ? "yellow"
                         : "red",
                 };
@@ -284,27 +244,6 @@ export function TestRunsRenderer({
                   (e) =>
                     e.benchmark_id === benchmark.id && e.agent === agentType,
                 );
-
-              // // Debug logging for running state
-              // console.log(
-              //   `🏃 [TestRunsRenderer] Regular: ${benchmark.id} for ${agentType}`,
-              //   {
-              //     isMostRecentRun,
-              //     isPlaceholderRow: false,
-              //     inRunningBenchmarks: runningBenchmarks.has(benchmark.id),
-              //     executionAgent: runningBenchmarkExecutions?.get(benchmark.id)
-              //       ?.agent,
-              //     matchesAgent:
-              //       runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
-              //       agentType,
-              //     isRunning,
-              //     allRunningBenchmarks: Array.from(runningBenchmarks),
-              //     allExecutions: Array.from(
-              //       runningBenchmarkExecutions?.entries() || [],
-              //     ),
-              //     date,
-              //   },
-              // );
 
               const isSelected =
                 selectedBenchmark === benchmark.id &&
@@ -345,11 +284,11 @@ export function TestRunsRenderer({
       );
     });
   }, [
-    finalAgentData.results,
+    agentPerformanceData.results,
     agentType,
     filteredBenchmarks,
     runningBenchmarks,
-    runningBenchmarkExecutions,
+    runningExecutionDetails,
     selectedBenchmark,
     selectedAgent,
     onBenchmarkClick,
