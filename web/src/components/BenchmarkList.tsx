@@ -234,6 +234,7 @@ export function BenchmarkList({
           });
         }
       });
+      setHistoricalResults(resultsMap);
     } else {
       setHistoricalResults(new Map());
     }
