@@ -17,6 +17,7 @@ export interface BenchmarkResult {
   execution_time_ms: number;
   timestamp: string;
   color_class: "green" | "yellow" | "red" | "gray";
+  date?: string;
 }
 
 export interface AgentPerformanceSummary {

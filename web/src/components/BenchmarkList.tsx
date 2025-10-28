@@ -11,6 +11,7 @@ import { getBenchmarkStatusColor } from "../utils/benchmarkColors";
 interface BenchmarkListProps {
   selectedAgent: string;
   selectedBenchmark: string | null;
+  selectedDate?: string | null;
   onBenchmarkSelect: (benchmark: string) => void;
   isRunning: boolean;
   onExecutionStart: (executionId: string) => void;
@@ -38,6 +39,7 @@ interface BenchmarkListProps {
 export function BenchmarkList({
   selectedAgent,
   selectedBenchmark,
+  selectedDate,
   onBenchmarkSelect,
   isRunning,
   onExecutionStart,
@@ -153,7 +155,7 @@ export function BenchmarkList({
 
   // Use agent performance data passed as props instead of duplicate API call
 
-  // Process shared data into results map
+  // Process shared data into results map with date grouping
   useEffect(() => {
     console.log(
       `🔍 [BenchmarkList] Processing data for selectedAgent: ${selectedAgent}`,
@@ -170,30 +172,27 @@ export function BenchmarkList({
       const resultsMap = new Map();
       let resultsCount = 0;
 
-      // Group results by benchmarkId for the selected agent
+      // Group results by benchmarkId and date for the selected agent
       agentPerformanceData.forEach((agentSummary) => {
         if (agentSummary.agent_type === selectedAgent) {
           console.log(
             `🔍 [BenchmarkList] Found agent ${selectedAgent} with ${agentSummary.results.length} results`,
           );
           agentSummary.results.forEach((result) => {
-            const key = `${result.benchmark_id}`;
-            if (
-              !resultsMap.has(key) ||
-              new Date(result.timestamp) >
-                new Date(resultsMap.get(key).timestamp)
-            ) {
-              resultsMap.set(key, {
-                ...result,
-                status: result.final_status,
-                progress: 100,
-                execution_id: result.id,
-                agentType: result.agent_type,
-                benchmarkId: result.benchmark_id,
-                timestamp: result.timestamp, // Ensure timestamp is preserved
-              });
-              resultsCount++;
-            }
+            const date = result.timestamp.substring(0, 10); // YYYY-MM-DD format
+            const key = `${result.benchmark_id}|${date}`; // Include date in key
+
+            resultsMap.set(key, {
+              ...result,
+              status: result.final_status,
+              progress: 100,
+              execution_id: result.id,
+              agent_type: result.agent_type,
+              benchmarkId: result.benchmark_id,
+              timestamp: result.timestamp, // Ensure timestamp is preserved
+              date: date, // Add date field for easy access
+            });
+            resultsCount++;
           });
         }
       });
@@ -408,11 +407,12 @@ export function BenchmarkList({
   ]);
 
   const getBenchmarkStatus = useCallback(
-    (benchmarkId: string): any => {
+    (benchmarkId: string, date?: string | null): any => {
       // First check current executions for the selected agent
       const execution = Array.from(executions.values()).find(
         (exec) =>
-          exec.benchmark_id === benchmarkId && exec.agent === selectedAgent,
+          exec.benchmark_id === benchmarkId &&
+          (!selectedAgent || exec.agent === selectedAgent),
       );
 
       // Return current execution for selected agent immediately
@@ -427,16 +427,48 @@ export function BenchmarkList({
         return execution;
       }
 
-      // If no current execution, check historical results ONLY for selected agent
-      const historicalResult = historicalResults.get(benchmarkId);
-      if (historicalResult) {
-        // Map historical result status to execution status format
-        return {
-          ...historicalResult,
-          status: historicalResult.final_status,
-          progress: 100,
-          timestamp: historicalResult.timestamp, // Ensure timestamp is preserved
-        };
+      // If no current execution, check historical results for selected agent and date
+      if (date) {
+        const dateKey = `${benchmarkId}|${date}`;
+        const historicalResult = historicalResults.get(dateKey);
+        if (historicalResult) {
+          // Map historical result status to execution status format
+          return {
+            ...historicalResult,
+            status: historicalResult.final_status,
+            progress: 100,
+            timestamp: historicalResult.timestamp, // Ensure timestamp is preserved
+          };
+        }
+      } else {
+        // Fallback to latest result if no date specified (for backward compatibility)
+        let latestResult = null;
+        let latestTimestamp = "";
+
+        // Find the latest result for this benchmark
+        for (const [key, result] of historicalResults.entries()) {
+          if (
+            key.startsWith(`${benchmarkId}|`) &&
+            (!selectedAgent || result.agent_type === selectedAgent)
+          ) {
+            if (
+              !latestResult ||
+              new Date(result.timestamp) > new Date(latestTimestamp)
+            ) {
+              latestResult = result;
+              latestTimestamp = result.timestamp;
+            }
+          }
+        }
+
+        if (latestResult) {
+          return {
+            ...latestResult,
+            status: latestResult.final_status,
+            progress: 100,
+            timestamp: latestResult.timestamp,
+          };
+        }
       }
 
       // No execution found for this benchmark with selected agent
@@ -446,8 +478,8 @@ export function BenchmarkList({
   );
 
   const getBenchmarkScore = useCallback(
-    (benchmarkId: string): number => {
-      const execution = getBenchmarkStatus(benchmarkId);
+    (benchmarkId: string, date?: string | null): number => {
+      const execution = getBenchmarkStatus(benchmarkId, date);
       if (execution?.status === ExecutionStatus.COMPLETED) {
         return execution.score || 1.0;
       }
@@ -545,13 +577,21 @@ export function BenchmarkList({
                 return "(no selection)";
               }
 
-              const selectedExecution = getBenchmarkStatus(selectedBenchmark);
+              // Show selected date if available, otherwise show latest execution date
+              if (selectedDate) {
+                return `(date: ${selectedDate})`;
+              }
+
+              const selectedExecution = getBenchmarkStatus(
+                selectedBenchmark,
+                selectedDate,
+              );
               const selectedTimestamp = selectedExecution?.timestamp;
 
               if (selectedTimestamp) {
-                const selectedDate = new Date(selectedTimestamp);
-                const formattedDate = selectedDate.toISOString().split("T")[0]; // yyyy-mm-dd format
-                return `(${formattedDate})`;
+                const latestDate = new Date(selectedTimestamp);
+                const formattedDate = latestDate.toISOString().split("T")[0]; // yyyy-mm-dd format
+                return `(latest: ${formattedDate})`;
               } else {
                 return "(no execution)";
               }
@@ -662,11 +702,11 @@ export function BenchmarkList({
               return a.id.localeCompare(b.id);
             })
             .map((benchmark) => {
-              const execution = getBenchmarkStatus(benchmark.id);
+              const execution = getBenchmarkStatus(benchmark.id, selectedDate);
               const status = execution?.status || null;
               const score =
                 execution?.status === ExecutionStatus.COMPLETED
-                  ? getBenchmarkScore(benchmark.id)
+                  ? getBenchmarkScore(benchmark.id, selectedDate)
                   : execution?.status === ExecutionStatus.COMPLETED
                     ? execution.score || 1.0
                     : 0;
@@ -708,7 +748,7 @@ export function BenchmarkList({
                         >
                           {/* Status indicator box */}
                           <div
-                            key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}`}
+                            key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}-${selectedDate || "latest"}`}
                             className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
                               status,
                               execution,
@@ -752,7 +792,7 @@ export function BenchmarkList({
                           >
                             {/* Status indicator box */}
                             <div
-                              key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}`}
+                              key={`${benchmark.id}-${status}-${execution?.timestamp || Date.now()}-${selectedDate || "latest"}`}
                               className={`w-4 h-4 rounded-sm ${getBenchmarkStatusColor(
                                 status,
                                 execution,
@@ -849,7 +889,7 @@ export function BenchmarkList({
                                     : "bg-blue-600"
                               }`}
                               style={{
-                                width: `${getBenchmarkStatus(benchmark.id)?.progress || 0}%`,
+                                width: `${getBenchmarkStatus(benchmark.id, selectedDate)?.progress || 0}%`,
                               }}
                             ></div>
                           </div>

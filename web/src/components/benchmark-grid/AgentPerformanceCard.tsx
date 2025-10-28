@@ -8,7 +8,11 @@ interface AgentPerformanceCardProps {
   agentData?: AgentPerformanceSummary;
   allBenchmarks: any[];
   runningBenchmarks: Set<string>;
-  onBenchmarkClick: (result: BenchmarkResult, agentType: string) => void;
+  onBenchmarkClick: (
+    result: BenchmarkResult,
+    agentType: string,
+    date?: string,
+  ) => void;
   onCardClick?: (agentType: string) => void;
   runningBenchmarkExecutions?: Map<
     string,
@@ -77,6 +81,7 @@ export function AgentPerformanceCard({
   const createPlaceholderResult = (
     benchmarkId: string,
     timestamp: string,
+    date?: string,
   ): BenchmarkResult => {
     return {
       id: `placeholder-${agentType}-${benchmarkId}`,
@@ -87,6 +92,7 @@ export function AgentPerformanceCard({
       execution_time_ms: 0,
       timestamp,
       color_class: "gray" as const,
+      date: date || timestamp.substring(0, 10), // Add date field
     };
   };
 
@@ -95,6 +101,8 @@ export function AgentPerformanceCard({
     benchmarkResult?: BenchmarkResult,
     isRunning = false,
     isSelected = false,
+    showDate = false,
+    date?: string,
   ) => {
     const result =
       benchmarkResult ||
@@ -107,10 +115,11 @@ export function AgentPerformanceCard({
         onClick={(result) => {
           // Don't allow clicks when any benchmark is running (except the running one)
           if (isAnyRunning && !isRunning) return;
-          console.log(
-            `🔍 [AgentPerformanceCard] CLICK: benchmark_id=${result.benchmark_id}, agentType=${agentType}`,
-          );
-          onBenchmarkClick(result, agentType);
+          // Click handling for date-aware benchmark selection
+          // Ensure date is extracted from result if not provided
+          const resultDate =
+            date || result.date || result.timestamp?.substring(0, 10);
+          onBenchmarkClick(result, agentType, resultDate);
           // Also trigger card click to change tab focus
           if (onCardClick) {
             onCardClick(agentType);
@@ -119,6 +128,7 @@ export function AgentPerformanceCard({
         isRunning={isRunning}
         isSelected={isSelected}
         disabled={false} // Let the card handle the disabled state
+        showDate={showDate}
       />
     );
   };
@@ -213,7 +223,7 @@ export function AgentPerformanceCard({
           const isMostRecentRun = index === 0;
 
           return (
-            <div key={index} className="flex items-center space-x-2 text-sm">
+            <div key={date} className="flex items-center space-x-2 text-sm">
               <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
                 {date}
               </span>
@@ -270,11 +280,14 @@ export function AgentPerformanceCard({
                       benchmarkResult,
                       isRunning,
                       isSelected,
+                      true, // showDate for grouped date view
+                      date, // pass the date for click handling
                     );
                   } else {
                     const placeholderResult = createPlaceholderResult(
                       benchmark.id,
                       runDate,
+                      date,
                     );
                     const isSelected =
                       isMostRecentRun &&
@@ -285,6 +298,8 @@ export function AgentPerformanceCard({
                       placeholderResult,
                       isRunning,
                       isSelected,
+                      true, // showDate for grouped date view
+                      date, // pass the date for click handling
                     );
                   }
                 })}
@@ -293,7 +308,10 @@ export function AgentPerformanceCard({
           );
         } else {
           return (
-            <div key={index} className="flex items-center space-x-2 text-sm">
+            <div
+              key={`placeholder-${index}`}
+              className="flex items-center space-x-2 text-sm"
+            >
               <span className="text-gray-400 dark:text-gray-500 font-mono text-xs whitespace-nowrap">
                 XXXX-XX-XX
               </span>
@@ -302,6 +320,7 @@ export function AgentPerformanceCard({
                   const placeholderResult = createPlaceholderResult(
                     benchmark.id,
                     new Date().toISOString(),
+                    undefined, // no date for empty placeholder rows
                   );
                   const isSelected = false; // Never show selection in placeholder rows
                   // Check if this benchmark is running even in placeholder rows
@@ -315,6 +334,8 @@ export function AgentPerformanceCard({
                     placeholderResult,
                     isRunning,
                     isSelected,
+                    true, // showDate for grouped date view
+                    null, // pass null date for placeholder rows
                   );
                 })}
               </div>

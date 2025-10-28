@@ -26,6 +26,7 @@ export function App() {
   const [selectedBenchmark, setSelectedBenchmark] = useState<string | null>(
     null,
   );
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [currentExecution, setCurrentExecution] = useState<any>(null);
   const [isRunningAll, setIsRunningAll] = useState(false);
@@ -118,11 +119,10 @@ export function App() {
   }, [executions, selectedBenchmark]);
 
   const handleBenchmarkSelect = useCallback(
-    async (benchmarkId: string, agentType?: string) => {
-      console.log("=== BENCHMARK SELECTED ===");
-      console.log("benchmarkId:", benchmarkId);
-      console.log("agentType:", agentType);
+    async (benchmarkId: string, agentType?: string, date?: string) => {
+      // Benchmark selection triggered
       setSelectedBenchmark(benchmarkId);
+      setSelectedDate(date || null);
 
       // Update selected agent if provided
       if (agentType) {
@@ -140,9 +140,7 @@ export function App() {
 
       // Debug log to help with troubleshooting
       if (import.meta.env.DEV) {
-        console.log("=== App.handleBenchmarkSelect ===");
-        console.log("Benchmark selected:", benchmarkId);
-        console.log("Found execution:", execution);
+        // Benchmark selection with date support
       }
 
       // Set current execution directly, no history loading
@@ -472,6 +470,7 @@ export function App() {
             <BenchmarkList
               selectedAgent={selectedAgent}
               selectedBenchmark={selectedBenchmark}
+              selectedDate={selectedDate}
               onBenchmarkSelect={handleBenchmarkSelect}
               isRunning={isRunning || isRunningAll}
               onExecutionStart={handleExecutionStart}

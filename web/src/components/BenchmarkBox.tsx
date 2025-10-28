@@ -11,6 +11,7 @@ interface BenchmarkBoxProps {
   isRunning?: boolean;
   isSelected?: boolean;
   disabled?: boolean;
+  showDate?: boolean;
 }
 
 export function BenchmarkBox({
@@ -21,6 +22,7 @@ export function BenchmarkBox({
   isRunning = false,
   isSelected = false,
   disabled = false,
+  showDate = false,
 }: BenchmarkBoxProps) {
   const getAnimationClass = () => {
     if (isRunning) {
@@ -39,15 +41,35 @@ export function BenchmarkBox({
 
   const animationClass = getAnimationClass();
 
+  const dateText =
+    showDate && result.timestamp
+      ? result.timestamp.substring(8, 10) // Just the day number
+      : "";
+
   return (
     <div
-      className={`${baseClasses} ${className} ${animationClass} relative group ${disabled ? "" : "active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600"}`}
+      className={`${baseClasses} ${className} ${animationClass} relative group ${disabled ? "" : "active:scale-95 transition-transform ring-2 ring-transparent hover:ring-gray-400 active:ring-gray-600"} flex items-center justify-center overflow-hidden`}
       style={{
         ...styleProps,
         minWidth: "16px",
         minHeight: "16px",
       }}
       onClick={() => !disabled && onClick && onClick(result)}
-    />
+    >
+      {showDate && dateText && (
+        <span
+          className="text-white font-mono leading-none"
+          style={{
+            fontSize: "7px",
+            lineHeight: "1",
+            whiteSpace: "nowrap",
+            maxWidth: "14px",
+            fontWeight: "bold",
+          }}
+        >
+          {dateText}
+        </span>
+      )}
+    </div>
   );
 }
