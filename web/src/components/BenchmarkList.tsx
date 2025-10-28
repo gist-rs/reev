@@ -475,36 +475,6 @@ export function BenchmarkList({
     [getBenchmarkStatus],
   );
 
-  const getStatusIcon = useCallback((status: ExecutionStatus) => {
-    switch (status) {
-      case ExecutionStatus.PENDING:
-        return "[ ]";
-      case ExecutionStatus.RUNNING:
-        return "[…]";
-      case ExecutionStatus.COMPLETED:
-        return "";
-      case ExecutionStatus.FAILED:
-        return "[✗]";
-      default:
-        return "[?]";
-    }
-  }, []);
-
-  const getStatusColor = useCallback((status: ExecutionStatus) => {
-    switch (status) {
-      case ExecutionStatus.PENDING:
-        return "text-gray-500";
-      case ExecutionStatus.RUNNING:
-        return "text-yellow-500";
-      case ExecutionStatus.COMPLETED:
-        return "text-green-500";
-      case ExecutionStatus.FAILED:
-        return "text-red-500";
-      default:
-        return "text-gray-500";
-    }
-  }, []);
-
   const getScoreColor = useCallback((score: number) => {
     if (score >= 1.0) return "text-green-600 dark:text-green-400";
     if (score >= 0.25) return "text-yellow-600 dark:text-yellow-400";
@@ -722,6 +692,10 @@ export function BenchmarkList({
                     isSelected
                       ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400"
                       : ""
+                  } ${
+                    status === ExecutionStatus.RUNNING
+                      ? "animate-blink-fade"
+                      : ""
                   }`}
                   onClick={() => handleBenchmarkClick(benchmark.id)}
                 >
@@ -902,24 +876,12 @@ export function BenchmarkList({
                         status === ExecutionStatus.FAILED) && (
                         <div className="mt-2">
                           <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                            {/* Status Icon */}
-                            <span
-                              className={`font-mono text-sm ${getStatusColor(status)}`}
-                            >
-                              {getStatusIcon(status)}
-                            </span>
-
                             {/* Score */}
                             <span className="text-gray-400"></span>
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300">
                               {benchmark.id}
                             </span>
                           </div>
-                          {status === ExecutionStatus.FAILED && (
-                            <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                              ✗ Failed
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
