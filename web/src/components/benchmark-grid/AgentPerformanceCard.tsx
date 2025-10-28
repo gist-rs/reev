@@ -246,10 +246,10 @@ export function AgentPerformanceCard({
                         liveExecution.timestamp || new Date().toISOString(),
                       color_class:
                         liveExecution.score && liveExecution.score >= 1.0
-                          ? "green"
+                          ? "bg-green-500"
                           : liveExecution.score && liveExecution.score >= 0.25
-                            ? "yellow"
-                            : "red",
+                            ? "bg-yellow-500"
+                            : "bg-red-500",
                     };
                   }
 
