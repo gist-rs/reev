@@ -1,6 +1,18 @@
 # Issues
 
 ## Open Issues
+### #22 Execution Trace ASCII Tree Regression - RESOLVED ✅
+**Description:** When refreshing or clicking "Execution Trace", the UI shows raw JSON output instead of the expected ASCII tree format that appears after completing a run.
+
+**Root Cause:** The `get_execution_trace` function in `execution_logs.rs` was returning raw JSON content instead of using the `format_execution_trace` function to format it into ASCII tree display.
+
+**Files Modified:**
+- `crates/reev-api/src/handlers/execution_logs.rs` - Added formatting calls and helper function
+
+**Solution:** Updated the execution trace handler to use the existing `format_execution_trace` function for both running and completed executions, with fallback to raw JSON if formatting fails.
+
+**Acceptance Criteria:** ✅ Execution Trace now displays ASCII tree format consistently
+
 
 ### #21 BenchmarkList Date Sorting and Display Fix - RESOLVED ✅
 

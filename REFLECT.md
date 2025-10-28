@@ -1,5 +1,11 @@
 # REEV IMPLEMENTATION REFLECTION
 
+## Execution Trace ASCII Tree Regression - RESOLVED ✅
+**Problem:** Execution Trace showed raw JSON instead of ASCII tree format after refresh
+**Root Cause:** Missing format_execution_trace function call in execution_logs.rs
+**Solution:** Added proper formatting with fallback to raw JSON
+**Key Learning:** Consistent display formatting requires unified approach across handlers
+
 ## BenchmarkList Date Sorting and Display Fix - RESOLVED ✅
 
 **Issue**: BenchmarkList component wasn't showing benchmarks sorted by date, and clicking boxes from BenchmarkGrid displayed wrong dates for the whole list.

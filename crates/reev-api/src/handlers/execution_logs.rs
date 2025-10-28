@@ -1,4 +1,4 @@
-use crate::types::ExecutionStatus;
+use crate::types::{ExecutionState, ExecutionStatus};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 
 use crate::types::ApiState;
+use chrono;
 
 /// Get execution trace for a benchmark
 pub async fn get_execution_trace(
@@ -52,6 +53,23 @@ pub async fn get_execution_trace(
                 execution.trace.clone()
             };
 
+            // For running executions, try to format if trace has content, otherwise show loading
+            if !execution.trace.trim().is_empty() {
+                match format_execution_trace(&execution.trace, execution_id.clone()) {
+                    Ok(execution_state) => {
+                        info!("Successfully formatted execution trace for running execution");
+                        return Json(execution_state).into_response();
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Failed to format running execution trace: {}, returning raw",
+                            e
+                        );
+                        // Fall through to raw response
+                    }
+                }
+            }
+
             let response = json!({
                 "benchmark_id": benchmark_id,
                 "execution_id": execution_id,
@@ -68,22 +86,36 @@ pub async fn get_execution_trace(
             return Json(response).into_response();
         }
 
-        // For completed executions with trace data, use the in-memory trace
+        // For completed executions with trace data, format it using the ASCII tree formatter
         if !execution.trace.is_empty() {
-            let response = json!({
-                "benchmark_id": benchmark_id,
-                "execution_id": execution_id,
-                "agent_type": execution.agent,
-                "interface": "web",
-                "status": format!("{:?}", execution.status).to_lowercase(),
-                "final_status": execution.status,
-                "trace": execution.trace,
-                "is_running": false,
-                "progress": execution.progress
-            });
+            match format_execution_trace(&execution.trace, execution_id.clone()) {
+                Ok(execution_state) => {
+                    info!("Successfully formatted execution trace for completed execution");
+                    return Json(execution_state).into_response();
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to format completed execution trace: {}, returning raw",
+                        e
+                    );
 
-            info!("Returning execution trace for completed execution");
-            return Json(response).into_response();
+                    // Fallback to raw response if formatting fails
+                    let response = json!({
+                        "benchmark_id": benchmark_id,
+                        "execution_id": execution_id,
+                        "agent_type": execution.agent,
+                        "interface": "web",
+                        "status": format!("{:?}", execution.status).to_lowercase(),
+                        "final_status": execution.status,
+                        "trace": execution.trace,
+                        "is_running": false,
+                        "progress": execution.progress
+                    });
+
+                    info!("Returning raw execution trace for completed execution (fallback)");
+                    return Json(response).into_response();
+                }
+            }
         }
     }
 
@@ -117,29 +149,32 @@ pub async fn get_execution_trace(
                     Ok(Some(log_content)) => {
                         info!("DEBUG: Got session log content");
 
-                        let log_preview = if log_content.len() > 200 {
-                            format!("{}...", &log_content[..200])
-                        } else {
-                            log_content.clone()
-                        };
+                        // Format execution trace using the same function as benchmarks.rs
+                        match format_execution_trace(&log_content, session.session_id.clone()) {
+                            Ok(execution_state) => {
+                                info!("Successfully formatted execution trace for session");
+                                Json(execution_state).into_response()
+                            }
+                            Err(e) => {
+                                warn!("Failed to format execution trace: {}, returning raw", e);
 
-                        info!("DEBUG: Session log preview: {}", log_preview);
+                                // Fallback to raw JSON response if formatting fails
+                                let response = json!({
+                                    "benchmark_id": benchmark_id,
+                                    "execution_id": session.session_id,
+                                    "agent_type": session.agent_type,
+                                    "interface": "web",
+                                    "status": format!("{:?}", session.status).to_lowercase(),
+                                    "final_status": session.status,
+                                    "trace": log_content,
+                                    "is_running": false,
+                                    "progress": 0
+                                });
 
-                        let response = json!({
-                            "benchmark_id": benchmark_id,
-                            "execution_id": session.session_id,
-                            "agent_type": session.agent_type,
-                            "interface": "web",
-                            "status": format!("{:?}", session.status).to_lowercase(),
-                            "final_status": session.status,
-                            "trace": log_content,
-                            "is_running": false,
-                            // Note: SessionInfo doesn't have progress field, using default
-                            "progress": 0
-                        });
-
-                        info!("DEBUG: Successfully created execution trace response");
-                        return Json(response).into_response();
+                                info!("DEBUG: Successfully created execution trace response (raw fallback)");
+                                Json(response).into_response()
+                            }
+                        }
                     }
                     Ok(None) => {
                         warn!("No session log found for session: {}", session.session_id);
@@ -153,7 +188,7 @@ pub async fn get_execution_trace(
                         });
 
                         info!("DEBUG: Successfully created no-log response");
-                        return Json(response).into_response();
+                        Json(response).into_response()
                     }
                     Err(e) => {
                         warn!("Failed to get session log: {}", e);
@@ -165,7 +200,7 @@ pub async fn get_execution_trace(
                             "message": format!("Database error: {}", e)
                         });
 
-                        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
                     }
                 }
             } else {
@@ -178,7 +213,7 @@ pub async fn get_execution_trace(
                     "message": "No execution history found for this benchmark"
                 });
 
-                return Json(response).into_response();
+                Json(response).into_response()
             }
         }
         Err(e) => {
@@ -191,7 +226,106 @@ pub async fn get_execution_trace(
                 "message": format!("Database error: {}", e)
             });
 
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
         }
+    }
+}
+
+/// Helper function to format execution trace from log content
+fn format_execution_trace(
+    log_content: &str,
+    execution_id: String,
+) -> Result<ExecutionState, Box<dyn std::error::Error + Send + Sync>> {
+    // Parse the flow log and format it as readable trace
+    match serde_json::from_str::<serde_json::Value>(log_content) {
+        Ok(parsed) => {
+            let mut formatted_trace = String::new();
+
+            if let Some(prompt) = parsed.get("prompt").and_then(|v| v.as_str()) {
+                formatted_trace.push_str(&format!("📝 Prompt: {prompt}\n\n"));
+            }
+
+            if let Some(steps) = parsed.get("steps").and_then(|v| v.as_array()) {
+                for (i, step) in steps.iter().enumerate() {
+                    formatted_trace.push_str(&format!("✓ Step {}\n", i + 1));
+
+                    if let Some(action) = step.get("action") {
+                        formatted_trace.push_str("   ├─ ACTION:\n");
+                        if let Some(action_array) = action.as_array() {
+                            for action_item in action_array {
+                                if let Some(program_id) = action_item.get("program_id") {
+                                    formatted_trace
+                                        .push_str(&format!("      Program ID: {program_id}\n"));
+                                }
+                                if let Some(accounts) = action_item.get("accounts") {
+                                    if let Some(accounts_array) = accounts.as_array() {
+                                        formatted_trace.push_str("      Accounts:\n");
+                                        for (idx, account) in accounts_array.iter().enumerate() {
+                                            if let Some(pubkey) = account.get("pubkey") {
+                                                let is_signer = account
+                                                    .get("is_signer")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let is_writable = account
+                                                    .get("is_writable")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let icon =
+                                                    if is_signer { "🖋️" } else { "🖍️" };
+                                                let arrow = if is_writable { "➕" } else { "➖" };
+                                                formatted_trace.push_str(&format!(
+                                                    "      [{idx}] {icon} {arrow} {pubkey}\n"
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(data) = action_item.get("data") {
+                                    formatted_trace
+                                        .push_str(&format!("      Data (Base58): {data}\n"));
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(observation) = step.get("observation") {
+                        formatted_trace.push_str("   └─ OBSERVATION: ");
+                        if let Some(status) = observation.get("last_transaction_status") {
+                            formatted_trace.push_str(&format!("{status}\n"));
+                        }
+                        if let Some(error) = observation.get("last_transaction_error") {
+                            if !error.as_str().unwrap_or("").is_empty() {
+                                formatted_trace.push_str(&format!("   Error: {error}\n"));
+                            }
+                        }
+                    }
+                    formatted_trace.push('\n');
+                }
+            }
+
+            // Add final success message
+            formatted_trace.push_str("✅ Execution completed - Full trace displayed above\n");
+
+            // Extract benchmark_id from the trace if available
+            let benchmark_id = parsed
+                .get("benchmark_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            Ok(ExecutionState {
+                id: execution_id,
+                benchmark_id,
+                agent: "deterministic".to_string(), // Default agent
+                status: ExecutionStatus::Completed,
+                progress: 100,
+                start_time: chrono::Utc::now(),
+                end_time: Some(chrono::Utc::now()),
+                trace: formatted_trace,
+                logs: String::new(),
+                error: None,
+            })
+        }
+        Err(e) => Err(format!("Failed to parse execution trace: {e}").into()),
     }
 }
