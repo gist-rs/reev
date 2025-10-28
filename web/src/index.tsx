@@ -72,31 +72,34 @@ export function App() {
         (agent) => agent.agent_type === selectedAgent,
       );
 
-      if (agentData && agentData.results && agentData.results.length > 0) {
-        // Find most recent result (sorted by timestamp descending)
-        const mostRecentResult = agentData.results.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-        )[0];
+      // Only auto-select if there's no current benchmark selection
+      if (!selectedBenchmark) {
+        if (agentData && agentData.results && agentData.results.length > 0) {
+          // Find most recent result (sorted by timestamp descending)
+          const mostRecentResult = agentData.results.sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+          )[0];
 
-        if (mostRecentResult) {
-          const latestDate = mostRecentResult.timestamp.substring(0, 10);
-          setSelectedBenchmark(mostRecentResult.benchmark_id);
-          setSelectedDate(latestDate);
+          if (mostRecentResult) {
+            const latestDate = mostRecentResult.timestamp.substring(0, 10);
+            setSelectedBenchmark(mostRecentResult.benchmark_id);
+            setSelectedDate(latestDate);
 
-          // Update current execution if found in executions
-          const execution = Array.from(executions.values()).find(
-            (exec) =>
-              exec.benchmark_id === mostRecentResult.benchmark_id &&
-              exec.agent === selectedAgent,
-          );
-          setCurrentExecution(execution || null);
+            // Update current execution if found in executions
+            const execution = Array.from(executions.values()).find(
+              (exec) =>
+                exec.benchmark_id === mostRecentResult.benchmark_id &&
+                exec.agent === selectedAgent,
+            );
+            setCurrentExecution(execution || null);
+          }
+        } else {
+          // No results for this agent - clear selection
+          setSelectedBenchmark(null);
+          setSelectedDate(null);
+          setCurrentExecution(null);
         }
-      } else {
-        // No results for this agent - clear selection
-        setSelectedBenchmark(null);
-        setSelectedDate(null);
-        setCurrentExecution(null);
       }
     }
   }, [selectedAgent, agentPerformanceData, executions]);

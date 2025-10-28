@@ -79,10 +79,6 @@ export function TestRunsRenderer({
           const resultDate = date !== null ? date : null;
 
           onBenchmarkClick(clickResult, agentType, resultDate);
-          // Also trigger card click to change tab focus
-          if (onCardClick) {
-            onCardClick(agentType);
-          }
         }}
         isRunning={isRunning}
         isSelected={isSelected}
