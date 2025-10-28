@@ -57,7 +57,7 @@ impl ZAIAgent {
         debug!("[ZAIAgent] key_map being used: {:?}", key_map_to_use);
 
         // 🚨 Check for allowed tools filtering (for flow operations)
-        let allowed_tools = payload.allowed_tools.clone();
+        let flow_mode_indicator = payload.allowed_tools.clone();
 
         // 🎯 Use unified GLM logic for shared components
         let unified_data = UnifiedGLMAgent::run(model_name, payload, key_map_to_use).await?;
@@ -85,7 +85,7 @@ impl ZAIAgent {
 
         // Helper function to check if a tool is allowed
         let is_tool_allowed = |tool_name: &str| -> bool {
-            match &allowed_tools {
+            match &flow_mode_indicator {
                 Some(tools) => tools.contains(&tool_name.to_string()),
                 None => {
                     // SECURITY: Restrict jupiter_earn tool in normal mode (only available for position/earnings benchmarks 114-*.yml)
@@ -111,13 +111,33 @@ impl ZAIAgent {
                 request_builder.tool(unified_data.tools.spl_tool.definition(String::new()).await);
         }
         if is_tool_allowed("jupiter_swap") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_swap_tool
-                    .definition(String::new())
-                    .await,
-            );
+            // Use flow-aware tool in flow mode for proper swap_details structure
+            let flow_mode = flow_mode_indicator.is_some();
+            if flow_mode {
+                if let Some(ref flow_tool) = unified_data.tools.jupiter_swap_flow_tool {
+                    request_builder =
+                        request_builder.tool(flow_tool.definition(String::new()).await);
+                    info!("[ZAIAgent] Using JupiterSwapFlowTool in flow mode");
+                } else {
+                    request_builder = request_builder.tool(
+                        unified_data
+                            .tools
+                            .jupiter_swap_tool
+                            .definition(String::new())
+                            .await,
+                    );
+                    info!("[ZAIAgent] Falling back to JupiterSwapTool (flow tool not available)");
+                }
+            } else {
+                request_builder = request_builder.tool(
+                    unified_data
+                        .tools
+                        .jupiter_swap_tool
+                        .definition(String::new())
+                        .await,
+                );
+                info!("[ZAIAgent] Using JupiterSwapTool in normal mode");
+            }
         }
         if is_tool_allowed("jupiter_lend_earn_deposit") {
             request_builder = request_builder.tool(
@@ -196,7 +216,8 @@ impl ZAIAgent {
 
             // Route tool call to appropriate tool using unified tools
             let tool_result =
-                Self::execute_tool_call(tool_call, &unified_data.tools, &allowed_tools).await?;
+                Self::execute_tool_call(tool_call, &unified_data.tools, &flow_mode_indicator)
+                    .await?;
 
             info!("[ZAIAgent] Tool result: {}", tool_result);
 
@@ -239,7 +260,7 @@ impl ZAIAgent {
     async fn execute_tool_call(
         tool_call: &rig::message::ToolCall,
         tools: &AgentTools,
-        _allowed_tools: &Option<Vec<String>>,
+        allowed_tools: &Option<Vec<String>>,
     ) -> Result<serde_json::Value> {
         match tool_call.function.name.as_str() {
             "sol_transfer" => {
@@ -265,13 +286,36 @@ impl ZAIAgent {
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
             "jupiter_swap" => {
-                let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_swap_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?;
+                // Check if we should use flow-aware tool based on flow mode
+                let flow_mode = allowed_tools
+                    .as_ref()
+                    .is_some_and(|tools| !tools.is_empty());
+                let result = if flow_mode {
+                    if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
+                        let args: reev_tools::tools::flow::jupiter_swap_flow::JupiterSwapFlowArgs =
+                            serde_json::from_value(tool_call.function.arguments.clone())?;
+                        flow_tool
+                            .call(args)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Jupiter swap flow error: {e}"))?
+                    } else {
+                        let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
+                            serde_json::from_value(tool_call.function.arguments.clone())?;
+                        tools
+                            .jupiter_swap_tool
+                            .call(args)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?
+                    }
+                } else {
+                    let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    tools
+                        .jupiter_swap_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?
+                };
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }

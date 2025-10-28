@@ -68,7 +68,7 @@ pub struct JupiterSwapResponse {
 
 /// A `rig` tool for performing swap operations using the Jupiter API.
 /// This tool acts as a thin wrapper around the protocol handler.
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct JupiterSwapTool {
     pub key_map: HashMap<String, String>,
 }

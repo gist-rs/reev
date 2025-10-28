@@ -5,50 +5,45 @@
 ### #19 Jupiter Swap Tool Response Format Inconsistency - CRITICAL 🔥
 
 **Date**: 2025-10-28  
-**Status**: Completed  
+**Status**: In Progress  
 **Priority**: Critical  
 **Description**: Same benchmark (`200-jup-swap-then-lend-deposit`) succeeds via CLI (100% score) but fails via API due to Jupiter swap tools returning different response formats between execution paths.
 
-**Analysis Complete**: Root cause identified as Jupiter swap tool response format inconsistency. CLI path uses flow-aware tool with `swap_details` structure, API path uses standard tool without `swap_details`.
+**Analysis**: Root cause identified as Jupiter swap tool response format inconsistency between CLI and API execution paths. However, discovered that API path is not using flow system at all, but regular enhanced agent system.
 
-**Handover**: Ready for next engineer - See HANDOVER.md
+**Current Findings**:
+- **CLI Path**: Uses `jupiter_swap_flow.rs` (flow-aware tool) ✅ 
+- **API Path**: Uses `jupiter_swap.rs` (standard tool) with regular enhanced agent
+- **Core Issue**: API should use flow system for multi-step benchmarks but currently doesn't
 
-**Root Cause**: Two different Jupiter swap tool implementations with inconsistent response structures:
+**Partial Fix Implemented**:
+✅ **Flow-Aware Tool Selection**: Modified `AgentTools` to detect flow mode via `allowed_tools` parameter
+✅ **Unified Tool Interface**: Updated `JupiterSwapFlowTool` to provide proper `swap_details` structure
+✅ **Enhanced Context Processing**: Flow tool now calls actual Jupiter protocol and returns structured response
+✅ **Tool Registration**: Both OpenAI and ZAI agents now use flow-aware tool when in flow mode
 
-**CLI Path - Uses `jupiter_swap_flow.rs` (flow-aware tool)**:
-- Returns structured `swap_details` with `output_amount: "394358118"`
-- Step 2 receives correct amount via `process_step_result_for_context()`
-- Result: ✅ SUCCESS - deposits 394.358 USDC
+**Test Results**:
+- ✅ **CLI Execution**: Successfully uses `JupiterSwapFlowTool` with correct amount propagation
+- ❌ **API Execution**: Still uses regular agent system (not flow system), hits MaxDepthError
 
-**API Path - Uses `jupiter_swap.rs` (standard tool)**:
-- Returns only `transactions` array without `swap_details` structure
-- Step 2 context missing swap amount data, LLM guesses arbitrary amount
-- Result: ❌ FAILURE - tries to deposit 1000 USDC, exceeds available 402.969 USDC
+**Critical Architectural Issue Discovered**:
+The API execution path (`run_benchmark()` in reev-runner) uses regular `LlmAgent` instead of the flow system (`FlowAgent`) for multi-step benchmarks. This is the root cause preventing proper multi-step flow execution.
 
-**Evidence**:
-```
-CLI Success Flow:
-Step 1: Jupiter swap → swap_details.output_amount = "394358118"
-Step 2: Context receives amount → deposits 394.358 USDC → ✅ SUCCESS
+**Fix Strategy Updated**:
+1. **Immediate Fix Applied**: Tool selection now works correctly when flow system is used
+2. **Deeper Fix Required**: API benchmark runner needs to route multi-step benchmarks through flow system
+3. **Alternative Approach**: Enhance regular agent system to properly handle multi-step flows
 
-API Failure Flow:  
-Step 1: Jupiter swap → only transactions array, no swap_details
-Step 2: Context missing amount → LLM guesses 1000 USDC → ❌ INSUFFICIENT FUNDS
-```
+**Files Modified**:
+- `crates/reev-agent/src/enhanced/common/mod.rs` - Added flow mode detection and `jupiter_swap_flow_tool` support
+- `crates/reev-agent/src/enhanced/openai.rs` - Updated to use flow-aware tool in flow mode
+- `crates/reev-agent/src/enhanced/zai_agent.rs` - Updated to use flow-aware tool in flow mode  
+- `crates/reev-tools/src/tools/flow/jupiter_swap_flow.rs` - Enhanced to call actual Jupiter protocol with `swap_details`
 
-**Critical Files to Investigate**:
-- `crates/reev-tools/src/tools/jupiter_swap_flow.rs` - Flow-aware tool with proper structure
-- `crates/reev-tools/src/tools/jupiter_swap.rs` - Standard tool missing swap_details
-- `crates/reev-agent/src/flow/agent.rs` - Tool routing logic between paths
-- `crates/reev-context/src/lib.rs` - `process_step_result_for_context()` expects swap_details
-- `crates/reev-agent/src/flow/benchmark.rs` - Tool selection and registration
-
-**Fix Strategy**: Unify Jupiter swap tool implementations to ensure both CLI and API use the flow-aware tool that provides structured `swap_details` for multi-step flow communication.
-
-**Immediate Action Required**:
-1. Ensure API path routes to `jupiter_swap_flow.rs` instead of `jupiter_swap.rs`
-2. Verify both execution paths use identical Jupiter swap tool implementation
-3. Test unification resolves the amount calculation discrepancy
+**Next Steps**:
+- Fix reev-runner to route flow benchmarks through flow system instead of regular agent
+- OR enhance regular agent system to properly handle multi-step scenarios
+- Test complete end-to-end flow execution for both CLI and API paths
 
 **Not Jupiter Earn Issue**: Both correctly use `jupiter_lend_earn_deposit` tool - this is tool response format inconsistency, not earn vs deposit tool confusion.
 

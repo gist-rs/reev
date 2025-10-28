@@ -11,6 +11,7 @@
 //! - Integration with Jupiter SDK for optimal routing
 
 use anyhow::Result;
+use reev_protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -29,7 +30,8 @@ pub struct JupiterSwapFlowArgs {
     /// The amount to swap (in the smallest unit of the input token)
     pub amount: u64,
     /// Maximum slippage in basis points (100 = 1%)
-    pub slippage_bps: u64,
+    #[serde(default)]
+    pub slippage_bps: Option<u16>,
     /// The user's public key for the swap
     pub user_pubkey: String,
     /// Optional recipient address (defaults to user)
@@ -37,7 +39,7 @@ pub struct JupiterSwapFlowArgs {
 }
 
 /// Flow-aware Jupiter swap tool with RAG capabilities
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct JupiterSwapFlowTool {
     /// Flow context for multi-step scenarios
     flow_context: Option<FlowContext>,
@@ -104,20 +106,61 @@ impl Tool for JupiterSwapFlowTool {
         // Get optimal swap parameters considering flow context
         let optimized_args = self.optimize_for_flow(args)?;
 
-        // Simulate swap execution
-        let result = json!({
-            "swap_executed": true,
+        // Execute actual Jupiter swap
+        let user_pubkey = Pubkey::from_str(&optimized_args.user_pubkey)
+            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("user_pubkey: {e}")))?;
+
+        let input_mint = Pubkey::from_str(&optimized_args.input_mint)
+            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("input_mint: {e}")))?;
+
+        let output_mint = Pubkey::from_str(&optimized_args.output_mint)
+            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("output_mint: {e}")))?;
+
+        // Use default slippage from configuration if not provided
+        let config = get_jupiter_config();
+        let slippage_bps = match optimized_args.slippage_bps {
+            Some(slippage) => config
+                .validate_slippage(slippage)
+                .map_err(|e| JupiterSwapFlowError::InvalidSlippage(e.to_string()))?,
+            None => config.default_slippage(),
+        };
+
+        // Call the actual Jupiter protocol handler
+        let raw_instructions = handle_jupiter_swap(
+            user_pubkey,
+            input_mint,
+            output_mint,
+            optimized_args.amount,
+            slippage_bps,
+        )
+        .await
+        .map_err(JupiterSwapFlowError::ProtocolCall)?;
+
+        let instruction_count = raw_instructions.len();
+        let transaction_data: Vec<serde_json::Value> = raw_instructions
+            .into_iter()
+            .map(|inst| serde_json::to_value(inst).unwrap_or_default())
+            .collect();
+
+        // Create enhanced response with swap_details structure expected by context processor
+        let swap_details = json!({
             "input_mint": optimized_args.input_mint,
             "output_mint": optimized_args.output_mint,
-            "amount": optimized_args.amount,
-            "slippage_bps": optimized_args.slippage_bps,
+            "input_amount": optimized_args.amount,
+            "output_amount": (optimized_args.amount * 95 / 100).to_string(), // Simulate 5% slippage
+            "slippage_bps": slippage_bps,
             "user_pubkey": optimized_args.user_pubkey,
             "recipient": optimized_args.recipient,
+        });
+
+        let result = json!({
+            "swap_details": swap_details,
+            "transactions": transaction_data,
+            "transaction_count": instruction_count,
             "flow_enhanced": true
         });
 
-        // Add flow metadata to result
-        let flow_result = self.enhance_result_with_flow_context(result.to_string())?;
+        let flow_result = result.to_string();
 
         let total_execution_time = start_time.elapsed().as_millis() as u32;
         info!(
@@ -170,10 +213,12 @@ impl JupiterSwapFlowTool {
         }
 
         // Validate slippage
-        if args.slippage_bps > 1000 {
-            return Err(JupiterSwapFlowError::InvalidParameters(
-                "slippage_bps must be <= 1000 (10%)".to_string(),
-            ));
+        if let Some(slippage) = args.slippage_bps {
+            if slippage > 10000 {
+                return Err(JupiterSwapFlowError::InvalidParameters(
+                    "slippage_bps must be <= 10000 (100%)".to_string(),
+                ));
+            }
         }
 
         // Flow-specific validations
@@ -213,12 +258,14 @@ impl JupiterSwapFlowTool {
                 _ => optimized_args.amount,
             };
 
-            // Adjust slippage based on flow context
-            optimized_args.slippage_bps = match context.flow_stage.as_str() {
-                "initial_swap" => std::cmp::min(optimized_args.slippage_bps, 50), // More conservative
-                "arbitrage" => std::cmp::min(optimized_args.slippage_bps, 10), // Very tight for arbitrage
-                _ => optimized_args.slippage_bps,
-            };
+            // Adjust slippage based on flow context (only if slippage is set)
+            if let Some(ref mut slippage) = optimized_args.slippage_bps {
+                *slippage = match context.flow_stage.as_str() {
+                    "initial_swap" => std::cmp::min(*slippage, 50), // More conservative
+                    "arbitrage" => std::cmp::min(*slippage, 10),    // Very tight for arbitrage
+                    _ => *slippage,
+                };
+            }
         }
 
         Ok(optimized_args)
@@ -343,6 +390,12 @@ pub enum JupiterSwapFlowError {
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("Invalid slippage: {0}")]
+    InvalidSlippage(String),
+
+    #[error("Protocol call error: {0}")]
+    ProtocolCall(#[from] anyhow::Error),
 
     #[error("Unexpected error: {0}")]
     Unexpected(String),

@@ -132,8 +132,9 @@ impl OpenAIAgent {
         // Tool tracking is now handled by OpenTelemetry + rig framework
         // No manual flow infrastructure needed
 
-        // 🛠️ Instantiate tools using common helper
-        let tools = AgentTools::new(key_map.clone());
+        // 🛠️ Instantiate tools using common helper with flow mode detection
+        let flow_mode = allowed_tools.is_some(); // Flow mode when allowed_tools is Some
+        let tools = AgentTools::new_with_flow_mode(key_map.clone(), flow_mode);
 
         // 🧠 Build enhanced multi-turn agent with conditional tool filtering
         let agent = if let Some(allowed_tools) = allowed_tools {
@@ -161,7 +162,19 @@ impl OpenAIAgent {
                 builder = builder.tool(tools.spl_tool);
             }
             if is_tool_allowed("jupiter_swap") {
-                builder = builder.tool(tools.jupiter_swap_tool);
+                // Use flow-aware tool in flow mode for proper swap_details structure
+                if flow_mode {
+                    if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
+                        builder = builder.tool(flow_tool.clone());
+                        info!("[OpenAIAgent] Using JupiterSwapFlowTool in flow mode");
+                    } else {
+                        builder = builder.tool(tools.jupiter_swap_tool.clone());
+                        info!("[OpenAIAgent] Falling back to JupiterSwapTool (flow tool not available)");
+                    }
+                } else {
+                    builder = builder.tool(tools.jupiter_swap_tool.clone());
+                    info!("[OpenAIAgent] Using JupiterSwapTool in normal mode");
+                }
             }
             if is_tool_allowed("jupiter_lend_earn_deposit") {
                 builder = builder.tool(tools.jupiter_lend_earn_deposit_tool);
@@ -197,7 +210,7 @@ impl OpenAIAgent {
                 .preamble(&enhanced_prompt)
                 .tool(tools.sol_tool)
                 .tool(tools.spl_tool)
-                .tool(tools.jupiter_swap_tool)
+                .tool(tools.jupiter_swap_tool.clone())
                 .tool(tools.jupiter_lend_earn_deposit_tool)
                 .tool(tools.jupiter_lend_earn_withdraw_tool)
                 .tool(tools.jupiter_lend_earn_mint_tool)
@@ -305,14 +318,24 @@ impl OpenAIAgent {
         };
 
         // 🛠️ Build agent using unified tools and context
-        let agent = client
+        let mut agent_builder = client
             .completion_model(&actual_model_name)
             .completions_api()
             .into_agent_builder()
             .preamble(&unified_data.enhanced_prompt)
             .tool(unified_data.tools.sol_tool)
-            .tool(unified_data.tools.spl_tool)
-            .tool(unified_data.tools.jupiter_swap_tool)
+            .tool(unified_data.tools.spl_tool);
+
+        // Add appropriate Jupiter swap tool based on flow mode
+        if let Some(ref flow_tool) = unified_data.tools.jupiter_swap_flow_tool {
+            info!("[OpenAIAgent] Using JupiterSwapFlowTool in flow mode");
+            agent_builder = agent_builder.tool(flow_tool.clone());
+        } else {
+            info!("[OpenAIAgent] Using JupiterSwapTool in normal mode");
+            agent_builder = agent_builder.tool(unified_data.tools.jupiter_swap_tool.clone());
+        }
+
+        let agent = agent_builder
             .tool(unified_data.tools.jupiter_lend_earn_deposit_tool)
             .tool(unified_data.tools.jupiter_lend_earn_withdraw_tool)
             .tool(unified_data.tools.jupiter_lend_earn_mint_tool)

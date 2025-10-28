@@ -12,8 +12,8 @@ use crate::{context::integration::ContextIntegration, prompt::SYSTEM_PREAMBLE, L
 
 use reev_tools::tools::{
     AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
-    JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapTool, LendEarnTokensTool,
-    SolTransferTool, SplTransferTool,
+    JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapFlowTool, JupiterSwapTool,
+    LendEarnTokensTool, SolTransferTool, SplTransferTool,
 };
 
 /// Enhanced tool logging macro for consistent OpenTelemetry tracking
@@ -160,6 +160,7 @@ pub struct AgentTools {
     pub sol_tool: SolTransferTool,
     pub spl_tool: SplTransferTool,
     pub jupiter_swap_tool: JupiterSwapTool,
+    pub jupiter_swap_flow_tool: Option<JupiterSwapFlowTool>,
     pub jupiter_lend_earn_deposit_tool: JupiterLendEarnDepositTool,
     pub jupiter_lend_earn_withdraw_tool: JupiterLendEarnWithdrawTool,
     pub jupiter_lend_earn_mint_tool: JupiterLendEarnMintTool,
@@ -170,8 +171,11 @@ pub struct AgentTools {
 }
 
 impl AgentTools {
-    /// Create new tool collection with the provided key_map
     pub fn new(key_map: HashMap<String, String>) -> Self {
+        Self::new_with_flow_mode(key_map, false)
+    }
+
+    pub fn new_with_flow_mode(key_map: HashMap<String, String>, flow_mode: bool) -> Self {
         Self {
             sol_tool: SolTransferTool {
                 key_map: key_map.clone(),
@@ -181,6 +185,11 @@ impl AgentTools {
             },
             jupiter_swap_tool: JupiterSwapTool {
                 key_map: key_map.clone(),
+            },
+            jupiter_swap_flow_tool: if flow_mode {
+                Some(JupiterSwapFlowTool::new())
+            } else {
+                None
             },
             jupiter_lend_earn_deposit_tool: JupiterLendEarnDepositTool {
                 key_map: key_map.clone(),
@@ -518,8 +527,9 @@ impl UnifiedGLMAgent {
             key_map
         );
 
-        // 🛠️ Instantiate tools using common helper
-        let tools = AgentTools::new(key_map.clone());
+        // 🛠️ Instantiate tools using common helper with flow mode detection
+        let flow_mode = allowed_tools.is_some(); // Flow mode when allowed_tools is Some
+        let tools = AgentTools::new_with_flow_mode(key_map.clone(), flow_mode);
 
         // 🚨 CRITICAL LOGGING: Log the full enhanced prompt being sent to LLM
         info!("[UnifiedGLMAgent] === FULL PROMPT BEING SENT TO LLM ===");
