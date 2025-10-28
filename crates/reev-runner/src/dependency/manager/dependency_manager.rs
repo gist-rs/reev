@@ -601,8 +601,6 @@ impl DependencyManager {
         debug!("Clearing log files for clean debugging...");
 
         // Skip clearing surfpool.log by default to preserve debugging information
-        // Uncomment below section if you want to clear surfpool.log
-        /*
         let surfpool_log = PathBuf::from(&self.config.log_dir).join("surfpool.log");
         if surfpool_log.exists() {
             match fs::write(&surfpool_log, "") {
@@ -614,7 +612,6 @@ impl DependencyManager {
                 }
             }
         }
-        */
 
         // Clear only stale reev-agent log files (older than 1 day)
         let log_dir = PathBuf::from(&self.config.log_dir);
