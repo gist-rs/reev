@@ -12,7 +12,11 @@ interface BenchmarkListProps {
   selectedAgent: string;
   selectedBenchmark: string | null;
   selectedDate?: string | null;
-  onBenchmarkSelect: (benchmark: string) => void;
+  onBenchmarkSelect: (
+    benchmark: string,
+    agentType?: string,
+    date?: string,
+  ) => void;
   isRunning: boolean;
   onExecutionStart: (executionId: string) => void;
   onExecutionComplete: (benchmarkId: string, execution: any) => void;
@@ -145,12 +149,12 @@ export function BenchmarkList({
   // Handle focus change - collapse when other benchmark is selected
   const handleBenchmarkClick = useCallback(
     (benchmarkId: string) => {
-      onBenchmarkSelect(benchmarkId);
+      onBenchmarkSelect(benchmarkId, selectedAgent, selectedDate);
       setExpandedBenchmark(
         expandedBenchmark === benchmarkId ? null : benchmarkId,
       );
     },
-    [expandedBenchmark, onBenchmarkSelect, selectedAgent],
+    [expandedBenchmark, onBenchmarkSelect, selectedAgent, historicalResults],
   );
 
   // Use agent performance data passed as props instead of duplicate API call
@@ -275,7 +279,7 @@ export function BenchmarkList({
         // Update shared execution state for parent components
 
         // Select the benchmark for Execution Details display
-        onBenchmarkSelect(benchmark.id);
+        onBenchmarkSelect(benchmark.id, selectedAgent, selectedDate);
 
         updateExecution(benchmark.id, {
           id: response.execution_id,
@@ -331,7 +335,7 @@ export function BenchmarkList({
     // Auto-select the first benchmark for Execution Details display
     if (benchmarks.benchmarks.length > 0 && !selectedBenchmark) {
       const firstBenchmark = benchmarks.benchmarks[0];
-      onBenchmarkSelect(firstBenchmark.id);
+      onBenchmarkSelect(firstBenchmark.id, selectedAgent, selectedDate);
     }
 
     // Initialize queue (managed by App component) - filter out failure test benchmarks
