@@ -21,7 +21,7 @@ interface BenchmarkListProps {
   onExecutionStart: (executionId: string) => void;
   onExecutionComplete: (benchmarkId: string, execution: any) => void;
   executions: Map<string, any>;
-  updateExecution: (benchmarkId: string, execution: any) => void;
+  updateExecution: (executionId: string, execution: any) => void;
   isRunningAll: boolean;
   setIsRunningAll: (running: boolean) => void;
   setCompletionCallback: (
@@ -281,7 +281,7 @@ export function BenchmarkList({
         // Select the benchmark for Execution Details display
         onBenchmarkSelect(benchmark.id, selectedAgent, selectedDate);
 
-        updateExecution(benchmark.id, {
+        updateExecution(response.execution_id, {
           id: response.execution_id,
           benchmark_id: benchmark.id,
           agent: selectedAgent,

@@ -141,21 +141,26 @@ export function App() {
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
-    if (selectedBenchmark && executions.has(selectedBenchmark)) {
-      const execution = executions.get(selectedBenchmark);
+    if (selectedBenchmark && selectedAgent) {
+      // Find the execution that matches both benchmark and agent
+      const matchingExecution = Array.from(executions.values()).find(
+        (exec) =>
+          exec.benchmark_id === selectedBenchmark &&
+          exec.agent === selectedAgent,
+      );
 
       // Only update if the execution is different or has new data
       if (
         !currentExecution ||
-        currentExecution.id !== execution?.id ||
-        currentExecution.trace !== execution?.trace ||
-        currentExecution.status !== execution?.status ||
-        currentExecution.progress !== execution?.progress
+        currentExecution.id !== matchingExecution?.id ||
+        currentExecution.trace !== matchingExecution?.trace ||
+        currentExecution.status !== matchingExecution?.status ||
+        currentExecution.progress !== matchingExecution?.progress
       ) {
-        setCurrentExecution(execution);
+        setCurrentExecution(matchingExecution || null);
       }
     }
-  }, [executions, selectedBenchmark]);
+  }, [executions, selectedBenchmark, selectedAgent]);
 
   const handleBenchmarkSelect = useCallback(
     async (benchmarkId: string, agentType?: string, date?: string) => {
@@ -179,7 +184,7 @@ export function App() {
       // Set current execution directly, no history loading
       setCurrentExecution(execution || null);
     },
-    [executions, currentExecution],
+    [executions],
   );
 
   const handleExecutionStart = useCallback(
@@ -207,7 +212,7 @@ export function App() {
 
       if (execution) {
         setCurrentExecution(execution);
-        updateExecution(execution.benchmark_id, execution);
+        updateExecution(execution.id, execution);
         if (import.meta.env.DEV) {
           console.log("Set current execution to:", execution);
         }
@@ -285,7 +290,7 @@ export function App() {
         // Select the benchmark for Execution Details display
         handleBenchmarkSelect(benchmarkId);
 
-        updateExecution(benchmarkId, {
+        updateExecution(response.execution_id, {
           id: response.execution_id,
           benchmark_id: benchmarkId,
           agent: agentToUse,
@@ -358,7 +363,7 @@ export function App() {
           );
 
           // Update execution state
-          updateExecution(nextBenchmark.id, {
+          updateExecution(response.execution_id, {
             id: response.execution_id,
             benchmark_id: nextBenchmark.id,
             agent: selectedAgent,

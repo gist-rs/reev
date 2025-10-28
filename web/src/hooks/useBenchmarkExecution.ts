@@ -10,7 +10,7 @@ interface UseBenchmarkExecutionReturn {
   error: string | null;
   refetch: () => Promise<void>;
   executions: Map<string, ExecutionState>;
-  updateExecution: (benchmarkId: string, execution: ExecutionState) => void;
+  updateExecution: (executionId: string, execution: ExecutionState) => void;
   clearExecutions: () => void;
   setCompletionCallback: (
     callback: (benchmarkId: string, execution: ExecutionState) => void,
@@ -50,19 +50,20 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   }, [fetchBenchmarks]);
 
   const updateExecution = useCallback(
-    (benchmarkId: string, execution: ExecutionState) => {
+    (executionId: string, execution: ExecutionState) => {
       setExecutions((prev) => {
         const updated = new Map(prev);
-        updated.set(benchmarkId, execution);
+        // Use execution ID (session ID) as the key, not benchmark ID
+        updated.set(execution.id, execution);
         return updated;
       });
 
       // Start polling if execution is running
       if (execution.status === "Running" || execution.status === "Pending") {
-        startPolling(benchmarkId, execution.id);
+        startPolling(execution.benchmark_id, execution.id);
       } else {
         // Stop polling if execution is completed or failed
-        stopPolling(benchmarkId);
+        stopPolling(execution.id);
       }
     },
     [],
@@ -70,8 +71,8 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
   const startPolling = useCallback(
     (benchmarkId: string, executionId: string) => {
-      // Clear any existing polling for this benchmark
-      stopPolling(benchmarkId);
+      // Clear any existing polling for this execution
+      stopPolling(executionId);
 
       const pollExecution = async () => {
         try {
@@ -84,7 +85,8 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
           if (updatedExecution) {
             setExecutions((prev) => {
               const updated = new Map(prev);
-              updated.set(benchmarkId, updatedExecution);
+              // Use execution ID as the key
+              updated.set(updatedExecution.id, updatedExecution);
               return updated;
             });
 
@@ -93,7 +95,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
               updatedExecution.status === "Completed" ||
               updatedExecution.status === "Failed"
             ) {
-              stopPolling(benchmarkId);
+              stopPolling(executionId);
 
               // Call completion callback if set
               if (completionCallback.current) {
@@ -106,12 +108,12 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         }
       };
 
-      // Clear any existing polling for this benchmark first
-      stopPolling(benchmarkId);
+      // Clear any existing polling for this execution first
+      stopPolling(executionId);
 
       // Start polling every 2 seconds
       const intervalId = setInterval(pollExecution, 2000);
-      pollingIntervals.current.set(benchmarkId, intervalId);
+      pollingIntervals.current.set(executionId, intervalId);
 
       // Poll immediately once
       pollExecution();
@@ -119,11 +121,11 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     [],
   );
 
-  const stopPolling = useCallback((benchmarkId: string) => {
-    const intervalId = pollingIntervals.current.get(benchmarkId);
+  const stopPolling = useCallback((executionId: string) => {
+    const intervalId = pollingIntervals.current.get(executionId);
     if (intervalId) {
       clearInterval(intervalId);
-      pollingIntervals.current.delete(benchmarkId);
+      pollingIntervals.current.delete(executionId);
     }
   }, []);
 
@@ -158,7 +160,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   }, []);
 
   const setCompletionCallback = useCallback(
-    (callback: (benchmarkId: string, execution: ExecutionState) => void) => {
+    (callback: (executionId: string, execution: ExecutionState) => void) => {
       completionCallback.current = callback;
     },
     [],
