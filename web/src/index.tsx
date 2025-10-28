@@ -32,7 +32,6 @@ export function App() {
   const [isRunningAll, setIsRunningAll] = useState(false);
   const runAllQueue = useRef<BenchmarkItem[]>([]);
   const currentRunAllIndex = useRef(0);
-
   const [showTransactionLog, setShowTransactionLog] = useState(false);
   const {
     benchmarks,
@@ -64,6 +63,43 @@ export function App() {
     loading: agentPerformanceLoading,
     error: agentPerformanceError,
   } = useAgentPerformance();
+
+  // Auto-select most recent benchmark when agent changes
+  useEffect(() => {
+    if (agentPerformanceData && selectedAgent) {
+      // Find agent data for selected agent
+      const agentData = agentPerformanceData.find(
+        (agent) => agent.agent_type === selectedAgent,
+      );
+
+      if (agentData && agentData.results && agentData.results.length > 0) {
+        // Find most recent result (sorted by timestamp descending)
+        const mostRecentResult = agentData.results.sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        )[0];
+
+        if (mostRecentResult) {
+          const latestDate = mostRecentResult.timestamp.substring(0, 10);
+          setSelectedBenchmark(mostRecentResult.benchmark_id);
+          setSelectedDate(latestDate);
+
+          // Update current execution if found in executions
+          const execution = Array.from(executions.values()).find(
+            (exec) =>
+              exec.benchmark_id === mostRecentResult.benchmark_id &&
+              exec.agent === selectedAgent,
+          );
+          setCurrentExecution(execution || null);
+        }
+      } else {
+        // No results for this agent - clear selection
+        setSelectedBenchmark(null);
+        setSelectedDate(null);
+        setCurrentExecution(null);
+      }
+    }
+  }, [selectedAgent, agentPerformanceData, executions]);
 
   // Refresh performance data when a benchmark completes
   // Refetch agent performance data when refresh trigger changes
