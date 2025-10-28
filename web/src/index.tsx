@@ -134,14 +134,8 @@ export function App() {
 
       // Update current execution if we have one for this benchmark and agent
       const execution = Array.from(executions.values()).find(
-        (exec) =>
-          exec.benchmark_id === benchmarkId && exec.agent === selectedAgent,
+        (exec) => exec.benchmark_id === benchmarkId && exec.agent === agentType,
       );
-
-      // Debug log to help with troubleshooting
-      if (import.meta.env.DEV) {
-        // Benchmark selection with date support
-      }
 
       // Set current execution directly, no history loading
       setCurrentExecution(execution || null);
