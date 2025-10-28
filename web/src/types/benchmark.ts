@@ -18,6 +18,7 @@ export interface BenchmarkResult {
   timestamp: string;
   color_class: "green" | "yellow" | "red" | "gray";
   date?: string;
+  isEmpty?: boolean;
 }
 
 export interface AgentPerformanceSummary {

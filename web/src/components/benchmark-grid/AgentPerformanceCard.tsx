@@ -92,7 +92,8 @@ export function AgentPerformanceCard({
       execution_time_ms: 0,
       timestamp,
       color_class: "gray" as const,
-      date: date || timestamp.substring(0, 10), // Add date field
+      date: date, // Only add date if explicitly provided
+      isEmpty: true, // Flag to identify placeholder entries
     };
   };
 
@@ -116,9 +117,11 @@ export function AgentPerformanceCard({
           // Don't allow clicks when any benchmark is running (except the running one)
           if (isAnyRunning && !isRunning) return;
           // Click handling for date-aware benchmark selection
-          // Ensure date is extracted from result if not provided
+          // Respect null date for placeholder rows, otherwise extract from result
           const resultDate =
-            date || result.date || result.timestamp?.substring(0, 10);
+            date !== null
+              ? date || result.date || result.timestamp?.substring(0, 10)
+              : null;
           onBenchmarkClick(result, agentType, resultDate);
           // Also trigger card click to change tab focus
           if (onCardClick) {
@@ -189,160 +192,136 @@ export function AgentPerformanceCard({
   ]);
 
   const renderTestRuns = useCallback(() => {
-    const testRuns = (finalAgentData.results || []).reduce(
-      (runs, result) => {
-        const date = result.timestamp.substring(0, 10);
-        if (!runs[date]) {
-          runs[date] = {};
-        }
-        const existing = runs[date][result.benchmark_id];
-        if (!existing || result.timestamp > existing.timestamp) {
-          runs[date][result.benchmark_id] = result;
-        }
-        return runs;
-      },
-      {} as Record<string, Record<string, BenchmarkResult>>,
-    );
+    // Get all unique dates from agent results, sorted descending
+    const allDates = new Set<string>();
+    (finalAgentData.results || []).forEach((result) => {
+      allDates.add(result.timestamp.substring(0, 10));
+    });
 
-    const testRunsArray = Object.entries(testRuns).map(([date, benchmarks]) => [
-      date,
-      Object.values(benchmarks),
-    ]);
+    const sortedDates = Array.from(allDates)
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, 3); // Only keep top 3 most recent dates
 
-    const lastThreeRuns = testRunsArray
-      .sort(([a], [b]) => (b as string).localeCompare(a as string))
-      .slice(0, 3);
+    // Create complete data structure with empty placeholders filled by real data
+    const dateData: [string, BenchmarkResult[]][] = sortedDates.map((date) => {
+      const dateResults: BenchmarkResult[] = [];
 
-    return [...lastThreeRuns, ...Array(3).fill(null)]
-      .slice(0, 3)
-      .map((run, index) => {
-        if (run) {
-          const [date, results] = run;
-          const runDate = results[0].timestamp;
-          // Only apply running animation to the most recent run (index 0)
-          const isMostRecentRun = index === 0;
+      // Create placeholder results for all benchmarks
+      filteredBenchmarks.forEach((benchmark) => {
+        // Find real result for this benchmark and date
+        const realResult = (finalAgentData.results || []).find(
+          (result) =>
+            result.benchmark_id === benchmark.id &&
+            result.timestamp.substring(0, 10) === date &&
+            result.agent_type === agentType,
+        );
 
-          return (
-            <div key={date} className="flex items-center space-x-2 text-sm">
-              <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
-                {date}
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {filteredBenchmarks.map((benchmark) => {
-                  // First check if there's live execution data for this benchmark
-                  const liveExecution = executions?.get(benchmark.id);
-                  let benchmarkResult = results.find(
-                    (r) =>
-                      r.benchmark_id === benchmark.id &&
-                      r.agent_type === agentType,
-                  );
-
-                  // Prioritize live execution data over historical results
-                  if (liveExecution && liveExecution.agent === agentType) {
-                    // Create a result object from live execution data
-                    benchmarkResult = {
-                      id: `live-${liveExecution.id}`,
-                      benchmark_id: benchmark.id,
-                      agent_type: agentType,
-                      score: liveExecution.score || 0,
-                      final_status:
-                        liveExecution.status === "Completed"
-                          ? "Completed"
-                          : liveExecution.status === "Failed"
-                            ? "Failed"
-                            : "Unknown",
-                      execution_time_ms: liveExecution.execution_time_ms || 0,
-                      timestamp:
-                        liveExecution.timestamp || new Date().toISOString(),
-                      color_class:
-                        liveExecution.score && liveExecution.score >= 1.0
-                          ? "bg-green-500"
-                          : liveExecution.score && liveExecution.score >= 0.25
-                            ? "bg-yellow-500"
-                            : "bg-red-500",
-                    };
-                  }
-
-                  const isRunning =
-                    isMostRecentRun &&
-                    runningBenchmarks.has(benchmark.id) &&
-                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
-                      agentType;
-
-                  const isSelected =
-                    isMostRecentRun &&
-                    selectedBenchmark === benchmark.id &&
-                    selectedAgent === agentType;
-
-                  if (benchmarkResult) {
-                    return renderBenchmarkBox(
-                      benchmark,
-                      benchmarkResult,
-                      isRunning,
-                      isSelected,
-                      true, // showDate for grouped date view
-                      date, // pass the date for click handling
-                    );
-                  } else {
-                    const placeholderResult = createPlaceholderResult(
-                      benchmark.id,
-                      runDate,
-                      date,
-                    );
-                    const isSelected =
-                      isMostRecentRun &&
-                      selectedBenchmark === benchmark.id &&
-                      selectedAgent === agentType;
-                    return renderBenchmarkBox(
-                      benchmark,
-                      placeholderResult,
-                      isRunning,
-                      isSelected,
-                      true, // showDate for grouped date view
-                      date, // pass the date for click handling
-                    );
-                  }
-                })}
-              </div>
-            </div>
-          );
+        if (realResult) {
+          dateResults.push(realResult);
         } else {
-          return (
-            <div
-              key={`placeholder-${index}`}
-              className="flex items-center space-x-2 text-sm"
-            >
-              <span className="text-gray-400 dark:text-gray-500 font-mono text-xs whitespace-nowrap">
-                XXXX-XX-XX
-              </span>
-              <div className="flex flex-wrap gap-1">
-                {filteredBenchmarks.map((benchmark) => {
-                  const placeholderResult = createPlaceholderResult(
-                    benchmark.id,
-                    new Date().toISOString(),
-                    undefined, // no date for empty placeholder rows
-                  );
-                  const isSelected = false; // Never show selection in placeholder rows
-                  // Check if this benchmark is running even in placeholder rows
-                  const isRunning =
-                    index === 0 && // Only check running state in first placeholder row
-                    runningBenchmarks.has(benchmark.id) &&
-                    runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
-                      agentType;
-                  return renderBenchmarkBox(
-                    benchmark,
-                    placeholderResult,
-                    isRunning,
-                    isSelected,
-                    true, // showDate for grouped date view
-                    null, // pass null date for placeholder rows
-                  );
-                })}
-              </div>
-            </div>
+          // Create empty placeholder
+          dateResults.push(
+            createPlaceholderResult(
+              benchmark.id,
+              `${date}T00:00:00.000Z`,
+              date,
+            ),
           );
         }
       });
+
+      return [date, dateResults];
+    });
+
+    return dateData.map((run, index) => {
+      const [date, results] = run;
+      const runDate = results[0]?.timestamp || `${date}T00:00:00.000Z`;
+      // Only apply running animation to the most recent run (index 0)
+      const isMostRecentRun = index === 0;
+
+      return (
+        <div key={date} className="flex items-center space-x-2 text-sm">
+          <span className="text-gray-500 dark:text-gray-400 font-mono text-xs whitespace-nowrap">
+            {date}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {filteredBenchmarks.map((benchmark) => {
+              // First check if there's live execution data for this benchmark
+              const liveExecution = executions?.get(benchmark.id);
+              let benchmarkResult = results.find(
+                (r) =>
+                  r.benchmark_id === benchmark.id && r.agent_type === agentType,
+              );
+
+              // Prioritize live execution data over historical results
+              if (liveExecution && liveExecution.agent === agentType) {
+                // Create a result object from live execution data
+                benchmarkResult = {
+                  id: `live-${liveExecution.id}`,
+                  benchmark_id: benchmark.id,
+                  agent_type: agentType,
+                  score: liveExecution.score || 0,
+                  final_status:
+                    liveExecution.status === "Completed"
+                      ? ExecutionStatus.COMPLETED
+                      : liveExecution.status === "Failed"
+                        ? ExecutionStatus.FAILED
+                        : ExecutionStatus.UNKNOWN,
+                  execution_time_ms: liveExecution.execution_time_ms || 0,
+                  timestamp:
+                    liveExecution.timestamp || new Date().toISOString(),
+                  color_class:
+                    liveExecution.score && liveExecution.score >= 1.0
+                      ? "green"
+                      : liveExecution.score && liveExecution.score >= 0.25
+                        ? "yellow"
+                        : "red",
+                };
+              }
+
+              const isRunning =
+                isMostRecentRun &&
+                runningBenchmarks.has(benchmark.id) &&
+                runningBenchmarkExecutions?.get(benchmark.id)?.agent ===
+                  agentType;
+
+              const isSelected =
+                isMostRecentRun &&
+                selectedBenchmark === benchmark.id &&
+                selectedAgent === agentType;
+
+              if (benchmarkResult) {
+                return renderBenchmarkBox(
+                  benchmark,
+                  benchmarkResult,
+                  isRunning,
+                  isSelected,
+                  true, // showDate for grouped date view
+                  date, // pass the date for click handling
+                );
+              } else {
+                // Use empty result from the pre-populated array
+                const emptyResult = results.find(
+                  (r) => r.benchmark_id === benchmark.id && r.isEmpty,
+                );
+                const isSelected =
+                  isMostRecentRun &&
+                  selectedBenchmark === benchmark.id &&
+                  selectedAgent === agentType;
+                return renderBenchmarkBox(
+                  benchmark,
+                  emptyResult,
+                  isRunning,
+                  isSelected,
+                  true, // showDate for grouped date view
+                  date, // pass the date for click handling
+                );
+              }
+            })}
+          </div>
+        </div>
+      );
+    });
   }, [
     finalAgentData.results,
     agentType,

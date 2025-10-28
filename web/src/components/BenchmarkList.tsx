@@ -155,7 +155,7 @@ export function BenchmarkList({
 
   // Use agent performance data passed as props instead of duplicate API call
 
-  // Process shared data into results map with date grouping
+  // Process shared data into results map with date grouping and empty data structure
   useEffect(() => {
     console.log(
       `🔍 [BenchmarkList] Processing data for selectedAgent: ${selectedAgent}`,
@@ -165,23 +165,56 @@ export function BenchmarkList({
       agentPerformanceData?.map((a) => a.agent_type),
     );
 
-    // Clear historical results when selectedAgent changes
-    setHistoricalResults(new Map());
+    if (agentPerformanceData && benchmarks) {
+      // Get all unique dates from agent performance data
+      const allDates = new Set<string>();
+      agentPerformanceData.forEach((agentSummary) => {
+        if (agentSummary.agent_type === selectedAgent) {
+          agentSummary.results.forEach((result) => {
+            allDates.add(result.timestamp.substring(0, 10));
+          });
+        }
+      });
 
-    if (agentPerformanceData) {
+      // Sort dates descending (newest first)
+      const sortedDates = Array.from(allDates).sort((a, b) =>
+        b.localeCompare(a),
+      );
+
+      // Create empty data structure for all benchmarks and dates
       const resultsMap = new Map();
       let resultsCount = 0;
 
-      // Group results by benchmarkId and date for the selected agent
+      // First, create empty placeholder entries for all benchmark-date combinations
+      benchmarks.benchmarks.forEach((benchmark) => {
+        sortedDates.forEach((date) => {
+          const key = `${benchmark.id}|${date}`;
+          resultsMap.set(key, {
+            id: `empty-${benchmark.id}-${date}`,
+            benchmark_id: benchmark.id,
+            agent_type: selectedAgent,
+            score: 0,
+            final_status: ExecutionStatus.UNKNOWN,
+            execution_time_ms: 0,
+            timestamp: `${date}T00:00:00.000Z`, // Placeholder timestamp
+            color_class: "gray" as const,
+            date: date,
+            isEmpty: true, // Flag to identify empty entries
+          });
+        });
+      });
+
+      // Now fill with real data where available
       agentPerformanceData.forEach((agentSummary) => {
         if (agentSummary.agent_type === selectedAgent) {
           console.log(
             `🔍 [BenchmarkList] Found agent ${selectedAgent} with ${agentSummary.results.length} results`,
           );
           agentSummary.results.forEach((result) => {
-            const date = result.timestamp.substring(0, 10); // YYYY-MM-DD format
-            const key = `${result.benchmark_id}|${date}`; // Include date in key
+            const date = result.timestamp.substring(0, 10);
+            const key = `${result.benchmark_id}|${date}`;
 
+            // Overwrite empty entry with real data
             resultsMap.set(key, {
               ...result,
               status: result.final_status,
@@ -189,8 +222,9 @@ export function BenchmarkList({
               execution_id: result.id,
               agent_type: result.agent_type,
               benchmarkId: result.benchmark_id,
-              timestamp: result.timestamp, // Ensure timestamp is preserved
-              date: date, // Add date field for easy access
+              timestamp: result.timestamp,
+              date: date,
+              isEmpty: false, // Flag to identify real entries
             });
             resultsCount++;
           });
@@ -198,13 +232,14 @@ export function BenchmarkList({
       });
 
       console.log(
-        `🔍 [BenchmarkList] Set ${resultsCount} historical results for ${selectedAgent}`,
+        `🔍 [BenchmarkList] Set ${resultsCount} real results + ${resultsMap.size - resultsCount} empty placeholders for ${selectedAgent}`,
       );
       setHistoricalResults(resultsMap);
     } else {
       console.log(`🔍 [BenchmarkList] No agent performance data available`);
+      setHistoricalResults(new Map());
     }
-  }, [agentPerformanceData, selectedAgent]);
+  }, [agentPerformanceData, selectedAgent, benchmarks]);
 
   // Force re-render when refreshTrigger changes to update box colors
   useEffect(() => {
@@ -428,50 +463,21 @@ export function BenchmarkList({
       }
 
       // If no current execution, check historical results for selected agent and date
-      if (date) {
+      if (date !== null && date !== undefined) {
         const dateKey = `${benchmarkId}|${date}`;
         const historicalResult = historicalResults.get(dateKey);
         if (historicalResult) {
-          // Map historical result status to execution status format
+          // Return the result directly - it's already in the right format
           return {
             ...historicalResult,
-            status: historicalResult.final_status,
-            progress: 100,
-            timestamp: historicalResult.timestamp, // Ensure timestamp is preserved
+            status: historicalResult.final_status || historicalResult.status,
+            progress: historicalResult.progress || 100,
           };
         }
-      } else {
-        // Fallback to latest result if no date specified (for backward compatibility)
-        let latestResult = null;
-        let latestTimestamp = "";
-
-        // Find the latest result for this benchmark
-        for (const [key, result] of historicalResults.entries()) {
-          if (
-            key.startsWith(`${benchmarkId}|`) &&
-            (!selectedAgent || result.agent_type === selectedAgent)
-          ) {
-            if (
-              !latestResult ||
-              new Date(result.timestamp) > new Date(latestTimestamp)
-            ) {
-              latestResult = result;
-              latestTimestamp = result.timestamp;
-            }
-          }
-        }
-
-        if (latestResult) {
-          return {
-            ...latestResult,
-            status: latestResult.final_status,
-            progress: 100,
-            timestamp: latestResult.timestamp,
-          };
-        }
+        return null; // No data for this specific date
       }
 
-      // No execution found for this benchmark with selected agent
+      // No date specified - return null to show empty state
       return null;
     },
     [executions, historicalResults, selectedAgent],
@@ -577,7 +583,10 @@ export function BenchmarkList({
                 return "(no selection)";
               }
 
-              // Show selected date if available, otherwise show latest execution date
+              // Show selected date if available, otherwise show empty state
+              if (selectedDate === null || selectedDate === undefined) {
+                return "(no data - ready to run)";
+              }
               if (selectedDate) {
                 return `(date: ${selectedDate})`;
               }
