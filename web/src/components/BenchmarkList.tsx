@@ -401,37 +401,14 @@ export function BenchmarkList({
 
   const getBenchmarkStatus = useCallback(
     (benchmarkId: string, date?: string | null): BenchmarkResult | null => {
-      // Prioritize historical data like the grid does for consistency
-      if (date !== null && date !== undefined) {
-        const dateKey = `${benchmarkId}|${date}`;
-        const historicalResult = historicalResults.get(dateKey);
-        if (historicalResult) {
-          return historicalResult as BenchmarkResult;
-        }
-      } else {
-        // If no date specified, try to get the most recent historical result
-        const sortedDates = Array.from(historicalResults.keys())
-          .filter((key) => key.startsWith(`${benchmarkId}|`))
-          .map((key) => key.split("|")[1])
-          .sort((a, b) => b.localeCompare(a));
-
-        if (sortedDates.length > 0) {
-          const mostRecentDate = sortedDates[0];
-          const dateKey = `${benchmarkId}|${mostRecentDate}`;
-          const historicalResult = historicalResults.get(dateKey);
-          if (historicalResult) {
-            return historicalResult as BenchmarkResult;
-          }
-        }
-      }
-
-      // Fall back to current executions if no historical data found
+      // First check current executions - prioritize during running state
       const execution = Array.from(executions.values()).find(
         (exec) =>
           exec.benchmark_id === benchmarkId &&
           (!selectedAgent || exec.agent === selectedAgent),
       );
 
+      // Return current execution immediately if found (handles running state correctly)
       if (execution) {
         // Convert ExecutionState to BenchmarkResult format
         const benchmarkResult = {
@@ -455,6 +432,30 @@ export function BenchmarkList({
                     : "gray"),
         };
         return benchmarkResult as BenchmarkResult;
+      }
+
+      // Fall back to historical data only if no current execution
+      if (date !== null && date !== undefined) {
+        const dateKey = `${benchmarkId}|${date}`;
+        const historicalResult = historicalResults.get(dateKey);
+        if (historicalResult) {
+          return historicalResult as BenchmarkResult;
+        }
+      } else {
+        // If no date specified, try to get the most recent historical result
+        const sortedDates = Array.from(historicalResults.keys())
+          .filter((key) => key.startsWith(`${benchmarkId}|`))
+          .map((key) => key.split("|")[1])
+          .sort((a, b) => b.localeCompare(a));
+
+        if (sortedDates.length > 0) {
+          const mostRecentDate = sortedDates[0];
+          const dateKey = `${benchmarkId}|${mostRecentDate}`;
+          const historicalResult = historicalResults.get(dateKey);
+          if (historicalResult) {
+            return historicalResult as BenchmarkResult;
+          }
+        }
       }
 
       // No data found
@@ -701,12 +702,11 @@ export function BenchmarkList({
               const isSelected = selectedBenchmark === benchmark.id;
 
               // Find if any benchmark is currently running
-              const runningBenchmark = Array.from(executions.keys()).find(
-                (benchmarkId) => {
-                  const execution = executions.get(benchmarkId);
+              const runningBenchmark = Array.from(executions.values()).find(
+                (execution) => {
                   return execution?.status === ExecutionStatus.RUNNING;
                 },
-              );
+              )?.benchmark_id;
 
               const isExpanded =
                 status === ExecutionStatus.RUNNING
