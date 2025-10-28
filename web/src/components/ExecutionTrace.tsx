@@ -18,7 +18,7 @@ const VIRTUAL_ITEM_HEIGHT = 20; // Height of each line in pixels
 const VIRTUAL_BUFFER_SIZE = 10; // Extra items to render above/below viewport
 
 interface ExecutionTraceProps {
-  executionId: string | null;
+  benchmarkId: string | null;
   execution: ExecutionState | null;
   isRunning: boolean;
   className?: string;
@@ -71,7 +71,7 @@ function getLineClass(line: string): string {
 }
 
 export function ExecutionTrace({
-  executionId,
+  benchmarkId,
   execution,
   isRunning,
   className = "",
@@ -135,7 +135,7 @@ export function ExecutionTrace({
   // Debug: Log execution object to see what it contains
   useEffect(() => {
     console.log("🔍 ExecutionTrace - Component mounted");
-    console.log("🔍 ExecutionTrace - Props:", { executionId, isRunning });
+    console.log("🔍 ExecutionTrace - Props:", { benchmarkId, isRunning });
 
     if (execution) {
       console.log("🔍 ExecutionTrace - execution object:", execution);
@@ -144,28 +144,28 @@ export function ExecutionTrace({
     } else {
       console.log("🔍 ExecutionTrace - No execution object");
     }
-  }, [execution, executionId, isRunning]);
+  }, [execution, benchmarkId, isRunning]);
 
   // Load execution trace from API
   const loadExecutionTrace = async () => {
     console.log("🚀 ExecutionTrace - loadExecutionTrace called");
-    console.log("🚀 ExecutionTrace - executionId:", executionId);
+    console.log("🚀 ExecutionTrace - benchmarkId:", benchmarkId);
 
-    if (!executionId) {
-      console.log("❌ ExecutionTrace - No executionId, returning early");
+    if (!benchmarkId) {
+      console.log("❌ ExecutionTrace - No benchmarkId, returning early");
       return;
     }
 
     console.log(
-      "🔄 ExecutionTrace - Loading trace for executionId:",
-      executionId,
+      "🔄 ExecutionTrace - Loading trace for benchmarkId:",
+      benchmarkId,
     );
     setLoading(true);
     setError(null);
 
     try {
       console.log("📡 ExecutionTrace - Calling apiClient.getExecutionTrace...");
-      const data = await apiClient.getExecutionTrace(executionId);
+      const data = await apiClient.getExecutionTrace(benchmarkId);
       console.log("✅ ExecutionTrace - Got trace data:", data);
       console.log("✅ ExecutionTrace - Trace data type:", typeof data);
       console.log(
@@ -189,11 +189,11 @@ export function ExecutionTrace({
   // Auto-refresh for running executions
   useEffect(() => {
     console.log("⏰ ExecutionTrace - Auto-refresh effect triggered");
-    console.log("⏰ ExecutionTrace - executionId:", executionId);
+    console.log("⏰ ExecutionTrace - benchmarkId:", benchmarkId);
     console.log("⏰ ExecutionTrace - isRunning:", isRunning);
 
-    if (!executionId) {
-      console.log("❌ ExecutionTrace - No executionId for auto-refresh");
+    if (!benchmarkId) {
+      console.log("❌ ExecutionTrace - No benchmarkId for auto-refresh");
       return;
     }
 
@@ -210,14 +210,14 @@ export function ExecutionTrace({
     } else {
       console.log("⏸️ ExecutionTrace - Not running, no polling");
     }
-  }, [executionId, isRunning]);
+  }, [benchmarkId, isRunning]);
 
   // Load on mount and when execution changes
   useEffect(() => {
     console.log("🏁 ExecutionTrace - Mount/Change effect triggered");
-    console.log("🏁 ExecutionTrace - executionId changed to:", executionId);
+    console.log("🏁 ExecutionTrace - benchmarkId changed to:", benchmarkId);
     loadExecutionTrace();
-  }, [executionId]);
+  }, [benchmarkId]);
 
   const handleCopyTrace = () => {
     console.log("📋 ExecutionTrace - Copy trace clicked");
@@ -242,14 +242,14 @@ export function ExecutionTrace({
     console.log("Clear trace requested");
   };
 
-  if (!executionId || (!traceData && !execution)) {
+  if (!benchmarkId || (!traceData && !execution)) {
     console.log("🚫 ExecutionTrace - No execution data available");
-    console.log("🚫 ExecutionTrace - executionId:", executionId);
+    console.log("🚫 ExecutionTrace - benchmarkId:", benchmarkId);
     console.log("🚫 ExecutionTrace - traceData:", traceData);
     console.log("🚫 ExecutionTrace - execution:", execution);
     console.log(
       "🚫 ExecutionTrace - Condition check:",
-      !executionId || (!traceData && !execution),
+      !benchmarkId || (!traceData && !execution),
     );
 
     return (
@@ -273,7 +273,7 @@ export function ExecutionTrace({
             <p>No execution selected</p>
             <p className="text-sm">Select a benchmark to see execution trace</p>
             <p className="text-xs mt-2 text-gray-400">
-              Debug: executionId={executionId}, hasTraceData={!!traceData},
+              Debug: benchmarkId={benchmarkId}, hasTraceData={!!traceData},
               hasExecution={!!execution}
             </p>
           </div>
