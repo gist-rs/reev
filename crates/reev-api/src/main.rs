@@ -119,6 +119,11 @@ async fn main() -> Result<()> {
             "/api/v1/transaction-logs/demo",
             get(get_transaction_logs_demo),
         )
+        // Execution trace endpoints
+        .route(
+            "/api/v1/execution-logs/{benchmark_id}",
+            get(get_execution_trace),
+        )
         // Benchmark management endpoints
         .route("/api/v1/upsert-yml", post(upsert_yml))
         .route("/api/v1/sync", post(sync_benchmarks))
