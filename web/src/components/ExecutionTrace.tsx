@@ -71,6 +71,7 @@ function getLineClass(line: string): string {
 }
 
 export function ExecutionTrace({
+  executionId,
   execution,
   isRunning,
   className = "",
