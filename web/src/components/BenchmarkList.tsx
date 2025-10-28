@@ -227,6 +227,9 @@ export function BenchmarkList({
               (result.score && result.score > (existingResult.score || 0))
             ) {
               // Overwrite with better result
+              console.log(
+                `🔍 [BenchmarkList] Setting ${result.benchmark_id} result: score=${result.score}, status=${result.final_status} (replaced score=${existingResult?.score || "none"})`,
+              );
               resultsMap.set(key, {
                 ...result,
                 status: result.final_status,
@@ -238,6 +241,10 @@ export function BenchmarkList({
                 date: date,
                 isEmpty: false, // Flag to identify real entries
               });
+            } else {
+              console.log(
+                `🔍 [BenchmarkList] Keeping existing ${result.benchmark_id} result: score=${existingResult?.score}, status=${existingResult?.final_status} (skipped score=${result.score}, status=${result.final_status})`,
+              );
             }
             resultsCount++;
           });
