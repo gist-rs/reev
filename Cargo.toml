@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context"]
+members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context", "crates/reev-types"]
 exclude = ["turso-test"]
 resolver = "2"
 

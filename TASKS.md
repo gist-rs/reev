@@ -1,214 +1,306 @@
-# Tasks
+# API Decoupling Tasks - CLI-Based Runner Communication
 
-## 🎯 Open Issues
+## Phase 1: Foundation (Week 1)
 
-### #1 Jupiter Swap Tool Response Format Inconsistency - CRITICAL 🔥
+### 1.1 reev-types Crate ✅ COMPLETED
+**Status**: Done
+**Files Created**:
+- `crates/reev-types/Cargo.toml`
+- `crates/reev-types/src/lib.rs`
+- `crates/reev-types/src/rpc.rs` - JSON-RPC 2.0 structures
+- `crates/reev-types/src/execution.rs` - Execution state management
+- `crates/reev-types/src/benchmark.rs` - Shared benchmark types
+- `crates/reev-types/src/runner.rs` - CLI command/response types
 
-**Date**: 2025-10-28
-**Status**: Identified
-**Priority**: Critical
+### 1.2 Runner Process Manager - HIGH PRIORITY
+**File**: `crates/reev-api/src/services/runner_manager.rs`
+**Tasks**:
+- [ ] Create `RunnerProcessManager` struct with configuration
+- [ ] Implement `execute_benchmark()` method for CLI execution
+- [ ] Add `build_runner_command()` to construct CLI arguments
+- [ ] Implement `execute_cli_command()` with timeout handling
+- [ ] Add process cleanup and resource management
+- [ ] Integrate with existing database writer
 
-**Issue**: Same benchmark (`200-jup-swap-then-lend-deposit`) succeeds via CLI (100% score) but fails via API due to different Jupiter swap tool response formats between execution paths.
+### 1.3 CLI Execution Wrapper - HIGH PRIORITY
+**File**: `crates/reev-api/src/services/cli_executor.rs`
+**Tasks**:
+- [ ] Create `CliExecutor` for process management
+- [ ] Implement `execute_with_timeout()` method
+- [ ] Add stdout/stderr capture and parsing
+- [ ] Create JSON-RPC request/response serialization
+- [ ] Add process status monitoring
+- [ ] Implement graceful shutdown handling
 
-**Root Cause**: Two different Jupiter swap tool implementations with inconsistent response structures:
-- **CLI path**: Uses `jupiter_swap_flow.rs` (flow-aware tool)
-- **API path**: Uses `jupiter_swap.rs` (standard tool)
+### 1.4 Execution State Management - HIGH PRIORITY
+**File**: `crates/reev-db/src/writer/execution_states.rs`
+**Tasks**:
+- [ ] Create `execution_states` table schema
+- [ ] Implement `create_execution_state()` method
+- [ ] Add `update_execution_state()` with status transitions
+- [ ] Create `get_execution_state()` for status queries
+- [ ] Implement `cleanup_expired_states()` for maintenance
+- [ ] Add indexes for performance optimization
 
-**Impact**: Step 2 (deposit) receives no swap amount data from step 1, causing LLM to guess wrong amount.
+## Phase 2: Integration (Week 1-2)
 
-**Evidence**:
-```
-CLI Success: amount=394358118 (394.358 USDC) - Uses swap_details.output_amount
-API Failure: amount=1000000000 (1000 USDC) - Missing swap_details structure
-```
+### 2.1 JSON-RPC Protocol Implementation - MEDIUM PRIORITY
+**File**: `crates/reev-api/src/services/rpc_client.rs`
+**Tasks**:
+- [ ] Create `JsonRpcClient` for communication
+- [ ] Implement `send_request()` with request ID correlation
+- [ ] Add `parse_response()` for structured error handling
+- [ ] Create `handle_notification()` for async updates
+- [ ] Implement connection pooling for multiple requests
+- [ ] Add request/response logging for debugging
 
-**Critical Files**:
-- `crates/reev-tools/src/tools/jupiter_swap_flow.rs` - Flow-aware tool with swap_details
-- `crates/reev-tools/src/tools/jupiter_swap.rs` - Standard tool without swap_details
-- `crates/reev-agent/src/flow/agent.rs` - Tool routing logic
-- `crates/reev-context/src/lib.rs` - process_step_result_for_context() expects swap_details
+### 2.2 Database Integration for State Sync - MEDIUM PRIORITY
+**Files**:
+- `crates/reev-api/src/services/state_sync.rs`
+- `crates/reev-db/src/writer/state_sync.rs`
+**Tasks**:
+- [ ] Implement state synchronization between processes
+- [ ] Create conflict resolution for concurrent updates
+- [ ] Add state change notifications
+- [ ] Implement retry logic for database failures
+- [ ] Create state validation and consistency checks
+- [ ] Add migration scripts for new tables
 
-**Fix Strategy**: Unify Jupiter swap tool implementations to ensure consistent response format across all execution paths.
+### 2.3 Error Handling and Recovery - MEDIUM PRIORITY
+**File**: `crates/reev-api/src/services/recovery_manager.rs`
+**Tasks**:
+- [ ] Create `RunnerError` enum with specific error types
+- [ ] Implement `handle_process_failure()` with fallback logic
+- [ ] Add `recover_orphaned_executions()` for cleanup
+- [ ] Create retry mechanisms with exponential backoff
+- [ ] Implement circuit breaker pattern for failures
+- [ ] Add comprehensive error logging and metrics
 
----
+## Phase 3: API Migration (Week 2-3)
 
+### 3.1 Read-Only Endpoint Migration - LOW RISK
+**Files**: Update existing handlers in `crates/reev-api/src/handlers/`
+**Tasks**:
+- [ ] Migrate `list_benchmarks()` to CLI-based discovery
+- [ ] Update `list_agents()` to query runner process
+- [ ] Enhance `health_check()` with runner availability
+- [ ] Add `debug_benchmarks()` with CLI integration
+- [ ] Update agent performance queries
+- [ ] Test all migrated endpoints with CURL.md
 
-### #1 AI Model Amount Request Issue - High
-**Date**: 2025-06-17
-**Status**: Open
-**Priority**: High
+### 3.2 Status and Control Endpoints - MEDIUM RISK
+**Files**: Update existing handlers in `crates/reev-api/src/handlers/`
+**Tasks**:
+- [ ] Migrate `get_execution_status()` to state-based queries
+- [ ] Update `stop_benchmark()` with process termination
+- [ ] Add execution progress tracking
+- [ ] Implement real-time status updates
+- [ ] Create status history and audit trail
+- [ ] Add timeout handling for long-running operations
 
-AI model was requesting 1,000,000,000,000 USDC (1 trillion) for deposit in benchmark `200-jup-swap-then-lend-deposit` step 2, despite only having 383,193,564 USDC available in context.
+### 3.3 Write Operation Migration - HIGH RISK
+**Files**: Update existing handlers in `crates/reev-api/src/handlers/`
+**Tasks**:
+- [ ] Migrate `run_benchmark()` to CLI execution
+- [ ] Update flow log generation and retrieval
+- [ ] Migrate transaction log endpoints
+- [ ] Add execution trace collection
+- [ ] Implement concurrent execution management
+- [ ] Create rollback mechanisms for failed operations
 
-**Status**: Significant Improvement 🎉
-- **Before**: Complete failure due to trillion USDC requests
-- **After**: 75% score with custom program errors (0x1, 0xffff)
-- **Issue**: No longer requesting insane amounts, now has execution errors
+## Phase 4: Testing and Validation (Week 3-4)
 
-**Fixes Applied**:
-- Fixed context serialization to use numbers instead of strings
-- Enhanced tool description to be more explicit about reading exact balances
+### 4.1 CLI Testing Framework - HIGH PRIORITY
+**File**: `tests/cli_runner_test.rs`
+**Tasks**:
+- [ ] Create `CliRunnerTest` framework
+- [ ] Implement `test_cli_benchmark_execution()`
+- [ ] Add `test_timeout_handling()`
+- [ ] Create `test_error_scenarios()`
+- [ ] Implement `test_concurrent_executions()`
+- [ ] Add performance comparison tests
 
----
+### 4.2 Integration Tests with CURL.md - MEDIUM PRIORITY
+**File**: Update `CURL.md` with new test commands
+**Tasks**:
+- [ ] Add CLI-based benchmark execution commands
+- [ ] Create status checking test scenarios
+- [ ] Add error handling test commands
+- [ ] Implement batch operation tests
+- [ ] Create performance benchmark commands
+- [ ] Add regression test suite
 
-#### 🎯 GLM SPL Transfer ATA Resolution Issue - Medium
+### 4.3 Performance and Load Testing - MEDIUM PRIORITY
+**File**: `tests/performance_test.rs`
+**Tasks**:
+- [ ] Create `benchmark_direct_vs_cli()` comparison
+- [ ] Implement `test_concurrent_load()` scenarios
+- [ ] Add memory usage profiling
+- [ ] Create response time regression tests
+- [ ] Implement resource usage monitoring
+- [ ] Add scalability testing framework
 
-**Date**: 2025-10-26
-**Status**: In Progress
-**Priority**: High
+## Phase 5: Cleanup and Optimization (Week 4)
 
-**Issue**: GLM models (glm-4.6-coding) through reev-agent are generating wrong recipient ATAs for SPL transfers. Instead of using pre-created ATAs from benchmark setup, the LLM generates new ATAs or uses incorrect ATA names.
+### 5.1 Dependency Removal - HIGH PRIORITY
+**Files**: `crates/reev-api/Cargo.toml`, `crates/reev-api/src/main.rs`
+**Tasks**:
+- [ ] Remove `reev-runner` dependency from Cargo.toml
+- [ ] Remove `reev-flow` dependency from Cargo.toml
+- [ ] Remove `reev-tools` dependency from Cargo.toml
+- [ ] Add `reev-types` dependency
+- [ ] Update imports in `main.rs` and handlers
+- [ ] Clean up unused code and imports
 
-**Symptoms**:
-- `002-spl-transfer` score: 56.2% with "invalid account data for instruction" error
-- LLM generates transaction with wrong recipient ATA: "8RXifzZ34i3E7qTcvYFaUvCRaswcJBDBXrPGgrwPZxTo" instead of expected "BmCGQJCPZHrAzbLCjHd1JBQAxF24jrReU3fPwN6ri6a7"
+### 5.2 Configuration Management - MEDIUM PRIORITY
+**Files**: `crates/reev-api/src/config/`
+**Tasks**:
+- [ ] Create `RunnerConfig` structure
+- [ ] Add environment variable handling
+- [ ] Implement configuration validation
+- [ ] Create development/production presets
+- [ ] Add configuration hot-reloading
+- [ ] Document all configuration options
 
-**Root Cause**:
-- LLM should use placeholder name `"RECIPIENT_USDC_ATA"` in tool calls, but is generating new recipient ATA
-- Context confusion from RESOLVED ADDRESSES section (already fixed but still affecting GLM behavior)
-- Possible misinterpretation of recipient parameters vs ATA placeholders
-- **FIXED**: Different GLM agents had inconsistent context and wallet handling
+### 5.3 Monitoring and Observability - LOW PRIORITY
+**Files**: `crates/reev-api/src/metrics/`
+**Tasks**:
+- [ ] Create `RunnerMetrics` collection
+- [ ] Add Prometheus metrics export
+- [ ] Implement performance dashboards
+- [ ] Create alerting for process failures
+- [ ] Add distributed tracing support
+- [ ] Document monitoring procedures
 
-**✅ COMPLETED FIXES**:
-1. **UNIFIED GLM LOGIC**: Created `UnifiedGLMAgent` with shared context and wallet handling
-2. **IDENTICAL CONTEXT**: Both `OpenAIAgent` and `ZAIAgent` now use same context building logic
-3. **SHARED COMPONENTS**: Wallet info creation and prompt mapping are now identical
-4. **PROVIDER-SPECIFIC**: Only request/response handling differs between implementations
+## Phase 6: Documentation and Deployment (Week 4)
 
-**Technical Requirements**:
-1. **Test Unified Logic**: Verify unified GLM logic resolves context inconsistencies
-2. **Improve ATA Resolution Logic**: Enhance SPL transfer tool to better prioritize pre-created ATAs from key_map over generated ones
-3. **Strengthen Context Instructions**: Make context warnings more explicit about using placeholder names vs direct addresses
-4. **Test Across GLM Variants**: Verify fix works with different GLM model implementations
-5. **Documentation Update**: Update documentation with clear examples of correct ATA usage
+### 6.1 Documentation Updates - MEDIUM PRIORITY
+**Files**: Update existing documentation
+**Tasks**:
+- [ ] Update `ARCHITECTURE.md` with new architecture
+- [ ] Update `PLAN.md` with completion status
+- [ ] Create deployment guide for CLI runner
+- [ ] Update `README.md` with new features
+- [ ] Document migration steps for users
+- [ ] Create troubleshooting guide
 
----
+### 6.2 Deployment Preparation - LOW PRIORITY
+**Files**: Deployment configurations
+**Tasks**:
+- [ ] Create Docker configurations for runner separation
+- [ ] Add environment variable templates
+- [ ] Create deployment scripts
+- [ ] Add health check endpoints
+- [ ] Create monitoring setup
+- [ ] Document rollback procedures
 
-## 📋 Tasks
+## Success Criteria Checklist
 
-#### 🎯 GLM SPL Transfer ATA Resolution Fix - High Priority
-**Status**: In Progress
-**Priority**: High
-**Description**: Fix SPL transfer tool to properly resolve pre-created ATAs and prevent LLM from generating incorrect recipient addresses
+### Functional Requirements
+- [ ] All existing API endpoints work with CLI runner
+- [ ] No regression in benchmark execution results
+- [ ] Graceful error handling and recovery
+- [ ] Performance within 20% of direct library calls
+- [ ] All CURL.md tests pass with new implementation
 
-**Background**:
-- SOL transfer issue was successfully resolved by improving context instructions
-- However, SPL transfers still fail because GLM models generate wrong recipient ATAs despite having pre-created ones in key_map
-- Local agents work perfectly, indicating the issue is specific to GLM model routing through reev-agent
-- ✅ **COMPLETED**: Unified GLM logic architecture - both OpenAIAgent and ZAIAgent now use identical context and wallet handling
+### Architectural Requirements
+- [ ] Eliminate reev-runner, reev-flow, reev-tools dependencies
+- [ ] Clean separation via reev-types
+- [ ] State-based communication through reev-db
+- [ ] Modular, testable components
+- [ ] No compilation warnings or errors
 
-**Technical Requirements**:
-1. **Investigate LLM Tool Calls**: Debug exactly what recipient_pubkey value LLM is using in spl_transfer calls
-2. **Improve ATA Resolution Logic**: Enhance SPL transfer tool to better prioritize pre-created ATAs from key_map over generated ones
-3. **Strengthen Context Instructions**: Make context warnings more explicit about using placeholder names vs direct addresses
-4. **Test Across GLM Variants**: Verify fix works with different GLM model implementations
-5. **Documentation Update**: Update documentation with clear examples of correct ATA usage
+### Operational Requirements
+- [ ] Proper logging and monitoring
+- [ ] Configurable timeouts and limits
+- [ ] Development and production deployment strategies
+- [ ] Comprehensive test coverage (>90%)
+- [ ] Documentation completeness
 
-**Implementation Steps**:
-1. **✅ UNIFIED GLM ARCHITECTURE**: Refactored both OpenAIAgent and ZAIAgent to use shared logic
-2. **Debug Current Behavior**: Add extensive logging to SPL transfer tool to track LLM parameter usage
-3. **Enhance Key Map Resolution**: Improve how tool looks up and prioritizes ATAs from key_map over generated ones
-4. **Context Clarification**: Strengthen RESOLVED ADDRESSES section instructions for GLM models
-5. **Comprehensive Testing**: Test fix across multiple GLM benchmarks and model variants
-6. **Documentation Update**: Update documentation with clear examples of correct ATA usage
+## Issues and Risks
 
-**Current Critical Priority**: Jupiter swap tool unification takes precedence over GLM ATA resolution fix.
+### High Risk Items
+1. **Performance Degradation**: CLI calls may be slower than direct library calls
+2. **Process Management Complexity**: Managing multiple concurrent processes
+3. **Error Handling**: Process failures vs. library call failures
+4. **State Synchronization**: Race conditions between processes
 
----
+### Mitigation Strategies
+1. **Performance**: Implement process pooling and connection reuse
+2. **Process Management**: Use robust process lifecycle management
+3. **Error Handling**: Comprehensive error categorization and recovery
+4. **State Sync**: Use database transactions and proper locking
 
-#### 🧪 Jupiter Swap Tool Implementation Review**
+### Rollback Plan
+- Keep direct library calls as fallback option
+- Feature flags to switch between implementations
+- Database schema changes are backward compatible
+- API contract remains unchanged
 
+## Testing Requirements
 
----
-*Add this task to TASKS.md and track progress in ISSUES.md*
+### Unit Tests
+- All new modules must have >90% test coverage
+- Mock process execution for reliable testing
+- Test error scenarios and edge cases
+- Performance benchmarks for critical paths
 
-#### 🧪 Jupiter Swap Tool Implementation Review
-   - Analyze why two different implementations exist
-   - Determine if `jupiter_swap_flow.rs` should replace `jupiter_swap.rs` entirely
-   - Update tool registration and discovery mechanisms
-   - Document proper usage patterns for each tool type
+### Integration Tests
+- End-to-end API functionality tests
+- CLI process integration tests
+- Database state synchronization tests
+- Error handling and recovery tests
 
-**Acceptance Criteria**:
-- [x] Unified GLM logic implemented in common module
-- [x] Both OpenAIAgent and ZAIAgent use identical context building
-- [x] Wallet info creation and prompt mapping are shared
-- [x] Only request/response handling differs between implementations
-- [ ] Local agent works correctly (SOL and SPL transfers)
-- [ ] GLM-4.6-coding agent works correctly (SOL transfers)
-- [ ] GLM-4.6-coding agent works correctly (SPL transfers)
-- [ ] No regression in other agent types
-- [ ] Improved context prevents address confusion
-- [ ] All diagnostics pass
+### Manual Testing
+- CURL.md command verification
+- Web interface functionality tests
+- Performance load testing
+- User acceptance testing
 
----
-#### 🎯 Jupiter Swap Tool Unification - HIGH PRIORITY ✅ IN PROGRESS
+## Dependencies and Blockers
 
-**Status**: In Progress  
-**Priority**: High  
-**Description**: Unify Jupiter swap tool implementations to ensure consistent `swap_details` response format across CLI and API execution paths.
+### External Dependencies
+- Cargo build system for CLI execution
+- Process management libraries
+- Database connection pooling
+- JSON-RPC protocol implementation
 
-**Background**: 
-Same benchmark (`200-jup-swap-then-lend-deposit`) succeeds via CLI (100% score) but fails via API due to different Jupiter swap tool response formats between execution paths.
+### Internal Dependencies
+- reev-types crate completion ✅
+- Database schema updates
+- Existing handler modifications
+- Test framework setup
 
-**Root Cause**: 
-Two different Jupiter swap tool implementations with inconsistent response structures:
-- **CLI path**: Uses `jupiter_swap_flow.rs` (flow-aware tool)
-- **API path**: Uses `jupiter_swap.rs` (standard tool)
+### Timeline Constraints
+- Week 1: Foundation components
+- Week 2: Integration and testing
+- Week 3: API migration
+- Week 4: Cleanup and deployment
 
-**Impact**: 
-Step 2 (deposit) receives no swap amount data from step 1, causing LLM to guess wrong amount.
+## Next Steps
 
-**Evidence**:
-```
-CLI Success: amount=394358118 (394.358 USDC) - Uses swap_details.output_amount
-API Failure: amount=1000000000 (1000 USDC) - Missing swap_details structure
-```
+1. **Immediate**: Start with RunnerProcessManager implementation
+2. **Week 1**: Complete foundation components and basic CLI execution
+3. **Week 2**: Integrate with database and implement state management
+4. **Week 3**: Migrate API endpoints progressively
+5. **Week 4**: Remove dependencies and optimize performance
 
-**Critical Files**:
-- `crates/reev-tools/src/tools/jupiter_swap_flow.rs` - Flow-aware tool with swap_details
-- `crates/reev-tools/src/tools/jupiter_swap.rs` - Standard tool without swap_details
-- `crates/reev-agent/src/flow/agent.rs` - Tool routing logic
-- `crates/reev-context/src/lib.rs` - `process_step_result_for_context()` expects swap_details
+## Notes for Implementation
 
-**Fix Strategy**: 
-Unify Jupiter swap tool implementations to ensure both CLI and API use consistent tool that provides structured `swap_details` for multi-step flow communication.
+### Code Organization
+- Keep each module under 320 lines as per project rules
+- Use proper error handling with `Result` types
+- Follow Rust naming conventions and best practices
+- Add comprehensive logging for debugging
 
-**Implementation Options**:
-- **Option A: Tool Unification** (Recommended)
-  - Merge both implementations into single flow-aware Jupiter swap tool
-  - Ensure consistent `swap_details` response format
-  - Update tool registration to use unified tool only
-- **Option B: Response Format Standardization** (Quick)
-  - Modify `jupiter_swap.rs` to also return `swap_details` structure
-  - Ensure both tools provide same data format
+### Testing Strategy
+- Test each component in isolation before integration
+- Use feature flags for gradual migration
+- Maintain backward compatibility during transition
+- Document all test scenarios and expected outcomes
 
----
-
-#### 🛠️ Immediate Action Required
-
-1. **Investigate routing logic** - Why do CLI and API use different tools?
-2. **Compare response formats** - Document exact structure differences
-3. **Implement unification** - Choose Option A or B based on complexity
-4. **Test thoroughly** - Ensure API achieves same success rate as CLI
-5. **Document changes** - Update tool usage patterns for each tool type
-
-**Technical Requirements**:
-1. **Preserve CLI functionality** - Don't break the working path
-2. **Consistent response format** - Both tools return `swap_details.output_amount`
-3. **Context flow verification** - Step 2 receives correct swap result data
-4. **No performance regression** - API path matches CLI success rate
-
-**Acceptance Criteria**:
-- [x] Unified GLM logic implemented in common module
-- [x] Both OpenAIAgent and ZAIAgent use identical context building
-- [x] Wallet info creation and prompt mapping are shared
-- [x] Only request/response handling differs between implementations
-- [ ] Local agent works correctly (SOL and SPL transfers)
-- [ ] GLM-4.6-coding agent works correctly (SOL transfers)
-- [ ] GLM-4.6-coding agent works correctly (SPL transfers)
-- [ ] No regression in other agent types
-- [ ] Improved context prevents address confusion
-- [ ] All diagnostics pass
-
----
-*Add this task to TASKS.md and track progress in ISSUES.md*
+### Performance Considerations
+- Monitor CLI execution overhead
+- Implement process pooling for efficiency
+- Cache frequently accessed data
+- Use async/await for concurrent operations

@@ -3783,6 +3783,7 @@ dependencies = [
  "reev-lib",
  "reev-runner",
  "reev-tools",
+ "reev-types",
  "regex",
  "serde",
  "serde_json",
@@ -3999,6 +4000,17 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "reev-types"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]

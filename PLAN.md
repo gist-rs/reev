@@ -1,4 +1,25 @@
-## Priority Tasks - Critical Issues (2025-10-27)
+## Priority Tasks - Critical Issues (2025-11-13)
+
+### ✅ COMPLETED: API Decoupling Foundation Phase (#20)
+**Status**: Phase 1 Complete - Shared types and communication protocol established
+**Objective**: Decouple reev-api from reev-runner through CLI calls instead of direct library imports
+**Work Completed**:
+- **Created reev-types crate**: Shared type definitions for JSON-RPC communication
+  - `rpc.rs`: JSON-RPC 2.0 request/response structures with request ID correlation
+  - `execution.rs`: Execution state management with timeout and status tracking
+  - `benchmark.rs`: Shared benchmark and agent information types
+  - `runner.rs`: CLI command and response types for process communication
+- **Added to workspace**: Integrated reev-types into Cargo.toml workspace members
+- **Zero compilation warnings**: All code passes clippy with best practices
+**Files Created**:
+- `crates/reev-types/Cargo.toml`: Dependency configuration
+- `crates/reev-types/src/lib.rs`: Module exports
+- `crates/reev-types/src/rpc.rs`: JSON-RPC protocol implementation (181 lines)
+- `crates/reev-types/src/execution.rs`: State management types (198 lines)
+- `crates/reev-types/src/benchmark.rs`: Benchmark data structures (226 lines)
+- `crates/reev-types/src/runner.rs`: CLI command types (307 lines)
+**Next Steps**: Implement RunnerProcessManager and CLI execution wrapper
+**Impact**: Foundation laid for eliminating direct dependencies on reev-runner, reev-flow, and reev-tools
 
 ### ✅ COMPLETED: Fixed Web API "Run All" Issue (#14)
 **Status**: Resolved - Web API benchmarks now working
@@ -14,6 +35,22 @@
 **Root Cause**: Process file handle management when starting new reev-agent processes
 **Impact**: Previous logs lost, debugging capabilities reduced
 **Action**: Fix process file handle management in ProcessManager
+
+### ⚠️ IN PROGRESS: API Decoupling Implementation (#21)
+**Status**: Phase 1 Complete, Phase 2 Starting - CLI Process Integration
+**Current Dependencies to Remove**:
+```toml
+# crates/reev-api/Cargo.toml - TARGET FOR REMOVAL
+reev-runner = { path = "../reev-runner" }           # ❌ REMOVE
+reev-flow = { path = "../reev-flow", features = ["database"] }  # ❌ REMOVE
+reev-tools = { path = "../reev-tools" }            # ❌ REMOVE
+```
+**Next Implementation Phase**:
+- RunnerProcessManager for CLI process execution
+- JSON-RPC communication through stdin/stdout
+- Database state synchronization for inter-process communication
+- Timeout and error handling mechanisms
+**Documentation**: See `PLAN_API.md` for complete architecture and `TASKS.md` for detailed implementation tasks
 
 ---
 
