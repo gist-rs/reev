@@ -129,7 +129,24 @@ class ApiClient {
 
   // Execution trace
   async getExecutionTrace(executionId: string): Promise<any> {
-    return this.request<any>(`/api/v1/executions/${executionId}/trace`);
+    console.log(
+      "📡 API Client - getExecutionTrace called with executionId:",
+      executionId,
+    );
+    console.log(
+      "📡 API Client - Making request to:",
+      `/api/v1/executions/${executionId}/trace`,
+    );
+    try {
+      const result = await this.request<any>(
+        `/api/v1/executions/${executionId}/trace`,
+      );
+      console.log("✅ API Client - getExecutionTrace success:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ API Client - getExecutionTrace failed:", error);
+      throw error;
+    }
   }
 
   // Agent performance
