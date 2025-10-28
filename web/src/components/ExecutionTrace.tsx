@@ -304,17 +304,20 @@ export function ExecutionTrace({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <span>
-              <strong>Benchmark:</strong> {execution.benchmark_id}
+              <strong>Benchmark:</strong> {execution?.benchmark_id}
             </span>
             <span>
-              <strong>Agent:</strong> {execution.agent}
+              <strong>Agent:</strong> {execution?.agent}
             </span>
           </div>
           <div className="flex items-center space-x-4">
             <span>
-              <strong>Started:</strong> {formatTimestamp(execution.start_time)}
+              <strong>Started:</strong>{" "}
+              {execution?.start_time
+                ? formatTimestamp(execution.start_time)
+                : "N/A"}
             </span>
-            {execution.end_time && (
+            {execution?.end_time && (
               <span>
                 <strong>Ended:</strong> {formatTimestamp(execution.end_time)}
               </span>
@@ -345,7 +348,7 @@ export function ExecutionTrace({
       </div>
 
       {/* Error Display */}
-      {execution.error && (
+      {execution && execution.error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-700">
           <div className="flex items-start space-x-2">
             <span className="text-red-600 dark:text-red-400 font-semibold">
