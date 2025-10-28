@@ -21,6 +21,7 @@ interface AgentPerformanceCardProps {
   executions?: Map<string, any>;
   selectedBenchmark?: string | null;
   selectedAgent?: string;
+  selectedDate?: string | null;
   isAnyRunning?: boolean;
 }
 
@@ -35,6 +36,7 @@ export function AgentPerformanceCard({
   executions,
   selectedBenchmark,
   selectedAgent,
+  selectedDate,
   isAnyRunning = false,
 }: AgentPerformanceCardProps) {
   const finalAgentData = useMemo(() => {
@@ -343,7 +345,8 @@ export function AgentPerformanceCard({
 
               const isSelected =
                 selectedBenchmark === benchmark.id &&
-                selectedAgent === agentType;
+                selectedAgent === agentType &&
+                selectedDate === date;
 
               if (benchmarkResult) {
                 return renderBenchmarkBox(
@@ -361,7 +364,9 @@ export function AgentPerformanceCard({
                 );
                 const isSelected =
                   selectedBenchmark === benchmark.id &&
-                  selectedAgent === agentType;
+                  selectedAgent === agentType &&
+                  selectedDate === date;
+
                 return renderBenchmarkBox(
                   benchmark,
                   emptyResult,

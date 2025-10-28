@@ -447,6 +447,7 @@ export function App() {
             refetchBenchmarks={refetchBenchmarks}
             selectedBenchmark={selectedBenchmark}
             selectedAgent={selectedAgent}
+            selectedDate={selectedDate}
           />
         </div>
       </div>
