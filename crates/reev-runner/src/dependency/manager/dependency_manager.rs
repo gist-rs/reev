@@ -272,6 +272,20 @@ impl DependencyManager {
 
         debug!(port, "Starting surfpool service");
 
+        // Check environment variables for surfpool logging configuration
+        let surfpool_debug_log = std::env::var("SURFPOOL_DEBUG_LOG")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        let surfpool_log_level =
+            std::env::var("SURFPOOL_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+
+        debug!(
+            surfpool_debug_log,
+            surfpool_log_level, "Surfpool logging configuration"
+        );
+
         // Check if surfpool is already running
         debug!("Checking for existing surfpool processes...");
         if let Ok(pids) = ProcessUtils::find_process_by_name(dependency_type.process_name()) {
@@ -329,20 +343,43 @@ impl DependencyManager {
 
         // Create process configuration for surfpool start
         debug!("Creating surfpool process configuration...");
+        let mut args = vec!["start".to_string(), "--no-tui".to_string()];
+
+        // Configure logging based on SURFPOOL_DEBUG_LOG
+        if surfpool_debug_log {
+            args.push("--debug".to_string());
+            args.push(format!("--log-level={surfpool_log_level}"));
+        }
+
+        // Disable auto deployments by default
+        args.push("--no-deploy".to_string());
+
+        // Disable instruction profiling by default
+        args.push("--disable-instruction-profiling".to_string());
+
         let process_config = ProcessConfig::new(
             dependency_type.process_name().to_string(),
             surfpool_path.to_string_lossy().to_string(),
         )
-        .with_args(vec![
-            "start".to_string(),
-            "--no-tui".to_string(),
-            "--debug".to_string(),
-        ])
-        .with_stdout(log_file.clone())
-        .with_stderr(log_file)
-        .with_startup_timeout(self.config.startup_timeout)
-        .with_health_check(format!("http://localhost:{port}"))
-        .with_health_check_interval(Duration::from_secs(2));
+        .with_args(args);
+
+        // Configure output redirection based on logging preference
+        let process_config = if surfpool_debug_log {
+            // When logging is enabled, redirect to log file
+            process_config
+                .with_stdout(log_file.clone())
+                .with_stderr(log_file)
+        } else {
+            // When logging is disabled, redirect to /dev/null for truly no logs
+            process_config
+                .with_stdout(PathBuf::from("/dev/null"))
+                .with_stderr(PathBuf::from("/dev/null"))
+        };
+
+        let process_config = process_config
+            .with_startup_timeout(self.config.startup_timeout)
+            .with_health_check(format!("http://localhost:{port}"))
+            .with_health_check_interval(Duration::from_secs(2));
 
         // Start the process
         debug!("Starting surfpool process...");

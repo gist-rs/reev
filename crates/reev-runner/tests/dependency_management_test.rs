@@ -169,6 +169,49 @@ async fn test_dependency_config_ports() {
     assert_eq!(config.get_port(DependencyType::Surfpool), 8898);
 }
 
+#[tokio::test]
+async fn test_surfpool_logging_env_vars() {
+    // Test default values when env vars are not set
+    unsafe {
+        std::env::remove_var("SURFPOOL_DEBUG_LOG");
+        std::env::remove_var("SURFPOOL_LOG_LEVEL");
+    }
+
+    let surfpool_debug_log = std::env::var("SURFPOOL_DEBUG_LOG")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
+
+    let surfpool_log_level =
+        std::env::var("SURFPOOL_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+
+    assert!(!surfpool_debug_log);
+    assert_eq!(surfpool_log_level, "info");
+
+    // Test when SURFPOOL_DEBUG_LOG is set to true
+    unsafe {
+        std::env::set_var("SURFPOOL_DEBUG_LOG", "true");
+        std::env::set_var("SURFPOOL_LOG_LEVEL", "debug");
+    }
+
+    let surfpool_debug_log = std::env::var("SURFPOOL_DEBUG_LOG")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
+
+    let surfpool_log_level =
+        std::env::var("SURFPOOL_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+
+    assert!(surfpool_debug_log);
+    assert_eq!(surfpool_log_level, "debug");
+
+    // Clean up environment variables
+    unsafe {
+        std::env::remove_var("SURFPOOL_DEBUG_LOG");
+        std::env::remove_var("SURFPOOL_LOG_LEVEL");
+    }
+}
+
 // Note: Full integration tests that actually start services would require
 // more complex setup and are omitted here to keep tests fast and reliable.
 // In a real testing environment, you might want to mock the external services
