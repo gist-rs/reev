@@ -132,108 +132,62 @@ export function ExecutionTrace({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Debug: Log execution object to see what it contains
+  // Log component state for debugging
   useEffect(() => {
-    console.log("🔍 ExecutionTrace - Component mounted");
-    console.log("🔍 ExecutionTrace - Props:", { benchmarkId, isRunning });
-
     if (execution) {
-      console.log("🔍 ExecutionTrace - execution object:", execution);
-      console.log("🔍 ExecutionTrace - execution.trace:", execution.trace);
-      console.log("🔍 ExecutionTrace - execution.id:", execution.id);
-    } else {
-      console.log("🔍 ExecutionTrace - No execution object");
+      console.log("🔍 ExecutionTrace - Execution found:", {
+        benchmarkId,
+        executionId: execution.id,
+        agent: execution.agent,
+        status: execution.status,
+        hasTrace: !!execution.trace,
+      });
     }
-  }, [execution, benchmarkId, isRunning]);
+  }, [execution, benchmarkId]);
 
   // Load execution trace from API
   const loadExecutionTrace = async () => {
-    console.log("🚀 ExecutionTrace - loadExecutionTrace called");
-    console.log("🚀 ExecutionTrace - benchmarkId:", benchmarkId);
+    if (!benchmarkId) return;
 
-    if (!benchmarkId) {
-      console.log("❌ ExecutionTrace - No benchmarkId, returning early");
-      return;
-    }
-
-    console.log(
-      "🔄 ExecutionTrace - Loading trace for benchmarkId:",
-      benchmarkId,
-    );
     setLoading(true);
     setError(null);
 
     try {
-      console.log("📡 ExecutionTrace - Calling apiClient.getExecutionTrace...");
       const data = await apiClient.getExecutionTrace(benchmarkId);
-      console.log("✅ ExecutionTrace - Got trace data:", data);
-      console.log("✅ ExecutionTrace - Trace data type:", typeof data);
-      console.log(
-        "✅ ExecutionTrace - Trace data keys:",
-        Object.keys(data || {}),
-      );
       setTraceData(data);
+      console.log("✅ ExecutionTrace - Loaded trace for", benchmarkId, {
+        hasData: !!data,
+        isRunning: data?.is_running,
+      });
     } catch (err) {
       console.error("❌ ExecutionTrace - Failed to load trace:", err);
-      console.error("❌ ExecutionTrace - Error type:", err.constructor.name);
-      console.error("❌ ExecutionTrace - Error message:", err.message);
       setError(
         err instanceof Error ? err.message : "Failed to load execution trace",
       );
     } finally {
-      console.log("🏁 ExecutionTrace - loadExecutionTrace finished");
       setLoading(false);
     }
   };
 
   // Auto-refresh for running executions
   useEffect(() => {
-    console.log("⏰ ExecutionTrace - Auto-refresh effect triggered");
-    console.log("⏰ ExecutionTrace - benchmarkId:", benchmarkId);
-    console.log("⏰ ExecutionTrace - isRunning:", isRunning);
-
-    if (!benchmarkId) {
-      console.log("❌ ExecutionTrace - No benchmarkId for auto-refresh");
-      return;
-    }
+    if (!benchmarkId) return;
 
     if (isRunning) {
-      console.log("🔄 ExecutionTrace - Setting up polling interval");
-      const interval = setInterval(() => {
-        console.log("🔄 ExecutionTrace - Polling interval triggered");
-        loadExecutionTrace();
-      }, 2000);
-      return () => {
-        console.log("🛑 ExecutionTrace - Clearing polling interval");
-        clearInterval(interval);
-      };
-    } else {
-      console.log("⏸️ ExecutionTrace - Not running, no polling");
+      const interval = setInterval(loadExecutionTrace, 2000);
+      return () => clearInterval(interval);
     }
   }, [benchmarkId, isRunning]);
 
   // Load on mount and when execution changes
   useEffect(() => {
-    console.log("🏁 ExecutionTrace - Mount/Change effect triggered");
-    console.log("🏁 ExecutionTrace - benchmarkId changed to:", benchmarkId);
     loadExecutionTrace();
   }, [benchmarkId]);
 
   const handleCopyTrace = () => {
-    console.log("📋 ExecutionTrace - Copy trace clicked");
     const traceContent = traceData?.trace || execution?.trace;
-    console.log(
-      "📋 ExecutionTrace - traceContent length:",
-      traceContent?.length,
-    );
-    console.log("📋 ExecutionTrace - traceData:", traceData);
-    console.log("📋 ExecutionTrace - execution?.trace:", execution?.trace);
-
     if (traceContent) {
       navigator.clipboard.writeText(traceContent);
-      console.log("✅ ExecutionTrace - Trace copied to clipboard");
-    } else {
-      console.log("❌ ExecutionTrace - No trace content to copy");
     }
   };
 
@@ -242,16 +196,7 @@ export function ExecutionTrace({
     console.log("Clear trace requested");
   };
 
-  if (!benchmarkId || (!traceData && !execution)) {
-    console.log("🚫 ExecutionTrace - No execution data available");
-    console.log("🚫 ExecutionTrace - benchmarkId:", benchmarkId);
-    console.log("🚫 ExecutionTrace - traceData:", traceData);
-    console.log("🚫 ExecutionTrace - execution:", execution);
-    console.log(
-      "🚫 ExecutionTrace - Condition check:",
-      !benchmarkId || (!traceData && !execution),
-    );
-
+  if (!benchmarkId) {
     return (
       <div className={`h-full flex flex-col ${className}`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -272,10 +217,6 @@ export function ExecutionTrace({
             <div className="text-6xl mb-4">📋</div>
             <p>No execution selected</p>
             <p className="text-sm">Select a benchmark to see execution trace</p>
-            <p className="text-xs mt-2 text-gray-400">
-              Debug: benchmarkId={benchmarkId}, hasTraceData={!!traceData},
-              hasExecution={!!execution}
-            </p>
           </div>
         </div>
       </div>
@@ -284,16 +225,7 @@ export function ExecutionTrace({
 
   // Use traceData if available, otherwise fall back to execution.trace
   const traceContent = traceData?.trace || execution?.trace || "";
-  console.log(
-    "🎯 ExecutionTrace - Final traceContent length:",
-    traceContent.length,
-  );
-  console.log(
-    "🎯 ExecutionTrace - Using source:",
-    traceData ? "traceData" : execution ? "execution" : "empty",
-  );
   const traceLines = getTraceLines(traceContent);
-  console.log("🎯 ExecutionTrace - Number of trace lines:", traceLines.length);
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
