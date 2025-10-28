@@ -218,18 +218,27 @@ export function BenchmarkList({
             const date = result.timestamp.substring(0, 10);
             const key = `${result.benchmark_id}|${date}`;
 
-            // Overwrite empty entry with real data
-            resultsMap.set(key, {
-              ...result,
-              status: result.final_status,
-              progress: 100,
-              execution_id: result.id,
-              agent_type: result.agent_type,
-              benchmarkId: result.benchmark_id,
-              timestamp: result.timestamp,
-              date: date,
-              isEmpty: false, // Flag to identify real entries
-            });
+            // Check if we already have a result for this benchmark/date
+            const existingResult = resultsMap.get(key);
+
+            // Use the result with higher score (best result)
+            if (
+              !existingResult ||
+              (result.score && result.score > (existingResult.score || 0))
+            ) {
+              // Overwrite with better result
+              resultsMap.set(key, {
+                ...result,
+                status: result.final_status,
+                progress: 100,
+                execution_id: result.id,
+                agent_type: result.agent_type,
+                benchmarkId: result.benchmark_id,
+                timestamp: result.timestamp,
+                date: date,
+                isEmpty: false, // Flag to identify real entries
+              });
+            }
             resultsCount++;
           });
         }
