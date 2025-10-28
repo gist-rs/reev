@@ -127,6 +127,11 @@ class ApiClient {
     return this.request<any>(`/api/v1/transaction-logs/${benchmarkId}`);
   }
 
+  // Execution trace
+  async getExecutionTrace(executionId: string): Promise<any> {
+    return this.request<any>(`/api/v1/executions/${executionId}/trace`);
+  }
+
   // Agent performance
   async getAgentPerformance(): Promise<AgentPerformanceSummary[]> {
     return this.request<AgentPerformanceSummary[]>("/api/v1/agent-performance");
@@ -227,6 +232,8 @@ export const apiClient = {
     apiClientInstance.getFlowLog(benchmarkId),
   getTransactionLogs: (benchmarkId: string) =>
     apiClientInstance.getTransactionLogs(benchmarkId),
+  getExecutionTrace: (executionId: string) =>
+    apiClientInstance.getExecutionTrace(executionId),
   getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
   // New methods
   runBenchmark: (benchmarkId: string, request: BenchmarkExecutionRequest) =>

@@ -584,6 +584,7 @@ export function App() {
               ) : (
                 <>
                   <ExecutionTrace
+                    executionId={currentExecution?.id || null}
                     execution={currentExecution}
                     isRunning={isRunning}
                   />

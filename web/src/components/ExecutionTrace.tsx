@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "preact/hooks";
 import { memo } from "preact/compat";
+import { apiClient } from "../services/api";
 import { ExecutionState } from "../types/configuration";
 
 // Configuration for trace display limits
@@ -17,6 +18,7 @@ const VIRTUAL_ITEM_HEIGHT = 20; // Height of each line in pixels
 const VIRTUAL_BUFFER_SIZE = 10; // Extra items to render above/below viewport
 
 interface ExecutionTraceProps {
+  executionId: string | null;
   execution: ExecutionState | null;
   isRunning: boolean;
   className?: string;
@@ -125,9 +127,62 @@ export function ExecutionTrace({
     }
   };
 
+  const [traceData, setTraceData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debug: Log execution object to see what it contains
+  useEffect(() => {
+    if (execution) {
+      console.log("🔍 ExecutionTrace - execution object:", execution);
+      console.log("🔍 ExecutionTrace - execution.trace:", execution.trace);
+    }
+  }, [execution]);
+
+  // Load execution trace from API
+  const loadExecutionTrace = async () => {
+    if (!executionId) return;
+
+    console.log(
+      "🔄 ExecutionTrace - Loading trace for executionId:",
+      executionId,
+    );
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await apiClient.getExecutionTrace(executionId);
+      console.log("✅ ExecutionTrace - Got trace data:", data);
+      setTraceData(data);
+    } catch (err) {
+      console.error("❌ ExecutionTrace - Failed to load trace:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load execution trace",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-refresh for running executions
+  useEffect(() => {
+    if (!executionId) return;
+
+    if (isRunning) {
+      const interval = setInterval(loadExecutionTrace, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [executionId, isRunning]);
+
+  // Load on mount and when execution changes
+  useEffect(() => {
+    loadExecutionTrace();
+  }, [executionId]);
+
   const handleCopyTrace = () => {
-    if (execution?.trace) {
-      navigator.clipboard.writeText(execution.trace);
+    const traceContent = traceData?.trace || execution?.trace;
+    if (traceContent) {
+      navigator.clipboard.writeText(traceContent);
     }
   };
 
@@ -136,7 +191,7 @@ export function ExecutionTrace({
     console.log("Clear trace requested");
   };
 
-  if (!execution) {
+  if (!executionId || (!traceData && !execution)) {
     return (
       <div className={`h-full flex flex-col ${className}`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -156,16 +211,16 @@ export function ExecutionTrace({
           <div className="text-center">
             <div className="text-6xl mb-4">📋</div>
             <p>No execution selected</p>
-            <p className="text-sm">
-              Select a benchmark to see execution details
-            </p>
+            <p className="text-sm">Select a benchmark to see execution trace</p>
           </div>
         </div>
       </div>
     );
   }
 
-  const traceLines = getTraceLines(execution?.trace || "");
+  // Use traceData if available, otherwise fall back to execution.trace
+  const traceContent = traceData?.trace || execution?.trace || "";
+  const traceLines = getTraceLines(traceContent);
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
