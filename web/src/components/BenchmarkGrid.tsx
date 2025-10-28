@@ -52,6 +52,7 @@ export function BenchmarkGrid({
                   allBenchmarks={allBenchmarks}
                   runningBenchmarks={runningBenchmarks}
                   runningBenchmarkExecutions={executions}
+                  executions={executions}
                   selectedBenchmark={selectedBenchmark}
                   selectedAgent={selectedAgent}
                   isAnyRunning={runningBenchmarkIds.length > 0}

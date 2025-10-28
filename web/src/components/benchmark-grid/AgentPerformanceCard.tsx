@@ -14,6 +14,7 @@ interface AgentPerformanceCardProps {
     string,
     { agent: string; status: string; progress: number }
   >;
+  executions?: Map<string, any>;
   selectedBenchmark?: string | null;
   selectedAgent?: string;
   isAnyRunning?: boolean;
@@ -27,6 +28,7 @@ export function AgentPerformanceCard({
   onBenchmarkClick,
   onCardClick,
   runningBenchmarkExecutions,
+  executions,
   selectedBenchmark,
   selectedAgent,
   isAnyRunning = false,
@@ -217,22 +219,38 @@ export function AgentPerformanceCard({
               </span>
               <div className="flex flex-wrap gap-1">
                 {filteredBenchmarks.map((benchmark) => {
-                  const benchmarkResult = results.find(
+                  // First check if there's live execution data for this benchmark
+                  const liveExecution = executions?.get(benchmark.id);
+                  let benchmarkResult = results.find(
                     (r) =>
                       r.benchmark_id === benchmark.id &&
                       r.agent_type === agentType,
                   );
 
-                  // Debug logging for result finding
-                  if (benchmarkResult) {
-                    console.log(
-                      `✅ [AgentPerformanceCard] ${agentType}: Found result for ${benchmark.id}`,
-                      {
-                        resultAgent: benchmarkResult.agent_type,
-                        expectedAgent: agentType,
-                        benchmarkId: benchmark.id,
-                      },
-                    );
+                  // Prioritize live execution data over historical results
+                  if (liveExecution && liveExecution.agent === agentType) {
+                    // Create a result object from live execution data
+                    benchmarkResult = {
+                      id: `live-${liveExecution.id}`,
+                      benchmark_id: benchmark.id,
+                      agent_type: agentType,
+                      score: liveExecution.score || 0,
+                      final_status:
+                        liveExecution.status === "Completed"
+                          ? "Completed"
+                          : liveExecution.status === "Failed"
+                            ? "Failed"
+                            : "Unknown",
+                      execution_time_ms: liveExecution.execution_time_ms || 0,
+                      timestamp:
+                        liveExecution.timestamp || new Date().toISOString(),
+                      color_class:
+                        liveExecution.score && liveExecution.score >= 1.0
+                          ? "green"
+                          : liveExecution.score && liveExecution.score >= 0.25
+                            ? "yellow"
+                            : "red",
+                    };
                   }
 
                   const isRunning =

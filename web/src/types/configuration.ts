@@ -35,9 +35,9 @@ export interface ExecutionState {
   logs: string;
   error?: string;
   score?: number;
-  final_status?: string;
   execution_time_ms?: number;
-  timestamp: string;
+  timestamp?: string;
+  color_class?: string;
 }
 
 export interface BenchmarkList {
