@@ -237,22 +237,24 @@ export function ExecutionTrace({
           </h2>
           <div className="flex items-center space-x-2">
             {/* Status Badge */}
-            <span
-              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                execution.status === "Running"
-                  ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400"
-                  : execution.status === "Completed"
-                    ? "bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400"
-                    : execution.status === "Failed"
-                      ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-              }`}
-            >
-              {execution.status}
-            </span>
+            {execution && (
+              <span
+                className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  execution.status === "Running"
+                    ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400"
+                    : execution.status === "Completed"
+                      ? "bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400"
+                      : execution.status === "Failed"
+                        ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                }`}
+              >
+                {execution.status}
+              </span>
+            )}
 
             {/* Progress */}
-            {execution.status === "Running" && (
+            {execution && execution.status === "Running" && (
               <div className="flex items-center space-x-2">
                 <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
