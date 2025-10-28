@@ -482,7 +482,7 @@ export function BenchmarkList({
       case ExecutionStatus.RUNNING:
         return "[…]";
       case ExecutionStatus.COMPLETED:
-        return "[✓]";
+        return "";
       case ExecutionStatus.FAILED:
         return "[✗]";
       default:
@@ -897,9 +897,8 @@ export function BenchmarkList({
 
                       <hr className=" border-gray-200 dark:border-gray-700 mt-2" />
 
-                      {/* Progress Bar for Running and Completed Benchmarks */}
-                      {(status === ExecutionStatus.RUNNING ||
-                        status === ExecutionStatus.COMPLETED ||
+                      {/* Progress Bar for Completed and Failed Benchmarks (hide when running) */}
+                      {(status === ExecutionStatus.COMPLETED ||
                         status === ExecutionStatus.FAILED) && (
                         <div className="mt-2">
                           <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
@@ -911,47 +910,11 @@ export function BenchmarkList({
                             </span>
 
                             {/* Score */}
-                            <span
-                              className={`font-mono text-xs font-medium ${getScoreColor(score)}`}
-                            >
-                              {status === ExecutionStatus.COMPLETED ||
-                              status === ExecutionStatus.FAILED
-                                ? formatScore(score)
-                                : "000%"}
-                            </span>
                             <span className="text-gray-400"></span>
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300">
                               {benchmark.id}
                             </span>
                           </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                status === ExecutionStatus.COMPLETED
-                                  ? "bg-green-600"
-                                  : status === ExecutionStatus.FAILED
-                                    ? "bg-red-600"
-                                    : "bg-blue-600"
-                              }`}
-                              style={{
-                                width: `${(() => {
-                                  const execution = Array.from(
-                                    executions.values(),
-                                  ).find(
-                                    (exec) =>
-                                      exec.benchmark_id === benchmark.id &&
-                                      exec.agent === selectedAgent,
-                                  );
-                                  return execution?.progress || 0;
-                                })()}%`,
-                              }}
-                            ></div>
-                          </div>
-                          {status === ExecutionStatus.COMPLETED && (
-                            <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                              ✓ Completed successfully
-                            </div>
-                          )}
                           {status === ExecutionStatus.FAILED && (
                             <div className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
                               ✗ Failed
