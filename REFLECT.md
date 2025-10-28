@@ -1,5 +1,28 @@
 # REEV IMPLEMENTATION REFLECTION
 
+## BenchmarkList Date Sorting and Display Fix - RESOLVED ✅
+
+**Issue**: BenchmarkList component wasn't showing benchmarks sorted by date, and clicking boxes from BenchmarkGrid displayed wrong dates for the whole list.
+
+**Root Cause**: 
+- Benchmarks displayed in original API order without sorting by date
+- getBenchmarkStatus function wasn't preserving timestamp data properly
+- No date indicator in UI to show current date grouping
+
+**Solution**: 
+- Added date sorting logic to sort benchmarks by most recent execution timestamp (newest first)
+- Fixed timestamp preservation in historicalResults and getBenchmarkStatus functions
+- Added date range display in yyyy-mm-dd format beside "Benchmarks" title
+- Shows date range like `(2025-10-20 - 2025-10-28)` or single date if all same day
+
+**Benefits**: 
+- ✅ Benchmarks now display in chronological order (newest execution first)
+- ✅ Consistent date format yyyy-mm-dd matches grid display
+- ✅ Clear indication of what date period the list represents
+- ✅ Fixed wrong date display when clicking from BenchmarkGrid
+
+**Files**: `web/src/components/BenchmarkList.tsx` - Added sorting logic, timestamp preservation, and date range display
+
 ## Web Benchmark History State Loading Bug - RESOLVED ✅
 
 **Issue**: Web benchmark completion had problematic history state loading that interfered with run complete state display.

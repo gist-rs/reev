@@ -190,6 +190,7 @@ export function BenchmarkList({
                 execution_id: result.id,
                 agentType: result.agent_type,
                 benchmarkId: result.benchmark_id,
+                timestamp: result.timestamp, // Ensure timestamp is preserved
               });
               resultsCount++;
             }
@@ -414,33 +415,32 @@ export function BenchmarkList({
           exec.benchmark_id === benchmarkId && exec.agent === selectedAgent,
       );
 
-      // If no current execution, check historical results
-      if (!execution) {
-        const historicalResult = historicalResults.get(benchmarkId);
-        if (historicalResult) {
-          // Map historical result status to execution status format
+      // Return current execution for selected agent immediately
+      if (execution) {
+        // Handle case where execution has score but wrong status (race condition handling)
+        if (execution.score >= 1.0 && execution.status === "Failed") {
           return {
-            ...historicalResult,
-            status: historicalResult.final_status,
-            progress: 100,
+            ...execution,
+            status: "Completed",
           };
         }
+        return execution;
       }
 
-      // Handle case where execution exists but might have stale data due to database lock
-      // Check if execution has score but wrong status (race condition handling)
-      if (
-        execution &&
-        execution.score >= 1.0 &&
-        execution.status === "Failed"
-      ) {
+      // If no current execution, check historical results ONLY for selected agent
+      const historicalResult = historicalResults.get(benchmarkId);
+      if (historicalResult) {
+        // Map historical result status to execution status format
         return {
-          ...execution,
-          status: "Completed",
+          ...historicalResult,
+          status: historicalResult.final_status,
+          progress: 100,
+          timestamp: historicalResult.timestamp, // Ensure timestamp is preserved
         };
       }
 
-      return execution;
+      // No execution found for this benchmark with selected agent
+      return null;
     },
     [executions, historicalResults, selectedAgent],
   );
@@ -535,9 +535,29 @@ export function BenchmarkList({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Benchmarks
-        </h2>
+        <div className="flex items-center space-x-3">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Benchmarks
+          </h2>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {(() => {
+              if (!selectedBenchmark) {
+                return "(no selection)";
+              }
+
+              const selectedExecution = getBenchmarkStatus(selectedBenchmark);
+              const selectedTimestamp = selectedExecution?.timestamp;
+
+              if (selectedTimestamp) {
+                const selectedDate = new Date(selectedTimestamp);
+                const formattedDate = selectedDate.toISOString().split("T")[0]; // yyyy-mm-dd format
+                return `(${formattedDate})`;
+              } else {
+                return "(no execution)";
+              }
+            })()}
+          </span>
+        </div>
         <div className="flex space-x-2">
           <button
             onClick={handleRunAllBenchmarks}
@@ -629,13 +649,17 @@ export function BenchmarkList({
       {/* Benchmark List */}
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-gray-200 dark:divide-gray-700">
-          {benchmarks.benchmarks
+          {[...benchmarks.benchmarks]
             .filter((benchmark) => {
               // Filter out failure test benchmarks (003, 004) from web interface
               // Keep only happy path benchmarks for web testing
               return (
                 !benchmark.id.includes("003") && !benchmark.id.includes("004")
               );
+            })
+            .sort((a, b) => {
+              // Sort by benchmark ID
+              return a.id.localeCompare(b.id);
             })
             .map((benchmark) => {
               const execution = getBenchmarkStatus(benchmark.id);

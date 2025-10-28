@@ -2,6 +2,56 @@
 
 ## Open Issues
 
+### #21 BenchmarkList Date Sorting and Display Fix - RESOLVED ✅
+
+**Date**: 2025-10-28  
+**Status**: Closed  
+**Priority**: Medium  
+**Description**: BenchmarkList component wasn't showing benchmarks sorted by date, and clicking boxes from BenchmarkGrid displayed wrong dates for the whole list.
+
+**Root Cause**: 
+1. BenchmarkList displayed benchmarks in original API order without sorting
+2. getBenchmarkStatus function wasn't preserving timestamp data properly
+3. No date indicator in the UI to show what the list is sorted by
+
+**Fix Applied**:
+1. **Added date sorting**: Benchmark items now sorted by most recent execution timestamp
+2. **Fixed timestamp preservation**: Ensured historicalResults and getBenchmarkStatus preserve timestamp data
+3. **Added date range indicator**: Shows date range (e.g., "Oct 20, 2025 - Oct 28, 2025") beside "Benchmarks" title
+
+**Implementation Details**:
+```typescript
+// Sorting logic - newest first
+.sort((a, b) => {
+  const aExecution = getBenchmarkStatus(a.id);
+  const bExecution = getBenchmarkStatus(b.id);
+  const aTimestamp = aExecution?.timestamp || "";
+  const bTimestamp = bExecution?.timestamp || "";
+  
+  if (aTimestamp && bTimestamp) {
+    return new Date(bTimestamp).getTime() - new Date(aTimestamp).getTime();
+  }
+  // Fallback logic for missing timestamps
+});
+
+// Date range display
+const dateRange = earliestTimestamp && latestTimestamp 
+  ? `(${earliestDate} - ${latestDate})` 
+  : latestTimestamp 
+    ? `(${latestDate})` 
+    : "(no executions)";
+```
+
+**Files Modified**: 
+- `web/src/components/BenchmarkList.tsx` - Added sorting logic, timestamp preservation, and date range display
+
+**Verification**: 
+- ✅ Build successful: `npm run build` completed without errors
+- ✅ No TypeScript diagnostics issues
+- ✅ Benchmarks now display sorted by latest execution date
+- ✅ Date range indicator shows relevant time period
+- ✅ Fixed wrong date display when clicking from BenchmarkGrid
+
 ### #20 Web Benchmark History State Loading Bug - RESOLVED ✅
 
 **Date**: 2025-10-28  
