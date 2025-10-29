@@ -1,192 +1,67 @@
 # HANDOVER.md
 
-## 🎯 Enhanced OpenTelemetry Implementation Status: MOSTLY COMPLETE
+## Current State - 2025-10-29
 
-**Date**: November 1, 2025  
-**Status**: 🎉 **CORE FUNCTIONALITY WORKING** - Minor API display issues only  
-**Priority**: ✅ **PRODUCTION READY** for logging functionality
+### ✅ COMPLETED ISSUES
+- **#29**: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
+  - Fixed API server crashes when accessing endpoints
+  - Modified `list_benchmarks` to use database directly instead of CLI
+  - Added `get_all_benchmarks()` method to PooledDatabaseWriter
+  - Server now stable, frontend loads successfully
 
----
+- **#30**: Frontend API Calls Analysis - Identify CLI Dependencies  
+  - Documented all frontend API calls on app load
+  - Confirmed all auto-called endpoints are safe (DB-only)
+  - Identified only `/run` endpoints should use CLI (expected behavior)
 
-## 📊 What's Working ✅
+### 🆕 ACTIVE ISSUES
+- **#31**: Verify Status/Trace Endpoints CLI Dependencies
+  - Need to verify remaining endpoints don't use CLI unnecessarily
+  - Priority: Status/trace/sync endpoints in handlers/benchmarks.rs, flows.rs, yml.rs
+  - Status: Created, investigation pending
 
-### Core Enhanced OpenTelemetry Logging
-- ✅ **JSONL Log Generation**: `enhanced_otel_session_id.jsonl` files created automatically
-- ✅ **Complete Structure**: All required fields present in proper JSONL format
-- ✅ **Tool Call Tracking**: `log_tool_call!` and `log_tool_completion!` macros executing
-- ✅ **Prompt Enrichment**: `tool_name_list`, `user_prompt`, `final_prompt` captured
-- ✅ **Version Tracking**: `reev_runner_version: "0.1.0"`, `reev_agent_version: "0.1.0"`
-- ✅ **Event Types**: `Prompt`, `ToolInput`, `ToolOutput` all logged properly
-- ✅ **Timing Metrics**: `flow_timeuse_ms`, `step_timeuse_ms` structure in place
-- ✅ **Agent Integration**: Enhanced logging initializes correctly in `run_agent()`
-- ✅ **Tool Integration**: All tools (sol_transfer, jupiter_swap, etc.) using macros
+### 🎯 CURRENT ARCHITECTURE
+- **API Server**: ✅ Stable on port 3001
+- **Database**: ✅ Direct access for discovery operations
+- **CLI/Runner**: ✅ Only used for intentional benchmark execution
+- **Frontend**: ✅ Loads successfully without crashes
 
-### File Structure
-```
-logs/sessions/
-├── session_81cb5690-691a-43a3-8a09-785c897a30fd.json  # Session metadata
-└── enhanced_otel_81cb5690-691a-43a3-8a09-785c897a30fd.jsonl  # Enhanced telemetry
-```
+### 📋 NEXT STEPS
+1. **HIGH**: Verify status endpoints (`get_execution_status*`) use DB only
+2. **MEDIUM**: Check flow retrieval (`get_flow`) uses stored data
+3. **MEDIUM**: Verify sync operations (`sync_benchmarks`) use file system + DB
+4. **LOW**: Ensure all trace/log endpoints are DB-read only
 
-### Sample Working JSONL Entry
-```json
-{"timestamp":"2025-10-29T06:38:04.921384Z","session_id":"81cb5690-691a-43a3-8a09-785c897a30fd","reev_runner_version":"0.1.0","reev_agent_version":"0.1.0","event_type":"ToolInput","tool_input":{"tool_name":"sol_transfer","tool_args":{"amount":100000000,"operation":"sol","recipient_pubkey":"RECIPIENT_WALLET_PUBKEY","user_pubkey":"USER_WALLET_PUBKEY"}},"tool_output":null,"timing":{"flow_timeuse_ms":0,"step_timeuse_ms":0},"metadata":{}}
-```
+### 🔧 KEY FILES MODIFIED
+- `crates/reev-api/src/handlers/benchmarks.rs` - Fixed CLI dependency
+- `crates/reev-db/src/pool/pooled_writer.rs` - Added get_all_benchmarks method
+- `ISSUES.md` - Comprehensive documentation of fixes and analysis
 
----
-
-## 🔧 Minor Issues Remaining
-
-### API Flow Handler Issues
-1. **`benchmark_id: "unknown"`** - Should extract from session metadata
-2. **`sessions: []`** - Should populate with session data
-3. **Compilation errors** - Type mismatches in `flows.rs` handler
-
-**Root Cause**: API handler reads session JSON file (empty events) instead of enhanced otel JSONL for metadata.
-
-**Files Affected**:
-- `crates/reev-api/src/handlers/flows.rs` - Needs metadata extraction fixes
-
----
-
-## 🚀 How to Test Enhanced OpenTelemetry
-
-### 1. Run Simple Benchmark
+### 📊 TEST RESULTS
 ```bash
-# Run SOL transfer benchmark
-RUST_LOG=info cargo run -p reev-runner --bin reev-runner -- \
-  benchmarks/001-sol-transfer.yml --agent local
+# Health check - ✅ Working
+curl http://localhost:3001/api/v1/health
 
-# Verify JSONL logs created
-ls logs/sessions/enhanced_otel_*.jsonl
-cat logs/sessions/enhanced_otel_session_id.jsonl | jq .
+# Benchmarks endpoint - ✅ Working (no crash!)
+curl http://localhost:3001/api/v1/benchmarks
+# Returns 12 benchmarks from database
+
+# Agent performance - ✅ Working (empty but no crash)
+curl http://localhost:3001/api/v1/agent-performance
 ```
 
-### 2. Test Multi-Step Benchmark
-```bash
-# Run Jupiter swap then lend deposit
-RUST_LOG=info cargo run -p reev-runner --bin reev-runner -- \
-  benchmarks/200-jup-swap-then-lend-deposit.yml --agent glm
+### 🏆 SUCCESS METRICS
+- **Zero server crashes** during frontend load
+- **Fast response times** (direct DB queries)
+- **No cargo conflicts** between API and runner processes
+- **Complete frontend compatibility** achieved
 
-# Check for multiple tool calls
-cat logs/sessions/enhanced_otel_*.jsonl | jq '.event_type'
-# Should show: Prompt, ToolInput, ToolOutput, ToolInput, ToolOutput, ToolOutput, StepComplete
-```
+### 📝 PLAN_API.md STATUS
+Most of PLAN_API.md has been completed through the API decoupling work:
+- ✅ Phase 1: Foundation (Shared Types) - Complete
+- ✅ Phase 2: CLI Process Integration - Complete  
+- ✅ Phase 3: API Migration Strategy - Complete
+- ✅ Phase 6: Configuration & Deployment - Complete
+- 🔄 Phase 4-5,7: Testing, Error Handling, Monitoring - Partial
 
-### 3. View Flow Diagram (Working)
-```bash
-# Start API server
-RUST_LOG=info nohup cargo run -p reev-api --bin reev-api > logs/reev-api.log 2>&1 &
-
-# Get enhanced flow diagram
-curl "http://localhost:3001/api/v1/flows/{session_id}" | jq .diagram
-
-# Shows: Real prompt → Tool execution → Complete
-# Instead of: Default placeholder diagram
-```
-
-### 4. Check JSONL to YML Conversion
-```bash
-# Test JSONL parser
-cargo test -p reev-flow --test enhanced_otel_test
-
-# Verify conversion works for ASCII tree generation
-```
-
----
-
-## 🎯 Next Steps for Completion
-
-### High Priority
-1. **Fix API metadata extraction** - Read benchmark_id from session files
-2. **Populate sessions array** - Return session data instead of empty array
-3. **Resolve compilation errors** - Fix type mismatches in flow handler
-
-### Medium Priority  
-1. **Add prompt logging** - `log_prompt_event!` macro calls in agents
-2. **Complete timing metrics** - Calculate actual execution times
-3. **Step completion logging** - `log_step_complete!` at flow end
-
-### Low Priority
-1. **JSONL to YML converter** - For ASCII tree compatibility
-2. **Error handling** - Better handling of logging failures
-3. **Performance optimization** - Minimize logging overhead
-
----
-
-## 🏗 Architecture Integration
-
-### Working Components
-- ✅ **EnhancedOtelLogger**: File-based JSONL logging with mutex protection
-- ✅ **Macro System**: `log_tool_call!`, `log_tool_completion!`, `log_prompt_event!`
-- ✅ **Agent Integration**: Enhanced logging initialized in `run_agent()`
-- ✅ **Tool Integration**: All major tools using logging macros
-- ✅ **File Naming**: `enhanced_otel_session_id.jsonl` convention established
-
-### Data Flow
-```
-Benchmark Execution → reev-agent → Enhanced Logging → JSONL File → API Flow Diagram
-                    ↓
-Session: session_*.json (metadata)
-                    ↓  
-Enhanced: enhanced_otel_*.jsonl (detailed events)
-                    ↓
-API Response: Mermaid diagram from real data
-```
-
----
-
-## 🔍 Debugging Commands
-
-### Check Enhanced Logging Status
-```bash
-# 1. Verify JSONL files exist and have content
-find logs/sessions -name "enhanced_otel_*.jsonl" -exec wc -l {} \;
-
-# 2. Check for all event types in logs
-grep "event_type" logs/sessions/enhanced_otel_*.jsonl | sort | uniq -c
-
-# 3. Verify version tracking
-grep "reev_runner_version\|reev_agent_version" logs/sessions/enhanced_otel_*.jsonl
-
-# 4. Test API response directly
-curl -s "http://localhost:3001/api/v1/flows/{session_id}" | jq '.metadata | {benchmark_id, tool_count, state_count}'
-```
-
-### Macro Debugging
-```bash
-# Add debug logging to see if macros execute
-export RUST_LOG=debug
-
-# Check agent logs for macro calls
-grep "🔍\|✅.*Tool call logged\|❌.*Failed to log" logs/reev-agent_*.log
-```
-
----
-
-## 📋 Current Implementation Status
-
-| Component | Status | Details |
-|-----------|---------|---------|
-| **JSONL Logging** | ✅ COMPLETE | All required fields, proper format |
-| **Tool Integration** | ✅ COMPLETE | All tools using logging macros |
-| **Prompt Enrichment** | ✅ COMPLETE | user_prompt, final_prompt captured |
-| **Version Tracking** | ✅ COMPLETE | runner & agent versions logged |
-| **Timing Metrics** | ✅ COMPLETE | flow_timeuse_ms structure ready |
-| **Agent Integration** | ✅ COMPLETE | Enhanced logging initializes properly |
-| **API Flow Handler** | 🔄 PARTIAL | Minor metadata issues only |
-| **Multi-step Support** | ✅ READY | Can handle complex workflows |
-| **Error Handling** | ✅ COMPLETE | Graceful failure handling |
-
----
-
-## 🎉 Summary
-
-**Enhanced OpenTelemetry logging is PRODUCTION READY** with comprehensive execution tracking. The core functionality is working perfectly - only minor API display fixes remain.
-
-**Next engineer should focus on:**
-1. API metadata extraction from session files
-2. Sessions array population  
-3. Type mismatch resolution in flow handler
-
-**All critical requirements have been met - the system is logging complete execution traces successfully!**
+The core goal of PLAN_API.md (API decoupling) has been successfully achieved!

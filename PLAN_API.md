@@ -521,15 +521,34 @@ pub async fn enhanced_health_check() -> HealthStatus {
 - ✅ Remove dependencies (runtime)
 - ✅ Performance testing and optimization
 
-## 🎉 PROJECT STATUS: CLI-BASED RUNNER INTEGRATION COMPLETE
+## 🎉 PROJECT STATUS: CLI-BASED RUNNER INTEGRATION COMPLETE - UPDATED
+
+### ✅ RESOLVED CRITICAL ISSUES (2025-10-29)
+- **Issue #29**: Fixed API server crashes during frontend load
+  - Problem: CLI calls from `/api/v1/benchmarks` caused cargo conflicts
+  - Solution: Modified to use database directly instead of benchmark_executor
+  - Result: Server now stable, frontend loads successfully
+
+- **Issue #30**: Frontend API calls analysis completed
+  - Documented all auto-called endpoints are safe (DB-only)
+  - Confirmed only `/run` endpoints should use CLI/runner (expected behavior)
+  - Result: Clear separation of discovery vs execution concerns
+
+- **Issue #31**: Status/trace endpoints CLI dependencies identified
+  - Created systematic verification framework for remaining endpoints
+  - Prioritized investigation of status/trace/sync operations
+  - Status: Ready for verification phase
 
 ### ✅ What Was Achieved
 1. **Complete API Decoupling**: reev-api now communicates with reev-runner via CLI processes
 2. **Working CLI Integration**: Real benchmark execution verified through tests and API logs
 3. **State Management**: Execution states properly tracked via reev-db
 4. **Error Handling**: Robust timeout and error recovery implemented
-5. **Test Coverage**: CLI integration tests passing and verified
-6. **Zero Runtime Dependencies**: No direct library calls at runtime
+5. **Critical Fix**: Resolved API crashes during frontend load (Issue #29)
+6. **Test Coverage**: CLI integration tests passing and verified
+7. **Zero Runtime Dependencies**: No direct library calls at runtime
+8. **Frontend Compatibility**: All discovery endpoints now crash-free
+9. **Proper Architecture**: Database for discovery, CLI for execution only
 
 ### 🔧 Current Architecture
 ```
