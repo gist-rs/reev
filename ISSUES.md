@@ -41,17 +41,40 @@
 - **State Management**: Cross-process execution tracking via database
 - **Error Handling**: Robust timeout and failure recovery
 
-### 🎯 **Next Steps**
-- **LOW**: Minor OpenTelemetry API metadata display fixes (#28)
-- **LOW**: Performance monitoring under load testing
-- **LOW**: Additional integration tests for verified endpoints
+### 🚨 **Current Issue - #32**
+- **Title**: API execution state stuck at "Pending" - CLI results not propagated
+- **Description**: When benchmark execution completes via CLI, the session file contains successful results, but the API server doesn't read these results back to update the in-memory execution state. Web UI continuously shows "Pending" status even after successful completion.
+- **Root Cause**: Missing session file reading in `BenchmarkExecutor.execute_cli_benchmark()`
+- **Impact**: High - benchmark executions appear to hang/fail in web interface despite actual success
+- **Status**: **IN PROGRESS** - implementing session file reading to complete the feedback loop
 
-### 📝 **Architecture Summary**
+### 📝 **Architecture Flow Issue**
 ```
-🚀 CURRENT STATE (Optimal):
+🚀 CURRENT STATE:
 Frontend → API Server → Database (discovery, status, traces)
-            ↓
-CLI/Runner (execution only) → Database (state storage)
+            ↓                  ↑ Missing feedback loop
+CLI/Runner → Session Files → Database (incomplete)
 ```
 
-**Result**: Production-ready API with zero conflicts and optimal performance.
+**Problem**: Session files are written but never read back to update API execution state.
+
+### 🎯 **Solution Required**
+Add session file reading to `BenchmarkExecutor.execute_cli_benchmark()` after CLI completion:
+1. Poll for session file existence with retry logic
+2. Parse session JSON to extract `final_result` 
+3. Update `execution_state` with actual results
+4. Complete execution status based on session success/failure
+
+### 🔧 **Implementation Plan**
+- [ ] Add `read_session_result()` method to `BenchmarkExecutor`
+- [ ] Add retry logic for session file availability  
+- [ ] Update `execute_cli_benchmark()` to call session reading
+- [ ] Test end-to-end execution flow with session result propagation
+- [ ] Ensure database timestamp compatibility (currently being fixed)
+- [ ] Verify web UI shows correct completion status
+
+### 📊 **Technical Details**
+- **Session Location**: `logs/sessions/session_{execution_id}.json`
+- **Key Field**: `final_result.success` and `final_result.score`
+- **Challenge**: Session files created after CLI process exits, may need brief delay
+- **Risk**: Race conditions between file creation and reading
