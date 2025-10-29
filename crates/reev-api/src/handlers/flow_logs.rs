@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use reev_types::ExecutionStatus;
 use serde_json::json;
 use tracing::{error, info};
 
@@ -22,7 +23,7 @@ pub async fn get_flow_log(
     for (execution_id, execution) in executions.iter() {
         if execution.benchmark_id == benchmark_id {
             let is_running = execution.status == ExecutionStatus::Running
-                || execution.status == ExecutionStatus::Pending;
+                || execution.status == ExecutionStatus::Queued;
             info!(
                 "Execution trace debug: execution_id={}, status={:?}, is_running={}, benchmark_id={}",
                 execution_id, execution.status, is_running, benchmark_id
@@ -34,7 +35,7 @@ pub async fn get_flow_log(
                 "status": format!("{:?}", execution.status).to_lowercase(),
                 "score": null,
                 "final_status": execution.status,
-                "log_content": execution.trace.clone(),
+                "log_content": execution.metadata.get("trace").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 "is_running": is_running,
                 "progress": execution.progress
             }));

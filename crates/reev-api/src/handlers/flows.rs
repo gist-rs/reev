@@ -9,6 +9,7 @@ use axum::{
 };
 use chrono::DateTime;
 
+use reev_types::ExecutionStatus;
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
@@ -267,7 +268,7 @@ async fn get_session_fallback(
         // For session-based fallback, just return any active execution
         // The session_id will be used for the flow diagram
         let is_running = execution.status == ExecutionStatus::Running
-            || execution.status == ExecutionStatus::Pending;
+            || execution.status == ExecutionStatus::Queued;
 
         active_executions.push(json!({
             "session_id": execution_id,
@@ -276,7 +277,7 @@ async fn get_session_fallback(
             "status": format!("{:?}", execution.status).to_lowercase(),
             "score": serde_json::Value::Null,
             "final_status": execution.status,
-            "log_content": execution.trace.clone(),
+            "log_content": execution.metadata.get("trace").and_then(|v| v.as_str()).unwrap_or("").to_string(),
             "is_running": is_running,
             "progress": execution.progress
         }));

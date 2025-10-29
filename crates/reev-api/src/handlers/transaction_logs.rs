@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use reev_types::ExecutionStatus;
 use serde_json::json;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
@@ -103,7 +104,7 @@ pub async fn get_transaction_logs(
 
     if let Some((_execution_id, execution)) = found_execution {
         let is_running = execution.status == ExecutionStatus::Running
-            || execution.status == ExecutionStatus::Pending;
+            || execution.status == ExecutionStatus::Queued;
 
         info!(
             "Found execution for benchmark: {} (status: {:?})",
@@ -123,12 +124,18 @@ pub async fn get_transaction_logs(
                 .map_or("false".to_string(), |v| v.clone());
             let show_cu = show_cu_param == "true";
 
-            let transaction_logs = if execution.trace.trim().is_empty() {
+            let trace_data = execution
+                .metadata
+                .get("trace")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            let transaction_logs = if trace_data.trim().is_empty() {
                 "🔄 Loading transaction logs...\n\n⏳ Execution in progress - please wait"
                     .to_string()
             } else {
                 // Try to parse and extract transaction logs from running execution
-                match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace) {
+                match serde_json::from_str::<reev_lib::trace::ExecutionTrace>(trace_data) {
                     Ok(trace) => {
                         // Create a TestResult from the trace to use existing extraction logic
                         let test_result = reev_lib::results::TestResult::new(
@@ -185,7 +192,7 @@ pub async fn get_transaction_logs(
                     Err(_) => {
                         // Failed to parse - show raw trace with processing message
                         format!("🔄 Processing transaction logs...\n\n⚠️ Unable to parse execution trace - still running\n\nRaw trace preview:\n{}",
-                            &execution.trace[..execution.trace.len().min(500)])
+                            &trace_data[..trace_data.len().min(500)])
                     }
                 }
             };
@@ -213,10 +220,13 @@ pub async fn get_transaction_logs(
         }
 
         // For completed executions with trace data, use the in-memory trace
-        if !execution.trace.is_empty() {
-            if let Ok(trace) =
-                serde_json::from_str::<reev_lib::trace::ExecutionTrace>(&execution.trace)
-            {
+        let trace_data = execution
+            .metadata
+            .get("trace")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !trace_data.is_empty() {
+            if let Ok(trace) = serde_json::from_str::<reev_lib::trace::ExecutionTrace>(trace_data) {
                 // Create a TestResult from the trace to use existing extraction logic
                 let test_result = reev_lib::results::TestResult::new(
                     &reev_lib::benchmark::TestCase {

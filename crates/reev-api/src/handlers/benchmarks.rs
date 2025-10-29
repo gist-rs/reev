@@ -1,15 +1,13 @@
 //! Benchmark management handlers
 
-use crate::types::{
-    ApiState, BenchmarkExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus,
-};
+use crate::types::{ApiState, BenchmarkExecutionRequest};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use chrono;
-use reev_types::ExecutionRequest;
+use reev_types::{ExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus};
 use std::collections::HashMap;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -188,20 +186,13 @@ pub async fn run_benchmark(
     Json(request): Json<BenchmarkExecutionRequest>,
 ) -> impl IntoResponse {
     let execution_id = Uuid::new_v4().to_string();
-    let now = chrono::Utc::now();
+    let _now = chrono::Utc::now();
 
-    let execution_state = ExecutionState {
-        id: execution_id.clone(),
-        benchmark_id: benchmark_id.clone(),
-        agent: request.agent.clone(),
-        status: ExecutionStatus::Pending,
-        progress: 0,
-        start_time: now,
-        end_time: None,
-        trace: String::new(),
-        logs: String::new(),
-        error: None,
-    };
+    let execution_state = ExecutionState::new(
+        execution_id.clone(),
+        benchmark_id.clone(),
+        request.agent.clone(),
+    );
 
     // Store execution state
     {
@@ -250,7 +241,12 @@ pub async fn run_benchmark(
 
     Json(ExecutionResponse {
         execution_id,
-        status: "started".to_string(),
+        status: ExecutionStatus::Running,
+        duration_ms: 0,
+        result: None,
+        error: None,
+        logs: Vec::new(),
+        tool_calls: Vec::new(),
     })
 }
 
@@ -438,18 +434,15 @@ fn format_execution_trace(
                 .unwrap_or("unknown")
                 .to_string();
 
-            Ok(ExecutionState {
-                id: execution_id,
+            let mut execution_state = ExecutionState::new(
+                execution_id,
                 benchmark_id,
-                agent: "deterministic".to_string(), // Default agent
-                status: ExecutionStatus::Completed,
-                progress: 100,
-                start_time: chrono::Utc::now(),
-                end_time: Some(chrono::Utc::now()),
-                trace: formatted_trace,
-                logs: String::new(),
-                error: None,
-            })
+                "deterministic".to_string(), // Default agent
+            );
+            execution_state.status = ExecutionStatus::Completed;
+            execution_state.progress = Some(1.0);
+            execution_state.add_metadata("trace", serde_json::Value::String(formatted_trace));
+            Ok(execution_state)
         }
         Err(e) => Err(format!("Failed to parse execution trace: {e}").into()),
     }
@@ -476,11 +469,11 @@ pub async fn stop_benchmark(
         Some(execution) => {
             if matches!(
                 execution.status,
-                ExecutionStatus::Running | ExecutionStatus::Pending
+                ExecutionStatus::Running | ExecutionStatus::Queued
             ) {
                 execution.status = ExecutionStatus::Failed;
-                execution.end_time = Some(chrono::Utc::now());
-                execution.error = Some("Execution stopped by user".to_string());
+                execution.updated_at = chrono::Utc::now();
+                execution.error_message = Some("Execution stopped by user".to_string());
                 info!("Stopped benchmark execution: {}", execution_id);
                 Json(serde_json::json!({"status": "stopped"})).into_response()
             } else {

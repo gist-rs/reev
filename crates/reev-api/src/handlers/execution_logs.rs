@@ -1,17 +1,16 @@
-use crate::types::{ExecutionState, ExecutionStatus};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use reev_types::execution::{ExecutionState, ExecutionStatus};
 
 use serde_json::json;
 use std::collections::HashMap;
 use tracing::{info, warn};
 
 use crate::types::ApiState;
-use chrono;
 
 /// Get execution trace for a benchmark
 pub async fn get_execution_trace(
@@ -36,7 +35,7 @@ pub async fn get_execution_trace(
 
     if let Some((execution_id, execution)) = found_execution {
         let is_running = execution.status == ExecutionStatus::Running
-            || execution.status == ExecutionStatus::Pending;
+            || execution.status == ExecutionStatus::Queued;
 
         info!(
             "Found execution for benchmark: {} (status: {:?})",
@@ -45,17 +44,22 @@ pub async fn get_execution_trace(
 
         // Handle running executions like execution trace - return raw trace or loading message
         if is_running {
-            let execution_trace = if execution.trace.trim().is_empty() {
+            let trace_data = execution
+                .metadata
+                .get("trace")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let execution_trace = if trace_data.trim().is_empty() {
                 "🔄 Loading execution trace...\n\n⏳ Execution in progress - please wait"
                     .to_string()
             } else {
                 // Return the raw execution trace
-                execution.trace.clone()
+                trace_data.to_string()
             };
 
             // For running executions, try to format if trace has content, otherwise show loading
-            if !execution.trace.trim().is_empty() {
-                match format_execution_trace(&execution.trace, execution_id.clone()) {
+            if !trace_data.trim().is_empty() {
+                match format_execution_trace(trace_data, execution_id.clone()) {
                     Ok(execution_state) => {
                         info!("Successfully formatted execution trace for running execution");
                         return Json(execution_state).into_response();
@@ -87,8 +91,13 @@ pub async fn get_execution_trace(
         }
 
         // For completed executions with trace data, format it using the ASCII tree formatter
-        if !execution.trace.is_empty() {
-            match format_execution_trace(&execution.trace, execution_id.clone()) {
+        let trace_data = execution
+            .metadata
+            .get("trace")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !trace_data.is_empty() {
+            match format_execution_trace(trace_data, execution_id.clone()) {
                 Ok(execution_state) => {
                     info!("Successfully formatted execution trace for completed execution");
                     return Json(execution_state).into_response();
@@ -107,7 +116,7 @@ pub async fn get_execution_trace(
                         "interface": "web",
                         "status": format!("{:?}", execution.status).to_lowercase(),
                         "final_status": execution.status,
-                        "trace": execution.trace,
+                        "trace": execution.metadata.get("trace").cloned().unwrap_or(serde_json::Value::String(String::new())),
                         "is_running": false,
                         "progress": execution.progress
                     });
@@ -313,18 +322,15 @@ fn format_execution_trace(
                 .unwrap_or("unknown")
                 .to_string();
 
-            Ok(ExecutionState {
-                id: execution_id,
+            let mut execution_state = ExecutionState::new(
+                execution_id,
                 benchmark_id,
-                agent: "deterministic".to_string(), // Default agent
-                status: ExecutionStatus::Completed,
-                progress: 100,
-                start_time: chrono::Utc::now(),
-                end_time: Some(chrono::Utc::now()),
-                trace: formatted_trace,
-                logs: String::new(),
-                error: None,
-            })
+                "deterministic".to_string(), // Default agent
+            );
+            execution_state.status = ExecutionStatus::Completed;
+            execution_state.progress = Some(1.0);
+            execution_state.add_metadata("trace", serde_json::Value::String(formatted_trace));
+            Ok(execution_state)
         }
         Err(e) => Err(format!("Failed to parse execution trace: {e}").into()),
     }

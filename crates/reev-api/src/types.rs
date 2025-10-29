@@ -1,3 +1,4 @@
+use reev_types::ExecutionState;
 use serde::{Deserialize, Serialize};
 
 use crate::services::PooledBenchmarkExecutor;
@@ -11,30 +12,6 @@ pub struct BenchmarkInfo {
     pub prompt: String,
 }
 
-// API-specific wrapper for ExecutionState with additional fields
-#[derive(Debug, Clone, Serialize)]
-pub struct ExecutionState {
-    pub id: String,
-    pub benchmark_id: String,
-    pub agent: String,
-    pub status: ExecutionStatus,
-    pub progress: u8,
-    pub start_time: chrono::DateTime<chrono::Utc>,
-    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
-    pub trace: String,
-    pub logs: String,
-    pub error: Option<String>,
-}
-
-// API-specific ExecutionStatus enum
-// API-specific ExecutionStatus enum
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub enum ExecutionStatus {
-    Pending,
-    Running,
-    Completed,
-    Failed,
-}
 /// API state containing database connection and execution state
 #[derive(Clone)]
 pub struct ApiState {

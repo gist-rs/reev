@@ -372,9 +372,18 @@ macro_rules! log_tool_completion {
         if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
             if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
                 let session_id = logger.session_id().to_string();
+                // Merge execution time into results
+                let mut results = serde_json::to_value($result).unwrap_or_default();
+                if let Some(obj) = results.as_object_mut() {
+                    obj.insert(
+                        "execution_time_ms".to_string(),
+                        serde_json::Value::Number(serde_json::Number::from($execution_time_ms)),
+                    );
+                }
+
                 let tool_output = $crate::enhanced_otel::ToolOutputInfo {
                     success: $success,
-                    results: serde_json::to_value($result).unwrap_or_default(),
+                    results,
                     error_message: if $success {
                         None
                     } else {
