@@ -37,29 +37,24 @@ where
 
     /// Create new benchmark executor with default config
     ///
-    /// **Smart Mode Detection:**
-    /// - Auto-detect: Uses release binary if `./target/release/reev-runner` exists
-    /// - Development: Uses `cargo watch` for fast recompilation when no release binary
-    /// - Production: Uses release binary for maximum performance
+    /// **Auto-Detection:**
+    /// - Release mode: Uses `./target/release/reev-runner` if it exists
+    /// - Development mode: Uses `cargo watch` for fast recompilation if no release binary
     ///
     /// **Environment Variables:**
-    /// - `REEV_USE_RELEASE`:
-    ///   - "true": Force release binary mode
-    ///   - "false": Force development mode with cargo watch
-    ///   - "auto" (default): Auto-detect based on binary availability
     /// - `RUST_LOG`: Set to "info" for development logging
     /// - `REEV_ENHANCED_OTEL_FILE`: Enhanced OTEL logging path
     ///
     /// **Usage:**
     /// ```bash
-    /// # Build release binary for production
+    /// # Development: cargo watch (default)
+    /// cargo run -p reev-api
+    ///
+    /// # Production: build release binary
     /// cargo build --release -p reev-runner
     ///
-    /// # Force development mode even with release binary
-    /// REEV_USE_RELEASE=false cargo run -p reev-api
-    ///
-    /// # Force production mode
-    /// REEV_USE_RELEASE=true cargo run -p reev-api
+    /// # Now reev-api will auto-detect and use the release binary
+    /// cargo run -p reev-api
     /// ```
     pub fn new_with_default(db: Arc<T>) -> Self {
         Self::new(
@@ -392,54 +387,19 @@ where
             .min(self.timeout_config.max_timeout_seconds);
 
         // Set up environment
-        // Smart detection: use release binary if available, otherwise cargo watch
-        // Priority: 1) Manual override via REEV_USE_RELEASE=true
-        //          2) Auto-detect release binary exists
-        //          3) Fallback to cargo watch for development
-        let use_release_manual =
-            std::env::var("REEV_USE_RELEASE").unwrap_or_else(|_| "auto".to_string());
-
+        // Auto-detect: use release binary if exists, otherwise cargo watch
         let release_binary_exists = std::path::Path::new(&self.config.runner_binary_path).exists();
 
-        let (use_release, runner_path, mode) = match use_release_manual.as_str() {
-            "true" if release_binary_exists => {
-                let path = self.config.runner_binary_path.clone();
-                (true, path, "production (manual)".to_string())
-            }
-            "false" => (
+        let (use_release, runner_path, mode) = if release_binary_exists {
+            let path = self.config.runner_binary_path.clone();
+            (true, path, "production (auto-detected)".to_string())
+        } else {
+            info!("Release binary not found, using development mode with cargo watch");
+            (
                 false,
                 "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
-                "development (manual)".to_string(),
-            ),
-            "auto" if release_binary_exists => {
-                info!("Auto-detected release binary, using production mode");
-                let path = self.config.runner_binary_path.clone();
-                (true, path, "production (auto-detected)".to_string())
-            }
-            "auto" => {
-                info!("No release binary found, using development mode with cargo watch");
-                (
-                    false,
-                    "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
-                    "development (auto)".to_string(),
-                )
-            }
-            _ => {
-                warn!(
-                    "Invalid REEV_USE_RELEASE value: {}, defaulting to auto",
-                    use_release_manual
-                );
-                if release_binary_exists {
-                    let path = self.config.runner_binary_path.clone();
-                    (true, path, "production (auto-fallback)".to_string())
-                } else {
-                    (
-                        false,
-                        "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
-                        "development (auto-fallback)".to_string(),
-                    )
-                }
-            }
+                "development (auto-detected)".to_string(),
+            )
         };
 
         info!("Using {} mode: {}", mode, runner_path);
