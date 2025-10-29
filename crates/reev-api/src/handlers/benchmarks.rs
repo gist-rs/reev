@@ -18,100 +18,63 @@ use uuid::Uuid;
 pub async fn list_benchmarks(
     State(state): State<ApiState>,
 ) -> Json<Vec<crate::types::BenchmarkInfo>> {
-    // Use CLI-based benchmark discovery first
-    match state.benchmark_executor.list_benchmarks(None).await {
-        Ok(benchmark_ids) => {
+    // Query benchmarks directly from database instead of CLI
+    match state.db.get_all_benchmarks().await {
+        Ok(benchmark_data) => {
             let mut benchmarks = Vec::new();
 
-            for benchmark_id in benchmark_ids {
+            for data in benchmark_data {
                 // Filter out position/earnings benchmarks (114-*) from web interface
                 // These benchmarks use jupiter_earn tool which is restricted to specialized testing
-                if benchmark_id.starts_with("114") {
+                if data.benchmark_name.starts_with("114") {
                     continue;
                 }
 
-                // Try to get detailed info from YAML file
-                let project_root = match project_root::get_project_root() {
-                    Ok(root) => root,
-                    Err(e) => {
-                        error!("Failed to get project root: {}", e);
-                        // Fallback to minimal info
-                        benchmarks.push(crate::types::BenchmarkInfo {
-                            id: benchmark_id,
-                            description: "No description available".to_string(),
-                            tags: vec![],
-                            prompt: "".to_string(),
-                        });
-                        continue;
-                    }
-                };
+                // Parse YAML content to extract description and tags
+                let (description, tags) =
+                    match serde_yaml::from_str::<serde_yaml::Value>(&data.content) {
+                        Ok(yaml) => {
+                            let description = yaml
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("No description available")
+                                .to_string();
 
-                let benchmark_path = project_root
-                    .join("benchmarks")
-                    .join(format!("{benchmark_id}.yml"));
+                            let tags = yaml
+                                .get("tags")
+                                .and_then(|v| v.as_sequence())
+                                .map(|seq| {
+                                    seq.iter()
+                                        .filter_map(|v| v.as_str())
+                                        .map(|s| s.to_string())
+                                        .collect()
+                                })
+                                .unwrap_or_default();
 
-                match std::fs::read_to_string(&benchmark_path) {
-                    Ok(yaml_content) => {
-                        match serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
-                            Ok(yaml) => {
-                                let description = yaml
-                                    .get("description")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("No description available")
-                                    .to_string();
-
-                                let tags = yaml
-                                    .get("tags")
-                                    .and_then(|v| v.as_sequence())
-                                    .map(|seq| {
-                                        seq.iter()
-                                            .filter_map(|v| v.as_str())
-                                            .map(|s| s.to_string())
-                                            .collect()
-                                    })
-                                    .unwrap_or_default();
-
-                                let prompt = yaml
-                                    .get("prompt")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-
-                                benchmarks.push(crate::types::BenchmarkInfo {
-                                    id: benchmark_id,
-                                    description,
-                                    tags,
-                                    prompt,
-                                });
-                            }
-                            Err(e) => {
-                                error!("Failed to parse YAML file {:?}: {}", benchmark_path, e);
-                                benchmarks.push(crate::types::BenchmarkInfo {
-                                    id: benchmark_id,
-                                    description: "Failed to parse description".to_string(),
-                                    tags: vec![],
-                                    prompt: "".to_string(),
-                                });
-                            }
+                            (description, tags)
                         }
-                    }
-                    Err(e) => {
-                        error!("Failed to read YAML file {:?}: {}", benchmark_path, e);
-                        benchmarks.push(crate::types::BenchmarkInfo {
-                            id: benchmark_id,
-                            description: "Failed to read description".to_string(),
-                            tags: vec![],
-                            prompt: "".to_string(),
-                        });
-                    }
-                }
+                        Err(e) => {
+                            error!(
+                                "Failed to parse YAML content for {}: {}",
+                                data.benchmark_name, e
+                            );
+                            ("Failed to parse description".to_string(), vec![])
+                        }
+                    };
+
+                benchmarks.push(crate::types::BenchmarkInfo {
+                    id: data.benchmark_name,
+                    description,
+                    tags,
+                    prompt: data.prompt,
+                });
             }
 
             benchmarks.sort_by(|a, b| a.id.cmp(&b.id));
             Json(benchmarks)
         }
         Err(e) => {
-            error!("Failed to list benchmarks via CLI: {}", e);
+            error!("Failed to list benchmarks from database: {}", e);
             // Fallback to filesystem discovery
             fallback_filesystem_discovery()
         }

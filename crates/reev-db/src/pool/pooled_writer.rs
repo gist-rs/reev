@@ -115,6 +115,13 @@ impl PooledDatabaseWriter {
         Ok(filtered)
     }
 
+    /// Get all benchmarks from database
+    pub async fn get_all_benchmarks(&self) -> Result<Vec<BenchmarkData>> {
+        let conn = self.get_connection().await?;
+        let writer = crate::DatabaseReader::from_connection(conn.connection().clone());
+        writer.get_all_benchmarks().await
+    }
+
     // Session operations
     pub async fn create_session(&self, session: &crate::types::SessionInfo) -> Result<()> {
         let conn = self.get_connection().await?;

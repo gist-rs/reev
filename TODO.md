@@ -2,6 +2,26 @@
 
 ---
 
+2025-10-29T07:47:20.450570Z  INFO reev_api::handlers::agents: ✅ Successfully got 0 agent performance summaries
+2025-10-29T07:47:20.451187Z  INFO reev_api::services::benchmark_executor: Executing CLI command: cargo run -p reev-runner -- benchmarks (timeout: 300s)
+2025-10-29T07:47:20.451187Z  INFO reev_api::services::benchmark_executor: Executing CLI command: cargo run -p reev-runner -- benchmarks (timeout: 300s)
+sh: line 1: 76246 Killed: 9               cargo run -p reev-api --bin reev-api
+[Finished running. Exit status: 137]
+
+---
+
+expect
+
+- run bench -> api -> agent -> otel -> enhanced_otel_{session_id}.jsonl -> yml -> db
+- web <- api <- mermaid <- yml <- db
+
+can you check this correct for current code?
+
+it seem like we have duplicated `jsonl -> yml` and `mermaid <- yml`
+and i think all flow `jsonl -> yml` and `mermaid <- yml` should have it won crate reev-diagram
+
+---
+
 i expect this diagram btw
 ```
 stateDiagram

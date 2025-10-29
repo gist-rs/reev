@@ -1,5 +1,74 @@
 # Issues
 
+## 🆕 #29: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
+### Problem
+API server crashes when accessing `/api/v1/benchmarks` and `/api/v1/agent-performance` endpoints. The issue is that the API calls `benchmark_executor.list_benchmarks()` which executes `cargo run -p reev-runner -- benchmarks`, causing conflicts with the existing `cargo run -p reev-api` process and killing it with SIGKILL (exit code 137).
+
+### Root Cause
+- Current architecture: `API -> CLI/Runner -> Database` (WRONG)
+- Should be: `API -> Database` (CORRECT)
+- API should only use CLI/runner for execution, not for discovery
+- Database already contains benchmark data from startup sync
+- Both `/api/v1/benchmarks` and `/api/v1/agent-performance` were affected by CLI conflicts
+
+### Solution
+1. Modify `list_benchmarks` handler to query database directly
+2. Add `get_all_benchmarks()` method to database reader
+3. Remove CLI dependency for benchmark discovery
+4. Keep CLI/runner only for execution operations
+
+### Files Affected
+- `crates/reev-api/src/handlers/benchmarks.rs` - Fix list_benchmarks handler
+- `crates/reev-db/src/reader.rs` - Add get_all_benchmarks method
+- `crates/reev-db/src/lib.rs` - Add method to trait if needed
+
+### Tasks
+1. Add `get_all_benchmarks()` method to DatabaseReader
+2. Update `list_benchmarks` handler to use database directly
+3. Test endpoints with curl to verify no more crashes
+4. ✅ Update agent-performance endpoint if it has similar issue - ALREADY USING DB DIRECTLY
+
+### Expected Result
+- API server stays running when benchmarks endpoint is called
+- Fast response times (no CLI overhead)
+- No cargo conflicts or process kills
+- Frontend can load successfully
+
+### ✅ **RESOLVED** - Issue Fixed Successfully!
+- ✅ API server now stays running when benchmarks endpoint is called
+- ✅ Fast response times achieved (direct DB queries)
+- ✅ No cargo conflicts or process kills
+- ✅ Frontend can load successfully
+- ✅ Both `/api/v1/benchmarks` and `/api/v1/agent-performance` endpoints working
+
+### Fix Summary
+1. ✅ Modified `list_benchmarks` handler to use `state.db.get_all_benchmarks()` instead of CLI
+2. ✅ Added `get_all_benchmarks()` method to `PooledDatabaseWriter`
+3. ✅ Removed CLI dependency for benchmark discovery
+4. ✅ Kept CLI/runner only for execution operations
+5. ✅ Tested with curl - server stays running and responds correctly
+
+### Files Modified
+- `crates/reev-api/src/handlers/benchmarks.rs` - Fixed to use database directly
+- `crates/reev-db/src/pool/pooled_writer.rs` - Added get_all_benchmarks method
+
+# Test Results
+```bash
+# Health check - ✅ Working
+curl http://localhost:3001/api/v1/health
+
+# Benchmarks endpoint - ✅ Working (no crash!)
+curl http://localhost:3001/api/v1/benchmarks
+# Returns: [{"id":"001-sol-transfer","description":"A simple SOL transfer..."}, ...]
+
+# Agent performance endpoint - ✅ Working (no crash!)
+curl http://localhost:3001/api/v1/agent-performance
+# Returns: [] (empty when no data, server stays alive)
+```
+
+**Status**: 🎉 **COMPLETE** - Architecture fixed successfully!
+
+
 ## 🎉 #28: Enhanced OpenTelemetry Implementation WORKING! - PARTIALLY FIXED
 
 **Status**: 🎉 **MOSTLY WORKING** - Core logging functional, minor API issues  
