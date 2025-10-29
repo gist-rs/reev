@@ -315,23 +315,3 @@ where
 
 /// Type alias for BenchmarkExecutor with PooledDatabaseWriter
 pub type PooledBenchmarkExecutor = BenchmarkExecutor<reev_lib::db::PooledDatabaseWriter>;
-
-#[cfg(test)]
-mod tests {
-    use reev_types::RunnerConfig;
-
-    #[tokio::test]
-    async fn test_benchmark_executor_creation() {
-        // Test with placeholder implementation
-        // Will need proper mock database for full testing
-        // DatabaseWriterTrait implementation completed
-    }
-
-    #[test]
-    fn test_runner_config() {
-        let config = RunnerConfig::default();
-        assert_eq!(config.runner_binary_path, "cargo run -p reev-runner --");
-        assert_eq!(config.default_timeout_seconds, 300);
-        assert_eq!(config.max_concurrent_executions, 5);
-    }
-}

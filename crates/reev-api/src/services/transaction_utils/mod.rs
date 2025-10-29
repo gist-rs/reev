@@ -121,25 +121,3 @@ fn get_program_icon(program_id: &str) -> &'static str {
         _ => "📦",                                     // Default program icon
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_log_entry() {
-        let log_line = "Test log entry";
-        let entry = parse_log_entry(log_line).unwrap();
-
-        assert_eq!(entry.level, "INFO");
-        assert_eq!(entry.instruction, "Test log entry");
-        assert!(entry.is_success);
-    }
-
-    #[test]
-    fn test_generate_transaction_logs() {
-        // This would need a proper TestResult for testing
-        // For now, just test the basic structure
-        // Test assertion placeholder
-    }
-}

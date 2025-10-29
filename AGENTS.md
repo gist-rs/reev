@@ -6,7 +6,7 @@
 - Follow modular architecture, Keep coding files under 320-512 lines, sparate to smalelr files if need, askfor separation if number of lines exceed limits.
 - Always run `cargo clippy --fix --allow-dirty` and fix after done edit for Rust files, for frontend just run diagnostic.
 - Ask user for commit when done impl or fixed for each task and run success result without error with git convention e.g. `feat:...`, `fix:...`, `refactor:...` for each task with important list of impl and shrot reflect for later ref, but wait for confirm first.
-- use `types.rs`, `mod.rs` is for index only, keep `main.rs` and `lib.rs` minimal, less or no logic.
+- `mod.rs` is for index only, keep `main.rs` and `lib.rs` minimal, less or no logic, use `types.rs` for keep struct and impl that not depends on (can decouple from logic when other use it).
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
 - when user say `handover` you must summarize current state and incompleted issues to `HANDOVER.md` for next thread can follow up easily, refer to `ISSUES.md` number/title if has.

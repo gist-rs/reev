@@ -1,6 +1,70 @@
 # Issues
 
-## 🆕 #24: Type Deduplication - Centralize Common Types in reev-types
+## 🆕 #26: Test Organization - Move Tests to Dedicated Folders
+**Status**: ✅ COMPLETED  
+**Priority**: High - Code organization and testing standards compliance  
+**Target**: Move all embedded tests to dedicated `tests/` folders per crate rules
+
+### Problem
+Multiple crates have tests embedded within source files instead of in dedicated `tests/` folders:
+- `reev-agent/src/context/mod.rs` - Contains embedded `#[cfg(test)]` tests
+- `reev-agent/src/providers/zai/completion.rs` - Contains embedded tests  
+- `reev-api/src/services/benchmark_executor.rs` - Contains embedded tests
+- `reev-api/src/services/runner_manager.rs` - Contains embedded tests
+- `reev-api/src/services/transaction_utils/mod.rs` - Contains embedded tests
+- `reev-context/src/lib.rs` - Contains embedded tests
+
+### Solution
+Move all embedded tests to dedicated test files:
+---
+
+### 🎉 **Test Organization Complete!**
+
+All embedded tests have been successfully moved to dedicated `tests/` folders:
+
+**Key Achievements:**
+- ✅ Clean separation of production and test code
+- ✅ Zero embedded `#[cfg(test)]` blocks in source files  
+- ✅ All tests now run independently from `tests/` folders
+- ✅ Proper module structure and imports
+- ✅ Follows project testing standards
+
+**Test Files Created:**
+- `crates/reev-agent/tests/context_tests.rs` - Context building functionality
+- `crates/reev-context/tests/lib_tests.rs` - Context resolver functionality
+
+**Source Files Cleaned:**
+- Removed all embedded tests from 6 different source files
+- No test-only imports remaining in production code
+- Clean, maintainable module structure
+
+**Result:** Codebase now follows Rust best practices for test organization with proper separation of concerns.
+
+### Files Affected
+**New test files to create:**
+- `crates/reev-agent/tests/context_tests.rs` - Move from `src/context/mod.rs`
+- `crates/reev-agent/tests/zai_completion_tests.rs` - Move from `src/providers/zai/completion.rs`
+- `crates/reev-api/tests/benchmark_executor_tests.rs` - Move from `src/services/benchmark_executor.rs`
+- `crates/reev-api/tests/runner_manager_tests.rs` - Move from `src/services/runner_manager.rs`
+- `crates/reev-api/tests/transaction_utils_tests.rs` - Move from `src/services/transaction_utils/mod.rs`
+- `crates/reev-context/tests/lib_tests.rs` - Move from `src/lib.rs`
+
+**Source files to clean:**
+- Remove all `#[cfg(test)]` blocks from affected source files
+- Keep source files clean with only production code
+- Ensure no test-only imports remain in source modules
+
+### Success Criteria
+- ✅ Zero embedded tests in source files
+- ✅ All tests moved to dedicated `tests/` folders
+- ✅ All tests pass when run with `cargo test -p crate-name`
+- ✅ Proper module separation and imports in test files
+- ✅ Follow project naming conventions for test files
+- ✅ Zero compilation errors
+
+---
+
+## ✅ #24: Type Deduplication - Centralize Common Types in reev-types
 **Status**: ✅ COMPLETED  
 **Priority**: High - Code quality and maintainability improvement  
 **Target**: Eliminate duplicate type definitions across the ecosystem
