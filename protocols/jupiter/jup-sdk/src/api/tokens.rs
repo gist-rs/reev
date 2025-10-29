@@ -17,23 +17,6 @@ use crate::{
 ///
 /// Returns a vector of `TokenInfo` matching the search query
 ///
-/// # Example
-///
-/// ```no_run
-/// use jup_sdk::{api::tokens::search_tokens, models::TokenSearchParams};
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let params = TokenSearchParams {
-///         query: "So11111111111111111111111111111111111111112,EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-///     };
-///
-///     let tokens = search_tokens(&params).await?;
-///     println!("Found {} tokens", tokens.len());
-///
-///     Ok(())
-/// }
-/// ```
 pub async fn search_tokens(params: &TokenSearchParams) -> Result<Vec<TokenInfo>> {
     let client = api_client::api_client();
     let search_url = format!(
