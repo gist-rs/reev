@@ -5,6 +5,11 @@ edition = "2021"
 
 [dev-dependencies]
 
+[lib]
+name = "reev_api"
+path = "src/lib.rs"
+
+
 
 
 [[bin]]

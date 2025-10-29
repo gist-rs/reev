@@ -79,7 +79,7 @@ impl StateDiagramGenerator {
 
         // Add CSS classes for tools
         diagram_lines.push("".to_string());
-        diagram_lines.push("classDef tools fill:lightgrey".to_string());
+        diagram_lines.push("classDef tools fill:grey".to_string());
 
         for tool_call in &session.tool_calls {
             let tool_state = Self::sanitize_tool_name(&tool_call.tool_name);
@@ -303,16 +303,25 @@ impl StateDiagramGenerator {
     /// Extract transfer-specific details for enhanced display
     fn extract_tool_details(tool_call: &ParsedToolCall) -> Option<(String, String, String)> {
         if let serde_json::Value::Object(map) = &tool_call.params {
-            let from = map.get("from").and_then(|v| v.as_str()).map(|s| {
-                // Show full from address without truncation
-                s.to_string()
-            });
+            // Handle sol_transfer specific field names (user_pubkey, recipient_pubkey)
+            // Fallback to generic field names for other tools
+            let from = map
+                .get("user_pubkey")
+                .and_then(|v| v.as_str())
+                .or_else(|| map.get("from").and_then(|v| v.as_str()))
+                .or_else(|| map.get("source").and_then(|v| v.as_str()))
+                .map(|s| {
+                    // Show full from address without truncation
+                    s.to_string()
+                });
 
             let to = map
-                .get("to")
+                .get("recipient_pubkey")
                 .and_then(|v| v.as_str())
+                .or_else(|| map.get("to").and_then(|v| v.as_str()))
                 .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
                 .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                .or_else(|| map.get("destination").and_then(|v| v.as_str()))
                 .map(|s| {
                     if s == "RECIPIENT_WALLET_PUBKEY" {
                         s.to_string()
