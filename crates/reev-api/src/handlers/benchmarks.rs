@@ -207,7 +207,7 @@ pub async fn run_benchmark(
     }
 
     info!(
-        "Starting benchmark execution: {} for agent: {}",
+        "🔥  Starting benchmark execution: {} for agent: {}",
         benchmark_id, request.agent
     );
 

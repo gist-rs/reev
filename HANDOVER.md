@@ -1,6 +1,6 @@
 # HANDOVER.md
 
-## Current State - 2025-10-29
+## Current State - 2025-10-29 (Updated for Issue #32)
 
 ### ✅ COMPLETED ISSUES
 - **#29**: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
@@ -27,9 +27,13 @@
 - **Frontend**: ✅ Loads successfully without crashes
 
 ### 📋 NEXT STEPS
-1. **LOW**: Fix minor diagnostic warnings in flow_diagram_format_test.rs
-2. **LOW**: Add integration tests for verified endpoints (optional)
-3. **MEDIUM**: Monitor system stability under load testing
+1. **HIGH**: Complete Issue #32 implementation - Session file feedback loop
+   - Re-enable database storage in API handlers after session reading works
+   - Test end-to-end execution with `--no-db` flag
+   - Verify session files are read and parsed correctly
+2. **LOW**: Fix minor diagnostic warnings in flow_diagram_format_test.rs
+3. **LOW**: Add integration tests for verified endpoints (optional)
+4. **MEDIUM**: Monitor system stability under load testing
 
 ### 🔧 KEY FILES MODIFIED
 - `crates/reev-api/src/handlers/benchmarks.rs` - Fixed CLI dependency (#29)
@@ -74,3 +78,19 @@ Most of PLAN_API.md has been completed through the API decoupling work:
 - 🔄 Phase 4-5,7: Testing, Error Handling, Monitoring - Partial
 
 The core goal of PLAN_API.md (API decoupling) has been successfully achieved!
+
+### 🚨 **IN PROGRESS - Issue #32**
+**Status**: **PARTIALLY COMPLETE** - Architecture changes done, testing in progress
+
+**Completed Work:**
+- ✅ Identified database lock contention as root cause
+- ✅ Removed database dependency from BenchmarkExecutor 
+- ✅ Fixed database column indices in `row_to_execution_state()`
+- ✅ Added `--no-db` flag to reev-runner CLI
+- ✅ Implemented session file reading in `BenchmarkExecutor.read_session_file_results()`
+
+**Remaining Work:**
+- [ ] Re-enable database storage in API handlers
+- [ ] Test complete execution flow end-to-end
+- [ ] Verify session file parsing works correctly
+- [ ] Confirm no database lock conflicts remain

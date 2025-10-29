@@ -41,40 +41,66 @@
 - **State Management**: Cross-process execution tracking via database
 - **Error Handling**: Robust timeout and failure recovery
 
-### 🚨 **Current Issue - #32**
-- **Title**: API execution state stuck at "Pending" - CLI results not propagated
-- **Description**: When benchmark execution completes via CLI, the session file contains successful results, but the API server doesn't read these results back to update the in-memory execution state. Web UI continuously shows "Pending" status even after successful completion.
-- **Root Cause**: Missing session file reading in `BenchmarkExecutor.execute_cli_benchmark()`
-- **Impact**: High - benchmark executions appear to hang/fail in web interface despite actual success
-- **Status**: **IN PROGRESS** - implementing session file reading to complete the feedback loop
+### 🚨 **Current Issue - #32** 
+- **Title**: Database connection locks + Session file feedback loop missing
+- **Description**: 
+  1. **Database Lock Contention**: API and runner both trying to access same database causing `Query execution failed` errors
+  2. **Missing Session Feedback**: API server never reads session files created by runner to update execution state
+- **Root Causes**: 
+  - Dual database access patterns causing SQLite lock conflicts
+  - BenchmarkExecutor not reading `logs/sessions/session_{id}.json` after CLI completion
+  - Missing `--no-db` flag to prevent runner database conflicts
+- **Impact**: **Critical** - benchmark executions fail immediately or show "Queued" forever
+- **Status**: **IN PROGRESS** - implementing runner database bypass + session file reading
 
-### 📝 **Architecture Flow Issue**
+### 📝 **Architecture Flow Issues**
 ```
-🚀 CURRENT STATE:
-Frontend → API Server → Database (discovery, status, traces)
+🔴 BROKEN STATE:
+Frontend → API Server → Database ←[LOCK CONFLICT]→ Runner 
             ↓                  ↑ Missing feedback loop
-CLI/Runner → Session Files → Database (incomplete)
+CLI/Runner → Session Files → [NEVER READ] → API memory
+
+✨ TARGET STATE: 
+Frontend → API Server → Database (discovery, status, traces)
+            ↓                  ✅ Feedback loop
+CLI/Runner (--no-db) → Session Files → API reads → Database storage
 ```
 
-**Problem**: Session files are written but never read back to update API execution state.
+**Problems**: 
+1. Database lock conflicts between API and runner processes
+2. Session files created but never read by API
+3. Execution state never updates from "Queued" status
 
 ### 🎯 **Solution Required**
-Add session file reading to `BenchmarkExecutor.execute_cli_benchmark()` after CLI completion:
-1. Poll for session file existence with retry logic
-2. Parse session JSON to extract `final_result` 
-3. Update `execution_state` with actual results
-4. Complete execution status based on session success/failure
+**Two-Phase Fix:**
+
+**Phase 1: Prevent Database Conflicts**
+1. Add `--no-db` flag to reev-runner to skip database operations
+2. Ensure runner only writes session files to `logs/sessions/`
+3. API handles all database operations exclusively
+
+**Phase 2: Complete Feedback Loop** 
+1. Add session file reading to `BenchmarkExecutor.execute_cli_benchmark()` after CLI completion
+2. Poll for `logs/sessions/session_{execution_id}.json` with retry logic
+3. Parse session JSON to extract `final_result.success` and `final_result.score`
+4. Update in-memory `execution_state` with actual results
+5. Store final state in database via API (no runner DB conflicts)
 
 ### 🔧 **Implementation Progress**
-- [✅] Identify dual database connection pools causing lock contention
-- [🔄] Simplify BenchmarkExecutor to remove database dependencies  
-- [ ] Add database storage back to API handlers for execution state
-- [ ] Test "✨ Executing CLI command" log appears correctly
-- [ ] Verify no database lock conflicts remain
-- [ ] Ensure execution state updates properly stored in database
+- [✅] Identified database lock contention as root cause
+- [✅] Removed database dependency from BenchmarkExecutor
+- [✅] Fixed database column indices in `row_to_execution_state()`
+- [🔄] Added `--no-db` flag to reev-runner CLI
+- [🔄] Implemented session file reading in `BenchmarkExecutor.read_session_file_results()`
+- [ ] Re-enable database storage in API handlers (after session reading works)
+- [ ] Test end-to-end execution with `--no-db` flag
+- [ ] Verify session files are read and parsed correctly
+- [ ] Confirm final state stored in database without conflicts
 
 ### 📊 **Technical Details**
-- **Session Location**: `logs/sessions/session_{execution_id}.json`
-- **Key Field**: `final_result.success` and `final_result.score`
-- **Challenge**: Session files created after CLI process exits, may need brief delay
-- **Risk**: Race conditions between file creation and reading
+- **Database Lock**: SQLite WAL files causing `database is locked (5)` errors
+- **Session Location**: `logs/sessions/session_{execution_id}.json` (project root)
+- **Key Fields**: `final_result.success`, `final_result.score`, `execution_id`
+- **Runner Command**: `cargo run -p reev-runner -- --no-db benchmarks/{file}.yml --agent={type}`
+- **Retry Logic**: 10 attempts with 100ms delay for session file creation
+- **File I/O**: Async tokio::fs operations for non-blocking file access
