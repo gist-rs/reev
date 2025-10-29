@@ -609,9 +609,9 @@ async fn extract_tool_calls_from_agent_logs(session_id: &str) -> Vec<reev_flow::
     use std::fs;
     use std::path::Path;
 
-    // Look for specific otel log file for this session
+    // Look for specific enhanced otel log file for this session
     let logs_dir = Path::new("logs/sessions");
-    let otel_filename = format!("otel_{session_id}.jsonl");
+    let otel_filename = format!("enhanced_otel_{session_id}.jsonl");
     let otel_filepath = logs_dir.join(&otel_filename);
     let mut all_tool_calls = Vec::new();
 

@@ -1,4 +1,5 @@
 //! Flow handlers - provides flow information with stateDiagram visualization
+use crate::handlers::flow_diagram::session_parser::ParsedToolCall;
 use crate::handlers::flow_diagram::{FlowDiagramError, SessionParser, StateDiagramGenerator};
 use crate::types::*;
 use axum::{
@@ -6,6 +7,7 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
+
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
@@ -94,7 +96,89 @@ async fn generate_state_diagram(
 
         if session_path.exists() {
             info!("Found session file: {}", session_file);
-            let parsed_session = SessionParser::parse_session_file(&session_path).await?;
+            let mut parsed_session = SessionParser::parse_session_file(&session_path).await?;
+
+            // Try to read enhanced otel file for tool calls
+            let otel_file = format!(
+                "{}/enhanced_otel_{}.jsonl",
+                sessions_dir.display(),
+                session_id
+            );
+            let otel_path = PathBuf::from(&otel_file);
+
+            if otel_path.exists() {
+                info!("Found enhanced otel file: {}", otel_file);
+                let otel_content = tokio::fs::read_to_string(&otel_path).await.map_err(|e| {
+                    FlowDiagramError::ParseError(format!("Failed to read otel file: {e}"))
+                })?;
+
+                // Parse tool calls from enhanced otel JSONL
+                let mut enhanced_tool_calls = Vec::new();
+                for line in otel_content.lines() {
+                    if let Ok(otel_entry) = serde_json::from_str::<serde_json::Value>(line) {
+                        if let Some(event_type) =
+                            otel_entry.get("event_type").and_then(|v| v.as_str())
+                        {
+                            match event_type {
+                                "ToolInput" => {
+                                    if let Some(tool_input) = otel_entry.get("tool_input") {
+                                        if let (Some(tool_name), Some(tool_args)) = (
+                                            tool_input.get("tool_name").and_then(|v| v.as_str()),
+                                            tool_input.get("tool_args"),
+                                        ) {
+                                            enhanced_tool_calls.push(ParsedToolCall {
+                                                tool_name: tool_name.to_string(),
+                                                start_time: otel_entry
+                                                    .get("timestamp")
+                                                    .and_then(|v| v.as_str())
+                                                    .and_then(|s| {
+                                                        // Simple parsing: just use a counter for start time
+                                                        // since timestamp parsing is causing issues
+                                                        Some(0u64)
+                                                    })
+                                                    .unwrap_or(0),
+                                                params: tool_args.clone(),
+                                                duration_ms: 0,
+                                                result_data: None,
+                                                tool_args: Some(tool_args.to_string()),
+                                            });
+                                        }
+                                    }
+                                }
+                                "ToolOutput" => {
+                                    // Update the last tool call with result data
+                                    if let (Some(tool_output), Some(tool_name)) = (
+                                        otel_entry.get("tool_output"),
+                                        otel_entry
+                                            .get("tool_input")
+                                            .and_then(|ti| ti.get("tool_name"))
+                                            .and_then(|v| v.as_str()),
+                                    ) {
+                                        if let Some(last_call) = enhanced_tool_calls.last_mut() {
+                                            if last_call.tool_name == tool_name {
+                                                last_call.result_data = Some(tool_output.clone());
+                                                last_call.duration_ms = otel_entry
+                                                    .get("timing")
+                                                    .and_then(|t| t.get("step_timeuse_ms"))
+                                                    .and_then(|v| v.as_u64())
+                                                    .unwrap_or(0);
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
+                // Use enhanced tool calls if available, otherwise use session data
+                if !enhanced_tool_calls.is_empty() {
+                    parsed_session.tool_calls = enhanced_tool_calls;
+                    info!("Using enhanced tool calls: {}", enhanced_tool_calls.len());
+                }
+            }
+
             return if parsed_session.tool_calls.is_empty() {
                 info!("No tool calls found, generating simple diagram");
                 Ok(StateDiagramGenerator::generate_simple_diagram(
@@ -111,8 +195,8 @@ async fn generate_state_diagram(
     }
 
     // Fallback: try to get session from database using session_id
-    // This requires access to the database state, which we don't have here
-    // For now, return an error to trigger the fallback mechanism
+    // This requires access to database state, which we don't have here
+    // For now, return an error to trigger fallback mechanism
     Err(FlowDiagramError::SessionNotFound(format!(
         "Session file not found for session_id: {session_id}"
     )))

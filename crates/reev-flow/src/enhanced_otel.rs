@@ -303,36 +303,61 @@ pub fn get_enhanced_otel_logger() -> Result<Arc<EnhancedOtelLogger>> {
 macro_rules! log_tool_call {
     ($tool_name:expr, $args:expr) => {{
         // Enhanced otel logging is enabled by default
+        tracing::info!("🔍 [{}] log_tool_call macro called", $tool_name);
+        tracing::info!(
+            "🔍 [{}] REEV_ENHANCED_OTEL env: {:?}",
+            $tool_name,
+            std::env::var("REEV_ENHANCED_OTEL")
+        );
+
         if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
-            if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
-                let session_id = logger.session_id().to_string();
-                let tool_input = $crate::enhanced_otel::ToolInputInfo {
-                    tool_name: $tool_name.to_string(),
-                    tool_args: serde_json::to_value($args).unwrap_or_default(),
-                };
+            tracing::info!(
+                "🔍 [{}] Enhanced logging enabled, getting logger",
+                $tool_name
+            );
+            match $crate::enhanced_otel::get_enhanced_otel_logger() {
+                Ok(logger) => {
+                    tracing::info!("🔍 [{}] Logger obtained successfully", $tool_name);
+                    let session_id = logger.session_id().to_string();
+                    tracing::info!("🔍 [{}] Session ID: {}", $tool_name, session_id);
 
-                let tool_call = $crate::enhanced_otel::EnhancedToolCall {
-                    timestamp: chrono::Utc::now(),
-                    session_id,
-                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
-                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
-                    event_type: $crate::enhanced_otel::EventType::ToolInput,
-                    prompt: None,
-                    tool_input: Some(tool_input),
-                    tool_output: None,
-                    timing: $crate::enhanced_otel::TimingInfo {
-                        flow_timeuse_ms: 0,
-                        step_timeuse_ms: 0,
-                    },
-                    metadata: serde_json::json!({}),
-                };
+                    let tool_input = $crate::enhanced_otel::ToolInputInfo {
+                        tool_name: $tool_name.to_string(),
+                        tool_args: serde_json::to_value($args).unwrap_or_default(),
+                    };
 
-                if let Err(e) = logger.log_tool_call(tool_call) {
-                    tracing::warn!("❌ [{}] Failed to log tool call: {}", $tool_name, e);
-                } else {
-                    tracing::debug!("✅ [{}] Tool call logged", $tool_name);
+                    let tool_call = $crate::enhanced_otel::EnhancedToolCall {
+                        timestamp: chrono::Utc::now(),
+                        session_id,
+                        reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                        reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                        event_type: $crate::enhanced_otel::EventType::ToolInput,
+                        prompt: None,
+                        tool_input: Some(tool_input),
+                        tool_output: None,
+                        timing: $crate::enhanced_otel::TimingInfo {
+                            flow_timeuse_ms: 0,
+                            step_timeuse_ms: 0,
+                        },
+                        metadata: serde_json::json!({}),
+                    };
+
+                    tracing::info!("🔍 [{}] Calling logger.log_tool_call", $tool_name);
+                    match logger.log_tool_call(tool_call) {
+                        Ok(()) => {
+                            tracing::info!("✅ [{}] Tool call logged successfully", $tool_name);
+                        }
+                        Err(e) => {
+                            tracing::warn!("❌ [{}] Failed to log tool call: {}", $tool_name, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("❌ [{}] Failed to get logger: {:?}", $tool_name, e);
                 }
             }
+        } else {
+            tracing::info!("🔍 [{}] Enhanced logging disabled", $tool_name);
         }
 
         tracing::info!("[{}] Tool execution started", $tool_name);
