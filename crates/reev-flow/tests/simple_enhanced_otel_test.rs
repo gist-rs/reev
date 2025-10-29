@@ -155,7 +155,7 @@ fn test_enhanced_otel_summary_generation() {
             event_type: EventType::ToolInput,
             prompt: None,
             tool_input: Some(ToolInputInfo {
-                tool_name: format!("test_tool_{}", i),
+                tool_name: format!("test_tool_{i}"),
                 tool_args: json!({"index": i}),
             }),
             tool_output: None,

@@ -21,7 +21,7 @@ async fn test_enhanced_otel_logging_integration() {
                 reev_flow::get_enhanced_otel_logger().expect("Failed to get existing logger");
             logger.session_id().to_string()
         }
-        Err(e) => panic!("Failed to initialize enhanced otel logging: {}", e),
+        Err(e) => panic!("Failed to initialize enhanced otel logging: {e}"),
     };
 
     // Verify logger is accessible
@@ -110,10 +110,7 @@ async fn test_enhanced_otel_prompt_logging() {
         Err(reev_flow::EnhancedOtelError::Mutex(_)) => {
             // Logger already initialized, use existing one
         }
-        Err(e) => panic!(
-            "Failed to initialize enhanced otel logging with session: {}",
-            e
-        ),
+        Err(e) => panic!("Failed to initialize enhanced otel logging with session: {e}"),
     }
 
     // Test prompt event logging macro
@@ -159,10 +156,7 @@ async fn test_enhanced_otel_step_completion_logging() {
         Err(reev_flow::EnhancedOtelError::Mutex(_)) => {
             // Logger already initialized, use existing one
         }
-        Err(e) => panic!(
-            "Failed to initialize enhanced otel logging with session: {}",
-            e
-        ),
+        Err(e) => panic!("Failed to initialize enhanced otel logging with session: {e}"),
     }
 
     // Test step completion logging macro
