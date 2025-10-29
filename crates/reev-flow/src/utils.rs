@@ -6,6 +6,7 @@
 use crate::error::FlowError;
 use crate::types::*;
 use chrono::DateTime;
+use reev_types::ToolResultStatus;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;

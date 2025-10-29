@@ -15,20 +15,13 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
 
 # Add new dependencies for migrated modules
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 ascii_tree = "0.1.1"
 async-trait = { workspace = true }
-
-# OpenTelemetry dependencies for proper tool call tracing
-opentelemetry = { workspace = true, features = ["trace"] }
-opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
-opentelemetry-stdout = { version = "0.30" }
-tracing-opentelemetry = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+reev-types = { path = "../reev-types" }
 
 [features]
 default = ["database"]

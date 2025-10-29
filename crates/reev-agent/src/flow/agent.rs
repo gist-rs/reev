@@ -210,7 +210,7 @@ impl FlowAgent {
                 .iter()
                 .map(|account| InitialState {
                     pubkey: account.pubkey.clone(),
-                    owner: account.owner.clone(),
+                    owner: account.owner.clone().unwrap_or_default(),
                     lamports: account.lamports,
                     data: account
                         .data

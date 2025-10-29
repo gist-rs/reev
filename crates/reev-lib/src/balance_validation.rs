@@ -6,6 +6,7 @@
 //!
 //! This utility queries REAL account data from surfpool RPC, not simulated values.
 
+use reev_types::TokenBalance;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
@@ -39,16 +40,7 @@ impl From<solana_client::client_error::ClientError> for BalanceValidationError {
 
 pub type BalanceValidationResult<T> = Result<T, BalanceValidationError>;
 
-/// Balance information for a token account
-#[derive(Debug, Clone)]
-pub struct TokenBalance {
-    /// The token mint address
-    pub mint: String,
-    /// Available balance in smallest units
-    pub balance: u64,
-    /// Token decimals (if known)
-    pub decimals: Option<u8>,
-}
+// TokenBalance now imported from reev-types
 
 /// Shared balance validation utilities that query REAL surfpool data
 pub struct BalanceValidator {
@@ -185,6 +177,9 @@ impl BalanceValidator {
             mint: mint.to_string(),
             balance,
             decimals: Some(decimals),
+            formatted_amount: None,
+            owner: None,
+            symbol: None,
         })
     }
 

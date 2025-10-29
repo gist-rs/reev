@@ -6,6 +6,7 @@
 //! 2. Generic enough for different use cases
 //! 3. Easily convertible to/from domain-specific types
 
+use reev_types::ToolResultStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -100,13 +101,7 @@ pub struct ToolCallContent {
     pub error_message: Option<String>,
 }
 
-/// Tool execution result status
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ToolResultStatus {
-    Success,
-    Error,
-    Timeout,
-}
+// ToolResultStatus now imported from reev-types
 
 /// Transaction execution content
 #[derive(Debug, Clone, Serialize, Deserialize)]

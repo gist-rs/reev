@@ -50,7 +50,6 @@ reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 project-root = "0.2.2"
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
-async-trait = { workspace = true }
 
 # Observability
 tracing = { workspace = true }
@@ -65,7 +64,6 @@ uuid = { workspace = true }
 
 # Database dependencies
 reev-db = { path = "../reev-db" }
-reev-tools = { path = "../reev-tools" }
 
 # Dependency management
 flate2 = "1.0"

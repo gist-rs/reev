@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::services::PooledBenchmarkExecutor;
 
-/// Benchmark information loaded from YAML files
+// API-specific wrapper for BenchmarkInfo with additional fields
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkInfo {
     pub id: String,
@@ -11,18 +11,7 @@ pub struct BenchmarkInfo {
     pub prompt: String,
 }
 
-/// API state containing database connection and execution state
-#[derive(Clone)]
-pub struct ApiState {
-    pub db: reev_lib::db::PooledDatabaseWriter,
-    pub executions:
-        std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
-    pub agent_configs:
-        std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, AgentConfig>>>,
-    pub benchmark_executor: std::sync::Arc<PooledBenchmarkExecutor>,
-}
-
-/// Execution state for tracking benchmark runs
+// API-specific wrapper for ExecutionState with additional fields
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutionState {
     pub id: String,
@@ -37,6 +26,8 @@ pub struct ExecutionState {
     pub error: Option<String>,
 }
 
+// API-specific ExecutionStatus enum
+// API-specific ExecutionStatus enum
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum ExecutionStatus {
     Pending,
@@ -44,6 +35,19 @@ pub enum ExecutionStatus {
     Completed,
     Failed,
 }
+/// API state containing database connection and execution state
+#[derive(Clone)]
+pub struct ApiState {
+    pub db: reev_lib::db::PooledDatabaseWriter,
+    pub executions:
+        std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
+    pub agent_configs:
+        std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, AgentConfig>>>,
+    pub benchmark_executor: std::sync::Arc<PooledBenchmarkExecutor>,
+}
+
+// ExecutionStatus now imported from reev-types
+// ExecutionStatus defined locally for API compatibility
 
 /// Agent configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

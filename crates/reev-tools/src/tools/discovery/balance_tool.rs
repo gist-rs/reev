@@ -5,6 +5,7 @@
 //! by accessing actual on-chain state, not simulated data.
 
 use reev_lib::constants::{sol_mint, usdc_mint};
+use reev_types::TokenBalance;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -43,18 +44,7 @@ pub struct AccountBalance {
     pub exists: bool,
 }
 
-/// Token balance information
-#[derive(Serialize, Debug)]
-pub struct TokenBalance {
-    /// Token mint address
-    pub mint: String,
-    /// Token balance in smallest units
-    pub balance: u64,
-    /// Token decimals
-    pub decimals: u8,
-    /// Symbol if known
-    pub symbol: Option<String>,
-}
+// TokenBalance now imported from reev-types
 
 /// A custom error type for the account balance tool
 #[derive(Debug, Error)]
@@ -240,8 +230,10 @@ impl AccountBalanceTool {
                 token_balances.push(TokenBalance {
                     mint: token_account.mint.to_string(),
                     balance: token_account.amount,
-                    decimals,
+                    decimals: Some(decimals),
                     symbol,
+                    formatted_amount: None,
+                    owner: None,
                 });
             }
         }
@@ -267,8 +259,10 @@ impl AccountBalanceTool {
                             token_balances.push(TokenBalance {
                                 mint: token_mint.clone(),
                                 balance: token_state.amount,
-                                decimals,
+                                decimals: Some(decimals),
                                 symbol,
+                                formatted_amount: None,
+                                owner: None,
                             });
                         }
                     }

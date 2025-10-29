@@ -3,9 +3,10 @@
 use std::collections::HashMap;
 
 use reev_flow::{
-    types::{ExecutionResult, ExecutionStatistics, FlowEventType, ToolResultStatus},
+    types::{ExecutionResult, ExecutionStatistics, FlowEventType},
     utils::FlowUtils,
 };
+use reev_types::ToolResultStatus;
 
 #[test]
 fn test_flow_log_creation() {

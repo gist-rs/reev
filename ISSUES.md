@@ -1,5 +1,75 @@
 # Issues
 
+## 🆕 #24: Type Deduplication - Centralize Common Types in reev-types
+**Status**: ✅ COMPLETED  
+**Priority**: High - Code quality and maintainability improvement  
+**Target**: Eliminate duplicate type definitions across the ecosystem
+
+### Problem
+Multiple crates define the same or similar types, causing maintenance issues:
+- `TokenBalance` found in 3 different places (reev-agent, reev-lib, reev-tools)
+- `AccountState` found in 2 places (reev-agent, reev-lib)  
+- `ExecutionStatus` found in 2 places (reev-api, reev-types)
+- `BenchmarkInfo` found in 2 places (reev-api, reev-types)
+- `ToolResultStatus` found in 2 places (reev-flow, reev-lib)
+
+### Solution
+Centralized all shared types in `reev-types` crate:
+1. ✅ Add `TokenBalance`, `AccountState`, `ToolResultStatus` to reev-types
+2. ✅ Update all crates to import from reev-types instead of local definitions
+3. ✅ Remove duplicate type definitions from individual crates
+4. ⏳ Add comprehensive tests for shared types
+
+### Files Affected
++- `crates/reev-types/src/benchmark.rs` - ✅ Added shared types
++- `crates/reev-agent/src/context/mod.rs` - ✅ Updated imports and field mappings
++- `crates/reev-lib/src/balance_validation.rs` - ✅ Updated imports and constructor
++- `crates/reev-tools/src/tools/discovery/balance_tool.rs` - ✅ Updated imports and constructor
++- `crates/reev-api/src/types.rs` - ✅ Created API-specific wrapper types for compatibility
++- `crates/reev-flow/src/types.rs` - ✅ Updated imports
++- `crates/reev-lib/src/agent.rs` - ✅ Updated imports and re-exports
++- `crates/reev-agent/Cargo.toml` - ✅ Added reev-types dependency
++- `crates/reev-lib/Cargo.toml` - ✅ Added reev-types dependency
++- `crates/reev-tools/Cargo.toml` - ✅ Added reev-types dependency
++- `crates/reev-flow/Cargo.toml` - ✅ Added reev-types dependency
+
+### Success Criteria
+- ✅ All shared types defined in reev-types
+- ✅ Zero duplicate type definitions across crates
+- ✅ All imports updated to use reev-types
+- ✅ Zero compilation errors
+- ⏳ Comprehensive test coverage for shared types
+
+---
+
+## 🆕 #25: Cargo Dependency Cleanup - Remove Unused reev-tools Dependency
+**Status**: ✅ COMPLETED  
+**Priority**: Medium - Build optimization and dependency hygiene  
+**Target**: Remove unused dependencies from reev-api
+
+### Problem
+`reev-tools` dependency exists in `reev-api/Cargo.toml` but is not used anywhere in the codebase:
+```toml
+reev-tools = { path = "../reev-tools", optional = true }
+```
+
+### Solution
+1. ✅ Remove unused `reev-tools` dependency from reev-api Cargo.toml
+2. ✅ Run `cargo clippy --fix --allow-dirty` to clean up any remaining imports
+3. ✅ Verify compilation still works
+
+### Files Affected
+- `crates/reev-api/Cargo.toml` - ✅ Removed unused dependency
+
+### Success Criteria  
+- ✅ Unused reev-tools dependency removed
+- ✅ Zero compilation errors
+- ✅ No clippy warnings about unused imports
+
+---
+
+## ✅ #21: API Decoupling - CLI-Based Runner Communication
+
 ## ✅ #21: API Decoupling - CLI-Based Runner Communication
 **Status**: ✅ COMPLETED - All Phases Complete  
 **Priority**: High - Architecture improvement  

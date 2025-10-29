@@ -6,6 +6,7 @@ use reev_flow::{
     calculate_execution_statistics, ErrorContent, FlowLogger, LlmRequestContent, ToolCallContent,
     TransactionExecutionContent,
 };
+use reev_types::ToolResultStatus;
 
 /// Test basic flow logger functionality
 #[tokio::test]
@@ -33,7 +34,7 @@ async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
         tool_name: "test_tool".to_string(),
         tool_args: r#"{"param": "value"}"#.to_string(),
         execution_time_ms: 100,
-        result_status: reev_flow::ToolResultStatus::Success,
+        result_status: ToolResultStatus::Success,
         result_data: Some(serde_json::json!({"result": "success"})),
         error_message: None,
     };
@@ -114,7 +115,7 @@ async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         tool_name: "failing_tool".to_string(),
         tool_args: r#"{"action": "fail"}"#.to_string(),
         execution_time_ms: 200,
-        result_status: reev_flow::ToolResultStatus::Error,
+        result_status: ToolResultStatus::Error,
         result_data: None,
         error_message: Some("Tool execution failed".to_string()),
     };
@@ -198,7 +199,7 @@ async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
             tool_name: format!("tool_{i}"),
             tool_args: format!(r#"{{"step": {i}}}"#),
             execution_time_ms: 100 * i,
-            result_status: reev_flow::ToolResultStatus::Success,
+            result_status: ToolResultStatus::Success,
             result_data: Some(serde_json::json!({"step": i, "result": "ok"})),
             error_message: None,
         };
@@ -289,7 +290,7 @@ async fn test_tool_result_statuses() -> Result<(), Box<dyn std::error::Error>> {
         tool_name: "success_tool".to_string(),
         tool_args: r#"{"action": "success"}"#.to_string(),
         execution_time_ms: 100,
-        result_status: reev_flow::ToolResultStatus::Success,
+        result_status: ToolResultStatus::Success,
         result_data: Some(serde_json::json!({"result": "ok"})),
         error_message: None,
     };
@@ -300,7 +301,7 @@ async fn test_tool_result_statuses() -> Result<(), Box<dyn std::error::Error>> {
         tool_name: "error_tool".to_string(),
         tool_args: r#"{"action": "error"}"#.to_string(),
         execution_time_ms: 150,
-        result_status: reev_flow::ToolResultStatus::Error,
+        result_status: ToolResultStatus::Error,
         result_data: None,
         error_message: Some("Intentional error".to_string()),
     };
@@ -311,7 +312,7 @@ async fn test_tool_result_statuses() -> Result<(), Box<dyn std::error::Error>> {
         tool_name: "timeout_tool".to_string(),
         tool_args: r#"{"action": "timeout"}"#.to_string(),
         execution_time_ms: 30000,
-        result_status: reev_flow::ToolResultStatus::Timeout,
+        result_status: ToolResultStatus::Timeout,
         result_data: None,
         error_message: Some("Operation timed out".to_string()),
     };

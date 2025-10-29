@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::agent::{Agent, AgentAction, AgentObservation, RawInstruction};
-use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent, ToolResultStatus};
+use crate::agent::{Agent, AgentAction, AgentObservation, RawInstruction, ToolResultStatus};
+use crate::flow::{FlowLogger, LlmRequestContent, ToolCallContent};
 use crate::parsing::ResponseParser;
 use anyhow::Context;
 use async_trait::async_trait;

@@ -40,6 +40,7 @@
 //! ```
 
 use anyhow::{Context, Result};
+use reev_types::AccountState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -137,30 +138,6 @@ pub struct FlowGroundTruth {
 }
 
 /// Account state for initial setup
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccountState {
-    /// Public key of the account
-    pub pubkey: String,
-    /// Account owner (program ID)
-    pub owner: String,
-    /// Account balance in lamports
-    pub lamports: u64,
-    /// Optional account data
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub data: Option<AccountData>,
-}
-
-/// Account data for token accounts
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccountData {
-    /// Token mint
-    pub mint: String,
-    /// Account owner
-    pub owner: String,
-    /// Token amount
-    pub amount: String,
-}
-
 /// State assertion for final validation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateAssertion {

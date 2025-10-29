@@ -171,7 +171,7 @@ impl ContextBuilder {
         let meaningful_token_balances = context
             .token_balances
             .values()
-            .filter(|balance| balance.amount > 0)
+            .filter(|balance| balance.balance > 0)
             .count();
 
         // For Jupiter lending operations, having meaningful token balances should be sufficient
@@ -187,7 +187,7 @@ impl ContextBuilder {
         let zero_balances = context
             .token_balances
             .values()
-            .filter(|balance| balance.amount == 0)
+            .filter(|balance| balance.balance == 0)
             .count();
 
         if zero_balances > 0 && context.token_balances.len() == zero_balances {
@@ -382,9 +382,11 @@ impl ContextBuilder {
                         account_name.clone(),
                         crate::context::TokenBalance {
                             mint: mint.to_string(),
-                            amount,
-                            owner: token_owner,
-                            formatted_amount,
+                            balance: amount,
+                            owner: Some(token_owner),
+                            formatted_amount: Some(formatted_amount),
+                            symbol: None,
+                            decimals: None,
                         },
                     );
                 }

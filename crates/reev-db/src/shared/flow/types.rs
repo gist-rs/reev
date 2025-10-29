@@ -10,8 +10,11 @@ pub use reev_flow::{
     AgentBehaviorAnalysis, ErrorContent, EventContent, ExecutionResult, ExecutionStatistics,
     FlowEdge, FlowError, FlowEvent, FlowEventType, FlowGraph, FlowLog, FlowNode, FlowSummary,
     FlowUtils, LlmRequestContent, PerformanceMetrics, ScoringBreakdown, ToolCallContent,
-    ToolResultStatus, ToolUsageStats, TransactionExecutionContent, WebsiteData,
+    ToolUsageStats, TransactionExecutionContent, WebsiteData,
 };
+
+// Re-export ToolResultStatus from reev-types
+pub use reev_types::ToolResultStatus;
 
 // Re-export database types when feature is enabled
 pub use reev_flow::database::{

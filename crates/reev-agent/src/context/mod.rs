@@ -5,6 +5,7 @@
 //! unnecessary tool calls.
 
 use reev_lib::benchmark::InitialStateItem;
+use reev_types::TokenBalance;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -32,18 +33,7 @@ pub struct AccountContext {
     pub formatted_context: String,
 }
 
-/// Token balance information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenBalance {
-    /// Token mint address
-    pub mint: String,
-    /// Token amount in smallest units
-    pub amount: u64,
-    /// Token owner (wallet)
-    pub owner: String,
-    /// Formatted amount string (e.g., "50 USDC")
-    pub formatted_amount: String,
-}
+// TokenBalance now imported from reev-types
 
 /// Lending position information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,9 +191,11 @@ impl ContextBuilder {
                             item.pubkey.clone(),
                             TokenBalance {
                                 mint: mint.clone(),
-                                amount,
-                                owner: owner.clone(),
-                                formatted_amount,
+                                balance: amount,
+                                owner: Some(owner.clone()),
+                                formatted_amount: Some(formatted_amount),
+                                symbol: None,
+                                decimals: None,
                             },
                         );
                     }
@@ -288,7 +280,12 @@ impl ContextBuilder {
                 let account_name = self.get_account_name(pubkey, key_map);
                 context.push_str(&format!(
                     "  • {}: {} (RAW: {})\n",
-                    account_name, balance.formatted_amount, balance.amount
+                    account_name,
+                    balance
+                        .formatted_amount
+                        .clone()
+                        .unwrap_or_else(|| "N/A".to_string()),
+                    balance.balance
                 ));
             }
         }
@@ -412,7 +409,7 @@ mod tests {
         // Verify token balance is correct
         assert_eq!(context.token_balances.len(), 1);
         let usdc_balance = context.token_balances.get("USER_USDC_ATA").unwrap();
-        assert_eq!(usdc_balance.amount, 50000000);
+        assert_eq!(usdc_balance.balance, 50000000);
         assert_eq!(
             usdc_balance.mint,
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"

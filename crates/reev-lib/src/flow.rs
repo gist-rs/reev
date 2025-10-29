@@ -13,9 +13,12 @@ pub use reev_flow::{
     render_flow_file_as_ascii_tree, AgentBehaviorAnalysis, ErrorContent, EventContent,
     ExecutionResult, ExecutionStatistics, FlowEdge, FlowError, FlowEvent, FlowEventType, FlowGraph,
     FlowLog, FlowLogDbExt, FlowLogRenderer, FlowLogger, FlowNode, FlowResult, FlowTracer,
-    LlmRequestContent, PerformanceMetrics, ScoringBreakdown, ToolCallContent, ToolResultStatus,
-    ToolUsageStats, TransactionExecutionContent, WebsiteData, WebsiteExporter,
+    LlmRequestContent, PerformanceMetrics, ScoringBreakdown, ToolCallContent, ToolUsageStats,
+    TransactionExecutionContent, WebsiteData, WebsiteExporter,
 };
+
+// Import ToolResultStatus from reev-types
+pub use reev_types::ToolResultStatus;
 
 // Re-export from database module for backward compatibility
 #[cfg(feature = "database")]

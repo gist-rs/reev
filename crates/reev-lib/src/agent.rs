@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+// Re-export ToolResultStatus for other modules
+pub use reev_types::ToolResultStatus;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use solana_sdk::{
@@ -171,13 +173,7 @@ pub struct ToolCallInfo {
     pub depth: u32,
 }
 
-/// Tool execution result status
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ToolResultStatus {
-    Success,
-    Error,
-    Timeout,
-}
+// ToolResultStatus now imported from reev-types
 
 fn deserialize_string_to_instructions<'de, D>(
     deserializer: D,

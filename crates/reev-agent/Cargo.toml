@@ -29,11 +29,11 @@ reev-tools = { path = "../reev-tools" }
 reev-protocols = { path = "../reev-protocols" }
 reev-context = { path = "../reev-context" }
 reev-flow = { path = "../reev-flow" }
+reev-types = { path = "../reev-types" }
 solana-client = { workspace = true }
 anyhow = { workspace = true }
 serial_test = { workspace = true }
 spl-token = { workspace = true }
-spl-associated-token-account = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde_yaml = { workspace = true }
 tracing = { workspace = true }

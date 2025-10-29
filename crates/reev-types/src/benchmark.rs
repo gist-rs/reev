@@ -228,3 +228,166 @@ impl AgentInfo {
         true
     }
 }
+
+/// Token balance information for consistent representation across the ecosystem
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenBalance {
+    /// Token mint address
+    pub mint: String,
+    /// Token balance in smallest units
+    pub balance: u64,
+    /// Token decimals (if known)
+    pub decimals: Option<u8>,
+    /// Token symbol if known
+    pub symbol: Option<String>,
+    /// Formatted amount string (e.g., "50 USDC")
+    pub formatted_amount: Option<String>,
+    /// Token owner (wallet address)
+    pub owner: Option<String>,
+}
+
+impl TokenBalance {
+    /// Create a new token balance
+    pub fn new(mint: String, balance: u64) -> Self {
+        Self {
+            mint,
+            balance,
+            decimals: None,
+            symbol: None,
+            formatted_amount: None,
+            owner: None,
+        }
+    }
+
+    /// Get formatted amount if decimals and symbol are available
+    pub fn get_formatted_amount(&self) -> Option<String> {
+        if let (Some(decimals), Some(symbol)) = (self.decimals, self.symbol.as_ref()) {
+            let amount = self.balance as f64 / 10_f64.powi(decimals as i32);
+            Some(format!("{amount:.2} {symbol}"))
+        } else {
+            self.formatted_amount.clone()
+        }
+    }
+
+    /// Set decimals and return self for chaining
+    pub fn with_decimals(mut self, decimals: u8) -> Self {
+        self.decimals = Some(decimals);
+        self
+    }
+
+    /// Set symbol and return self for chaining
+    pub fn with_symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    /// Set owner and return self for chaining
+    pub fn with_owner(mut self, owner: impl Into<String>) -> Self {
+        self.owner = Some(owner.into());
+        self
+    }
+}
+
+/// Account state information for consistent representation across the ecosystem
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountState {
+    /// Public key of the account
+    pub pubkey: String,
+    /// Account owner (program ID)
+    pub owner: Option<String>,
+    /// Account balance in lamports
+    pub lamports: u64,
+    /// Optional account data
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<AccountData>,
+    /// Whether the account is executable
+    #[serde(default)]
+    pub executable: bool,
+}
+
+/// Account data for token accounts and other program accounts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountData {
+    /// Token mint
+    pub mint: String,
+    /// Account owner
+    pub owner: String,
+    /// Token amount as string for precision
+    pub amount: String,
+    /// Raw token data bytes
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub raw_data: Vec<u8>,
+}
+
+impl AccountState {
+    /// Create a new account state
+    pub fn new(pubkey: String, lamports: u64) -> Self {
+        Self {
+            pubkey,
+            owner: None,
+            lamports,
+            data: None,
+            executable: false,
+        }
+    }
+
+    /// Set owner and return self for chaining
+    pub fn with_owner(mut self, owner: impl Into<String>) -> Self {
+        self.owner = Some(owner.into());
+        self
+    }
+
+    /// Set account data and return self for chaining
+    pub fn with_data(mut self, data: AccountData) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Set executable flag and return self for chaining
+    pub fn with_executable(mut self, executable: bool) -> Self {
+        self.executable = executable;
+        self
+    }
+
+    /// Check if this is a token account
+    pub fn is_token_account(&self) -> bool {
+        self.data.is_some()
+    }
+
+    /// Get token balance if this is a token account
+    pub fn get_token_balance(&self) -> Option<u64> {
+        self.data.as_ref().and_then(|data| data.amount.parse().ok())
+    }
+}
+
+/// Tool execution result status for consistent representation across the ecosystem
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ToolResultStatus {
+    /// Tool executed successfully
+    Success,
+    /// Tool execution failed
+    Error,
+    /// Tool execution timed out
+    Timeout,
+}
+
+impl ToolResultStatus {
+    /// Get string representation of status
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ToolResultStatus::Success => "success",
+            ToolResultStatus::Error => "error",
+            ToolResultStatus::Timeout => "timeout",
+        }
+    }
+
+    /// Check if status indicates success
+    pub fn is_success(&self) -> bool {
+        matches!(self, ToolResultStatus::Success)
+    }
+
+    /// Check if status indicates failure
+    pub fn is_failure(&self) -> bool {
+        matches!(self, ToolResultStatus::Error | ToolResultStatus::Timeout)
+    }
+}
