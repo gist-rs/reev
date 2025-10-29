@@ -36,6 +36,31 @@ where
     }
 
     /// Create new benchmark executor with default config
+    ///
+    /// **Smart Mode Detection:**
+    /// - Auto-detect: Uses release binary if `./target/release/reev-runner` exists
+    /// - Development: Uses `cargo watch` for fast recompilation when no release binary
+    /// - Production: Uses release binary for maximum performance
+    ///
+    /// **Environment Variables:**
+    /// - `REEV_USE_RELEASE`:
+    ///   - "true": Force release binary mode
+    ///   - "false": Force development mode with cargo watch
+    ///   - "auto" (default): Auto-detect based on binary availability
+    /// - `RUST_LOG`: Set to "info" for development logging
+    /// - `REEV_ENHANCED_OTEL_FILE`: Enhanced OTEL logging path
+    ///
+    /// **Usage:**
+    /// ```bash
+    /// # Build release binary for production
+    /// cargo build --release -p reev-runner
+    ///
+    /// # Force development mode even with release binary
+    /// REEV_USE_RELEASE=false cargo run -p reev-api
+    ///
+    /// # Force production mode
+    /// REEV_USE_RELEASE=true cargo run -p reev-api
+    /// ```
     pub fn new_with_default(db: Arc<T>) -> Self {
         Self::new(
             db,
@@ -366,33 +391,116 @@ where
             .default_timeout_seconds
             .min(self.timeout_config.max_timeout_seconds);
 
-        info!(
-            "Executing CLI command: {} {} (timeout: {}s)",
-            self.config.runner_binary_path,
-            args.join(" "),
-            timeout_seconds
-        );
-
         // Set up environment
-        // Check if binary exists, fallback to cargo run if not found
-        let runner_path = if std::path::Path::new(&self.config.runner_binary_path).exists() {
-            &self.config.runner_binary_path
-        } else {
-            warn!("Pre-built runner binary not found, falling back to cargo run (slower)");
-            "cargo run -p reev-runner --"
+        // Smart detection: use release binary if available, otherwise cargo watch
+        // Priority: 1) Manual override via REEV_USE_RELEASE=true
+        //          2) Auto-detect release binary exists
+        //          3) Fallback to cargo watch for development
+        let use_release_manual =
+            std::env::var("REEV_USE_RELEASE").unwrap_or_else(|_| "auto".to_string());
+
+        let release_binary_exists = std::path::Path::new(&self.config.runner_binary_path).exists();
+
+        let (use_release, runner_path, mode) = match use_release_manual.as_str() {
+            "true" if release_binary_exists => {
+                let path = self.config.runner_binary_path.clone();
+                (true, path, "production (manual)".to_string())
+            }
+            "false" => (
+                false,
+                "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
+                "development (manual)".to_string(),
+            ),
+            "auto" if release_binary_exists => {
+                info!("Auto-detected release binary, using production mode");
+                let path = self.config.runner_binary_path.clone();
+                (true, path, "production (auto-detected)".to_string())
+            }
+            "auto" => {
+                info!("No release binary found, using development mode with cargo watch");
+                (
+                    false,
+                    "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
+                    "development (auto)".to_string(),
+                )
+            }
+            _ => {
+                warn!(
+                    "Invalid REEV_USE_RELEASE value: {}, defaulting to auto",
+                    use_release_manual
+                );
+                if release_binary_exists {
+                    let path = self.config.runner_binary_path.clone();
+                    (true, path, "production (auto-fallback)".to_string())
+                } else {
+                    (
+                        false,
+                        "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
+                        "development (auto-fallback)".to_string(),
+                    )
+                }
+            }
         };
 
-        let mut cmd = TokioCommand::new("sh");
-        cmd.arg("-c")
-            .arg(format!("{} {}", runner_path, args.join(" ")))
-            .current_dir(&self.config.working_directory)
+        info!("Using {} mode: {}", mode, runner_path);
+
+        // Execute command differently based on type
+        let mut cmd = if runner_path.starts_with("cargo watch") {
+            // For cargo watch, we need to execute the command properly
+            let mut cmd = TokioCommand::new("cargo");
+            cmd.args([
+                "watch",
+                "--quiet",
+                "-x",
+                &format!("run -p reev-runner -- {}", args.join(" ")),
+            ]);
+            cmd
+        } else {
+            // For release binary, execute directly or via shell if needed
+            if runner_path.contains(' ') {
+                let mut cmd = TokioCommand::new("sh");
+                cmd.arg("-c")
+                    .arg(format!("{} {}", runner_path, args.join(" ")));
+                cmd
+            } else {
+                let mut cmd = TokioCommand::new(&runner_path);
+                cmd.args(&args);
+                cmd
+            }
+        };
+
+        cmd.current_dir(&self.config.working_directory)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        info!(
+            "Executing CLI command: {} {} (timeout: {}s)",
+            runner_path,
+            args.join(" "),
+            timeout_seconds
+        );
+
         // Add environment variables
         for (key, value) in &self.config.environment {
             cmd.env(key, value);
+        }
+
+        // Set development environment variables for cargo watch mode
+        if !use_release {
+            cmd.env("RUST_LOG", "info");
+            cmd.env(
+                "REEV_ENHANCED_OTEL_FILE",
+                "logs/sessions/enhanced_otel_{session_id}.jsonl",
+            );
+        } else {
+            // Production mode - ensure enhanced OTEL is also available
+            cmd.env(
+                "REEV_ENHANCED_OTEL_FILE",
+                std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or_else(|_| {
+                    "logs/sessions/enhanced_otel_{session_id}.jsonl".to_string()
+                }),
+            );
         }
 
         let start_time = std::time::Instant::now();
