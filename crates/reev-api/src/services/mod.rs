@@ -8,7 +8,5 @@ pub mod runner_manager;
 pub mod transaction_utils;
 
 // Re-export commonly used types
-// Re-export commonly used types
-// BenchmarkExecutor is used internally, not exported publicly
-
+pub use benchmark_executor::PooledBenchmarkExecutor;
 // pub use transaction_utils::*; // Uncomment when transaction_utils is used

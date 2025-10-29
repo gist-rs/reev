@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::services::PooledBenchmarkExecutor;
+
 /// Benchmark information loaded from YAML files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkInfo {
@@ -17,7 +19,7 @@ pub struct ApiState {
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
     pub agent_configs:
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, AgentConfig>>>,
-    pub benchmark_executor: std::sync::Arc<crate::services::PooledBenchmarkExecutor>,
+    pub benchmark_executor: std::sync::Arc<PooledBenchmarkExecutor>,
 }
 
 /// Execution state for tracking benchmark runs

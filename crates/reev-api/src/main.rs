@@ -18,8 +18,9 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use handlers::*;
-use services::*;
 use types::ApiState;
+
+use crate::services::benchmark_executor::PooledBenchmarkExecutor;
 
 #[tokio::main]
 async fn main() -> Result<()> {
