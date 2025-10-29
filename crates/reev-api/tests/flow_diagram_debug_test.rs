@@ -1,7 +1,6 @@
 //! Focused test to debug flow diagram rendering issues with mock data
 
 use chrono::DateTime;
-use std::fs;
 
 #[test]
 fn test_jsonl_parsing_safety() {
@@ -25,16 +24,16 @@ fn test_jsonl_parsing_safety() {
 
                 // Test timestamp extraction specifically
                 if let Some(timestamp) = event.get("timestamp").and_then(|v| v.as_str()) {
-                    println!("  🕐 Timestamp: {}", timestamp);
+                    println!("  🕐 Timestamp: {timestamp}");
 
                     // Test our timestamp parsing logic from flows.rs
                     match DateTime::parse_from_rfc3339(timestamp) {
                         Ok(dt) => {
                             let unix_ts = dt.timestamp() as u64;
-                            println!("  ✅ Parsed to Unix: {}", unix_ts);
+                            println!("  ✅ Parsed to Unix: {unix_ts}");
                         }
                         Err(e) => {
-                            println!("  ❌ Timestamp parse failed: {}", e);
+                            println!("  ❌ Timestamp parse failed: {e}");
                         }
                     }
                 }
@@ -42,7 +41,7 @@ fn test_jsonl_parsing_safety() {
                 // Check for large payloads that might cause memory issues
                 let line_size = line.len();
                 if line_size > 100_000 {
-                    println!("  ⚠️  Large line detected: {} bytes", line_size);
+                    println!("  ⚠️  Large line detected: {line_size} bytes");
                 }
             }
             Err(e) => {
@@ -79,7 +78,7 @@ fn test_memory_usage_analysis() {
         }
     }
 
-    println!("  Max line size: {} bytes", max_line_size);
+    println!("  Max line size: {max_line_size} bytes");
     println!(
         "  Average line size: {} bytes",
         total_size / mock_data.lines().count()
@@ -88,7 +87,7 @@ fn test_memory_usage_analysis() {
     if !large_lines.is_empty() {
         println!("  ⚠️  Large lines detected:");
         for (line_num, size) in large_lines {
-            println!("    Line {}: {} bytes", line_num, size);
+            println!("    Line {line_num}: {size} bytes");
         }
     }
 
@@ -96,14 +95,8 @@ fn test_memory_usage_analysis() {
     let estimated_per_session = total_size * 2; // Rough estimate
     let max_concurrent_sessions = 100_000_000 / estimated_per_session; // 100MB limit
 
-    println!(
-        "  Estimated memory per session: ~{} bytes",
-        estimated_per_session
-    );
-    println!(
-        "  Max concurrent sessions (100MB limit): ~{}",
-        max_concurrent_sessions
-    );
+    println!("  Estimated memory per session: ~{estimated_per_session} bytes");
+    println!("  Max concurrent sessions (100MB limit): ~{max_concurrent_sessions}");
 
     if estimated_per_session > 10_000_000 {
         println!("  🚨 CRITICAL: Single session uses >10MB - this will cause crashes!");

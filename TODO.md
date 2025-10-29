@@ -1,7 +1,28 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+---
 
-, help me test, i will run (watch) server api
+i expect this diagram btw
+```
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).
+    Agent --> sol_transfer : 1 ix
+    state sol_transfer {
+        GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1 --> MXnpbf2eNu8WGt4sGzKX7asFAtkBdnuLXaGCGT1SwKx : 0.1 SOL
+    }
+    sol_transfer --> [*]
+classDef tools fill:grey
+class sol_transfer tools
+```
+current
+```
+stateDiagram\n    [*] --> Prompt\n    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).\n    Agent --> program_11111111111111111111111111111111 : data = \"3Bxs411Dtc7pkFQj\", data_length = 16, from = \"6Mkfyk5CktTDvW1KrFkphXYUi55Foh1LxbRYT7UAxvx5\"\n    program_11111111111111111111111111111111 --> [*]\n\nclassDef tools fill:lightgrey\nclass program_11111111111111111111111111111111 tools
+```
+
+---
+
+help me test, i will run (watch) server api
 
 ---
 
