@@ -6,7 +6,7 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Default configuration values for examples
 #[allow(unused)]
@@ -101,7 +101,7 @@ pub async fn sync_benchmarks_to_database() -> Result<()> {
 
         let synced_count = result["synced_count"].as_u64().unwrap_or(0);
 
-        info!(
+        debug!(
             "✅ Successfully synced {} benchmarks to database",
             synced_count
         );
