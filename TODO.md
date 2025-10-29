@@ -1,9 +1,31 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+
+, help me test, i will run (watch) server api
+
 ---
 
 - flow tool is mess, we have `use reev_flow::log_tool_call; log_tool_call!("sol_transfer", &args);` in tools crate, we should get tool log from otel only in reev-agent? can you dig into this and
 file issue, create tasks for this, then fix
+
+file issue, create tasks for this, then fix
+in the end i expect log can tell me
+
+## All this in jsonl, i think it's already in jsonl?
+- reev-runner version
+- reev-agent version
+- prompt: tool_name list, user_prompt, final_prompt (for debug enriched context later and to see what llm see he prompt)
+- tool input : tool_name that llm chhose, tool_args that llm fill
+- tool output : succeed/failure, results
+- flow_timeuse_ms, step_timeuse_ms // so we can see latency for each , multi-step e.g. benchmarks/200-jup-swap-then-lend-deposit.yml
+
+// do i miss something? plz refine/add the variable name to fit properly wel define
+
+## And the way to convert jsonl to yml for easier reading and easier to convert to ascii tree later see
+[@FLOW.md](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2FFLOW.md) not sure it still work, maybe outdated plz check the code.
+
+ensure the check the code before sum to new PLAN_OTEL.md and file issue, create tasks for this, then fix
+
 ---
 
 - DRY `reev_db::types::AgentPerformance {...}`

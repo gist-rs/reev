@@ -434,7 +434,15 @@ macro_rules! log_prompt_event {
                 let prompt = $crate::enhanced_otel::PromptInfo {
                     tool_name_list: $tool_name_list.to_vec(),
                     user_prompt: $user_prompt.to_string(),
-                    final_prompt: $final_prompt.to_string(),
+                    final_prompt: if $final_prompt.len() > 500 {
+                        format!(
+                            "{}...[truncated, original size: {} bytes]",
+                            &$final_prompt[..500.min($final_prompt.len())],
+                            $final_prompt.len()
+                        )
+                    } else {
+                        $final_prompt.to_string()
+                    },
                 };
 
                 let tool_call = $crate::enhanced_otel::EnhancedToolCall {
