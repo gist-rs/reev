@@ -73,31 +73,37 @@ Frontend web application automatically calls multiple API endpoints on load, whi
 - ⚠️ Status/trace endpoints need verification but likely DB-only
 - 🔍 Need to verify `/api/v1/sync` (benchmark sync) CLI usage pattern
 
-## 🆕 #31: Verify Status/Trace Endpoints CLI Dependencies  
+## ✅ #31: Verify Status/Trace Endpoints CLI Dependencies - **RESOLVED**
 ### Problem
-Following the fix of issue #29, need to verify remaining endpoints that could potentially use CLI/runner instead of database direct access. Focus on status checking, trace retrieval, and sync operations.
+Following the fix of issue #29, needed to verify remaining endpoints that could potentially use CLI/runner instead of database direct access. Focus on status checking, trace retrieval, and sync operations.
 
-### Endpoints to Verify
-1. `/api/v1/benchmarks/{id}/status/{execution_id}` -> `get_execution_status`
-2. `/api/v1/benchmarks/{id}/status` -> `get_execution_status_no_id`  
-3. `/api/v1/flows/{session_id}` -> `get_flow` (session flow retrieval)
-4. `/api/v1/execution-logs/{benchmark_id}` -> `get_execution_trace` (trace retrieval)
-5. `/api/v1/sync` -> `sync_benchmarks` (benchmark sync operation)
+### ✅ Verification Results - ALL ENDPOINTS CONFIRMED DB-ONLY
+1. `/api/v1/benchmarks/{id}/status/{execution_id}` -> `get_execution_status` ✅ **DB-only**
+2. `/api/v1/benchmarks/{id}/status` -> `get_execution_status_no_id` ✅ **DB-only**  
+3. `/api/v1/flows/{session_id}` -> `get_flow` ✅ **DB-only (with file fallback)**
+4. `/api/v1/execution-logs/{benchmark_id}` -> `get_execution_trace` ✅ **DB-only**
+5. `/api/v1/sync` -> `sync_benchmarks` ✅ **File system + DB (no CLI)**
+6. `/api/v1/flow-logs/{benchmark_id}` -> `get_flow_log` ✅ **DB-only**
 
-### Investigation Needed
-- Check if these use `benchmark_executor` (CLI) vs direct DB access
-- Verify `sync_benchmarks` uses file system vs CLI discovery
-- Ensure status checks don't trigger benchmark execution
-- Confirm trace/log retrieval uses database stored data
+### ✅ Investigation Complete
+- All status/trace endpoints use direct DB access via `state.db.*` methods
+- No endpoints use `benchmark_executor` for read operations
+- `sync_benchmarks` uses `db.sync_benchmarks_from_dir()` (file system + DB)
+- Status checks are pure read operations, no CLI calls
+- Trace/log retrieval uses stored session data from database
 
-### Expected Pattern
-- Status endpoints: DB reads only (no CLI calls)
-- Trace endpoints: DB reads of stored execution data
-- Sync endpoints: File system scan + DB upsert (no CLI runner)
+### ✅ Architecture Confirmed
+- **Status endpoints**: DB reads only (verified `get_session_log`, `list_sessions`)
+- **Trace endpoints**: DB reads of stored execution data + active execution memory
+- **Sync endpoints**: File system scan + DB upsert (verified `sync_benchmarks_from_dir`)
+- **Flow endpoints**: DB reads with graceful file system fallback
 
-### Files to Check
-- `crates/reev-api/src/handlers/benchmarks.rs` - status/trace handlers
-- `crates/reev-api/src/handlers/flows.rs` - flow retrieval handler
+### Files Verified
+- `crates/reev-api/src/handlers/benchmarks.rs` - status/trace handlers ✅
+- `crates/reev-api/src/handlers/flows.rs` - flow retrieval handler ✅  
+- `crates/reev-api/src/handlers/execution_logs.rs` - trace handler ✅
+- `crates/reev-api/src/handlers/flow_logs.rs` - flow logs handler ✅
+- `crates/reev-api/src/handlers/health.rs` - sync handler ✅
 - `crates/reev-api/src/handlers/yml.rs` - sync_benchmarks handler
 
 ## 🆕 #29: API Architecture Fix - Remove CLI Dependency for Benchmark Listing

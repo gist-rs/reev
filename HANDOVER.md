@@ -14,11 +14,11 @@
   - Confirmed all auto-called endpoints are safe (DB-only)
   - Identified only `/run` endpoints should use CLI (expected behavior)
 
-### 🆕 ACTIVE ISSUES
-- **#31**: Verify Status/Trace Endpoints CLI Dependencies
-  - Need to verify remaining endpoints don't use CLI unnecessarily
-  - Priority: Status/trace/sync endpoints in handlers/benchmarks.rs, flows.rs, yml.rs
-  - Status: Created, investigation pending
+### ✅ COMPLETED ISSUES
+- **#31**: Verify Status/Trace Endpoints CLI Dependencies - **RESOLVED**
+  - Verified all status/trace/sync endpoints use database-only access
+  - Confirmed no CLI dependencies in read operations
+  - All endpoints follow proper architecture: DB reads only, file system sync for benchmarks
 
 ### 🎯 CURRENT ARCHITECTURE
 - **API Server**: ✅ Stable on port 3001
@@ -27,15 +27,15 @@
 - **Frontend**: ✅ Loads successfully without crashes
 
 ### 📋 NEXT STEPS
-1. **HIGH**: Verify status endpoints (`get_execution_status*`) use DB only
-2. **MEDIUM**: Check flow retrieval (`get_flow`) uses stored data
-3. **MEDIUM**: Verify sync operations (`sync_benchmarks`) use file system + DB
-4. **LOW**: Ensure all trace/log endpoints are DB-read only
+1. **LOW**: Fix minor diagnostic warnings in flow_diagram_format_test.rs
+2. **LOW**: Add integration tests for verified endpoints (optional)
+3. **MEDIUM**: Monitor system stability under load testing
 
 ### 🔧 KEY FILES MODIFIED
-- `crates/reev-api/src/handlers/benchmarks.rs` - Fixed CLI dependency
-- `crates/reev-db/src/pool/pooled_writer.rs` - Added get_all_benchmarks method
-- `ISSUES.md` - Comprehensive documentation of fixes and analysis
+- `crates/reev-api/src/handlers/benchmarks.rs` - Fixed CLI dependency (#29)
+- `crates/reev-db/src/pool/pooled_writer.rs` - Added get_all_benchmarks method (#29)
+- `ISSUES.md` - Updated with #31 verification results
+- HANDOVER.md - Updated with latest completion status
 
 ### 📊 TEST RESULTS
 ```bash
@@ -48,6 +48,15 @@ curl http://localhost:3001/api/v1/benchmarks
 
 # Agent performance - ✅ Working (empty but no crash)
 curl http://localhost:3001/api/v1/agent-performance
+
+# Status endpoint - ✅ Working (DB-only)
+curl http://localhost:3001/api/v1/benchmarks/test/status
+
+# Sync endpoint - ✅ Working (file system + DB)
+curl -X POST http://localhost:3001/api/v1/sync
+
+# Flow logs endpoint - ✅ Working (DB-only)
+curl http://localhost:3001/api/v1/flow-logs/test
 ```
 
 ### 🏆 SUCCESS METRICS

@@ -46,23 +46,8 @@ async fn test_sol_transfer_diagram_format() {
 
     println!("🎯 Generated diagram:\n{}", result.diagram);
 
-    // Expected format based on user requirements
-    let expected_lines = vec![
-        "stateDiagram",
-        "[*] --> Prompt",
-        "Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).",
-        "Agent --> sol_transfer : 1 ix",
-        "state sol_transfer {",
-        "GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1 --> MXnpbf2eNu8WGt4sGzKX7asFAtkBdnuLXaGCGT1SwKx : 0.1 SOL",
-        "}",
-        "sol_transfer --> [*]",
-        "",
-        "classDef tools fill:grey",
-        "class sol_transfer tools",
-    ];
-
     // Check if diagram contains expected structure
-    let diagram_lines: Vec<&str> = result.diagram.lines().collect();
+    let _diagram_lines: Vec<&str> = result.diagram.lines().collect();
 
     // Verify basic structure
     assert!(
@@ -187,9 +172,9 @@ fn test_sol_transfer_parameter_extraction() {
     let sol_amount = amount as f64 / 1_000_000_000.0;
 
     println!("🔍 Extracted SOL transfer details:");
-    println!("  From: {}", user_pubkey);
-    println!("  To: {}", recipient_pubkey);
-    println!("  Amount: {} SOL", sol_amount);
+    println!("  From: {user_pubkey}");
+    println!("  To: {recipient_pubkey}");
+    println!("  Amount: {sol_amount} SOL");
 
     assert_eq!(user_pubkey, "GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1");
     assert_eq!(
