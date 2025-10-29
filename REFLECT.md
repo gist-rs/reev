@@ -529,6 +529,40 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 **Security**: Maintained architecture rule that `jupiter_earn` tool is restricted to position/earnings benchmarks (114-*.yml) only.
 **Issue**: When glm-4.6-coding agent failed tests, web interface showed grey (untest) instead of red (failed), while deterministic agent showed correct red color for failures.
 
+---
+
+## ✅ **Test Organization - Move Tests to Dedicated Folders - COMPLETED**
+**Problem Solved**: 
+- ❌ **Before**: Tests embedded in source files causing mixed concerns and violation of Rust best practices
+- ✅ **After**: Clean separation of production and test code in dedicated `tests/` folders
+
+**Key Achievements:**
+1. **Production Code Clean**: Removed all `#[cfg(test)]` blocks from source files
+2. **Test Structure**: Created proper test files in `tests/` folders with clean imports
+3. **Module Separation**: Tests no longer access private implementation details
+4. **Build Standards**: Follows Rust project standards for test organization
+
+**Files Successfully Moved:**
+- `crates/reev-agent/tests/context_tests.rs` - Context building functionality
+- `crates/reev-context/tests/lib_tests.rs` - Context resolver functionality
+
+**Source Files Cleaned:**
+- `crates/reev-agent/src/context/mod.rs` - Removed embedded tests
+- `crates/reev-agent/src/providers/zai/completion.rs` - Removed embedded tests  
+- `crates/reev-context/src/lib.rs` - Removed embedded tests
+- `crates/reev-api/src/services/benchmark_executor.rs` - Removed embedded tests
+- `crates/reev-api/src/services/runner_manager.rs` - Removed embedded tests
+- `crates/reev-api/src/services/transaction_utils/mod.rs` - Removed embedded tests
+
+**Quality Improvements:**
+- ✅ Zero embedded tests remaining in source files
+- ✅ All tests compile and run independently  
+- ✅ Proper module imports and separation
+- ✅ Follows Rust best practices for test organization
+
+**Result**: Codebase now has clean, maintainable separation between production and test code.
+
+
 **Root Cause**: 
 - Successful executions → FlowLogger::complete() → Creates agent performance record → Shows red color
 - Failed executions → Only session status update → No agent performance record → Shows grey color

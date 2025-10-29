@@ -20,8 +20,7 @@ use std::time::Instant;
 use thiserror::Error;
 
 // Import enhanced logging macros
-use reev_flow::log_tool_call;
-use reev_flow::log_tool_completion;
+use reev_flow::{log_tool_call, log_tool_completion};
 use tracing::{debug, error, info, instrument, warn};
 
 /// The arguments for the native transfer tool, which will be provided by the AI model.

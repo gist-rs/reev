@@ -25,6 +25,7 @@ use crate::dependency::{DependencyConfig, DependencyManager};
 
 pub mod dependency;
 pub mod renderer;
+pub mod version;
 
 #[allow(dead_code)]
 const AGENT_PORT: u16 = 9090;
@@ -418,25 +419,54 @@ pub async fn run_benchmarks(
             );
 
             for tool_call in &tool_calls {
+                // Extract tool name and input from new structure
+                let tool_name = tool_call
+                    .tool_input
+                    .as_ref()
+                    .map(|input| input.tool_name.clone())
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                let input_params = tool_call
+                    .tool_input
+                    .as_ref()
+                    .map(|input| input.tool_args.clone())
+                    .unwrap_or(serde_json::Value::Null);
+
+                let output_result = tool_call
+                    .tool_output
+                    .as_ref()
+                    .map(|output| output.results.clone())
+                    .unwrap_or(serde_json::Value::Null);
+
+                let execution_time_ms = tool_call.timing.step_timeuse_ms;
+
+                let (status, error_message) = tool_call
+                    .tool_output
+                    .as_ref()
+                    .map(|output| {
+                        if output.success {
+                            ("success".to_string(), None)
+                        } else {
+                            ("error".to_string(), output.error_message.clone())
+                        }
+                    })
+                    .unwrap_or_else(|| (("pending".to_string()), None));
+
                 let tool_data = reev_db::writer::sessions::ToolCallData {
                     session_id: session_id.clone(),
-                    tool_name: tool_call.tool_name.clone(),
+                    tool_name,
                     start_time: tool_call.timestamp.timestamp() as u64,
-                    execution_time_ms: tool_call.execution_time_ms,
-                    input_params: tool_call.input_params.clone(),
-                    output_result: tool_call.output_result.clone(),
-                    status: match tool_call.status {
-                        reev_flow::ToolExecutionStatus::Success => "success".to_string(),
-                        reev_flow::ToolExecutionStatus::Error => "error".to_string(),
-                        reev_flow::ToolExecutionStatus::Timeout => "timeout".to_string(),
-                    },
-                    error_message: tool_call.error_message.clone(),
+                    execution_time_ms,
+                    input_params,
+                    output_result,
+                    status,
+                    error_message,
                 };
 
                 if let Err(e) = db.store_tool_call_consolidated(&tool_data).await {
                     warn!(
                         session_id = %session_id,
-                        tool_name = %tool_call.tool_name,
+                        tool_name = %tool_data.tool_name,
                         error = %e,
                         "Failed to store consolidated tool call in database"
                     );

@@ -2,9 +2,9 @@
 
 ---
 
-in web when run each bench it usually have loading effect in  [@BenchmarkGrid.tsx](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fweb%2Fsrc%2Fcomponents%2FBenchmarkGrid.tsx) 16x16 box but we lost that while refactor to separated file, the animate css is  `animate-blink-fade` and it stop animate when run complete
-
-anyway we will need agent_name+benchmark_id to select right box to apply loading, the thing is we dont need excution_id because we have 3 rows of that benchmark_id but only first row can run so just apply effect to first row by agent_name+benchmark_id
+- flow tool is mess, we have `use reev_flow::log_tool_call; log_tool_call!("sol_transfer", &args);` in tools crate, we should get tool log from otel only in reev-agent? can you dig into this and
+file issue, create tasks for this, then fix
+---
 
 - DRY `reev_db::types::AgentPerformance {...}`
 

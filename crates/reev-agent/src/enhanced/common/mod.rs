@@ -16,6 +16,8 @@ use reev_tools::tools::{
     LendEarnTokensTool, SolTransferTool, SplTransferTool,
 };
 
+// Import enhanced OpenTelemetry macros
+
 /// Enhanced tool logging macro for consistent OpenTelemetry tracking
 #[macro_export]
 macro_rules! log_tool_call {
@@ -336,7 +338,7 @@ impl AgentHelper {
         None // Complex operation - use standard depth calculation
     }
 
-    /// Log prompt information for debugging
+    /// Log prompt information for debugging with enhanced OpenTelemetry tracking
     pub fn log_prompt_info(
         agent_name: &str,
         payload: &LlmRequest,
@@ -377,6 +379,32 @@ impl AgentHelper {
         );
         info!("[{agent_name}] Is Single Turn: {}", conversation_depth == 1);
         info!("[{agent_name}] === END DEPTH CALCULATION ===");
+
+        // 🌊 Enhanced OpenTelemetry prompt logging for comprehensive debugging
+        // Generate session ID from payload
+        let session_id = payload.session_id.clone();
+
+        // Get available tool names for this benchmark - simplified without key_map
+        let tool_name_list = vec![
+            "sol_transfer".to_string(),
+            "spl_transfer".to_string(),
+            "jupiter_swap".to_string(),
+            "jupiter_earn".to_string(),
+            "jupiter_lend_earn_deposit".to_string(),
+            "jupiter_lend_earn_withdraw".to_string(),
+            "jupiter_lend_earn_mint".to_string(),
+            "jupiter_lend_earn_redeem".to_string(),
+            "account_balance".to_string(),
+            "lend_earn_tokens".to_string(),
+        ];
+
+        // Log comprehensive prompt information using enhanced OpenTelemetry
+        reev_flow::log_prompt_event!(&tool_name_list, &payload.prompt, &enhanced_prompt);
+
+        info!(
+            "[{agent_name}] Enhanced prompt logging completed for session: {}",
+            session_id
+        );
     }
 
     /// Enhance user request with stop instructions for single-turn operations

@@ -1,5 +1,90 @@
 # Issues
 
+## 🆕 #27: Enhanced OpenTelemetry Logging System
+**Status**: 🔄 IN PROGRESS  
+**Priority**: High - Complete observability and debugging infrastructure  
+**Target**: Implement comprehensive JSONL logging with full execution trace data
+
+### Problem
+Current OpenTelemetry implementation exists but lacks comprehensive logging structure needed for debugging and flow visualization:
+- Missing version information in logs
+- Inconsistent tool integration (some tools use enhanced logging, others don't)
+- No structured JSONL format with all required fields
+- Missing prompt enrichment data
+- Incomplete timing metrics for multi-step flows
+- No JSONL to YML conversion for ASCII tree generation
+
+### Solution
+Implement comprehensive enhanced logging system with:
+
+#### **1. Complete JSONL Logging Structure**
+Each log entry should include:
+```json
+{
+  "timestamp": "2024-01-01T00:00:00Z",
+  "session_id": "uuid",
+  "reev_runner_version": "0.1.0",
+  "reev_agent_version": "0.1.0", 
+  "event_type": "prompt|tool_input|tool_output|step_complete",
+  "prompt": {
+    "tool_name_list": ["sol_transfer", "jupiter_swap"],
+    "user_prompt": "original user request",
+    "final_prompt": "enriched prompt sent to LLM"
+  },
+  "tool_input": {
+    "tool_name": "sol_transfer",
+    "tool_args": {"user_pubkey": "...", "amount": 100}
+  },
+  "tool_output": {
+    "success": true,
+    "results": {"transaction": "..."},
+    "error_message": null
+  },
+  "timing": {
+    "flow_timeuse_ms": 1500,
+    "step_timeuse_ms": 300
+  }
+}
+```
+
+#### **2. Complete Tool Integration**
+- Add enhanced logging to all Jupiter tools (jupiter_swap, jupiter_earn, etc.)
+- Ensure consistent `log_tool_call!` and `log_tool_completion!` usage
+- Version tracking for reev-runner and reev-agent
+
+#### **3. JSONL to YML Converter**
+- Convert JSONL logs to YML format for easier reading
+- Enable ASCII tree generation for flow visualization
+- Integrate with existing FLOW.md system
+
+### Tasks
+1. **Enhance JSONL Structure** - Add all required fields and event types
+2. **Complete Tool Integration** - Add enhanced logging to all tools
+3. **Version Tracking** - Capture reev-runner and reev-agent versions
+4. **Prompt Enrichment Logging** - Track user_prompt and final_prompt
+5. **JSONL to YML Converter** - Create conversion utilities
+6. **ASCII Tree Integration** - Update flow system to use new log format
+7. **Testing** - Validate with multi-step benchmarks (e.g., 200-jup-swap-then-lend-deposit.yml)
+
+### Files Affected
+- `crates/reev-flow/src/enhanced_otel.rs` - Enhanced logging structure
+- `crates/reev-tools/src/tools/*.rs` - Complete tool integration
+- `crates/reev-agent/src/enhanced/*.rs` - Prompt enrichment logging
+- `crates/reev-runner/src/main.rs` - Version tracking
+- `crates/reev-flow/src/jsonl_converter.rs` - JSONL to YML conversion (new)
+- `crates/reev-api/src/handlers/flow_diagram/` - ASCII tree integration updates
+
+### Success Criteria
+- ✅ All tool calls use enhanced logging with consistent format
+- ✅ Complete JSONL logs with all required fields
+- ✅ Version tracking for runner and agent
+- ✅ Prompt enrichment data captured
+- ✅ JSONL to YML conversion working
+- ✅ ASCII tree generation from converted logs
+- ✅ Multi-step benchmark validation
+
+---
+
 ## 🆕 #26: Test Organization - Move Tests to Dedicated Folders
 **Status**: ✅ COMPLETED  
 **Priority**: High - Code organization and testing standards compliance  

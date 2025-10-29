@@ -1,6 +1,87 @@
-# API Decoupling Tasks - CLI-Based Runner Communication
+# Enhanced OpenTelemetry Logging System Tasks
 
-## 🎉 PROJECT STATUS: CLI-BASED RUNNER INTEGRATION COMPLETE
+## 🔄 CURRENT FOCUS: Enhanced OpenTelemetry Implementation (Issue #27)
+
+### 🎯 Phase 1: JSONL Structure Enhancement - HIGH PRIORITY
+**Target**: Complete structured logging format with all required fields
+**Files**: `crates/reev-flow/src/enhanced_otel.rs`
+
+**Tasks**:
+- [ ] **Enhance JSONL Structure** - Add complete event types and fields
+  ```json
+  {
+    "timestamp": "2024-01-01T00:00:00Z",
+    "session_id": "uuid", 
+    "reev_runner_version": "0.1.0",
+    "reev_agent_version": "0.1.0",
+    "event_type": "prompt|tool_input|tool_output|step_complete",
+    "prompt": {"tool_name_list": [...], "user_prompt": "...", "final_prompt": "..."},
+    "tool_input": {"tool_name": "...", "tool_args": {...}},
+    "tool_output": {"success": true, "results": {...}, "error_message": null},
+    "timing": {"flow_timeuse_ms": 1500, "step_timeuse_ms": 300}
+  }
+  ```
+- [ ] **Version Tracking** - Add reev-runner and reev-agent version capture
+- [ ] **Event Type System** - Implement prompt, tool_input, tool_output, step_complete events
+- [ ] **Timing Metrics** - Add flow_timeuse_ms and step_timeuse_ms tracking
+
+### 🎯 Phase 2: Complete Tool Integration - HIGH PRIORITY
+**Target**: Ensure all tools use enhanced logging consistently
+**Files**: `crates/reev-tools/src/tools/*.rs`
+
+**Tasks**:
+- [ ] **Jupiter Swap Tool** - Add enhanced logging to `jupiter_swap.rs`
+- [ ] **Jupiter Earn Tool** - Add enhanced logging to `jupiter_earn.rs`
+- [ ] **Jupiter Lend/Earn Tools** - Add enhanced logging to all lend/earn tools
+- [ ] **Balance Tools** - Add enhanced logging to balance validation tools
+- [ ] **SPL Tools** - Add enhanced logging to SPL token tools
+- [ ] **Validation** - Ensure all tools use consistent `log_tool_call!` and `log_tool_completion!` macros
+
+### 🎯 Phase 3: Prompt Enrichment Logging - HIGH PRIORITY
+**Target**: Track user_prompt and final_prompt for debugging
+**Files**: `crates/reev-agent/src/enhanced/*.rs`
+
+**Tasks**:
+- [ ] **User Prompt Tracking** - Log original user request
+- [ ] **Final Prompt Tracking** - Log enriched prompt sent to LLM
+- [ ] **Tool Name List** - Capture available tools in prompt context
+- [ ] **Integration Points** - Add logging to all agent implementations (GLM, OpenAI, ZAI)
+
+### 🎯 Phase 4: JSONL to YML Converter - MEDIUM PRIORITY
+**Target**: Create conversion utilities for ASCII tree generation
+**Files**: `crates/reev-flow/src/jsonl_converter.rs` (new)
+
+**Tasks**:
+- [ ] **JSONL Parser** - Read and parse structured JSONL logs
+- [ ] **YML Converter** - Convert to readable YML format
+- [ ] **Session Aggregation** - Group events by session_id
+- [ ] **Tool Call Sequencing** - Order tool calls chronologically
+- [ ] **Error Handling** - Handle malformed log entries gracefully
+
+### 🎯 Phase 5: ASCII Tree Integration - MEDIUM PRIORITY
+**Target**: Update flow system to use new log format
+**Files**: `crates/reev-api/src/handlers/flow_diagram/`
+
+**Tasks**:
+- [ ] **Session Parser Update** - Update to work with enhanced JSONL structure
+- [ ] **State Diagram Generator** - Use new log format for better flow visualization
+- [ ] **Flow API Integration** - Ensure flows work with JSONL->YML conversion
+- [ ] **Web UI Compatibility** - Verify Mermaid diagram generation works
+
+### 🎯 Phase 6: Testing & Validation - HIGH PRIORITY
+**Target**: Validate with multi-step benchmarks
+**Files**: Test files across all crates
+
+**Tasks**:
+- [ ] **Multi-Step Benchmark Test** - Test with `benchmarks/200-jup-swap-then-lend-deposit.yml`
+- [ ] **JSONL Validation** - Verify all required fields are captured
+- [ ] **Flow Time Metrics** - Validate timing accuracy for multi-step flows
+- [ ] **Integration Tests** - End-to-end testing of complete logging pipeline
+- [ ] **Performance Tests** - Ensure enhanced logging doesn't impact performance significantly
+
+---
+
+## 🎉 COMPLETED: API Decoupling Tasks - CLI-Based Runner Communication
 
 ### ✅ All Major Phases Completed (Phases 1-4)
 
@@ -15,7 +96,7 @@
 - ✅ All API endpoints migrated to CLI integration
 - ✅ Runtime dependencies removed (imports preserved for compilation)
 
-## Remaining Optional Tasks
+## Remaining Optional Tasks (After OpenTelemetry Complete)
 
 ### Phase 5: Optimization & Monitoring (Optional Enhancements)
 

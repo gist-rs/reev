@@ -12,8 +12,11 @@ use std::time::Instant;
 use thiserror::Error;
 use tracing::{info, instrument};
 
-/// The arguments for the Jupiter earn tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+// Import enhanced logging macros
+use reev_flow::{log_tool_call, log_tool_completion};
+
+/// The arguments for Jupiter earn tool, which will be provided by the AI model.
+#[derive(Deserialize, Debug, Serialize)]
 pub struct JupiterEarnArgs {
     pub user_pubkey: String,
     pub position_address: Option<String>,
@@ -21,7 +24,7 @@ pub struct JupiterEarnArgs {
 }
 
 /// Jupiter earn operations
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JupiterEarnOperation {
     Positions,
@@ -94,6 +97,9 @@ impl Tool for JupiterEarnTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Use enhanced logging macro for consistent otel tracking
+        log_tool_call!("jupiter_earn", &args);
+
         info!("[JupiterEarn] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
         // Validate user pubkey
@@ -180,7 +186,11 @@ impl Tool for JupiterEarnTool {
             "result": result
         });
 
-        let total_execution_time = start_time.elapsed().as_millis() as u32;
+        let total_execution_time = start_time.elapsed().as_millis() as u64;
+
+        // Log tool completion with enhanced otel
+        log_tool_completion!("jupiter_earn", total_execution_time, &response, true);
+
         info!(
             "[JupiterEarn] Tool execution completed - total_time: {}ms, operation: {:?}",
             total_execution_time, args.operation

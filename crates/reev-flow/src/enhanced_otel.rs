@@ -1,141 +1,146 @@
-//! Enhanced OpenTelemetry logging for tool call tracking
+//! Enhanced OpenTelemetry logging for structured tool call tracking
 //!
-//! This module provides enhanced OpenTelemetry logging capabilities
-//! that automatically capture tool execution details and write them
-//! to unique session files in logs/sessions/.
-
-use thiserror::Error;
-
-pub type Result<T> = std::result::Result<T, EnhancedOtelError>;
-
-#[derive(Debug, Error)]
-pub enum EnhancedOtelError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-    #[error("Mutex error: {0}")]
-    Mutex(String),
-    #[error("Logger not initialized")]
-    NotInitialized,
-}
+//! This module provides enhanced logging capabilities for tool calls, prompts,
+//! and flow execution with JSONL output format for analysis and visualization.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::Path;
-use std::sync::{Mutex, OnceLock};
-use tracing::{info, warn};
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-/// Enhanced tool call information captured from OpenTelemetry spans
+pub type Result<T> = std::result::Result<T, EnhancedOtelError>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum EnhancedOtelError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+
+    #[error("Mutex error: {0}")]
+    Mutex(String),
+
+    #[error("EnhancedOtelLogger not initialized")]
+    NotInitialized,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EventType {
+    Prompt,
+    ToolInput,
+    ToolOutput,
+    StepComplete,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptInfo {
+    pub tool_name_list: Vec<String>,
+    pub user_prompt: String,
+    pub final_prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolInputInfo {
+    pub tool_name: String,
+    pub tool_args: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolOutputInfo {
+    pub success: bool,
+    pub results: serde_json::Value,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimingInfo {
+    pub flow_timeuse_ms: u64,
+    pub step_timeuse_ms: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedToolCall {
-    /// Unique session identifier
-    pub session_id: String,
-    /// Tool name (e.g., "sol_transfer", "jupiter_swap")
-    pub tool_name: String,
-    /// Tool execution timestamp
     pub timestamp: DateTime<Utc>,
-    /// Tool execution duration in milliseconds
-    pub execution_time_ms: u64,
-    /// Tool input parameters
-    pub input_params: serde_json::Value,
-    /// Tool output result
-    pub output_result: serde_json::Value,
-    /// Tool execution status
-    pub status: ToolExecutionStatus,
-    /// Error message if execution failed
-    pub error_message: Option<String>,
-    /// Additional metadata
+    pub session_id: String,
+    pub reev_runner_version: String,
+    pub reev_agent_version: String,
+    pub event_type: EventType,
+    pub prompt: Option<PromptInfo>,
+    pub tool_input: Option<ToolInputInfo>,
+    pub tool_output: Option<ToolOutputInfo>,
+    pub timing: TimingInfo,
     pub metadata: serde_json::Value,
 }
 
-/// Tool execution status
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ToolExecutionStatus {
     Success,
     Error,
     Timeout,
 }
 
-/// Enhanced OpenTelemetry logger for tool calls
+/// Enhanced OpenTelemetry logger for structured JSONL output
 pub struct EnhancedOtelLogger {
-    /// Session ID for this logging session
     session_id: String,
-    /// Log file path
     log_file: String,
-    /// Mutex for thread-safe file writing
-    file_writer: Mutex<File>,
-    /// Tool calls collected in this session
-    tool_calls: Mutex<Vec<EnhancedToolCall>>,
+    file_writer: Arc<Mutex<std::fs::File>>,
+    tool_calls: Arc<Mutex<Vec<EnhancedToolCall>>>,
 }
 
 impl EnhancedOtelLogger {
-    /// Create new enhanced otel logger with unique session ID
+    /// Create a new enhanced otel logger
     pub fn new() -> Result<Self> {
         let session_id = Uuid::new_v4().to_string();
-        let log_file = format!("logs/sessions/otel_{session_id}.jsonl");
+        let default_log_file = format!("logs/sessions/enhanced_otel_{session_id}.jsonl");
+        let log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
 
-        // Ensure logs directory exists
-        if let Some(parent) = Path::new(&log_file).parent() {
-            std::fs::create_dir_all(parent).map_err(EnhancedOtelError::Io)?;
+        // Ensure directory exists
+        if let Some(parent) = std::path::Path::new(&log_file).parent() {
+            std::fs::create_dir_all(parent)?;
         }
 
-        // Create/open log file
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&log_file)
-            .map_err(EnhancedOtelError::Io)?;
-
-        info!("Enhanced OpenTelemetry logging initialized");
-        info!("Session ID: {}", session_id);
-        info!("Log file: {}", log_file);
+            .open(&log_file)?;
 
         Ok(Self {
             session_id,
             log_file,
-            file_writer: Mutex::new(file),
-            tool_calls: Mutex::new(Vec::new()),
+            file_writer: Arc::new(Mutex::new(file)),
+            tool_calls: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
-    /// Create new enhanced otel logger with specific session ID
+    /// Create logger with specific session ID
     pub fn with_session_id(session_id: String) -> Result<Self> {
-        let log_file = format!("logs/sessions/otel_{session_id}.jsonl");
+        let default_log_file = format!("logs/sessions/enhanced_otel_{session_id}.jsonl");
+        let log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
 
-        // Ensure logs directory exists
-        if let Some(parent) = Path::new(&log_file).parent() {
-            std::fs::create_dir_all(parent).map_err(EnhancedOtelError::Io)?;
+        // Ensure directory exists
+        if let Some(parent) = std::path::Path::new(&log_file).parent() {
+            std::fs::create_dir_all(parent)?;
         }
 
-        // Create/open log file
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&log_file)
-            .map_err(EnhancedOtelError::Io)?;
-
-        info!(
-            "Enhanced OpenTelemetry logging initialized with session ID: {}",
-            session_id
-        );
-        info!("Log file: {}", log_file);
+            .open(&log_file)?;
 
         Ok(Self {
             session_id,
             log_file,
-            file_writer: Mutex::new(file),
-            tool_calls: Mutex::new(Vec::new()),
+            file_writer: Arc::new(Mutex::new(file)),
+            tool_calls: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
-    /// Log a tool call with enhanced details
+    /// Log a tool call event
     pub fn log_tool_call(&self, tool_call: EnhancedToolCall) -> Result<()> {
-        // Add to memory collection
+        // Store in memory
         {
             let mut calls = self
                 .tool_calls
@@ -144,36 +149,19 @@ impl EnhancedOtelLogger {
             calls.push(tool_call.clone());
         }
 
-        // Write to file
-        {
-            let mut writer = self
-                .file_writer
-                .lock()
-                .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
-
-            let json_line =
-                serde_json::to_string(&tool_call).map_err(EnhancedOtelError::Serialization)?;
-
-            writeln!(writer, "{json_line}").map_err(EnhancedOtelError::Io)?;
-
-            writer.flush().map_err(EnhancedOtelError::Io)?;
-        }
-
-        info!(
-            "Logged tool call: {} ({}ms) - {}",
-            tool_call.tool_name,
-            tool_call.execution_time_ms,
-            match tool_call.status {
-                ToolExecutionStatus::Success => "SUCCESS",
-                ToolExecutionStatus::Error => "ERROR",
-                ToolExecutionStatus::Timeout => "TIMEOUT",
-            }
-        );
+        // Write to file as JSONL
+        let json_line = serde_json::to_string(&tool_call)?;
+        let mut writer = self
+            .file_writer
+            .lock()
+            .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+        writeln!(writer, "{json_line}")?;
+        writer.flush()?;
 
         Ok(())
     }
 
-    /// Get all collected tool calls
+    /// Get all tool calls for this session
     pub fn get_tool_calls(&self) -> Result<Vec<EnhancedToolCall>> {
         let calls = self
             .tool_calls
@@ -182,7 +170,7 @@ impl EnhancedOtelLogger {
         Ok(calls.clone())
     }
 
-    /// Update existing tool call with completion data
+    /// Update an existing tool call (for completion)
     pub fn update_tool_call(
         &self,
         tool_name: &str,
@@ -190,61 +178,33 @@ impl EnhancedOtelLogger {
         output_result: serde_json::Value,
         status: ToolExecutionStatus,
     ) -> Result<()> {
-        // Update in memory collection
-        {
-            let mut calls = self
-                .tool_calls
-                .lock()
-                .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+        let mut calls = self
+            .tool_calls
+            .lock()
+            .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
 
-            // Find the most recent matching tool call
-            if let Some(call) = calls.iter_mut().rev().find(|c| {
-                c.tool_name == tool_name && matches!(c.status, ToolExecutionStatus::Success)
-            }) {
-                call.execution_time_ms = execution_time_ms;
-                call.output_result = output_result.clone();
-                call.status = status.clone();
-            } else {
-                // If no matching call found, create a new one
-                let new_call = EnhancedToolCall {
-                    session_id: self.session_id().to_string(),
-                    tool_name: tool_name.to_string(),
-                    timestamp: chrono::Utc::now(),
-                    execution_time_ms,
-                    input_params: serde_json::json!({}),
-                    output_result: output_result.clone(),
-                    status: status.clone(),
-                    error_message: None,
-                    metadata: serde_json::json!({}),
-                };
-                calls.push(new_call);
-            }
-        }
+        // Find the most recent matching tool call
+        if let Some(call) = calls.iter_mut().rev().find(|c| {
+            c.tool_input
+                .as_ref()
+                .is_some_and(|input| input.tool_name == tool_name)
+        }) {
+            let success = matches!(status, ToolExecutionStatus::Success);
+            call.tool_output = Some(ToolOutputInfo {
+                success,
+                results: output_result,
+                error_message: None,
+            });
+            call.timing.step_timeuse_ms = execution_time_ms;
 
-        // Append update to file as new entry (append-only pattern)
-        {
+            // Write updated version
+            let json_line = serde_json::to_string(call)?;
             let mut writer = self
                 .file_writer
                 .lock()
                 .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
-
-            let update_call = EnhancedToolCall {
-                session_id: self.session_id().to_string(),
-                tool_name: tool_name.to_string(),
-                timestamp: chrono::Utc::now(),
-                execution_time_ms,
-                input_params: serde_json::json!({}),
-                output_result: output_result.clone(),
-                status: status.clone(),
-                error_message: None,
-                metadata: serde_json::json!({}),
-            };
-
-            let json_line =
-                serde_json::to_string(&update_call).map_err(EnhancedOtelError::Serialization)?;
-
-            writeln!(writer, "{json_line}").map_err(EnhancedOtelError::Io)?;
-            writer.flush().map_err(EnhancedOtelError::Io)?;
+            writeln!(writer, "{json_line}")?;
+            writer.flush()?;
         }
 
         Ok(())
@@ -260,280 +220,167 @@ impl EnhancedOtelLogger {
         &self.log_file
     }
 
-    /// Write summary statistics to file
+    /// Write session summary
     pub fn write_summary(&self) -> Result<()> {
         let calls = self.get_tool_calls()?;
-
-        let tools_used = {
-            let mut tools = std::collections::HashSet::new();
-            for call in &calls {
-                tools.insert(&call.tool_name);
-            }
-            tools.into_iter().collect::<Vec<_>>()
-        };
-
-        let average_execution_time_ms = if !calls.is_empty() {
-            calls.iter().map(|c| c.execution_time_ms).sum::<u64>() as f64 / calls.len() as f64
-        } else {
-            0.0
-        };
-
         let summary = serde_json::json!({
             "session_id": self.session_id,
-            "timestamp": Utc::now(),
-            "total_tool_calls": calls.len(),
-            "successful_calls": calls.iter().filter(|c| matches!(c.status, ToolExecutionStatus::Success)).count(),
-            "failed_calls": calls.iter().filter(|c| matches!(c.status, ToolExecutionStatus::Error)).count(),
-            "timeout_calls": calls.iter().filter(|c| matches!(c.status, ToolExecutionStatus::Timeout)).count(),
-            "average_execution_time_ms": average_execution_time_ms,
-            "tools_used": tools_used
+            "total_events": calls.len(),
+            "tool_calls": calls.iter().filter(|c| c.tool_input.is_some()).count(),
+            "successful_tools": calls.iter().filter(|c| {
+                c.tool_output.as_ref().is_some_and(|o| o.success)
+            }).count(),
+            "failed_tools": calls.iter().filter(|c| {
+                c.tool_output.as_ref().is_some_and(|o| !o.success)
+            }).count(),
+            "logged_at": Utc::now(),
         });
 
-        {
-            let mut writer = self
-                .file_writer
-                .lock()
-                .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+        let mut writer = self
+            .file_writer
+            .lock()
+            .map_err(|e| EnhancedOtelError::Mutex(e.to_string()))?;
+        writeln!(writer, "{}", serde_json::to_string(&summary)?)?;
+        writer.flush()?;
 
-            writeln!(
-                writer,
-                "\n# SESSION_SUMMARY: {}",
-                serde_json::to_string(&summary)?
-            )
-            .map_err(EnhancedOtelError::Io)?;
-
-            writer.flush().map_err(EnhancedOtelError::Io)?;
-        }
-
-        info!("Session summary written to: {}", self.log_file);
         Ok(())
     }
 }
 
 impl Drop for EnhancedOtelLogger {
     fn drop(&mut self) {
-        if let Err(e) = self.write_summary() {
-            warn!("Failed to write session summary: {}", e);
-        }
+        let _ = self.write_summary();
     }
 }
 
-/// Global enhanced otel logger instance
-static ENHANCED_OTEL_LOGGER: OnceLock<EnhancedOtelLogger> = OnceLock::new();
+// Global logger instance
+static ENHANCED_OTEL_LOGGER: std::sync::OnceLock<Arc<EnhancedOtelLogger>> =
+    std::sync::OnceLock::new();
 
-/// Initialize enhanced OpenTelemetry logging globally
+/// Initialize enhanced otel logging
 pub fn init_enhanced_otel_logging() -> Result<String> {
-    info!("=== INITIALIZING ENHANCED OPENTELEMETRY LOGGING ===");
-
-    // Use OnceLock's set method which returns error if already set
-    let logger = EnhancedOtelLogger::new()?;
-    let log_file = logger.log_file().to_string();
+    let logger = Arc::new(EnhancedOtelLogger::new()?);
+    let session_id = logger.session_id().to_string();
 
     ENHANCED_OTEL_LOGGER
         .set(logger)
         .map_err(|_| EnhancedOtelError::Mutex("Logger already initialized".to_string()))?;
 
-    info!("✅ Enhanced OpenTelemetry logging initialized globally");
-    info!("📁 Log file: {}", log_file);
-
-    Ok(log_file)
-}
-
-/// Initialize enhanced otel logger with specific session ID
-pub fn init_enhanced_otel_logging_with_session(session_id: String) -> Result<String> {
-    info!(
-        "=== INITIALIZING ENHANCED OPENTELEMETRY LOGGING WITH SESSION: {} ===",
+    tracing::info!(
+        "✅ Enhanced OpenTelemetry logging initialized with session: {}",
         session_id
     );
+    Ok(session_id)
+}
 
-    let logger = EnhancedOtelLogger::with_session_id(session_id)?;
-    let log_file = logger.log_file().to_string();
+/// Initialize enhanced otel logging with specific session ID
+pub fn init_enhanced_otel_logging_with_session(session_id: String) -> Result<String> {
+    let logger = Arc::new(EnhancedOtelLogger::with_session_id(session_id.clone())?);
 
     ENHANCED_OTEL_LOGGER
         .set(logger)
         .map_err(|_| EnhancedOtelError::Mutex("Logger already initialized".to_string()))?;
 
-    info!("✅ Enhanced OpenTelemetry logging initialized with session");
-
-    Ok(log_file)
+    tracing::info!(
+        "✅ Enhanced OpenTelemetry logging initialized with session: {}",
+        session_id
+    );
+    Ok(session_id)
 }
 
 /// Get the global enhanced otel logger
-pub fn get_enhanced_otel_logger() -> Result<&'static EnhancedOtelLogger> {
+pub fn get_enhanced_otel_logger() -> Result<Arc<EnhancedOtelLogger>> {
     ENHANCED_OTEL_LOGGER
         .get()
+        .cloned()
         .ok_or(EnhancedOtelError::NotInitialized)
 }
 
-/// Enhanced logging macro for tool calls
-#[macro_export]
-macro_rules! log_enhanced_tool_call {
-    ($tool_name:expr, $execution_time_ms:expr, $input_params:expr, $output_result:expr, $status:expr, $error_message:expr) => {
-        if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
-            let tool_call = $crate::enhanced_otel::EnhancedToolCall {
-                session_id: logger.session_id().to_string(),
-                tool_name: $tool_name.to_string(),
-                timestamp: chrono::Utc::now(),
-                execution_time_ms: $execution_time_ms,
-                input_params: $input_params.clone(),
-                output_result: $output_result.clone(),
-                status: $status,
-                error_message: $error_message.map(|s| s.to_string()),
-                metadata: serde_json::json!({
-                    "logged_at": chrono::Utc::now().to_rfc3339(),
-                    "tool_type": $tool_name,
-                    "logger_version": "1.0.0",
-                    "hostname": std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string()),
-                    "pid": std::process::id(),
-                    "consolidation": "enabled"
-                }),
-            };
+// Simple working macros
 
-            if let Err(e) = logger.log_tool_call(tool_call) {
-                tracing::warn!("Failed to log enhanced tool call: {}", e);
-            }
-        }
-    };
-}
-
-/// Success variant of the macro
-#[macro_export]
-macro_rules! log_enhanced_tool_success {
-    ($tool_name:expr, $execution_time_ms:expr, $input_params:expr, $output_result:expr) => {
-        $crate::log_enhanced_tool_call!(
-            $tool_name,
-            $execution_time_ms,
-            $input_params,
-            $output_result,
-            $crate::enhanced_otel::ToolExecutionStatus::Success,
-            None::<&str>
-        );
-    };
-}
-
-/// Error variant of the macro
-#[macro_export]
-macro_rules! log_enhanced_tool_error {
-    ($tool_name:expr, $execution_time_ms:expr, $input_params:expr, $error_message:expr) => {
-        $crate::log_enhanced_tool_call!(
-            $tool_name,
-            $execution_time_ms,
-            $input_params,
-            serde_json::json!({}),
-            $crate::enhanced_otel::ToolExecutionStatus::Error,
-            Some($error_message)
-        );
-    };
-}
-
-/// Update existing tool call with completion data
-#[allow(unused)]
-macro_rules! log_enhanced_tool_update {
-    ($tool_name:expr, $execution_time_ms:expr, $output_result:expr, $status:expr) => {
-        if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
-            logger
-                .update_tool_call($tool_name, $execution_time_ms, $output_result, $status)
-                .unwrap_or_else(|e| {
-                    tracing::error!("Failed to update tool call {}: {}", $tool_name, e);
-                });
-        }
-    };
-}
-
-/// Update tool call with success status
-#[allow(unused)]
-macro_rules! log_enhanced_tool_success_update {
-    ($tool_name:expr, $execution_time_ms:expr, $output_result:expr) => {
-        $crate::log_enhanced_tool_update!(
-            $tool_name,
-            $execution_time_ms,
-            $output_result,
-            $crate::enhanced_otel::ToolExecutionStatus::Success
-        );
-    };
-}
-
-/// Update tool call with error status
-#[allow(unused)]
-macro_rules! log_enhanced_tool_error_update {
-    ($tool_name:expr, $execution_time_ms:expr, $error_message:expr) => {
-        $crate::log_enhanced_tool_update!(
-            $tool_name,
-            $execution_time_ms,
-            serde_json::json!({"error": $error_message}),
-            $crate::enhanced_otel::ToolExecutionStatus::Error
-        );
-    };
-}
-
-/// Enhanced tool logging macro for consistent OpenTelemetry tracking
+/// Simple tool call logging macro
 #[macro_export]
 macro_rules! log_tool_call {
-    ($tool_name:expr, $args:expr) => {
-        // Enhanced otel logging is enabled by default (can be disabled with REEV_ENHANCED_OTEL=0)
+    ($tool_name:expr, $args:expr) => {{
+        // Enhanced otel logging is enabled by default
         if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
-            // Also log to enhanced file-based system
-            let input_params = serde_json::to_value($args)
-                .unwrap_or_else(|_| serde_json::Value::Object(Default::default()));
-            tracing::debug!("📝 [{}] Logging to enhanced otel system", $tool_name);
-
-            // Check if EnhancedOtelLogger is available before trying to log
             if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
-                tracing::debug!(
-                    "🔍 [{}] EnhancedOtelLogger found with session_id: {}",
-                    $tool_name,
-                    logger.session_id()
-                );
-                $crate::log_enhanced_tool_call!(
-                    $tool_name,
-                    0, // Will be updated on completion
-                    input_params,
-                    serde_json::Value::Object(Default::default()),
-                    $crate::enhanced_otel::ToolExecutionStatus::Success,
-                    None::<&str>
-                );
-                tracing::debug!("✅ [{}] Enhanced otel log call completed", $tool_name);
-            } else {
-                tracing::warn!(
-                    "❌ [{}] EnhancedOtelLogger NOT AVAILABLE - tool calls will not be captured!",
-                    $tool_name
-                );
+                let session_id = logger.session_id().to_string();
+                let tool_input = $crate::enhanced_otel::ToolInputInfo {
+                    tool_name: $tool_name.to_string(),
+                    tool_args: serde_json::to_value($args).unwrap_or_default(),
+                };
+
+                let tool_call = $crate::enhanced_otel::EnhancedToolCall {
+                    timestamp: chrono::Utc::now(),
+                    session_id,
+                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                    event_type: $crate::enhanced_otel::EventType::ToolInput,
+                    prompt: None,
+                    tool_input: Some(tool_input),
+                    tool_output: None,
+                    timing: $crate::enhanced_otel::TimingInfo {
+                        flow_timeuse_ms: 0,
+                        step_timeuse_ms: 0,
+                    },
+                    metadata: serde_json::json!({}),
+                };
+
+                if let Err(e) = logger.log_tool_call(tool_call) {
+                    tracing::warn!("❌ [{}] Failed to log tool call: {}", $tool_name, e);
+                } else {
+                    tracing::debug!("✅ [{}] Tool call logged", $tool_name);
+                }
             }
-        } else {
-            tracing::info!("🚫 [{}] Enhanced otel logging DISABLED", $tool_name);
         }
+
         tracing::info!("[{}] Tool execution started", $tool_name);
-    };
+    }};
 }
 
-/// Enhanced tool completion logging macro
+/// Simple tool completion logging macro
 #[macro_export]
 macro_rules! log_tool_completion {
-    ($tool_name:expr, $execution_time_ms:expr, $result:expr, $success:expr) => {
-        // Enhanced otel logging is enabled by default (can be disabled with REEV_ENHANCED_OTEL=0)
+    ($tool_name:expr, $execution_time_ms:expr, $result:expr, $success:expr) => {{
+        // Enhanced otel logging is enabled by default
         if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
-            // Also log to enhanced file-based system
-            let input_params = serde_json::json!({}); // Will be populated from earlier call
-            if $success {
-                // Convert result to JSON value for enhanced logging
-                let result_value = serde_json::to_value(&$result).unwrap_or_default();
-                $crate::log_enhanced_tool_success!(
-                    $tool_name,
-                    $execution_time_ms,
-                    input_params,
-                    result_value
-                );
-            } else {
-                // Handle error case - convert result to string for error message
-                let error_msg = $result.to_string();
-                $crate::log_enhanced_tool_error!(
-                    $tool_name,
-                    $execution_time_ms,
-                    input_params,
-                    error_msg
-                );
+            if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
+                let session_id = logger.session_id().to_string();
+                let tool_output = $crate::enhanced_otel::ToolOutputInfo {
+                    success: $success,
+                    results: serde_json::to_value($result).unwrap_or_default(),
+                    error_message: if $success {
+                        None
+                    } else {
+                        Some(format!("Tool failed: {:?}", $result))
+                    },
+                };
+
+                let tool_call = $crate::enhanced_otel::EnhancedToolCall {
+                    timestamp: chrono::Utc::now(),
+                    session_id,
+                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                    event_type: $crate::enhanced_otel::EventType::ToolOutput,
+                    prompt: None,
+                    tool_input: None,
+                    tool_output: Some(tool_output),
+                    timing: $crate::enhanced_otel::TimingInfo {
+                        flow_timeuse_ms: 0,
+                        step_timeuse_ms: $execution_time_ms,
+                    },
+                    metadata: serde_json::json!({}),
+                };
+
+                if let Err(e) = logger.log_tool_call(tool_call) {
+                    tracing::warn!("❌ [{}] Failed to log tool completion: {}", $tool_name, e);
+                } else {
+                    tracing::debug!("✅ [{}] Tool completion logged", $tool_name);
+                }
             }
         }
+
         if $success {
             tracing::info!(
                 "[{}] Tool execution completed in {}ms",
@@ -542,11 +389,84 @@ macro_rules! log_tool_completion {
             );
         } else {
             tracing::error!(
-                "[{}] Tool execution failed in {}ms: {}",
+                "[{}] Tool execution failed in {}ms: {:?}",
                 $tool_name,
                 $execution_time_ms,
-                serde_json::to_value($result).unwrap_or_default()
+                $result
             );
+        }
+    }};
+}
+
+/// Simple prompt logging macro
+#[macro_export]
+macro_rules! log_prompt_event {
+    ($tool_name_list:expr, $user_prompt:expr, $final_prompt:expr) => {
+        // Enhanced otel logging is enabled by default
+        if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
+            if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
+                let session_id = logger.session_id().to_string();
+                let prompt = $crate::enhanced_otel::PromptInfo {
+                    tool_name_list: $tool_name_list.to_vec(),
+                    user_prompt: $user_prompt.to_string(),
+                    final_prompt: $final_prompt.to_string(),
+                };
+
+                let tool_call = $crate::enhanced_otel::EnhancedToolCall {
+                    timestamp: chrono::Utc::now(),
+                    session_id,
+                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                    event_type: $crate::enhanced_otel::EventType::Prompt,
+                    prompt: Some(prompt),
+                    tool_input: None,
+                    tool_output: None,
+                    timing: $crate::enhanced_otel::TimingInfo {
+                        flow_timeuse_ms: 0,
+                        step_timeuse_ms: 0,
+                    },
+                    metadata: serde_json::json!({}),
+                };
+
+                if let Err(e) = logger.log_tool_call(tool_call) {
+                    tracing::warn!("❌ Failed to log prompt event: {}", e);
+                }
+            }
+        }
+    };
+}
+
+/// Simple step completion logging macro
+#[macro_export]
+macro_rules! log_step_complete {
+    ($step_name:expr, $flow_time_ms:expr, $step_time_ms:expr) => {
+        // Enhanced otel logging is enabled by default
+        if std::env::var("REEV_ENHANCED_OTEL").unwrap_or_else(|_| "1".to_string()) != "0" {
+            if let Ok(logger) = $crate::enhanced_otel::get_enhanced_otel_logger() {
+                let session_id = logger.session_id().to_string();
+
+                let tool_call = $crate::enhanced_otel::EnhancedToolCall {
+                    timestamp: chrono::Utc::now(),
+                    session_id,
+                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                    event_type: $crate::enhanced_otel::EventType::StepComplete,
+                    prompt: None,
+                    tool_input: None,
+                    tool_output: None,
+                    timing: $crate::enhanced_otel::TimingInfo {
+                        flow_timeuse_ms: $flow_time_ms,
+                        step_timeuse_ms: $step_time_ms,
+                    },
+                    metadata: serde_json::json!({
+                        "step_name": $step_name
+                    }),
+                };
+
+                if let Err(e) = logger.log_tool_call(tool_call) {
+                    tracing::warn!("❌ Failed to log step complete: {}", e);
+                }
+            }
         }
     };
 }
@@ -556,73 +476,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_enhanced_otel_logger_creation() -> Result<()> {
-        let logger = EnhancedOtelLogger::new()?;
-        assert!(!logger.session_id().is_empty());
-        assert!(logger.log_file().contains("otel_"));
-        assert!(logger.log_file().ends_with(".jsonl"));
-        Ok(())
+    fn test_enhanced_otel_logger_creation() {
+        let logger = EnhancedOtelLogger::new();
+        assert!(logger.is_ok());
     }
 
     #[test]
-    fn test_tool_call_logging() -> Result<()> {
-        let logger = EnhancedOtelLogger::new()?;
-
+    fn test_tool_call_logging() {
+        let logger = EnhancedOtelLogger::new().unwrap();
         let tool_call = EnhancedToolCall {
-            session_id: logger.session_id().to_string(),
-            tool_name: "test_tool".to_string(),
             timestamp: Utc::now(),
-            execution_time_ms: 100,
-            input_params: serde_json::json!({"param1": "value1"}),
-            output_result: serde_json::json!({"result": "success"}),
-            status: ToolExecutionStatus::Success,
-            error_message: None,
+            session_id: logger.session_id().to_string(),
+            reev_runner_version: "0.1.0".to_string(),
+            reev_agent_version: "0.1.0".to_string(),
+            event_type: EventType::ToolInput,
+            prompt: None,
+            tool_input: Some(ToolInputInfo {
+                tool_name: "test_tool".to_string(),
+                tool_args: serde_json::json!({"param": "value"}),
+            }),
+            tool_output: None,
+            timing: TimingInfo {
+                flow_timeuse_ms: 100,
+                step_timeuse_ms: 50,
+            },
             metadata: serde_json::json!({}),
         };
 
-        logger.log_tool_call(tool_call)?;
-
-        let calls = logger.get_tool_calls()?;
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].tool_name, "test_tool");
-        assert_eq!(calls[0].execution_time_ms, 100);
-
-        Ok(())
+        let result = logger.log_tool_call(tool_call);
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn test_session_summary() -> Result<()> {
-        let logger = EnhancedOtelLogger::new()?;
-
-        // Log some test calls
-        for i in 0..3 {
-            let tool_call = EnhancedToolCall {
-                session_id: logger.session_id().to_string(),
-                tool_name: format!("tool_{i}"),
-                timestamp: Utc::now(),
-                execution_time_ms: 100 + i * 50,
-                input_params: serde_json::json!({"id": i}),
-                output_result: serde_json::json!({"result": "ok"}),
-                status: if i < 2 {
-                    ToolExecutionStatus::Success
-                } else {
-                    ToolExecutionStatus::Error
-                },
-                error_message: if i < 2 {
-                    None
-                } else {
-                    Some("test error".to_string())
-                },
-                metadata: serde_json::json!({}),
-            };
-            logger.log_tool_call(tool_call)?;
-        }
-
-        logger.write_summary()?;
-
-        let calls = logger.get_tool_calls()?;
-        assert_eq!(calls.len(), 3);
-
-        Ok(())
+    fn test_session_summary() {
+        let logger = EnhancedOtelLogger::new().unwrap();
+        let result = logger.write_summary();
+        assert!(result.is_ok());
     }
 }

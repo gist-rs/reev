@@ -17,8 +17,11 @@ use std::time::Instant;
 use thiserror::Error;
 use tracing::{info, instrument, warn};
 
+// Import enhanced logging macros
+use reev_flow::{log_tool_call, log_tool_completion};
+
 /// The arguments for the Jupiter swap tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct JupiterSwapArgs {
     pub user_pubkey: String,
     pub input_mint: String,
@@ -138,6 +141,9 @@ impl Tool for JupiterSwapTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Use enhanced logging macro for consistent otel tracking
+        log_tool_call!("jupiter_swap", &args);
+
         info!("[JupiterSwapTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
 
@@ -164,6 +170,23 @@ impl Tool for JupiterSwapTool {
                         info!(
                             "[JupiterSwapTool] Successfully created swap with {} instructions",
                             instruction_count
+                        );
+                    }
+                }
+
+                let execution_time = start_time.elapsed().as_millis() as u64;
+
+                match &result {
+                    Ok(output) => {
+                        log_tool_completion!("jupiter_swap", execution_time, &output, true);
+                    }
+                    Err(e) => {
+                        let error_data = json!({"error": e.to_string()});
+                        log_tool_completion!(
+                            "jupiter_swap",
+                            execution_time,
+                            &error_data,
+                            false
                         );
                     }
                 }
