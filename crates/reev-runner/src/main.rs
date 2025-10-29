@@ -30,6 +30,10 @@ struct Cli {
     /// Use shared surfpool instances instead of creating fresh ones
     #[arg(long)]
     shared_surfpool: bool,
+
+    /// Execution ID to use for this run (for API coordination)
+    #[arg(long)]
+    execution_id: Option<String>,
 }
 
 /// Initializes OpenTelemetry pipeline for tracing with console output.
@@ -98,9 +102,15 @@ async fn main() -> Result<()> {
             cli.agent
         );
 
-        // Run the benchmarks using the library function.
-        let results =
-            reev_runner::run_benchmarks(cli.path, &cli.agent, cli.shared_surfpool, false).await?;
+        // Run benchmarks using the library function.
+        let results = reev_runner::run_benchmarks(
+            cli.path,
+            &cli.agent,
+            cli.shared_surfpool,
+            false,
+            cli.execution_id,
+        )
+        .await?;
 
         // Render the results.
         for result in &results {

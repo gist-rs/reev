@@ -96,6 +96,7 @@ pub async fn run_benchmarks(
     agent_name: &str,
     shared_surfpool: bool,
     kill_api: bool,
+    execution_id: Option<String>,
 ) -> Result<Vec<TestResult>> {
     let benchmark_paths = discover_benchmarks(&path)?;
     if benchmark_paths.is_empty() {
@@ -183,7 +184,10 @@ pub async fn run_benchmarks(
         }
 
         // Initialize unified session logging if enabled
-        let session_id = uuid::Uuid::new_v4().to_string();
+        let session_id = execution_id
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         // Flow logging is always enabled
         let log_path =
             std::env::var("REEV_SESSION_LOG_PATH").unwrap_or_else(|_| "logs/sessions".to_string());
@@ -488,7 +492,7 @@ pub async fn run_benchmarks_legacy(
     agent_name: &str,
     shared_surfpool: bool,
 ) -> Result<Vec<TestResult>> {
-    run_benchmarks(path, agent_name, shared_surfpool, false).await
+    run_benchmarks(path, agent_name, shared_surfpool, false, None).await
 }
 
 /// Extract tool calls from agent's enhanced otel log files

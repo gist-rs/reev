@@ -95,7 +95,8 @@ impl EnhancedOtelLogger {
     pub fn new() -> Result<Self> {
         let session_id = Uuid::new_v4().to_string();
         let default_log_file = format!("logs/sessions/enhanced_otel_{session_id}.jsonl");
-        let log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
+        let env_log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
+        let log_file = env_log_file.replace("{session_id}", &session_id);
 
         // Ensure directory exists
         if let Some(parent) = std::path::Path::new(&log_file).parent() {
@@ -118,7 +119,8 @@ impl EnhancedOtelLogger {
     /// Create logger with specific session ID
     pub fn with_session_id(session_id: String) -> Result<Self> {
         let default_log_file = format!("logs/sessions/enhanced_otel_{session_id}.jsonl");
-        let log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
+        let env_log_file = std::env::var("REEV_ENHANCED_OTEL_FILE").unwrap_or(default_log_file);
+        let log_file = env_log_file.replace("{session_id}", &session_id);
 
         // Ensure directory exists
         if let Some(parent) = std::path::Path::new(&log_file).parent() {

@@ -140,6 +140,7 @@ where
         // Build CLI command
         let mut args = vec![params.benchmark_path.clone()];
         args.push(format!("--agent={}", params.agent));
+        args.push(format!("--execution-id={}", execution_state.execution_id));
 
         if params.shared_surfpool {
             args.push("--shared-surfpool".to_string());
