@@ -7,6 +7,7 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
+use chrono::DateTime;
 
 use serde::Deserialize;
 use serde_json::json;
@@ -131,10 +132,11 @@ async fn generate_state_diagram(
                                                 start_time: otel_entry
                                                     .get("timestamp")
                                                     .and_then(|v| v.as_str())
-                                                    .and_then(|s| {
-                                                        // Simple parsing: just use a counter for start time
-                                                        // since timestamp parsing is causing issues
-                                                        Some(0u64)
+                                                    .and_then(|timestamp_str| {
+                                                        // Parse ISO 8601 timestamp to Unix timestamp
+                                                        DateTime::parse_from_rfc3339(timestamp_str)
+                                                            .map(|dt| dt.timestamp() as u64)
+                                                            .ok()
                                                     })
                                                     .unwrap_or(0),
                                                 params: tool_args.clone(),
@@ -174,7 +176,7 @@ async fn generate_state_diagram(
 
                 // Use enhanced tool calls if available, otherwise use session data
                 if !enhanced_tool_calls.is_empty() {
-                    parsed_session.tool_calls = enhanced_tool_calls;
+                    parsed_session.tool_calls = enhanced_tool_calls.clone();
                     info!("Using enhanced tool calls: {}", enhanced_tool_calls.len());
                 }
             }
