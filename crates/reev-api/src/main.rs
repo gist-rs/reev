@@ -63,11 +63,9 @@ async fn main() -> Result<()> {
     );
 
     // Initialize benchmark executor
-    let benchmark_executor = Arc::new(PooledBenchmarkExecutor::new(
-        Arc::new(db.clone()),
-        reev_types::RunnerConfig::default(),
-        reev_types::TimeoutConfig::default(),
-    ));
+    let benchmark_executor = Arc::new(PooledBenchmarkExecutor::new_with_default(Arc::new(
+        db.clone(),
+    )));
 
     // Create API state
     let state = ApiState {

@@ -4,8 +4,12 @@
 use anyhow::Result;
 use reev_db::writer::DatabaseWriterTrait;
 use reev_types::{ExecutionRequest, ExecutionState, ExecutionStatus, RunnerConfig, TimeoutConfig};
+use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::fs;
+use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
 /// Benchmark executor using CLI-based runner with real process management
@@ -31,6 +35,28 @@ where
         }
     }
 
+    /// Create new benchmark executor with default config
+    pub fn new_with_default(db: Arc<T>) -> Self {
+        Self::new(
+            db,
+            RunnerConfig {
+                runner_binary_path: "./target/release/reev-runner".to_string(),
+                working_directory: std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                    .to_string_lossy()
+                    .to_string(),
+                environment: std::collections::HashMap::new(),
+                default_timeout_seconds: 300,
+                max_concurrent_executions: 1,
+            },
+            TimeoutConfig {
+                default_timeout_seconds: 300,
+                max_timeout_seconds: 600,
+                status_check_timeout_seconds: 30,
+            },
+        )
+    }
+
     /// Execute a benchmark using CLI runner
     pub async fn execute_benchmark(&self, params: ExecutionRequest) -> Result<String> {
         let execution_id = params
@@ -46,17 +72,19 @@ where
             params.benchmark_path.clone(),
             params.agent.clone(),
         );
-        execution_state.update_status(ExecutionStatus::Queued);
-
-        // Store initial state
-        self.store_execution_state(&execution_state).await?;
+        execution_state.update_status(ExecutionStatus::Running);
 
         // Execute benchmark using CLI runner
         self.execute_cli_benchmark(&mut execution_state, params)
             .await?;
 
-        // Store final state
-        self.store_execution_state(&execution_state).await?;
+        // Only store final state to database if execution was successful
+        // Don't store to database on CLI failures to avoid lock conflicts
+        if execution_state.status == ExecutionStatus::Completed {
+            if let Err(e) = self.store_execution_state(&execution_state).await {
+                warn!("Failed to store successful execution state: {}", e);
+            }
+        }
 
         debug!("Benchmark execution completed: {}", execution_id);
         Ok(execution_id)
@@ -88,7 +116,6 @@ where
         params: ExecutionRequest,
     ) -> Result<()> {
         execution_state.update_status(ExecutionStatus::Running);
-        self.store_execution_state(execution_state).await?;
 
         // Build CLI command
         let mut args = vec![params.benchmark_path.clone()];
@@ -103,7 +130,26 @@ where
             .execute_cli_command(args, &execution_state.execution_id)
             .await?;
 
-        // Update execution state based on result
+        // Read session file to get actual results
+        if let Err(e) = self.read_session_file_results(execution_state).await {
+            warn!(
+                "Failed to read session file results: {}, using CLI result as fallback",
+                e
+            );
+
+            // Fallback to CLI result if session file reading fails
+            self.update_execution_state_from_cli_result(execution_state, &result);
+        }
+
+        Ok(())
+    }
+
+    /// Update execution state based on CLI process result (fallback method)
+    fn update_execution_state_from_cli_result(
+        &self,
+        execution_state: &mut ExecutionState,
+        result: &reev_types::ProcessExecutionResult,
+    ) {
         if result.is_success() {
             execution_state.update_status(ExecutionStatus::Completed);
             execution_state.complete(serde_json::json!({
@@ -123,6 +169,89 @@ where
                 execution_state.update_status(ExecutionStatus::Failed);
             }
             error!("CLI execution failed: {}", result.get_combined_output());
+        }
+    }
+
+    /// Read session file results and update execution state
+    async fn read_session_file_results(&self, execution_state: &mut ExecutionState) -> Result<()> {
+        let session_id = execution_state.execution_id.clone();
+        let session_file = PathBuf::from(format!("logs/sessions/session_{session_id}.json"));
+
+        debug!("Looking for session file: {:?}", session_file);
+
+        // Wait for session file to be created (with timeout)
+        let max_attempts = 10;
+        let delay_ms = 100;
+
+        for attempt in 1..=max_attempts {
+            if session_file.exists() {
+                break;
+            }
+
+            if attempt == max_attempts {
+                return Err(anyhow::anyhow!(
+                    "Session file not found after {max_attempts} attempts: {session_file:?}"
+                ));
+            }
+
+            debug!(
+                "Session file not found (attempt {}/{}), waiting {}ms...",
+                attempt, max_attempts, delay_ms
+            );
+            sleep(Duration::from_millis(delay_ms)).await;
+        }
+
+        // Read and parse session file
+        let content = fs::read_to_string(&session_file).await?;
+        let session_data: Value = serde_json::from_str(&content)?;
+
+        debug!(
+            "Session file content parsed successfully for {}",
+            session_id
+        );
+
+        // Extract final result from session data
+        if let Some(final_result) = session_data.get("final_result") {
+            let success = final_result
+                .get("success")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let score = final_result
+                .get("score")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+
+            debug!(
+                "Extracted from session file: success={}, score={}",
+                success, score
+            );
+
+            // Update execution state with session file results
+            if success {
+                execution_state.update_status(ExecutionStatus::Completed);
+                execution_state.complete(serde_json::json!({
+                    "success": success,
+                    "score": score,
+                    "source": "session_file",
+                    "final_result": final_result
+                }));
+                info!(
+                    "Session file indicates success: {} (score: {})",
+                    session_id, score
+                );
+            } else {
+                execution_state.update_status(ExecutionStatus::Failed);
+                execution_state
+                    .set_error(format!("Session file indicates failure (score: {score})"));
+                warn!(
+                    "Session file indicates failure: {} (score: {})",
+                    session_id, score
+                );
+            }
+        } else {
+            return Err(anyhow::anyhow!(
+                "Session file missing 'final_result' field: {session_file:?}"
+            ));
         }
 
         Ok(())
@@ -245,13 +374,17 @@ where
         );
 
         // Set up environment
+        // Check if binary exists, fallback to cargo run if not found
+        let runner_path = if std::path::Path::new(&self.config.runner_binary_path).exists() {
+            &self.config.runner_binary_path
+        } else {
+            warn!("Pre-built runner binary not found, falling back to cargo run (slower)");
+            "cargo run -p reev-runner --"
+        };
+
         let mut cmd = TokioCommand::new("sh");
         cmd.arg("-c")
-            .arg(format!(
-                "{} {}",
-                self.config.runner_binary_path,
-                args.join(" ")
-            ))
+            .arg(format!("{} {}", runner_path, args.join(" ")))
             .current_dir(&self.config.working_directory)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

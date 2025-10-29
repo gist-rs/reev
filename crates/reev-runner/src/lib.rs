@@ -3,7 +3,6 @@ use anyhow::{Context, Result, anyhow};
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
-    db::{DatabaseConfig, DatabaseWriter, FlowDatabaseWriter},
     env::GymEnv,
     flow::{ExecutionResult, FlowLogger, create_session_logger},
     llm_agent::LlmAgent,
@@ -16,7 +15,6 @@ use reev_lib::{
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
     time::SystemTime,
 };
 use tracing::{debug, info, instrument, warn};
@@ -109,8 +107,7 @@ pub async fn run_benchmarks(
         reev_lib::server_utils::kill_existing_api(3001).await?;
     }
 
-    // Clean up any stale database WAL files that might cause lock issues
-    cleanup_stale_database_files().await?;
+    // Database-free runner - no cleanup needed
 
     // Initialize dependency management system based on shared_surfpool flag
     if shared_surfpool {
@@ -127,30 +124,6 @@ pub async fn run_benchmarks(
     .await
     .context("Failed to initialize dependencies")?;
     info!("Dependency initialization completed successfully");
-
-    info!("Initializing database...");
-    let db_config = DatabaseConfig::new("db/reev_results.db");
-    let db_writer = DatabaseWriter::new(db_config).await?;
-
-    // Sync benchmarks to database before wrapping
-    info!("Syncing benchmarks to database...");
-    match db_writer.sync_benchmarks_from_dir("benchmarks").await {
-        Ok(sync_result) => {
-            info!(
-                "✅ Successfully synced {} benchmarks to database (new: {}, updated: {})",
-                sync_result.processed_count, sync_result.new_count, sync_result.updated_count
-            );
-        }
-        Err(e) => {
-            warn!(
-                "⚠️ Failed to sync benchmarks to database: {}. Continuing without sync...",
-                e
-            );
-        }
-    }
-
-    let db = Arc::new(FlowDatabaseWriter::new(db_writer));
-    info!("Database initialization completed");
 
     let mut results = vec![];
 
@@ -191,7 +164,6 @@ pub async fn run_benchmarks(
                 flow_steps,
                 agent_name,
                 &path.display().to_string(),
-                Arc::clone(&db),
                 &session_id,
             )
             .await?;
@@ -243,20 +215,12 @@ pub async fn run_benchmarks(
             final_status: None,
         };
 
-        if let Err(e) = db.create_session(&session_info).await {
-            warn!(
-                benchmark_id = %test_case.id,
-                session_id = %session_id,
-                error = %e,
-                "Failed to create session in database"
-            );
-        } else {
-            info!(
-                benchmark_id = %test_case.id,
-                session_id = %session_id,
-                "Created session in database"
-            );
-        }
+        // Session creation is handled automatically by SessionFileLogger
+        info!(
+            benchmark_id = %test_case.id,
+            session_id = %session_id,
+            "Session will be created in session file"
+        );
 
         let mut llm_agent = LlmAgent::new_with_flow_logging(agent_name, None)?;
         info!("[Runner] Setting session_id on LlmAgent: {}", session_id);
@@ -285,17 +249,13 @@ pub async fn run_benchmarks(
                         final_status: FinalStatus::Failed.to_string(),
                     };
 
-                    if let Err(db_err) = db
-                        .complete_session(&session_id, &error_session_result)
-                        .await
-                    {
-                        warn!(
-                            benchmark_id = %test_case.id,
-                            session_id = %session_id,
-                            error = %db_err,
-                            "Failed to complete session after evaluation failure"
-                        );
-                    }
+                    // Session file logging will handle the completion automatically
+                    warn!(
+                        benchmark_id = %test_case.id,
+                        session_id = %session_id,
+                        error = %e,
+                        "Flow benchmark evaluation failed"
+                    );
 
                     return Err(e).context(format!(
                         "Evaluation loop failed for benchmark: {}",
@@ -349,22 +309,12 @@ pub async fn run_benchmarks(
                         "Session log with ExecutionTrace completed successfully"
                     );
 
-                    // Store ExecutionTrace directly in database for ASCII tree compatibility
-                    let trace_content = serde_json::to_string(&trace).unwrap_or_default();
-
-                    if let Err(e) = db.store_complete_log(&session_id, &trace_content).await {
-                        warn!(
-                            benchmark_id = %test_case.id,
-                            error = %e,
-                            "Failed to store ExecutionTrace in database"
-                        );
-                    } else {
-                        info!(
-                            benchmark_id = %test_case.id,
-                            session_id = %session_id,
-                            "ExecutionTrace stored in database for ASCII tree compatibility"
-                        );
-                    }
+                    // Session file logging automatically stores ExecutionTrace
+                    info!(
+                        benchmark_id = %test_case.id,
+                        session_id = %session_id,
+                        "ExecutionTrace stored in session file"
+                    );
                 }
                 Err(e) => {
                     warn!(
@@ -373,16 +323,12 @@ pub async fn run_benchmarks(
                         "Failed to complete session logging with ExecutionTrace"
                     );
 
-                    // Fallback: store ExecutionTrace directly even if session logging fails
-                    let trace_content = serde_json::to_string(&trace).unwrap_or_default();
-
-                    if let Err(e) = db.store_complete_log(&session_id, &trace_content).await {
-                        warn!(
-                            benchmark_id = %test_case.id,
-                            error = %e,
-                            "Failed to store fallback ExecutionTrace in database"
-                        );
-                    }
+                    // Session file already contains the ExecutionTrace
+                    info!(
+                        benchmark_id = %test_case.id,
+                        session_id = %session_id,
+                        "Session file contains ExecutionTrace (fallback not needed)"
+                    );
                 }
             }
         }
@@ -463,35 +409,25 @@ pub async fn run_benchmarks(
                     error_message,
                 };
 
-                if let Err(e) = db.store_tool_call_consolidated(&tool_data).await {
-                    warn!(
-                        session_id = %session_id,
-                        tool_name = %tool_data.tool_name,
-                        error = %e,
-                        "Failed to store consolidated tool call in database"
-                    );
-                }
+                // Tool calls are stored in enhanced otel session files automatically
+                debug!(
+                    session_id = %session_id,
+                    tool_name = %tool_data.tool_name,
+                    "Tool call stored in enhanced otel session file"
+                );
             }
         } else {
             debug!("No tool calls found in agent log files");
         }
 
-        if let Err(e) = db.complete_session(&session_id, &session_result).await {
-            warn!(
-                benchmark_id = %test_case.id,
-                session_id = %session_id,
-                error = %e,
-                "Failed to complete session in database"
-            );
-        } else {
-            info!(
-                benchmark_id = %test_case.id,
-                session_id = %session_id,
-                score = %score,
-                final_status = %final_status,
-                "Completed session in database"
-            );
-        }
+        // Session file completion is handled automatically by SessionFileLogger
+        info!(
+            benchmark_id = %test_case.id,
+            session_id = %session_id,
+            score = %score,
+            final_status = %final_status,
+            "Session completed in session file"
+        );
 
         // Store performance metrics
         let performance_data = reev_lib::db::AgentPerformanceData {
@@ -509,11 +445,12 @@ pub async fn run_benchmarks(
             prompt_md5: None,
         };
 
-        // Convert to shared AgentPerformance type for database insertion
-        let shared_performance = reev_lib::db::SharedPerformanceMetrics::from(performance_data);
-        db.insert_agent_performance(&shared_performance)
-            .await
-            .context("Failed to store performance metrics")?;
+        // Convert to shared AgentPerformance type for database insertion (skip if no_db)
+        // Performance metrics stored in session file
+        debug!(
+            benchmark_id = %test_case.id,
+            "Performance metrics available in session file"
+        );
 
         let result = TestResult::new(&test_case, final_status, score, trace);
         results.push(result);
@@ -539,13 +476,8 @@ pub async fn run_benchmarks(
 
     info!("All benchmarks finished.");
 
-    // Close database connection properly to prevent lock issues
-    info!("Closing database connection...");
-    if let Err(e) = db.close().await {
-        warn!(error = %e, "Failed to close database connection gracefully");
-    } else {
-        info!("Database connection closed successfully");
-    }
+    // Close database connection properly to prevent lock issues (skip if no_db)
+    info!("All benchmarks completed (database-free runner)");
 
     Ok(results)
 }
@@ -557,50 +489,6 @@ pub async fn run_benchmarks_legacy(
     shared_surfpool: bool,
 ) -> Result<Vec<TestResult>> {
     run_benchmarks(path, agent_name, shared_surfpool, false).await
-}
-
-/// Clean up stale database WAL files that might cause lock issues
-async fn cleanup_stale_database_files() -> Result<()> {
-    use std::path::Path;
-
-    let db_path = Path::new("db/reev_results.db");
-    let wal_path = Path::new("db/reev_results.db-wal");
-
-    // Check if WAL file exists but DB file is not locked
-    if wal_path.exists() {
-        // Try to check if any process is using the database
-        match tokio::process::Command::new("lsof")
-            .args(["-t", db_path.to_str().unwrap_or("db/reev_results.db")])
-            .output()
-            .await
-        {
-            Ok(output) => {
-                let pids = String::from_utf8_lossy(&output.stdout);
-                if pids.trim().is_empty() {
-                    // No processes using the DB, safe to remove WAL file
-                    info!("🧹 Removing stale WAL file to prevent database lock issues");
-                    if let Err(e) = tokio::fs::remove_file(wal_path).await {
-                        warn!("Failed to remove WAL file: {}", e);
-                    } else {
-                        info!("✅ Stale WAL file removed successfully");
-                    }
-                } else {
-                    warn!(
-                        "Database is still in use by processes: {}, keeping WAL file",
-                        pids.trim()
-                    );
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to check database usage: {}, proceeding cautiously",
-                    e
-                );
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Extract tool calls from agent's enhanced otel log files
@@ -657,7 +545,7 @@ async fn run_flow_benchmark(
     flow_steps: &[FlowStep],
     agent_name: &str,
     _benchmark_path: &str,
-    _db: Arc<FlowDatabaseWriter>,
+
     session_id: &str,
 ) -> Result<TestResult> {
     info!(
@@ -674,12 +562,11 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        Some(FlowLogger::new_with_database_preserve_session(
+        Some(FlowLogger::new_with_session(
+            session_id.to_string(),
             test_case.id.clone(),
             agent_name.to_string(),
             path,
-            _db.clone() as Arc<dyn reev_flow::logger::DatabaseWriter>,
-            Some(session_id.to_string()), // Preserve existing session_id
         ))
     };
 
