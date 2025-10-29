@@ -63,6 +63,19 @@ CREATE TABLE IF NOT EXISTS session_tool_calls (
     FOREIGN KEY (session_id) REFERENCES execution_sessions (session_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS execution_states (
+    execution_id TEXT PRIMARY KEY,
+    benchmark_id TEXT NOT NULL,
+    agent TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    progress REAL,
+    error_message TEXT,
+    result_data TEXT,
+    metadata TEXT
+);
+
 CREATE TABLE IF NOT EXISTS schema_version (
     version TEXT PRIMARY KEY,
     applied_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -89,6 +102,13 @@ CREATE INDEX IF NOT EXISTS idx_session_tool_calls_start_time ON session_tool_cal
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_session_tool ON session_tool_calls(session_id, tool_name);
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_consolidation ON session_tool_calls(session_id, tool_name, start_time);
 CREATE INDEX IF NOT EXISTS idx_session_tool_calls_updated_at ON session_tool_calls(updated_at);
+
+-- Indexes for execution_states table
+CREATE INDEX IF NOT EXISTS idx_execution_states_benchmark_id ON execution_states(benchmark_id);
+CREATE INDEX IF NOT EXISTS idx_execution_states_agent ON execution_states(agent);
+CREATE INDEX IF NOT EXISTS idx_execution_states_status ON execution_states(status);
+CREATE INDEX IF NOT EXISTS idx_execution_states_created_at ON execution_states(created_at);
+CREATE INDEX IF NOT EXISTS idx_execution_states_updated_at ON execution_states(updated_at);
 
 -- Initial data (skip auto-insertion for compatibility)
 -- INSERT OR IGNORE INTO schema_version (version, description) VALUES ('1.0', 'Phase 25: Unified logging system with session management');

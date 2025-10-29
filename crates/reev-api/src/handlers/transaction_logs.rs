@@ -39,7 +39,9 @@ pub async fn get_transaction_logs_demo(
             "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success".to_string(),
         ];
 
-        match crate::services::generate_transaction_logs_yaml(&mock_logs, show_cu) {
+        match crate::services::transaction_utils::generate_transaction_logs_yaml(
+            &mock_logs, show_cu,
+        ) {
             Ok(yaml_logs) => yaml_logs,
             Err(e) => {
                 error!("Failed to generate YAML logs: {}", e);
@@ -151,7 +153,7 @@ pub async fn get_transaction_logs(
 
                         // Use appropriate transaction log extraction
                         let logs = if format_param == "yaml" {
-                            match crate::services::generate_transaction_logs_yaml(
+                            match crate::services::transaction_utils::generate_transaction_logs_yaml(
                                 &test_result
                                     .trace
                                     .steps
@@ -168,7 +170,9 @@ pub async fn get_transaction_logs(
                                 }
                             }
                         } else {
-                            crate::services::generate_transaction_logs(&test_result)
+                            crate::services::transaction_utils::generate_transaction_logs(
+                                &test_result,
+                            )
                         };
 
                         // Add status indicator for running executions
@@ -248,7 +252,7 @@ pub async fn get_transaction_logs(
 
                 // Use appropriate transaction log extraction
                 let transaction_logs = if use_yaml {
-                    match crate::services::generate_transaction_logs_yaml(
+                    match crate::services::transaction_utils::generate_transaction_logs_yaml(
                         &test_result
                             .trace
                             .steps
@@ -265,7 +269,7 @@ pub async fn get_transaction_logs(
                         }
                     }
                 } else {
-                    crate::services::generate_transaction_logs(&test_result)
+                    crate::services::transaction_utils::generate_transaction_logs(&test_result)
                 };
 
                 info!(
@@ -370,7 +374,7 @@ pub async fn get_transaction_logs(
 
                                 // Use appropriate transaction log extraction
                                 let transaction_logs = if use_yaml {
-                                    match crate::services::generate_transaction_logs_yaml(
+                                    match crate::services::transaction_utils::generate_transaction_logs_yaml(
                                         &test_result
                                             .trace
                                             .steps
@@ -389,7 +393,9 @@ pub async fn get_transaction_logs(
                                         }
                                     }
                                 } else {
-                                    crate::services::generate_transaction_logs(&test_result)
+                                    crate::services::transaction_utils::generate_transaction_logs(
+                                        &test_result,
+                                    )
                                 };
 
                                 info!(

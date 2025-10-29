@@ -8,6 +8,7 @@ use crate::{
     error::Result,
     pool::{ConnectionPool, PooledConnection},
     types::{BenchmarkData, QueryFilter},
+    writer::DatabaseWriterTrait,
 };
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -500,6 +501,30 @@ impl PooledDatabaseWriter {
 
         info!("[POOLED_WRITER] Database connection pool shutdown complete");
         Ok(())
+    }
+}
+
+impl DatabaseWriterTrait for PooledDatabaseWriter {
+    /// Store execution state in database
+    async fn store_execution_state(
+        &self,
+        state: &reev_types::ExecutionState,
+    ) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        use crate::writer::execution_states::ExecutionStatesWriter;
+        let writer = ExecutionStatesWriter::new(conn.connection());
+        writer.store_execution_state(state).await
+    }
+
+    /// Get execution state by ID
+    async fn get_execution_state(
+        &self,
+        execution_id: &str,
+    ) -> crate::error::Result<Option<reev_types::ExecutionState>> {
+        let conn = self.get_connection().await?;
+        use crate::writer::execution_states::ExecutionStatesWriter;
+        let writer = ExecutionStatesWriter::new(conn.connection());
+        writer.get_execution_state(execution_id).await
     }
 }
 

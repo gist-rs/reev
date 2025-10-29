@@ -17,6 +17,7 @@ pub struct ApiState {
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
     pub agent_configs:
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, AgentConfig>>>,
+    pub benchmark_executor: std::sync::Arc<crate::services::PooledBenchmarkExecutor>,
 }
 
 /// Execution state for tracking benchmark runs

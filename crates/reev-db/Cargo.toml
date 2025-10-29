@@ -38,6 +38,9 @@ tracing-subscriber = "0.3"
 # Flow types
 reev-flow = { path = "../reev-flow", features = ["database"] }
 
+# Shared types
+reev-types = { path = "../reev-types" }
+
 # Testing utilities (dev dependencies)
 [dev-dependencies]
 tempfile = { workspace = true }

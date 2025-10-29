@@ -18,6 +18,7 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use handlers::*;
+use services::*;
 use types::ApiState;
 
 #[tokio::main]
@@ -60,11 +61,19 @@ async fn main() -> Result<()> {
         synced_count
     );
 
+    // Initialize benchmark executor
+    let benchmark_executor = Arc::new(PooledBenchmarkExecutor::new(
+        Arc::new(db.clone()),
+        reev_types::RunnerConfig::default(),
+        reev_types::TimeoutConfig::default(),
+    ));
+
     // Create API state
     let state = ApiState {
         db: db.clone(),
         executions: Arc::new(Mutex::new(HashMap::new())),
         agent_configs: Arc::new(Mutex::new(HashMap::new())),
+        benchmark_executor,
     };
 
     // Create router with state - simple approach for testing

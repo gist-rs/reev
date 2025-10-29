@@ -467,7 +467,28 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ## Jupiter Lending Deposit AI Model Interpretation Issue - RESOLVED ✅ [L374-375]
 
 ## Failed Test Color Display Issue - RESOLVED ✅ [L376-383] [L419-420]
-## Jupiter Earn Tool Regression in Normal Mode - RESOLVED ✅ [L421-422]
+## Jupiter Earn Tool Regression in Normal Mode - RESOLVED ✅ [L421-422] [L470-471]
+
+## API Decoupling - CLI-Based Runner Communication - IN PROGRESS 🚧
+### Fixed Issues ✅
+- DatabaseWriterTrait compatibility issues between DatabaseWriter and PooledDatabaseWriter
+- Generic BenchmarkExecutor trait object safety problems 
+- Async function in trait warnings and compilation errors
+- CLI execution infrastructure foundation setup
+- Execution state management via database abstraction
+
+### Architecture Improvements ✅
+- Created generic BenchmarkExecutor<T> supporting any DatabaseWriterTrait implementor
+- Implemented trait for both direct and pooled database connections
+- Eliminated tight coupling between reev-api and reev-runner
+- Established foundation for CLI-based communication protocol
+
+### Remaining Work 📋
+- Implement real CLI execution in BenchmarkExecutor (currently placeholder)
+- Add comprehensive testing framework
+- Performance validation and optimization
+- Update documentation with CLI examples
+
 **Issue**: The `jupiter_earn` tool was incorrectly available in normal agent mode, allowing benchmarks like `116-jup-lend-redeem-usdc.yml` to access position/earnings data instead of executing proper redeem transactions.
 
 **Root Cause**: 

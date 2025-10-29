@@ -1,6 +1,5 @@
 //! Benchmark management handlers
 
-use crate::services::*;
 use crate::types::{
     ApiState, BenchmarkExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus,
 };
@@ -10,6 +9,7 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use chrono;
+use reev_types::ExecutionRequest;
 use std::collections::HashMap;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -164,30 +164,32 @@ pub async fn run_benchmark(
         benchmark_id, request.agent
     );
 
-    // Start the benchmark execution in background using blocking task for non-Send dependencies
-    let state_clone = state.clone();
-    let execution_id_clone = execution_id.clone();
-    let benchmark_id_clone = benchmark_id.clone();
-    let agent = request.agent.clone();
+    // Start benchmark execution using the new BenchmarkExecutor
+    let execution_request = ExecutionRequest {
+        request_id: uuid::Uuid::new_v4().to_string(),
+        execution_id: Some(execution_id.clone()),
+        benchmark_path: format!("benchmarks/{benchmark_id}.yml"),
+        agent: request.agent.clone(),
+        priority: 0,
+        timeout_seconds: 600, // 10 minutes default
+        shared_surfpool: false,
+        metadata: std::collections::HashMap::new(),
+    };
 
-    tokio::spawn(async move {
-        tokio::task::spawn_blocking(move || {
-            // Use a blocking runtime for the benchmark runner
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
-                execute_benchmark_background(
-                    state_clone,
-                    execution_id_clone,
-                    benchmark_id_clone,
-                    agent,
-                )
-                .await;
-            })
+    // Start benchmark execution using new BenchmarkExecutor
+    let executor = state.benchmark_executor.clone();
+    tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            match executor.execute_benchmark(execution_request).await {
+                Ok(exec_id) => {
+                    info!("Benchmark execution started: {}", exec_id);
+                }
+                Err(e) => {
+                    error!("Benchmark execution failed: {}", e);
+                }
+            }
         })
-        .await
-        .unwrap_or_else(|e| {
-            error!("Benchmark execution task failed: {}", e);
-        });
     });
 
     Json(ExecutionResponse {

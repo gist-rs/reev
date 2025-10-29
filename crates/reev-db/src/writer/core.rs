@@ -201,6 +201,9 @@ impl DatabaseWriter {
     }
 }
 
+// Implementation of DatabaseWriterTrait will be moved to mod.rs
+// to avoid circular dependency issues
+
 impl Drop for DatabaseWriter {
     fn drop(&mut self) {
         debug!("[DB] DatabaseWriter dropped - connection will be cleaned up");

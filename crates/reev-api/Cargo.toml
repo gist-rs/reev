@@ -9,12 +9,17 @@ edition = "2021"
 name = "reev-api"
 path = "src/main.rs"
 
+[features]
+default = ["cli_runner"]
+cli_runner = []
+direct_runner = []
+
 [dependencies]
 reev-lib = { path = "../reev-lib", features = ["database"] }
 reev-db = { path = "../reev-db" }
-reev-runner = { path = "../reev-runner" }
-reev-flow = { path = "../reev-flow", features = ["database"] }
-reev-tools = { path = "../reev-tools" }
+reev-runner = { path = "../reev-runner", optional = true }
+reev-flow = { path = "../reev-flow", features = ["database"], optional = true }
+reev-tools = { path = "../reev-tools", optional = true }
 reev-types = { path = "../reev-types" }
 axum = "0.8.4"
 tokio = { workspace = true, features = ["full"] }
@@ -29,4 +34,3 @@ chrono = { workspace = true, features = ["serde"] }
 project-root = "0.2"
 serde_yaml = { workspace = true }
 regex = "1.10"
-text_trees = "0.1.2"

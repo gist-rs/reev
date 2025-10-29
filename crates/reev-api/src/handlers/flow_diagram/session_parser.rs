@@ -4,6 +4,7 @@
 //! and execution information for flow diagram generation.
 
 use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
+#[cfg(feature = "direct_runner")]
 use reev_tools::tool_names;
 use serde_json::Value;
 use std::path::Path;
@@ -299,7 +300,11 @@ impl SessionParser {
                         .unwrap_or("");
 
                     // Create tool name based on program_id using centralized tool names
-                    let tool_name = tool_names::tool_name_from_program_id(program_id);
+                    #[cfg(feature = "direct_runner")]
+                    let tool_name = reev_tools::tool_names::tool_name_from_program_id(program_id);
+
+                    #[cfg(not(feature = "direct_runner"))]
+                    let tool_name = format!("program_{program_id}");
 
                     // Extract account information for parameters
                     let mut params = serde_json::Map::new();
