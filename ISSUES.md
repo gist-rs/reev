@@ -43,6 +43,30 @@ Frontend web application automatically calls multiple API endpoints on load, whi
 - All other operations use database directly
 - CLI/runner conflicts only during intentional execution
 
+### Additional Main.rs Route Analysis
+**Potential CLI Dependency Routes to Check:**
+1. ⚠️ `/api/v1/debug/benchmarks` -> `debug_benchmarks` (route exists, handler location unknown)
+2. ⚠️ `/api/v1/benchmarks/{id}/status` -> `get_execution_status_no_id` (status check, verify DB-only)
+3. ⚠️ `/api/v1/benchmarks/{id}/status/{execution_id}` -> `get_execution_status` (status check, verify DB-only)
+4. ⚠️ `/api/v1/flows/{session_id}` -> `get_flow` (flow retrieval, verify DB-only)
+5. ⚠️ `/api/v1/execution-logs/{benchmark_id}` -> `get_execution_trace` (trace retrieval, verify DB-only)
+6. ⚠️ `/api/v1/sync` -> `sync_benchmarks` (sync operation, verify CLI use is appropriate)
+7. ⚠️ `/api/v1/upsert-yml` -> `upsert_yml` (benchmark management, verify DB-only)
+
+**Routes Known Safe:**
+- ✅ `/api/v1/benchmarks/{id}/run` -> `run_benchmark` (CLI use is intended for execution)
+- ✅ `/api/v1/agents/*` -> All agent operations (in-memory or validation only)
+- ✅ `/api/v1/health` -> Health check
+- ✅ `/api/v1/flow-logs/*` -> Flow logs (verified DB-only)
+- ✅ `/api/v1/transaction-logs/*` -> Transaction logs (verified DB-only)
+- ✅ All debug endpoints except `debug_benchmarks`
+
+**Priority Investigation:**
+1. HIGH: Find `debug_benchmarks` handler location and verify CLI usage
+2. MEDIUM: Verify status endpoints don't trigger CLI execution
+3. MEDIUM: Verify trace/log endpoints use DB directly
+4. LOW: Check sync/upsert endpoints for unintended CLI usage
+
 ## 🆕 #29: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
 ### Problem
 API server crashes when accessing `/api/v1/benchmarks` and `/api/v1/agent-performance` endpoints. The issue is that the API calls `benchmark_executor.list_benchmarks()` which executes `cargo run -p reev-runner -- benchmarks`, causing conflicts with the existing `cargo run -p reev-api` process and killing it with SIGKILL (exit code 137).
