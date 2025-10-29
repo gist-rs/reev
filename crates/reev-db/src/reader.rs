@@ -618,6 +618,56 @@ impl DatabaseReader {
         Ok(benchmarks)
     }
 
+    /// Get all benchmarks from database
+    pub async fn get_all_benchmarks(&self) -> Result<Vec<crate::types::BenchmarkData>> {
+        let query = "
+            SELECT id, benchmark_name, prompt, content, created_at
+            FROM benchmarks
+            ORDER BY benchmark_name
+        ";
+
+        let mut stmt =
+            self.conn.prepare(query).await.map_err(|e| {
+                DatabaseError::query("Failed to prepare get_all_benchmarks query", e)
+            })?;
+
+        let mut rows = stmt
+            .query(())
+            .await
+            .map_err(|e| DatabaseError::query("Failed to execute get_all_benchmarks query", e))?;
+
+        let mut benchmarks = Vec::new();
+        while let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| DatabaseError::query("Failed to iterate benchmarks", e))?
+        {
+            benchmarks.push(crate::types::BenchmarkData {
+                id: row
+                    .get(0)
+                    .map_err(|_| DatabaseError::generic("Failed to get benchmark ID"))?,
+                benchmark_name: row
+                    .get(1)
+                    .map_err(|_| DatabaseError::generic("Failed to get benchmark name"))?,
+                prompt: row
+                    .get(2)
+                    .map_err(|_| DatabaseError::generic("Failed to get benchmark prompt"))?,
+                content: row
+                    .get(3)
+                    .map_err(|_| DatabaseError::generic("Failed to get benchmark content"))?,
+                created_at: row
+                    .get(4)
+                    .map_err(|_| DatabaseError::generic("Failed to get created_at"))?,
+            });
+        }
+
+        debug!(
+            "[DB] Retrieved {} benchmarks from database",
+            benchmarks.len()
+        );
+        Ok(benchmarks)
+    }
+
     /// Get the underlying connection for advanced operations
     pub fn connection(&self) -> &turso::Connection {
         &self.conn
