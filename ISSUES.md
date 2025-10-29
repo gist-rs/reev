@@ -1,5 +1,48 @@
 # Issues
 
+## 🆕 #30: Frontend API Calls Analysis - Identify CLI Dependencies
+### Problem
+Frontend web application automatically calls multiple API endpoints on load, which may trigger CLI/runner execution and cause server crashes similar to issue #29. Need to identify all API calls that could cause conflicts.
+
+### Frontend API Calls Analysis
+**Auto-called on App Load:**
+1. ✅ `/api/v1/health` - Safe (no DB operations)
+2. ✅ `/api/v1/benchmarks` - Fixed in #29 (now uses DB directly)
+3. ✅ `/api/v1/agent-performance` - Safe (already uses DB directly)
+
+**User-triggered API Calls:**
+4. ⚠️ `/api/v1/benchmarks/{id}/run` - **USES CLI/RUNNER** - Intentional for execution
+5. ✅ `/api/v1/benchmarks/{id}/status/{execution_id}` - Safe (DB read)
+6. ✅ `/api/v1/benchmarks/{id}/status` - Safe (DB read)  
+7. ✅ `/api/v1/agents/config` - Safe (in-memory storage)
+8. ✅ `/api/v1/agents/config/{agent_type}` - Safe (in-memory storage)
+9. ✅ `/api/v1/agents/test` - Safe (configuration validation only)
+
+**Other API Endpoints:**
+10. ✅ `/api/v1/agents` - Safe (static list)
+11. ✅ `/api/v1/results` - Safe (DB read)
+12. ✅ `/api/v1/results/{benchmark_id}` - Safe (DB read)
+13. ✅ `/api/v1/flow-logs/{benchmark_id}` - Safe (DB read)
+14. ✅ `/api/v1/flows/{session_id}` - Safe (DB read)
+15. ✅ `/api/v1/transaction-logs/{benchmark_id}` - Safe (DB read)
+16. ✅ `/api/v1/execution-logs/{benchmark_id}` - Safe (DB read)
+
+### Current Status
+**✅ GOOD**: All auto-called endpoints on app load are now safe
+**⚠️ EXPECTED**: Only `/api/v1/benchmarks/{id}/run` should use CLI/runner (user action)
+
+### Files Involved
+- `web/src/services/api.ts` - API client methods
+- `web/src/hooks/useApiData.ts` - Data fetching hooks  
+- `web/src/index.tsx` - App component with useEffect triggers
+- `crates/reev-api/src/handlers/benchmarks.rs` - run_benchmark handler (CLI use)
+
+### Expected Behavior
+- Frontend loads successfully without server crashes
+- Benchmark execution only occurs when user explicitly clicks "Run"
+- All other operations use database directly
+- CLI/runner conflicts only during intentional execution
+
 ## 🆕 #29: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
 ### Problem
 API server crashes when accessing `/api/v1/benchmarks` and `/api/v1/agent-performance` endpoints. The issue is that the API calls `benchmark_executor.list_benchmarks()` which executes `cargo run -p reev-runner -- benchmarks`, causing conflicts with the existing `cargo run -p reev-api` process and killing it with SIGKILL (exit code 137).
