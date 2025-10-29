@@ -16,9 +16,110 @@ use uuid::Uuid;
 
 /// List all available benchmarks
 pub async fn list_benchmarks(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Json<Vec<crate::types::BenchmarkInfo>> {
-    // Load benchmarks dynamically from actual YAML files
+    // Use CLI-based benchmark discovery first
+    match state.benchmark_executor.list_benchmarks(None).await {
+        Ok(benchmark_ids) => {
+            let mut benchmarks = Vec::new();
+
+            for benchmark_id in benchmark_ids {
+                // Filter out position/earnings benchmarks (114-*) from web interface
+                // These benchmarks use jupiter_earn tool which is restricted to specialized testing
+                if benchmark_id.starts_with("114") {
+                    continue;
+                }
+
+                // Try to get detailed info from YAML file
+                let project_root = match project_root::get_project_root() {
+                    Ok(root) => root,
+                    Err(e) => {
+                        error!("Failed to get project root: {}", e);
+                        // Fallback to minimal info
+                        benchmarks.push(crate::types::BenchmarkInfo {
+                            id: benchmark_id,
+                            description: "No description available".to_string(),
+                            tags: vec![],
+                            prompt: "".to_string(),
+                        });
+                        continue;
+                    }
+                };
+
+                let benchmark_path = project_root
+                    .join("benchmarks")
+                    .join(format!("{benchmark_id}.yml"));
+
+                match std::fs::read_to_string(&benchmark_path) {
+                    Ok(yaml_content) => {
+                        match serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
+                            Ok(yaml) => {
+                                let description = yaml
+                                    .get("description")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("No description available")
+                                    .to_string();
+
+                                let tags = yaml
+                                    .get("tags")
+                                    .and_then(|v| v.as_sequence())
+                                    .map(|seq| {
+                                        seq.iter()
+                                            .filter_map(|v| v.as_str())
+                                            .map(|s| s.to_string())
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+
+                                let prompt = yaml
+                                    .get("prompt")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+
+                                benchmarks.push(crate::types::BenchmarkInfo {
+                                    id: benchmark_id,
+                                    description,
+                                    tags,
+                                    prompt,
+                                });
+                            }
+                            Err(e) => {
+                                error!("Failed to parse YAML file {:?}: {}", benchmark_path, e);
+                                benchmarks.push(crate::types::BenchmarkInfo {
+                                    id: benchmark_id,
+                                    description: "Failed to parse description".to_string(),
+                                    tags: vec![],
+                                    prompt: "".to_string(),
+                                });
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to read YAML file {:?}: {}", benchmark_path, e);
+                        benchmarks.push(crate::types::BenchmarkInfo {
+                            id: benchmark_id,
+                            description: "Failed to read description".to_string(),
+                            tags: vec![],
+                            prompt: "".to_string(),
+                        });
+                    }
+                }
+            }
+
+            benchmarks.sort_by(|a, b| a.id.cmp(&b.id));
+            Json(benchmarks)
+        }
+        Err(e) => {
+            error!("Failed to list benchmarks via CLI: {}", e);
+            // Fallback to filesystem discovery
+            fallback_filesystem_discovery()
+        }
+    }
+}
+
+/// Fallback method to discover benchmarks from filesystem
+fn fallback_filesystem_discovery() -> Json<Vec<crate::types::BenchmarkInfo>> {
     let project_root = match project_root::get_project_root() {
         Ok(root) => root,
         Err(e) => {
@@ -42,6 +143,11 @@ pub async fn list_benchmarks(
                 if path.is_file() && path.extension().is_some_and(|ext| ext == "yml") {
                     if let Some(stem) = path.file_stem() {
                         let benchmark_id = stem.to_string_lossy().to_string();
+
+                        // Filter out position/earnings benchmarks (114-*) from web interface
+                        if benchmark_id.starts_with("114") {
+                            continue;
+                        }
 
                         // Parse YAML file to extract full benchmark info
                         match std::fs::read_to_string(&path) {
@@ -71,45 +177,32 @@ pub async fn list_benchmarks(
                                             .unwrap_or("")
                                             .to_string();
 
-                                        // Filter out position/earnings benchmarks (114-*) from web interface
-                                        // These benchmarks use jupiter_earn tool which is restricted to specialized testing
-                                        if !benchmark_id.starts_with("114") {
-                                            benchmarks.push(crate::types::BenchmarkInfo {
-                                                id: benchmark_id,
-                                                description,
-                                                tags,
-                                                prompt,
-                                            });
-                                        }
+                                        benchmarks.push(crate::types::BenchmarkInfo {
+                                            id: benchmark_id,
+                                            description,
+                                            tags,
+                                            prompt,
+                                        });
                                     }
                                     Err(e) => {
                                         error!("Failed to parse YAML file {:?}: {}", path, e);
-                                        // Fallback to minimal info
-                                        // Filter out position/earnings benchmarks (114-*) from web interface even for error cases
-                                        if !benchmark_id.starts_with("114") {
-                                            benchmarks.push(crate::types::BenchmarkInfo {
-                                                id: benchmark_id,
-                                                description: "Failed to parse description"
-                                                    .to_string(),
-                                                tags: vec![],
-                                                prompt: "".to_string(),
-                                            });
-                                        }
+                                        benchmarks.push(crate::types::BenchmarkInfo {
+                                            id: benchmark_id,
+                                            description: "Failed to parse description".to_string(),
+                                            tags: vec![],
+                                            prompt: "".to_string(),
+                                        });
                                     }
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to read YAML file {:?}: {}", path, e);
-                                // Fallback to minimal info
-                                // Filter out position/earnings benchmarks (114-*) from web interface even for read error cases
-                                if !benchmark_id.starts_with("114") {
-                                    benchmarks.push(crate::types::BenchmarkInfo {
-                                        id: benchmark_id,
-                                        description: "Failed to read description".to_string(),
-                                        tags: vec![],
-                                        prompt: "".to_string(),
-                                    });
-                                }
+                                benchmarks.push(crate::types::BenchmarkInfo {
+                                    id: benchmark_id,
+                                    description: "Failed to read description".to_string(),
+                                    tags: vec![],
+                                    prompt: "".to_string(),
+                                });
                             }
                         }
                     }

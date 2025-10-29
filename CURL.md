@@ -412,6 +412,62 @@ for bench in $(curl -s http://localhost:3001/api/v1/benchmarks | jq -r '.[].id')
 done > all_traces.txt
 ```
 
+## 🎯 CLI Integration Testing
+
+### Test CLI-Based Benchmark Execution
+
+The API now uses CLI-based runner communication. Test the new implementation:
+
+```bash
+# Test basic CLI execution
+curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "deterministic",
+    "timeout_seconds": 120
+  }'
+```
+
+### Verify CLI Integration
+
+Check that the API is using CLI process execution:
+
+```bash
+# Start an execution and check logs
+curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "deterministic"}' &
+
+# Check API logs for CLI execution
+tail -f api.log | grep "Executing CLI command"
+```
+
+Expected log output:
+```
+INFO reev_api::services::benchmark_executor: Executing CLI command: cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent=deterministic (timeout: 120s)
+```
+
+### Test CLI Discovery
+
+```bash
+# Test CLI-based benchmark discovery
+curl -X GET http://localhost:3001/api/v1/benchmarks
+
+# Should return benchmarks discovered via CLI process
+# Falls back to filesystem if CLI unavailable
+```
+
+### Performance Comparison (CLI vs Direct)
+
+```bash
+# Time CLI execution
+time curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "deterministic"}'
+
+# CLI should be within 20% of direct library performance
+```
+
 ## 🔧 Troubleshooting
 
 ### Common Issues

@@ -431,6 +431,23 @@ graph TD
 
 ## Critical Integration Points
 
+### ✅ CLI-Based Runner Integration (COMPLETED)
+The API now communicates with reev-runner via CLI processes instead of direct library imports:
+
+```
+reev-api (web server)
+    ↓ (CLI calls, process execution)
+reev-runner (standalone CLI process)
+    ↓ (state communication via database)
+reev-db (shared state management)
+```
+
+**Key Changes:**
+- ✅ `BenchmarkExecutor` uses real CLI process execution
+- ✅ State management through `DatabaseWriterTrait`
+- ✅ Timeout and error handling for CLI processes
+- ✅ Zero runtime dependencies on runner libraries
+
 ### Agent Selection Logic
 ```rust
 match agent_name {
@@ -445,6 +462,8 @@ match agent_name {
 - Runner auto-starts/stops agent (9090) and surfpool (8899)
 - Health checks before benchmark execution
 - Graceful shutdown on completion
+- ✅ CLI process lifecycle management added
+- ✅ Database-backed execution state tracking
 
 ### Scoring System
 - Instruction Score (75%): Compare generated vs expected instructions

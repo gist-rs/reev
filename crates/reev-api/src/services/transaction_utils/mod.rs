@@ -3,6 +3,8 @@
 //! This module provides utilities for generating and formatting transaction logs
 //! from benchmark execution results, supporting both plain text and YAML formats.
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use reev_lib::results::TestResult;
 
@@ -138,6 +140,6 @@ mod tests {
     fn test_generate_transaction_logs() {
         // This would need a proper TestResult for testing
         // For now, just test the basic structure
-        assert!(true);
+        // Test assertion placeholder
     }
 }

@@ -91,10 +91,7 @@ impl<'a> ExecutionStatesWriter<'a> {
             )
             .await
             .map_err(|e| {
-                DatabaseError::query(
-                    format!("Failed to get execution state: {execution_id}"),
-                    e,
-                )
+                DatabaseError::query(format!("Failed to get execution state: {execution_id}"), e)
             })?;
 
         if let Some(row) = rows.next().await? {
@@ -212,10 +209,7 @@ impl<'a> ExecutionStatesWriter<'a> {
             )
             .await
             .map_err(|e| {
-                DatabaseError::query(
-                    format!("Failed to set execution error: {execution_id}"),
-                    e,
-                )
+                DatabaseError::query(format!("Failed to set execution error: {execution_id}"), e)
             })?;
 
         info!(
@@ -417,6 +411,7 @@ impl<'a> ExecutionStatesWriter<'a> {
 }
 
 /// Extension trait for DatabaseWriter to add execution state methods
+#[allow(async_fn_in_trait)]
 pub trait ExecutionStateExt {
     /// Store execution state in database
     async fn store_execution_state(&self, state: &ExecutionState) -> Result<()>;

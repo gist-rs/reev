@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{anyhow, Result};
 use reev_db::DatabaseWriter;
 use reev_types::{

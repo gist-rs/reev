@@ -18,6 +18,7 @@ pub mod sessions;
 pub use core::DatabaseWriter;
 
 /// Database writer trait for common operations
+#[allow(async_fn_in_trait)]
 pub trait DatabaseWriterTrait: Send + Sync {
     /// Store execution state in database
     async fn store_execution_state(
