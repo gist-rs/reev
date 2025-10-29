@@ -117,7 +117,7 @@ pub trait Agent {
     ) -> Result<Vec<AgentAction>>;
 
     /// Get tool calls made during this session (for flow diagram generation)
-    fn get_tool_calls(&self) -> Vec<crate::session_logger::ToolCallInfo> {
+    fn get_tool_calls(&self) -> Vec<ToolCallInfo> {
         Vec::new() // Default implementation returns empty vector
     }
 }

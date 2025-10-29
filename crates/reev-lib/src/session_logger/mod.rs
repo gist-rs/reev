@@ -67,23 +67,6 @@ pub struct SessionLog {
     pub final_result: Option<ExecutionResult>,
 }
 
-/// Tool call information for flow diagram generation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolCallInfo {
-    /// Tool identifier
-    pub tool_name: String,
-    /// Tool start time (Unix timestamp)
-    pub start_time: u64,
-    /// Tool end time (Unix timestamp)
-    pub end_time: u64,
-    /// Tool parameters
-    pub params: serde_json::Value,
-    /// Tool result
-    pub result: Option<serde_json::Value>,
-    /// Tool execution status
-    pub status: String,
-}
-
 /// Final execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -97,8 +80,6 @@ pub struct ExecutionResult {
     pub execution_time_ms: u64,
     /// Additional result data
     pub data: serde_json::Value,
-    /// Tool calls made during execution (for flow diagram generation)
-    pub tools: Vec<ToolCallInfo>,
 }
 
 /// Simple file-based session logger
@@ -196,50 +177,6 @@ impl SessionFileLogger {
         self.log_event(SessionEventType::Error, depth, content);
     }
 
-    /// Extract tool calls from events for flow diagram generation
-    fn extract_tools_from_events(&self) -> Vec<ToolCallInfo> {
-        let mut tools = Vec::new();
-        let mut tool_starts = std::collections::HashMap::new();
-
-        for event in &self.events {
-            match event.event_type {
-                SessionEventType::ToolCall => {
-                    if let (Some(tool_name), Some(start_time), Some(params)) = (
-                        event.data.get("tool_name").and_then(|v| v.as_str()),
-                        event.data.get("start_time").and_then(|v| v.as_u64()),
-                        event.data.get("params"),
-                    ) {
-                        tool_starts.insert(tool_name.to_string(), (start_time, params.clone()));
-                    }
-                }
-                SessionEventType::ToolResult => {
-                    if let (Some(tool_name), Some(end_time), Some(result), Some(status)) = (
-                        event.data.get("tool_name").and_then(|v| v.as_str()),
-                        event.data.get("end_time").and_then(|v| v.as_u64()),
-                        event.data.get("result"),
-                        event.data.get("status").and_then(|v| v.as_str()),
-                    ) {
-                        if let Some((start_time, params)) = tool_starts.remove(tool_name) {
-                            tools.push(ToolCallInfo {
-                                tool_name: tool_name.to_string(),
-                                start_time,
-                                end_time,
-                                params,
-                                result: Some(result.clone()),
-                                status: status.to_string(),
-                            });
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // Sort tools by start time
-        tools.sort_by_key(|t| t.start_time);
-        tools
-    }
-
     /// Start tracking a tool call
     pub fn start_tool_call(&mut self, tool_name: String, params: serde_json::Value) {
         let timestamp = SystemTime::now()
@@ -297,9 +234,8 @@ impl SessionFileLogger {
             .unwrap_or_default()
             .as_secs();
 
-        let tools = self.extract_tools_from_events();
-        let mut result_with_tools = result;
-        result_with_tools.tools = tools;
+        // Tool extraction removed - tools field deprecated
+        let result_with_tools = result;
 
         let session_log = SessionLog {
             session_id: self.session_id.clone(),
@@ -387,7 +323,6 @@ impl SessionFileLogger {
                 },
                 execution_time_ms: (end_timestamp - start_timestamp) * 1000,
                 data: serde_json::to_value(trace).unwrap_or_default(),
-                tools: self.extract_tools_from_events(),
             }),
         };
 
@@ -415,96 +350,6 @@ impl SessionFileLogger {
             log_file = %self.log_file.display(),
             events_count = self.events.len(),
             "Session log with ExecutionTrace completed and written to file"
-        );
-
-        Ok(self.log_file)
-    }
-
-    /// Complete the session with ExecutionTrace and tool calls for flow diagram generation
-    pub fn complete_with_trace_and_tools(
-        self,
-        trace: ExecutionTrace,
-        tool_calls: Vec<ToolCallInfo>,
-    ) -> Result<PathBuf> {
-        let end_time = SystemTime::now();
-        let end_timestamp = end_time
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let start_timestamp = self
-            .start_time
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        // Create session log with ExecutionTrace and tools embedded in final_result
-        let session_log = SessionLog {
-            session_id: self.session_id.clone(),
-            benchmark_id: self.benchmark_id.clone(),
-            agent_type: self.agent_type.clone(),
-            start_time: start_timestamp,
-            end_time: Some(end_timestamp),
-            events: self.events.clone(),
-            final_result: Some(ExecutionResult {
-                success: trace
-                    .steps
-                    .iter()
-                    .any(|step| step.observation.last_transaction_status == "Success"),
-                score: if trace
-                    .steps
-                    .iter()
-                    .any(|step| step.observation.last_transaction_status == "Success")
-                {
-                    1.0
-                } else {
-                    0.0
-                },
-                status: if trace
-                    .steps
-                    .iter()
-                    .any(|step| step.observation.last_transaction_status == "Success")
-                {
-                    "Succeeded".to_string()
-                } else {
-                    "Failed".to_string()
-                },
-                execution_time_ms: (end_timestamp - start_timestamp) * 1000,
-                data: json!({
-                    "prompt": trace.prompt.clone(),
-                    "steps": trace.steps,
-                    "tools": tool_calls.clone(), // Add tools array for flow diagram
-                    "trace": trace
-                }),
-                tools: tool_calls, // Add tool calls to ExecutionResult
-            }),
-        };
-
-        // Write session log to file
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&self.log_file)
-            .with_context(|| format!("Failed to open log file: {:?}", self.log_file))?;
-
-        let mut writer = BufWriter::new(file);
-        let json_content = serde_json::to_string_pretty(&session_log)
-            .with_context(|| "Failed to serialize session log with ExecutionTrace and tools")?;
-
-        writer
-            .write_all(json_content.as_bytes())
-            .with_context(|| "Failed to write session log with ExecutionTrace and tools to file")?;
-        writer
-            .flush()
-            .with_context(|| "Failed to flush session log with ExecutionTrace and tools file")?;
-
-        info!(
-            session_id = %self.session_id,
-            log_file = %self.log_file.display(),
-            events_count = self.events.len(),
-            tools_count = session_log.final_result.as_ref().map(|r| r.tools.len()).unwrap_or(0),
-            "Session log with ExecutionTrace and tools completed and written to file"
         );
 
         Ok(self.log_file)
