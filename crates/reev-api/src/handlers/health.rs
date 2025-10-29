@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Json},
 };
 
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 /// Health check endpoint
 pub async fn health_check() -> Json<HealthResponse> {
@@ -137,7 +137,7 @@ pub async fn sync_benchmarks(State(state): State<ApiState>) -> impl IntoResponse
 
     match db.sync_benchmarks_from_dir(benchmarks_dir).await {
         Ok(synced_count) => {
-            info!(
+            debug!(
                 "Successfully synced {:?} benchmarks to database",
                 synced_count
             );

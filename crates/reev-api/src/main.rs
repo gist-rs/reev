@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tokio::signal;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
-use tracing::info;
+use tracing::{debug, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use handlers::*;
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         .sync_benchmarks_from_dir(benchmarks_dir)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to sync benchmarks: {e}"))?;
-    info!(
+    debug!(
         "Successfully synced {:?} benchmarks to database",
         synced_count
     );

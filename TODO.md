@@ -2,11 +2,7 @@
 
 ---
 
-2025-10-29T07:47:20.450570Z  INFO reev_api::handlers::agents: ✅ Successfully got 0 agent performance summaries
-2025-10-29T07:47:20.451187Z  INFO reev_api::services::benchmark_executor: Executing CLI command: cargo run -p reev-runner -- benchmarks (timeout: 300s)
-2025-10-29T07:47:20.451187Z  INFO reev_api::services::benchmark_executor: Executing CLI command: cargo run -p reev-runner -- benchmarks (timeout: 300s)
-sh: line 1: 76246 Killed: 9               cargo run -p reev-api --bin reev-api
-[Finished running. Exit status: 137]
+
 
 ---
 
@@ -70,6 +66,7 @@ ensure the check the code before sum to new PLAN_OTEL.md and file issue, create 
 ---
 
 - DRY `reev_db::types::AgentPerformance {...}`
+- DRY `Successfully synced`
 
 ---
 
