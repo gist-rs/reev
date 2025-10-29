@@ -261,7 +261,8 @@ impl<'a> App<'a> {
                         .send(TuiEvent::BenchmarkStarted(selected_index))
                         .await;
 
-                    reev_runner::run_benchmarks(path, agent_name, shared_surfpool, true).await
+                    reev_runner::run_benchmarks(path, agent_name, shared_surfpool, false, None)
+                        .await
                 });
 
                 let final_result = match result {
