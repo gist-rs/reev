@@ -100,7 +100,7 @@ async fn main() -> Result<()> {
 
         // Run the benchmarks using the library function.
         let results =
-            reev_runner::run_benchmarks(cli.path, &cli.agent, cli.shared_surfpool, true).await?;
+            reev_runner::run_benchmarks(cli.path, &cli.agent, cli.shared_surfpool, false).await?;
 
         // Render the results.
         for result in &results {
