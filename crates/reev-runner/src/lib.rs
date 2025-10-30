@@ -1,10 +1,11 @@
 use anyhow::{Context, Result, anyhow};
 
+use reev_flow::FlowLogger;
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
     env::GymEnv,
-    flow::{ExecutionResult, FlowLogger, create_session_logger},
+    flow::{ExecutionResult, create_session_logger},
     llm_agent::LlmAgent,
     results::{FinalStatus, TestResult},
     score::calculate_final_score,
@@ -219,14 +220,20 @@ pub async fn run_benchmarks(
             final_status: None,
         };
 
-        // Session creation is handled automatically by SessionFileLogger
+        // Initialize enhanced OTEL logging instead of basic flow logging
+        let flow_logger = FlowLogger::new(
+            test_case.id.clone(),
+            agent_name.to_string(),
+            PathBuf::from("logs/flows"),
+        );
+
         info!(
             benchmark_id = %test_case.id,
             session_id = %session_id,
-            "Session will be created in session file"
+            "Session will be created with enhanced OTEL logging"
         );
 
-        let mut llm_agent = LlmAgent::new_with_flow_logging(agent_name, None)?;
+        let mut llm_agent = LlmAgent::new_with_flow_logging(agent_name, Some(flow_logger))?;
         info!("[Runner] Setting session_id on LlmAgent: {}", session_id);
         llm_agent.set_session_id(session_id.clone());
         info!("[Runner] Session_id set successfully");
@@ -484,15 +491,6 @@ pub async fn run_benchmarks(
     info!("All benchmarks completed (database-free runner)");
 
     Ok(results)
-}
-
-/// Backward compatibility function - defaults to safe behavior (no API killing)
-pub async fn run_benchmarks_legacy(
-    path: PathBuf,
-    agent_name: &str,
-    shared_surfpool: bool,
-) -> Result<Vec<TestResult>> {
-    run_benchmarks(path, agent_name, shared_surfpool, false, None).await
 }
 
 /// Extract tool calls from agent's enhanced otel log files
