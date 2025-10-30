@@ -10,6 +10,7 @@ use axum::{
 };
 use chrono;
 use reev_db::types::SessionFilter;
+use reev_db::writer::DatabaseWriterTrait;
 use reev_types::{ExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus};
 use serde_json::json;
 use std::collections::HashMap;
@@ -322,10 +323,17 @@ pub async fn run_benchmark(
         request.agent.clone(),
     );
 
-    // Store execution state
-    {
-        let mut executions = state.executions.lock().await;
-        executions.insert(execution_id.clone(), execution_state);
+    // Store execution state in database instead of in-memory
+    if let Err(e) = state.db.store_execution_state(&execution_state).await {
+        error!("Failed to save execution state to database: {}", e);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "Failed to save execution state",
+                "message": e.to_string()
+            })),
+        )
+            .into_response();
     }
 
     // Save agent configuration if provided
@@ -376,6 +384,7 @@ pub async fn run_benchmark(
         logs: Vec::new(),
         tool_calls: Vec::new(),
     })
+    .into_response()
 }
 
 /// Get execution status
@@ -391,20 +400,18 @@ pub async fn get_execution_status_with_agent(
     Path((benchmark_id, execution_id)): Path<(String, Option<String>)>,
     agent_type: Option<String>,
 ) -> impl IntoResponse {
-    // If execution_id is provided, check in-memory executions first
+    // If execution_id is provided, check database first
     if let Some(ref exec_id) = execution_id {
-        let executions = state.executions.lock().await;
-        if let Some(execution) = executions.get(exec_id) {
-            return Json(execution.clone()).into_response();
+        if let Ok(Some(execution)) = state.db.get_execution_state(exec_id).await {
+            return Json::<ExecutionState>(execution).into_response();
         }
-        drop(executions);
 
         // If not in memory, try to load from database with the specific execution_id
         match state.db.get_session_log(exec_id).await {
             Ok(Some(log_content)) => {
                 // Parse and format the execution trace
                 match format_execution_trace(&log_content, exec_id.clone()) {
-                    Ok(execution_state) => Json(execution_state).into_response(),
+                    Ok(execution_state) => Json::<ExecutionState>(execution_state).into_response(),
                     Err(e) => {
                         error!("Failed to format execution trace for {}: {}", exec_id, e);
                         (
@@ -591,10 +598,9 @@ pub async fn stop_benchmark(
     State(state): State<ApiState>,
     Path((_benchmark_id, execution_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    let mut executions = state.executions.lock().await;
-
-    match executions.get_mut(&execution_id) {
-        Some(execution) => {
+    // Get execution from database
+    match state.db.get_execution_state(&execution_id).await {
+        Ok(Some(mut execution)) => {
             if matches!(
                 execution.status,
                 ExecutionStatus::Running | ExecutionStatus::Queued
@@ -602,12 +608,26 @@ pub async fn stop_benchmark(
                 execution.status = ExecutionStatus::Failed;
                 execution.updated_at = chrono::Utc::now();
                 execution.error_message = Some("Execution stopped by user".to_string());
+
+                // Update execution state in database
+                if let Err(e) = state.db.store_execution_state(&execution).await {
+                    error!("Failed to update execution state in database: {}", e);
+                }
+
                 info!("Stopped benchmark execution: {}", execution_id);
                 Json(serde_json::json!({"status": "stopped"})).into_response()
             } else {
                 (StatusCode::BAD_REQUEST, "Execution is not running").into_response()
             }
         }
-        None => (StatusCode::NOT_FOUND, "Execution not found").into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "Execution not found").into_response(),
+        Err(e) => {
+            error!("Failed to get execution state from database: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {e}"),
+            )
+                .into_response()
+        }
     }
 }

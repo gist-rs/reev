@@ -6,8 +6,6 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use reev_db::writer::DatabaseWriterTrait;
-use reev_types::execution::ExecutionStatus;
 
 use serde_json::json;
 use std::collections::HashMap;

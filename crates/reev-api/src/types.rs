@@ -1,4 +1,3 @@
-use reev_types::ExecutionState;
 use serde::{Deserialize, Serialize};
 
 use crate::services::PooledBenchmarkExecutor;

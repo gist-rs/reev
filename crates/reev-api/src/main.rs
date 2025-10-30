@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     // Create API state
     let state = ApiState {
         db: db.clone(),
-        executions: Arc::new(Mutex::new(HashMap::new())),
+
         agent_configs: Arc::new(Mutex::new(HashMap::new())),
         benchmark_executor,
     };
@@ -127,10 +127,7 @@ async fn main() -> Result<()> {
             "/api/v1/transaction-logs/{benchmark_id}",
             get(get_transaction_logs),
         )
-        .route(
-            "/api/v1/transaction-logs/demo",
-            get(get_transaction_logs_demo),
-        )
+        .route("/api/v1/transaction-logs/demo", get(get_transaction_logs))
         // Execution trace endpoints
         .route(
             "/api/v1/execution-logs/{benchmark_id}",

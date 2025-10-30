@@ -9,7 +9,6 @@ use axum::{
 };
 use chrono::DateTime;
 
-use reev_types::ExecutionStatus;
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
@@ -260,29 +259,37 @@ async fn get_session_fallback(
 ) -> axum::response::Response {
     info!("Using fallback session data for session: {}", session_id);
 
-    // Check for active executions first
-    let executions = state.executions.lock().await;
+    // Database-only approach: get sessions instead of in-memory executions
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: None,
+        agent_type: None,
+        interface: Some("web".to_string()),
+        status: None,
+        limit: None,
+    };
+
     let mut active_executions = Vec::new();
 
-    for (execution_id, execution) in executions.iter() {
-        // For session-based fallback, just return any active execution
-        // The session_id will be used for the flow diagram
-        let is_running = execution.status == ExecutionStatus::Running
-            || execution.status == ExecutionStatus::Queued;
-
-        active_executions.push(json!({
-            "session_id": execution_id,
-            "agent_type": execution.agent,
-            "interface": "web",
-            "status": format!("{:?}", execution.status).to_lowercase(),
-            "score": serde_json::Value::Null,
-            "final_status": execution.status,
-            "log_content": execution.metadata.get("trace").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            "is_running": is_running,
-            "progress": execution.progress
-        }));
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            for session in sessions {
+                let is_running = session.status == "running" || session.status == "queued";
+                active_executions.push(json!({
+                    "session_id": session.session_id,
+                    "agent_type": session.agent_type,
+                    "interface": session.interface,
+                    "status": session.status,
+                    "score": session.score,
+                    "final_status": session.final_status,
+                    "log_content": "", // Will be populated from session log if needed
+                    "is_running": is_running
+                }));
+            }
+        }
+        Err(e) => {
+            warn!("Failed to get sessions from database: {}", e);
+        }
     }
-    drop(executions);
 
     if !active_executions.is_empty() {
         let response_data = json!({
