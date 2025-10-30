@@ -2,6 +2,10 @@
 
 ---
 
+step from yml at multi-step is cheating, we will need llm to create dynamic step anddynamic tools from that
+
+---
+
 The execution logs handler checks the in-memory cache FIRST, and only goes to database if execution_id is specified. But when frontend calls without execution_id (old behavior), it still reads from stale memory cache.
 
 However, even when called with execution_id, there's a **synchronization issue**: The database was updated, but the in-memory cache wasn't updated to reflect the completed status.
