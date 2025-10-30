@@ -1,6 +1,49 @@
 # Issues
 
-## 🎯 Current Status - All Critical Issues Resolved
+## 🎯 Current Status - Critical Issues Resolved, Minor Sync Issue Identified
+
+### 🔧 **Current Issue - #35**  
+- **Title**: API Status Tracking Sync Failure
+- **Status**: **NEW** - Execution succeeds but API status not updated
+- **Description**: CLI execution via API completes successfully with perfect scores, but API status endpoint remains stuck showing "Queued"
+- **Root Cause**: Session files created correctly but API status endpoint doesn't read completed session files to update execution status
+- **Impact**: API shows incorrect "Queued" status despite successful benchmark completion
+- **Test Results**: 
+  - ✅ CLI execution: Perfect scores (1.0) achieved
+  - ✅ Session files: Created correctly with complete execution data
+  - ✅ OTEL logging: Enhanced telemetry working perfectly  
+  - ❌ API status: Shows "Queued" instead of "Completed"
+- **Affected Agents**: All agents (deterministic, glm-4.6, glm-4.6-coding)
+- **Priority**: Medium - Functional execution works, only status display affected
+- **Investigation Date**: 2025-10-30
+
+### 🔧 **Current Issue - #34**
+- **Title**: Database storage failure after successful execution
+- **Status**: **IN PROGRESS** - Session files created but database storage fails
+- **Description**: CLI execution completes successfully, session files created correctly, but API fails to store execution state in database
+- **Root Cause**: Database storage operation failing in `BenchmarkExecutor.execute_cli_benchmark()` after session file reading
+- **Impact**: Execution appears stuck in "Queued" status in API, despite successful completion
+- **Test Results**: 
+  - ✅ Production mode: CLI execution successful (score=1.0)
+  - ✅ Session files created: `session_{execution_id}.json` and `enhanced_otel_{execution_id}.jsonl`
+  - ✅ Enhanced OTEL file naming: `{session_id}` placeholder fixed
+  - ❌ Database storage: "Failed to store execution state: Query execution failed"
+- **Environment**: Only affects production mode, development mode has cargo watch timing issues
+
+**🔍 Latest Investigation (2025-10-30):**
+- **CLI Execution Status**: ✅ Working perfectly
+  - Direct CLI: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding` - **SUCCESS (score=1.0)**
+  - API-driven CLI: `glm-4.6` agent via cURL - **SUCCESS (score=1.0)**
+  - Session files confirmed: `logs/sessions/session_057d2e4a-f687-469f-8885-ad57759817c0.json`
+  - OTEL logs confirmed: `logs/sessions/enhanced_otel_057d2e4a-f687-469f-8885-ad57759817c0.jsonl`
+- **Agent Support**: Both `glm-4.6` and `glm-4.6-coding` working
+  - `glm-4.6`: Requires ZAI_API_KEY environment variables
+  - `glm-4.6-coding`: Requires GLM_CODING_API_KEY environment variables  
+- **API Status Tracking**: ❌ Sync issue only
+  - CLI execution completes successfully
+  - Session files created with correct data
+  - API status endpoint shows "Queued" instead of actual completion status
+  - This is a status sync issue, not a functional execution issue
 
 ### ✅ **API Architecture Verification Complete**
 - **Issue #30**: Frontend API Calls Analysis - **RESOLVED** ✅
@@ -26,6 +69,21 @@
   - ✅ Enhanced OTEL file naming: `{session_id}` placeholder fixed
   - ❌ Database storage: "Failed to store execution state: Query execution failed"
 - **Environment**: Only affects production mode, development mode has cargo watch timing issues
+
+**🔍 Latest Investigation (2025-10-30):**
+- **CLI Execution Status**: ✅ Working perfectly
+  - Direct CLI: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding` - **SUCCESS (score=1.0)**
+  - API-driven CLI: `glm-4.6` agent via cURL - **SUCCESS (score=1.0)**
+  - Session files confirmed: `logs/sessions/session_057d2e4a-f687-469f-8885-ad57759817c0.json`
+  - OTEL logs confirmed: `logs/sessions/enhanced_otel_057d2e4a-f687-469f-8885-ad57759817c0.jsonl`
+- **Agent Support**: Both `glm-4.6` and `glm-4.6-coding` working
+  - `glm-4.6`: Requires ZAI_API_KEY environment variables
+  - `glm-4.6-coding`: Requires GLM_CODING_API_KEY environment variables  
+- **API Status Tracking**: ❌ Sync issue only
+  - CLI execution completes successfully
+  - Session files created with correct data
+  - API status endpoint shows "Queued" instead of actual completion status
+  - This is a status sync issue, not a functional execution issue
 
 ### 🏆 **Architecture Achievements**
 - **Zero CLI conflicts** during frontend load and API discovery
@@ -71,6 +129,7 @@
 - **Issues #29, #30, #31, #32**: **RESOLVED** ✅
 - **Issue #33**: **RESOLVED** ✅ (Cargo Watch Implementation)
 - **Issue #34**: **IN PROGRESS** 🔧 (Database Storage Failure)
+- **Issue #35**: **NEW** 🆕 (API Status Tracking Sync Failure)
 
 ### ✅ **RESOLVED Issues (#29-33)**
 - **#29**: API Architecture Fix - Remove CLI Dependency for Benchmark Listing - **RESOLVED** ✅
