@@ -1,0 +1,74 @@
+{
+  "session_id": "057d2e4a-f687-469f-8885-ad57759817c0",
+  "benchmark_id": "001-sol-transfer",
+  "agent_type": "glm-4.6",
+  "start_time": 1761795821,
+  "end_time": 1761795858,
+  "events": [],
+  "final_result": {
+    "success": true,
+    "score": 1.0,
+    "status": "Succeeded",
+    "execution_time_ms": 37000,
+    "data": {
+      "prompt": "Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).",
+      "steps": [
+        {
+          "action": [
+            {
+              "accounts": [
+                {
+                  "is_signer": true,
+                  "is_writable": true,
+                  "pubkey": "9StANvGCH7f1oB8CMzThSuyEj6v4PGkwbgjyZVVQQjpq"
+                },
+                {
+                  "is_signer": false,
+                  "is_writable": true,
+                  "pubkey": "4RfnJuMwcLVznc7ZxjFbzAiuYzY46R5dC5wzGKrAWwVe"
+                }
+              ],
+              "data": "3Bxs411Dtc7pkFQj",
+              "program_id": "11111111111111111111111111111111"
+            }
+          ],
+          "info": {},
+          "observation": {
+            "account_states": {
+              "11111111111111111111111111111111": {
+                "data_len": 14,
+                "executable": true,
+                "lamports": 1,
+                "owner": "NativeLoader1111111111111111111111111111111"
+              },
+              "RECIPIENT_WALLET_PUBKEY": {
+                "data_len": 0,
+                "executable": false,
+                "lamports": 100000000,
+                "owner": "11111111111111111111111111111111"
+              },
+              "USER_WALLET_PUBKEY": {
+                "data_len": 0,
+                "executable": false,
+                "lamports": 899995000,
+                "owner": "11111111111111111111111111111111"
+              }
+            },
+            "key_map": {
+              "11111111111111111111111111111111": "11111111111111111111111111111111",
+              "RECIPIENT_WALLET_PUBKEY": "4RfnJuMwcLVznc7ZxjFbzAiuYzY46R5dC5wzGKrAWwVe",
+              "USER_WALLET_PUBKEY": "9StANvGCH7f1oB8CMzThSuyEj6v4PGkwbgjyZVVQQjpq"
+            },
+            "last_transaction_error": null,
+            "last_transaction_logs": [
+              "Program 11111111111111111111111111111111 invoke [1]",
+              "Program 11111111111111111111111111111111 success"
+            ],
+            "last_transaction_status": "Success"
+          },
+          "thought": null
+        }
+      ]
+    }
+  }
+}
