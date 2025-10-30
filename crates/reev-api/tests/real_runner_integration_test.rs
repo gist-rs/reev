@@ -29,10 +29,7 @@ async fn test_real_runner_integration() -> Result<()> {
     };
 
     if !std::path::Path::new(runner_path).exists() {
-        println!(
-            "⚠️  Skipping real runner integration test - binary not found at: {}",
-            runner_path
-        );
+        println!("⚠️  Skipping real runner integration test - binary not found at: {runner_path}");
         println!("💡 Build with: cargo build --release -p reev-runner");
         return Ok(());
     }

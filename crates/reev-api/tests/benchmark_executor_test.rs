@@ -7,7 +7,7 @@ async fn test_benchmark_executor_mode_detection() {
     // Create a mock database connection using file-based database to avoid SQLite in-memory locking issues
     let temp_db = tempfile::NamedTempFile::new().unwrap();
     let db_path = temp_db.path().to_string_lossy().to_string();
-    let db_config = DatabaseConfig::new(&format!("sqlite:{}", db_path));
+    let db_config = DatabaseConfig::new(format!("sqlite:{db_path}"));
     let db = Arc::new(PooledDatabaseWriter::new(db_config, 1).await.unwrap());
 
     // Create executor with default config
@@ -72,7 +72,7 @@ async fn test_benchmark_list_functionality() {
     // Create a mock database connection using file-based database to avoid SQLite in-memory locking issues
     let temp_db = tempfile::NamedTempFile::new().unwrap();
     let db_path = temp_db.path().to_string_lossy().to_string();
-    let db_config = DatabaseConfig::new(&format!("sqlite:{}", db_path));
+    let db_config = DatabaseConfig::new(format!("sqlite:{db_path}"));
     let db = Arc::new(PooledDatabaseWriter::new(db_config, 1).await.unwrap());
     let executor = PooledBenchmarkExecutor::new_with_default(db);
 
