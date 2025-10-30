@@ -299,6 +299,18 @@ impl PooledDatabaseWriter {
         writer.get_session(session_id).await
     }
 
+    /// List execution states by benchmark ID
+    pub async fn list_execution_states_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> crate::error::Result<Vec<reev_types::ExecutionState>> {
+        let conn = self.get_connection().await?;
+        let writer = crate::writer::execution_states::ExecutionStatesWriter::new(conn.connection());
+        writer
+            .list_execution_states_by_benchmark(benchmark_id)
+            .await
+    }
+
     // Performance operations
     pub async fn insert_agent_performance(
         &self,
@@ -532,6 +544,18 @@ impl DatabaseWriterTrait for PooledDatabaseWriter {
         use crate::writer::execution_states::ExecutionStatesWriter;
         let writer = ExecutionStatesWriter::new(conn.connection());
         writer.get_execution_state(execution_id).await
+    }
+
+    /// List execution states by benchmark ID
+    async fn list_execution_states_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> crate::error::Result<Vec<reev_types::ExecutionState>> {
+        let conn = self.get_connection().await?;
+        let writer = crate::writer::execution_states::ExecutionStatesWriter::new(conn.connection());
+        writer
+            .list_execution_states_by_benchmark(benchmark_id)
+            .await
     }
 }
 

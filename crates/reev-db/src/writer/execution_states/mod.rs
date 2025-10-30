@@ -418,6 +418,52 @@ impl<'a> ExecutionStatesWriter<'a> {
             metadata,
         })
     }
+
+    /// List executions by benchmark ID
+    pub async fn list_execution_states_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> Result<Vec<ExecutionState>> {
+        debug!(
+            "[DB] Listing execution states for benchmark: {}",
+            benchmark_id
+        );
+
+        let mut results = Vec::new();
+
+        let mut rows = self
+            .conn
+            .query(
+                r#"
+                    SELECT execution_id, benchmark_id, agent, status,
+                           created_at, updated_at, progress, error_message,
+                           result_data, metadata
+                    FROM execution_states
+                    WHERE benchmark_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                    "#,
+                [benchmark_id.to_string()],
+            )
+            .await
+            .map_err(|e| {
+                DatabaseError::query(
+                    format!("Failed to list execution states for benchmark: {benchmark_id}"),
+                    e,
+                )
+            })?;
+
+        while let Some(row) = rows.next().await? {
+            results.push(self.row_to_execution_state(row)?);
+        }
+
+        debug!(
+            "[DB] Found {} execution states for benchmark: {}",
+            results.len(),
+            benchmark_id
+        );
+        Ok(results)
+    }
 }
 
 /// Extension trait for DatabaseWriter to add execution state methods

@@ -31,6 +31,12 @@ pub trait DatabaseWriterTrait: Send + Sync {
         &self,
         execution_id: &str,
     ) -> crate::error::Result<Option<reev_types::ExecutionState>>;
+
+    /// List execution states by benchmark ID
+    async fn list_execution_states_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> crate::error::Result<Vec<reev_types::ExecutionState>>;
 }
 
 /// Implementation of DatabaseWriterTrait for DatabaseWriter
@@ -53,5 +59,17 @@ impl DatabaseWriterTrait for crate::writer::DatabaseWriter {
         use crate::writer::execution_states::ExecutionStatesWriter;
         let writer = ExecutionStatesWriter::new(&self.conn);
         writer.get_execution_state(execution_id).await
+    }
+
+    /// List execution states by benchmark ID
+    async fn list_execution_states_by_benchmark(
+        &self,
+        benchmark_id: &str,
+    ) -> crate::error::Result<Vec<reev_types::ExecutionState>> {
+        use crate::writer::execution_states::ExecutionStatesWriter;
+        let writer = ExecutionStatesWriter::new(&self.conn);
+        writer
+            .list_execution_states_by_benchmark(benchmark_id)
+            .await
     }
 }

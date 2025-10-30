@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use chrono;
-use reev_db::types::SessionFilter;
+
 use reev_db::writer::DatabaseWriterTrait;
 use reev_types::{ExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus};
 use serde_json::json;
@@ -130,35 +130,36 @@ pub async fn get_benchmark_with_executions(
                     }
                 };
 
-            // Get recent executions for this benchmark
-            let filter = SessionFilter {
-                benchmark_id: Some(benchmark_id.clone()),
-                agent_type: None,
-                interface: None,
-                status: None,
-                limit: Some(10), // Get last 10 executions
-            };
-
-            let recent_executions = match state.db.list_sessions(&filter).await {
-                Ok(sessions) => {
+            // Get recent executions for this benchmark from execution_states table
+            let clean_benchmark_id = benchmark_id
+                .trim_start_matches("benchmarks/")
+                .trim_end_matches(".yml");
+            info!("DEBUG: Calling list_execution_states_by_benchmark for benchmark: {}", clean_benchmark_id);
+            let recent_executions = match state
+                .db
+                .list_execution_states_by_benchmark(&clean_benchmark_id)
+                .await
+                Ok(executions) => {
                     info!(
                         "Found {} recent executions for benchmark {}",
-                        sessions.len(),
+                        executions.len(),
                         benchmark_id
                     );
-                    let mut executions = Vec::new();
-                    for session in sessions {
-                        executions.push(BenchmarkExecution {
-                            execution_id: session.session_id,
-                            agent_type: session.agent_type,
-                            status: session.status.clone(),
-                            created_at: chrono::DateTime::from_timestamp(session.start_time, 0)
-                                .unwrap_or_default()
-                                .to_rfc3339(),
-                            score: session.score,
+                    let mut result = Vec::new();
+                    for execution in executions {
+                        result.push(BenchmarkExecution {
+                            execution_id: execution.execution_id.clone(),
+                            agent_type: execution.agent.clone(),
+                            status: format!("{:?}", execution.status).to_lowercase(),
+                            created_at: execution.created_at.to_rfc3339(),
+                            score: execution
+                                .result_data
+                                .as_ref()
+                                .and_then(|r| r.get("score"))
+                                .and_then(|s| s.as_f64()),
                         });
                     }
-                    executions
+                    result
                 }
                 Err(e) => {
                     error!(
