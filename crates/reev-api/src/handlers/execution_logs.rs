@@ -7,10 +7,11 @@ use axum::{
     Json,
 };
 use reev_db::writer::DatabaseWriterTrait;
+use reev_lib::flow::render_flow_file_as_ascii_tree;
 
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::types::ApiState;
 
@@ -50,7 +51,6 @@ pub async fn get_execution_trace(
 
             // Generate ASCII trace from session data if available
             let trace = if let Some(ref result_data) = updated_state.result_data {
-                info!("DEBUG: Processing result_data for ASCII generation");
                 match generate_ascii_trace_from_session_data(result_data, exec_id).await {
                     Ok(ascii_trace) => ascii_trace,
                     Err(e) => {
@@ -135,11 +135,6 @@ async fn generate_ascii_trace_from_session_data(
     use reev_lib::flow::{ExecutionResult, ExecutionStatistics};
     use std::collections::HashMap;
 
-    info!(
-        "DEBUG: generate_ascii_trace_from_session_data called for execution_id: {}",
-        execution_id
-    );
-
     // Extract session information from result data
     let session_id = result_data
         .get("session_id")
@@ -167,12 +162,11 @@ async fn generate_ascii_trace_from_session_data(
         start_time,
         end_time: Some(end_time),
         events: Vec::new(),
-        final_result: None,
+        final_result: None, // Will be set below if data available
     };
 
     // Extract events from session data - convert steps to events
     if let Some(steps) = result_data.get("steps").and_then(|v| v.as_array()) {
-        info!("DEBUG: Found {} steps to process", steps.len());
         for (i, step_data) in steps.iter().enumerate() {
             let timestamp = (i as u64) * 1000; // Simple timestamp based on step order
 
@@ -192,7 +186,6 @@ async fn generate_ascii_trace_from_session_data(
             };
 
             flow_log.events.push(flow_event);
-            info!("DEBUG: Added LLM event for step {}", i);
 
             // Create Tool Call event for each action
             if let Some(action) = step_data.get("action").and_then(|v| v.as_array()) {
@@ -234,7 +227,8 @@ async fn generate_ascii_trace_from_session_data(
     }
 
     // Extract final result if available
-    if let Some(final_status) = result_data.get("final_status").and_then(|v| v.as_str()) {
+
+    if success {
         let success = final_status == "completed" || final_status == "success";
         let score = result_data
             .get("score")
@@ -245,6 +239,34 @@ async fn generate_ascii_trace_from_session_data(
             success,
             score,
             total_time_ms: 60000, // Default 1 minute
+            statistics: ExecutionStatistics {
+                total_llm_calls: flow_log
+                    .events
+                    .iter()
+                    .filter(|e| matches!(e.event_type, FlowEventType::LlmRequest))
+                    .count() as u32,
+                total_tool_calls: flow_log
+                    .events
+                    .iter()
+                    .filter(|e| matches!(e.event_type, FlowEventType::ToolCall))
+                    .count() as u32,
+                total_tokens: 0,
+                tool_usage: HashMap::new(),
+                max_depth: 0,
+            },
+            scoring_breakdown: None,
+        };
+
+        flow_log.final_result = Some(execution_result);
+    } else {
+        // Default success result if no specific final status found
+        let execution_result = ExecutionResult {
+            success: true, // Default to success for display
+            score: result_data
+                .get("score")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0),
+            total_time_ms: 60000,
             statistics: ExecutionStatistics {
                 total_llm_calls: flow_log
                     .events

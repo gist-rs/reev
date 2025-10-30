@@ -2,12 +2,20 @@
 
 ## 🎯 Current Status - Database Corruption FIXED ✅, New Issues Found 🔍
 
-### 🔧 **Current Investigation - Issue #42**  
+### 🔧 **PARTIALLY RESOLVED Issue - #42**  
 - **Title**: Execution Trace API Returns Empty Instead of ASCII Tree
-- **Issue #42**: **INVESTIGATION** 🔍 (Missing ASCII Tree Generation)
-- **Status**: **ACTIVE** 🔄 - Working on ASCII trace functionality
-- **Description**: When clicking Execution Trace on web UI, the endpoint returns empty "trace" field instead of ASCII tree representation, despite execution data being available in database
-- **Root Cause**: Session files are created but flow logs (for ASCII rendering) are not being generated or properly converted
+- **Issue #42**: **PARTIALLY RESOLVED** ⚠️ (ASCII Tree Header Working - Event Conversion Bug)
+- **Status**: **ACTIVE** 🔄 - ASCII infrastructure working, event conversion has bug
+- **Description**: When clicking Execution Trace on web UI, the endpoint now returns ASCII tree header instead of empty string, but shows "RUNNING" status due to final_result handling issue
+- **Root Cause**: ASCII tree generation infrastructure was missing - now implemented but final_result detection incomplete
+- **Current Behavior**: Returns `🌊 001-sol-transfer [deterministic] - ⏳ RUNNING (Duration: 60.00s)` instead of full event hierarchy
+- **What's Working**: 
+  - ✅ ASCII tree generation framework in place
+  - ✅ Uses existing reev-flow renderer 
+  - ✅ Proper header generation
+  - ✅ No more empty trace fields
+- **Known Bug**: Session steps conversion to FlowLog events working, but final_result not set properly causing "RUNNING" status
+- **Next Steps**: Fix final_result detection logic to show proper "SUCCESS" status
 
 ### ✅ **RESOLVED Issue - #36**  
 - **Title**: Database UPDATE Index Corruption During API Status Updates
