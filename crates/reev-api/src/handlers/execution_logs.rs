@@ -17,16 +17,47 @@ use crate::types::ApiState;
 pub async fn get_execution_trace(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
-    Query(_params): Query<HashMap<String, String>>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    info!("Getting execution trace for benchmark: {}", benchmark_id);
+    // Check if specific execution_id is requested
+    let target_execution_id = params.get("execution_id");
+
+    // First, if specific execution_id is requested, try to get it from database directly
+    if let Some(ref exec_id) = target_execution_id {
+        if let Ok(Some(updated_state)) = state.db.get_execution_state(exec_id).await {
+            let db_status = updated_state.status.clone();
+
+            // Return execution results directly from database
+            let response = json!({
+                "benchmark_id": benchmark_id,
+                "execution_id": exec_id,
+                "agent_type": updated_state.agent,
+                "interface": "web",
+                "status": format!("{db_status:?}").to_lowercase(),
+                "final_status": db_status,
+                "trace": "",
+                "is_running": false,
+                "progress": 1.0,
+                "result": updated_state.result_data.clone()
+            });
+
+            return Json(response).into_response();
+        }
+    }
 
     // First check for active executions (like transaction logs does)
     let executions = state.executions.lock().await;
     let mut found_execution = None;
 
     for (execution_id, execution) in executions.iter() {
-        if execution.benchmark_id == benchmark_id {
+        // If specific execution_id requested, match it exactly
+        // Otherwise, find any execution for this benchmark
+        let matches_benchmark = execution.benchmark_id == benchmark_id;
+        let matches_execution_id = target_execution_id
+            .map(|id| id == execution_id)
+            .unwrap_or(true);
+
+        if matches_benchmark && matches_execution_id {
             found_execution = Some((execution_id.clone(), execution.clone()));
             break;
         }
@@ -42,51 +73,6 @@ pub async fn get_execution_trace(
             "Found execution for benchmark: {} (status: {:?})",
             benchmark_id, execution.status
         );
-
-        // For Running/Queued executions, check database first to see if they've actually completed
-        if is_running {
-            // Check database for updated status (might be completed but not updated in memory)
-            if let Ok(Some(updated_state)) = state.db.get_execution_state(&execution_id).await {
-                let db_status = updated_state.status.clone();
-
-                if matches!(
-                    db_status,
-                    ExecutionStatus::Completed | ExecutionStatus::Failed | ExecutionStatus::Timeout
-                ) {
-                    info!(
-                        "Database shows execution completed with status: {:?}, updating response",
-                        db_status
-                    );
-
-                    // Update in-memory cache with database status
-                    let mut executions = state.executions.lock().await;
-                    if let Some(mem_execution) = executions.get_mut(&execution_id) {
-                        mem_execution.status = db_status.clone();
-                        mem_execution.updated_at = chrono::Utc::now();
-                        if let Some(ref result_data) = updated_state.result_data {
-                            mem_execution.result_data = Some(result_data.clone());
-                        }
-                    }
-                    drop(executions);
-
-                    // Return the completed execution state
-                    let response = json!({
-                        "benchmark_id": benchmark_id,
-                        "execution_id": execution_id,
-                        "agent_type": execution.agent,
-                        "interface": "web",
-                        "status": format!("{db_status:?}").to_lowercase(),
-                        "final_status": db_status,
-                        "trace": "",
-                        "is_running": false,
-                        "progress": 1.0,
-                        "result": updated_state.result_data.clone()
-                    });
-
-                    return Json(response).into_response();
-                }
-            }
-        }
 
         // Handle running executions like execution trace - return raw trace or loading message
         if is_running {
