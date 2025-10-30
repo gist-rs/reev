@@ -26,6 +26,34 @@
   - ✅ All 4/4 API mock tests passing
   - ✅ Real runner execution verified (4 seconds, score=1.0)
   - 🔍 API process execution hanging - separate issue from database
+- **Fix Date**: 2025-10-30
+
+### ✅ **RESOLVED Issue - #37** 
+- **Title**: reev-agent Startup Timeout Due to Cargo Run Compilation
+- **Status**: **RESOLVED** ✅ - Benchmark execution now working
+- **Description**: reev-runner was calling `cargo run --package reev-agent` which compiled from scratch each time, causing 30+ second startup timeout
+- **Root Cause**: Using `cargo run` instead of pre-compiled binary for reev-agent server startup, plus debug binary path issue
+- **Evidence**: 
+  - reev-agent compilation takes 25+ seconds each execution
+  - Health check times out after 30 seconds waiting for server
+  - Manual binary startup works in <2 seconds
+  - API was using release binary path instead of debug binary
+- **Impact**: All benchmark executions were failing with "reev-agent health check timed out"
+- **Solution Applied**: 
+  1. Changed dependency manager to use `./target/debug/reev-agent` binary instead of `cargo run --package reev-agent`
+  2. Fixed benchmark executor default config to use debug binary path instead of release path
+  3. Implemented missing `store_execution_state` database persistence method
+- **Fix Locations**: 
+  - `crates/reev-runner/src/dependency/manager/dependency_manager.rs` line 201
+  - `crates/reev-api/src/services/benchmark_executor.rs` line 67
+  - `crates/reev-api/src/services/runner_manager.rs` line 254
+- **Priority**: **RESOLVED** - No longer blocks benchmark executions
+- **Test Results**: 
+  - ✅ reev-agent starts in <2 seconds using pre-compiled binary
+  - ✅ Health check passes immediately
+  - ✅ Benchmark execution completes successfully (score=1.0)
+  - ✅ Session files created correctly
+  - ✅ Database state updates properly
 - **Test Results**: 
   - ✅ CLI execution: Perfect scores (1.0) achieved
   - ✅ Session files: Created correctly with complete execution data  

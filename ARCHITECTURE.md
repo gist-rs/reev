@@ -2,7 +2,7 @@
 
 ## Core Flow
 ```
-tui/api → runner → agent → tools → protocols → jupiter → surfpool → score
+web(5173) → api(3001) → runner(cli) → agent(9090) → tools → jupiter(sdk) → surfpool(8899) → otel → score(turso-sqlite)
 ```
 
 ## Services & Ports
@@ -29,7 +29,7 @@ let pubkey = keypair.pubkey();
 
 ### 📋 Address Generation Rules
 - **USER_WALLET_PUBKEY**: New address per benchmark (acts as fee payer)
-- **RECIPIENT_WALLET_PUBKEY**: New address per benchmark 
+- **RECIPIENT_WALLET_PUBKEY**: New address per benchmark
 - **SPL ATA Placeholders**: Derived from wallet addresses, not generated directly
 - **Program IDs**: Preserved as literal addresses (e.g., Jupiter, USDC mint)
 
@@ -106,7 +106,7 @@ surfpool → SolanaEnv → scoring → database
 2. **Scoring System**: Use `ground_truth` for final result validation
 3. **Deterministic Mode**: Use `ground_truth` for reproducible test behavior
 
-### ❌ Invalid Ground Truth Usage  
+### ❌ Invalid Ground Truth Usage
 1. **LLM Mode**: Ground truth injected into context leaks future information
 2. **Context Resolution**: Real blockchain state gets corrupted by expected outcomes
 3. **Multi-Step Logic**: Steps become predetermined instead of reactive
@@ -144,7 +144,7 @@ context_resolver.resolve_initial_context(
 ```rust
 fn is_deterministic_mode() -> bool {
     // Check agent type, environment variable, or benchmark tag
-    matches!(agent_name, "deterministic") || 
+    matches!(agent_name, "deterministic") ||
     std::env::var("REEV_DETERMINISTIC").is_ok() ||
     benchmark.tags.contains(&"deterministic".to_string())
 }
@@ -184,7 +184,7 @@ if !is_deterministic_mode() && !benchmark.ground_truth.is_null() {
 - **Available Tools**: Tool catalog with capabilities and descriptions
 - **Execution Constraints**: Real Solana programs via surfpool with actual state
 
-#### Execution Capabilities  
+#### Execution Capabilities
 - **SOL Transfers**: Move native SOL between accounts
 - **SPL Token Operations**: Transfer and manage any SPL tokens
 - **Jupiter DEX**: Aggregate swaps across multiple DEXs
@@ -233,7 +233,7 @@ SplTransferInstruction {
 // Jupiter swap - interacts with real DEXs and liquidity
 JupiterSwapInstruction {
     input_mint: sol_mint,     // Real SOL mint
-    output_mint: usdc_mint,   // Real USDC mint  
+    output_mint: usdc_mint,   // Real USDC mint
     input_amount: 1000000000,  // 1 SOL
     slippage_bps: 100,      // 1% slippage
 }
@@ -498,7 +498,7 @@ match agent_name {
 - **Use Case**: Ensure deterministic vs LLM mode separation works correctly
 - **Command**: `cargo test -p reev-agent --test ground_truth_separation_test -- --nocapture`
 
-#### 4. Integration Tests (`benchmarks_test.rs`) 
+#### 4. Integration Tests (`benchmarks_test.rs`)
 **Purpose**: End-to-end validation of ALL benchmarks against surfpool
 - **Scope**: Complete system integration with real Solana programs
 - **Dependencies**: surfpool (mainnet fork) + agent service
@@ -532,7 +532,7 @@ cargo test -p reev-runner benchmarks_test -- --nocapture
 
 When modifying benchmark YAML files:
 1. ✅ **Structure Validation**: `benchmark_yaml_validation.rs` passes
-2. ✅ **Context Generation**: `benchmark_context_validation.rs` passes  
+2. ✅ **Context Generation**: `benchmark_context_validation.rs` passes
 3. ✅ **No Information Leakage**: `ground_truth_separation_test.rs` passes
 4. ✅ **Integration Testing**: `benchmarks_test.rs` passes with surfpool
 5. ✅ **Clippy Compliance**: `cargo clippy --fix --allow-dirty` clean
@@ -596,7 +596,7 @@ cargo test -p reev-agent --test ground_truth_separation_test -- --nocapture
 # Check surfpool availability
 curl -X POST http://127.0.0.1:8899 -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'
 
-# Check agent availability  
+# Check agent availability
 curl http://127.0.0.1:9090/health
 
 # Run integration tests with specific agent

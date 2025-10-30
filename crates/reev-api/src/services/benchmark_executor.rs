@@ -60,7 +60,7 @@ where
         Self::new(
             db,
             RunnerConfig {
-                runner_binary_path: "./target/release/reev-runner".to_string(),
+                runner_binary_path: "./target/debug/reev-runner".to_string(),
                 working_directory: std::env::current_dir()
                     .unwrap_or_else(|_| std::path::PathBuf::from("."))
                     .to_string_lossy()

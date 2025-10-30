@@ -32,7 +32,7 @@ fn get_runner_binary() -> Result<String> {
     }
 
     if !std::path::Path::new(binary_path).exists() {
-        anyhow::bail!("Binary not found at {}", binary_path);
+        anyhow::bail!("Binary not found at {binary_path}");
     }
 
     Ok(binary_path.to_string())
@@ -125,7 +125,7 @@ async fn test_simple_cli_command() -> Result<()> {
     let session_file = "logs/sessions/session_debug-cli-test.json";
     if std::path::Path::new(&session_file).exists() {
         info!("✅ Session file exists: {}", session_file);
-        let content = std::fs::read_to_string(&session_file)?;
+        let content = std::fs::read_to_string(session_file)?;
         info!("📁 Session file size: {} bytes", content.len());
 
         // Parse and verify basic structure
@@ -164,7 +164,7 @@ async fn test_simple_cli_command() -> Result<()> {
     let otel_file = "logs/sessions/enhanced_otel_debug-cli-test.jsonl";
     if std::path::Path::new(&otel_file).exists() {
         info!("✅ OTEL file exists: {}", otel_file);
-        let content = std::fs::read_to_string(&otel_file)?;
+        let content = std::fs::read_to_string(otel_file)?;
         let line_count = content.lines().count();
         info!("📁 OTEL file lines: {}", line_count);
     } else {

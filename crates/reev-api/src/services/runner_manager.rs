@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use anyhow::{anyhow, Result};
-use reev_db::DatabaseWriter;
+use reev_db::{writer::DatabaseWriterTrait, DatabaseWriter};
 use reev_types::{
     ExecutionRequest, ExecutionState, ExecutionStatus, ProcessExecutionResult, RunnerCommand,
     RunnerConfig, RunnerProcessState, TimeoutConfig,
@@ -255,11 +255,21 @@ impl RunnerProcessManager {
 
     /// Store execution state in database
     async fn store_execution_state(&self, state: &ExecutionState) -> Result<()> {
-        // TODO: Implement when database trait has store_execution_state method
+        // Store execution state in database using the db writer
         debug!(
-            "Storing execution state: {} (placeholder)",
-            state.execution_id
+            "Storing execution state: {} with status: {:?}",
+            state.execution_id, state.status
         );
+
+        // Convert execution state to database format and store
+        if let Err(e) = self.db.store_execution_state(state).await {
+            error!(
+                "Failed to store execution state {}: {}",
+                state.execution_id, e
+            );
+            return Err(anyhow!("Failed to store execution state: {e}"));
+        }
+
         Ok(())
     }
 

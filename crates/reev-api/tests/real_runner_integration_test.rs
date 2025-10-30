@@ -86,8 +86,7 @@ async fn test_real_runner_integration() -> Result<()> {
     let benchmark_file_path = &execution_request.benchmark_path;
     assert!(
         std::path::Path::new(benchmark_file_path).exists(),
-        "Benchmark file should exist at {}",
-        benchmark_file_path
+        "Benchmark file should exist at {benchmark_file_path}"
     );
 
     // QUICK DEBUG: Test session file reading logic directly
@@ -192,20 +191,18 @@ async fn test_real_runner_integration() -> Result<()> {
     }
 
     // Verify session file was created
-    let session_file_path = format!("logs/sessions/session_{}.json", execution_id);
+    let session_file_path = format!("logs/sessions/session_{execution_id}.json");
     assert!(
         std::path::Path::new(&session_file_path).exists(),
-        "Session file should be created at {}",
-        session_file_path
+        "Session file should be created at {session_file_path}"
     );
     info!("✅ Session file created: {}", session_file_path);
 
     // Verify OTEL file was created
-    let otel_file_path = format!("logs/sessions/enhanced_otel_{}.jsonl", execution_id);
+    let otel_file_path = format!("logs/sessions/enhanced_otel_{execution_id}.jsonl");
     assert!(
         std::path::Path::new(&otel_file_path).exists(),
-        "OTEL file should be created at {}",
-        otel_file_path
+        "OTEL file should be created at {otel_file_path}"
     );
     info!("✅ OTEL file created: {}", otel_file_path);
 

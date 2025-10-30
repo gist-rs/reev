@@ -198,13 +198,9 @@ impl DependencyManager {
         debug!("Creating reev-agent process configuration...");
         let process_config = ProcessConfig::new(
             dependency_type.process_name().to_string(),
-            "cargo".to_string(),
+            "./target/debug/reev-agent".to_string(),
         )
-        .with_args(vec![
-            "run".to_string(),
-            "--package".to_string(),
-            "reev-agent".to_string(),
-        ])
+        .with_args(vec![])
         .with_stdout(log_file.clone())
         .with_stderr(log_file)
         .with_startup_timeout(self.config.startup_timeout)
