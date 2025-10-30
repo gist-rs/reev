@@ -32,8 +32,7 @@ async fn test_benchmark_executor_mode_detection() {
         let is_available = test_executor.is_runner_available().await;
 
         println!(
-            "{} ({}) - Runner available: {}",
-            description, mode_value, is_available
+            "{description} ({mode_value}) - Runner available: {is_available}"
         );
 
         // At least one mode should work
@@ -65,8 +64,7 @@ async fn test_benchmark_list_functionality() {
         Err(e) => {
             // It's okay if this fails in CI (no benchmarks directory)
             println!(
-                "Benchmark listing failed (expected in some environments): {}",
-                e
+                "Benchmark listing failed (expected in some environments): {e}"
             );
         }
     }
@@ -75,13 +73,13 @@ async fn test_benchmark_list_functionality() {
     let agents = executor.list_agents().await;
     match agents {
         Ok(list) => {
-            println!("Found agents: {:?}", list);
+            println!("Found agents: {list:?}");
             // Should find at least the default agents
             assert!(!list.is_empty());
             assert!(list.iter().any(|a| a == "deterministic" || a == "local"));
         }
         Err(e) => {
-            println!("Agent listing failed: {}", e);
+            println!("Agent listing failed: {e}");
         }
     }
 }

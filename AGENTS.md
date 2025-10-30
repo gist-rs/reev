@@ -17,8 +17,8 @@
 - Always diagnostic and fix error before run server.
 - Must use `RUST_LOG=info` and `--quiet` to reduce log noise and better filter the log by target keyword.
 - RESTRICT jupiter_earn tool to position/earnings benchmarks (114-*.yml) only, never add to normal agent tool list.
+- when stuck, try to find what working and start adding until it break.
 
 ## DONT
 - DONT Add a test on each file, place it in tests folder.
-- DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo watch -w crates/reev-api -x "run -p reev-api --bin reev-api" > logs/reev-api.log 2>&1 &` so server will reflect the latest code.
-- DONT run web server.
+- DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo ...`.

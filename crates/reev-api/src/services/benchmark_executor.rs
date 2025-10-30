@@ -98,12 +98,10 @@ where
         self.execute_cli_benchmark(&mut execution_state, params)
             .await?;
 
-        // Only store final state to database if execution was successful
-        // Don't store to database on CLI failures to avoid lock conflicts
-        if execution_state.status == ExecutionStatus::Completed {
-            if let Err(e) = self.store_execution_state(&execution_state).await {
-                warn!("Failed to store successful execution state: {}", e);
-            }
+        // Store final execution state to database regardless of status
+        // This ensures both successful and failed executions are tracked
+        if let Err(e) = self.store_execution_state(&execution_state).await {
+            warn!("Failed to store execution state: {}", e);
         }
 
         debug!("Benchmark execution completed: {}", execution_id);

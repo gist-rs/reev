@@ -33,15 +33,17 @@ impl<'a> ExecutionStatesWriter<'a> {
             .transpose()
             .map_err(|e| DatabaseError::serialization("Failed to serialize result data", e))?;
 
-        self.conn
+        // Try to insert the execution state
+        match self
+            .conn
             .execute(
                 r#"
-                INSERT OR REPLACE INTO execution_states (
-                    execution_id, benchmark_id, agent, status,
-                    created_at, updated_at, progress, error_message,
-                    result_data, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                "#,
+            INSERT INTO execution_states (
+                execution_id, benchmark_id, agent, status,
+                created_at, updated_at, progress, error_message,
+                result_data, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
                 [
                     state.execution_id.clone(),
                     state.benchmark_id.clone(),
@@ -57,17 +59,70 @@ impl<'a> ExecutionStatesWriter<'a> {
                         .as_ref()
                         .unwrap_or(&String::new())
                         .clone(),
-                    result_data_json.unwrap_or_else(|| "null".to_string()),
-                    metadata_json,
+                    result_data_json
+                        .clone()
+                        .unwrap_or_else(|| "null".to_string()),
+                    metadata_json.clone(),
                 ],
             )
             .await
-            .map_err(|e| {
-                DatabaseError::query(
-                    format!("Failed to store execution state: {}", state.execution_id),
-                    e,
-                )
-            })?;
+        {
+            Ok(_) => {
+                // Successfully inserted
+            }
+            Err(e) => {
+                // Check if it's a duplicate key error and try update
+                if e.to_string().contains("UNIQUE constraint failed")
+                    || e.to_string().contains("duplicate")
+                {
+                    debug!(
+                        "[DB] Duplicate execution_id {}, attempting update",
+                        state.execution_id
+                    );
+
+                    self.conn
+                        .execute(
+                            r#"
+                        UPDATE execution_states SET
+                            benchmark_id = ?, agent = ?, status = ?,
+                            created_at = ?, updated_at = ?, progress = ?,
+                            error_message = ?, result_data = ?, metadata = ?
+                        WHERE execution_id = ?
+                        "#,
+                            [
+                                state.benchmark_id.clone(),
+                                state.agent.clone(),
+                                serde_json::to_string(&state.status).map_err(|e| {
+                                    DatabaseError::serialization("Failed to serialize status", e)
+                                })?,
+                                state.created_at.timestamp().to_string(),
+                                state.updated_at.timestamp().to_string(),
+                                state.progress.unwrap_or(0.0).to_string(),
+                                state
+                                    .error_message
+                                    .as_ref()
+                                    .unwrap_or(&String::new())
+                                    .clone(),
+                                result_data_json.unwrap_or_else(|| "null".to_string()),
+                                metadata_json,
+                                state.execution_id.clone(),
+                            ],
+                        )
+                        .await
+                        .map_err(|e| {
+                            DatabaseError::query(
+                                format!("Failed to update execution state: {}", state.execution_id),
+                                e,
+                            )
+                        })?;
+                } else {
+                    return Err(DatabaseError::query(
+                        format!("Failed to insert execution state: {}", state.execution_id),
+                        e,
+                    ));
+                }
+            }
+        }
 
         info!("[DB] Stored execution state: {}", state.execution_id);
         Ok(())
@@ -362,16 +417,16 @@ impl<'a> ExecutionStatesWriter<'a> {
 
     /// Convert database row to ExecutionState
     fn row_to_execution_state(&self, row: turso::Row) -> Result<ExecutionState> {
-        let status_str: String = row.get(6)?;
+        let status_str: String = row.get(3)?; // status is at index 3
         let status: ExecutionStatus = serde_json::from_str(&status_str)
             .map_err(|e| DatabaseError::serialization("Failed to deserialize status", e))?;
 
-        let metadata_str: String = row.get(9)?;
+        let metadata_str: String = row.get(9)?; // metadata is at index 9
         let metadata: std::collections::HashMap<String, serde_json::Value> =
             serde_json::from_str(&metadata_str)
                 .map_err(|e| DatabaseError::serialization("Failed to deserialize metadata", e))?;
 
-        let result_data_str: String = row.get(8)?;
+        let result_data_str: String = row.get(8)?; // result_data is at index 8
         let result_data = if result_data_str == "null" {
             None
         } else {
@@ -380,24 +435,21 @@ impl<'a> ExecutionStatesWriter<'a> {
             })?)
         };
 
-        let created_at_str: String = row.get(4)?;
-        let updated_at_str: String = row.get(5)?;
-
-        let created_at_timestamp: i64 = created_at_str.parse().unwrap_or(0);
-        let updated_at_timestamp: i64 = updated_at_str.parse().unwrap_or(0);
+        let created_at_timestamp: i64 = row.get(4)?; // created_at is at index 4 (INTEGER)
+        let updated_at_timestamp: i64 = row.get(5)?; // updated_at is at index 5 (INTEGER)
 
         Ok(ExecutionState {
-            execution_id: row.get(0)?,
-            benchmark_id: row.get(1)?,
-            agent: row.get(2)?,
+            execution_id: row.get(0)?, // execution_id is at index 0
+            benchmark_id: row.get(1)?, // benchmark_id is at index 1
+            agent: row.get(2)?,        // agent is at index 2
             status,
             created_at: chrono::DateTime::from_timestamp(created_at_timestamp, 0)
                 .unwrap_or_else(chrono::Utc::now),
             updated_at: chrono::DateTime::from_timestamp(updated_at_timestamp, 0)
                 .unwrap_or_else(chrono::Utc::now),
-            progress: row.get::<String>(6)?.parse().ok(),
+            progress: Some(row.get::<f64>(6)?), // progress is at index 6 (REAL)
             error_message: {
-                let error_str: String = row.get(7)?;
+                let error_str: String = row.get(7)?; // error_message is at index 7
                 if error_str.is_empty() {
                     None
                 } else {
