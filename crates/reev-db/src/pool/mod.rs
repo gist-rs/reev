@@ -29,6 +29,8 @@ pub struct ConnectionPool {
     max_connections: usize,
     /// Current pool size
     current_size: Arc<Mutex<usize>>,
+    /// Flag to track if schema has been initialized
+    schema_initialized: Arc<Mutex<bool>>,
 }
 
 impl ConnectionPool {
@@ -45,6 +47,7 @@ impl ConnectionPool {
             semaphore: Arc::new(Semaphore::new(max_connections)),
             max_connections,
             current_size: Arc::new(Mutex::new(0)),
+            schema_initialized: Arc::new(Mutex::new(false)),
         };
 
         // Pre-warm pool with at least 1 connection
@@ -93,31 +96,42 @@ impl ConnectionPool {
             DatabaseError::connection_with_source("Failed to establish database connection", e)
         })?;
 
-        // Initialize schema for new connection
-        let schema_string = include_str!("../../.schema/current_schema.sql")
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with("--"))
-            .collect::<Vec<&str>>()
-            .join(" ");
+        // Initialize schema only once for the first connection to prevent locking issues
+        // This approach is based on Turso testing insights about concurrency limitations
+        let mut schema_init = self.schema_initialized.lock().await;
+        if !*schema_init {
+            debug!("[POOL] Initializing database schema for first connection");
 
-        let statements: Vec<&str> = schema_string
-            .split(';')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+            let schema_string = include_str!("../../.schema/current_schema.sql")
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty() && !line.starts_with("--"))
+                .collect::<Vec<&str>>()
+                .join(" ");
 
-        for statement in statements.iter() {
-            if statement.trim().is_empty() {
-                continue;
+            let statements: Vec<&str> = schema_string
+                .split(';')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            for statement in statements.iter() {
+                if statement.trim().is_empty() {
+                    continue;
+                }
+
+                conn.execute(statement, ()).await.map_err(|e| {
+                    DatabaseError::schema_with_source(
+                        format!("Failed to execute schema statement: {statement}"),
+                        e,
+                    )
+                })?;
             }
 
-            conn.execute(statement, ()).await.map_err(|e| {
-                DatabaseError::schema_with_source(
-                    format!("Failed to execute schema statement: {statement}"),
-                    e,
-                )
-            })?;
+            *schema_init = true;
+            debug!("[POOL] Database schema initialized successfully");
+        } else {
+            debug!("[POOL] Schema already initialized, skipping for this connection");
         }
 
         // Add connection to pool

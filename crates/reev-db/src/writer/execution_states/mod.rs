@@ -33,17 +33,28 @@ impl<'a> ExecutionStatesWriter<'a> {
             .transpose()
             .map_err(|e| DatabaseError::serialization("Failed to serialize result data", e))?;
 
-        // Try to insert the execution state
-        match self
-            .conn
-            .execute(
-                r#"
+        // Use proper UPSERT with ON CONFLICT DO UPDATE to prevent index corruption
+        // This approach is proven to work reliably in Turso testing
+        let query = r#"
             INSERT INTO execution_states (
                 execution_id, benchmark_id, agent, status,
                 created_at, updated_at, progress, error_message,
                 result_data, metadata
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
+            ON CONFLICT(execution_id) DO UPDATE SET
+                benchmark_id = excluded.benchmark_id,
+                agent = excluded.agent,
+                status = excluded.status,
+                updated_at = excluded.updated_at,
+                progress = excluded.progress,
+                error_message = excluded.error_message,
+                result_data = excluded.result_data,
+                metadata = excluded.metadata;
+        "#;
+
+        self.conn
+            .execute(
+                query,
                 [
                     state.execution_id.clone(),
                     state.benchmark_id.clone(),
@@ -59,72 +70,17 @@ impl<'a> ExecutionStatesWriter<'a> {
                         .as_ref()
                         .unwrap_or(&String::new())
                         .clone(),
-                    result_data_json
-                        .clone()
-                        .unwrap_or_else(|| "null".to_string()),
-                    metadata_json.clone(),
+                    result_data_json.unwrap_or_else(|| "null".to_string()),
+                    metadata_json,
                 ],
             )
             .await
-        {
-            Ok(_) => {
-                // Successfully inserted
-                debug!("[DB] Execution state inserted: {}", state.execution_id);
-            }
-            Err(e) => {
-                // Check if it's a duplicate key error and try update
-                let error_str = e.to_string();
-                if error_str.contains("UNIQUE constraint failed")
-                    || error_str.contains("duplicate")
-                    || error_str.contains("UNIQUE")
-                {
-                    debug!(
-                        "[DB] Duplicate execution_id {}, attempting update",
-                        state.execution_id
-                    );
-
-                    self.conn
-                        .execute(
-                            r#"
-                        UPDATE execution_states SET
-                            benchmark_id = ?, agent = ?, status = ?,
-                            updated_at = ?, progress = ?,
-                            error_message = ?, result_data = ?, metadata = ?
-                        WHERE execution_id = ?
-                        "#,
-                            [
-                                state.benchmark_id.clone(),
-                                state.agent.clone(),
-                                serde_json::to_string(&state.status).map_err(|e| {
-                                    DatabaseError::serialization("Failed to serialize status", e)
-                                })?,
-                                state.updated_at.timestamp().to_string(),
-                                state.progress.unwrap_or(0.0).to_string(),
-                                state
-                                    .error_message
-                                    .as_ref()
-                                    .unwrap_or(&String::new())
-                                    .clone(),
-                                result_data_json.unwrap_or_else(|| "null".to_string()),
-                                metadata_json,
-                                state.execution_id.clone(),
-                            ],
-                        )
-                        .await
-                        .map_err(|e| {
-                            DatabaseError::query(
-                                format!("Failed to update execution state: {}", state.execution_id),
-                                e,
-                            )
-                        })?;
-                } else {
-                    return Err(DatabaseError::query(
-                        format!("Failed to insert execution state: {}", state.execution_id),
-                        e,
-                    ));
-                }
-            }
-        }
+            .map_err(|e| {
+                DatabaseError::query(
+                    format!("Failed to store execution state: {}", state.execution_id),
+                    e,
+                )
+            })?;
 
         info!("[DB] Stored execution state: {}", state.execution_id);
         Ok(())

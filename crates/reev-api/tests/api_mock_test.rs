@@ -18,8 +18,13 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     info!("🧪 Starting API mock test with real session data");
 
-    // Setup in-memory database for test
-    let db_config = DatabaseConfig::new("sqlite::memory:");
+    // Setup file-based database for test to avoid in-memory connection issues
+    // Using file-based DB based on Turso testing insights about connection sharing limitations
+    let test_db_path = format!(
+        "test_db_{}.db",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+    );
+    let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 
     // Create benchmark executor with test config
@@ -162,7 +167,11 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     info!("🎉 API mock test completed successfully!");
 
-    // No cleanup needed for in-memory database
+    // Cleanup test database file
+    if std::path::Path::new(&test_db_path).exists() {
+        std::fs::remove_file(&test_db_path)?;
+        info!("🧹 Cleaned up test database file: {}", test_db_path);
+    }
 
     Ok(())
 }
@@ -248,8 +257,13 @@ async fn test_otel_file_verification() -> Result<()> {
 async fn test_api_state_management_only() -> Result<()> {
     info!("🧪 Testing API state management (no runner)");
 
-    // Setup in-memory database for test
-    let db_config = DatabaseConfig::new("sqlite::memory:");
+    // Setup file-based database for test to avoid in-memory connection issues
+    // Using file-based DB based on Turso testing insights about connection sharing limitations
+    let test_db_path = format!(
+        "test_db_state_{}.db",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+    );
+    let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 
     let execution_id = "test-execution-123";
@@ -257,7 +271,7 @@ async fn test_api_state_management_only() -> Result<()> {
     let agent = "glm-4.6-coding";
 
     // Create execution request
-    let execution_request = ExecutionRequest {
+    let _execution_request = ExecutionRequest {
         request_id: format!("req-{execution_id}"),
         execution_id: Some(execution_id.to_string()),
         benchmark_path: format!("benchmarks/{benchmark_id}.yml"),
@@ -341,7 +355,11 @@ async fn test_api_state_management_only() -> Result<()> {
 
     info!("✅ API state management test passed");
 
-    // No cleanup needed for in-memory database
+    // Cleanup test database file
+    if std::path::Path::new(&test_db_path).exists() {
+        std::fs::remove_file(&test_db_path)?;
+        info!("🧹 Cleaned up test database file: {}", test_db_path);
+    }
 
     Ok(())
 }

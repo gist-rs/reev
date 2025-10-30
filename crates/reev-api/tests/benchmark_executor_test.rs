@@ -15,7 +15,7 @@ async fn test_benchmark_executor_mode_detection() {
     std::env::remove_var("REEV_USE_RELEASE");
 
     // This should auto-detect the release binary if it exists
-    let result = executor.is_runner_available().await;
+    let _result = executor.is_runner_available().await;
 
     // Test different modes
     let test_cases = vec![
@@ -31,9 +31,7 @@ async fn test_benchmark_executor_mode_detection() {
         let test_executor = PooledBenchmarkExecutor::new_with_default(db.clone());
         let is_available = test_executor.is_runner_available().await;
 
-        println!(
-            "{description} ({mode_value}) - Runner available: {is_available}"
-        );
+        println!("{description} ({mode_value}) - Runner available: {is_available}");
 
         // At least one mode should work
         assert!(is_available || mode_value == "true" || mode_value == "false");
@@ -63,9 +61,7 @@ async fn test_benchmark_list_functionality() {
         }
         Err(e) => {
             // It's okay if this fails in CI (no benchmarks directory)
-            println!(
-                "Benchmark listing failed (expected in some environments): {e}"
-            );
+            println!("Benchmark listing failed (expected in some environments): {e}");
         }
     }
 

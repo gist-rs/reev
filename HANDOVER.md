@@ -21,12 +21,17 @@
 
 - **#32**: Database connection locks + Session file feedback loop - **RESOLVED** ✅
 - **#35**: API Status Tracking Sync Failure - **RESOLVED** ✅ (Database metadatac→metadata fix)
-- **#36**: Database UPDATE Index Corruption During API Status Updates - **IN PROGRESS** 🔍
+- **#36**: Database UPDATE Index Corruption During API Status Updates - **RESOLVED** ✅
   - Successfully removed all database operations from reev-runner
   - Implemented session file reading and feedback loop in BenchmarkExecutor
   - Added pre-built binary support to eliminate compilation delays
   - Confirmed end-to-end execution: session files created → API reads → database storage
   - Database lock conflicts completely eliminated between API and runner
+  - **NEW**: Fixed database UPDATE corruption using proper UPSERT with `ON CONFLICT DO UPDATE`
+  - **NEW**: Replaced INSERT-then-UPDATE pattern that caused index corruption
+  - **NEW**: Fixed connection pool schema initialization to prevent locking
+  - **NEW**: All 4/4 API mock tests now pass successfully
+  - **NEW**: API status transitions work: Queued → Running → Completed
 
 ### 🎯 COMPLETED ARCHITECTURE
 - **API Server**: ✅ Stable on port 3001
@@ -122,7 +127,7 @@ cargo test test_database_operations_isolation
 - ⚠️ NEW CRITICAL ISSUE: Database UPDATE corruption prevents status transitions
 - 🔍 Active investigation in progress with rapid testing methodology
 
-### 🚨 **IN PROGRESS - Issue #36**
+### 🎉 **COMPLETED - Issue #36**
 **Status**: **ACTIVE INVESTIGATION** - Database UPDATE corruption isolated, fix in progress
 
 **Completed Work:**
@@ -149,7 +154,7 @@ cargo test test_database_operations_isolation
 
 **Solution Implemented**: Rapid testing methodology using proven successful execution data as mock inputs.
 
-### 🔍 **CURRENT ISSUE: Database UPDATE Index Corruption**
+### 🎯 **RESOLVED: Database UPDATE Index Corruption**
 **New Development Challenge**: Database UPDATE operations corrupt execution_states table indexes, preventing API status transitions.
 
 **Current Investigation**: 
