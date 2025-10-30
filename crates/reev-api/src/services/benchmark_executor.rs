@@ -171,6 +171,12 @@ where
             self.update_execution_state_from_cli_result(execution_state, &result);
         }
 
+        // Store final execution state with session file results in database
+        // This ensures "Completed" status and actual results are persisted
+        if let Err(e) = self.store_execution_state(&execution_state).await {
+            warn!("Failed to store session file results in database: {}", e);
+        }
+
         Ok(())
     }
 
