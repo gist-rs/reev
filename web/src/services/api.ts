@@ -84,6 +84,24 @@ class ApiClient {
     );
   }
 
+  // Get benchmark with recent executions
+  async getBenchmarkWithExecutions(benchmarkId: string): Promise<{
+    id: string;
+    description: string;
+    tags: string[];
+    prompt: string;
+    recent_executions: Array<{
+      execution_id: string;
+      agent_type: string;
+      status: string;
+      created_at: string;
+      score: number | null;
+    }>;
+    latest_execution_id: string | null;
+  }> {
+    return this.request(`/api/v1/benchmarks/${benchmarkId}`);
+  }
+
   // Agents
   async listAgents(): Promise<string[]> {
     return this.request<string[]>("/api/v1/agents");
@@ -128,11 +146,16 @@ class ApiClient {
   }
 
   // Execution trace
-  async getExecutionTrace(benchmarkId: string): Promise<any> {
+  async getExecutionTrace(
+    benchmarkId: string,
+    executionId?: string,
+  ): Promise<any> {
     try {
-      const result = await this.request<any>(
-        `/api/v1/execution-logs/${benchmarkId}`,
-      );
+      const url = executionId
+        ? `/api/v1/execution-logs/${benchmarkId}?execution_id=${executionId}`
+        : `/api/v1/execution-logs/${benchmarkId}`;
+
+      const result = await this.request<any>(url);
       return result;
     } catch (error) {
       console.error("❌ API Client - getExecutionTrace failed:", error);
@@ -232,6 +255,8 @@ export const apiClient = {
   listBenchmarks: () => apiClientInstance.listBenchmarks(),
   getBenchmark: (benchmarkId: string) =>
     apiClientInstance.getBenchmark(benchmarkId),
+  getBenchmarkWithExecutions: (benchmarkId: string) =>
+    apiClientInstance.getBenchmarkWithExecutions(benchmarkId),
   listAgents: () => apiClientInstance.listAgents(),
   listResults: (query?: ResultsQuery) => apiClientInstance.listResults(query),
   getBenchmarkResults: (benchmarkId: string) =>
@@ -240,8 +265,8 @@ export const apiClient = {
     apiClientInstance.getFlowLog(benchmarkId),
   getTransactionLogs: (benchmarkId: string) =>
     apiClientInstance.getTransactionLogs(benchmarkId),
-  getExecutionTrace: (executionId: string) =>
-    apiClientInstance.getExecutionTrace(executionId),
+  getExecutionTrace: (benchmarkId: string, executionId?: string) =>
+    apiClientInstance.getExecutionTrace(benchmarkId, executionId),
   getAgentPerformance: () => apiClientInstance.getAgentPerformance(),
   // New methods
   runBenchmark: (benchmarkId: string, request: BenchmarkExecutionRequest) =>

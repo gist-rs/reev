@@ -81,6 +81,10 @@ async fn main() -> Result<()> {
         .route("/api/v1/health", get(health_check))
         // General routes
         .route("/api/v1/benchmarks", get(list_benchmarks))
+        .route(
+            "/api/v1/benchmarks/{id}",
+            get(get_benchmark_with_executions),
+        )
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agent-performance", get(get_agent_performance))
         // Debug endpoints

@@ -1,15 +1,19 @@
 //! Benchmark management handlers
 
-use crate::types::{ApiState, BenchmarkExecutionRequest};
+use crate::types::{
+    ApiState, BenchmarkExecution, BenchmarkExecutionRequest, BenchmarkWithExecutions,
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use chrono;
+use reev_db::types::SessionFilter;
 use reev_types::{ExecutionRequest, ExecutionResponse, ExecutionState, ExecutionStatus};
+use serde_json::json;
 use std::collections::HashMap;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// List all available benchmarks
@@ -17,8 +21,13 @@ pub async fn list_benchmarks(
     State(state): State<ApiState>,
 ) -> Json<Vec<crate::types::BenchmarkInfo>> {
     // Query benchmarks directly from database instead of CLI
+    info!("Attempting to query benchmarks from database");
     match state.db.get_all_benchmarks().await {
         Ok(benchmark_data) => {
+            info!(
+                "Successfully retrieved {} benchmarks from database",
+                benchmark_data.len()
+            );
             let mut benchmarks = Vec::new();
 
             for data in benchmark_data {
@@ -73,8 +82,127 @@ pub async fn list_benchmarks(
         }
         Err(e) => {
             error!("Failed to list benchmarks from database: {}", e);
+            error!("Database query failed: {:?}", e);
             // Fallback to filesystem discovery
+            warn!("Falling back to filesystem discovery due to database error");
             fallback_filesystem_discovery()
+        }
+    }
+}
+
+/// Get benchmark details with recent executions
+pub async fn get_benchmark_with_executions(
+    State(state): State<ApiState>,
+    Path(benchmark_id): Path<String>,
+) -> Result<Json<BenchmarkWithExecutions>, (StatusCode, Json<serde_json::Value>)> {
+    info!("Getting benchmark with executions for ID: {}", benchmark_id);
+    // First get benchmark info
+    match state.db.get_benchmark_by_id(&benchmark_id).await {
+        Ok(Some(benchmark_data)) => {
+            info!("Found benchmark data for: {}", benchmark_id);
+            // Parse YAML content to extract description and tags
+            let (description, tags) =
+                match serde_yaml::from_str::<serde_yaml::Value>(&benchmark_data.content) {
+                    Ok(yaml) => {
+                        let description = yaml
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("No description available")
+                            .to_string();
+
+                        let tags = yaml
+                            .get("tags")
+                            .and_then(|v| v.as_sequence())
+                            .map(|seq| {
+                                seq.iter()
+                                    .filter_map(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        (description, tags)
+                    }
+                    Err(e) => {
+                        error!("Failed to parse YAML content for {}: {}", benchmark_id, e);
+                        ("Failed to parse description".to_string(), vec![])
+                    }
+                };
+
+            // Get recent executions for this benchmark
+            let filter = SessionFilter {
+                benchmark_id: Some(benchmark_id.clone()),
+                agent_type: None,
+                interface: None,
+                status: None,
+                limit: Some(10), // Get last 10 executions
+            };
+
+            let recent_executions = match state.db.list_sessions(&filter).await {
+                Ok(sessions) => {
+                    info!(
+                        "Found {} recent executions for benchmark {}",
+                        sessions.len(),
+                        benchmark_id
+                    );
+                    let mut executions = Vec::new();
+                    for session in sessions {
+                        executions.push(BenchmarkExecution {
+                            execution_id: session.session_id,
+                            agent_type: session.agent_type,
+                            status: session.status.clone(),
+                            created_at: chrono::DateTime::from_timestamp(session.start_time, 0)
+                                .unwrap_or_default()
+                                .to_rfc3339(),
+                            score: session.score,
+                        });
+                    }
+                    executions
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to get recent executions for benchmark {}: {}",
+                        benchmark_id, e
+                    );
+                    vec![]
+                }
+            };
+
+            let latest_execution_id = recent_executions.first().map(|e| e.execution_id.clone());
+            info!(
+                "Latest execution ID for {}: {:?}",
+                benchmark_id, latest_execution_id
+            );
+
+            let response = BenchmarkWithExecutions {
+                id: benchmark_id.clone(),
+                description,
+                tags,
+                prompt: benchmark_data.prompt,
+                recent_executions,
+                latest_execution_id,
+            };
+
+            info!(
+                "Successfully returning benchmark with executions for: {}",
+                benchmark_id
+            );
+            Ok(Json(response))
+        }
+        Ok(None) => {
+            let response = json!({
+                "error": "Benchmark not found",
+                "benchmark_id": benchmark_id
+            });
+            Err((StatusCode::NOT_FOUND, Json(response)))
+        }
+        Err(e) => {
+            error!("Failed to get benchmark {}: {}", benchmark_id, e);
+            let response = json!({
+                "error": "Database error",
+                "message": format!("Failed to retrieve benchmark: {}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(response)))
         }
     }
 }

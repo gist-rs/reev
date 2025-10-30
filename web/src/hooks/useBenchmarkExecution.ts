@@ -15,6 +15,7 @@ interface UseBenchmarkExecutionReturn {
   setCompletionCallback: (
     callback: (benchmarkId: string, execution: ExecutionState) => void,
   ) => void;
+  getExecutionTraceWithLatestId: (benchmarkId: string) => Promise<any>;
 }
 
 export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
@@ -121,6 +122,37 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     [],
   );
 
+  // New function to get execution trace with proper execution_id
+  const getExecutionTraceWithLatestId = useCallback(
+    async (benchmarkId: string): Promise<any> => {
+      try {
+        // First, get benchmark with recent executions to find latest execution_id
+        const benchmarkData =
+          await apiClient.getBenchmarkWithExecutions(benchmarkId);
+
+        // Use the latest execution_id if available
+        const latestExecutionId = benchmarkData.latest_execution_id;
+
+        if (latestExecutionId) {
+          return await apiClient.getExecutionTrace(
+            benchmarkId,
+            latestExecutionId,
+          );
+        } else {
+          // Fallback to old method if no execution_id found
+          return await apiClient.getExecutionTrace(benchmarkId);
+        }
+      } catch (error) {
+        console.error(
+          `Failed to get execution trace for benchmark ${benchmarkId}:`,
+          error,
+        );
+        throw error;
+      }
+    },
+    [],
+  );
+
   const stopPolling = useCallback((executionId: string) => {
     const intervalId = pollingIntervals.current.get(executionId);
     if (intervalId) {
@@ -175,6 +207,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     updateExecution,
     clearExecutions,
     setCompletionCallback,
+    getExecutionTraceWithLatestId,
   };
 }
 
@@ -197,5 +230,13 @@ export function useExecutionState() {
     executions,
     updateExecution,
     clearExecutions,
+  };
+}
+
+export function useExecutionTrace() {
+  const { getExecutionTraceWithLatestId } = useBenchmarkExecution();
+
+  return {
+    getExecutionTraceWithLatestId,
   };
 }

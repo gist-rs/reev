@@ -10,6 +10,7 @@ import {
 import { memo } from "preact/compat";
 import { apiClient } from "../services/api";
 import { ExecutionState } from "../types/configuration";
+import { useExecutionTrace } from "../hooks/useBenchmarkExecution";
 
 // Configuration for trace display limits
 const MAX_TRACE_LINES = 1000; // Maximum lines to display
@@ -78,6 +79,7 @@ export function ExecutionTrace({
 }: ExecutionTraceProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const traceRef = useRef<HTMLDivElement>(null);
+  const { getExecutionTraceWithLatestId } = useExecutionTrace();
 
   // Auto-scroll to bottom when new content is added
   useEffect(() => {
@@ -145,7 +147,7 @@ export function ExecutionTrace({
     setError(null);
 
     try {
-      const data = await apiClient.getExecutionTrace(benchmarkId);
+      const data = await getExecutionTraceWithLatestId(benchmarkId);
       setTraceData(data);
     } catch (err) {
       console.error("❌ ExecutionTrace - Failed to load trace:", err);

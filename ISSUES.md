@@ -341,4 +341,25 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Enhanced OTEL**: `logs/sessions/enhanced_otel_{session_id}.jsonl` (configurable via REEV_ENHANCED_OTEL_FILE env)
 - **Mode Auto-Detection**: Smart switching between cargo watch (development) and release binary (production)
 - **Session Coordination**: Cross-process execution ID passing via `--execution-id` parameter
+
+### 🔍 **NEW ISSUE - #39**
+- **Title**: Frontend Execution Logs API Using Stale Cache Due to Missing execution_id Parameter
+- **Status**: **NEW** 🆕 - Frontend calling execution logs without execution_id, causing stale data
+- **Description**: Frontend is calling `GET /api/v1/execution-logs/{benchmark_id}` without specifying execution_id, forcing API to use stale memory cache instead of fresh database data
+- **Root Cause**: 
+  - Frontend's `getExecutionTrace()` method doesn't pass execution_id parameter
+  - API falls back to memory cache first, then database, causing stale "Queued" status even after completion
+  - Missing proper frontend flow to get latest execution_id before calling execution logs
+- **Evidence**: 
+  - `web/src/services/api.ts` `getExecutionTrace()` calls `/api/v1/execution-logs/${benchmarkId}` without execution_id
+  - Backend supports execution_id query parameter but frontend doesn't use it
+  - Issue #38 fixed database lookup for execution_id, but frontend not updated to use it
+- **Proposed Solution**:
+  1. **Frontend**: Modify flow to first call `GET /api/v1/benchmarks/{id}` to get recent executions list
+  2. **Frontend**: Extract latest execution_id from benchmarks response  
+  3. **Frontend**: Then call `GET /api/v1/execution-logs/{benchmark_id}?execution_id={execution_id}`
+  4. **Backend**: Ensure `GET /api/v1/benchmarks/{id}` returns recent executions with execution_ids
+  5. **Memory DB**: Verify in-memory state writes to database first, then updates cache to ensure consistency
+- **Impact**: Users see stale execution status and can't get fresh results without page refresh
+- **Priority**: HIGH - Affects core user experience and real-time execution monitoring
 - **Zero Configuration**: No manual environment variables needed, just works automatically

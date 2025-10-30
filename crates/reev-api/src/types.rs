@@ -3,13 +3,34 @@ use serde::{Deserialize, Serialize};
 
 use crate::services::PooledBenchmarkExecutor;
 
-// API-specific wrapper for BenchmarkInfo with additional fields
+/// API-specific wrapper for BenchmarkInfo with additional fields
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkInfo {
     pub id: String,
     pub description: String,
     pub tags: Vec<String>,
     pub prompt: String,
+}
+
+/// Benchmark execution summary for recent executions list
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkExecution {
+    pub execution_id: String,
+    pub agent_type: String,
+    pub status: String,
+    pub created_at: String,
+    pub score: Option<f64>,
+}
+
+/// Benchmark details with recent executions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkWithExecutions {
+    pub id: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub prompt: String,
+    pub recent_executions: Vec<BenchmarkExecution>,
+    pub latest_execution_id: Option<String>,
 }
 
 /// API state containing database connection and execution state
