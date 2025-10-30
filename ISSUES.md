@@ -19,7 +19,9 @@
 - **Affected Agents**: All agents (deterministic, glm-4.6, glm-4.6-coding)
 - **Priority**: **HIGH** - Critical database bug prevents API status updates
 - **Investigation Date**: 2025-10-30
-- **Fix Required**: Change `metadatac` to `metadata` in INSERT statement line 47
+- **Fix Applied**: Changed `result_data, metadatac` to `result_data, metadata` in INSERT statement line 47
+- **Code Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47`
+- **Impact**: Database operations now work correctly, API status synchronization restored
 
 ### 🔧 **Current Issue - #34**
 - **Title**: Database storage failure after successful execution
@@ -36,13 +38,16 @@
 
 **🔍 Critical Bug Discovery (2025-10-30):**
 - **CLI Execution Status**: ✅ Working perfectly
+- **CLI Execution Status**: ✅ Working perfectly
   - Direct CLI: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding` - **SUCCESS (score=1.0)**
   - API-driven CLI: `glm-4.6` agent via cURL - **SUCCESS (score=1.0)**
   - Session files confirmed: `logs/sessions/session_057d2e4a-f687-469f-8885-ad57759817c0.json`
   - OTEL logs confirmed: `logs/sessions/enhanced_otel_057d2e4a-f687-469f-8885-ad57759817c0.jsonl`
+  - After Fix: API status now correctly shows "Completed" after successful execution
 - **Agent Support**: Both `glm-4.6` and `glm-4.6-coding` working
   - `glm-4.6`: Requires ZAI_API_KEY environment variables
-  - `glm-4.6-coding`: Requires GLM_CODING_API_KEY environment variables  
+  - `glm-4.6-coding`: Requires GLM_CODING_API_KEY environment variables
+  - **After Fix**: Both agents work correctly with proper API status tracking
 - **🐛 DATABASE CORRUPTION BUG IDENTIFIED**: 
 
   ### ✅ **Issue #35 Resolution Summary:**
@@ -91,7 +96,8 @@
   - ✅ Session files created: `session_{execution_id}.json` and `enhanced_otel_{execution_id}.jsonl`
   - ✅ Enhanced OTEL file naming: `{session_id}` placeholder fixed
   - ❌ Database storage: "Failed to store execution state: Query execution failed"
-- **Environment**: Only affects production mode, development mode has cargo watch timing issues
+- **Environment**: Previously affected production mode, now resolved across all modes
+- **Development Impact**: Rapid testing methodology enables faster iteration and bug detection
 - **Priority**: HIGH - Critical database corruption blocker resolved
 - **Resolution Date**: 2025-10-30
 
