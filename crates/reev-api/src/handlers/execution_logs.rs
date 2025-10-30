@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use reev_db::writer::DatabaseWriterTrait;
 use reev_types::execution::{ExecutionState, ExecutionStatus};
 
 use serde_json::json;
@@ -41,6 +42,51 @@ pub async fn get_execution_trace(
             "Found execution for benchmark: {} (status: {:?})",
             benchmark_id, execution.status
         );
+
+        // For Running/Queued executions, check database first to see if they've actually completed
+        if is_running {
+            // Check database for updated status (might be completed but not updated in memory)
+            if let Ok(Some(updated_state)) = state.db.get_execution_state(&execution_id).await {
+                let db_status = updated_state.status.clone();
+
+                if matches!(
+                    db_status,
+                    ExecutionStatus::Completed | ExecutionStatus::Failed | ExecutionStatus::Timeout
+                ) {
+                    info!(
+                        "Database shows execution completed with status: {:?}, updating response",
+                        db_status
+                    );
+
+                    // Update in-memory cache with database status
+                    let mut executions = state.executions.lock().await;
+                    if let Some(mem_execution) = executions.get_mut(&execution_id) {
+                        mem_execution.status = db_status.clone();
+                        mem_execution.updated_at = chrono::Utc::now();
+                        if let Some(ref result_data) = updated_state.result_data {
+                            mem_execution.result_data = Some(result_data.clone());
+                        }
+                    }
+                    drop(executions);
+
+                    // Return the completed execution state
+                    let response = json!({
+                        "benchmark_id": benchmark_id,
+                        "execution_id": execution_id,
+                        "agent_type": execution.agent,
+                        "interface": "web",
+                        "status": format!("{db_status:?}").to_lowercase(),
+                        "final_status": db_status,
+                        "trace": "",
+                        "is_running": false,
+                        "progress": 1.0,
+                        "result": updated_state.result_data.clone()
+                    });
+
+                    return Json(response).into_response();
+                }
+            }
+        }
 
         // Handle running executions like execution trace - return raw trace or loading message
         if is_running {

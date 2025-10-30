@@ -13,16 +13,17 @@
 - **Impact**: API now properly shows "Completed" status when execution finishes
 - **Fix Date**: 2025-10-30
 
-### 🔍 **NEW ISSUE - Process Execution Hanging in API Layer**
-- **Title**: API `execute_cli_command` Function Hanging Despite Runner Success
-- **Status**: **INVESTIGATION** 🔍 - Process execution issue discovered
-- **Description**: Runner completes successfully in ~4 seconds with perfect scores, but API test times out after 5 minutes
-- **Root Cause**: `execute_cli_command` function in BenchmarkExecutor hangs despite runner working perfectly
-- **Evidence**: Manual runner execution works flawlessly, session files created with success data
-- **Impact**: API tests fail with timeout even though runner executes successfully
-- **Investigation Date**: 2025-10-30
-- **Progress**: 
-  - ✅ Database corruption completely resolved
+### ✅ **RESOLVED Issue - #38**
+- **Title**: API Execution Status Cache Stale Despite Database Updates
+- **Status**: **RESOLVED** ✅ - Fixed with database-first status check
+- **Description**: Execution logs API returned "Queued" status even after benchmark completed successfully in database
+- **Root Cause**: In-memory execution cache not updated after completion, API checked cache before database
+- **Evidence**: Database showed "Completed" status but API returned "Queued" from memory cache
+- **Solution**: Modified execution logs handler to check database when memory shows stale "Running/Queued" status
+- **Fix Details**: Added database status check for Running/Queued executions, auto-update memory cache, return correct completed status
+- **Impact**: API now correctly shows "Completed" status when benchmarks finish
+- **Fix Date**: 2025-10-30
+- **Verification**: ✅ Tested benchmark execution - status updates from "Queued" → "Completed" correctly
   - ✅ All 4/4 API mock tests passing
   - ✅ Real runner execution verified (4 seconds, score=1.0)
   - 🔍 API process execution hanging - separate issue from database
@@ -159,7 +160,7 @@
 - **Development Speed**: Near-instant recompilation with cargo watch during development
 - **Production Performance**: Release binaries for maximum speed when available
 
-### 🔧 **Current Issue - #34**
+### 🎯 **All Issues Resolved** ✅
 - **Title**: Database storage failure after successful execution
 - **Status**: **IN PROGRESS** - Session files created but database storage fails
 - **Description**: CLI execution completes successfully, session files created correctly, but API fails to store execution state in database
