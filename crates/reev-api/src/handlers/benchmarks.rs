@@ -134,11 +134,15 @@ pub async fn get_benchmark_with_executions(
             let clean_benchmark_id = benchmark_id
                 .trim_start_matches("benchmarks/")
                 .trim_end_matches(".yml");
-            info!("DEBUG: Calling list_execution_states_by_benchmark for benchmark: {}", clean_benchmark_id);
+            info!(
+                "DEBUG: Calling list_execution_states_by_benchmark for benchmark: {}",
+                clean_benchmark_id
+            );
             let recent_executions = match state
                 .db
-                .list_execution_states_by_benchmark(&clean_benchmark_id)
+                .list_execution_states_by_benchmark(clean_benchmark_id)
                 .await
+            {
                 Ok(executions) => {
                     info!(
                         "Found {} recent executions for benchmark {}",

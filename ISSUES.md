@@ -364,6 +364,24 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Priority**: HIGH - Affects core user experience and real-time execution monitoring
 - **Zero Configuration**: No manual environment variables needed, just works automatically
 
+### ✅ **RESOLVED Issue - #41**
+- **Title**: benchmarks.rs Syntax Error - Missing Opening Brace in Match Expression
+- **Status**: **RESOLVED** ✅ - Fixed syntax error, compilation now successful
+- **Description**: The `benchmarks.rs` file had a critical syntax error where a match expression was missing its opening brace after `.await`
+- **Root Cause**: Missing opening brace after `.await` on line ~141 in `get_benchmark_with_executions` function
+- **Fix Applied**: Added missing opening brace `{` after `.await` to complete the match expression structure
+- **Impact Before**: Compilation errors preventing API server from building, multiple syntax diagnostic errors
+- **Impact After**: Clean compilation, clippy passes with only minor needless_borrow warning (also fixed)
+- **Code Location**: `crates/reev-api/src/handlers/benchmarks.rs` line ~141
+- **Evidence**: 
+  ```
+  let recent_executions = match state
+      .db
+      .list_execution_states_by_benchmark(clean_benchmark_id)
+      .await {  // <- Added this opening brace
+      Ok(executions) => {
+  ```
+
 ### 🔍 **NEW ISSUE - #40**
 - **Title**: In-Memory Cache Synchronization Failure - Stale Execution Status Despite Database Updates
 - **Status**: **NEW** 🆕 - Database updates work, but in-memory cache stays out of sync
@@ -378,6 +396,12 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   2025-10-30T10:08:18.565477Z  INFO reev_db::writer::execution_states: [DB] Stored execution state: af3501e1-688f-42ac-88d9-7f0a262d2448
   2025-10-30T10:08:20.493465Z  INFO reev_api::handlers::execution_logs: Found execution for benchmark: 001-sol-transfer (status: Queued)
   ```
+
+### 🎯 **Current Status Summary**
+- **Issue #41**: ✅ RESOLVED - benchmarks.rs syntax error fixed
+- **Issue #40**: 🔍 ACTIVE - Cache sync investigation needed
+- **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
+- **Overall**: API compilation working, remaining issues are runtime/cache related
   - Benchmark completed: `✅ 001-sol-transfer (Score: 100.0%): succeeded`
   - Database shows success, in-memory cache shows stale "Queued"
 - **Proposed Solution**: 
