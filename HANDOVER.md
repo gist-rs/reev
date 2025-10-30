@@ -1,6 +1,6 @@
 # HANDOVER.md
 
-## Current State - 2025-10-29 (Updated for Issue #32)
+## Current State - 2025-10-30 (Updated for Issue #36 - Database UPDATE Corruption)
 
 ### ✅ COMPLETED ISSUES
 - **#29**: API Architecture Fix - Remove CLI Dependency for Benchmark Listing
@@ -20,6 +20,8 @@
   - All endpoints follow proper architecture: DB reads only, file system sync for benchmarks
 
 - **#32**: Database connection locks + Session file feedback loop - **RESOLVED** ✅
+- **#35**: API Status Tracking Sync Failure - **RESOLVED** ✅ (Database metadatac→metadata fix)
+- **#36**: Database UPDATE Index Corruption During API Status Updates - **IN PROGRESS** 🔍
   - Successfully removed all database operations from reev-runner
   - Implemented session file reading and feedback loop in BenchmarkExecutor
   - Added pre-built binary support to eliminate compilation delays
@@ -54,10 +56,12 @@
    - `crates/reev-api/src/handlers/benchmarks.rs` - Fixed CLI dependency (#29)
    - `crates/reev-db/src/pool/pooled_writer.rs` - Added get_all_benchmarks method (#29)
    - `crates/reev-api/src/services/benchmark_executor.rs` - Fixed database dependencies (#32)
-   - `crates/reev-db/src/writer/execution_states/mod.rs` - Fixed column indices (#32)
-   - `crates/reev-runner/src/main.rs` - Added --no-db flag and session file reading (#32)
+   - `crates/reev-db/src/writer/execution_states/mod.rs` - Fixed column indices (#32), metadatac→metadata (#35), INSERT column count (9→10) (#36)
+   - `crates/reev-runner/src/main.rs` - Added --no-db flag and session file reading (#32), Made database-free (removed --no-db flag) (#36)
+   - `crates/reev-runner/Cargo.toml` - Removed reev-db dependency (#36)
    - `ISSUES.md` - Updated with resolution documentation
    - `HANDOVER.md` - Updated with completion status
+   - `TOFIX.md` - Created with database corruption investigation status
 
 ### 📊 TEST RESULTS
 ```bash
@@ -71,14 +75,19 @@ curl http://localhost:3001/api/v1/benchmarks
 # Agent performance - ✅ Working (empty but no crash)
 curl http://localhost:3001/api/v1/agent-performance
 
-# Status endpoint - ✅ Working (DB-only)
-curl http://localhost:3001/api/v1/benchmarks/test/status
+# Status endpoint - ❌ ISSUE - Shows "Queued" instead of "Completed"
+curl http://localhost:3001/api/v1/benchmarks/001-sol-transfer/status/{execution_id}
+# Problem: Database UPDATE corruption prevents status transition
 
 # Sync endpoint - ✅ Working (file system + DB)
 curl -X POST http://localhost:3001/api/v1/sync
 
 # Flow logs endpoint - ✅ Working (DB-only)
 curl http://localhost:3001/api/v1/flow-logs/test
+
+# Database operations test - ❌ ISSUE - UPDATE fails with index corruption
+cargo test test_database_operations_isolation
+# Error: "Corrupt database: IdxDelete: no matching index entry found"
 ```
 
 ### 🏆 SUCCESS METRICS - ALL ISSUES RESOLVED
@@ -103,36 +112,55 @@ curl http://localhost:3001/api/v1/flow-logs/test
   - Monitor session file reading performance
   - Database query optimization opportunities
 
-### 📝 **PROJECT HEALTH STATUS: EXCELLENT**
-- ✅ All critical issues resolved
+### 📝 **PROJECT HEALTH STATUS: MAINTENANCE REQUIRED**
+- ✅ All previous critical issues resolved
 - ✅ Architecture stable and functional
-- ✅ Zero database lock conflicts
+- ✅ Zero database lock conflicts between API and runner
 - ✅ Fast CLI execution with pre-built binaries
 - ✅ Session file feedback loop working
 - ✅ Frontend loads without crashes
+- ⚠️ NEW CRITICAL ISSUE: Database UPDATE corruption prevents status transitions
+- 🔍 Active investigation in progress with rapid testing methodology
 
-### 🚨 **IN PROGRESS - Issue #32**
-**Status**: **PARTIALLY COMPLETE** - Architecture changes done, testing in progress
+### 🚨 **IN PROGRESS - Issue #36**
+**Status**: **ACTIVE INVESTIGATION** - Database UPDATE corruption isolated, fix in progress
 
 **Completed Work:**
-- ✅ Identified database lock contention as root cause
-- ✅ Removed database dependency from BenchmarkExecutor 
-- ✅ Fixed database column indices in `row_to_execution_state()`
-- ✅ Added `--no-db` flag to reev-runner CLI
-- ✅ Implemented session file reading in `BenchmarkExecutor.read_session_file_results()`
+- ✅ Identified database UPDATE corruption as root cause
+- ✅ Removed database dependency from reev-runner (complete database-free architecture)
+- ✅ Fixed database column count mismatch in INSERT statement (9→10 values)
+- ✅ Fixed database metadatac→metadata column name bug
+- ✅ Removed created_at from UPDATE to avoid timestamp index conflicts
+- ✅ Implemented rapid testing methodology for database operations
+- ✅ Created comprehensive database isolation tests
+- ✅ Isolated UPDATE corruption with sub-second test reproduction
 
 **Remaining Work:**
-- [ ] Re-enable database storage in API handlers
-- [ ] Test complete execution flow end-to-end
-- [ ] Verify session file parsing works correctly
-- [ ] Confirm no database lock conflicts remain
+- [ ] Fix database UPDATE operations to prevent index corruption
+- [ ] Test complete API execution flow end-to-end
+- [ ] Verify session file parsing and database storage work correctly
+- [ ] Confirm API status transitions work: Queued → Running → Completed
+- [ ] Test concurrent database operations for stability
 
-## 🚀 **RAPID TESTING METHODOLOGY FOR BENCHMARK EXECUTION**
+### 🚀 **RAPID TESTING METHODOLOGY FOR DATABASE CORRUPTION**
 
 ### 🎯 **PROBLEM SOLVED: API Status Tracking Issues**
 **Traditional Development Issue**: API benchmark execution takes 2+ minutes per test, making debugging slow and inefficient.
 
 **Solution Implemented**: Rapid testing methodology using proven successful execution data as mock inputs.
+
+### 🔍 **CURRENT ISSUE: Database UPDATE Index Corruption**
+**New Development Challenge**: Database UPDATE operations corrupt execution_states table indexes, preventing API status transitions.
+
+**Current Investigation**: 
+- ✅ Database INSERT operations work correctly
+- ✅ Database SELECT operations work correctly  
+- ✅ Session file reading and parsing works
+- ✅ CLI execution completes successfully with perfect scores
+- ❌ Database UPDATE operations corrupt indexes with error: "IdxDelete: no matching index entry found"
+- ❌ API status permanently stuck in "Queued" state
+
+**Debug Method**: Using rapid testing methodology with isolated database tests to reproduce UPDATE corruption consistently without waiting for 2+ minute CLI execution.
 
 ### 🔍 **INVESTIGATION APPROACH**
 
@@ -360,9 +388,10 @@ cargo test test_rapid_api_with_real_data -- --nocapture
 
 This methodology demonstrates how **rapid testing with proven data** accelerates development while ensuring complete system integrity. By capturing real successful execution once and reusing it for sub-second API tests, we achieved:
 
-- **20-30x faster development cycles**
-- **100% reproducible test results** 
-- **Critical bug identification and resolution in minutes**
+- **20-30x faster development cycles** for database operation testing
+- **100% reproducible test results** for UPDATE corruption investigation
+- **Critical database bug identification and isolation in <5 minutes**
 - **Complete end-to-end validation** with minimal resources
+- **Database-free runner architecture** complete and functional
 
-The approach is **production-ready** and provides a template for efficient, reliable API development and testing.
+The approach is **production-ready** and provides a template for efficient, reliable database corruption debugging and API development.

@@ -1,27 +1,35 @@
 # Issues
 
-## 🎯 Current Status - Critical Issues Resolved, Minor Sync Issue Identified
+## 🎯 Current Status - Database Corruption Identified, Critical Investigation in Progress
 
-### 🔧 **Current Issue - #35**  
-- **Title**: API Status Tracking Sync Failure
-- **Issue #35**: **NEW** 🆕 (API Status Tracking Sync Failure)
-- **Status**: **CRITICAL BUG IDENTIFIED** 🐛 - Database corruption during UPDATE operations
-- **Description**: CLI execution via API completes successfully, but database state updates fail due to SQL column name typo
-- **Root Cause**: `metadatac` instead of `metadata` in INSERT statement causing index corruption during UPDATE
-- **Impact**: API shows incorrect "Queued" status and database operations fail with "IdxDelete: no matching index entry found"
-- **Bug Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47` - INSERT statement uses wrong column name
+### 🔧 **Current Issue - #36**  
+- **Title**: Database UPDATE Index Corruption During API Status Updates
+- **Issue #36**: **CRITICAL** 🆕 (Database UPDATE Index Corruption)
+- **Status**: **ACTIVE INVESTIGATION** 🔍 - Database index corruption prevents status updates
+- **Description**: CLI execution completes successfully, session files created correctly, but API fails to UPDATE execution state from "Queued" to "Completed"
+- **Root Cause**: Database UPDATE operations corrupt execution_states table indexes, preventing status transitions
+- **Error Details**: `SQL execution failure: Corrupt database: IdxDelete: no matching index entry found for key [Value(Integer(timestamp)), Value(Integer(status))]`
+- **Impact**: API shows stuck "Queued" status even though execution completes successfully with perfect scores
 - **Test Results**: 
   - ✅ CLI execution: Perfect scores (1.0) achieved
-  - ✅ Session files: Created correctly with complete execution data
-  - ✅ OTEL logging: Enhanced telemetry working perfectly  
-  - ❌ Database UPDATE: `metadatac` column doesn't exist, causing SQLite index corruption
-  - ❌ API status: Shows "Queued" instead of "Completed" due to failed DB operations
+  - ✅ Session files: Created correctly with complete execution data  
+  - ✅ OTEL logging: Enhanced telemetry working perfectly
+  - ✅ Database INSERT: Fixed column count mismatch (9→10 values)
+  - ✅ Database SELECT: Retrieval operations work correctly
+  - ❌ Database UPDATE: Index corruption prevents status updates
+  - ❌ API status: Permanently shows "Queued" instead of "Completed"
+- **Affected Components**: BenchmarkExecutor.store_execution_state(), execution_states table UPDATE operations
 - **Affected Agents**: All agents (deterministic, glm-4.6, glm-4.6-coding)
-- **Priority**: **HIGH** - Critical database bug prevents API status updates
+- **Priority**: **CRITICAL** - Blocks all API status tracking functionality
 - **Investigation Date**: 2025-10-30
-- **Fix Applied**: Changed `result_data, metadatac` to `result_data, metadata` in INSERT statement line 47
-- **Code Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47`
-- **Impact**: Database operations now work correctly, API status synchronization restored
+- **Progress**: 
+  - ✅ Fixed INSERT statement column mismatch (metadatac→metadata)
+  - ✅ Removed created_at from UPDATE to avoid timestamp index conflicts  
+  - ✅ Added comprehensive database isolation tests
+  - 🔍 Investigating composite index behavior during UPDATE operations
+  - 🧪 Created test infrastructure to reproduce corruption consistently
+- **Bug Location**: Database UPDATE logic in `crates/reev-db/src/writer/execution_states/mod.rs`
+- **Next Steps**: Fix UPDATE operation to prevent index corruption
 
 ### 🔧 **Current Issue - #34**
 - **Title**: Database storage failure after successful execution
@@ -50,28 +58,42 @@
   - **After Fix**: Both agents work correctly with proper API status tracking
 - **🐛 DATABASE CORRUPTION BUG IDENTIFIED**: 
 
-  ### ✅ **Issue #35 Resolution Summary:**
-  **🐛 CRITICAL BUG FIXED**: Database corruption preventing API status updates
+  ### 🔧 **Current Investigation - Issue #36** 
+  **🔍 DATABASE UPDATE CORRUPTION INVESTIGATION**
 
-  - **Root Cause**: SQL column name typo (`metadatac` instead of `metadata`) in INSERT statement
-  - **Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47`
-  - **Error**: `IdxDelete: no matching index entry found for key` during UPDATE operations
-  - **Fix Applied**: Changed `result_data, metadatac` to `result_data, metadata` in INSERT statement
-  - **Impact**: API status tracking now works correctly with completed session files
+  **Problem Identified:**
+  - **Issue**: Database UPDATE operations corrupt execution_states table indexes
+  - **Error**: `Corrupt database: IdxDelete: no matching index entry found for key [Value(Integer(timestamp)), Value(Integer(status))]`
+  - **Impact**: API cannot transition execution status from "Queued" → "Completed" even after successful execution
+  - **Root Cause**: Inconsistent index handling during UPDATE operations on timestamp/status columns
 
-  **🧪 RAPID TESTING PROVEN**: Issue #36 solution validated
-  - **Framework**: Mock data testing enables sub-second development cycles
-  - **Reliability**: 100% reproducible using proven successful execution data
-  - **Efficiency**: Eliminates 2+ minute wait times per test
-  - **Bug Detection**: Critical issues identified and resolved in <5 minutes instead of hours
+  **What's Working:**
+  1. ✅ **Database INSERT**: Fixed column count mismatch (9→10 values)
+  2. ✅ **Database SELECT**: Retrieval operations work correctly  
+  3. ✅ **Session Files**: Created and parsed successfully by CLI
+  4. ✅ **Runner Architecture**: Database-free implementation complete
+  5. ✅ **Mock Tests**: Database isolation tests reproduce issue consistently
+  6. ✅ **CLI Execution**: Perfect scores (1.0) achieved consistently
 
-  **✅ END-TO-END WORKFLOW NOW FUNCTIONAL:**
-  1. ✅ CLI execution works perfectly (score=1.0)
-  2. ✅ Session files created with complete data
-  3. ✅ OTEL logging functional
-  4. ✅ Database operations fixed
-  5. ✅ API status synchronization working
-  6. ✅ Rapid testing methodology proven
+  **What's Failing:**
+  1. ❌ **Database UPDATE**: Index corruption prevents status updates
+  2. ❌ **API Status**: Stuck in "Queued" state permanently
+  3. ❌ **Session File → Database**: Results not stored due to UPDATE failure
+
+  **Current Fixes Applied:**
+  1. ✅ Fixed INSERT statement column mismatch
+  2. ✅ Removed `created_at` from UPDATE to avoid timestamp index conflicts
+  3. ✅ Added comprehensive database isolation tests
+  4. ✅ Identified UPDATE operations as root cause of corruption
+  5. ✅ Created test infrastructure to reproduce issue consistently
+
+  **Next Investigation Areas:**
+  1. **Composite Index Behavior**: Investigate execution_states table index handling
+  2. **Transaction Isolation**: Test transaction rollback and consistency 
+  3. **Alternative UPDATE Strategies**: DELETE+INSERT vs direct UPDATE
+  4. **SQLite vs Turso**: Check compatibility differences in UPDATE operations
+
+  **Priority**: CRITICAL - Blocks all API status tracking functionality
 
   ### ✅ **API Architecture Verification Complete**
 - **Issue #30**: Frontend API Calls Analysis - **RESOLVED** ✅

@@ -1,7 +1,8 @@
-# TOFIX.md - Complete Database Removal from reev-runner ✅ COMPLETED
+# TOFIX.md - Database Issues Resolution Status
 
-## 🎯 OBJECTIVE
-Make `reev-runner` 100% database-free by removing ALL database dependencies, code, and references.
+## 🎯 OBJECTIVES
+1. ✅ COMPLETED: Make `reev-runner` 100% database-free 
+2. 🔧 IN PROGRESS: Fix database UPDATE index corruption
 
 ## 📋 CURRENT STATE - Database References Found
 
@@ -177,6 +178,59 @@ If issues arise:
 - **Cleaner architecture**: Complete separation allows independent evolution
 - **Faster development**: Runner compiles faster without database dependency
 
+## 🔧 NEW ISSUE: Database UPDATE Index Corruption
+
+### **Current Problem**
+- **Issue**: API stuck in "Queued" status because database UPDATE operations fail
+- **Error**: `Corrupt database: IdxDelete: no matching index entry found`
+- **Root Cause**: UPDATE operations corrupt database indexes when updating execution_states table
+- **Impact**: Executions appear stuck in API even though CLI completes successfully
+
+### **What's Working**
+- ✅ Database INSERT operations work correctly
+- ✅ Database SELECT operations work correctly  
+- ✅ Session file reading and parsing works
+- ✅ Mock tests with real session data work
+- ✅ Runner is database-free and creates session files correctly
+
+### **What's Failing**
+- ❌ Database UPDATE operations cause index corruption
+- ❌ API can't update execution status from "Queued" → "Completed"
+- ❌ Session file results not stored in database due to UPDATE failure
+
+### **Error Details**
+```
+SQL execution failure: `Corrupt database: IdxDelete: no matching index entry found 
+for key [Value(Integer(timestamp)), Value(Integer(status))]`
+```
+
+### **Current Investigation Status**
+- ✅ Fixed database INSERT column count mismatch (9 values for 10 columns)
+- ✅ Removed `created_at` from UPDATE to avoid timestamp index conflicts
+- ✅ Added comprehensive database isolation tests
+- 🔍 Identifying exact cause of UPDATE index corruption
+- 🧪 Created test isolation to reproduce issue consistently
+
+## 📋 NEXT STEPS
+
+### Phase 1: Fix Database UPDATE Corruption
+1. Investigate composite index handling in execution_states table
+2. Test alternative UPDATE strategies (DELETE+INSERT vs direct UPDATE)
+3. Add transaction isolation for UPDATE operations
+4. Implement robust error recovery for corrupted indexes
+
+### Phase 2: End-to-End Testing
+1. Test complete API flow: CLI → Session File → API → Database
+2. Verify status transitions: Queued → Running → Completed
+3. Test concurrent execution scenarios
+4. Ensure no regression in existing functionality
+
+### Phase 3: Validation
+1. Test with real benchmark execution
+2. Verify API status endpoints work correctly
+3. Confirm session file parsing and database storage
+4. Performance testing under load
+
 ## 🎉 ACHIEVEMENT SUMMARY
 
 ✅ **COMPLETE DATABASE REMOVAL SUCCESSFUL**
@@ -187,22 +241,42 @@ If issues arise:
 - Compilation speed improved
 - Architecture simplified and clarified
 
-## 🚀 FINAL VERIFICATION
+🔧 **DATABASE CORRUPTION INVESTIGATION IN PROGRESS**
+- Identified UPDATE operations as root cause of API "Queued" status issue
+- Isolated problem to database index corruption during status updates
+- Created test infrastructure to reproduce and fix issue
+- Working on comprehensive solution
 
+## 🚀 CURRENT STATUS
+
+### Completed Work ✅
 ```bash
-# ✅ No database references in code
+# ✅ No database references in runner code
 cargo grep -rn "database\|Database\|DB\|db\|reev_db" crates/reev-runner/src/
 # Returns only explanatory comments
 
-# ✅ Compiles without errors  
+# ✅ Runner compiles without errors  
 cargo check -p reev-runner
-# Finished `dev` profile [unoptimized + debuginfo] target(s) in X.XXs
+# Finished successfully with no database dependencies
 
-# ✅ No database dependency
-cargo grep -n "reev-db" crates/reev-runner/Cargo.toml  
-# Returns only comment: "# Database dependencies removed - runner is database-free"
-
-# ✅ Runner is always database-free (no --no-db flag needed)
+# ✅ Runner is database-free
 cargo run -p reev-runner -- --help
 # Shows help with no database-related options
 ```
+
+### In Progress 🔧
+```bash
+# 🔍 Database UPDATE corruption investigation
+cargo test test_database_operations_isolation -- --nocapture
+# Reproduces: "Corrupt database: IdxDelete: no matching index entry found"
+
+# 🧪 Isolated testing in progress
+cargo test test_completely_fresh_database -- --nocapture
+# Tests database operations to pinpoint corruption point
+```
+
+### Next Investigation Areas
+1. Database composite index behavior during UPDATE operations
+2. SQLite vs Turso compatibility differences
+3. Transaction isolation and rollback behavior
+4. Index consistency maintenance during row updates
