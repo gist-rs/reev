@@ -149,6 +149,17 @@ where
             .execute_cli_command(args, &execution_state.execution_id)
             .await?;
 
+        // IMMEDIATELY log what runner actually outputted
+        info!("🔍 RUNNER STDOUT: {}", result.stdout);
+        info!("🔍 RUNNER STDERR: {}", result.stderr);
+        info!("🔍 RUNNER EXIT CODE: {:?}", result.exit_code);
+        info!("🔍 RUNNER TIMED OUT: {}", result.timed_out);
+
+        // Add delay to ensure session file is completely written and closed
+        // This prevents race condition where API reads file while runner is still writing
+        info!("CLI command completed, waiting 2 seconds for session file to finalize...");
+        sleep(Duration::from_secs(2)).await;
+
         // Read session file to get actual results
         if let Err(e) = self.read_session_file_results(execution_state).await {
             warn!(
@@ -199,24 +210,44 @@ where
         debug!("Looking for session file: {:?}", session_file);
 
         // Wait for session file to be created (with timeout)
-        let max_attempts = 10;
+        // Runner can take up to 30 seconds, wait appropriately
+        let max_attempts = 300; // 300 attempts × 100ms = 30 seconds total wait
         let delay_ms = 100;
 
         for attempt in 1..=max_attempts {
             if session_file.exists() {
+                info!(
+                    "✅ Session file found after {:.1}s (attempt {})",
+                    (attempt * delay_ms) as f64 / 1000.0,
+                    attempt
+                );
                 break;
             }
 
             if attempt == max_attempts {
                 return Err(anyhow::anyhow!(
-                    "Session file not found after {max_attempts} attempts: {session_file:?}"
+                    "Session file not found after {max_attempts} attempts ({:.1}s): {session_file:?}",
+                    (max_attempts * delay_ms) as f64 / 1000.0
                 ));
             }
 
-            debug!(
-                "Session file not found (attempt {}/{}), waiting {}ms...",
-                attempt, max_attempts, delay_ms
-            );
+            // Log every 10 attempts (1 second)
+            if attempt % 10 == 0 {
+                info!(
+                    "Still waiting for session file... ({:.1}s elapsed, attempt {}/{})",
+                    (attempt * delay_ms) as f64 / 1000.0,
+                    attempt,
+                    max_attempts
+                );
+            } else {
+                debug!(
+                    "Session file not found (attempt {}/{}), waiting {}ms... ({:.1}s elapsed)",
+                    attempt,
+                    max_attempts,
+                    delay_ms,
+                    (attempt * delay_ms) as f64 / 1000.0
+                );
+            }
             sleep(Duration::from_millis(delay_ms)).await;
         }
 
@@ -370,7 +401,7 @@ where
     }
 
     /// Execute CLI command with timeout
-    async fn execute_cli_command(
+    pub async fn execute_cli_command(
         &self,
         args: Vec<String>,
         context_id: &str,
@@ -489,17 +520,24 @@ where
             Ok(Err(e)) => {
                 result.timed_out = false;
                 result.stderr = format!("Process execution failed: {e}");
-                error!("CLI command failed to start: {} - {}", execution_id, e);
+                error!("❌ CLI command failed to start: {} - {}", execution_id, e);
             }
             Err(_) => {
                 result.timed_out = true;
                 result.stderr = format!("Command timed out after {timeout_seconds} seconds");
                 warn!(
-                    "CLI command timed out: {} - {}s",
+                    "⏰ CLI command timed out: {} - {}s",
                     execution_id, timeout_seconds
                 );
             }
         }
+
+        info!("🔍 FINAL RESULT - Is Success: {}", result.is_success());
+        info!("🔍 FINAL RESULT - Is Timeout: {}", result.timed_out);
+        info!(
+            "🔍 FINAL RESULT - Process Duration: {}ms",
+            result.duration_ms
+        );
 
         Ok(result)
     }

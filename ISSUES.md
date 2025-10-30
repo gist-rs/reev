@@ -1,6 +1,6 @@
 # Issues
 
-## 🎯 Current Status - ALL ISSUES RESOLVED ✅
+## 🎯 Current Status - Database Corruption FIXED ✅, New Issue Found 🔍
 
 ### ✅ **RESOLVED Issue - #36**  
 - **Title**: Database UPDATE Index Corruption During API Status Updates
@@ -11,6 +11,21 @@
 - **Solution Applied**: Replaced with proper UPSERT using `ON CONFLICT(execution_id) DO UPDATE` syntax proven reliable in Turso testing
 - **Error Details**: No longer occurs - all UPDATE operations work correctly
 - **Impact**: API now properly shows "Completed" status when execution finishes
+- **Fix Date**: 2025-10-30
+
+### 🔍 **NEW ISSUE - Process Execution Hanging in API Layer**
+- **Title**: API `execute_cli_command` Function Hanging Despite Runner Success
+- **Status**: **INVESTIGATION** 🔍 - Process execution issue discovered
+- **Description**: Runner completes successfully in ~4 seconds with perfect scores, but API test times out after 5 minutes
+- **Root Cause**: `execute_cli_command` function in BenchmarkExecutor hangs despite runner working perfectly
+- **Evidence**: Manual runner execution works flawlessly, session files created with success data
+- **Impact**: API tests fail with timeout even though runner executes successfully
+- **Investigation Date**: 2025-10-30
+- **Progress**: 
+  - ✅ Database corruption completely resolved
+  - ✅ All 4/4 API mock tests passing
+  - ✅ Real runner execution verified (4 seconds, score=1.0)
+  - 🔍 API process execution hanging - separate issue from database
 - **Test Results**: 
   - ✅ CLI execution: Perfect scores (1.0) achieved
   - ✅ Session files: Created correctly with complete execution data  
@@ -47,9 +62,11 @@
 - **Fix Date**: 2025-10-30
 - **Resolution**: Database corruption fix resolved this issue as well
 
-**🎉 Critical Bug Resolution (2025-10-30):**
-- **CLI Execution Status**: ✅ Working perfectly
-- **API Status Tracking**: ✅ Working perfectly  
+**🔍 Critical Bug Resolution (2025-10-30):**
+- **CLI Execution Status**: ✅ Working perfectly (4 seconds, score=1.0)
+- **API Status Tracking**: ✅ Working perfectly after UPSERT fix
+- **Database Layer**: ✅ UPDATE corruption completely resolved
+- **Process Execution**: ⚠️ Hanging in API layer - separate investigation needed
   - Direct CLI: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding` - **SUCCESS (score=1.0)**
 - **API End-to-End**: ✅ Working perfectly
   - Status transitions: Queued → Running → Completed
