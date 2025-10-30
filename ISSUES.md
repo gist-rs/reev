@@ -15,15 +15,15 @@
 
 ### ✅ **RESOLVED Issue - #38**
 - **Title**: API Execution Status Cache Stale Despite Database Updates
-- **Status**: **RESOLVED** ✅ - Fixed with database-first status check
+- **Status**: **RESOLVED** ✅ - Fixed with direct database lookup for execution queries
 - **Description**: Execution logs API returned "Queued" status even after benchmark completed successfully in database
-- **Root Cause**: In-memory execution cache not updated after completion, API checked cache before database
+- **Root Cause**: In-memory execution cache not updated after completion, API checked stale cache before database
 - **Evidence**: Database showed "Completed" status but API returned "Queued" from memory cache
-- **Solution**: Modified execution logs handler to check database when memory shows stale "Running/Queued" status
-- **Fix Details**: Added database status check for Running/Queued executions, auto-update memory cache, return correct completed status
-- **Impact**: API now correctly shows "Completed" status when benchmarks finish
+- **Solution**: Modified execution logs handler to perform direct database lookup when `execution_id` query parameter provided
+- **Fix Details**: Added database-first approach for specific execution queries, bypass stale memory cache, return accurate completed status
+- **Impact**: API now correctly shows "Completed" status with full execution results when benchmarks finish
 - **Fix Date**: 2025-10-30
-- **Verification**: ✅ Tested benchmark execution - status updates from "Queued" → "Completed" correctly
+- **Verification**: ✅ Tested multiple benchmark executions - status updates "Running" → "Completed" correctly with scores and results
   - ✅ All 4/4 API mock tests passing
   - ✅ Real runner execution verified (4 seconds, score=1.0)
   - 🔍 API process execution hanging - separate issue from database
