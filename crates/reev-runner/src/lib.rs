@@ -1,9 +1,11 @@
 use anyhow::{Context, Result, anyhow};
+use std::sync::Arc;
 
 use reev_flow::FlowLogger;
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
+    db::{DatabaseWriter, FlowDatabaseWriter},
     env::GymEnv,
     flow::{ExecutionResult, create_session_logger},
     llm_agent::LlmAgent,
@@ -13,6 +15,7 @@ use reev_lib::{
     solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
+
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -206,11 +209,36 @@ pub async fn run_benchmarks(
         // No database operations needed - API handles database storage
 
         // Initialize enhanced OTEL logging instead of basic flow logging
-        let flow_logger = FlowLogger::new(
-            test_case.id.clone(),
-            agent_name.to_string(),
-            PathBuf::from("logs/flows"),
-        );
+        // Try to create database connection for performance logging
+        let db_path =
+            std::env::var("DATABASE_PATH").unwrap_or_else(|_| "db/reev_results.db".to_string());
+
+        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
+        let db_writer = DatabaseWriter::new(db_config).await;
+        let flow_db_writer = db_writer.map(FlowDatabaseWriter::new);
+
+        let flow_logger = match flow_db_writer {
+            Ok(flow_db_writer) => {
+                info!("🗄️ Flow logger initialized with database support");
+                FlowLogger::new_with_database(
+                    test_case.id.clone(),
+                    agent_name.to_string(),
+                    PathBuf::from("logs/flows"),
+                    Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
+                )
+            }
+            Err(e) => {
+                warn!(
+                    "⚠️ Failed to initialize database for flow logger: {}, proceeding without database",
+                    e
+                );
+                FlowLogger::new(
+                    test_case.id.clone(),
+                    agent_name.to_string(),
+                    PathBuf::from("logs/flows"),
+                )
+            }
+        };
 
         info!(
             benchmark_id = %test_case.id,
@@ -219,9 +247,12 @@ pub async fn run_benchmarks(
         );
 
         let mut llm_agent = LlmAgent::new_with_flow_logging(agent_name, Some(flow_logger))?;
+        // Extract flow logger option before moving llm_agent
+        let flow_logger_option = llm_agent.flow_logger.take();
         info!("[Runner] Setting session_id on LlmAgent: {}", session_id);
         llm_agent.set_session_id(session_id.clone());
         info!("[Runner] Session_id set successfully");
+
         let mut agent = Box::new(llm_agent) as Box<dyn Agent + Send>;
         let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
 
@@ -432,6 +463,37 @@ pub async fn run_benchmarks(
                 "Failed to stop reev-agent gracefully"
             );
         }
+
+        // Complete flow logger with execution result for performance tracking
+        if let Some(mut flow_logger) = flow_logger_option {
+            let execution_result = ExecutionResult {
+                success: final_status == reev_lib::results::FinalStatus::Succeeded,
+                score,
+                total_time_ms: 0, // Not tracked in this path
+                statistics: reev_flow::types::ExecutionStatistics {
+                    total_llm_calls: 0,
+                    total_tool_calls: 0,
+                    total_tokens: 0,
+                    tool_usage: std::collections::HashMap::new(),
+                    max_depth: 0,
+                },
+                scoring_breakdown: None, // Not tracked in this path
+            };
+
+            info!("Completing flow logger for performance tracking");
+            match flow_logger.complete(execution_result).await {
+                Ok(_) => {
+                    info!("✅ Successfully completed flow logger with performance data");
+                }
+                Err(e) => {
+                    warn!(
+                        benchmark_id = %test_case.id,
+                        error = %e,
+                        "Failed to complete flow logger for performance tracking"
+                    );
+                }
+            }
+        }
     }
 
     info!("All benchmarks finished.");
@@ -505,7 +567,7 @@ async fn run_flow_benchmark(
         "Starting flow benchmark execution"
     );
 
-    // Initialize flow logging for flow benchmarks
+    // Initialize flow logging for flow benchmarks with database support
     // Flow logging is always enabled
     let flow_logger = {
         let output_path =
@@ -513,12 +575,37 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        Some(FlowLogger::new_with_session(
-            session_id.to_string(),
-            test_case.id.clone(),
-            agent_name.to_string(),
-            path,
-        ))
+        // Try to create database connection for performance logging
+        let db_path =
+            std::env::var("DATABASE_PATH").unwrap_or_else(|_| "db/reev_results.db".to_string());
+
+        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
+        let db_writer = DatabaseWriter::new(db_config).await;
+        let flow_db_writer = db_writer.map(FlowDatabaseWriter::new);
+
+        match flow_db_writer {
+            Ok(flow_db_writer) => {
+                info!("🗄️ Flow logger initialized with database support");
+                Some(FlowLogger::new_with_database(
+                    test_case.id.clone(),
+                    agent_name.to_string(),
+                    path,
+                    Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
+                ))
+            }
+            Err(e) => {
+                warn!(
+                    "⚠️ Failed to initialize database for flow logger: {}, proceeding without database",
+                    e
+                );
+                Some(FlowLogger::new_with_session(
+                    session_id.to_string(),
+                    test_case.id.clone(),
+                    agent_name.to_string(),
+                    path,
+                ))
+            }
+        }
     };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;

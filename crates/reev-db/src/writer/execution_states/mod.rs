@@ -429,6 +429,18 @@ impl<'a> ExecutionStatesWriter<'a> {
             benchmark_id
         );
 
+        // Reconstruct full path format that's stored in database
+        let full_benchmark_id = if benchmark_id.starts_with("benchmarks/") {
+            benchmark_id.to_string()
+        } else {
+            format!("benchmarks/{benchmark_id}.yml")
+        };
+
+        debug!(
+            "[DB] Using full benchmark path for query: {}",
+            full_benchmark_id
+        );
+
         let mut results = Vec::new();
 
         let mut rows = self
@@ -443,7 +455,7 @@ impl<'a> ExecutionStatesWriter<'a> {
                     ORDER BY created_at DESC
                     LIMIT 10
                     "#,
-                [benchmark_id.to_string()],
+                [full_benchmark_id],
             )
             .await
             .map_err(|e| {

@@ -1,6 +1,6 @@
 # Issues
 
-## 🎯 Current Status - Database Corruption FIXED ✅, New Issue Found 🔍
+## 🎯 Current Status - Database Corruption FIXED ✅, New Issues Found 🔍
 
 ### ✅ **RESOLVED Issue - #36**  
 - **Title**: Database UPDATE Index Corruption During API Status Updates
@@ -111,7 +111,16 @@
   - **After Fix**: Both agents work correctly with proper API status tracking
 - **🐛 DATABASE CORRUPTION BUG IDENTIFIED**: 
 
-  ### 🔧 **Current Investigation - Issue #36** 
+  ### 🔧 **Current Investigation - Issue #42**
+  - **Title**: Database Lock Contention Between API and Runner
+  - **Status**: **IN PROGRESS** 🔧
+  - **Evidence**: 
+    - Runner completes successfully with score=1.0
+    - Agent performance API returns empty results
+    - Runner logs show: "Failed to initialize database for flow logger: Database connection failed"
+    - Root cause: API server locks database file, preventing runner from storing performance data
+  - **Analysis**: This is operational coordination issue, not code bug
+
   **🔍 DATABASE UPDATE CORRUPTION INVESTIGATION**
 
   **Problem Identified:**
@@ -250,10 +259,15 @@
 ### ✅ **RESOLVED Issue - #32** 
 ### ✅ **All Critical Issues Resolved**
 
+### 🔧 **Current Investigation - Issue #42**
+- **Working Theory**: Database connection pool sharing issue between API and runner
+- **Fix Implemented**: Added database-enabled FlowLogger to runner with graceful fallback
+- **Test Status**: ✅ Benchmarks execute, ✅ API shows executions, ❌ Performance data missing
+
 ### 🎆 **Latest Achievement - Issue #32 Complete**
 - **Title**: Database connection locks + Session file feedback loop missing  
 - **Status**: **RESOLVED** ✅ - Database-free runner + session file feedback loop implemented
-### 🎯 **Status Summary**
+### 🔧 **Current Investigation - Issue #42**
 - **Issues #29, #30, #31, #32**: **RESOLVED** ✅
 - **Issue #33**: **RESOLVED** ✅ (Cargo Watch Implementation)
 - **Issue #34**: **IN PROGRESS** 🔧 (Database Storage Failure)
