@@ -2,6 +2,16 @@
 
 ---
 
+let's not watch for process exit when dev (no --release flag)
+
+how about we focus only log file? no fucking care who create it but when runner start, it should create lof file that have near current timestamp and we rely on that.
+
+then we watch for session_ file and otel_ file and done.
+
+we will talk about the (--release) later, maybe if this work we dont need to care about any process at all
+
+---
+
 now back to the "api stuck in queued state because db not update and log not create from runner" issue, run proof[@api_mock_test.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-api%2Ftests%2Fapi_mock_test.rs)  to get an idea, then check the code for diff between working and non working and show me the plan first.
 
 ---
