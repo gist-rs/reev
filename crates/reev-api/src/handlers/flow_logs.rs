@@ -16,29 +16,41 @@ pub async fn get_flow_log(
 ) -> impl IntoResponse {
     info!("Getting session logs for benchmark: {}", benchmark_id);
 
-    // First check for active executions (like execution trace does)
-    let executions = state.executions.lock().await;
-    let mut active_executions = Vec::new();
+    // Database-only approach: get all sessions for this benchmark
+    let filter = reev_db::types::SessionFilter {
+        benchmark_id: Some(benchmark_id.clone()),
+        agent_type: None,
+        interface: Some("web".to_string()),
+        status: None,
+        limit: None,
+    };
 
-    for (execution_id, execution) in executions.iter() {
-        if execution.benchmark_id == benchmark_id {
-            let is_running = execution.status == ExecutionStatus::Running
-                || execution.status == ExecutionStatus::Queued;
-            info!(
-                "Execution trace debug: execution_id={}, status={:?}, is_running={}, benchmark_id={}",
-                execution_id, execution.status, is_running, benchmark_id
-            );
-            active_executions.push(json!({
-                "session_id": execution_id,
-                "agent_type": execution.agent,
-                "interface": "web",
-                "status": format!("{:?}", execution.status).to_lowercase(),
-                "score": null,
-                "final_status": execution.status,
-                "log_content": execution.metadata.get("trace").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                "is_running": is_running,
-                "progress": execution.progress
-            }));
+    match state.db.list_sessions(&filter).await {
+        Ok(sessions) => {
+            for session in sessions {
+                let is_running = session.status == "running" || session.status == "queued";
+                active_executions.push(json!({
+                    "session_id": session.session_id,
+                    "agent_type": session.agent_type,
+                    "interface": session.interface,
+                    "status": session.status,
+                    "is_running": is_running,
+                    "progress": if is_running { 0.5 } else { 1.0 },
+                    "score": session.score,
+                }));
+            }
+        }
+        Err(e) => {
+            warn!("Failed to get sessions from database: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({
+                    "error": "Database error",
+                    "message": format!("Failed to retrieve sessions: {}", e),
+                    "sessions": []
+                }),
+            )
+                .into_response();
         }
     }
     drop(executions);

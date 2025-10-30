@@ -19,7 +19,7 @@ use crate::types::ApiState;
 pub async fn get_transaction_logs(
     State(state): State<ApiState>,
     Path(benchmark_id): Path<String>,
-    Query(_params): Query<HashMap<String, String>>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     info!("Getting transaction logs for benchmark: {}", benchmark_id);
 
@@ -37,6 +37,17 @@ pub async fn get_transaction_logs(
             if let Some(session) = sessions.first() {
                 info!("Found session for transaction logs: {}", session.session_id);
 
+                // Check format parameter: yaml or plain (yaml is default)
+                let format_param = params
+                    .get("format")
+                    .map_or("yaml".to_string(), |v| v.clone());
+
+                // Check show_cu parameter: true or false (false is default)
+                let show_cu_param = params
+                    .get("show_cu")
+                    .map_or("false".to_string(), |v| v.clone());
+                let show_cu = show_cu_param == "true";
+
                 let response = json!({
                     "benchmark_id": benchmark_id,
                     "execution_id": session.session_id,
@@ -47,7 +58,6 @@ pub async fn get_transaction_logs(
                     "score": session.score
                 });
 
-                info!("Successfully created transaction logs response");
                 Json(response).into_response()
             } else {
                 info!("No sessions found for benchmark: {}", benchmark_id);
@@ -55,6 +65,7 @@ pub async fn get_transaction_logs(
                 let response = json!({
                     "benchmark_id": benchmark_id,
                     "execution_id": null,
+                    "session_log_available": false,
                     "is_running": false,
                     "message": "No execution history found for this benchmark"
                 });
@@ -67,6 +78,8 @@ pub async fn get_transaction_logs(
 
             let response = json!({
                 "benchmark_id": benchmark_id,
+                "execution_id": null,
+                "session_log_available": false,
                 "is_running": false,
                 "message": format!("Database error: {}", e)
             });

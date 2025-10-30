@@ -22,6 +22,20 @@ pub async fn get_execution_trace(
     // Check if specific execution_id is requested
     let target_execution_id = params.get("execution_id");
 
+    // If no execution_id is specified, return error to force frontend to use new two-step approach
+    if target_execution_id.is_none() {
+        let response = json!({
+            "benchmark_id": benchmark_id,
+            "error": "execution_id parameter is required",
+            "message": "Please use GET /api/v1/benchmarks/{id} to get recent executions, then call with execution_id",
+            "trace": "",
+            "is_running": false,
+            "progress": 0.0
+        });
+
+        return (StatusCode::BAD_REQUEST, Json(response)).into_response();
+    }
+
     // ALWAYS check database first when execution_id is provided for fresh data
     // This ensures we don't return stale in-memory cache
     if let Some(ref exec_id) = target_execution_id {

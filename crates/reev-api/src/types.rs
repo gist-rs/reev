@@ -33,12 +33,10 @@ pub struct BenchmarkWithExecutions {
     pub latest_execution_id: Option<String>,
 }
 
-/// API state containing database connection and execution state
+/// API state containing database connection (no in-memory cache)
 #[derive(Clone)]
 pub struct ApiState {
     pub db: reev_lib::db::PooledDatabaseWriter,
-    pub executions:
-        std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, ExecutionState>>>,
     pub agent_configs:
         std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, AgentConfig>>>,
     pub benchmark_executor: std::sync::Arc<PooledBenchmarkExecutor>,
