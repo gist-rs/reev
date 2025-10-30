@@ -363,3 +363,32 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Impact**: Users see stale execution status and can't get fresh results without page refresh
 - **Priority**: HIGH - Affects core user experience and real-time execution monitoring
 - **Zero Configuration**: No manual environment variables needed, just works automatically
+
+### 🔍 **NEW ISSUE - #40**
+- **Title**: In-Memory Cache Synchronization Failure - Stale Execution Status Despite Database Updates
+- **Status**: **NEW** 🆕 - Database updates work, but in-memory cache stays out of sync
+- **Description**: Benchmark execution completes successfully and updates database with "Completed" status, but in-memory cache retains stale "Queued" status, causing frontend to show stale data
+- **Root Cause**: 
+  - Two data sources (in-memory cache + persistent database) get out of sync
+  - Database persistence works correctly: `[DB] Stored execution state: af3501e1-688f-42ac-88d9-7f0a262d2448`
+  - In-memory cache not updated after completion, still shows: `Found execution for benchmark: 001-sol-transfer (status: Queued)`
+  - Execution logs handler checks in-memory cache first, returns stale data
+- **Evidence**: 
+  ```
+  2025-10-30T10:08:18.565477Z  INFO reev_db::writer::execution_states: [DB] Stored execution state: af3501e1-688f-42ac-88d9-7f0a262d2448
+  2025-10-30T10:08:20.493465Z  INFO reev_api::handlers::execution_logs: Found execution for benchmark: 001-sol-transfer (status: Queued)
+  ```
+  - Benchmark completed: `✅ 001-sol-transfer (Score: 100.0%): succeeded`
+  - Database shows success, in-memory cache shows stale "Queued"
+- **Proposed Solution**: 
+  1. **Remove in-memory cache entirely** - Read directly from database every time
+  2. **Keep database connection pooling** for performance
+  3. **Update all handlers** to use database as single source of truth
+  4. **Add proper database indexing** for fast queries
+- **Rationale**: 
+  - Eliminates synchronization complexity entirely
+  - Database designed for concurrent access with proper connection pooling
+  - Single source of truth prevents stale data issues
+  - Modern databases are fast enough with proper indexing
+- **Impact**: Core issue affecting real-time execution monitoring reliability
+- **Priority**: CRITICAL - Breaks fundamental execution tracking functionality

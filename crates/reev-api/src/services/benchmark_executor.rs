@@ -307,6 +307,23 @@ where
         Ok(())
     }
 
+    /// Read session file results and update execution state
+    pub async fn read_session_file_results_with_cache_update(
+        &self,
+        execution_state: &mut ExecutionState,
+        update_cache: Option<impl Fn(ExecutionState) + Send + Sync>,
+    ) -> Result<()> {
+        // Read session file results first
+        self.read_session_file_results(execution_state).await?;
+
+        // Update in-memory cache if callback provided
+        if let Some(update_fn) = update_cache {
+            update_fn(execution_state.clone());
+        }
+
+        Ok(())
+    }
+
     /// Execute CLI list command and parse output
     async fn execute_cli_list_command(
         &self,

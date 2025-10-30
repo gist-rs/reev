@@ -22,10 +22,23 @@ pub async fn get_execution_trace(
     // Check if specific execution_id is requested
     let target_execution_id = params.get("execution_id");
 
-    // First, if specific execution_id is requested, try to get it from database directly
+    // ALWAYS check database first when execution_id is provided for fresh data
+    // This ensures we don't return stale in-memory cache
     if let Some(ref exec_id) = target_execution_id {
         if let Ok(Some(updated_state)) = state.db.get_execution_state(exec_id).await {
             let db_status = updated_state.status.clone();
+
+            info!(
+                "📊 Returning fresh database data for execution_id: {} (status: {:?})",
+                exec_id, db_status
+            );
+
+            // Update in-memory cache to stay in sync with database
+            {
+                let mut executions = state.executions.lock().await;
+                executions.insert(exec_id.to_string(), updated_state.clone());
+                info!("🔄 Updated in-memory cache for execution_id: {}", exec_id);
+            }
 
             // Return execution results directly from database
             let response = json!({
@@ -42,6 +55,11 @@ pub async fn get_execution_trace(
             });
 
             return Json(response).into_response();
+        } else {
+            warn!(
+                "❌ Database lookup failed for execution_id: {}, falling back to memory cache",
+                exec_id
+            );
         }
     }
 
