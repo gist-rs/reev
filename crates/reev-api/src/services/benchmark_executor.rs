@@ -417,19 +417,53 @@ where
             .min(self.timeout_config.max_timeout_seconds);
 
         // Set up environment
-        // Auto-detect: use release binary if exists, otherwise cargo watch
-        let release_binary_exists = std::path::Path::new(&self.config.runner_binary_path).exists();
+        // Auto-dectect: prefer debug binary over cargo watch, avoid hanging
+        let configured_binary_exists =
+            std::path::Path::new(&self.config.runner_binary_path).exists();
 
-        let (use_release, runner_path, mode) = if release_binary_exists {
+        // Try common debug path as fallback before cargo watch
+        let debug_binary_path = "target/debug/reev-runner";
+        let debug_binary_exists = std::path::Path::new(debug_binary_path).exists();
+
+        let (use_release, runner_path, mode) = if configured_binary_exists {
             let path = self.config.runner_binary_path.clone();
-            (true, path, "production (auto-detected)".to_string())
-        } else {
-            info!("Release binary not found, using development mode with cargo watch");
+            (true, path, "configured binary (auto-detected)".to_string())
+        } else if debug_binary_exists {
             (
-                false,
-                "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
-                "development (auto-detected)".to_string(),
+                true,
+                debug_binary_path.to_string(),
+                "debug binary (auto-detected)".to_string(),
             )
+        } else {
+            info!("No binary found, building debug binary to avoid cargo watch hanging");
+            // Build debug binary first to avoid cargo watch issues
+            if let Ok(output) = std::process::Command::new("cargo")
+                .args(["build", "-p", "reev-runner"])
+                .output()
+            {
+                if output.status.success() {
+                    info!("Debug binary built successfully");
+                    (
+                        true,
+                        debug_binary_path.to_string(),
+                        "built debug binary".to_string(),
+                    )
+                } else {
+                    warn!("Failed to build debug binary, falling back to cargo watch");
+                    (
+                        false,
+                        "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
+                        "development (cargo watch fallback)".to_string(),
+                    )
+                }
+            } else {
+                warn!("Failed to start cargo build, falling back to cargo watch");
+                (
+                    false,
+                    "cargo watch --quiet -x 'run -p reev-runner --'".to_string(),
+                    "development (cargo watch fallback)".to_string(),
+                )
+            }
         };
 
         info!("Using {} mode: {}", mode, runner_path);
