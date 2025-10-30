@@ -4,18 +4,22 @@
 
 ### 🔧 **Current Issue - #35**  
 - **Title**: API Status Tracking Sync Failure
-- **Status**: **NEW** - Execution succeeds but API status not updated
-- **Description**: CLI execution via API completes successfully with perfect scores, but API status endpoint remains stuck showing "Queued"
-- **Root Cause**: Session files created correctly but API status endpoint doesn't read completed session files to update execution status
-- **Impact**: API shows incorrect "Queued" status despite successful benchmark completion
+- **Issue #35**: **NEW** 🆕 (API Status Tracking Sync Failure)
+- **Status**: **CRITICAL BUG IDENTIFIED** 🐛 - Database corruption during UPDATE operations
+- **Description**: CLI execution via API completes successfully, but database state updates fail due to SQL column name typo
+- **Root Cause**: `metadatac` instead of `metadata` in INSERT statement causing index corruption during UPDATE
+- **Impact**: API shows incorrect "Queued" status and database operations fail with "IdxDelete: no matching index entry found"
+- **Bug Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47` - INSERT statement uses wrong column name
 - **Test Results**: 
   - ✅ CLI execution: Perfect scores (1.0) achieved
   - ✅ Session files: Created correctly with complete execution data
   - ✅ OTEL logging: Enhanced telemetry working perfectly  
-  - ❌ API status: Shows "Queued" instead of "Completed"
+  - ❌ Database UPDATE: `metadatac` column doesn't exist, causing SQLite index corruption
+  - ❌ API status: Shows "Queued" instead of "Completed" due to failed DB operations
 - **Affected Agents**: All agents (deterministic, glm-4.6, glm-4.6-coding)
-- **Priority**: Medium - Functional execution works, only status display affected
+- **Priority**: **HIGH** - Critical database bug prevents API status updates
 - **Investigation Date**: 2025-10-30
+- **Fix Required**: Change `metadatac` to `metadata` in INSERT statement line 47
 
 ### 🔧 **Current Issue - #34**
 - **Title**: Database storage failure after successful execution
@@ -30,7 +34,7 @@
   - ❌ Database storage: "Failed to store execution state: Query execution failed"
 - **Environment**: Only affects production mode, development mode has cargo watch timing issues
 
-**🔍 Latest Investigation (2025-10-30):**
+**🔍 Critical Bug Discovery (2025-10-30):**
 - **CLI Execution Status**: ✅ Working perfectly
   - Direct CLI: `RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding` - **SUCCESS (score=1.0)**
   - API-driven CLI: `glm-4.6` agent via cURL - **SUCCESS (score=1.0)**
@@ -39,11 +43,12 @@
 - **Agent Support**: Both `glm-4.6` and `glm-4.6-coding` working
   - `glm-4.6`: Requires ZAI_API_KEY environment variables
   - `glm-4.6-coding`: Requires GLM_CODING_API_KEY environment variables  
-- **API Status Tracking**: ❌ Sync issue only
-  - CLI execution completes successfully
-  - Session files created with correct data
-  - API status endpoint shows "Queued" instead of actual completion status
-  - This is a status sync issue, not a functional execution issue
+- **🐛 DATABASE CORRUPTION BUG IDENTIFIED**: 
+  - **Root Cause**: SQL column name typo - `metadatac` instead of `metadata` in INSERT statement
+  - **Error**: `IdxDelete: no matching index entry found for key [Value(Integer(...)), Value(Integer(...))]`
+  - **Location**: `crates/reev-db/src/writer/execution_states/mod.rs:47` 
+  - **Impact**: All UPDATE operations fail, breaking API status synchronization
+  - **Result**: CLI execution succeeds but API status remains stuck at "Queued"
 
 ### ✅ **API Architecture Verification Complete**
 - **Issue #30**: Frontend API Calls Analysis - **RESOLVED** ✅
