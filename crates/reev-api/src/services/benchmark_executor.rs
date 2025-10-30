@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use chrono;
+use reev_db::shared::performance::AgentPerformance;
 use reev_db::writer::DatabaseWriterTrait;
 use reev_types::{ExecutionRequest, ExecutionState, ExecutionStatus, RunnerConfig, TimeoutConfig};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -173,8 +176,8 @@ where
 
         // Store final execution state with session file results in database
         // This ensures "Completed" status and actual results are persisted
-        if let Err(e) = self.store_execution_state(&execution_state).await {
-            warn!("Failed to store session file results in database: {}", e);
+        if let Err(e) = self.store_execution_state(execution_state).await {
+            warn!("Failed to store session file results in database: {e}");
         }
 
         Ok(())
@@ -310,6 +313,97 @@ where
             ));
         }
 
+        // Store agent performance data from session file
+        if let Err(e) = self
+            .store_agent_performance_from_session(execution_state)
+            .await
+        {
+            error!("Failed to store agent performance from session: {}", e);
+            // Don't fail the execution, just log the error
+        }
+
+        Ok(())
+    }
+
+    /// Store agent performance data from session file results
+    async fn store_agent_performance_from_session(
+        &self,
+        execution_state: &ExecutionState,
+    ) -> Result<()> {
+        let session_id = &execution_state.execution_id;
+        let session_file = PathBuf::from(format!("logs/sessions/session_{session_id}.json"));
+
+        debug!(
+            "Storing agent performance from session file: {:?}",
+            session_file
+        );
+
+        // Read session file
+        let session_content = tokio::fs::read_to_string(&session_file)
+            .await
+            .map_err(|e| anyhow!("Failed to read session file {session_file:?}: {e}"))?;
+
+        let session_data: Value = serde_json::from_str(&session_content)
+            .map_err(|e| anyhow!("Failed to parse session file {session_file:?}: {e}"))?;
+
+        // Extract data from session
+        let benchmark_id = session_data
+            .get("benchmark_id")
+            .and_then(Value::as_str)
+            .unwrap_or(&execution_state.benchmark_id)
+            .to_string();
+
+        let agent_type = session_data
+            .get("agent_type")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+
+        let final_result = session_data
+            .get("final_result")
+            .ok_or_else(|| anyhow!("Session file missing 'final_result' field"))?;
+
+        let score = final_result
+            .get("score")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
+
+        let execution_time_ms = final_result
+            .get("execution_time_ms")
+            .and_then(Value::as_u64)
+            .map(|v| v as i64);
+
+        let status = final_result
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Create agent performance record
+        let performance = AgentPerformance {
+            id: None,
+            session_id: session_id.clone(),
+            benchmark_id,
+            agent_type,
+            score,
+            final_status: status,
+            execution_time_ms,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            flow_log_id: None,
+            prompt_md5: None, // TODO: Extract from prompt if needed
+            additional_metrics: HashMap::new(),
+        };
+
+        // Store in database
+        self.db
+            .insert_agent_performance(&performance)
+            .await
+            .map_err(|e| anyhow!("Failed to insert agent performance: {e}"))?;
+
+        info!(
+            "✅ Stored agent performance for session: {} (score: {})",
+            session_id, score
+        );
         Ok(())
     }
 

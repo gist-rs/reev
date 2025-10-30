@@ -37,6 +37,12 @@ pub trait DatabaseWriterTrait: Send + Sync {
         &self,
         benchmark_id: &str,
     ) -> crate::error::Result<Vec<reev_types::ExecutionState>>;
+
+    /// Insert agent performance data
+    async fn insert_agent_performance(
+        &self,
+        performance: &crate::shared::performance::AgentPerformance,
+    ) -> crate::error::Result<()>;
 }
 
 /// Implementation of DatabaseWriterTrait for DatabaseWriter
@@ -71,5 +77,13 @@ impl DatabaseWriterTrait for crate::writer::DatabaseWriter {
         writer
             .list_execution_states_by_benchmark(benchmark_id)
             .await
+    }
+
+    /// Insert agent performance data
+    async fn insert_agent_performance(
+        &self,
+        performance: &crate::shared::performance::AgentPerformance,
+    ) -> crate::error::Result<()> {
+        self.insert_agent_performance(performance).await
     }
 }

@@ -557,6 +557,19 @@ impl DatabaseWriterTrait for PooledDatabaseWriter {
             .list_execution_states_by_benchmark(benchmark_id)
             .await
     }
+
+    /// Insert agent performance data
+    async fn insert_agent_performance(
+        &self,
+        performance: &crate::shared::performance::AgentPerformance,
+    ) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer = crate::writer::core::DatabaseWriter {
+            conn: conn.connection().clone(),
+            config: self.config.clone(),
+        };
+        writer.insert_agent_performance(performance).await
+    }
 }
 
 // Implement Clone for PooledDatabaseWriter
