@@ -2,6 +2,13 @@
 
 ## 🎯 Current Status - Database Corruption FIXED ✅, New Issues Found 🔍
 
+### 🔧 **Current Investigation - Issue #42**  
+- **Title**: Execution Trace API Returns Empty Instead of ASCII Tree
+- **Issue #42**: **INVESTIGATION** 🔍 (Missing ASCII Tree Generation)
+- **Status**: **ACTIVE** 🔄 - Working on ASCII trace functionality
+- **Description**: When clicking Execution Trace on web UI, the endpoint returns empty "trace" field instead of ASCII tree representation, despite execution data being available in database
+- **Root Cause**: Session files are created but flow logs (for ASCII rendering) are not being generated or properly converted
+
 ### ✅ **RESOLVED Issue - #36**  
 - **Title**: Database UPDATE Index Corruption During API Status Updates
 - **Issue #36**: **RESOLVED** ✅ (Database UPDATE Index Corruption)
@@ -303,7 +310,19 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 5. ✅ All architecture issues (#29, #30, #31, #32) resolved
 ```
 
-### 🎯 **Solution Implemented**
+### 🛠️ **Implementation Attempted**:
+- Modified `/api/v1/execution-logs/{benchmark_id}` endpoint to generate ASCII trees
+- Added `generate_ascii_trace_from_database()` function to convert session data
+- Attempted to use existing `FlowLogRenderer` from `reev-flow` crate
+- Encountered compilation issues with complex type conversions
+- **Current Status**: Partial implementation with type resolution problems
+
+### 📋 **Available Components**:
+- ✅ Session data stored and accessible via `get_session_log()`
+- ✅ ASCII tree renderer exists in `reev-flow/src/renderer.rs`
+- ✅ Flow log types and conversion utilities available
+- ❌ Integration between session data and flow renderer needs refinement
+
 **Two-Phase Fix:**
 
 **Phase 1: Prevent Database Conflicts** ✅
