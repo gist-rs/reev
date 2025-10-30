@@ -62,8 +62,7 @@ ascii_tree = "0.1.1"
 solana-sdk = { workspace = true }
 uuid = { workspace = true }
 
-# Database dependencies
-reev-db = { path = "../reev-db" }
+# Database dependencies removed - runner is database-free
 
 # Dependency management
 flate2 = "1.0"

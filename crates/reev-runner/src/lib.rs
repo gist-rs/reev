@@ -202,23 +202,8 @@ pub async fn run_benchmarks(
             Some(path),
         )?);
 
-        // Create session in database
-        let start_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
-        let session_info = reev_lib::db::SessionInfo {
-            session_id: session_id.clone(),
-            benchmark_id: test_case.id.clone(),
-            agent_type: agent_name.to_string(),
-            interface: "tui".to_string(),
-            start_time,
-            end_time: None,
-            status: "running".to_string(),
-            score: None,
-            final_status: None,
-        };
+        // Session file created via SessionFileLogger
+        // No database operations needed - API handles database storage
 
         // Initialize enhanced OTEL logging instead of basic flow logging
         let flow_logger = FlowLogger::new(
@@ -251,14 +236,8 @@ pub async fn run_benchmarks(
                 Ok(result) => result,
                 Err(e) => {
                     // Ensure session is marked as failed even if evaluation loop fails
-                    let error_session_result = reev_lib::db::SessionResult {
-                        end_time: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as i64,
-                        score: 0.0,
-                        final_status: FinalStatus::Failed.to_string(),
-                    };
+                    // Session file will automatically handle failure state
+                    // No database operations needed - API handles database storage
 
                     // Session file logging will handle the completion automatically
                     warn!(
@@ -352,17 +331,12 @@ pub async fn run_benchmarks(
             FinalStatus::Failed
         };
 
-        // Complete session in database with results
-        let end_time = std::time::SystemTime::now()
+        // Session file completion handled automatically by SessionFileLogger
+        // Database storage handled by API after reading session file
+        let _end_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-
-        let session_result = reev_lib::db::SessionResult {
-            end_time,
-            score,
-            final_status: final_status.to_string(),
-        };
 
         // 🎯 CAPTURE TOOL CALLS FROM AGENT'S ENHANCED OTEL LOG FILES
         // Since reev-agent runs in separate process, we need to read from its otel log files
@@ -372,7 +346,7 @@ pub async fn run_benchmarks(
             info!(
                 session_id = %session_id,
                 tool_calls_count = tool_calls.len(),
-                "Storing tool calls in database (from agent log files)"
+                "Processing tool calls from agent log files (session file storage)"
             );
 
             for tool_call in &tool_calls {
@@ -383,21 +357,21 @@ pub async fn run_benchmarks(
                     .map(|input| input.tool_name.clone())
                     .unwrap_or_else(|| "unknown".to_string());
 
-                let input_params = tool_call
+                let _input_params = tool_call
                     .tool_input
                     .as_ref()
                     .map(|input| input.tool_args.clone())
                     .unwrap_or(serde_json::Value::Null);
 
-                let output_result = tool_call
+                let _output_result = tool_call
                     .tool_output
                     .as_ref()
                     .map(|output| output.results.clone())
                     .unwrap_or(serde_json::Value::Null);
 
-                let execution_time_ms = tool_call.timing.step_timeuse_ms;
+                let _execution_time_ms = tool_call.timing.step_timeuse_ms;
 
-                let (status, error_message) = tool_call
+                let (_status, _error_message) = tool_call
                     .tool_output
                     .as_ref()
                     .map(|output| {
@@ -409,22 +383,11 @@ pub async fn run_benchmarks(
                     })
                     .unwrap_or_else(|| (("pending".to_string()), None));
 
-                let tool_data = reev_db::writer::sessions::ToolCallData {
-                    session_id: session_id.clone(),
-                    tool_name,
-                    start_time: tool_call.timestamp.timestamp() as u64,
-                    execution_time_ms,
-                    input_params,
-                    output_result,
-                    status,
-                    error_message,
-                };
-
-                // Tool calls are stored in enhanced otel session files automatically
+                // Tool calls are automatically stored in enhanced otel session files
                 debug!(
                     session_id = %session_id,
-                    tool_name = %tool_data.tool_name,
-                    "Tool call stored in enhanced otel session file"
+                    tool_name = %tool_name,
+                    "Tool call available in enhanced otel session file"
                 );
             }
         } else {
@@ -440,24 +403,10 @@ pub async fn run_benchmarks(
             "Session completed in session file"
         );
 
-        // Store performance metrics
-        let performance_data = reev_lib::db::AgentPerformanceData {
-            session_id: session_id.clone(),
-            benchmark_id: test_case.id.clone(),
-            agent_type: agent_name.to_string(),
-            score,
-            final_status: match final_status {
-                FinalStatus::Succeeded => "succeeded".to_string(),
-                FinalStatus::Failed => "failed".to_string(),
-            },
-            execution_time_ms: (end_time - start_time) as u64,
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            flow_log_id: None,
-            prompt_md5: None,
-        };
-
-        // Convert to shared AgentPerformance type for database insertion (skip if no_db)
         // Performance metrics stored in session file
+        // Database storage handled by API after reading session file
+
+        // Performance metrics available in session file for API to process
         debug!(
             benchmark_id = %test_case.id,
             "Performance metrics available in session file"
@@ -487,7 +436,7 @@ pub async fn run_benchmarks(
 
     info!("All benchmarks finished.");
 
-    // Close database connection properly to prevent lock issues (skip if no_db)
+    // Database-free runner - no database connections to close
     info!("All benchmarks completed (database-free runner)");
 
     Ok(results)
