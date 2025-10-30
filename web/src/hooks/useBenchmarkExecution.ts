@@ -139,8 +139,16 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
             latestExecutionId,
           );
         } else {
-          // Fallback to old method if no execution_id found
-          return await apiClient.getExecutionTrace(benchmarkId);
+          // Return empty result if no execution_id found - prevents stale cache
+          return {
+            benchmark_id: benchmarkId,
+            execution_id: null,
+            error: "No execution found",
+            message: "No executions available for this benchmark",
+            trace: "",
+            is_running: false,
+            progress: 0.0,
+          };
         }
       } catch (error) {
         console.error(
