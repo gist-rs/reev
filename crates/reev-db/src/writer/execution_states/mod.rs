@@ -42,7 +42,7 @@ impl<'a> ExecutionStatesWriter<'a> {
                 execution_id, benchmark_id, agent, status,
                 created_at, updated_at, progress, error_message,
                 result_data, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
                 [
                     state.execution_id.clone(),
