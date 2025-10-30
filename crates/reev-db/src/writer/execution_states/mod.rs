@@ -42,7 +42,7 @@ impl<'a> ExecutionStatesWriter<'a> {
                 execution_id, benchmark_id, agent, status,
                 created_at, updated_at, progress, error_message,
                 result_data, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
                 [
                     state.execution_id.clone(),
@@ -69,11 +69,14 @@ impl<'a> ExecutionStatesWriter<'a> {
         {
             Ok(_) => {
                 // Successfully inserted
+                debug!("[DB] Execution state inserted: {}", state.execution_id);
             }
             Err(e) => {
                 // Check if it's a duplicate key error and try update
-                if e.to_string().contains("UNIQUE constraint failed")
-                    || e.to_string().contains("duplicate")
+                let error_str = e.to_string();
+                if error_str.contains("UNIQUE constraint failed")
+                    || error_str.contains("duplicate")
+                    || error_str.contains("UNIQUE")
                 {
                     debug!(
                         "[DB] Duplicate execution_id {}, attempting update",
@@ -85,7 +88,7 @@ impl<'a> ExecutionStatesWriter<'a> {
                             r#"
                         UPDATE execution_states SET
                             benchmark_id = ?, agent = ?, status = ?,
-                            created_at = ?, updated_at = ?, progress = ?,
+                            updated_at = ?, progress = ?,
                             error_message = ?, result_data = ?, metadata = ?
                         WHERE execution_id = ?
                         "#,
@@ -95,7 +98,6 @@ impl<'a> ExecutionStatesWriter<'a> {
                                 serde_json::to_string(&state.status).map_err(|e| {
                                     DatabaseError::serialization("Failed to serialize status", e)
                                 })?,
-                                state.created_at.timestamp().to_string(),
                                 state.updated_at.timestamp().to_string(),
                                 state.progress.unwrap_or(0.0).to_string(),
                                 state

@@ -54,8 +54,8 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     // Debug: check current working directory and file existence
     let current_dir = std::env::current_dir().unwrap();
-    println!("Current working directory: {:?}", current_dir);
-    println!("Looking for session file at: {}", session_file_path);
+    println!("Current working directory: {current_dir:?}");
+    println!("Looking for session file at: {session_file_path}");
     println!(
         "File exists: {:?}",
         fs::metadata(&session_file_path).await.is_ok()
@@ -63,8 +63,7 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     assert!(
         fs::metadata(&session_file_path).await.is_ok(),
-        "Mock session file should exist at {}",
-        session_file_path
+        "Mock session file should exist at {session_file_path}"
     );
 
     // Create execution state
@@ -107,9 +106,9 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     // Create execution request like the real API would
     let _execution_request = ExecutionRequest {
-        request_id: format!("req-{}", execution_id),
+        request_id: format!("req-{execution_id}"),
         execution_id: Some(execution_id.to_string()),
-        benchmark_path: format!("benchmarks/{}.yml", benchmark_id),
+        benchmark_path: format!("benchmarks/{benchmark_id}.yml"),
         agent: agent.to_string(),
         priority: 1,
         timeout_seconds: 300,
@@ -225,8 +224,7 @@ async fn test_otel_file_verification() -> Result<()> {
     // Verify OTEL file exists
     assert!(
         fs::metadata(&otel_file_path).await.is_ok(),
-        "Enhanced OTEL file should exist at {}",
-        otel_file_path
+        "Enhanced OTEL file should exist at {otel_file_path}"
     );
 
     // Read and verify OTEL content
@@ -235,7 +233,7 @@ async fn test_otel_file_verification() -> Result<()> {
 
     // Count number of OTEL events
     let otel_lines: Vec<&str> = otel_content.lines().collect();
-    assert!(otel_lines.len() > 0, "Should have OTEL events");
+    assert!(!otel_lines.is_empty(), "Should have OTEL events");
 
     info!(
         "✅ OTEL file verification passed - found {} events",
@@ -260,9 +258,9 @@ async fn test_api_state_management_only() -> Result<()> {
 
     // Create execution request
     let execution_request = ExecutionRequest {
-        request_id: format!("req-{}", execution_id),
+        request_id: format!("req-{execution_id}"),
         execution_id: Some(execution_id.to_string()),
-        benchmark_path: format!("benchmarks/{}.yml", benchmark_id),
+        benchmark_path: format!("benchmarks/{benchmark_id}.yml"),
         agent: agent.to_string(),
         priority: 1,
         timeout_seconds: 300,

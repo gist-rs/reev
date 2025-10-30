@@ -2,7 +2,7 @@
 
 ---
 
-
+now back to the "api stuck in queued state because db not update and log not create from runner" issue, run proof[@api_mock_test.rs](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2Fcrates%2Freev-api%2Ftests%2Fapi_mock_test.rs)  to get an idea, then check the code for diff between working and non working and show me the plan first.
 
 ---
 
