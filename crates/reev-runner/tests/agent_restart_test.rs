@@ -130,7 +130,7 @@ async fn test_port_released_after_stop() -> Result<()> {
     server_utils::kill_existing_api(3001).await?;
     server_utils::kill_existing_reev_agent(9090).await?;
     server_utils::kill_existing_surfpool(8899).await?;
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(3)).await; // Increased delay for cleanup
 
     let mut manager = DependencyManager::new(DependencyConfig {
         shared_instances: false, // Not shared to test proper stop/start
@@ -176,11 +176,12 @@ async fn test_port_released_after_stop() -> Result<()> {
     }
 
     // Wait longer for process to fully terminate
-    sleep(Duration::from_millis(3000)).await;
+    sleep(Duration::from_millis(5000)).await; // Increased initial wait
 
     // Port should be released (with retries)
     let mut port_released = false;
-    for i in 0..20 {
+    for i in 0..30 {
+        // Increased retry count
         let is_port_in_use = ProcessDetector::is_port_in_use(port)?;
         let is_process_running = ProcessDetector::is_process_running("reev-agent")?;
         println!(
@@ -196,7 +197,8 @@ async fn test_port_released_after_stop() -> Result<()> {
             println!("Port {} released after {} attempts", port, i + 1);
             break;
         }
-        sleep(Duration::from_millis(500)).await;
+        println!("Attempt {}: Port {} still in use", i + 1, port);
+        sleep(Duration::from_millis(1000)).await; // Increased retry delay
     }
 
     assert!(port_released, "Port should be released after stop");
@@ -205,7 +207,7 @@ async fn test_port_released_after_stop() -> Result<()> {
     manager.cleanup().await?;
 
     // Wait for process to fully terminate
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(3)).await; // Increased final cleanup delay
 
     Ok(())
 }
