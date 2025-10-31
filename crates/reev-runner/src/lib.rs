@@ -161,15 +161,15 @@ pub async fn run_benchmarks(
                 "Detected flow benchmark, executing step-by-step"
             );
 
-            // Generate session_id for flow benchmark
-            let session_id = uuid::Uuid::new_v4().to_string();
+            // Use provided execution_id for flow benchmark to ensure consistency
+            let session_id = execution_id.clone();
 
             let result = run_flow_benchmark(
                 &test_case,
                 flow_steps,
                 agent_name,
                 &path.display().to_string(),
-                &session_id,
+                session_id.as_deref().unwrap_or("unknown"),
             )
             .await?;
             results.push(result);
@@ -567,6 +567,22 @@ async fn run_flow_benchmark(
         "Starting flow benchmark execution"
     );
 
+    // Initialize unified session logging for consistency with regular benchmarks
+    // Session logging is always enabled
+    let session_logger = {
+        let log_path =
+            std::env::var("REEV_SESSION_LOG_PATH").unwrap_or_else(|_| "logs/sessions".to_string());
+        let path = PathBuf::from(log_path);
+        std::fs::create_dir_all(&path)?;
+
+        Some(create_session_logger(
+            session_id.to_string(),
+            test_case.id.clone(),
+            agent_name.to_string(),
+            Some(path),
+        )?)
+    };
+
     // Initialize flow logging for flow benchmarks with database support
     // Flow logging is always enabled
     let flow_logger = {
@@ -749,7 +765,29 @@ async fn run_flow_benchmark(
         }
     }
 
-    let result = TestResult::new(test_case, final_status, score, flow_trace);
+    let result = TestResult::new(test_case, final_status, score, flow_trace.clone());
+
+    // Complete session logging if enabled for consistency with regular benchmarks
+    if let Some(session_logger) = session_logger {
+        match session_logger.complete_with_trace(flow_trace) {
+            Ok(log_file) => {
+                info!(
+                    benchmark_id = %test_case.id,
+                    session_id = %session_id,
+                    log_file = %log_file.display(),
+                    "Session log with ExecutionTrace completed successfully for flow benchmark"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to complete session logging with ExecutionTrace for flow benchmark"
+                );
+            }
+        }
+    }
 
     // Close environment
     if let Err(e) = env.close() {
