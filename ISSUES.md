@@ -60,14 +60,14 @@ curl ".../execution-logs/116-jup-lend-redeem-usdc?execution_id=new"
 
 **Issue Status:** 🎯 **COMPLETELY RESOLVED** - All flow benchmark issues fixed with comprehensive solution
 
-## Issue #11: Flow benchmark hard failures causing frontend to hang (2025-10-31)
+## Issue #12: Investigate Uuid::new_v4() collision causing execution_id conflicts (2025-10-31)
 
-**Description:** Flow benchmarks experiencing hard failures that stop entire execution process instead of graceful degradation, causing frontend to hang indefinitely.
+**Description:** Multiple executions being created with same execution_id causing database conflicts and frontend stuck in "Queued" state. Investigation needed into Uuid::new_v4() usage causing inconsistent ID generation.
 
 **Current Impact:**
-- **Benchmark 116-jup-lend-redeem-usdc**: Fails on Step 2 with "Number is not a valid u64" error when -1 passed as shares parameter
-- **Benchmark 200-jup-swap-then-lend-deposit**: Fails on Step 2 with "Insufficient funds: requested 394358118, available 0" error
-- **Frontend Stuck**: Both benchmarks get stuck in "Failed" state, preventing further execution
+- **Execution ID Collisions**: Multiple executions created with same execution_id `a71c1214-c295-4aa6-abc9-3df47e0364cc` causing database conflicts
+- **Frontend Stuck**: Benchmarks stuck in "Queued" state when duplicate execution_ids occur
+- **Root Cause**: `Uuid::new_v4()` generating inconsistent IDs in different code paths
 - **No Graceful Recovery**: Hard failures prevent continuation to remaining benchmarks
 
 **Error Analysis:**
@@ -92,41 +92,47 @@ curl ".../execution-logs/116-jup-lend-redeem-usdc?execution_id=new"
 - Missing balance validation before attempting deposit
 - Should handle insufficient funds gracefully and provide helpful error
 
-**Root Cause Problems:**
-1. **Hard Failures**: Errors propagate up and stop entire execution instead of being caught and logged
-2. **Poor Error Recovery**: No fallback mechanisms for common failure scenarios  
-3. **Missing Error Session Fields**: Errors not properly logged to session files for debugging
-4. **Frontend State**: Frontend gets stuck waiting for completion that never comes
-5. **Balance Query Failures**: Token balance queries return invalid values (-1) instead of proper error handling
+**Investigation Areas:**
 
-**Files Affected:**
-- `crates/reev-tools/src/tools/jupiter_lend_earn_mint_redeem.rs` - Balance query error handling
-- `crates/reev-runner/src/lib.rs` - Flow benchmark error recovery  
-- `crates/reev-lib/src/llm_agent.rs` - Agent error propagation
-- `crates/reev-protocols/src/jupiter/mod.rs` - Token balance query validation
-- Frontend state management for failed flows
+**🔍 Primary Investigation Points:**
 
-**Priority:** Critical - Blocks flow benchmark execution and hangs frontend
+1. **UUID Generation Analysis**
+   - Compare `Uuid::new_v4()` usage patterns across codebase
+   - Identify where consistent vs inconsistent generation occurs
+   - Check if timestamp or system state affects UUID generation
+   - Verify collision probability in concurrent execution scenarios
 
-**Status:** 🔴 **ACTIVE** - Requires immediate fix
+2. **Execution ID Flow Tracing**
+   - Map execution_id lifecycle from API request → CLI runner → Database storage
+   - Identify where ID transformation/collision occurs
+   - Check if temporary IDs vs final IDs cause confusion
+   - Verify `execute_cli_command()` vs `execute_benchmark()` ID handling
 
-**Proposed Solution Plan:**
+3. **Database State Consistency**
+   - Check if database operations use consistent ID formats
+   - Verify if logging IDs differ from storage IDs
+   - Identify race conditions in concurrent execution scenarios
+   - Check if session file naming conflicts with database records
 
-**Phase 1: Soft Error Handling**
-1. **Catch Flow Step Failures**: Modify `run_flow_benchmark()` to catch individual step failures without stopping entire flow
-2. **Graceful Degradation**: Log error and continue with next benchmark instead of hard failure
-3. **Session Error Logging**: Add error field to session logs for failed steps
-4. **Frontend Recovery**: Update execution state management to handle soft failures
+**🧪 Reproduction Steps:**
+1. Set up concurrent benchmark execution scenario
+2. Monitor execution_id generation across multiple API calls
+3. Trace ID transformation through each system component
+4. Identify exact point where collision occurs
+5. Verify database conflict resolution behavior
 
-**Phase 2: Balance Query Fixes**  
-1. **Validate Balance Responses**: Fix `query_token_balance()` to return 0 instead of -1 on errors
-2. **Better Error Messages**: Provide meaningful error context for insufficient funds
-3. **Pre-Validation**: Check balances before attempting operations that require them
+**📊 Data Collection Needed:**
+- UUID collision frequency and patterns
+- Execution state transition timelines  
+- Database operation success/failure rates by ID
+- Frontend state change correlation with ID conflicts
+- Session file creation vs database storage timing
 
-**Phase 3: Enhanced Error Recovery**
-1. **Retry Logic**: Add configurable retry for transient failures
-2. **Fallback Mechanisms**: Alternative approaches when primary operation fails  
-3. **Error Classification**: Distinguish between recoverable vs non-recoverable errors
+**🎯 Expected Findings:**
+- Root cause of UUID generation inconsistency
+- Specific code path causing execution_id conflicts
+- Impact assessment on frontend stability
+- Recommended fix approach for ID management
 
 **Implementation Details:**
 - Modify flow step execution to catch and log errors without propagating
@@ -135,12 +141,22 @@ curl ".../execution-logs/116-jup-lend-redeem-usdc?execution_id=new"
 - Improve frontend state transitions for failed benchmarks
 - Add comprehensive error logging to aid debugging
 
-**Success Criteria:**
-- Flow benchmarks continue execution even when individual steps fail
-- Frontend receives proper error states and can continue
-- Session logs contain detailed error information for debugging
-- Balance queries handle edge cases properly
-- Users can see what failed and why in the UI
+**Status:** 🔍 **UNDER INVESTIGATION** - Analyzing UUID collision patterns
+
+**Current Analysis Status:**
+- ✅ **Initial Fix Applied**: Resolved execution_id collision in `execute_cli_command()`
+- 📊 **Monitoring Active**: Watching for recurring collision patterns
+- 🔧 **Temporary Solution**: Using consistent execution_id across API and CLI
+- ⚠️ **Root Cause**: `Uuid::new_v4()` may have deeper consistency issues
+
+**Next Investigation Steps:**
+1. **Pattern Analysis**: Collect data on collision frequency and timing
+2. **Code Review**: Systematic review of all UUID generation points
+3. **Stress Testing**: Concurrent execution scenarios to reproduce collisions
+4. **Root Cause Analysis**: Determine if issue is algorithmic or environmental
+5. **Permanent Fix**: Implement robust ID generation strategy
+
+**Investigation Priority: High** - Potential for systemic ID generation issues
 
 **Testing Strategy:**
 1. Test with various balance scenarios (0, insufficient, adequate)
