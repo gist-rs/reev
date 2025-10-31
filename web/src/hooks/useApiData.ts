@@ -164,7 +164,7 @@ export function useAgentPerformance() {
                 ? "green"
                 : result.score >= 0.25
                   ? "yellow"
-                  : ("red" as const),
+                  : ("gray" as const), // Use gray for failed/unknown scores
           };
         }),
       };
