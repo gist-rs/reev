@@ -8,6 +8,7 @@ pub mod flow_diagram;
 pub mod flow_logs;
 pub mod flows;
 pub mod health;
+pub mod parsers;
 pub mod transaction_logs;
 pub mod yml;
 
@@ -18,5 +19,6 @@ pub use execution_logs::*;
 pub use flow_logs::*;
 pub use flows::*;
 pub use health::*;
+// pub use parsers::*;  // Parser is only used internally by execution_logs
 pub use transaction_logs::*;
 pub use yml::*;
