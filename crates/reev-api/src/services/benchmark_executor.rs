@@ -566,7 +566,7 @@ where
         use tokio::process::Command as TokioCommand;
         use tokio::time::timeout;
 
-        let execution_id = format!("cli-{}-{}", context_id, uuid::Uuid::new_v4());
+        let execution_id = context_id.to_string();
         let timeout_seconds = self
             .timeout_config
             .default_timeout_seconds
