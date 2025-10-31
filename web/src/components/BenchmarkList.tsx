@@ -256,7 +256,7 @@ export function BenchmarkList({
           id: response.execution_id,
           benchmark_id: benchmark.id,
           agent: selectedAgent,
-          status: ExecutionStatus.PENDING,
+          status: ExecutionStatus.QUEUED,
           progress: 0,
           start_time: new Date().toISOString(),
           trace: "",
@@ -412,7 +412,6 @@ export function BenchmarkList({
       if (
         execution &&
         (execution.status === ExecutionStatus.QUEUED ||
-          execution.status === ExecutionStatus.PENDING ||
           execution.status === ExecutionStatus.RUNNING)
       ) {
         console.log(
@@ -676,7 +675,17 @@ export function BenchmarkList({
             .map((benchmark) => {
               const execution = getBenchmarkStatus(benchmark.id, selectedDate);
 
-              const status = execution?.final_status || null;
+              const status = (() => {
+                // Get current execution status from executions map
+                const currentExecution = Array.from(executions.values()).find(
+                  (exec) => exec.benchmark_id === benchmark.id,
+                );
+                if (currentExecution) {
+                  return currentExecution.status;
+                }
+                // Fallback to benchmark result status
+                return execution?.final_status || null;
+              })();
               const score =
                 execution?.final_status === ExecutionStatus.COMPLETED
                   ? getBenchmarkScore(benchmark.id, selectedDate)
@@ -688,7 +697,6 @@ export function BenchmarkList({
                 (execution) => {
                   return (
                     execution?.status === ExecutionStatus.QUEUED ||
-                    execution?.status === ExecutionStatus.PENDING ||
                     execution?.status === ExecutionStatus.RUNNING
                   );
                 },
@@ -696,9 +704,8 @@ export function BenchmarkList({
 
               const isExpanded =
                 status === ExecutionStatus.RUNNING ||
-                status === ExecutionStatus.QUEUED ||
-                status === ExecutionStatus.PENDING
-                  ? true // Always expand running/queued/pending benchmark
+                status === ExecutionStatus.QUEUED
+                  ? true // Always expand running/queued benchmark
                   : runningBenchmark
                     ? false // Collapse all others when something is running
                     : expandedBenchmark === benchmark.id; // Normal expansion logic when nothing is running
@@ -712,8 +719,7 @@ export function BenchmarkList({
                       : ""
                   } ${
                     status === ExecutionStatus.RUNNING ||
-                    status === ExecutionStatus.QUEUED ||
-                    status === ExecutionStatus.PENDING
+                    status === ExecutionStatus.QUEUED
                       ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 animate-pulse"
                       : ""
                   }`}
@@ -747,7 +753,7 @@ export function BenchmarkList({
                                 return getBenchmarkColorClass(
                                   placeholderResult,
                                   status === ExecutionStatus.RUNNING ||
-                                    status === ExecutionStatus.PENDING,
+                                    status === ExecutionStatus.QUEUED,
                                 );
                               }
 
@@ -755,8 +761,7 @@ export function BenchmarkList({
                                 return getBenchmarkColorClass(
                                   execution,
                                   status === ExecutionStatus.RUNNING ||
-                                    status === ExecutionStatus.QUEUED ||
-                                    status === ExecutionStatus.PENDING,
+                                    status === ExecutionStatus.QUEUED,
                                 );
                               } catch (error) {
                                 console.error(
@@ -767,8 +772,7 @@ export function BenchmarkList({
                                 // Return appropriate color based on status
                                 if (
                                   status === ExecutionStatus.RUNNING ||
-                                  status === ExecutionStatus.QUEUED ||
-                                  status === ExecutionStatus.PENDING
+                                  status === ExecutionStatus.QUEUED
                                 ) {
                                   return "bg-yellow-500 animate-pulse";
                                 }
@@ -786,6 +790,9 @@ export function BenchmarkList({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          console.log(
+                            `🖱️ [COLLAPSED_VIEW] Clicked Run button for ${benchmark.id}, status: ${status}`,
+                          );
                           handleRunBenchmark(benchmark);
                         }}
                         disabled={
@@ -795,15 +802,13 @@ export function BenchmarkList({
                         }
                         className={`ml-3 px-3 py-1 text-white text-sm rounded transition-all duration-300 ${
                           status === ExecutionStatus.RUNNING ||
-                          status === ExecutionStatus.QUEUED ||
-                          status === ExecutionStatus.PENDING
+                          status === ExecutionStatus.QUEUED
                             ? "bg-yellow-500 animate-pulse"
                             : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         }`}
                       >
                         {status === ExecutionStatus.RUNNING ||
-                        status === ExecutionStatus.QUEUED ||
-                        status === ExecutionStatus.PENDING
+                        status === ExecutionStatus.QUEUED
                           ? "Running..."
                           : "Run"}
                       </button>
@@ -839,8 +844,7 @@ export function BenchmarkList({
                                   return getBenchmarkColorClass(
                                     placeholderResult,
                                     status === ExecutionStatus.RUNNING ||
-                                      status === ExecutionStatus.QUEUED ||
-                                      status === ExecutionStatus.PENDING,
+                                      status === ExecutionStatus.QUEUED,
                                   );
                                 }
 
@@ -848,8 +852,7 @@ export function BenchmarkList({
                                   return getBenchmarkColorClass(
                                     execution,
                                     status === ExecutionStatus.RUNNING ||
-                                      status === ExecutionStatus.QUEUED ||
-                                      status === ExecutionStatus.PENDING,
+                                      status === ExecutionStatus.QUEUED,
                                   );
                                 } catch (error) {
                                   console.error(
@@ -860,8 +863,7 @@ export function BenchmarkList({
                                   // Return appropriate color based on status
                                   if (
                                     status === ExecutionStatus.RUNNING ||
-                                    status === ExecutionStatus.QUEUED ||
-                                    status === ExecutionStatus.PENDING
+                                    status === ExecutionStatus.QUEUED
                                   ) {
                                     return "bg-yellow-500 animate-pulse";
                                   }
@@ -897,12 +899,14 @@ export function BenchmarkList({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            console.log(
+                              `🖱️ [EXPANDED_VIEW] Clicked Run button for ${benchmark.id}, status: ${status}`,
+                            );
                             if (
                               status === ExecutionStatus.RUNNING ||
-                              status === ExecutionStatus.QUEUED ||
-                              status === ExecutionStatus.PENDING
+                              status === ExecutionStatus.QUEUED
                             ) {
-                              // Do nothing when running/queued/pending - just show Running...
+                              // Do nothing when running/queued - just show Running...
                               return;
                             } else {
                               handleRunBenchmark(benchmark);
@@ -911,21 +915,18 @@ export function BenchmarkList({
                           disabled={
                             status === ExecutionStatus.RUNNING ||
                             status === ExecutionStatus.QUEUED ||
-                            status === ExecutionStatus.PENDING ||
                             isRunning ||
                             isRunningAll
                           }
                           className={`px-3 py-1 text-white text-sm rounded transition-all duration-300 ${
                             status === ExecutionStatus.RUNNING ||
-                            status === ExecutionStatus.QUEUED ||
-                            status === ExecutionStatus.PENDING
+                            status === ExecutionStatus.QUEUED
                               ? "bg-yellow-500 animate-pulse"
                               : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                           }`}
                         >
                           {status === ExecutionStatus.RUNNING ||
-                          status === ExecutionStatus.QUEUED ||
-                          status === ExecutionStatus.PENDING
+                          status === ExecutionStatus.QUEUED
                             ? "Running..."
                             : "Run"}
                         </button>
@@ -935,8 +936,7 @@ export function BenchmarkList({
 
                       {/* Progress Bar for Running/Pending Benchmarks */}
                       {(status === ExecutionStatus.RUNNING ||
-                        status === ExecutionStatus.QUEUED ||
-                        status === ExecutionStatus.PENDING) && (
+                        status === ExecutionStatus.QUEUED) && (
                         <div className="mt-3">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-medium text-gray-700 dark:text-gray-300">

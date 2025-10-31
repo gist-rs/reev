@@ -2,7 +2,6 @@
 
 export enum ExecutionStatus {
   QUEUED = "Queued",
-  PENDING = "Pending",
   RUNNING = "Running",
   COMPLETED = "Completed",
   FAILED = "Failed",

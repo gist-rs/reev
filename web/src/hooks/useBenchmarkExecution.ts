@@ -78,8 +78,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
       // Start polling if execution is running
       if (
         execution.status === ExecutionStatus.RUNNING ||
-        execution.status === ExecutionStatus.QUEUED ||
-        execution.status === ExecutionStatus.PENDING
+        execution.status === ExecutionStatus.QUEUED
       ) {
         console.log(
           `🚀 [POLLING_START] Starting polling for ${execution.benchmark_id}`,

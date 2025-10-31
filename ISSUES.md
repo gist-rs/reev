@@ -2,6 +2,26 @@
 
 ## 🎯 Current Status - Database Corruption FIXED ✅, New Issues Found 🔍
 
+### 🔧 **NEW Issue - #37**
+- **Title**: Backend/Frontend Status Mismatch - Returns "Pending" instead of "Queued"
+- **Status**: **NEW** 🆕 - Backend returns wrong status string
+- **Description**: Backend creates execution with `ExecutionStatus::Queued` but API returns "Pending" string to frontend, causing button stuck issues
+- **Evidence**: 
+  - Backend enum: `ExecutionStatus::Queued` (should serialize to "Queued")
+  - Frontend receives: `status: 'Pending'` in API responses  
+  - Frontend enum has both: `QUEUED = "Queued"` and `PENDING = "Pending"`
+- **Root Cause**: Backend serialization or status setting returning "Pending" instead of "Queued"
+- **Impact**: Frontend button gets stuck at "Running..." because status mismatch prevents proper state transitions
+- **Investigation Needed**: 
+  - Check if `ExecutionStatus::Queued` correctly serializes to "Queued"
+  - Find where "Pending" string is being set instead of "Queued"
+  - Verify no legacy `ExecutionStatus::Pending` enum exists
+- **Decision**: Standardize on "Queued" - backend should return "Queued", frontend should only use QUEUED enum
+- **Files to Check**: 
+  - `crates/reev-types/src/execution.rs` - ExecutionStatus enum definition
+  - `crates/reev-api/src/handlers/benchmarks.rs` - Execution creation and response
+  - Database serialization in `crates/reev-db/src/writer/execution_states/mod.rs`
+
 ### 🔧 **PARTIALLY RESOLVED Issue - #42**  
 - **Title**: Execution Trace API Returns Empty Instead of ASCII Tree
 - **Issue #42**: **PARTIALLY RESOLVED** ⚠️ (ASCII Tree Header Working - Event Conversion Bug)
