@@ -431,7 +431,24 @@ graph TD
 
 ## Critical Integration Points
 
-### ✅ CLI-Based Runner Integration (COMPLETED)
+### ✅ CLI-Based Runner Integration (COMPLETED) [L434-435]
+
+### Flow vs Regular Benchmark Execution Paths [L436-440]
+**Issue**: Flow benchmarks (116, 200) use different execution path causing inconsistent data storage.
+
+#### Regular Benchmarks Path (Working):
+1. Creates `execution_states` records ✅
+2. Creates `execution_sessions` records ✅  
+3. Renders ASCII tree output ✅
+4. Appears in API results ✅
+
+#### Flow Benchmarks Path (Buggy):
+1. Creates `execution_states` records ✅
+2. Does NOT create `execution_sessions` records ❌
+3. Does NOT render ASCII tree output ❌
+4. Missing from API results ❌
+
+**Root Cause**: `run_flow_benchmark()` function missing session creation and tree rendering logic.
 The API now communicates with reev-runner via CLI processes instead of direct library imports:
 
 ```
