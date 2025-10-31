@@ -10,6 +10,7 @@ use crate::dependency::binary::BinaryManager;
 use crate::dependency::health::{HealthChecker, ServiceHealth};
 use crate::dependency::process::{ProcessConfig, ProcessGuard, ProcessManager, ProcessUtils};
 use anyhow::{Context, Result};
+use project_root::get_project_root;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -196,9 +197,13 @@ impl DependencyManager {
 
         // Create process configuration
         debug!("Creating reev-agent process configuration...");
+        let reev_agent_path = get_project_root()
+            .map_err(|e| anyhow::anyhow!("Failed to get project root: {e}"))?
+            .join("target/debug/reev-agent");
+
         let process_config = ProcessConfig::new(
             dependency_type.process_name().to_string(),
-            "./target/debug/reev-agent".to_string(),
+            reev_agent_path.to_string_lossy().to_string(),
         )
         .with_args(vec![])
         .with_stdout(log_file.clone())

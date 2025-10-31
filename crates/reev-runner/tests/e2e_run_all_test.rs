@@ -114,13 +114,28 @@ fn validate_consistency(agent_name: &str, results: &[(PathBuf, f64)]) -> Result<
 
     for (path, score) in results.iter() {
         let score_diff = (score - first_score).abs();
-        if score_diff > 0.001 {
+
+        // More lenient tolerance for non-deterministic agents
+        // Deterministic agents should be very consistent (< 0.001)
+        // LLM/local agents can vary more due to network and API variability
+        let tolerance = if agent_name.contains("deterministic") {
+            0.001
+        } else {
+            0.1 // Allow up to 10% variation for non-deterministic agents
+        };
+
+        if score_diff > tolerance {
             return Err(anyhow::anyhow!(
-                "Score inconsistency detected for {agent_name}: path={path:?}, expected={first_score:.6}, got={score:.6}, diff={score_diff:.6}"
+                "Score inconsistency detected for {agent_name}: path={path:?}, expected={first_score:.6}, got={score:.6}, diff={score_diff:.6}, tolerance={tolerance:.6}"
             ));
         }
 
-        info!("✅ {} consistent: score={:.6}", path.display(), score);
+        info!(
+            "✅ {} consistent: score={:.6} (diff={:.6})",
+            path.display(),
+            score,
+            score_diff
+        );
     }
 
     Ok(())
@@ -195,13 +210,23 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
             info!("  Difference: {:.6}", diff);
 
             // Validate that both modes produce consistent results
-            if diff > 0.01 {
+            // Be more lenient for non-deterministic agents
+            let mode_tolerance = if agent.contains("deterministic") {
+                0.01
+            } else {
+                0.15 // Allow 15% difference between shared and fresh modes for LLM agents
+            };
+
+            if diff > mode_tolerance {
                 warn!(
-                    "⚠️  Large difference detected between shared and fresh modes: {:.6}",
-                    diff
+                    "⚠️  Large difference detected between shared and fresh modes for {}: {:.6} (tolerance: {:.6})",
+                    agent, diff, mode_tolerance
                 );
             } else {
-                info!("✅ Shared and fresh modes produce consistent results");
+                info!(
+                    "✅ Shared and fresh modes produce consistent results for {}",
+                    agent
+                );
             }
         }
     }

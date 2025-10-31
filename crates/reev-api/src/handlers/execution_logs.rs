@@ -203,7 +203,12 @@ pub async fn get_execution_trace(
                 }
                 Ok(None) => {
                     warn!("❌ No session file found for execution_id: {}", exec_id);
-                    parser.generate_error_trace("No session data found", exec_id)
+                    // Return 404 when no data found at all
+                    let response = json!({
+                        "error": "Execution not found",
+                        "message": format!("No execution found with ID: {}", exec_id)
+                    });
+                    return (StatusCode::NOT_FOUND, Json(response)).into_response();
                 }
                 Err(e) => {
                     warn!("❌ Session file error for execution_id {}: {}", exec_id, e);

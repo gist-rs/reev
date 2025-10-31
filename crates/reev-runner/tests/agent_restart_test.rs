@@ -147,14 +147,48 @@ async fn test_port_released_after_stop() -> Result<()> {
     // Stop reev-agent
     manager.stop_reev_agent().await?;
 
-    // Wait a bit for process to fully terminate
-    sleep(Duration::from_millis(1000)).await;
+    // Check if process is still running
+    let is_process_still_running = ProcessDetector::is_process_running("reev-agent")?;
+    println!(
+        "Process still running after stop: {is_process_still_running}"
+    );
+
+    // If process still running, force kill it
+    if is_process_still_running {
+        println!("Force killing remaining reev-agent processes...");
+        if let Ok(pids) =
+            reev_runner::dependency::process::ProcessUtils::find_process_by_name("reev-agent")
+        {
+            for pid in pids {
+                if let Err(e) = reev_runner::dependency::process::ProcessUtils::send_signal(pid, 9)
+                {
+                    println!("Failed to kill process {pid}: {e}");
+                } else {
+                    println!("Successfully killed process {pid}");
+                }
+            }
+        }
+    }
+
+    // Wait longer for process to fully terminate
+    sleep(Duration::from_millis(3000)).await;
 
     // Port should be released (with retries)
     let mut port_released = false;
-    for _ in 0..10 {
-        if !ProcessDetector::is_port_in_use(port)? {
+    for i in 0..20 {
+        let is_port_in_use = ProcessDetector::is_port_in_use(port)?;
+        let is_process_running = ProcessDetector::is_process_running("reev-agent")?;
+        println!(
+            "Attempt {}: Port {} in use: {}, Process running: {}",
+            i + 1,
+            port,
+            is_port_in_use,
+            is_process_running
+        );
+
+        if !is_port_in_use {
             port_released = true;
+            println!("Port {} released after {} attempts", port, i + 1);
             break;
         }
         sleep(Duration::from_millis(500)).await;

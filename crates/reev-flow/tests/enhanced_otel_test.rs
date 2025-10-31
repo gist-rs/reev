@@ -3,8 +3,8 @@
 //! Tests for the enhanced JSONL logging system with structured tool call tracking.
 
 use reev_flow::{
-    init_enhanced_otel_logging, init_enhanced_otel_logging_with_session, EnhancedOtelLogger,
-    EnhancedToolCall, EventType, TimingInfo, ToolInputInfo,
+    init_enhanced_otel_logging, EnhancedOtelLogger, EnhancedToolCall, EventType, PromptInfo,
+    TimingInfo, ToolInputInfo,
 };
 use serde_json::json;
 use std::thread;
@@ -103,29 +103,47 @@ async fn test_enhanced_otel_logging_integration() {
 
 #[tokio::test]
 async fn test_enhanced_otel_prompt_logging() {
-    // Initialize enhanced logging with custom session ID
-    let session_id = "test_session_prompt".to_string();
-    match init_enhanced_otel_logging_with_session(session_id.clone()) {
-        Ok(_) => {} // Successfully initialized
-        Err(reev_flow::EnhancedOtelError::Mutex(_)) => {
-            // Logger already initialized, use existing one
-        }
-        Err(e) => panic!("Failed to initialize enhanced otel logging with session: {e}"),
-    }
+    // Use direct logger instance to avoid global state conflicts
+    let logger = EnhancedOtelLogger::with_session_id("test_session_prompt".to_string())
+        .expect("Failed to create logger with session ID");
+    let session_id = logger.session_id().to_string();
 
-    // Test prompt event logging macro
+    // Test prompt event by creating and logging directly
     let tool_names = vec!["sol_transfer".to_string(), "jupiter_swap".to_string()];
     let user_prompt = "Send 1 SOL to test address".to_string();
     let final_prompt = "Send 1 SOL to test address using sol_transfer tool".to_string();
 
-    reev_flow::log_prompt_event!(&tool_names, &user_prompt, &final_prompt);
+    // Create and log prompt event directly
+    let prompt_info = PromptInfo {
+        tool_name_list: tool_names.clone(),
+        user_prompt: user_prompt.clone(),
+        final_prompt: final_prompt.clone(),
+    };
+
+    let tool_call = EnhancedToolCall {
+        timestamp: chrono::Utc::now(),
+        session_id: session_id.clone(),
+        reev_runner_version: "0.1.0-test".to_string(),
+        reev_agent_version: "0.1.0-test".to_string(),
+        event_type: EventType::Prompt,
+        prompt: Some(prompt_info),
+        tool_input: None,
+        tool_output: None,
+        timing: TimingInfo {
+            flow_timeuse_ms: 0,
+            step_timeuse_ms: 0,
+        },
+        metadata: serde_json::json!({}),
+    };
+
+    logger
+        .log_tool_call(tool_call)
+        .expect("Failed to log prompt event");
 
     // Allow some time for logging
     thread::sleep(Duration::from_millis(10));
 
     // Verify prompt event was logged
-    let logger = reev_flow::get_enhanced_otel_logger().expect("Failed to get enhanced otel logger");
-
     let tool_calls = logger.get_tool_calls().expect("Failed to get tool calls");
 
     // Find prompt event
@@ -149,29 +167,43 @@ async fn test_enhanced_otel_prompt_logging() {
 
 #[tokio::test]
 async fn test_enhanced_otel_step_completion_logging() {
-    // Initialize enhanced logging with custom session ID
-    let session_id = "test_session_step".to_string();
-    match init_enhanced_otel_logging_with_session(session_id.clone()) {
-        Ok(_) => {} // Successfully initialized
-        Err(reev_flow::EnhancedOtelError::Mutex(_)) => {
-            // Logger already initialized, use existing one
-        }
-        Err(e) => panic!("Failed to initialize enhanced otel logging with session: {e}"),
-    }
+    // Use direct logger instance to avoid global state conflicts
+    let logger = EnhancedOtelLogger::with_session_id("test_session_step".to_string())
+        .expect("Failed to create logger with session ID");
+    let session_id = logger.session_id().to_string();
 
-    // Test step completion logging macro
+    // Test step completion by creating and logging directly
     let step_name = "test_step".to_string();
     let flow_time_ms = 5000;
     let step_time_ms = 1500;
 
-    reev_flow::log_step_complete!(&step_name, flow_time_ms, step_time_ms);
+    // Create and log step completion event directly
+    let tool_call = EnhancedToolCall {
+        timestamp: chrono::Utc::now(),
+        session_id: session_id.clone(),
+        reev_runner_version: "0.1.0-test".to_string(),
+        reev_agent_version: "0.1.0-test".to_string(),
+        event_type: EventType::StepComplete,
+        prompt: None,
+        tool_input: None,
+        tool_output: None,
+        timing: TimingInfo {
+            flow_timeuse_ms: flow_time_ms,
+            step_timeuse_ms: step_time_ms,
+        },
+        metadata: serde_json::json!({
+            "step_name": step_name
+        }),
+    };
+
+    logger
+        .log_tool_call(tool_call)
+        .expect("Failed to log step completion event");
 
     // Allow some time for logging
     thread::sleep(Duration::from_millis(10));
 
     // Verify step completion event was logged
-    let logger = reev_flow::get_enhanced_otel_logger().expect("Failed to get enhanced otel logger");
-
     let tool_calls = logger.get_tool_calls().expect("Failed to get tool calls");
 
     // Find step completion event

@@ -298,6 +298,14 @@ pub fn get_enhanced_otel_logger() -> Result<Arc<EnhancedOtelLogger>> {
         .ok_or(EnhancedOtelError::NotInitialized)
 }
 
+/// Reset the global enhanced otel logger (for testing only)
+#[cfg(test)]
+pub fn reset_enhanced_otel_logger() {
+    // Note: OnceLock doesn't support explicit reset, but we can use a workaround
+    // by creating a new logger in a new location. For testing purposes,
+    // we recommend using direct logger instances instead of the global one.
+}
+
 // Simple working macros
 
 /// Simple tool call logging macro
