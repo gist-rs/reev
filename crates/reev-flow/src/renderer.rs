@@ -189,10 +189,22 @@ impl FlowLogRenderer for FlowLog {
                     .get("result_status")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
-                format!(
-                    "📋 Event {} ({}): Tool Result (Depth: {}) - {} - {}",
-                    event_num, event_duration, event.depth, tool_name, result_status
-                )
+
+                // Check if this is an execute_transaction result
+                let event_label =
+                    if tool_name == "execute_transaction" && result_status == "success" {
+                        format!(
+                            "📋 Event {} ({}): Tool Result (Depth: {}) - Transaction Executed ✅",
+                            event_num, event_duration, event.depth
+                        )
+                    } else {
+                        format!(
+                            "📋 Event {} ({}): Tool Result (Depth: {}) - {} - {}",
+                            event_num, event_duration, event.depth, tool_name, result_status
+                        )
+                    };
+
+                event_label
             }
             FlowEventType::TransactionExecution => {
                 let signature = event
@@ -261,6 +273,13 @@ impl FlowLogRenderer for FlowLog {
                 }
             }
             FlowEventType::ToolResult => {
+                let tool_name = event
+                    .content
+                    .data
+                    .get("tool_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+
                 if let Some(error) = event
                     .content
                     .data
@@ -269,13 +288,24 @@ impl FlowLogRenderer for FlowLog {
                 {
                     children.push(Tree::Leaf(vec![format!("❌ Error: {}", error)]));
                 } else if let Some(result) = event.content.data.get("result_data") {
-                    let result_str = serde_json::to_string_pretty(result).unwrap_or_default();
-                    let preview = if result_str.len() > 100 {
-                        format!("{}...", &result_str[..100])
+                    // Special handling for execute_transaction results
+                    if tool_name == "execute_transaction" {
+                        let (action_details, data_value) = parse_action_details(result);
+                        for detail in action_details {
+                            children.push(Tree::Leaf(vec![detail]));
+                        }
+                        if let Some(data) = data_value {
+                            children.push(Tree::Leaf(vec![data]));
+                        }
                     } else {
-                        result_str
-                    };
-                    children.push(Tree::Leaf(vec![format!("✅ Result: {}", preview)]));
+                        let result_str = serde_json::to_string_pretty(result).unwrap_or_default();
+                        let preview = if result_str.len() > 100 {
+                            format!("{}...", &result_str[..100])
+                        } else {
+                            result_str
+                        };
+                        children.push(Tree::Leaf(vec![format!("✅ Result: {}", preview)]));
+                    }
                 }
             }
             FlowEventType::Error => {
@@ -288,6 +318,63 @@ impl FlowLogRenderer for FlowLog {
 
         Tree::Node(event_label, children)
     }
+}
+
+/// Parse transaction action details from JSON data
+fn parse_action_details(action: &serde_json::Value) -> (Vec<String>, Option<String>) {
+    let mut action_details = Vec::new();
+    let mut data_value = None;
+
+    if let Some(action_array) = action.as_array() {
+        for action_item in action_array {
+            let mut item_details = Vec::new();
+
+            // Extract program ID
+            if let Some(program_id) = action_item.get("program_id") {
+                let program_id_str = program_id.as_str().unwrap_or("unknown");
+                item_details.push(format!("Program ID: {}", program_id_str.trim_matches('"')));
+            }
+
+            // Extract and format accounts
+            if let Some(accounts) = action_item.get("accounts") {
+                if let Some(accounts_array) = accounts.as_array() {
+                    item_details.push("     Accounts:".to_string());
+                    for (idx, account) in accounts_array.iter().enumerate() {
+                        if let Some(pubkey) = account.get("pubkey") {
+                            let pubkey_str = pubkey.as_str().unwrap_or("unknown");
+                            let is_signer = account
+                                .get("is_signer")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            let is_writable = account
+                                .get("is_writable")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            let icon = if is_signer { "🖋️" } else { "🖍️" };
+                            let arrow = if is_writable { "➕" } else { "➖" };
+                            item_details.push(format!(
+                                "     [{}] {} {} {}",
+                                idx,
+                                icon,
+                                arrow,
+                                pubkey_str.trim_matches('"')
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // Extract data
+            if let Some(data) = action_item.get("data") {
+                let data_str = data.as_str().unwrap_or("unknown");
+                data_value = Some(format!("Data (Base58): {}", data_str.trim_matches('"')));
+            }
+
+            action_details.push(item_details.join("\n"));
+        }
+    }
+
+    (action_details, data_value)
 }
 
 /// Load and render a flow log from file as ASCII tree

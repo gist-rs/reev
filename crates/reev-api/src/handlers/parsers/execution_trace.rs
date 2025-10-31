@@ -396,8 +396,7 @@ impl ExecutionTraceParser {
                                     .unwrap_or(false);
                                 let icon = if is_signer { "🖋️" } else { "🖍️" };
                                 let arrow = if is_writable { "➕" } else { "➖" };
-                                item_details
-                                    .push(format!("     [{idx}] {icon} {arrow} {pubkey}"));
+                                item_details.push(format!("     [{idx}] {icon} {arrow} {pubkey}"));
                             }
                         }
                     }
