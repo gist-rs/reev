@@ -180,6 +180,26 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     [],
   );
 
+  // Helper function to find matching execution by agent type and valid status
+  const findMatchingExecution = (
+    executions: Array<{
+      agent_type: string;
+      status: string;
+      execution_id: string;
+    }>,
+    selectedAgent?: string,
+  ) => {
+    if (!selectedAgent) return null;
+
+    // Find most recent execution for selected agent with valid status
+    const validStatuses = ["completed", "failed", "running", "queued"];
+    return executions.find(
+      (exec) =>
+        exec.agent_type === selectedAgent &&
+        validStatuses.includes(exec.status.toLowerCase()),
+    );
+  };
+
   // New function to get execution trace with proper execution_id
   // Updated to accept isRunning parameter for context-aware execution tracing
   const getExecutionTraceWithLatestId = useCallback(
@@ -230,24 +250,36 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         const benchmarkData =
           await apiClient.getBenchmarkWithExecutions(benchmarkId);
 
-        // Use the latest execution_id if available
-        const latestExecutionId = benchmarkData.latest_execution_id;
+        // Find execution matching selected agent type with valid status
+        const matchingExecution = findMatchingExecution(
+          benchmarkData.recent_executions,
+          selectedAgent,
+        );
+        const latestExecutionId = matchingExecution?.execution_id || null;
 
         if (latestExecutionId) {
           console.log(
-            `📚 [EXECUTION_TRACE] Using historical execution: ${latestExecutionId}`,
+            `📚 [EXECUTION_TRACE] Using historical execution: ${latestExecutionId} (agent: ${selectedAgent})`,
           );
           return await apiClient.getExecutionTrace(
             benchmarkId,
             latestExecutionId,
           );
         } else {
-          // Return empty result if no execution_id found - prevents stale cache
+          // Return empty result if no matching execution found for selected agent
+          const reasonMessage = selectedAgent
+            ? `No executions found for agent '${selectedAgent}' or all executions have invalid status`
+            : "No executions available for this benchmark";
+
+          console.log(
+            `📭 [EXECUTION_TRACE] No matching execution for ${benchmarkId}${selectedAgent ? ` (agent: ${selectedAgent})` : ""}`,
+          );
+
           return {
             benchmark_id: benchmarkId,
             execution_id: null,
-            error: "No execution found",
-            message: "No executions available for this benchmark",
+            error: "No matching execution found",
+            message: reasonMessage,
             trace: "",
             is_running: false,
             progress: 0.0,
