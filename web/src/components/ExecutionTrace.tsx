@@ -22,6 +22,7 @@ interface ExecutionTraceProps {
   benchmarkId: string | null;
   execution: ExecutionState | null;
   isRunning: boolean;
+  selectedAgent?: string;
   className?: string;
 }
 
@@ -75,6 +76,7 @@ export function ExecutionTrace({
   benchmarkId,
   execution,
   isRunning,
+  selectedAgent,
   className = "",
 }: ExecutionTraceProps) {
   const [autoScroll, setAutoScroll] = useState(true);
@@ -144,14 +146,22 @@ export function ExecutionTrace({
     if (!benchmarkId) return;
 
     console.log(
-      `🔄 [EXECUTION_TRACE_COMPONENT] Loading trace for ${benchmarkId}, isRunning: ${isRunning}`,
+      `🔄 [EXECUTION_TRACE_COMPONENT] Loading trace for ${benchmarkId}, isRunning: ${isRunning}, selectedAgent: ${selectedAgent}`,
+    );
+    console.log(
+      `🔍 [EXECUTION_TRACE_COMPONENT] Execution prop: ${execution?.id || "null"}, status: ${execution?.status || "null"}`,
     );
     setLoading(true);
     setError(null);
 
     try {
-      // Pass isRunning parameter to prioritize current execution when running
-      const data = await getExecutionTraceWithLatestId(benchmarkId, isRunning);
+      // Pass isRunning, selectedAgent, and current execution parameters to prioritize current execution when running
+      const data = await getExecutionTraceWithLatestId(
+        benchmarkId,
+        isRunning,
+        selectedAgent,
+        execution,
+      );
       console.log(
         `📊 [EXECUTION_TRACE_COMPONENT] Received data with execution_id: ${data?.execution_id}`,
       );

@@ -535,6 +535,7 @@ export function App() {
                     benchmarkId={selectedBenchmark}
                     execution={currentExecution}
                     isRunning={isRunning}
+                    selectedAgent={selectedAgent}
                   />
                 </>
               )}

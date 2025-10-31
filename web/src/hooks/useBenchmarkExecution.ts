@@ -18,6 +18,8 @@ interface UseBenchmarkExecutionReturn {
   getExecutionTraceWithLatestId: (
     benchmarkId: string,
     isRunning?: boolean,
+    selectedAgent?: string,
+    currentExecution?: ExecutionState,
   ) => Promise<any>;
   getTransactionLogsWithLatestId: (
     benchmarkId: string,
@@ -132,26 +134,44 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   // New function to get execution trace with proper execution_id
   // Updated to accept isRunning parameter for context-aware execution tracing
   const getExecutionTraceWithLatestId = useCallback(
-    async (benchmarkId: string, isRunning: boolean = false): Promise<any> => {
+    async (
+      benchmarkId: string,
+      isRunning: boolean = false,
+      selectedAgent?: string,
+      currentExecution?: ExecutionState,
+    ): Promise<any> => {
       try {
-        // PRIORITY 1: When actively running, use current execution from executions Map
+        // PRIORITY 1: When actively running, use passed current execution directly
+        if (isRunning && currentExecution) {
+          console.log(
+            `✅ [EXECUTION_TRACE] Using current execution directly: ${currentExecution.id} (agent: ${currentExecution.agent}, status: ${currentExecution.status})`,
+          );
+          return await apiClient.getExecutionTrace(
+            benchmarkId,
+            currentExecution.id,
+          );
+        }
+
+        // PRIORITY 2: When actively running, use current execution from executions Map
         if (isRunning) {
-          // Find current running execution for this benchmark
-          const currentExecution = Array.from(executions.values()).find(
-            (exec) => exec.benchmark_id === benchmarkId,
+          // Find current running execution for this benchmark and agent
+          const foundExecution = Array.from(executions.values()).find(
+            (exec) =>
+              exec.benchmark_id === benchmarkId &&
+              (!selectedAgent || exec.agent === selectedAgent),
           );
 
-          if (currentExecution) {
+          if (foundExecution) {
             console.log(
-              `🔄 [EXECUTION_TRACE] Using current running execution: ${currentExecution.id}`,
+              `🔄 [EXECUTION_TRACE] Using found execution from Map: ${foundExecution.id} (agent: ${foundExecution.agent})`,
             );
             return await apiClient.getExecutionTrace(
               benchmarkId,
-              currentExecution.id,
+              foundExecution.id,
             );
           } else {
             console.warn(
-              `⚠️ [EXECUTION_TRACE] isRunning=true but no current execution found for ${benchmarkId}`,
+              `⚠️ [EXECUTION_TRACE] isRunning=true but no current execution found for ${benchmarkId}${selectedAgent ? ` (agent: ${selectedAgent})` : ""}`,
             );
           }
         }
