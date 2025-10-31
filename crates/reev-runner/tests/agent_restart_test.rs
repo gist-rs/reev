@@ -1,9 +1,10 @@
 //! Test for reev-agent restart logic
 //!
 //! This test ensures that reev-agent processes are properly managed
-//! when running multiple benchmarks sequentially.
-
+/// Test that reev-agent processes are properly managed
+/// when running multiple benchmarks sequentially.
 use anyhow::Result;
+use reev_lib::server_utils;
 use reev_runner::dependency::manager::ProcessDetector;
 use reev_runner::dependency::manager::{DependencyConfig, DependencyManager, DependencyType};
 use std::time::Duration;
@@ -125,6 +126,12 @@ async fn test_reev_agent_restart_on_config_change() -> Result<()> {
 /// Test port release after stop
 #[tokio::test]
 async fn test_port_released_after_stop() -> Result<()> {
+    // Clean up any existing processes before starting test
+    server_utils::kill_existing_api(3001).await?;
+    server_utils::kill_existing_reev_agent(9090).await?;
+    server_utils::kill_existing_surfpool(8899).await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     let mut manager = DependencyManager::new(DependencyConfig {
         shared_instances: false, // Not shared to test proper stop/start
         ..Default::default()
@@ -149,9 +156,7 @@ async fn test_port_released_after_stop() -> Result<()> {
 
     // Check if process is still running
     let is_process_still_running = ProcessDetector::is_process_running("reev-agent")?;
-    println!(
-        "Process still running after stop: {is_process_still_running}"
-    );
+    println!("Process still running after stop: {is_process_still_running}");
 
     // If process still running, force kill it
     if is_process_still_running {
