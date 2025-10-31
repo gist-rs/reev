@@ -143,7 +143,7 @@ export function useAgentPerformance() {
               case "running":
                 return ExecutionStatus.RUNNING;
               case "pending":
-                return ExecutionStatus.PENDING;
+                return ExecutionStatus.QUEUED;
               default:
                 return ExecutionStatus.UNKNOWN;
             }

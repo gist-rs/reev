@@ -11,6 +11,9 @@ interface UseBenchmarkExecutionReturn {
   error: string | null;
   refetch: () => Promise<void>;
   executions: Map<string, ExecutionState>;
+  setExecutions: React.Dispatch<
+    React.SetStateAction<Map<string, ExecutionState>>
+  >;
   updateExecution: (executionId: string, execution: ExecutionState) => void;
   clearExecutions: () => void;
   setCompletionCallback: (
@@ -378,6 +381,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     error,
     refetch: fetchBenchmarks,
     executions,
+    setExecutions,
     updateExecution,
     clearExecutions,
     setCompletionCallback,

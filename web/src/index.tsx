@@ -18,8 +18,8 @@ import { useAgentPerformance, useBenchmarks } from "./hooks/useApiData";
 import { useBenchmarkExecution } from "./hooks/useBenchmarkExecution";
 import { apiClient } from "./services/api";
 import { BenchmarkItem } from "./types/configuration";
-import "./style.css";
 import { ExecutionStatus } from "./types/benchmark";
+import "./style.css";
 
 export function App() {
   const [selectedAgent, setSelectedAgent] = useState("deterministic");
@@ -37,6 +37,7 @@ export function App() {
     benchmarks,
     executions,
     updateExecution,
+    setExecutions,
     setCompletionCallback,
     loading,
     error,
@@ -127,9 +128,8 @@ export function App() {
   const runningBenchmarks = useMemo(() => {
     const runningEntries = Array.from(executions.entries()).filter(
       ([_, execution]) =>
-        execution.status === "Running" ||
-        execution.status === "Pending" ||
-        (execution.progress !== undefined && execution.progress < 100),
+        execution.status === ExecutionStatus.RUNNING ||
+        execution.status === ExecutionStatus.QUEUED,
     );
 
     // Return composite keys that boxes expect: "agent|benchmark_id|date"
@@ -139,6 +139,35 @@ export function App() {
 
     return benchmarkIds;
   }, [executions]);
+
+  // Clean up completed/failed executions to prevent accumulation
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setExecutions((prev) => {
+        const updated = new Map(prev);
+        for (const [key, execution] of updated.entries()) {
+          const isCompleted =
+            execution.status === ExecutionStatus.COMPLETED ||
+            execution.status === ExecutionStatus.FAILED ||
+            execution.status === ExecutionStatus.STOPPED ||
+            execution.status === ExecutionStatus.TIMEOUT;
+
+          // Remove completed executions that are older than 5 minutes
+          if (isCompleted && execution.timestamp) {
+            const executionTime = new Date(execution.timestamp).getTime();
+            if (now - executionTime > 5 * 60 * 1000) {
+              // 5 minutes
+              updated.delete(key);
+            }
+          }
+        }
+        return updated;
+      });
+    }, 60000); // Check every minute
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // Keep currentExecution in sync with executions map
   useEffect(() => {
@@ -265,7 +294,7 @@ export function App() {
           id: response.execution_id,
           benchmark_id: benchmarkId,
           agent: agentToUse,
-          status: ExecutionStatus.PENDING,
+          status: ExecutionStatus.QUEUED,
           progress: 0,
           start_time: new Date().toISOString(),
           trace: "",

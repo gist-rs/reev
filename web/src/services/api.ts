@@ -232,7 +232,7 @@ class ApiClient {
           .replace(/\b\w/g, (l) => l.toUpperCase()),
       prompt: benchmark.prompt,
       file_path: `benchmarks/${benchmark.id}.yml`,
-      status: "Pending" as ExecutionStatus,
+      status: ExecutionStatus.QUEUED,
     }));
 
     return {
