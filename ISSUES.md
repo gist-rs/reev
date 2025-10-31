@@ -457,3 +457,42 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   - Single source of truth prevents stale data issues
   - Modern databases are fast enough with proper indexing
 - **Impact**: Core issue affecting real-time execution monitoring reliability
+
+
+### ✅ **RESOLVED Issue - #42** [L460-480]
+#### **🔍 ACTIVE - ASCII Tree Display Truncation**
+- **Problem**: Execution trace shows truncated JSON in Result field
+- **Details**: 
+  ```bash
+  curl -s "http://localhost:3001/api/v1/execution-logs/001-sol-transfer?execution_id=e0de00f5-2f19-43fa-a51a-19c05aa78209" | jq -r ".trace"
+  ```
+  Shows:
+  ```
+  🌊 benchmarks/001-sol-transfer.yml [deterministic] - ✅ SUCCESS (Duration: 60.00s)
+  ├─ 📊 Score: 100.0% 🏆 PERFECT | LLM: 1 | Tools: 1 | Tokens: 0
+  ├─ 🤖 Event 1 (Unknown): LLM Request (Depth: 0) - deterministic (1000 tokens)
+  ├─ 🔧 Event 2 (Unknown): Tool Call (Depth: 1) - execute_transaction
+  │  └─ 📝 Args: Step 1 action
+  └─ 📋 Event 3 (Unknown): Tool Result (Depth: 1) - execute_transaction - success
+     └─ ✅ Result: [
+    {
+      "accounts": [
+        {
+          "is_signer": true,
+          "is_writable": true,
+          "pub...
+  ```
+- **Root Cause**: FlowLog renderer displays raw JSON from result_data instead of parsed action_details
+- **Location**: `reev-flow/src/renderer.rs` needs enhancement to handle detailed action formatting
+- **Current Workaround**: ASCII tree displays correctly but Result section shows truncated JSON
+- **Status**: Core functionality works, only display formatting issue
+- **Priority**: Medium - Does not affect functionality, only user experience
+- **Note**: Enhanced action parsing is working correctly, stored in action_details field
+
+### 🎯 **Current Status Summary**
+- **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
+- **Issue #40**: 🔍 ACTIVE - Cache sync investigation needed  
+- **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
+- **Issue #43**: 🔍 ACTIVE - ASCII tree display truncation in execution logs
+- **Overall**: API compilation and core functionality working, display formatting needs FlowLog renderer updates
+
