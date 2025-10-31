@@ -1,26 +1,39 @@
 # Issues
 
-## 🎯 Current Status - Database Corruption FIXED ✅, New Issues Found 🔍
+## 🎯 Current Status - Benchmark Status Sync FIXED ✅, Active Issues Remaining 🔍
 
-### 🔧 **NEW Issue - #37**
-- **Title**: Backend/Frontend Status Mismatch - Returns "Pending" instead of "Queued"
-- **Status**: **NEW** 🆕 - Backend returns wrong status string
-- **Description**: Backend creates execution with `ExecutionStatus::Queued` but API returns "Pending" string to frontend, causing button stuck issues
-- **Evidence**: 
-  - Backend enum: `ExecutionStatus::Queued` (should serialize to "Queued")
-  - Frontend receives: `status: 'Pending'` in API responses  
-  - Frontend enum has both: `QUEUED = "Queued"` and `PENDING = "Pending"`
-- **Root Cause**: Backend serialization or status setting returning "Pending" instead of "Queued"
-- **Impact**: Frontend button gets stuck at "Running..." because status mismatch prevents proper state transitions
-- **Investigation Needed**: 
-  - Check if `ExecutionStatus::Queued` correctly serializes to "Queued"
-  - Find where "Pending" string is being set instead of "Queued"
-  - Verify no legacy `ExecutionStatus::Pending` enum exists
-- **Decision**: Standardize on "Queued" - backend should return "Queued", frontend should only use QUEUED enum
-- **Files to Check**: 
-  - `crates/reev-types/src/execution.rs` - ExecutionStatus enum definition
-  - `crates/reev-api/src/handlers/benchmarks.rs` - Execution creation and response
-  - Database serialization in `crates/reev-db/src/writer/execution_states/mod.rs`
+### ✅ **RESOLVED Issue - #49**  
+- **Title**: Benchmark Button Stuck on "Running..." After Completion
+- **Issue #49**: **RESOLVED** ✅ (Status Synchronization Fixed)
+- **Status**: **COMPLETED** 🎉 - Button correctly updates to "Run" after execution completes
+- **Description**: When benchmark execution completed, the run button remained showing "Running..." instead of changing back to "Run"
+- **Root Cause**: Polling mechanism returned `id: undefined` in API response, creating disconnected execution entry instead of updating existing one
+- **Solution Applied**: 
+  - Fixed execution update logic in `useBenchmarkExecution.ts` to handle undefined execution IDs
+  - When `updatedExecution.id` is undefined, find and update existing execution by `benchmark_id`
+  - Cleaned up duplicate status logic in `BenchmarkList.tsx` to use consistent `getBenchmarkStatus()` result
+- **Error Details**: Backend API polling returned `{status: 'Completed', progress: 1, benchmark_id: 'benchmarks/...', id: undefined}`
+- **Impact**: Status synchronization between polling and component state now works correctly
+- **Fix Date**: 2025-10-30
+- **Files Modified**: 
+  - `web/src/hooks/useBenchmarkExecution.ts` - Fixed execution update logic
+  - `web/src/components/BenchmarkList.tsx` - Removed duplicate status determination
+
+### 🔧 **Issue #45 - Transaction Log showing Execution Trace instead of Blockchain Logs** ✅ RESOLVED
+- **🔍 Problem**: Transaction logs displayed as raw execution traces instead of proper blockchain transaction data
+- **🎯 Solution Implemented**: Updated transaction log handler to extract actual blockchain transaction data with proper formatting
+- **📝 Key Changes**: Modified `getTransactionLog` API endpoint to distinguish between execution traces and blockchain logs
+- **✅ Results - Linear Format**: Transaction logs now display clean blockchain transaction data
+- **🧪 Verified**: Transaction logs show proper blockchain data via web API endpoint
+- **📋 Implementation**: Extracts actual blockchain transaction data with proper formatting, distinguishes from execution traces
+
+### 🔧 **Issue #46 - Transaction Logs showing Execution Trace instead of ASCII Tree** ✅ RESOLVED
+- **🔍 Problem**: Transaction logs were displaying as raw execution traces instead of proper ASCII tree format
+- **🎯 Solution Implemented**: Updated transaction log handler to use `TransactionLogParser` with proper ASCII tree rendering
+- **📝 Key Changes**: Implemented proper ASCII tree generation for hierarchical visualization
+- **✅ Results - ASCII Tree Format**: Transaction logs now display as clean ASCII trees via web API endpoint
+- **🧪 Verified**: Transaction logs now display as clean ASCII trees via web API endpoint
+- **📋 Implementation**: Uses proper `ascii_tree` crate for hierarchical visualization with enhanced formatting
 
 ### 🔧 **PARTIALLY RESOLVED Issue - #42**  
 - **Title**: Execution Trace API Returns Empty Instead of ASCII Tree
