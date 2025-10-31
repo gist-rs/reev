@@ -22,8 +22,9 @@ use reev_db::writer::DatabaseWriterTrait;
 
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
+use crate::handlers::parsers::transaction_logs::TransactionLogParser;
 use crate::types::ApiState;
 
 /// Get transaction logs for a benchmark
@@ -104,9 +105,23 @@ pub async fn get_transaction_logs(
                 execution_id, db_status, updated_state.agent
             );
 
-            // Extract transaction logs from result_data
+            // Extract transaction logs from result_data using proper ASCII tree parser
             let transaction_logs = if let Some(result_data) = &updated_state.result_data {
-                extract_transaction_logs_from_result(result_data)
+                info!("🔍 [get_transaction_logs] Parsing transaction logs from result_data");
+                let parser = TransactionLogParser::new();
+                match parser.generate_from_result_data(result_data) {
+                    Ok(logs) => {
+                        info!("✅ [get_transaction_logs] Successfully generated {} chars of transaction logs", logs.len());
+                        logs
+                    }
+                    Err(e) => {
+                        error!(
+                            "❌ [get_transaction_logs] Failed to generate transaction logs: {}",
+                            e
+                        );
+                        format!("❌ Failed to parse transaction logs: {e}")
+                    }
+                }
             } else {
                 "📝 No transaction data available".to_string()
             };
@@ -166,101 +181,8 @@ pub async fn get_transaction_logs(
     }
 }
 
-/// Extract transaction logs from execution result data
-fn extract_transaction_logs_from_result(result_data: &serde_json::Value) -> String {
-    // Check if we have final_result.data structure
-    if let Some(final_result) = result_data.get("final_result") {
-        if let Some(data) = final_result.get("data") {
-            return extract_from_final_result_data(data);
-        }
-    }
-
-    // Fallback: try to extract transaction logs directly from JSON
-    if let Some(trace) = result_data.get("trace") {
-        if let Some(steps) = trace.get("steps") {
-            if let Some(steps_array) = steps.as_array() {
-                let mut logs = String::new();
-
-                for (i, step) in steps_array.iter().enumerate() {
-                    if let Some(observation) = step.get("observation") {
-                        logs.push_str(&format!(
-                            "🔗 Step {}: Blockchain Transaction Execution\n",
-                            i + 1
-                        ));
-
-                        if let Some(tx_logs) = observation.get("last_transaction_logs") {
-                            if let Some(tx_logs_array) = tx_logs.as_array() {
-                                for log in tx_logs_array {
-                                    if let Some(log_str) = log.as_str() {
-                                        let formatted_log = format_transaction_log(log_str);
-                                        logs.push_str(&format!("  {}\n", formatted_log));
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(error) = observation.get("last_transaction_error") {
-                            if let Some(error_str) = error.as_str() {
-                                logs.push_str(&format!("  ❌ Error: {}\n", error_str));
-                            }
-                        }
-                    }
-                }
-
-                if !logs.is_empty() {
-                    return logs;
-                }
-            }
-        }
-    }
-
-    // If no transaction logs found, return a message
-    "📝 No transaction logs found in execution result".to_string()
-}
-
-/// Extract transaction logs from final_result.data structure with enhanced formatting
-fn extract_from_final_result_data(data: &serde_json::Value) -> String {
-    if let Some(steps) = data.get("steps") {
-        if let Some(steps_array) = steps.as_array() {
-            let mut logs = String::new();
-
-            for (i, step) in steps_array.iter().enumerate() {
-                if let Some(observation) = step.get("observation") {
-                    logs.push_str(&format!(
-                        "🔗 Step {}: Blockchain Transaction Execution\n",
-                        i + 1
-                    ));
-
-                    if let Some(tx_logs) = observation.get("last_transaction_logs") {
-                        if let Some(tx_logs_array) = tx_logs.as_array() {
-                            for log in tx_logs_array {
-                                if let Some(log_str) = log.as_str() {
-                                    let formatted_log = format_transaction_log(log_str);
-                                    logs.push_str(&format!("  {}\n", formatted_log));
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(error) = observation.get("last_transaction_error") {
-                        if let Some(error_str) = error.as_str() {
-                            logs.push_str(&format!("  ❌ Error: {}\n", error_str));
-                        }
-                    }
-                }
-            }
-
-            if !logs.is_empty() {
-                return logs;
-            }
-        }
-    }
-
-    "📝 No transaction logs found in final_result.data".to_string()
-}
-
-/// Format individual transaction log line with appropriate icons and styling
-fn format_transaction_log(log_str: &str) -> String {
+/// Fallback formatter for simple cases (kept for compatibility but not used in main flow)
+fn format_transaction_log_simple(log_str: &str) -> String {
     let trimmed = log_str.trim();
 
     // Add icons for different types of transaction logs
@@ -287,7 +209,7 @@ fn format_transaction_log(log_str: &str) -> String {
             &trimmed[trimmed.find("success").unwrap() + "success".len()..]
         )
     } else if trimmed.contains("compute units") {
-        format!("  ⚡ {}", trimmed)
+        format!("  ⚡ {trimmed}")
     } else if trimmed.contains("Program log:") {
         format!(
             "  📝 {}",
@@ -299,6 +221,6 @@ fn format_transaction_log(log_str: &str) -> String {
             &trimmed[trimmed.find("Program return:").unwrap() + "Program return:".len()..]
         )
     } else {
-        format!("  {}", trimmed)
+        format!("  {trimmed}")
     }
 }

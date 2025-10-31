@@ -71,45 +71,57 @@ impl TransactionLogParser {
 
     /// Generate transaction logs from execution result JSON
     pub fn generate_from_result_data(&self, result_data: &Value) -> Result<String> {
+        debug!("🔍 [TransactionLogParser] Starting to parse result_data");
+
         // Try to parse as TestResult first
         if let Ok(test_result_str) = serde_json::to_string(result_data) {
             if let Ok(test_result) = serde_json::from_str::<TestResult>(&test_result_str) {
-                debug!("Successfully parsed as TestResult, generating transaction logs");
+                debug!("✅ [TransactionLogParser] Successfully parsed as TestResult, generating transaction logs");
                 return self.generate_transaction_logs(&test_result);
             } else {
-                debug!("Failed to parse as TestResult");
+                debug!("❌ [TransactionLogParser] Failed to parse as TestResult, trying JSON structure");
             }
         }
 
         // Fallback: extract logs directly from JSON structure
-        debug!("Using fallback JSON structure extraction");
+        debug!("🔄 [TransactionLogParser] Using fallback JSON structure extraction");
         self.extract_from_json_structure(result_data)
     }
 
     /// Extract transaction logs from JSON structure
     fn extract_from_json_structure(&self, result_data: &Value) -> Result<String> {
+        debug!("🔍 [extract_from_json_structure] Starting extraction");
         let mut trees = Vec::new();
         let mut step_counter = 1;
 
         // Check different possible structures
         if let Some(final_result) = result_data.get("final_result") {
             if let Some(data) = final_result.get("data") {
-                debug!("Found final_result.data structure");
-                self.extract_from_steps_data(data, &mut trees, &mut step_counter)?;
+                debug!("✅ [extract_from_json_structure] Found final_result.data structure");
+                // Extract steps from data object
+                if let Some(steps) = data.get("steps") {
+                    debug!("✅ [extract_from_json_structure] Found steps within data");
+                    self.extract_from_steps_data(steps, &mut trees, &mut step_counter)?;
+                }
             }
         }
 
         if let Some(trace) = result_data.get("trace") {
             if let Some(steps) = trace.get("steps") {
-                debug!("Found trace.steps structure");
+                debug!("✅ [extract_from_json_structure] Found trace.steps structure");
                 self.extract_from_steps_data(steps, &mut trees, &mut step_counter)?;
             }
         }
 
         if trees.is_empty() {
+            debug!("❌ [extract_from_json_structure] No trees created, returning empty message");
             return Ok("📝 No transaction logs found in execution result".to_string());
         }
 
+        debug!(
+            "✅ [extract_from_json_structure] Created {} trees, rendering ASCII tree",
+            trees.len()
+        );
         let root = Tree::Node("🔗 Blockchain Transactions".to_string(), trees);
         self.render_tree(&root)
     }
@@ -121,11 +133,50 @@ impl TransactionLogParser {
         trees: &mut Vec<Tree>,
         step_counter: &mut usize,
     ) -> Result<()> {
-        if let Some(steps_array) = steps_data.as_array() {
-            for step in steps_array {
+        debug!("🔍 [extract_from_steps_data] Processing steps_data");
+        debug!(
+            "📋 [extract_from_steps_data] steps_data type: {:?}",
+            steps_data
+        );
+        debug!(
+            "📋 [extract_from_steps_data] steps_data as_array: {:?}",
+            steps_data.as_array().is_some()
+        );
+
+        // If steps_data is an object with steps field, extract it
+        let actual_steps = if steps_data.as_object().is_some() && steps_data.get("steps").is_some()
+        {
+            debug!("✅ [extract_from_steps_data] steps_data is object, extracting steps field");
+            steps_data.get("steps").unwrap()
+        } else {
+            debug!(
+                "📋 [extract_from_steps_data] steps_data is not an object with steps, using as-is"
+            );
+            steps_data
+        };
+
+        if let Some(steps_array) = actual_steps.as_array() {
+            debug!(
+                "✅ [extract_from_steps_data] Found {} steps",
+                steps_array.len()
+            );
+            for (idx, step) in steps_array.iter().enumerate() {
+                debug!(
+                    "🔄 [extract_from_steps_data] Processing step {}: {:?}",
+                    idx, step
+                );
                 if let Some(observation) = step.get("observation") {
+                    debug!(
+                        "✅ [extract_from_steps_data] Found observation: {:?}",
+                        observation.get("last_transaction_logs").is_some()
+                    );
                     if let Some(tx_logs) = observation.get("last_transaction_logs") {
+                        debug!("📋 [extract_from_steps_data] tx_logs: {:?}", tx_logs);
                         if let Some(tx_logs_array) = tx_logs.as_array() {
+                            debug!(
+                                "✅ [extract_from_steps_data] Found {} transaction logs",
+                                tx_logs_array.len()
+                            );
                             let logs: Vec<String> = tx_logs_array
                                 .iter()
                                 .filter_map(|log| log.as_str())
@@ -136,6 +187,7 @@ impl TransactionLogParser {
                                 .get("last_transaction_error")
                                 .and_then(|e| e.as_str());
 
+                            debug!("🔄 [extract_from_steps_data] Creating step_tree for step {} with {} logs", *step_counter, logs.len());
                             let step_tree = self.create_step_tree(*step_counter, &logs, error)?;
                             trees.push(step_tree);
                             *step_counter += 1;
@@ -143,6 +195,12 @@ impl TransactionLogParser {
                     }
                 }
             }
+        } else {
+            debug!("❌ [extract_from_steps_data] No array found in steps_data");
+            debug!(
+                "❌ [extract_from_steps_data] steps_data value: {}",
+                steps_data
+            );
         }
         Ok(())
     }
@@ -215,17 +273,13 @@ impl TransactionLogParser {
         let trimmed = first_log.trim();
 
         if trimmed.contains("invoke [") {
-            if let Some(program_name) = self.extract_program_name(trimmed) {
-                return format!(
-                    "{}{} {}",
-                    "  ".repeat(indent_level),
-                    self.get_program_icon_for_name(&program_name),
-                    program_name
-                );
+            if let Some(instruction) = self.extract_program_name(trimmed) {
+                let icon = self.get_program_icon_for_name(&instruction);
+                return format!("{} {} [{}]", icon, "Instruction", instruction);
             }
         }
 
-        format!("{}Program Operations", "  ".repeat(indent_level))
+        "📦 Program Operations".to_string()
     }
 
     /// Extract program name from log line
@@ -246,45 +300,30 @@ impl TransactionLogParser {
 
         // Add icons for different types of transaction logs
         if trimmed.contains("invoke [") {
-            let program_name = self
-                .extract_program_name(trimmed)
-                .unwrap_or_else(|| "Unknown".to_string());
-            let icon = self.get_program_icon_for_name(&program_name);
-            format!(
-                "{}{} invoke",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                icon
-            )
+            if let Some(instruction) = self.extract_program_name(trimmed) {
+                let icon = self.get_program_icon_for_name(&instruction);
+                format!("{icon} invoke [{instruction}]")
+            } else {
+                "📦 invoke".to_string()
+            }
         } else if trimmed.contains("success") {
-            format!(
-                "{}✅ {}",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                self.get_program_icon_for_line(trimmed)
-            )
+            "✅ Success".to_string()
         } else if trimmed.contains("compute units") {
-            format!(
-                "{}⚡ {}",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                trimmed
-            )
+            format!("⚡ {trimmed}")
         } else if trimmed.contains("Program log:") {
-            format!(
-                "{}📝 {}",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                trimmed
-            )
+            if let Some(log_content) = trimmed.strip_prefix("Program log:") {
+                format!("📝 {}", log_content.trim())
+            } else {
+                format!("📝 {trimmed}")
+            }
         } else if trimmed.contains("Program return:") {
-            format!(
-                "{}↩️ {}",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                trimmed
-            )
+            if let Some(return_content) = trimmed.strip_prefix("Program return:") {
+                format!("↩️ {}", return_content.trim())
+            } else {
+                format!("↩️ {trimmed}")
+            }
         } else {
-            format!(
-                "{}{}",
-                "  ".repeat((log_str.len() - trimmed.len()) / 2),
-                trimmed
-            )
+            trimmed.to_string()
         }
     }
 
@@ -294,6 +333,7 @@ impl TransactionLogParser {
             "transfer" | "initializeaccount" | "initializeaccount2" | "initializeaccount3"
             | "mintto" | "transferchecked" | "closeaccount" => "🪙",
             "deposit" | "withdraw" | "operate" | "preoperate" => "💰",
+            n if n.parse::<u64>().is_ok() => "📝", // Numeric instruction IDs
             _ => "📦",
         }
     }

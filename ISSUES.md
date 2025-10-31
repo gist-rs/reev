@@ -549,84 +549,33 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   ✅ Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
 ```
 
-#### **🌳 Issue #46 - Add ASCII Tree Formatting to Transaction Logs** ✅ RESOLVED
-#### **🔍 Problem**: 
-- Transaction logs showing linear text format, difficult to read hierarchical relationships
-- Need proper tree structure to show program call hierarchy and indentation
-- Users requested easier reading with visual tree representation
-
-#### **🎯 Solution Implemented**:
-- **Server-side**: Complete rewrite of `transaction_logs.rs` parser to create proper ASCII tree structure
-- **Tree Structure**: Used `ascii_tree::Tree` crate for hierarchical display
-- **Smart Grouping**: Groups related logs at same indentation level
-- **Enhanced Icons**: Added specific icons for different program types and operations
-
-#### **📝 Key Changes**:
-- `reev/crates/reev-api/src/handlers/parsers/transaction_logs.rs`: New comprehensive parser
-- **Added `ascii_tree` dependency** to `reev-api/Cargo.toml` for tree rendering
-- **Enhanced grouping logic** to handle nested program calls properly
-- **Improved icon mapping** for better visual distinction
-
-#### **✅ Results - ASCII Tree Format**:
-```
-🔗 Blockchain Transactions
-├── 🔗 Step 1: Blockchain Transaction Execution
-│   ├── 📦 Program jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9 invoke [1]
-│   │   ├── 📦 Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
-│   │   │   ├── 📝 Program log: Create
-│   │   │   └── 🪙 Token Program invoke [3]
-│   │   │       ├── 📝 Program log: Instruction: GetAccountDataSize
-│   │   │       ├── ⚡ Program consumed 1595 of 177445 compute units
-│   │   │       └── ✅ Program success
-│   ├── 📦 Program 11111111111111111111111111111111 invoke [3]
-│   │   └── ✅ Program success
-│   ├── 📝 Program log: Initialize: associated token account
-│   └── 🪙 Token Program invoke [3]
-│       ├── 📝 Program log: Instruction: InitializeImmutableOwner
-│       ├── 📝 Program log: Please upgrade to SPL Token 2022 for immutable owner support
-│       ├── ⚡ Program consumed 1405 of 170832 compute units
-│       └── ✅ Program success
-```
-
 #### **🧪 Verified**:
-- ✅ `002-spl-transfer`: Simple token transfer with clear tree hierarchy
-- ✅ `115-jup-lend-mint-usdc`: Complex Jupiter operation with multiple nested program calls
-- ✅ Proper indentation showing call depth and relationships
-- ✅ Clear visual distinction between different program types
-- ✅ Compute unit consumption and success status properly displayed
-
-#### **✅ Results - ASCII Tree Format**:
-```
-🔗 Blockchain Transactions
-├── 🔗 Step 1: Blockchain Transaction Execution
-│   ├── 📦 Program 1]
-│   │   ├── 📝  Instruction: Deposit
-│   │   └── 📦 Program 2]
-│   │       ├── 📝  Create
-│   │       └── 🪙 Token Program 3]
-│   │           ├── 📝  Instruction: GetAccountDataSize
-│   │           ├── ⚡  consumed 1595 of 177445 compute units
-│   │           └── ↩️  TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=
-│   │               └── ✅  success
-│   ├── 🔧 System Program 3]
-│   │   └── ✅  success
-│   ├── 📝  Initialize: associated token account
-│   └── 🪙 Token Program 3]
-│       ├── 📝  Instruction: InitializeImmutableOwner
-│       ├── 📝  Please upgrade to SPL Token 2022 for immutable owner support
-│       ├── ⚡  consumed 1405 of 170832 compute units
-│       └── ✅  success
-```
-
-#### **🧪 Verified**:
-- ✅ `002-spl-transfer`: Simple token transfer with clear tree hierarchy
-- ✅ `115-jup-lend-mint-usdc`: Complex Jupiter operation with multiple nested program calls
-- ✅ Proper indentation showing call depth and relationships
-- ✅ Clear visual distinction between different program types
+- ✅ `002-spl-transfer`: Shows token transfer logs
+- ✅ `115-jup-lend-mint-usdc`: Shows complex Jupiter operation logs
+- ✅ Multiple program calls with proper hierarchy and icons
 - ✅ Compute unit consumption and success status
-- ✅ Enhanced readability with ASCII tree structure
 
-#### **📋 Implementation**: Complete rewrite of transaction logs parser to create proper ASCII tree structure using `ascii_tree::Tree` crate, with smart grouping and enhanced icon mapping for better visual distinction of blockchain operations
+#### **📋 Implementation**: Extracts actual blockchain transaction data with proper formatting, distinguishes from execution traces
+
+### 🔧 **Issue #46 - Transaction Logs showing Execution Trace instead of ASCII Tree** ✅ RESOLVED
+#### **🔍 Problem**: Transaction logs were displaying as raw execution traces instead of proper ASCII tree format
+#### **🎯 Solution Implemented**: Updated transaction log handler to use `TransactionLogParser` with proper ASCII tree rendering
+#### **📝 Key Changes**:
+- Modified `/crates/reev-api/src/handlers/transaction_logs.rs` to use `TransactionLogParser::generate_from_result_data()`
+- Fixed JSON structure parsing to handle nested `final_result.data.steps` format
+- Enhanced ASCII tree formatting with proper icons and hierarchical structure
+#### **✅ Results - ASCII Tree Format**:
+```
+🔗 Blockchain Transactions
+ └─ Step 1: Transaction Execution
+    └─ 📝 Instruction [1]
+       ├─ 📝 invoke [1]
+       ├─ 📝 Instruction: Transfer
+       ├─ ⚡ Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4644 of 200000 compute units
+       └─ ✅ Success
+```
+#### **🧪 Verified**: Transaction logs now display as clean ASCII trees via web API endpoint
+#### **📋 Implementation**: Uses proper `ascii_tree` crate for hierarchical visualization with enhanced formatting
 
 ### 🎯 **Current Status Summary**
 - **Issue #46**: ✅ RESOLVED - Transaction logs now display as proper ASCII trees
@@ -634,8 +583,8 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Issue #43**: ✅ RESOLVED - ASCII tree display formatting fixed
 - **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
 - **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
-- **Overall**: Transaction logs now provide clear hierarchical view of blockchain operations
+- **Overall**: Transaction logs now provide clear hierarchical view of blockchain operations with proper ASCII tree formatting
 - **Issue #40**: 🔍 ACTIVE - Cache sync investigation needed  
 - **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
-- **Overall**: API and frontend working correctly, major regressions resolved
+- **Overall**: API and frontend working correctly, major regressions resolved, ASCII tree display fully functional
 
