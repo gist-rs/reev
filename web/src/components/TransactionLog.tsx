@@ -8,8 +8,9 @@ import {
   useCallback,
 } from "preact/hooks";
 import { memo } from "preact/compat";
-import { apiClient } from "../services/api";
+
 import { ExecutionState } from "../types/configuration";
+import { useTransactionLogs } from "../hooks/useBenchmarkExecution";
 
 // Configuration for trace display limits
 const MAX_TRACE_LINES = 1000; // Maximum lines to display
@@ -85,6 +86,15 @@ export function TransactionLog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const traceRef = useRef<HTMLDivElement>(null);
+  const { getTransactionLogsWithLatestId } = useTransactionLogs();
+
+  // Debug log when execution prop changes
+  useEffect(() => {
+    console.log(
+      `[TransactionLog] Execution prop changed - benchmarkId: ${benchmarkId}, execution.id: ${execution?.id || "NOT_PROVIDED"}, execution:`,
+      execution,
+    );
+  }, [execution, benchmarkId]);
 
   // Load transaction logs from API
   const loadTransactionLogs = async () => {
@@ -94,13 +104,24 @@ export function TransactionLog({
     setError(null);
 
     try {
-      // Use execution.id from execution prop if available (ExecutionState has 'id' field)
-      const executionId = execution?.id;
-      const data = executionId
-        ? await apiClient.getTransactionLogs(benchmarkId, executionId)
-        : await apiClient.getTransactionLogs(benchmarkId);
+      console.log(
+        `[TransactionLog] Loading transaction logs for benchmark: ${benchmarkId} using latest execution ID`,
+      );
+
+      const data = await getTransactionLogsWithLatestId(benchmarkId);
+
+      console.log(
+        `[TransactionLog] Response data execution_id:`,
+        data?.execution_id,
+        `transaction_logs length:`,
+        data?.transaction_logs?.length || 0,
+      );
       setTransactionLogData(data);
     } catch (err) {
+      console.error(
+        `[TransactionLog] Error loading transaction logs for benchmark: ${benchmarkId}`,
+        err,
+      );
       setError(
         err instanceof Error ? err.message : "Failed to load transaction logs",
       );
@@ -198,8 +219,8 @@ export function TransactionLog({
   };
 
   const handleCopyTrace = () => {
-    if (transactionLogData?.trace) {
-      navigator.clipboard.writeText(transactionLogData.trace);
+    if (transactionLogData?.transaction_logs) {
+      navigator.clipboard.writeText(transactionLogData.transaction_logs);
     }
   };
 
@@ -208,12 +229,14 @@ export function TransactionLog({
       return "Loading transaction logs...";
     }
     if (error) {
-      return `Failed to load flow logs\nHTTP error! status: 500`;
+      return `Failed to load transaction logs: ${error}`;
     }
     if (!transactionLogData) {
       return "No transaction logs available";
     }
-    return transactionLogData.trace || "No transaction logs available";
+    return (
+      transactionLogData.transaction_logs || "No transaction logs available"
+    );
   };
 
   const traceContent = getTransactionLogsContent();

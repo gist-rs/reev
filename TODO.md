@@ -2,7 +2,12 @@
 
 ---
 
-step from yml at multi-step is cheating, we will need llm to create dynamic step anddynamic tools from that
+when completed e.g. @fetch http://localhost:3001/api/v1/benchmarks/112-jup-lend-withdraw-sol
+but each item still appear running state
+
+---
+
+🔥 step from yml at multi-step is cheating, we will need llm to create dynamic step anddynamic tools from that
 
 ---
 
@@ -21,6 +26,10 @@ can you check this correct for current code?
 
 it seem like we have duplicated `jsonl -> yml` and `mermaid <- yml`
 and i think all flow `jsonl -> yml` and `mermaid <- yml` should have it won crate reev-diagram
+
+And
+- run bench -> api -> agent -> sessions log -> sessio_{session_id}.json -> db
+- web <- api <- ascii tree <- json <- db
 
 ---
 

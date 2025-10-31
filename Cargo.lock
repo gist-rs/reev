@@ -3679,6 +3679,7 @@ name = "reev-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ascii_tree",
  "axum",
  "chrono",
  "project-root",

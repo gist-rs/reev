@@ -16,6 +16,7 @@ interface UseBenchmarkExecutionReturn {
     callback: (benchmarkId: string, execution: ExecutionState) => void,
   ) => void;
   getExecutionTraceWithLatestId: (benchmarkId: string) => Promise<any>;
+  getTransactionLogsWithLatestId: (benchmarkId: string) => Promise<any>;
 }
 
 export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
@@ -161,6 +162,45 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     [],
   );
 
+  // New function to get transaction logs with proper execution_id
+  const getTransactionLogsWithLatestId = useCallback(
+    async (benchmarkId: string): Promise<any> => {
+      try {
+        // First, get benchmark with recent executions to find latest execution_id
+        const benchmarkData =
+          await apiClient.getBenchmarkWithExecutions(benchmarkId);
+
+        // Use the latest execution_id if available
+        const latestExecutionId = benchmarkData.latest_execution_id;
+
+        if (latestExecutionId) {
+          return await apiClient.getTransactionLogs(
+            benchmarkId,
+            latestExecutionId,
+          );
+        } else {
+          // Return empty result if no execution_id found - prevents stale cache
+          return {
+            benchmark_id: benchmarkId,
+            execution_id: null,
+            error: "No execution found",
+            message: "No executions available for this benchmark",
+            trace: "📝 No execution trace available",
+            is_running: false,
+            progress: 0.0,
+          };
+        }
+      } catch (error) {
+        console.error(
+          `Failed to get transaction logs for benchmark ${benchmarkId}:`,
+          error,
+        );
+        throw error;
+      }
+    },
+    [],
+  );
+
   const stopPolling = useCallback((executionId: string) => {
     const intervalId = pollingIntervals.current.get(executionId);
     if (intervalId) {
@@ -216,6 +256,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
     clearExecutions,
     setCompletionCallback,
     getExecutionTraceWithLatestId,
+    getTransactionLogsWithLatestId,
   };
 }
 
@@ -246,5 +287,13 @@ export function useExecutionTrace() {
 
   return {
     getExecutionTraceWithLatestId,
+  };
+}
+
+export function useTransactionLogs() {
+  const { getTransactionLogsWithLatestId } = useBenchmarkExecution();
+
+  return {
+    getTransactionLogsWithLatestId,
   };
 }

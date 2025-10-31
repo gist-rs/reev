@@ -523,7 +523,42 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Tested**: ✅ Working with benchmark `115-jup-lend-mint-usdc`
 - **Status**: ✅ RESOLVED - Transaction Log displaying correctly on web
 
+### 🔧 **Issue #45 - Transaction Log showing Execution Trace instead of Blockchain Logs** ✅ RESOLVED
+#### **🔍 Problem**: 
+- Transaction logs endpoint returning execution traces instead of blockchain transaction logs
+- Web showing "No transaction logs available" or execution trace data
+- API should show blockchain operations like program calls, compute units, etc.
+
+#### **🎯 Solution Implemented**:
+- **Server-side**: Enhanced `transaction_logs.rs` to extract from `last_transaction_logs` field
+- **Formatting**: Added proper icons (🪙 Token Program, ⚡ compute units, ✅ success)
+- **Structure**: Step-by-step blockchain transaction execution display
+- **Client-side**: Updated `TransactionLog.tsx` to use `transaction_logs` field instead of `trace`
+
+#### **📝 Key Changes**:
+- `reev/crates/reev-api/src/handlers/transaction_logs.rs`: Complete rewrite to extract blockchain data
+- `reev/web/src/components/TransactionLog.tsx`: Field access and API call updates
+- `reev/web/src/hooks/useBenchmarkExecution.ts`: Added `getTransactionLogsWithLatestId` hook
+
+#### **✅ Results**:
+```
+🔗 Step 1: Blockchain Transaction Execution
+  🪙 Token Program invoke [1]
+  📝 Program log: Instruction: Transfer
+  ⚡ Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4644 of 200000 compute units
+  ✅ Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
+```
+
+#### **🧪 Verified**:
+- ✅ `002-spl-transfer`: Shows token transfer logs
+- ✅ `115-jup-lend-mint-usdc`: Shows complex Jupiter operation logs
+- ✅ Multiple program calls with proper hierarchy and icons
+- ✅ Compute unit consumption and success status
+
+#### **📋 Implementation**: Extracts actual blockchain transaction data with proper formatting, distinguishes from execution traces
+
 ### 🎯 **Current Status Summary**
+- **Issue #45**: ✅ RESOLVED - Transaction logs showing blockchain data correctly
 - **Issue #43**: ✅ RESOLVED - ASCII tree display formatting fixed
 - **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
 - **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
