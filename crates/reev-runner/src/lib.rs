@@ -221,11 +221,12 @@ pub async fn run_benchmarks(
         let flow_logger = match flow_db_writer {
             Ok(flow_db_writer) => {
                 info!("🗄️ Flow logger initialized with database support");
-                FlowLogger::new_with_database(
+                FlowLogger::new_with_database_preserve_session(
                     test_case.id.clone(),
                     agent_name.to_string(),
                     PathBuf::from("logs/flows"),
                     Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
+                    Some(session_id.clone()),
                 )
             }
             Err(e) => {
@@ -603,11 +604,12 @@ async fn run_flow_benchmark(
         match flow_db_writer {
             Ok(flow_db_writer) => {
                 info!("🗄️ Flow logger initialized with database support");
-                Some(FlowLogger::new_with_database(
+                Some(FlowLogger::new_with_database_preserve_session(
                     test_case.id.clone(),
                     agent_name.to_string(),
                     path,
                     Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
+                    Some(session_id.to_string()),
                 ))
             }
             Err(e) => {
