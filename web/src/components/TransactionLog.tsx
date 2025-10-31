@@ -108,7 +108,7 @@ export function TransactionLog({
         `[TransactionLog] Loading transaction logs for benchmark: ${benchmarkId} using latest execution ID`,
       );
 
-      const data = await getTransactionLogsWithLatestId(benchmarkId);
+      const data = await getTransactionLogsWithLatestId(benchmarkId, isRunning);
 
       console.log(
         `[TransactionLog] Response data execution_id:`,
@@ -194,12 +194,11 @@ export function TransactionLog({
   }, [benchmarkId, isRunning, debouncedLoadTransactionLogs]);
 
   // Load on mount and when benchmark changes or execution changes
-  // Load on mount and when benchmark changes or execution changes
   useEffect(() => {
     if (benchmarkId) {
       loadTransactionLogs();
     }
-  }, [benchmarkId, execution?.execution_id]);
+  }, [benchmarkId, isRunning, execution?.execution_id]);
 
   const handleScroll = () => {
     if (traceRef.current) {

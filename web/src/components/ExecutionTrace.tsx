@@ -147,7 +147,8 @@ export function ExecutionTrace({
     setError(null);
 
     try {
-      const data = await getExecutionTraceWithLatestId(benchmarkId);
+      // Pass isRunning parameter to prioritize current execution when running
+      const data = await getExecutionTraceWithLatestId(benchmarkId, isRunning);
       setTraceData(data);
     } catch (err) {
       console.error("❌ ExecutionTrace - Failed to load trace:", err);
@@ -167,12 +168,12 @@ export function ExecutionTrace({
       const interval = setInterval(loadExecutionTrace, 2000);
       return () => clearInterval(interval);
     }
-  }, [benchmarkId, isRunning]);
+  }, [benchmarkId, isRunning, loadExecutionTrace]);
 
   // Load on mount and when execution changes
   useEffect(() => {
     loadExecutionTrace();
-  }, [benchmarkId]);
+  }, [benchmarkId, isRunning]);
 
   const handleCopyTrace = () => {
     const traceContent = traceData?.trace || execution?.trace;

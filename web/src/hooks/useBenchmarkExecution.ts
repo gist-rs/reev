@@ -15,8 +15,14 @@ interface UseBenchmarkExecutionReturn {
   setCompletionCallback: (
     callback: (benchmarkId: string, execution: ExecutionState) => void,
   ) => void;
-  getExecutionTraceWithLatestId: (benchmarkId: string) => Promise<any>;
-  getTransactionLogsWithLatestId: (benchmarkId: string) => Promise<any>;
+  getExecutionTraceWithLatestId: (
+    benchmarkId: string,
+    isRunning?: boolean,
+  ) => Promise<any>;
+  getTransactionLogsWithLatestId: (
+    benchmarkId: string,
+    isRunning?: boolean,
+  ) => Promise<any>;
 }
 
 export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
@@ -124,9 +130,33 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   );
 
   // New function to get execution trace with proper execution_id
+  // Updated to accept isRunning parameter for context-aware execution tracing
   const getExecutionTraceWithLatestId = useCallback(
-    async (benchmarkId: string): Promise<any> => {
+    async (benchmarkId: string, isRunning: boolean = false): Promise<any> => {
       try {
+        // PRIORITY 1: When actively running, use current execution from executions Map
+        if (isRunning) {
+          // Find current running execution for this benchmark
+          const currentExecution = Array.from(executions.values()).find(
+            (exec) => exec.benchmark_id === benchmarkId,
+          );
+
+          if (currentExecution) {
+            console.log(
+              `🔄 [EXECUTION_TRACE] Using current running execution: ${currentExecution.id}`,
+            );
+            return await apiClient.getExecutionTrace(
+              benchmarkId,
+              currentExecution.id,
+            );
+          } else {
+            console.warn(
+              `⚠️ [EXECUTION_TRACE] isRunning=true but no current execution found for ${benchmarkId}`,
+            );
+          }
+        }
+
+        // PRIORITY 2: Fall back to database historical data (for info viewing)
         // First, get benchmark with recent executions to find latest execution_id
         const benchmarkData =
           await apiClient.getBenchmarkWithExecutions(benchmarkId);
@@ -135,6 +165,9 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         const latestExecutionId = benchmarkData.latest_execution_id;
 
         if (latestExecutionId) {
+          console.log(
+            `📚 [EXECUTION_TRACE] Using historical execution: ${latestExecutionId}`,
+          );
           return await apiClient.getExecutionTrace(
             benchmarkId,
             latestExecutionId,
@@ -159,13 +192,37 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         throw error;
       }
     },
-    [],
+    [executions],
   );
 
   // New function to get transaction logs with proper execution_id
+  // Updated to accept isRunning parameter for context-aware transaction log fetching
   const getTransactionLogsWithLatestId = useCallback(
-    async (benchmarkId: string): Promise<any> => {
+    async (benchmarkId: string, isRunning: boolean = false): Promise<any> => {
       try {
+        // PRIORITY 1: When actively running, use current execution from executions Map
+        if (isRunning) {
+          // Find current running execution for this benchmark
+          const currentExecution = Array.from(executions.values()).find(
+            (exec) => exec.benchmark_id === benchmarkId,
+          );
+
+          if (currentExecution) {
+            console.log(
+              `🔄 [TRANSACTION_LOGS] Using current running execution: ${currentExecution.id}`,
+            );
+            return await apiClient.getTransactionLogs(
+              benchmarkId,
+              currentExecution.id,
+            );
+          } else {
+            console.warn(
+              `⚠️ [TRANSACTION_LOGS] isRunning=true but no current execution found for ${benchmarkId}`,
+            );
+          }
+        }
+
+        // PRIORITY 2: Fall back to database historical data (for info viewing)
         // First, get benchmark with recent executions to find latest execution_id
         const benchmarkData =
           await apiClient.getBenchmarkWithExecutions(benchmarkId);
@@ -174,6 +231,9 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         const latestExecutionId = benchmarkData.latest_execution_id;
 
         if (latestExecutionId) {
+          console.log(
+            `📚 [TRANSACTION_LOGS] Using historical execution: ${latestExecutionId}`,
+          );
           return await apiClient.getTransactionLogs(
             benchmarkId,
             latestExecutionId,
@@ -198,7 +258,7 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         throw error;
       }
     },
-    [],
+    [executions],
   );
 
   const stopPolling = useCallback((executionId: string) => {
