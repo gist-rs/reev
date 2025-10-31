@@ -8,6 +8,9 @@ use std::sync::Arc;
 use tokio::fs;
 use tracing::{debug, info};
 
+mod common;
+use common::unique_test_db_path;
+
 /// Mock test for API flow using real session data
 /// This test uses existing successful execution data to verify API state management
 /// without running the actual CLI runner, making tests much faster and more reliable.
@@ -20,10 +23,7 @@ async fn test_api_flow_with_mock_session_data() -> Result<()> {
 
     // Setup file-based database for test to avoid in-memory connection issues
     // Using file-based DB based on Turso testing insights about connection sharing limitations
-    let test_db_path = format!(
-        "test_db_{}.db",
-        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
-    );
+    let test_db_path = unique_test_db_path("api_mock");
     let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 
@@ -259,10 +259,7 @@ async fn test_api_state_management_only() -> Result<()> {
 
     // Setup file-based database for test to avoid in-memory connection issues
     // Using file-based DB based on Turso testing insights about connection sharing limitations
-    let test_db_path = format!(
-        "test_db_state_{}.db",
-        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
-    );
+    let test_db_path = unique_test_db_path("api_state");
     let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 

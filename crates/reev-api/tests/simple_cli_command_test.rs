@@ -10,6 +10,9 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
 
+mod common;
+use common::unique_test_db_path;
+
 /// Get the runner binary path, building if necessary
 fn get_runner_binary() -> Result<String> {
     // Test runs from crates/reev-api, so we need to go to project root
@@ -51,10 +54,7 @@ async fn test_simple_cli_command() -> Result<()> {
     let binary_path = get_runner_binary()?;
 
     // Setup database with unique path to avoid locking
-    let test_db_path = format!(
-        "test_db_simple_cli_{}.db",
-        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
-    );
+    let test_db_path = unique_test_db_path("simple_cli");
     let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 
@@ -198,10 +198,7 @@ async fn test_simple_process_execution() -> Result<()> {
     let binary_path = get_runner_binary()?;
 
     // Setup database with unique path to avoid locking
-    let test_db_path = format!(
-        "test_db_process_exec_{}.db",
-        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
-    );
+    let test_db_path = unique_test_db_path("process_exec");
     let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 

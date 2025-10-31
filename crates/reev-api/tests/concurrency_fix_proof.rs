@@ -9,13 +9,16 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
+mod common;
+use common::test_db_path;
+
 /// Test that proves concurrent database access works with mutex
 #[tokio::test]
 async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
     println!("🔬 PROVING: Database concurrency fix works correctly");
 
-    let db_path = "test_concurrency_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("concurrency_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     // Wrap in mutex like our fixed implementation
@@ -110,7 +113,7 @@ async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
     println!("✅ PROVEN: Mutex fix enables reliable concurrent database access!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
@@ -119,8 +122,8 @@ async fn test_mutex_fix_proves_concurrent_access_works() -> Result<()> {
 async fn test_no_deadlocks_with_mutex() -> Result<()> {
     println!("🔒 TESTING: No deadlocks with proper mutex usage");
 
-    let db_path = "test_deadlock_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("deadlock_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     let db_mutex = Arc::new(Mutex::new(db));
@@ -184,7 +187,7 @@ async fn test_no_deadlocks_with_mutex() -> Result<()> {
     println!("✅ PROVEN: No deadlocks with proper mutex usage!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
@@ -193,8 +196,8 @@ async fn test_no_deadlocks_with_mutex() -> Result<()> {
 async fn test_mutex_performance_impact() -> Result<()> {
     println!("⚡ TESTING: Performance impact of mutex");
 
-    let db_path = "test_performance_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("performance_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     let db_mutex = Arc::new(Mutex::new(db));
@@ -240,7 +243,7 @@ async fn test_mutex_performance_impact() -> Result<()> {
     println!("✅ PROVEN: Performance impact is minimal!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
@@ -248,9 +251,9 @@ async fn test_mutex_performance_impact() -> Result<()> {
 #[tokio::test]
 async fn test_cleanup() -> Result<()> {
     let test_dbs = vec![
-        "test_concurrency_proof.db",
-        "test_deadlock_proof.db",
-        "test_performance_proof.db",
+        test_db_path("concurrency_proof"),
+        test_db_path("deadlock_proof"),
+        test_db_path("performance_proof"),
     ];
 
     for db_file in test_dbs {

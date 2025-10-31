@@ -8,6 +8,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 
+mod common;
+use common::unique_test_db_path;
+
 /// Real integration test for API → Runner → Database flow
 ///
 /// This test verifies that:
@@ -53,10 +56,7 @@ async fn test_real_runner_integration() -> Result<()> {
     );
 
     // Setup file-based database for test
-    let test_db_path = format!(
-        "test_db_integration_{}.db",
-        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
-    );
+    let test_db_path = unique_test_db_path("integration");
     let db_config = DatabaseConfig::new(&test_db_path);
     let db = PooledDatabaseWriter::new(db_config, 5).await?;
 

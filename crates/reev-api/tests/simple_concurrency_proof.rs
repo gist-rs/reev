@@ -8,13 +8,16 @@ use reev_db::{DatabaseConfig, DatabaseWriter};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+mod common;
+use common::test_db_path;
+
 /// Simple test proving the mutex works for concurrent access
 #[tokio::test]
 async fn test_simple_mutex_proof() -> Result<()> {
     println!("🔬 Simple proof: Mutex prevents concurrent access conflicts");
 
-    let db_path = "simple_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("simple_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     // Wrap in mutex like our fixed implementation
@@ -58,9 +61,7 @@ async fn test_simple_mutex_proof() -> Result<()> {
         }
     }
 
-    println!(
-        "📊 Results: {success_count}/5 concurrent operations succeeded"
-    );
+    println!("📊 Results: {success_count}/5 concurrent operations succeeded");
 
     // All operations should succeed with mutex
     assert_eq!(success_count, 5, "All operations should succeed with mutex");
@@ -68,7 +69,7 @@ async fn test_simple_mutex_proof() -> Result<()> {
     println!("✅ PROVEN: Mutex enables reliable concurrent database access!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
@@ -77,8 +78,8 @@ async fn test_simple_mutex_proof() -> Result<()> {
 async fn test_mutex_prevents_data_races() -> Result<()> {
     println!("🔒 Testing: Mutex prevents data races");
 
-    let db_path = "race_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("race_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     let db_mutex = Arc::new(Mutex::new(db));
@@ -135,9 +136,7 @@ async fn test_mutex_prevents_data_races() -> Result<()> {
         }
     }
 
-    println!(
-        "📊 Race test results: {success_count}/3 operations succeeded"
-    );
+    println!("📊 Race test results: {success_count}/3 operations succeeded");
 
     // All should succeed - no data races with mutex
     assert_eq!(success_count, 3, "No data races should occur with mutex");
@@ -145,7 +144,7 @@ async fn test_mutex_prevents_data_races() -> Result<()> {
     println!("✅ PROVEN: Mutex prevents data races!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
@@ -154,8 +153,8 @@ async fn test_mutex_prevents_data_races() -> Result<()> {
 async fn test_minimal_performance_impact() -> Result<()> {
     println!("⚡ Testing: Minimal performance impact");
 
-    let db_path = "perf_proof.db";
-    let db_config = DatabaseConfig::new(db_path);
+    let db_path = test_db_path("perf_proof");
+    let db_config = DatabaseConfig::new(&db_path);
     let db = DatabaseWriter::new(db_config).await?;
 
     let db_mutex = Arc::new(Mutex::new(db));
@@ -181,9 +180,7 @@ async fn test_minimal_performance_impact() -> Result<()> {
 
     let duration = start.elapsed();
 
-    println!(
-        "📊 Performance: 5 concurrent operations took {duration:?}"
-    );
+    println!("📊 Performance: 5 concurrent operations took {duration:?}");
 
     // Should complete quickly (less than 1 second)
     assert!(
@@ -194,14 +191,18 @@ async fn test_minimal_performance_impact() -> Result<()> {
     println!("✅ PROVEN: Performance impact is minimal!");
 
     // Cleanup
-    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&db_path);
     Ok(())
 }
 
 /// Cleanup test
 #[tokio::test]
 async fn test_cleanup() -> Result<()> {
-    let test_dbs = vec!["simple_proof.db", "race_proof.db", "perf_proof.db"];
+    let test_dbs = vec![
+        test_db_path("simple_proof"),
+        test_db_path("race_proof"),
+        test_db_path("perf_proof"),
+    ];
 
     for db_file in test_dbs {
         let _ = std::fs::remove_file(db_file);
