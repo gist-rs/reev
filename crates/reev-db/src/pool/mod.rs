@@ -69,7 +69,14 @@ impl ConnectionPool {
         debug!("[POOL] Creating new database connection");
 
         // Create parent directory if it doesn't exist
-        if let Some(parent) = std::path::Path::new(&self.config.path).parent() {
+        // Extract actual file path from SQLite connection string
+        let db_path = if self.config.path.starts_with("sqlite:") {
+            &self.config.path[7..] // Remove "sqlite:" prefix
+        } else {
+            &self.config.path
+        };
+
+        if let Some(parent) = std::path::Path::new(db_path).parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
                 DatabaseError::connection_with_source(
                     format!("Failed to create database directory: {}", parent.display()),
@@ -82,15 +89,24 @@ impl ConnectionPool {
             );
         }
 
-        let db = Builder::new_local(&self.config.path)
-            .build()
-            .await
-            .map_err(|e| {
-                DatabaseError::connection_with_source(
-                    format!("Failed to create local database: {}", self.config.path),
-                    e,
-                )
-            })?;
+        let _db_path = if self.config.path.starts_with("sqlite:") {
+            &self.config.path[7..] // Remove "sqlite:" prefix
+        } else {
+            &self.config.path
+        };
+
+        let db_path = if self.config.path.starts_with("sqlite:") {
+            &self.config.path[7..] // Remove "sqlite:" prefix
+        } else {
+            &self.config.path
+        };
+
+        let db = Builder::new_local(db_path).build().await.map_err(|e| {
+            DatabaseError::connection_with_source(
+                format!("Failed to create local database: {}", self.config.path),
+                e,
+            )
+        })?;
 
         let conn = db.connect().map_err(|e| {
             DatabaseError::connection_with_source("Failed to establish database connection", e)

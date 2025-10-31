@@ -28,8 +28,15 @@ impl DatabaseWriter {
             config.database_type()
         );
 
+        // Extract actual file path from SQLite connection string
+        let db_path = if config.path.starts_with("sqlite:") {
+            &config.path[7..] // Remove "sqlite:" prefix
+        } else {
+            &config.path
+        };
+
         // Ensure database directory exists
-        if let Some(parent) = Path::new(&config.path).parent() {
+        if let Some(parent) = Path::new(db_path).parent() {
             fs::create_dir_all(parent).await.map_err(|e| {
                 DatabaseError::filesystem_with_source(
                     format!("Failed to create database directory: {parent:?}"),
@@ -38,15 +45,12 @@ impl DatabaseWriter {
             })?;
         }
 
-        let db = Builder::new_local(&config.path)
-            .build()
-            .await
-            .map_err(|e| {
-                DatabaseError::connection_with_source(
-                    format!("Failed to create local database: {}", config.path),
-                    e,
-                )
-            })?;
+        let db = Builder::new_local(db_path).build().await.map_err(|e| {
+            DatabaseError::connection_with_source(
+                format!("Failed to create local database: {}", config.path),
+                e,
+            )
+        })?;
 
         let conn = db.connect().map_err(|e| {
             DatabaseError::connection_with_source("Failed to establish database connection", e)

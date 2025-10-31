@@ -149,6 +149,18 @@ async fn test_execution_trace_with_error() -> Result<(), Box<dyn std::error::Err
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let db_path = temp_dir.path().join("test.db");
 
+    // Debug: Print the actual path to see what's happening
+    println!("DEBUG: temp_dir.path() = {:?}", temp_dir.path());
+    println!("DEBUG: db_path = {db_path:?}");
+    println!(
+        "DEBUG: db_path.to_string_lossy() = {:?}",
+        db_path.to_string_lossy()
+    );
+    println!(
+        "DEBUG: final sqlite string = {:?}",
+        format!("sqlite:{}", db_path.to_string_lossy())
+    );
+
     // Create pooled database directly to ensure we use the same connection
     let db_config = reev_db::DatabaseConfig::new(format!("sqlite:{}", db_path.to_string_lossy()));
     let pooled_db = reev_lib::db::PooledDatabaseWriter::new(db_config, 5).await?;
