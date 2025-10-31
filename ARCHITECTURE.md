@@ -433,7 +433,33 @@ graph TD
 
 ### ✅ CLI-Based Runner Integration (COMPLETED) [L434-435]
 
-### Flow vs Regular Benchmark Execution Paths [L436-440]
+#### Flow vs Regular Benchmark Execution Paths [L436-440]
+##### 🔄 Data Flow Diagram
+
+```mermaid
+flowchart TD
+    A[YAML Benchmark File] -->|B[reev-runner]
+    B -->|C[Session Creation]
+    
+    subgraph "Regular Benchmark Path"
+        direction LR
+        C -->|D[Session Logger]
+        D -->|E[Database Storage]
+        E -->|F[API Request]
+        F -->|G[API Response]
+    end
+```
+
+#### Regular Benchmarks Path (Working): [L439-440]
+```text
+YAML → Session Logger → Database → API → ASCII Tree Response
+```
+
+#### Flow Benchmarks Path (After Fix): [L447-449]
+```text
+YAML → Session Logger (Provided ID) → Session File → API → Session File Fallback → Full ASCII Tree Response
+```
+
 **Issue**: Flow benchmarks (116, 200) use different execution path causing inconsistent data storage.
 
 #### Regular Benchmarks Path (Working):
