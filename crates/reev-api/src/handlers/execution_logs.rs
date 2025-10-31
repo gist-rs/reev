@@ -7,7 +7,6 @@ use axum::{
     Json,
 };
 use reev_db::writer::DatabaseWriterTrait;
-use reev_lib::flow::render_flow_file_as_ascii_tree;
 
 use serde_json::json;
 use std::collections::HashMap;
@@ -54,7 +53,7 @@ pub async fn get_execution_trace(
                 match generate_ascii_trace_from_session_data(result_data, exec_id).await {
                     Ok(ascii_trace) => ascii_trace,
                     Err(e) => {
-                        error!("Failed to generate ASCII trace: {}", e);
+                        warn!("Failed to generate ASCII trace: {}", e);
                         format!("⚠️  Failed to generate ASCII tree: {e}")
                     }
                 }
@@ -65,7 +64,7 @@ pub async fn get_execution_trace(
                         match generate_ascii_trace_from_session_log(&log_content, exec_id).await {
                             Ok(ascii_trace) => ascii_trace,
                             Err(e) => {
-                                error!("Failed to generate ASCII trace from session log: {}", e);
+                                warn!("Failed to generate ASCII trace from session log: {}", e);
                                 format!("⚠️  Failed to generate ASCII tree from session log: {e}")
                             }
                         }
@@ -75,7 +74,7 @@ pub async fn get_execution_trace(
                         "📝 No execution trace available".to_string()
                     }
                     Err(e) => {
-                        error!("Failed to get session log: {}", e);
+                        warn!("Failed to get session log: {}", e);
                         format!("⚠️  Failed to retrieve session log: {e}")
                     }
                 }
@@ -226,67 +225,40 @@ async fn generate_ascii_trace_from_session_data(
         }
     }
 
-    // Extract final result if available
+    // Extract final result - ensure always set for proper status display
+    let success = result_data
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true); // Default to success for completed executions
 
-    if success {
-        let success = final_status == "completed" || final_status == "success";
-        let score = result_data
-            .get("score")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(if success { 1.0 } else { 0.0 });
+    let score = result_data
+        .get("score")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1.0);
 
-        let execution_result = ExecutionResult {
-            success,
-            score,
-            total_time_ms: 60000, // Default 1 minute
-            statistics: ExecutionStatistics {
-                total_llm_calls: flow_log
-                    .events
-                    .iter()
-                    .filter(|e| matches!(e.event_type, FlowEventType::LlmRequest))
-                    .count() as u32,
-                total_tool_calls: flow_log
-                    .events
-                    .iter()
-                    .filter(|e| matches!(e.event_type, FlowEventType::ToolCall))
-                    .count() as u32,
-                total_tokens: 0,
-                tool_usage: HashMap::new(),
-                max_depth: 0,
-            },
-            scoring_breakdown: None,
-        };
+    let execution_result = ExecutionResult {
+        success,
+        score,
+        total_time_ms: 60000, // Default 1 minute
+        statistics: ExecutionStatistics {
+            total_llm_calls: flow_log
+                .events
+                .iter()
+                .filter(|e| matches!(e.event_type, FlowEventType::LlmRequest))
+                .count() as u32,
+            total_tool_calls: flow_log
+                .events
+                .iter()
+                .filter(|e| matches!(e.event_type, FlowEventType::ToolCall))
+                .count() as u32,
+            total_tokens: 0,
+            tool_usage: HashMap::new(),
+            max_depth: 0,
+        },
+        scoring_breakdown: None,
+    };
 
-        flow_log.final_result = Some(execution_result);
-    } else {
-        // Default success result if no specific final status found
-        let execution_result = ExecutionResult {
-            success: true, // Default to success for display
-            score: result_data
-                .get("score")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(1.0),
-            total_time_ms: 60000,
-            statistics: ExecutionStatistics {
-                total_llm_calls: flow_log
-                    .events
-                    .iter()
-                    .filter(|e| matches!(e.event_type, FlowEventType::LlmRequest))
-                    .count() as u32,
-                total_tool_calls: flow_log
-                    .events
-                    .iter()
-                    .filter(|e| matches!(e.event_type, FlowEventType::ToolCall))
-                    .count() as u32,
-                total_tokens: 0,
-                tool_usage: HashMap::new(),
-                max_depth: 0,
-            },
-            scoring_breakdown: None,
-        };
-
-        flow_log.final_result = Some(execution_result);
-    }
+    flow_log.final_result = Some(execution_result);
 
     // Render as ASCII tree using the existing renderer
     Ok(flow_log.render_as_ascii_tree())
