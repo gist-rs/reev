@@ -1,5 +1,6 @@
 //! Benchmark management handlers
 
+use crate::handlers::parsers::ExecutionTraceParser;
 use crate::types::{
     ApiState, BenchmarkExecution, BenchmarkExecutionRequest, BenchmarkWithExecutions,
 };
@@ -493,7 +494,7 @@ pub async fn get_execution_status_with_agent(
 }
 
 /// Helper function to format execution trace from log content
-fn format_execution_trace(
+pub fn format_execution_trace(
     log_content: &str,
     execution_id: String,
 ) -> Result<ExecutionState, Box<dyn std::error::Error + Send + Sync>> {
@@ -514,36 +515,17 @@ fn format_execution_trace(
                         formatted_trace.push_str("   ├─ ACTION:\n");
                         if let Some(action_array) = action.as_array() {
                             for action_item in action_array {
-                                if let Some(program_id) = action_item.get("program_id") {
-                                    formatted_trace
-                                        .push_str(&format!("      Program ID: {program_id}\n"));
+                                let (program_ids, account_details, data_value) =
+                                    ExecutionTraceParser::parse_action_details(action_item);
+
+                                for program_id in program_ids {
+                                    formatted_trace.push_str(&format!("{program_id}\n"));
                                 }
-                                if let Some(accounts) = action_item.get("accounts") {
-                                    if let Some(accounts_array) = accounts.as_array() {
-                                        formatted_trace.push_str("      Accounts:\n");
-                                        for (idx, account) in accounts_array.iter().enumerate() {
-                                            if let Some(pubkey) = account.get("pubkey") {
-                                                let is_signer = account
-                                                    .get("is_signer")
-                                                    .and_then(|v| v.as_bool())
-                                                    .unwrap_or(false);
-                                                let is_writable = account
-                                                    .get("is_writable")
-                                                    .and_then(|v| v.as_bool())
-                                                    .unwrap_or(false);
-                                                let icon =
-                                                    if is_signer { "🖋️" } else { "🖍️" };
-                                                let arrow = if is_writable { "➕" } else { "➖" };
-                                                formatted_trace.push_str(&format!(
-                                                    "      [{idx}] {icon} {arrow} {pubkey}\n"
-                                                ));
-                                            }
-                                        }
-                                    }
+                                for account_detail in account_details {
+                                    formatted_trace.push_str(&format!("{account_detail}\n"));
                                 }
-                                if let Some(data) = action_item.get("data") {
-                                    formatted_trace
-                                        .push_str(&format!("      Data (Base58): {data}\n"));
+                                if let Some(data) = data_value {
+                                    formatted_trace.push_str(&format!("{data}\n"));
                                 }
                             }
                         }

@@ -1,12 +1,12 @@
 //! Execution trace parser for converting execution data to ASCII format
 //!
 //! This module provides functionality to parse execution data from various sources
-//! and convert them into human-readable ASCII tree traces. It supports:
+//! and convert them into human-readable ASCII trace formats. It supports:
 //! - Session data from completed executions with step-by-step actions
-//! - Session logs from database storage
-//! - Error handling and fallback formatting
+//! - Session logs from database
+//! - Various execution result formats
 //!
-//! The parser integrates with the FlowLog system to generate structured
+//! The parser integrates with FlowLog system to generate structured
 //! ASCII trees showing the execution flow with proper hierarchy and visual indicators.
 
 use reev_lib::flow::{EventContent, FlowEventType, FlowLog, FlowLogRenderer};
@@ -120,13 +120,13 @@ impl ExecutionTraceParser {
             .get("benchmark_id")
             .or_else(|| result_data.get("benchmark_id"))
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| state.benchmark_id.as_str());
+            .unwrap_or(state.benchmark_id.as_str());
 
         let agent_type = data_source
             .get("agent_type")
             .or_else(|| result_data.get("agent_type"))
             .and_then(|v| v.as_str())
-            .unwrap_or_else(|| state.agent.as_str());
+            .unwrap_or(state.agent.as_str());
 
         let start_time = std::time::SystemTime::now();
         let end_time = start_time + std::time::Duration::from_secs(60); // Default 1 minute
@@ -177,6 +177,10 @@ impl ExecutionTraceParser {
                 // Create Tool Call event for each action
                 if let Some(action) = step_data.get("action").and_then(|v| v.as_array()) {
                     if !action.is_empty() {
+                        let action_item = &action[0]; // Use first action item
+                        let (program_ids, account_details, data_value) =
+                            Self::parse_action_details(action_item);
+
                         let tool_event = reev_lib::flow::FlowEvent {
                             timestamp: std::time::SystemTime::UNIX_EPOCH
                                 + std::time::Duration::from_millis(timestamp + 500),
@@ -185,7 +189,10 @@ impl ExecutionTraceParser {
                             content: EventContent {
                                 data: serde_json::json!({
                                     "tool_name": "execute_transaction",
-                                    "tool_args": format!("Step {} action", i + 1)
+                                    "tool_args": format!("Step {} action", i + 1),
+                                    "program_ids": program_ids,
+                                    "accounts": account_details,
+                                    "data": data_value
                                 }),
                             },
                         };
@@ -354,6 +361,57 @@ impl ExecutionTraceParser {
             // Fallback to basic formatting
             Err("Unknown JSON format for trace generation".into())
         }
+    }
+
+    /// Parse action details from step action for formatting
+    /// This extracts program_id, accounts, and data from action arrays
+    /// and formats them for display in various trace formats
+    /// Returns: (program_ids, account_details, data_value)
+    pub fn parse_action_details(
+        action: &serde_json::Value,
+    ) -> (Vec<String>, Vec<String>, Option<String>) {
+        let mut program_ids = Vec::new();
+        let mut account_details = Vec::new();
+        let mut data_value = None;
+
+        if let Some(action_array) = action.as_array() {
+            for action_item in action_array {
+                // Extract program ID
+                if let Some(program_id) = action_item.get("program_id") {
+                    program_ids.push(format!("      Program ID: {program_id}"));
+                }
+
+                // Extract and format accounts
+                if let Some(accounts) = action_item.get("accounts") {
+                    if let Some(accounts_array) = accounts.as_array() {
+                        account_details.push("      Accounts:".to_string());
+                        for (idx, account) in accounts_array.iter().enumerate() {
+                            if let Some(pubkey) = account.get("pubkey") {
+                                let is_signer = account
+                                    .get("is_signer")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
+                                let is_writable = account
+                                    .get("is_writable")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
+                                let icon = if is_signer { "🖋️" } else { "🖍️" };
+                                let arrow = if is_writable { "➕" } else { "➖" };
+                                account_details
+                                    .push(format!("      [{idx}] {icon} {arrow} {pubkey}"));
+                            }
+                        }
+                    }
+                }
+
+                // Extract data
+                if let Some(data) = action_item.get("data") {
+                    data_value = Some(format!("      Data (Base58): {data}"));
+                }
+            }
+        }
+
+        (program_ids, account_details, data_value)
     }
 }
 
