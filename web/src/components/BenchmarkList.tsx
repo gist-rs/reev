@@ -256,7 +256,7 @@ export function BenchmarkList({
           id: response.execution_id,
           benchmark_id: benchmark.id,
           agent: selectedAgent,
-          status: "Pending",
+          status: ExecutionStatus.PENDING,
           progress: 0,
           start_time: new Date().toISOString(),
           trace: "",
@@ -407,6 +407,18 @@ export function BenchmarkList({
           exec.benchmark_id === benchmarkId &&
           (!selectedAgent || exec.agent === selectedAgent),
       );
+
+      // Debug log to track execution status
+      if (
+        execution &&
+        (execution.status === ExecutionStatus.QUEUED ||
+          execution.status === ExecutionStatus.PENDING ||
+          execution.status === ExecutionStatus.RUNNING)
+      ) {
+        console.log(
+          `🏃 ${benchmarkId} status: ${execution.status}, progress: ${execution.progress}`,
+        );
+      }
 
       // Return current execution immediately if found (handles running state correctly)
       if (execution) {
@@ -674,13 +686,19 @@ export function BenchmarkList({
               // Find if any benchmark is currently running
               const runningBenchmark = Array.from(executions.values()).find(
                 (execution) => {
-                  return execution?.status === ExecutionStatus.RUNNING;
+                  return (
+                    execution?.status === ExecutionStatus.QUEUED ||
+                    execution?.status === ExecutionStatus.PENDING ||
+                    execution?.status === ExecutionStatus.RUNNING
+                  );
                 },
               )?.benchmark_id;
 
               const isExpanded =
-                status === ExecutionStatus.RUNNING
-                  ? true // Always expand running benchmark
+                status === ExecutionStatus.RUNNING ||
+                status === ExecutionStatus.QUEUED ||
+                status === ExecutionStatus.PENDING
+                  ? true // Always expand running/queued/pending benchmark
                   : runningBenchmark
                     ? false // Collapse all others when something is running
                     : expandedBenchmark === benchmark.id; // Normal expansion logic when nothing is running
@@ -688,13 +706,15 @@ export function BenchmarkList({
               return (
                 <div
                   key={benchmark.id}
-                  className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors ${
+                  className={`p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-all duration-300 ${
                     isSelected
                       ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400"
                       : ""
                   } ${
-                    status === ExecutionStatus.RUNNING
-                      ? "animate-blink-fade"
+                    status === ExecutionStatus.RUNNING ||
+                    status === ExecutionStatus.QUEUED ||
+                    status === ExecutionStatus.PENDING
+                      ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 animate-pulse"
                       : ""
                   }`}
                   onClick={() => handleBenchmarkClick(benchmark.id)}
@@ -726,19 +746,32 @@ export function BenchmarkList({
                                 };
                                 return getBenchmarkColorClass(
                                   placeholderResult,
-                                  false,
+                                  status === ExecutionStatus.RUNNING ||
+                                    status === ExecutionStatus.PENDING,
                                 );
                               }
 
                               try {
-                                return getBenchmarkColorClass(execution, false);
+                                return getBenchmarkColorClass(
+                                  execution,
+                                  status === ExecutionStatus.RUNNING ||
+                                    status === ExecutionStatus.QUEUED ||
+                                    status === ExecutionStatus.PENDING,
+                                );
                               } catch (error) {
                                 console.error(
                                   `❌ Color calculation failed for ${benchmark.id}:`,
                                   error,
                                   execution,
                                 );
-                                // Return gray as fallback
+                                // Return appropriate color based on status
+                                if (
+                                  status === ExecutionStatus.RUNNING ||
+                                  status === ExecutionStatus.QUEUED ||
+                                  status === ExecutionStatus.PENDING
+                                ) {
+                                  return "bg-yellow-500 animate-pulse";
+                                }
                                 return "bg-gray-400";
                               }
                             })()}`}
@@ -760,9 +793,17 @@ export function BenchmarkList({
                           isRunningAll ||
                           status === ExecutionStatus.RUNNING
                         }
-                        className="ml-3 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        className={`ml-3 px-3 py-1 text-white text-sm rounded transition-all duration-300 ${
+                          status === ExecutionStatus.RUNNING ||
+                          status === ExecutionStatus.QUEUED ||
+                          status === ExecutionStatus.PENDING
+                            ? "bg-yellow-500 animate-pulse"
+                            : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        }`}
                       >
-                        {status === ExecutionStatus.RUNNING
+                        {status === ExecutionStatus.RUNNING ||
+                        status === ExecutionStatus.QUEUED ||
+                        status === ExecutionStatus.PENDING
                           ? "Running..."
                           : "Run"}
                       </button>
@@ -797,14 +838,18 @@ export function BenchmarkList({
                                   };
                                   return getBenchmarkColorClass(
                                     placeholderResult,
-                                    false,
+                                    status === ExecutionStatus.RUNNING ||
+                                      status === ExecutionStatus.QUEUED ||
+                                      status === ExecutionStatus.PENDING,
                                   );
                                 }
 
                                 try {
                                   return getBenchmarkColorClass(
                                     execution,
-                                    false,
+                                    status === ExecutionStatus.RUNNING ||
+                                      status === ExecutionStatus.QUEUED ||
+                                      status === ExecutionStatus.PENDING,
                                   );
                                 } catch (error) {
                                   console.error(
@@ -812,7 +857,14 @@ export function BenchmarkList({
                                     error,
                                     execution,
                                   );
-                                  // Return gray as fallback
+                                  // Return appropriate color based on status
+                                  if (
+                                    status === ExecutionStatus.RUNNING ||
+                                    status === ExecutionStatus.QUEUED ||
+                                    status === ExecutionStatus.PENDING
+                                  ) {
+                                    return "bg-yellow-500 animate-pulse";
+                                  }
                                   return "bg-gray-400";
                                 }
                               })()}`}
@@ -845,8 +897,12 @@ export function BenchmarkList({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (status === ExecutionStatus.RUNNING) {
-                              // Do nothing when running - just show Running...
+                            if (
+                              status === ExecutionStatus.RUNNING ||
+                              status === ExecutionStatus.QUEUED ||
+                              status === ExecutionStatus.PENDING
+                            ) {
+                              // Do nothing when running/queued/pending - just show Running...
                               return;
                             } else {
                               handleRunBenchmark(benchmark);
@@ -854,16 +910,22 @@ export function BenchmarkList({
                           }}
                           disabled={
                             status === ExecutionStatus.RUNNING ||
+                            status === ExecutionStatus.QUEUED ||
+                            status === ExecutionStatus.PENDING ||
                             isRunning ||
                             isRunningAll
                           }
-                          className={`px-3 py-1 text-white text-sm rounded transition-colors ${
-                            status === ExecutionStatus.RUNNING
-                              ? "bg-gray-500"
+                          className={`px-3 py-1 text-white text-sm rounded transition-all duration-300 ${
+                            status === ExecutionStatus.RUNNING ||
+                            status === ExecutionStatus.QUEUED ||
+                            status === ExecutionStatus.PENDING
+                              ? "bg-yellow-500 animate-pulse"
                               : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                           }`}
                         >
-                          {status === ExecutionStatus.RUNNING
+                          {status === ExecutionStatus.RUNNING ||
+                          status === ExecutionStatus.QUEUED ||
+                          status === ExecutionStatus.PENDING
                             ? "Running..."
                             : "Run"}
                         </button>
@@ -871,7 +933,56 @@ export function BenchmarkList({
 
                       <hr className=" border-gray-200 dark:border-gray-700 mt-2" />
 
-                      {/* Progress Bar for Completed and Failed Benchmarks (hide when running) */}
+                      {/* Progress Bar for Running/Pending Benchmarks */}
+                      {(status === ExecutionStatus.RUNNING ||
+                        status === ExecutionStatus.QUEUED ||
+                        status === ExecutionStatus.PENDING) && (
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                              Progress
+                            </span>
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                              {Math.round(
+                                (() => {
+                                  const currentExecution = Array.from(
+                                    executions.values(),
+                                  ).find(
+                                    (exec) =>
+                                      exec.benchmark_id === benchmark.id,
+                                  );
+                                  return (
+                                    (currentExecution?.progress || 0) * 100
+                                  );
+                                })(),
+                              )}
+                              %
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out animate-shimmer"
+                              style={{
+                                width: `${Math.round(
+                                  (() => {
+                                    const currentExecution = Array.from(
+                                      executions.values(),
+                                    ).find(
+                                      (exec) =>
+                                        exec.benchmark_id === benchmark.id,
+                                    );
+                                    return (
+                                      (currentExecution?.progress || 0) * 100
+                                    );
+                                  })(),
+                                )}%`,
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Score for Completed and Failed Benchmarks */}
                       {(status === ExecutionStatus.COMPLETED ||
                         status === ExecutionStatus.FAILED) && (
                         <div className="mt-2">

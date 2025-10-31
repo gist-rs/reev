@@ -1,10 +1,13 @@
 // Benchmark data types for the Reev web interface
 
 export enum ExecutionStatus {
+  QUEUED = "Queued",
   PENDING = "Pending",
   RUNNING = "Running",
   COMPLETED = "Completed",
   FAILED = "Failed",
+  STOPPED = "Stopped",
+  TIMEOUT = "Timeout",
   UNKNOWN = "Unknown",
 }
 

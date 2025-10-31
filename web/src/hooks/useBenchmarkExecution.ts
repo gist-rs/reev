@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import { apiClient } from "../services/api";
 import { BenchmarkList, ExecutionState } from "../types/configuration";
+import { ExecutionStatus } from "../types/benchmark";
 
 interface UseBenchmarkExecutionReturn {
   benchmarks: BenchmarkList | null;
@@ -61,6 +62,12 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
   const updateExecution = useCallback(
     (executionId: string, execution: ExecutionState) => {
+      console.log(`🔄 [UPDATE_EXECUTION] ${execution.benchmark_id}:`, {
+        status: execution.status,
+        progress: execution.progress,
+        id: execution.id,
+      });
+
       setExecutions((prev) => {
         const updated = new Map(prev);
         // Use execution ID (session ID) as the key, not benchmark ID
@@ -69,10 +76,20 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
       });
 
       // Start polling if execution is running
-      if (execution.status === "Running" || execution.status === "Pending") {
+      if (
+        execution.status === ExecutionStatus.RUNNING ||
+        execution.status === ExecutionStatus.QUEUED ||
+        execution.status === ExecutionStatus.PENDING
+      ) {
+        console.log(
+          `🚀 [POLLING_START] Starting polling for ${execution.benchmark_id}`,
+        );
         startPolling(execution.benchmark_id, execution.id);
       } else {
         // Stop polling if execution is completed or failed
+        console.log(
+          `⏹️ [POLLING_STOP] Stopping polling for ${execution.benchmark_id} - status: ${execution.status}`,
+        );
         stopPolling(execution.id);
       }
     },
@@ -92,6 +109,20 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
             executionId,
           );
 
+          console.log(`📡 [POLLING] API returned for ${benchmarkId}:`, {
+            status: updatedExecution.status,
+            progress: updatedExecution.progress,
+            benchmark_id: updatedExecution.benchmark_id,
+            id: updatedExecution.id,
+          });
+
+          console.log(`📡 [POLLING] API returned for ${benchmarkId}:`, {
+            status: updatedExecution.status,
+            progress: updatedExecution.progress,
+            benchmark_id: updatedExecution.benchmark_id,
+            id: updatedExecution.id,
+          });
+
           if (updatedExecution) {
             setExecutions((prev) => {
               const updated = new Map(prev);
@@ -102,10 +133,14 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
             // Stop polling if execution is completed
             if (
-              updatedExecution.status === "Completed" ||
-              updatedExecution.status === "Failed"
+              updatedExecution.status === ExecutionStatus.COMPLETED ||
+              updatedExecution.status === ExecutionStatus.FAILED
             ) {
               stopPolling(executionId);
+              console.log(
+                `🏁 [POLLING] Execution completed for ${benchmarkId}:`,
+                updatedExecution.status,
+              );
 
               // Call completion callback if set
               if (completionCallback.current) {
