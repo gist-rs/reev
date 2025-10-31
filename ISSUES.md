@@ -59,3 +59,92 @@ curl ".../execution-logs/116-jup-lend-redeem-usdc?execution_id=new"
 ```
 
 **Issue Status:** 🎯 **COMPLETELY RESOLVED** - All flow benchmark issues fixed with comprehensive solution
+
+## Issue #11: Flow benchmark hard failures causing frontend to hang (2025-10-31)
+
+**Description:** Flow benchmarks experiencing hard failures that stop entire execution process instead of graceful degradation, causing frontend to hang indefinitely.
+
+**Current Impact:**
+- **Benchmark 116-jup-lend-redeem-usdc**: Fails on Step 2 with "Number is not a valid u64" error when -1 passed as shares parameter
+- **Benchmark 200-jup-swap-then-lend-deposit**: Fails on Step 2 with "Insufficient funds: requested 394358118, available 0" error
+- **Frontend Stuck**: Both benchmarks get stuck in "Failed" state, preventing further execution
+- **No Graceful Recovery**: Hard failures prevent continuation to remaining benchmarks
+
+**Error Analysis:**
+
+**Issue #1: Invalid Share Parameter (116)**
+```json
+{
+  "tool": "jupiter_lend_earn_redeem",
+  "arguments": {"asset":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","shares":-1,"signer":"BtsJz59TJDphedMqqPQPeECjJg8wKWypXKDBoGWjRDs7"}
+}
+```
+- LLM agent passes -1 as shares parameter to JupiterLendEarnRedeemTool
+- Query for actual jUSDC balance failing and returning -1 instead of error
+- Should query token balance and return 0 if not found, not -1
+
+**Issue #2: Insufficient Funds (200)**
+```json
+{
+  "error": "Jupiter lend deposit error: Balance validation failed: Insufficient funds: requested 394358118, available 0"
+}
+``- Agent trying to deposit tokens it doesn't have after swap
+- Missing balance validation before attempting deposit
+- Should handle insufficient funds gracefully and provide helpful error
+
+**Root Cause Problems:**
+1. **Hard Failures**: Errors propagate up and stop entire execution instead of being caught and logged
+2. **Poor Error Recovery**: No fallback mechanisms for common failure scenarios  
+3. **Missing Error Session Fields**: Errors not properly logged to session files for debugging
+4. **Frontend State**: Frontend gets stuck waiting for completion that never comes
+5. **Balance Query Failures**: Token balance queries return invalid values (-1) instead of proper error handling
+
+**Files Affected:**
+- `crates/reev-tools/src/tools/jupiter_lend_earn_mint_redeem.rs` - Balance query error handling
+- `crates/reev-runner/src/lib.rs` - Flow benchmark error recovery  
+- `crates/reev-lib/src/llm_agent.rs` - Agent error propagation
+- `crates/reev-protocols/src/jupiter/mod.rs` - Token balance query validation
+- Frontend state management for failed flows
+
+**Priority:** Critical - Blocks flow benchmark execution and hangs frontend
+
+**Status:** 🔴 **ACTIVE** - Requires immediate fix
+
+**Proposed Solution Plan:**
+
+**Phase 1: Soft Error Handling**
+1. **Catch Flow Step Failures**: Modify `run_flow_benchmark()` to catch individual step failures without stopping entire flow
+2. **Graceful Degradation**: Log error and continue with next benchmark instead of hard failure
+3. **Session Error Logging**: Add error field to session logs for failed steps
+4. **Frontend Recovery**: Update execution state management to handle soft failures
+
+**Phase 2: Balance Query Fixes**  
+1. **Validate Balance Responses**: Fix `query_token_balance()` to return 0 instead of -1 on errors
+2. **Better Error Messages**: Provide meaningful error context for insufficient funds
+3. **Pre-Validation**: Check balances before attempting operations that require them
+
+**Phase 3: Enhanced Error Recovery**
+1. **Retry Logic**: Add configurable retry for transient failures
+2. **Fallback Mechanisms**: Alternative approaches when primary operation fails  
+3. **Error Classification**: Distinguish between recoverable vs non-recoverable errors
+
+**Implementation Details:**
+- Modify flow step execution to catch and log errors without propagating
+- Update session logging schema to include error details
+- Add balance validation before Jupiter operations
+- Improve frontend state transitions for failed benchmarks
+- Add comprehensive error logging to aid debugging
+
+**Success Criteria:**
+- Flow benchmarks continue execution even when individual steps fail
+- Frontend receives proper error states and can continue
+- Session logs contain detailed error information for debugging
+- Balance queries handle edge cases properly
+- Users can see what failed and why in the UI
+
+**Testing Strategy:**
+1. Test with various balance scenarios (0, insufficient, adequate)
+2. Verify flow step failures don't stop entire benchmark suite
+3. Confirm frontend updates properly for failed states
+4. Validate error information appears in session logs
+5. End-to-end testing with problematic benchmarks 116 and 200
