@@ -182,6 +182,7 @@ pub async fn get_transaction_logs(
 }
 
 /// Fallback formatter for simple cases (kept for compatibility but not used in main flow)
+#[allow(dead_code)]
 fn format_transaction_log_simple(log_str: &str) -> String {
     let trimmed = log_str.trim();
 

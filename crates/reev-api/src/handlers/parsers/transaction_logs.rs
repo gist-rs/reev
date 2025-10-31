@@ -22,6 +22,7 @@ use tracing::debug;
 #[derive(Debug, Clone)]
 pub struct TransactionLogParser {
     /// Show compute units in the output
+    #[allow(dead_code)]
     show_compute_units: bool,
 }
 
@@ -40,6 +41,7 @@ impl TransactionLogParser {
     }
 
     /// Create parser with specific compute unit display setting
+    #[allow(dead_code)]
     pub fn with_compute_units(show_compute_units: bool) -> Self {
         Self { show_compute_units }
     }
@@ -269,7 +271,7 @@ impl TransactionLogParser {
     }
 
     /// Get appropriate label for a group of logs
-    fn get_group_label(&self, first_log: &str, indent_level: usize) -> String {
+    fn get_group_label(&self, first_log: &str, _indent_level: usize) -> String {
         let trimmed = first_log.trim();
 
         if trimmed.contains("invoke [") {
@@ -339,6 +341,7 @@ impl TransactionLogParser {
     }
 
     /// Get program icon based on log line
+    #[allow(dead_code)]
     fn get_program_icon_for_line(&self, line: &str) -> &str {
         if line.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
             "🪙"
@@ -356,6 +359,7 @@ impl TransactionLogParser {
     }
 
     /// Extract program ID from log line
+    #[allow(dead_code)]
     fn extract_program_id(&self, line: &str) -> Option<String> {
         // Look for program ID patterns
         if let Some(start) = line.find("invoke [") {
@@ -372,6 +376,7 @@ impl TransactionLogParser {
     }
 
     /// Extract compute units from log line
+    #[allow(dead_code)]
     fn extract_compute_units(&self, line: &str) -> Option<u64> {
         // Look for CU usage patterns like "12345 compute units" or "12345 CU"
         if let Some(cu_start) = line.find("compute units") {
@@ -393,6 +398,7 @@ impl TransactionLogParser {
     }
 
     /// Get program icon based on program ID
+    #[allow(dead_code)]
     fn get_program_icon(&self, program_id: &str) -> &'static str {
         match program_id {
             "11111111111111111111111111111111111" => "🔧", // System Program
@@ -418,6 +424,7 @@ impl TransactionLogParser {
     }
 
     /// Generate error trace
+    #[allow(dead_code)]
     pub fn generate_error_trace(&self, error_message: &str, execution_id: &str) -> String {
         format!(
             "❌ Transaction Log Error\n\
@@ -434,6 +441,7 @@ impl TransactionLogParser {
 
 /// Transaction log entry structure (unused in new implementation but kept for compatibility)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct TransactionLogEntry {
     level: String,
     program_id: String,
