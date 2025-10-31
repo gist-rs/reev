@@ -439,8 +439,8 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   2025-10-30T10:08:20.493465Z  INFO reev_api::handlers::execution_logs: Found execution for benchmark: 001-sol-transfer (status: Queued)
   ```
 
-### 🔧 **CURRENT Issue - #43** 
-#### **🔍 ASCII Tree Display Truncation - IN PROGRESS**
+### ✅ **RESOLVED Issue - #43** 
+#### **🔍 ASCII Tree Display Truncation - FIXED** ✅
 - **Problem**: Execution logs API returned JSON preview instead of detailed transaction structure
 - **Expected**: Display Program ID, Accounts with icons, and Data in Base58 format 
 - **Solution**: Modified `reev-flow/src/renderer.rs` to parse `execute_transaction` results and format as ASCII tree
@@ -448,9 +448,10 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   - Enhanced `ToolResult` rendering to detect transaction results
   - Added `parse_action_details` function to extract program details
   - Fixed formatting to remove quotes and add proper indentation
-- **Status**: ✅ IMPLEMENTED - Ready for testing and commit
+- **Result**: ✅ Now displays clean transaction details matching expected format
 - **Files Modified**: `reev/crates/reev-flow/src/renderer.rs`
 - **Tested**: ✅ Working with execution ID `e0de00f5-2f19-43fa-a51a-19c05aa78209`
+- **Commit**: `09d1f936` - fix: enhance ASCII tree display for execution logs with detailed transaction formatting
 
 ### 🎯 **Current Status Summary**
 - **Issue #41**: ✅ RESOLVED - benchmarks.rs syntax error fixed
