@@ -634,7 +634,7 @@ When user just views benchmark info (no active run):
 - Maintain historical fallback for info viewing state
 - Ensure proper state propagation from running execution to components
 
-#### **🧪 Steps to Reproduce**:
+### 🧪 **Steps to Reproduce**:
 1. Have existing completed runs in database
 2. Click run benchmark again (RUNNING context)
 3. Expected: Should show NEW execution logs with real-time updates
@@ -646,4 +646,63 @@ When user just views benchmark info (no active run):
 - **INFO state**: Show historical execution logs from database
 
 #### **📊 Impact**: High - Users cannot see real-time execution logs when re-running benchmarks
+
+### 🔧 **Issue #48 - Context-aware execution trace fix not working** 🔍 ACTIVE
+#### **🔍 Problem**: 
+Despite implementing context-aware execution trace fetching, frontend still uses old execution_id:
+
+**Test Results:**
+- **New execution ID**: `"ff2aa67c-1019-42c6-a33d-ae63d813c287"`
+- **Actual API call**: `GET /api/v1/execution-logs/002-spl-transfer?execution_id=86b5cd6e-a114-4b22-8b17-4094fd21bcbb`
+- **Problem**: Still calling old execution_id despite context-aware implementation
+
+#### **🎯 Root Cause Analysis**:
+The fix may not be working due to:
+
+1. **Component State Race Condition**: 
+   - `isRunning` prop might not be properly updated when new execution starts
+   - Components may be using stale `isRunning` state
+
+2. **Execution State Not Found**:
+   - `getExecutionTraceWithLatestId` looks for current execution in `executions` Map
+   - New execution may not be stored in `executions` Map yet
+   - Falls back to historical data
+
+3. **Data Flow Issue**:
+   - `getExecutionTraceWithLatestId` receives `isRunning=true`
+   - But `Array.from(executions.values()).find()` returns no matching execution
+   - Uses database `latest_execution_id` instead
+
+4. **Component Mount Timing**:
+   - ExecutionTrace component may load before new execution is added to `executions` Map
+   - Initial load uses historical data
+   - Subsequent updates may not trigger re-load
+
+#### **📋 Technical Details**:
+- **Hook Implementation**: `useBenchmarkExecution.ts` line ~125
+- **Priority Logic**: Current executions → Historical fallback
+- **Data Source**: `executions` Map vs `agentPerformance` API data
+- **Missing Link**: New execution not properly added to `executions` Map before component loads
+
+#### **🔧 Investigation Required**:
+1. Check when new execution is added to `executions` Map
+2. Verify `isRunning` prop timing in ExecutionTrace component  
+3. Debug execution flow: POST /run → updateExecution → component render
+4. Ensure `benchmark_id` matching logic works correctly
+5. Add debug logging to track actual execution state
+
+#### **🐛 Current Behavior**:
+```typescript
+// isRunning=true but execution not found in executions Map
+const currentExecution = Array.from(executions.values()).find(
+  (exec) => exec.benchmark_id === benchmarkId
+);
+// Returns undefined → falls back to historical data
+```
+
+#### **🎯 Proposed Solution**:
+- Add debug logging to track execution state
+- Verify execution state timing and data flow
+- Ensure new executions are properly stored in `executions` Map
+- Check component re-render triggers when execution starts
 

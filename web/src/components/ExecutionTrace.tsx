@@ -143,12 +143,18 @@ export function ExecutionTrace({
   const loadExecutionTrace = async () => {
     if (!benchmarkId) return;
 
+    console.log(
+      `🔄 [EXECUTION_TRACE_COMPONENT] Loading trace for ${benchmarkId}, isRunning: ${isRunning}`,
+    );
     setLoading(true);
     setError(null);
 
     try {
       // Pass isRunning parameter to prioritize current execution when running
       const data = await getExecutionTraceWithLatestId(benchmarkId, isRunning);
+      console.log(
+        `📊 [EXECUTION_TRACE_COMPONENT] Received data with execution_id: ${data?.execution_id}`,
+      );
       setTraceData(data);
     } catch (err) {
       console.error("❌ ExecutionTrace - Failed to load trace:", err);

@@ -59,10 +59,23 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
 
   const updateExecution = useCallback(
     (executionId: string, execution: ExecutionState) => {
+      console.log(
+        `📝 [UPDATE_EXECUTION] Storing execution:`,
+        {
+          key: execution.id,
+          id: execution.id,
+          benchmark_id: execution.benchmark_id,
+          agent: execution.agent,
+          status: execution.status,
+        },
+      );
       setExecutions((prev) => {
         const updated = new Map(prev);
         // Use execution ID (session ID) as the key, not benchmark ID
         updated.set(execution.id, execution);
+        console.log(
+          `📝 [UPDATE_EXECUTION] Stored executions count: ${updated.size}`,
+        );
         return updated;
       });
 
@@ -133,12 +146,34 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
   // Updated to accept isRunning parameter for context-aware execution tracing
   const getExecutionTraceWithLatestId = useCallback(
     async (benchmarkId: string, isRunning: boolean = false): Promise<any> => {
+      console.log(
+        `🔍 [EXECUTION_TRACE] Called with benchmarkId: ${benchmarkId}, isRunning: ${isRunning}`,
+      );
+      console.log(
+        `📊 [EXECUTION_TRACE] Current executions in Map:`,
+        Array.from(executions.entries()).map(([key, exec]) => ({
+          key,
+          id: exec.id,
+          benchmark_id: exec.benchmark_id,
+          agent: exec.agent,
+          status: exec.status,
+        })),
+      );
+
       try {
         // PRIORITY 1: When actively running, use current execution from executions Map
         if (isRunning) {
           // Find current running execution for this benchmark
           const currentExecution = Array.from(executions.values()).find(
             (exec) => exec.benchmark_id === benchmarkId,
+          );
+
+          console.log(
+            `🎯 [EXECUTION_TRACE] Looking for execution with benchmark_id: ${benchmarkId}`,
+          );
+          console.log(
+            `🎯 [EXECUTION_TRACE] Found current execution:`,
+            currentExecution,
           );
 
           if (currentExecution) {
@@ -153,6 +188,10 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
             console.warn(
               `⚠️ [EXECUTION_TRACE] isRunning=true but no current execution found for ${benchmarkId}`,
             );
+            console.warn(
+              `⚠️ [EXECUTION_TRACE] Available benchmark_ids in executions:`,
+              Array.from(executions.values()).map(exec => exec.benchmark_id),
+            );
           }
         }
 
@@ -164,9 +203,19 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
         // Use the latest execution_id if available
         const latestExecutionId = benchmarkData.latest_execution_id;
 
+        console.log(
+          `📚 [EXECUTION_TRACE] Historical fallback using latest_execution_id: ${latestExecutionId}`,
+        );
+
         if (latestExecutionId) {
           console.log(
             `📚 [EXECUTION_TRACE] Using historical execution: ${latestExecutionId}`,
+          );
+          return await apiClient.getExecutionTrace(
+            benchmarkId,
+            latestExecutionId,
+          );
+        }
           );
           return await apiClient.getExecutionTrace(
             benchmarkId,
