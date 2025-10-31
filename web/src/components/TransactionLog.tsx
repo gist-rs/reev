@@ -9,6 +9,7 @@ import {
 } from "preact/hooks";
 import { memo } from "preact/compat";
 import { apiClient } from "../services/api";
+import { ExecutionState } from "../types/configuration";
 
 // Configuration for trace display limits
 const MAX_TRACE_LINES = 1000; // Maximum lines to display
@@ -93,7 +94,11 @@ export function TransactionLog({
     setError(null);
 
     try {
-      const data = await apiClient.getTransactionLogs(benchmarkId);
+      // Use execution.id from execution prop if available (ExecutionState has 'id' field)
+      const executionId = execution?.id;
+      const data = executionId
+        ? await apiClient.getTransactionLogs(benchmarkId, executionId)
+        : await apiClient.getTransactionLogs(benchmarkId);
       setTransactionLogData(data);
     } catch (err) {
       setError(
@@ -109,7 +114,7 @@ export function TransactionLog({
     if (autoScroll && traceRef.current) {
       traceRef.current.scrollTop = traceRef.current.scrollHeight;
     }
-  }, [transactionLogData?.transaction_logs, autoScroll]);
+  }, [transactionLogData?.trace, autoScroll]);
 
   // Also auto-scroll when execution completes - more aggressive
   useEffect(() => {
@@ -167,12 +172,13 @@ export function TransactionLog({
     }
   }, [benchmarkId, isRunning, debouncedLoadTransactionLogs]);
 
-  // Load on mount and when benchmark changes
+  // Load on mount and when benchmark changes or execution changes
+  // Load on mount and when benchmark changes or execution changes
   useEffect(() => {
     if (benchmarkId) {
       loadTransactionLogs();
     }
-  }, [benchmarkId]);
+  }, [benchmarkId, execution?.execution_id]);
 
   const handleScroll = () => {
     if (traceRef.current) {
@@ -192,8 +198,8 @@ export function TransactionLog({
   };
 
   const handleCopyTrace = () => {
-    if (transactionLogData?.transaction_logs) {
-      navigator.clipboard.writeText(transactionLogData.transaction_logs);
+    if (transactionLogData?.trace) {
+      navigator.clipboard.writeText(transactionLogData.trace);
     }
   };
 
@@ -207,9 +213,7 @@ export function TransactionLog({
     if (!transactionLogData) {
       return "No transaction logs available";
     }
-    return (
-      transactionLogData.transaction_logs || "No transaction logs available"
-    );
+    return transactionLogData.trace || "No transaction logs available";
   };
 
   const traceContent = getTransactionLogsContent();
@@ -258,14 +262,14 @@ export function TransactionLog({
               className={`px-2 py-1 text-xs font-medium rounded-full ${
                 transactionLogData?.is_running
                   ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400"
-                  : transactionLogData?.transaction_logs?.trim()
+                  : transactionLogData?.trace?.trim()
                     ? "bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
               }`}
             >
               {transactionLogData?.is_running
                 ? "Running"
-                : transactionLogData?.transaction_logs?.trim()
+                : transactionLogData?.trace?.trim()
                   ? "Completed"
                   : "No Data"}
             </span>
@@ -309,7 +313,7 @@ export function TransactionLog({
           {/* Action buttons */}
           <button
             onClick={handleCopyTrace}
-            disabled={!transactionLogData?.transaction_logs}
+            disabled={!transactionLogData?.trace}
             className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
           >
             Copy

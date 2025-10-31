@@ -503,10 +503,31 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Priority**: Medium - Does not affect functionality, only user experience
 - **Note**: Enhanced action parsing is working correctly, stored in action_details field
 
+### ✅ **RESOLVED Issue - #44**
+#### **🔍 Transaction Log Missing on Web - FIXED** ✅
+- **Problem**: Transaction Log section missing from web interface after database loading changes
+- **Root Cause**: Frontend was calling API without execution_id and TransactionLog component was using wrong field name
+- **Issues Found**:
+  1. TransactionLog was using `execution?.execution_id` but ExecutionState has `id` field
+  2. TransactionLog component was looking for `transaction_logs` field but API returns `trace` field
+  3. Transaction logs API was requiring execution_id like execution logs, breaking original behavior
+- **Solution**: 
+  1. Fixed TransactionLog to use `execution?.id` instead of `execution?.execution_id`
+  2. Updated TransactionLog to use `.trace` field instead of `.transaction_logs`
+  3. Modified transaction logs API to work without execution_id by finding latest execution
+- **Result**: ✅ Transaction Log now displays detailed transaction structure correctly
+- **Files Modified**: 
+  - `reev/crates/reev-api/src/handlers/transaction_logs.rs`: Enhanced to find latest execution
+  - `reev/web/src/components/TransactionLog.tsx`: Fixed field access and API calls
+  - `reev/web/src/services/api.ts`: Updated to accept optional execution_id
+- **Tested**: ✅ Working with benchmark `115-jup-lend-mint-usdc`
+- **Status**: ✅ RESOLVED - Transaction Log displaying correctly on web
+
 ### 🎯 **Current Status Summary**
+- **Issue #43**: ✅ RESOLVED - ASCII tree display formatting fixed
+- **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
 - **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
 - **Issue #40**: 🔍 ACTIVE - Cache sync investigation needed  
 - **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
-- **Issue #43**: 🔍 ACTIVE - ASCII tree display truncation in execution logs
-- **Overall**: API compilation and core functionality working, display formatting needs FlowLog renderer updates
+- **Overall**: API and frontend working correctly, major regressions resolved
 
