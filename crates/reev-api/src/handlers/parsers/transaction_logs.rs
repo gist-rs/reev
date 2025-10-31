@@ -16,6 +16,7 @@ use anyhow::Result;
 use ascii_tree::Tree;
 use reev_lib::results::TestResult;
 use serde_json::Value;
+use tracing::{debug, warn};
 
 /// Transaction log parser for converting blockchain transaction data to ASCII format
 #[derive(Debug, Clone)]
@@ -44,19 +45,12 @@ impl TransactionLogParser {
         for (step_idx, step) in test_result.trace.steps.iter().enumerate() {
             // Extract transaction logs from the step observation
             if !step.observation.last_transaction_logs.is_empty() {
-                println!(
-                    "DEBUG: Found {} transaction logs for step {}",
-                    step.observation.last_transaction_logs.len(),
-                    step_idx + 1
-                );
                 let step_tree = self.create_step_tree(
                     step_idx + 1,
                     &step.observation.last_transaction_logs,
                     step.observation.last_transaction_error.as_deref(),
                 )?;
                 trees.push(step_tree);
-            } else {
-                println!("DEBUG: No transaction logs found for step {}", step_idx + 1);
             }
         }
 
@@ -74,15 +68,15 @@ impl TransactionLogParser {
         // Try to parse as TestResult first
         if let Ok(test_result_str) = serde_json::to_string(result_data) {
             if let Ok(test_result) = serde_json::from_str::<TestResult>(&test_result_str) {
-                println!("DEBUG: Successfully parsed as TestResult, generating transaction logs");
+                debug!("Successfully parsed as TestResult, generating transaction logs");
                 return self.generate_transaction_logs(&test_result);
             } else {
-                println!("DEBUG: Failed to parse as TestResult");
+                debug!("Failed to parse as TestResult");
             }
         }
 
         // Fallback: extract logs directly from JSON structure
-        println!("DEBUG: Using fallback JSON structure extraction");
+        debug!("Using fallback JSON structure extraction");
         self.extract_from_json_structure(result_data)
     }
 
@@ -91,25 +85,23 @@ impl TransactionLogParser {
         let mut trees = Vec::new();
         let mut step_counter = 1;
 
-        println!("DEBUG: Extracting from JSON structure");
-
         // Check different possible structures
         if let Some(final_result) = result_data.get("final_result") {
             if let Some(data) = final_result.get("data") {
-                println!("DEBUG: Found final_result.data structure");
+                debug!("Found final_result.data structure");
                 self.extract_from_steps_data(data, &mut trees, &mut step_counter)?;
+            }
+        }
+
+        if let Some(trace) = result_data.get("trace") {
+            if let Some(steps) = trace.get("steps") {
+                debug!("Found trace.steps structure");
+                self.extract_from_steps_data(steps, &mut trees, &mut step_counter)?;
             }
         }
 
         if trees.is_empty() {
             return Ok("📝 No transaction logs found in execution result".to_string());
-        }
-
-        if let Some(trace) = result_data.get("trace") {
-            if let Some(steps) = trace.get("steps") {
-                println!("DEBUG: Found trace.steps structure");
-                self.extract_from_steps_data(steps, &mut trees, &mut step_counter)?;
-            }
         }
 
         let root = Tree::Node("🔗 Blockchain Transactions".to_string(), trees);
@@ -122,7 +114,7 @@ impl TransactionLogParser {
         steps_data: &Value,
         trees: &mut Vec<Tree>,
         step_counter: &mut usize,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         if let Some(steps_array) = steps_data.as_array() {
             for step in steps_array {
                 if let Some(observation) = step.get("observation") {
@@ -134,12 +126,6 @@ impl TransactionLogParser {
                                 .map(|s| s.to_string())
                                 .collect();
 
-                            println!(
-                                "DEBUG: Found {} transaction logs for step {}",
-                                logs.len(),
-                                step_counter
-                            );
-
                             let error = observation
                                 .get("last_transaction_error")
                                 .and_then(|e| e.as_str());
@@ -148,18 +134,14 @@ impl TransactionLogParser {
                             trees.push(step_tree);
                             *step_counter += 1;
                         }
-                    } else {
-                        println!("DEBUG: No last_transaction_logs found in observation");
                     }
-                } else {
-                    println!("DEBUG: No observation found in step");
                 }
             }
         }
         Ok(())
     }
 
-    /// Create a tree for a single step's transaction logs
+    /// Create a tree for a single step's transaction logs with proper ASCII tree structure
     fn create_step_tree(
         &self,
         step_num: usize,
@@ -173,11 +155,47 @@ impl TransactionLogParser {
             children.push(Tree::Leaf(vec![format!("❌ Error: {}", err)]));
         }
 
-        // Parse and add transaction logs
-        let parsed_logs = self.parse_transaction_logs(logs);
-        for log_entry in parsed_logs {
-            let node = self.create_log_node(&log_entry)?;
-            children.push(node);
+        // Parse transaction logs and create tree structure
+        let mut current_indent = 0;
+        let mut log_groups = Vec::new();
+        let mut current_group = Vec::new();
+
+        for log_line in logs {
+            let indent_level = (log_line.len() - log_line.trim_start().len()) / 2;
+
+            // If indentation changes, start a new group
+            if indent_level != current_indent && !current_group.is_empty() {
+                if !current_group.is_empty() {
+                    log_groups.push((current_indent, current_group.clone()));
+                    current_group.clear();
+                }
+                current_indent = indent_level;
+            }
+
+            current_group.push(log_line.clone());
+        }
+
+        // Add the last group
+        if !current_group.is_empty() {
+            log_groups.push((current_indent, current_group));
+        }
+
+        // Convert each group to a tree node
+        for (indent_level, group_logs) in log_groups {
+            if group_logs.len() == 1 {
+                // Single log entry
+                let formatted = self.format_single_log(&group_logs[0]);
+                children.push(Tree::Leaf(vec![formatted]));
+            } else {
+                // Multiple log entries at same level - create a group
+                let group_children: Vec<Tree> = group_logs
+                    .iter()
+                    .map(|log| Tree::Leaf(vec![self.format_single_log(log)]))
+                    .collect();
+
+                let group_label = self.get_group_label(&group_logs[0], indent_level);
+                children.push(Tree::Node(group_label, group_children));
+            }
         }
 
         Ok(Tree::Node(
@@ -186,106 +204,109 @@ impl TransactionLogParser {
         ))
     }
 
-    /// Parse transaction logs into structured entries
-    fn parse_transaction_logs(&self, logs: &[String]) -> Vec<TransactionLogEntry> {
-        let mut entries = Vec::new();
-        let mut current_depth = 0;
+    /// Get appropriate label for a group of logs
+    fn get_group_label(&self, first_log: &str, indent_level: usize) -> String {
+        let trimmed = first_log.trim();
 
-        for log_line in logs {
-            if let Ok(entry) = self.parse_log_entry(log_line, &mut current_depth) {
-                entries.push(entry);
-            }
-        }
-
-        entries
-    }
-
-    /// Parse individual log entry
-    fn parse_log_entry(
-        &self,
-        line: &str,
-        current_depth: &mut usize,
-    ) -> Result<TransactionLogEntry> {
-        let trimmed = line.trim();
-
-        // Detect instruction calls
         if trimmed.contains("invoke [") {
-            let depth = (line.len() - trimmed.len()) / 2;
-            *current_depth = depth;
-
-            if let Some(start) = trimmed.find('[') {
-                if let Some(end) = trimmed.find(']') {
-                    let instruction = &trimmed[start + 1..end];
-                    let program_id = self.extract_program_id(trimmed);
-
-                    return Ok(TransactionLogEntry {
-                        level: "INFO".to_string(),
-                        program_id: program_id.unwrap_or("unknown".to_string()),
-                        instruction: instruction.to_string(),
-                        depth,
-                        compute_units: self.extract_compute_units(trimmed),
-                        is_instruction: true,
-                        is_success: !trimmed.contains("failed"),
-                        log_message: trimmed.to_string(),
-                    });
-                }
+            if let Some(program_name) = self.extract_program_name(trimmed) {
+                return format!(
+                    "{}{} {}",
+                    "  ".repeat(indent_level),
+                    self.get_program_icon_for_name(&program_name),
+                    program_name
+                );
             }
         }
 
-        // Detect log entries
-        if trimmed.contains("Program log:") {
-            let depth = (line.len() - trimmed.len()) / 2;
-            if let Some(log_start) = trimmed.find("Program log:") {
-                let log_msg = &trimmed[log_start + "Program log:".len()..];
-                return Ok(TransactionLogEntry {
-                    level: "LOG".to_string(),
-                    program_id: "program".to_string(),
-                    instruction: "".to_string(),
-                    depth: depth + 1, // Indent logs under instructions
-                    compute_units: None,
-                    is_instruction: false,
-                    is_success: true,
-                    log_message: log_msg.trim().to_string(),
-                });
-            }
-        }
-
-        // Default entry
-        let depth = (line.len() - trimmed.len()) / 2;
-        Ok(TransactionLogEntry {
-            level: "INFO".to_string(),
-            program_id: "system".to_string(),
-            instruction: "".to_string(),
-            depth,
-            compute_units: None,
-            is_instruction: false,
-            is_success: true,
-            log_message: trimmed.to_string(),
-        })
+        format!("{}Program Operations", "  ".repeat(indent_level))
     }
 
-    /// Create a tree node from a log entry
-    fn create_log_node(&self, entry: &TransactionLogEntry) -> Result<Tree> {
-        let icon = self.get_program_icon(&entry.program_id);
-        let status = if entry.is_success { "✅" } else { "❌" };
+    /// Extract program name from log line
+    fn extract_program_name(&self, line: &str) -> Option<String> {
+        if let Some(start) = line.find("invoke [") {
+            let after_invoke = &line[start + "invoke [".len()..];
+            if let Some(end) = after_invoke.find(']') {
+                let instruction = &after_invoke[..end];
+                return Some(instruction.to_string());
+            }
+        }
+        None
+    }
 
-        let label = if entry.is_instruction {
-            let cu_info = if self.show_compute_units {
-                entry
-                    .compute_units
-                    .map(|cu| format!(" ({cu} CU)"))
-                    .unwrap_or_default()
-            } else {
-                String::new()
-            };
-            format!("{} {} {}{}", status, icon, entry.instruction, cu_info)
-        } else if !entry.log_message.is_empty() {
-            format!("📝 {}", entry.log_message)
+    /// Format individual transaction log line with appropriate icons and styling
+    fn format_single_log(&self, log_str: &str) -> String {
+        let trimmed = log_str.trim();
+
+        // Add icons for different types of transaction logs
+        if trimmed.contains("invoke [") {
+            let program_name = self
+                .extract_program_name(trimmed)
+                .unwrap_or_else(|| "Unknown".to_string());
+            let icon = self.get_program_icon_for_name(&program_name);
+            format!(
+                "{}{} invoke",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                icon
+            )
+        } else if trimmed.contains("success") {
+            format!(
+                "{}✅ {}",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                self.get_program_icon_for_line(trimmed)
+            )
+        } else if trimmed.contains("compute units") {
+            format!(
+                "{}⚡ {}",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                trimmed
+            )
+        } else if trimmed.contains("Program log:") {
+            format!(
+                "{}📝 {}",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                trimmed
+            )
+        } else if trimmed.contains("Program return:") {
+            format!(
+                "{}↩️ {}",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                trimmed
+            )
         } else {
-            format!("{} {}", icon, entry.log_message)
-        };
+            format!(
+                "{}{}",
+                "  ".repeat((log_str.len() - trimmed.len()) / 2),
+                trimmed
+            )
+        }
+    }
 
-        Ok(Tree::Leaf(vec![label]))
+    /// Get program icon based on program name
+    fn get_program_icon_for_name(&self, program_name: &str) -> &str {
+        match program_name.to_lowercase().as_str() {
+            "transfer" | "initializeaccount" | "initializeaccount2" | "initializeaccount3"
+            | "mintto" | "transferchecked" | "closeaccount" => "🪙",
+            "deposit" | "withdraw" | "operate" | "preoperate" => "💰",
+            _ => "📦",
+        }
+    }
+
+    /// Get program icon based on log line
+    fn get_program_icon_for_line(&self, line: &str) -> &str {
+        if line.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
+            "🪙"
+        } else if line.contains("11111111111111111111111111111111111") {
+            "🔧"
+        } else if line.contains("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL") {
+            "💱"
+        } else if line.contains("jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9")
+            || line.contains("jupeiUmn818Jg1ekPURTpr4mFo29p46vygyykFJ3wZC")
+        {
+            "💰"
+        } else {
+            "📦"
+        }
     }
 
     /// Extract program ID from log line
@@ -328,7 +349,7 @@ impl TransactionLogParser {
     /// Get program icon based on program ID
     fn get_program_icon(&self, program_id: &str) -> &'static str {
         match program_id {
-            "11111111111111111111111111111111" => "🔧", // System Program
+            "11111111111111111111111111111111111" => "🔧", // System Program
             "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" => "🪙", // Token Program
             "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" => "💱", // Associated Token Program
             "Sysvar111111111111111111111111111111111111" => "⚙️", // Sysvars
@@ -336,10 +357,10 @@ impl TransactionLogParser {
             "SysvarC1ock11111111111111111111111111111111111" => "🕐", // Clock Sysvar
             "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4" => "💰", // Jupiter
             "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc" => "🏛️", // Orca
-            _ if program_id.contains("11111111111111111111111111") => "🔧", // Partial System Program
-            _ if program_id.contains("Token") => "🪙",                      // Partial Token Program
-            _ if program_id.contains("Sysvar") => "⚙️",                     // Partial Sysvar
-            _ => "📦",                                                      // Default program icon
+            _ if program_id.contains("11111111111111111111111111111") => "🔧", // Partial System Program
+            _ if program_id.contains("Token") => "🪙", // Partial Token Program
+            _ if program_id.contains("Sysvar") => "⚙️", // Partial Sysvar
+            _ => "📦",                                 // Default program icon
         }
     }
 
@@ -366,7 +387,7 @@ impl TransactionLogParser {
     }
 }
 
-/// Transaction log entry structure
+/// Transaction log entry structure (unused in new implementation but kept for compatibility)
 #[derive(Debug, Clone)]
 struct TransactionLogEntry {
     level: String,

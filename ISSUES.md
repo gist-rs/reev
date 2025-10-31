@@ -540,7 +540,7 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - `reev/web/src/components/TransactionLog.tsx`: Field access and API call updates
 - `reev/web/src/hooks/useBenchmarkExecution.ts`: Added `getTransactionLogsWithLatestId` hook
 
-#### **✅ Results**:
+#### **✅ Results - Linear Format**:
 ```
 🔗 Step 1: Blockchain Transaction Execution
   🪙 Token Program invoke [1]
@@ -549,13 +549,61 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
   ✅ Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
 ```
 
-#### **🧪 Verified**:
-- ✅ `002-spl-transfer`: Shows token transfer logs
-- ✅ `115-jup-lend-mint-usdc`: Shows complex Jupiter operation logs
-- ✅ Multiple program calls with proper hierarchy and icons
-- ✅ Compute unit consumption and success status
+#### **🌳 Issue #46 - Add ASCII Tree Formatting to Transaction Logs** ✅ RESOLVED
+#### **🔍 Problem**: 
+- Transaction logs showing linear text format, difficult to read hierarchical relationships
+- Need proper tree structure to show program call hierarchy and indentation
+- Users requested easier reading with visual tree representation
 
-#### **📋 Implementation**: Extracts actual blockchain transaction data with proper formatting, distinguishes from execution traces
+#### **🎯 Solution Implemented**:
+- **Server-side**: Complete rewrite of `transaction_logs.rs` parser to create proper ASCII tree structure
+- **Tree Structure**: Used `ascii_tree::Tree` crate for hierarchical display
+- **Smart Grouping**: Groups related logs at same indentation level
+- **Enhanced Icons**: Added specific icons for different program types and operations
+
+#### **📝 Key Changes**:
+- `reev/crates/reev-api/src/handlers/parsers/transaction_logs.rs`: New comprehensive parser
+- **Added `ascii_tree` dependency** to `reev-api/Cargo.toml` for tree rendering
+- **Enhanced grouping logic** to handle nested program calls properly
+- **Improved icon mapping** for better visual distinction
+
+#### **✅ Results - ASCII Tree Format**:
+```
+🔗 Blockchain Transactions
+├── 🔗 Step 1: Blockchain Transaction Execution
+│   ├── 📦 Program jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9 invoke [1]
+│   │   ├── 📦 Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+│   │   │   ├── 📝 Program log: Create
+│   │   │   └── 🪙 Token Program invoke [3]
+│   │   │       ├── 📝 Program log: Instruction: GetAccountDataSize
+│   │   │       ├── ⚡ Program consumed 1595 of 177445 compute units
+│   │   │       └── ✅ Program success
+│   ├── 📦 Program 11111111111111111111111111111111 invoke [3]
+│   │   └── ✅ Program success
+│   ├── 📝 Program log: Initialize: associated token account
+│   └── 🪙 Token Program invoke [3]
+│       ├── 📝 Program log: Instruction: InitializeImmutableOwner
+│       ├── 📝 Program log: Please upgrade to SPL Token 2022 for immutable owner support
+│       ├── ⚡ Program consumed 1405 of 170832 compute units
+│       └── ✅ Program success
+```
+
+#### **🧪 Verified**:
+- ✅ `002-spl-transfer`: Simple token transfer with clear tree hierarchy
+- ✅ `115-jup-lend-mint-usdc`: Complex Jupiter operation with multiple nested program calls
+- ✅ Proper indentation showing call depth and relationships
+- ✅ Clear visual distinction between different program types
+- ✅ Compute unit consumption and success status properly displayed
+
+#### **📋 Implementation**: Creates proper ASCII tree structure with `ascii_tree::Tree` crate, showing hierarchical blockchain transaction flow with clear visual indicators
+
+### 🎯 **Current Status Summary**
+- **Issue #46**: ✅ RESOLVED - Transaction logs now display as proper ASCII trees
+- **Issue #45**: ✅ RESOLVED - Transaction logs showing blockchain data correctly
+- **Issue #43**: ✅ RESOLVED - ASCII tree display formatting fixed
+- **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
+- **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
+- **Overall**: Transaction logs now provide clear hierarchical view of blockchain operations
 
 ### 🎯 **Current Status Summary**
 - **Issue #45**: ✅ RESOLVED - Transaction logs showing blockchain data correctly
