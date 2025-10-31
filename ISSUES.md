@@ -588,3 +588,62 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
 - **Overall**: API and frontend working correctly, major regressions resolved, ASCII tree display fully functional
 
+### 🔧 **Issue #47 - Frontend uses old session_id instead of new execution_id for execution logs** 🔍 ACTIVE
+#### **🔍 Problem**: 
+**Context confusion between RUNNING state vs INFO viewing state**
+
+When user actively runs benchmark:
+1. Click run → `POST /api/v1/benchmarks/001-sol-transfer/run` → returns new `execution_id`
+2. Frontend should respect this NEW `execution_id` and wait for real-time logs
+3. **BUG**: Frontend incorrectly falls back to historical data with old `session_id` 
+4. Calls `GET /api/v1/execution-logs/001-sol-transfer?execution_id={old_session_id}` → gets old completed test
+
+When user just views benchmark info (no active run):
+1. Should use historical `session_id` from agent-performance data
+2. **This case works correctly**
+
+#### **🎯 Root Cause**:
+**Missing context distinction between RUNNING vs INFO states**
+
+- `useBenchmarkExecution.ts`'s `getExecutionTraceWithLatestId()` always uses database `latest_execution_id`
+- **Should prioritize**: Current running `execution_id` when `isRunning=true`
+- **Should fallback**: Historical `session_id` when `isRunning=false` (info viewing)
+- Frontend doesn't distinguish between "user actively running benchmark" vs "user just viewing historical data"
+
+#### **📋 Technical Details**:
+- Backend API requires `execution_id` parameter for `GET /api/v1/execution-logs/{benchmark_id}`
+- Agent performance API returns `session_id` field, not `execution_id`
+- Frontend's `getExecutionTraceWithLatestId()` method prioritizes database `latest_execution_id` over current execution state
+- Database stores both `session_id` (in agent_performance table) and `execution_id` (in execution_states table) separately
+
+#### **🔧 Proposed Solution**:
+**Add context-aware execution trace fetching**
+
+**When `isRunning=true` (user actively running benchmark):**
+1. Use current `execution_id` from running executions Map
+2. Ignore database `latest_execution_id` (historical data)
+3. Respect server-provided execution_id from POST /run response
+
+**When `isRunning=false` (user viewing info):**
+1. Use database `latest_execution_id` for historical data
+2. Allow browsing historical execution logs
+
+**Implementation:**
+- Pass `isRunning` context to `getExecutionTraceWithLatestId()`
+- Modify method to prioritize current executions when running
+- Maintain historical fallback for info viewing state
+- Ensure proper state propagation from running execution to components
+
+#### **🧪 Steps to Reproduce**:
+1. Have existing completed runs in database
+2. Click run benchmark again (RUNNING context)
+3. Expected: Should show NEW execution logs with real-time updates
+4. Actual: Shows OLD completed execution logs from history
+5. Result: User can't see real-time execution progress
+
+**Expected behavior:**
+- **RUNNING state**: Always show current execution logs from server-provided execution_id
+- **INFO state**: Show historical execution logs from database
+
+#### **📊 Impact**: High - Users cannot see real-time execution logs when re-running benchmarks
+
