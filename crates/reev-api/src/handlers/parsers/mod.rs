@@ -10,4 +10,3 @@ pub mod execution_trace;
 pub mod transaction_logs;
 
 pub use execution_trace::ExecutionTraceParser;
-pub use transaction_logs::TransactionLogParser;

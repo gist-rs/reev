@@ -595,7 +595,38 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - ✅ Clear visual distinction between different program types
 - ✅ Compute unit consumption and success status properly displayed
 
-#### **📋 Implementation**: Creates proper ASCII tree structure with `ascii_tree::Tree` crate, showing hierarchical blockchain transaction flow with clear visual indicators
+#### **✅ Results - ASCII Tree Format**:
+```
+🔗 Blockchain Transactions
+├── 🔗 Step 1: Blockchain Transaction Execution
+│   ├── 📦 Program 1]
+│   │   ├── 📝  Instruction: Deposit
+│   │   └── 📦 Program 2]
+│   │       ├── 📝  Create
+│   │       └── 🪙 Token Program 3]
+│   │           ├── 📝  Instruction: GetAccountDataSize
+│   │           ├── ⚡  consumed 1595 of 177445 compute units
+│   │           └── ↩️  TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=
+│   │               └── ✅  success
+│   ├── 🔧 System Program 3]
+│   │   └── ✅  success
+│   ├── 📝  Initialize: associated token account
+│   └── 🪙 Token Program 3]
+│       ├── 📝  Instruction: InitializeImmutableOwner
+│       ├── 📝  Please upgrade to SPL Token 2022 for immutable owner support
+│       ├── ⚡  consumed 1405 of 170832 compute units
+│       └── ✅  success
+```
+
+#### **🧪 Verified**:
+- ✅ `002-spl-transfer`: Simple token transfer with clear tree hierarchy
+- ✅ `115-jup-lend-mint-usdc`: Complex Jupiter operation with multiple nested program calls
+- ✅ Proper indentation showing call depth and relationships
+- ✅ Clear visual distinction between different program types
+- ✅ Compute unit consumption and success status
+- ✅ Enhanced readability with ASCII tree structure
+
+#### **📋 Implementation**: Complete rewrite of transaction logs parser to create proper ASCII tree structure using `ascii_tree::Tree` crate, with smart grouping and enhanced icon mapping for better visual distinction of blockchain operations
 
 ### 🎯 **Current Status Summary**
 - **Issue #46**: ✅ RESOLVED - Transaction logs now display as proper ASCII trees
@@ -604,12 +635,6 @@ CLI/Runner (db-free) → Session Files → API reads → Database storage
 - **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
 - **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
 - **Overall**: Transaction logs now provide clear hierarchical view of blockchain operations
-
-### 🎯 **Current Status Summary**
-- **Issue #45**: ✅ RESOLVED - Transaction logs showing blockchain data correctly
-- **Issue #43**: ✅ RESOLVED - ASCII tree display formatting fixed
-- **Issue #44**: ✅ RESOLVED - Transaction Log missing on web (regression fixed)
-- **Issue #42**: ✅ RESOLVED - benchmarks.rs syntax error fixed
 - **Issue #40**: 🔍 ACTIVE - Cache sync investigation needed  
 - **Issue #39**: 🔍 ACTIVE - Frontend stale cache fix needed
 - **Overall**: API and frontend working correctly, major regressions resolved

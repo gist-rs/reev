@@ -16,13 +16,19 @@ use anyhow::Result;
 use ascii_tree::Tree;
 use reev_lib::results::TestResult;
 use serde_json::Value;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Transaction log parser for converting blockchain transaction data to ASCII format
 #[derive(Debug, Clone)]
 pub struct TransactionLogParser {
     /// Show compute units in the output
     show_compute_units: bool,
+}
+
+impl Default for TransactionLogParser {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TransactionLogParser {
@@ -199,7 +205,7 @@ impl TransactionLogParser {
         }
 
         Ok(Tree::Node(
-            format!("Step {}: Transaction Execution", step_num),
+            format!("Step {step_num}: Transaction Execution"),
             children,
         ))
     }
@@ -375,14 +381,13 @@ impl TransactionLogParser {
     pub fn generate_error_trace(&self, error_message: &str, execution_id: &str) -> String {
         format!(
             "❌ Transaction Log Error\n\
-             📋 Execution ID: {}\n\
-             🚨 Error: {}\n\
+             📋 Execution ID: {execution_id}\n\
+             🚨 Error: {error_message}\n\
              \n\
              💡 This might indicate:\n\
              • No transactions were executed\n\
              • Transaction logs are not available\n\
-             • Execution failed before transaction phase",
-            execution_id, error_message
+             • Execution failed before transaction phase"
         )
     }
 }

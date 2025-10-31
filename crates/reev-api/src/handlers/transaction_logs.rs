@@ -1,4 +1,16 @@
-//! Transaction logs handler for benchmark transaction information
+//! Transaction log parser for converting blockchain transaction data to ASCII format
+//!
+//! This module provides functionality to parse blockchain transaction logs from execution data
+//! and convert them into human-readable ASCII tree formats. It supports:
+//! - Transaction logs from completed executions
+//! - Structured blockchain transaction data
+//! - Program call hierarchies with proper nesting
+//!
+//! The parser formats transaction logs with visual indicators for:
+//! - Program calls and instructions
+//! - Account operations
+//! - Compute unit usage
+//! - Success/failure status
 
 use axum::{
     extract::{Path, Query, State},
@@ -7,6 +19,7 @@ use axum::{
     Json,
 };
 use reev_db::writer::DatabaseWriterTrait;
+
 use serde_json::json;
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -68,7 +81,7 @@ pub async fn get_transaction_logs(
                     "benchmark_id": benchmark_id,
                     "execution_id": null,
                     "is_running": false,
-                    "message": format!("Database error: {e}"),
+                    "message": format!("Database error: {}", e),
                     "transaction_logs": "❌ Database error occurred"
                 }))
                 .into_response();
@@ -93,12 +106,12 @@ pub async fn get_transaction_logs(
 
             // Extract transaction logs from result_data
             let transaction_logs = if let Some(result_data) = &updated_state.result_data {
-                // Try to extract transaction logs from the result
                 extract_transaction_logs_from_result(result_data)
             } else {
                 "📝 No transaction data available".to_string()
             };
 
+            // Return execution results with ASCII trace
             let response = json!({
                 "benchmark_id": benchmark_id,
                 "execution_id": execution_id,
@@ -124,7 +137,7 @@ pub async fn get_transaction_logs(
                 "benchmark_id": benchmark_id,
                 "execution_id": execution_id,
                 "error": "Execution not found",
-                "message": format!("No execution found with ID: {execution_id}"),
+                "message": format!("No execution found with ID: {}", execution_id),
                 "transaction_logs": "",
                 "is_running": false,
                 "progress": 0.0
@@ -142,7 +155,7 @@ pub async fn get_transaction_logs(
                 "benchmark_id": benchmark_id,
                 "execution_id": execution_id,
                 "error": "Database error",
-                "message": format!("Failed to get execution: {e}"),
+                "message": format!("Failed to get execution: {}", e),
                 "transaction_logs": "",
                 "is_running": false,
                 "progress": 0.0
@@ -170,13 +183,17 @@ fn extract_transaction_logs_from_result(result_data: &serde_json::Value) -> Stri
 
                 for (i, step) in steps_array.iter().enumerate() {
                     if let Some(observation) = step.get("observation") {
-                        logs.push_str(&format!("Step {}:\n", i + 1));
+                        logs.push_str(&format!(
+                            "🔗 Step {}: Blockchain Transaction Execution\n",
+                            i + 1
+                        ));
 
                         if let Some(tx_logs) = observation.get("last_transaction_logs") {
                             if let Some(tx_logs_array) = tx_logs.as_array() {
                                 for log in tx_logs_array {
                                     if let Some(log_str) = log.as_str() {
-                                        logs.push_str(&format!("  {log_str}\n"));
+                                        let formatted_log = format_transaction_log(log_str);
+                                        logs.push_str(&format!("  {}\n", formatted_log));
                                     }
                                 }
                             }
@@ -184,7 +201,7 @@ fn extract_transaction_logs_from_result(result_data: &serde_json::Value) -> Stri
 
                         if let Some(error) = observation.get("last_transaction_error") {
                             if let Some(error_str) = error.as_str() {
-                                logs.push_str(&format!("  Error: {error_str}\n"));
+                                logs.push_str(&format!("  ❌ Error: {}\n", error_str));
                             }
                         }
                     }
@@ -209,17 +226,17 @@ fn extract_from_final_result_data(data: &serde_json::Value) -> String {
 
             for (i, step) in steps_array.iter().enumerate() {
                 if let Some(observation) = step.get("observation") {
+                    logs.push_str(&format!(
+                        "🔗 Step {}: Blockchain Transaction Execution\n",
+                        i + 1
+                    ));
+
                     if let Some(tx_logs) = observation.get("last_transaction_logs") {
                         if let Some(tx_logs_array) = tx_logs.as_array() {
-                            logs.push_str(&format!(
-                                "🔗 Step {}: Blockchain Transaction Execution\n",
-                                i + 1
-                            ));
-
                             for log in tx_logs_array {
                                 if let Some(log_str) = log.as_str() {
                                     let formatted_log = format_transaction_log(log_str);
-                                    logs.push_str(&format!("  {formatted_log}\n"));
+                                    logs.push_str(&format!("  {}\n", formatted_log));
                                 }
                             }
                         }
@@ -227,7 +244,7 @@ fn extract_from_final_result_data(data: &serde_json::Value) -> String {
 
                     if let Some(error) = observation.get("last_transaction_error") {
                         if let Some(error_str) = error.as_str() {
-                            logs.push_str(&format!("  ❌ Error: {error_str}\n"));
+                            logs.push_str(&format!("  ❌ Error: {}\n", error_str));
                         }
                     }
                 }
@@ -249,25 +266,39 @@ fn format_transaction_log(log_str: &str) -> String {
     // Add icons for different types of transaction logs
     if trimmed.contains("invoke [") {
         if trimmed.contains("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") {
-            trimmed.replace(
-                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-                "🪙 Token Program",
+            format!(
+                "  🪙 Token Program {}",
+                &trimmed[trimmed.find("invoke [").unwrap() + "invoke [".len()..]
             )
-        } else if trimmed.contains("11111111111111111111111111111111111") {
-            trimmed.replace(
-                "Program 11111111111111111111111111111111111",
-                "🔧 System Program",
+        } else if trimmed.contains("11111111111111111111111111111111") {
+            format!(
+                "  🔧 System Program {}",
+                &trimmed[trimmed.find("invoke [").unwrap() + "invoke [".len()..]
             )
         } else {
-            trimmed.replace("Program ", "📦 Program ")
+            format!(
+                "  📦 Program {}",
+                &trimmed[trimmed.find("invoke [").unwrap() + "invoke [".len()..]
+            )
         }
     } else if trimmed.contains("success") {
-        format!("✅ {trimmed}")
+        format!(
+            "  ✅ {}",
+            &trimmed[trimmed.find("success").unwrap() + "success".len()..]
+        )
     } else if trimmed.contains("compute units") {
-        format!("⚡ {trimmed}")
+        format!("  ⚡ {}", trimmed)
     } else if trimmed.contains("Program log:") {
-        format!("📝 {trimmed}")
+        format!(
+            "  📝 {}",
+            &trimmed[trimmed.find("Program log:").unwrap() + "Program log:".len()..]
+        )
+    } else if trimmed.contains("Program return:") {
+        format!(
+            "  ↩️ {}",
+            &trimmed[trimmed.find("Program return:").unwrap() + "Program return:".len()..]
+        )
     } else {
-        trimmed.to_string()
+        format!("  {}", trimmed)
     }
 }
