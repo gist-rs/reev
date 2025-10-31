@@ -178,8 +178,7 @@ impl ExecutionTraceParser {
                 if let Some(action) = step_data.get("action").and_then(|v| v.as_array()) {
                     if !action.is_empty() {
                         let action_item = &action[0]; // Use first action item
-                        let (program_ids, account_details, data_value) =
-                            Self::parse_action_details(action_item);
+                        let (action_details, data_value) = Self::parse_action_details(action_item);
 
                         let tool_event = reev_lib::flow::FlowEvent {
                             timestamp: std::time::SystemTime::UNIX_EPOCH
@@ -190,8 +189,7 @@ impl ExecutionTraceParser {
                                 data: serde_json::json!({
                                     "tool_name": "execute_transaction",
                                     "tool_args": format!("Step {} action", i + 1),
-                                    "program_ids": program_ids,
-                                    "accounts": account_details,
+                                    "action_details": action_details,
                                     "data": data_value
                                 }),
                             },
@@ -266,6 +264,8 @@ impl ExecutionTraceParser {
             },
             scoring_breakdown: None,
         };
+
+        flow_log.final_result = Some(execution_result.clone());
 
         flow_log.final_result = Some(execution_result);
 
@@ -366,25 +366,24 @@ impl ExecutionTraceParser {
     /// Parse action details from step action for formatting
     /// This extracts program_id, accounts, and data from action arrays
     /// and formats them for display in various trace formats
-    /// Returns: (program_ids, account_details, data_value)
-    pub fn parse_action_details(
-        action: &serde_json::Value,
-    ) -> (Vec<String>, Vec<String>, Option<String>) {
-        let mut program_ids = Vec::new();
-        let mut account_details = Vec::new();
+    /// Returns: (action_details, data_value)
+    pub fn parse_action_details(action: &serde_json::Value) -> (Vec<String>, Option<String>) {
+        let mut action_details = Vec::new();
         let mut data_value = None;
 
         if let Some(action_array) = action.as_array() {
             for action_item in action_array {
+                let mut item_details = Vec::new();
+
                 // Extract program ID
                 if let Some(program_id) = action_item.get("program_id") {
-                    program_ids.push(format!("      Program ID: {program_id}"));
+                    item_details.push(format!("   🔹 Program: {program_id}"));
                 }
 
                 // Extract and format accounts
                 if let Some(accounts) = action_item.get("accounts") {
                     if let Some(accounts_array) = accounts.as_array() {
-                        account_details.push("      Accounts:".to_string());
+                        item_details.push("   📋 Accounts:".to_string());
                         for (idx, account) in accounts_array.iter().enumerate() {
                             if let Some(pubkey) = account.get("pubkey") {
                                 let is_signer = account
@@ -397,8 +396,8 @@ impl ExecutionTraceParser {
                                     .unwrap_or(false);
                                 let icon = if is_signer { "🖋️" } else { "🖍️" };
                                 let arrow = if is_writable { "➕" } else { "➖" };
-                                account_details
-                                    .push(format!("      [{idx}] {icon} {arrow} {pubkey}"));
+                                item_details
+                                    .push(format!("     [{idx}] {icon} {arrow} {pubkey}"));
                             }
                         }
                     }
@@ -406,12 +405,14 @@ impl ExecutionTraceParser {
 
                 // Extract data
                 if let Some(data) = action_item.get("data") {
-                    data_value = Some(format!("      Data (Base58): {data}"));
+                    data_value = Some(format!("   📝 Data: {data}"));
                 }
+
+                action_details.push(item_details.join("\n"));
             }
         }
 
-        (program_ids, account_details, data_value)
+        (action_details, data_value)
     }
 }
 

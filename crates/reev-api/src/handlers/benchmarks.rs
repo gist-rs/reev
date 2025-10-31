@@ -515,14 +515,11 @@ pub fn format_execution_trace(
                         formatted_trace.push_str("   ├─ ACTION:\n");
                         if let Some(action_array) = action.as_array() {
                             for action_item in action_array {
-                                let (program_ids, account_details, data_value) =
+                                let (action_details, data_value) =
                                     ExecutionTraceParser::parse_action_details(action_item);
 
-                                for program_id in program_ids {
-                                    formatted_trace.push_str(&format!("{program_id}\n"));
-                                }
-                                for account_detail in account_details {
-                                    formatted_trace.push_str(&format!("{account_detail}\n"));
+                                for detail in action_details {
+                                    formatted_trace.push_str(&format!("{detail}\n"));
                                 }
                                 if let Some(data) = data_value {
                                     formatted_trace.push_str(&format!("{data}\n"));
