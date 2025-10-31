@@ -182,12 +182,7 @@ impl Tool for JupiterSwapTool {
                     }
                     Err(e) => {
                         let error_data = json!({"error": e.to_string()});
-                        log_tool_completion!(
-                            "jupiter_swap",
-                            execution_time,
-                            &error_data,
-                            false
-                        );
+                        log_tool_completion!("jupiter_swap", execution_time, &error_data, false);
                     }
                 }
             }

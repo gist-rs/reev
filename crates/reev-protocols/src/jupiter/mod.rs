@@ -288,24 +288,53 @@ pub async fn query_token_balance(token_account: &str) -> Result<u64> {
         "params": [token_account]
     });
 
-    let response = client.post(rpc_url).json(&request_body).send().await?;
+    let response = match client.post(rpc_url).json(&request_body).send().await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::warn!(
+                "Token balance RPC request failed for {}: {}",
+                token_account,
+                e
+            );
+            return Ok(0); // Return 0 instead of propagating error
+        }
+    };
 
-    let result: Value = parse_json_response(response).await?;
+    let result: Value = match parse_json_response(response).await {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::warn!(
+                "Token balance JSON parsing failed for {}: {}",
+                token_account,
+                e
+            );
+            return Ok(0); // Return 0 instead of propagating error
+        }
+    };
 
     let balance = result
         .get("result")
         .and_then(|v| v.get("value"))
         .and_then(|v| v.get("amount"))
         .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<u64>().ok())
-        .ok_or_else(|| {
-            anyhow::anyhow!("Failed to parse token balance from response: {result}")
-        })?;
+        .and_then(|s| s.parse::<u64>().ok());
 
-    tracing::debug!(
-        "[Jupiter] Queried token balance for {}: {}",
-        token_account,
-        balance
-    );
-    Ok(balance)
+    match balance {
+        Some(balance) => {
+            tracing::debug!(
+                "[Jupiter] Queried token balance for {}: {}",
+                token_account,
+                balance
+            );
+            Ok(balance)
+        }
+        None => {
+            tracing::warn!(
+                "Failed to parse token balance from response for {}: {}",
+                token_account,
+                result
+            );
+            Ok(0) // Return 0 instead of propagating error
+        }
+    }
 }

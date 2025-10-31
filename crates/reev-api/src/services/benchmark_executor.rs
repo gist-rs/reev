@@ -103,8 +103,18 @@ where
 
         // Store final execution state to database regardless of status
         // This ensures both successful and failed executions are tracked
-        if let Err(e) = self.store_execution_state(&execution_state).await {
-            warn!("Failed to store execution state: {}", e);
+        match self.store_execution_state(&execution_state).await {
+            Ok(_) => {
+                info!(
+                    "✅ Final execution state stored successfully: {}",
+                    execution_id
+                );
+            }
+            Err(e) => {
+                warn!("⚠️ Final execution state storage failed: {} - execution will complete but database state may be incomplete", e);
+                // Continue execution completion despite database failure
+                // This prevents the system from getting stuck in "Queued" state
+            }
         }
 
         debug!("Benchmark execution completed: {}", execution_id);
@@ -313,14 +323,10 @@ where
             ));
         }
 
-        // Store agent performance data from session file
-        if let Err(e) = self
+        // Store agent performance data from session file (function handles errors gracefully)
+        let _ = self
             .store_agent_performance_from_session(execution_state)
-            .await
-        {
-            error!("Failed to store agent performance from session: {}", e);
-            // Don't fail the execution, just log the error
-        }
+            .await;
 
         Ok(())
     }
@@ -394,17 +400,50 @@ where
             additional_metrics: HashMap::new(),
         };
 
-        // Store in database
-        self.db
-            .insert_agent_performance(&performance)
-            .await
-            .map_err(|e| anyhow!("Failed to insert agent performance: {e}"))?;
+        // Store in database with retry logic
+        match self.db.insert_agent_performance(&performance).await {
+            Ok(_) => {
+                info!(
+                    "✅ Stored agent performance for session: {} (score: {})",
+                    session_id, score
+                );
+                Ok(())
+            }
+            Err(first_error) => {
+                warn!(
+                    "⚠️ First attempt to store agent performance failed: {} - {}",
+                    session_id, first_error
+                );
 
-        info!(
-            "✅ Stored agent performance for session: {} (score: {})",
-            session_id, score
-        );
-        Ok(())
+                // Retry once after brief delay
+                tokio::time::sleep(Duration::from_millis(500)).await;
+
+                match self.db.insert_agent_performance(&performance).await {
+                    Ok(_) => {
+                        info!(
+                            "✅ Agent performance stored successfully on retry: {}",
+                            session_id
+                        );
+                        Ok(())
+                    }
+                    Err(retry_error) => {
+                        error!(
+                            "❌ Failed to store agent performance after retry: {} - {}",
+                            session_id, retry_error
+                        );
+
+                        // Continue execution despite database failure
+                        warn!(
+                            "🔄 Completing execution despite agent performance storage failure: {}",
+                            session_id
+                        );
+
+                        // Don't fail the entire execution, return Ok to allow continuation
+                        Ok(())
+                    }
+                }
+            }
+        }
     }
 
     /// Read session file results and update execution state
@@ -693,12 +732,56 @@ where
         Ok(result)
     }
 
-    /// Store execution state in database
+    /// Store execution state in database with retry and graceful error handling
     async fn store_execution_state(&self, state: &ExecutionState) -> Result<()> {
-        self.db
-            .store_execution_state(state)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to store execution state: {e}"))
+        // First attempt
+        match self.db.store_execution_state(state).await {
+            Ok(_) => {
+                debug!(
+                    "Execution state stored successfully on first attempt: {}",
+                    state.execution_id
+                );
+                Ok(())
+            }
+            Err(first_error) => {
+                warn!(
+                    "⚠️ First attempt to store execution state failed: {}",
+                    first_error
+                );
+
+                // Retry once after brief delay
+                tokio::time::sleep(Duration::from_millis(500)).await;
+
+                match self.db.store_execution_state(state).await {
+                    Ok(_) => {
+                        info!(
+                            "✅ Execution state stored successfully on retry: {}",
+                            state.execution_id
+                        );
+                        Ok(())
+                    }
+                    Err(retry_error) => {
+                        error!(
+                            "❌ Failed to store execution state after retry: {} - {}",
+                            state.execution_id, retry_error
+                        );
+
+                        // Complete execution with error but don't crash system
+                        warn!(
+                            "🔄 Completing execution despite database storage failure: {}",
+                            state.execution_id
+                        );
+
+                        // Return a specific error that can be handled gracefully
+                        Err(anyhow::anyhow!(
+                            "Database storage failed after retry for {}: {}",
+                            state.execution_id,
+                            retry_error
+                        ))
+                    }
+                }
+            }
+        }
     }
 }
 

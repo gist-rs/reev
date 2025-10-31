@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+
 use std::sync::Arc;
 
 use reev_flow::FlowLogger;
@@ -21,7 +22,7 @@ use std::{
     path::{Path, PathBuf},
     time::SystemTime,
 };
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::dependency::{DependencyConfig, DependencyManager};
 
@@ -635,7 +636,7 @@ async fn run_flow_benchmark(
         serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
     let mut initial_observation = env.reset(None, Some(options)).await?;
 
-    // Execute each step in the flow
+    // Execute each step in the flow with soft error handling
     for step in flow_steps.iter() {
         info!(
             step = step.step,
@@ -654,30 +655,70 @@ async fn run_flow_benchmark(
             ground_truth: test_case.ground_truth.clone(),
         };
 
-        // Execute step
-        let (step_observation, step_trace, step_actions) =
-            run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Flow step {} failed for benchmark: {}",
-                        step.step, test_case.id
-                    )
-                })?;
+        // Execute step with error recovery
+        match run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation).await
+        {
+            Ok((step_observation, step_trace, step_actions)) => {
+                // Log step completion
+                info!(
+                    step = step.step,
+                    actions_count = %step_actions.len(),
+                    "Flow step completed successfully"
+                );
 
-        // Log step completion before moving actions
-        info!(
-            step = step.step,
-            actions_count = %step_actions.len(),
-            "Flow step completed"
-        );
+                // Collect actions and trace
+                all_actions.extend(step_actions);
+                flow_trace.steps.extend(step_trace.steps);
 
-        // Collect actions and trace
-        all_actions.extend(step_actions);
-        flow_trace.steps.extend(step_trace.steps);
+                // Update observation for next step
+                initial_observation = step_observation;
+            }
+            Err(step_error) => {
+                // Log comprehensive error to session and continue
+                let error_message = format!("Flow step {} failed: {}", step.step, step_error);
+                error!(error = %error_message, "Flow step error - continuing with next step");
 
-        // Update observation for next step
-        initial_observation = step_observation;
+                // Log error to flow logger if available
+                if let Some(ref mut flow_logger) = agent.flow_logger {
+                    use reev_flow::types::ErrorContent;
+                    let mut context = std::collections::HashMap::new();
+                    context.insert("step".to_string(), step.step.to_string());
+                    context.insert("recovery_attempted".to_string(), "true".to_string());
+                    context.insert(
+                        "recovery_result".to_string(),
+                        "Continuing to next step".to_string(),
+                    );
+
+                    flow_logger.log_error(
+                        ErrorContent {
+                            error_type: "FLOW_STEP_ERROR".to_string(),
+                            message: error_message.clone(),
+                            stack_trace: None,
+                            context,
+                        },
+                        0,
+                    );
+                }
+
+                // Add error step to trace for visibility
+                let error_step = reev_lib::trace::TraceStep {
+                    thought: None,
+                    action: vec![],
+                    observation: initial_observation.clone(),
+                    info: serde_json::json!({
+                        "success": false,
+                        "error": error_message,
+                        "execution_time_ms": 0,
+                        "gas_used": null,
+                        "transaction_signature": null
+                    }),
+                };
+                flow_trace.add_step(error_step);
+
+                // Continue with next step instead of crashing
+                continue;
+            }
+        }
     }
 
     // Calculate final score for the entire flow
@@ -857,7 +898,47 @@ async fn run_evaluation_loop(
 
     // The environment's step function now takes a vector of actions to be bundled
     // into a single transaction.
-    let step_result = env.step(actions.clone(), &test_case.ground_truth)?;
+    let step_result = match env.step(actions.clone(), &test_case.ground_truth) {
+        Ok(result) => result,
+        Err(step_error) => {
+            // Graceful error handling for transaction execution failures
+            warn!(
+                "🔥 Transaction step failed in evaluation loop: {} - creating failure observation",
+                step_error
+            );
+
+            // Create a failure observation to maintain flow continuity
+            let failure_observation = reev_lib::agent::AgentObservation {
+                key_map: initial_observation.key_map.clone(),
+                account_states: initial_observation.account_states.clone(),
+                last_transaction_status: "Failed".to_string(),
+                last_transaction_error: Some(step_error.to_string()),
+                last_transaction_logs: vec![],
+            };
+
+            let trace_step = reev_lib::trace::TraceStep {
+                thought: None,
+                action: actions.clone(),
+                observation: failure_observation.clone(),
+                info: serde_json::json!({
+                    "success": false,
+                    "error": step_error.to_string(),
+                    "execution_time_ms": 0,
+                    "gas_used": None::<u64>,
+                    "transaction_signature": None::<String>,
+                }),
+            };
+            trace.add_step(trace_step);
+
+            warn!(
+                "🔄 Continuing flow despite transaction failure: {}",
+                test_case.id
+            );
+
+            // Return failure observation to allow flow to continue
+            return Ok((failure_observation, trace, actions));
+        }
+    };
 
     let trace_step = reev_lib::trace::TraceStep {
         thought: None,
