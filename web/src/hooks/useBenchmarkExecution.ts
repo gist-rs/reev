@@ -125,8 +125,20 @@ export function useBenchmarkExecution(): UseBenchmarkExecutionReturn {
           if (updatedExecution) {
             setExecutions((prev) => {
               const updated = new Map(prev);
-              // Use execution ID as the key
-              updated.set(updatedExecution.id, updatedExecution);
+
+              if (updatedExecution.id) {
+                // Use execution ID as the key if available
+                updated.set(updatedExecution.id, updatedExecution);
+              } else {
+                // If ID is undefined, find and update existing execution by benchmark_id
+                for (const [key, exec] of prev.entries()) {
+                  if (exec.benchmark_id === benchmarkId) {
+                    updated.set(key, { ...exec, ...updatedExecution });
+                    break;
+                  }
+                }
+              }
+
               return updated;
             });
 

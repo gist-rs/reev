@@ -675,17 +675,7 @@ export function BenchmarkList({
             .map((benchmark) => {
               const execution = getBenchmarkStatus(benchmark.id, selectedDate);
 
-              const status = (() => {
-                // Get current execution status from executions map
-                const currentExecution = Array.from(executions.values()).find(
-                  (exec) => exec.benchmark_id === benchmark.id,
-                );
-                if (currentExecution) {
-                  return currentExecution.status;
-                }
-                // Fallback to benchmark result status
-                return execution?.final_status || null;
-              })();
+              const status = execution?.final_status || null;
               const score =
                 execution?.final_status === ExecutionStatus.COMPLETED
                   ? getBenchmarkScore(benchmark.id, selectedDate)
