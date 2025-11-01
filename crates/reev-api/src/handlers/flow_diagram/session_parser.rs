@@ -51,17 +51,6 @@ pub struct ParsedToolCall {
 }
 
 impl SessionParser {
-    /// Parse a session log file and extract tool calls
-    pub async fn parse_session_file(file_path: &Path) -> Result<ParsedSession, FlowDiagramError> {
-        info!("Parsing session file: {}", file_path.display());
-
-        let content = tokio::fs::read_to_string(file_path)
-            .await
-            .map_err(|e| FlowDiagramError::ParseError(format!("Failed to read file: {e}")))?;
-
-        Self::parse_session_content(&content)
-    }
-
     /// Parse session log content and extract tool calls
     pub fn parse_session_content(content: &str) -> Result<ParsedSession, FlowDiagramError> {
         debug!("Parsing session content (length: {})", content.len());
@@ -182,88 +171,6 @@ impl SessionParser {
             prompt,
             start_time,
             end_time,
-        })
-    }
-
-    /// Parse enhanced tool call from tools array
-    fn parse_enhanced_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
-        let tool_name = tool
-            .get("tool_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing tool_name".to_string()))?
-            .to_string();
-
-        let start_time = tool
-            .get("start_time")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing start_time".to_string()))?;
-
-        let end_time = tool
-            .get("end_time")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing end_time".to_string()))?;
-
-        let params = tool.get("params").cloned().unwrap_or(Value::Null);
-        let result = tool.get("result").cloned();
-        let tool_args = tool
-            .get("tool_args")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let _status = tool
-            .get("status")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        let duration_ms = end_time.saturating_sub(start_time) * 1000;
-
-        Ok(ParsedToolCall {
-            tool_name,
-            start_time,
-            params,
-            duration_ms,
-            result_data: result,
-            tool_args,
-        })
-    }
-
-    /// Parse YAML tool call from tool_calls array (legacy format)
-    fn parse_yml_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
-        let tool_name = tool
-            .get("tool_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                FlowDiagramError::InvalidLogFormat("Missing tool_name in YAML".to_string())
-            })?
-            .to_string();
-
-        let start_time = tool
-            .get("start_time")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| {
-                FlowDiagramError::InvalidLogFormat("Missing start_time in YAML".to_string())
-            })?;
-
-        let execution_time_ms = tool
-            .get("execution_time_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1000); // Default to 1 second if missing
-
-        let input_params = tool.get("input_params").cloned().unwrap_or(Value::Null);
-        let output_result = tool.get("output_result").cloned();
-
-        let tool_args = tool
-            .get("input_params")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        Ok(ParsedToolCall {
-            tool_name,
-            start_time,
-            params: input_params,
-            duration_ms: execution_time_ms,
-            result_data: output_result,
-            tool_args,
         })
     }
 

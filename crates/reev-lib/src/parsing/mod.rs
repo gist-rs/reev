@@ -14,7 +14,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::{LlmResponse, RawInstruction};
 
-mod deterministic_parser;
+pub mod deterministic_parser;
 pub use deterministic_parser::DeterministicParser;
 
 /// Main response parser with fallback mechanism
