@@ -315,21 +315,86 @@ impl StateDiagramGenerator {
                     s.to_string()
                 });
 
-            let to = map
-                .get("recipient_pubkey")
-                .and_then(|v| v.as_str())
-                .or_else(|| map.get("to").and_then(|v| v.as_str()))
-                .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
-                .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
-                .or_else(|| map.get("destination").and_then(|v| v.as_str()))
-                .map(|s| {
-                    if s == "RECIPIENT_WALLET_PUBKEY" {
-                        s.to_string()
+            // Try to extract actual recipient from result data first, fallback to params
+            let to = if let Some(result_data) = &tool_call.result_data {
+                if let Some(results_str) = result_data.get("results").and_then(|v| v.as_str()) {
+                    if let Ok(results_array) =
+                        serde_json::from_str::<serde_json::Value>(results_str)
+                    {
+                        if let Some(accounts) = results_array
+                            .as_array()
+                            .and_then(|arr| arr.first())
+                            .and_then(|inst| inst.get("accounts"))
+                            .and_then(|acc| acc.as_array())
+                        {
+                            // For SOL transfer, second account is typically the recipient
+                            if accounts.len() >= 2 {
+                                if let Some(recipient) = accounts
+                                    .get(1)
+                                    .and_then(|acc| acc.get("pubkey"))
+                                    .and_then(|pubkey| pubkey.as_str())
+                                {
+                                    Some(recipient.to_string())
+                                } else {
+                                    // Fallback to params
+                                    map.get("recipient_pubkey")
+                                        .and_then(|v| v.as_str())
+                                        .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                                        .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                                        .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                                        .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                                        .map(|s| s.to_string())
+                                }
+                            } else {
+                                // Fallback to params
+                                map.get("recipient_pubkey")
+                                    .and_then(|v| v.as_str())
+                                    .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                                    .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                                    .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                                    .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                                    .map(|s| s.to_string())
+                            }
+                        } else {
+                            // Fallback to params
+                            map.get("recipient_pubkey")
+                                .and_then(|v| v.as_str())
+                                .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                                .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                                .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                                .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                                .map(|s| s.to_string())
+                        }
                     } else {
-                        // Show full recipient address without truncation
-                        s.to_string()
+                        // Fallback to params
+                        map.get("recipient_pubkey")
+                            .and_then(|v| v.as_str())
+                            .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                            .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                            .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                            .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                            .map(|s| s.to_string())
                     }
-                });
+                } else {
+                    // Fallback to params
+                    map.get("recipient_pubkey")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                        .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                        .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                        .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                        .map(|s| s.to_string())
+                }
+            } else {
+                // Fallback to params
+                map.get("recipient_pubkey")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| map.get("to").and_then(|v| v.as_str()))
+                    .or_else(|| map.get("recipient").and_then(|v| v.as_str()))
+                    .or_else(|| map.get("pubkey").and_then(|v| v.as_str()))
+                    .or_else(|| map.get("destination").and_then(|v| v.as_str()))
+                    .map(|s| s.to_string())
+            };
 
             // Try to extract amount from tool_args JSON first (contains actual lamports)
             let amount = if let Some(tool_args_str) = &tool_call.tool_args {
