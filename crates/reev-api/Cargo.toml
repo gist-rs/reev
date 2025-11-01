@@ -25,6 +25,7 @@ direct_runner = []
 [dependencies]
 reev-lib = { path = "../reev-lib", features = ["database"] }
 reev-db = { path = "../reev-db" }
+reev-flow = { path = "../reev-flow" }
 
 reev-types = { path = "../reev-types" }
 axum = "0.8.4"

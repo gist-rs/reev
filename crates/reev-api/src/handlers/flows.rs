@@ -31,30 +31,7 @@ pub async fn get_flow(
     );
 
     // Try to generate stateDiagram from database session data first
-    match generate_state_diagram_from_db(&state, &session_id).await {
-        Ok(flow_diagram) => {
-            let response_data = json!({
-                "session_id": session_id,
-                "diagram": flow_diagram.diagram,
-                "metadata": flow_diagram.metadata,
-                "sessions": [] // Keep empty for compatibility with existing API
-            });
 
-            match query.format.as_deref() {
-                Some("html") => {
-                    Html(StateDiagramGenerator::generate_html(&flow_diagram)).into_response()
-                }
-                _ => Json(response_data).into_response(),
-            }
-        }
-        Err(e) => {
-            warn!(
-                "Failed to generate state diagram for session {}: {}, trying session files",
-                session_id, e
-            );
-
-            // Try session files as fallback
-            match generate_state_diagram(&session_id).await {
                 Ok(flow_diagram) => {
                     let response_data = json!({
                         "session_id": session_id,

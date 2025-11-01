@@ -2,12 +2,10 @@ use anyhow::{Context, Result, anyhow};
 
 use std::sync::Arc;
 
-use reev_flow::{FlowLogger, JsonlToYmlConverter};
-
+use reev_flow::FlowLogger;
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
-    db::{DatabaseWriter, FlowDatabaseWriter},
     env::GymEnv,
     flow::{ExecutionResult, create_session_logger},
     llm_agent::LlmAgent,
@@ -211,37 +209,13 @@ pub async fn run_benchmarks(
         // No database operations needed - API handles database storage
 
         // Initialize enhanced OTEL logging instead of basic flow logging
-        // Try to create database connection for performance logging
-        let db_path =
-            std::env::var("DATABASE_PATH").unwrap_or_else(|_| "db/reev_results.db".to_string());
-
-        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
-        let db_writer = DatabaseWriter::new(db_config).await;
-        let flow_db_writer = db_writer.map(FlowDatabaseWriter::new);
-
-        let flow_logger = match flow_db_writer {
-            Ok(flow_db_writer) => {
-                info!("🗄️ Flow logger initialized with database support");
-                FlowLogger::new_with_database_preserve_session(
-                    test_case.id.clone(),
-                    agent_name.to_string(),
-                    PathBuf::from("logs/flows"),
-                    Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
-                    Some(session_id.clone()),
-                )
-            }
-            Err(e) => {
-                warn!(
-                    "⚠️ Failed to initialize database for flow logger: {}, proceeding without database",
-                    e
-                );
-                FlowLogger::new(
-                    test_case.id.clone(),
-                    agent_name.to_string(),
-                    PathBuf::from("logs/flows"),
-                )
-            }
-        };
+        // File-based logging only - runner should not access database
+        let flow_logger = FlowLogger::new_with_session(
+            session_id.clone(),
+            test_case.id.clone(),
+            agent_name.to_string(),
+            PathBuf::from("logs/flows"),
+        );
 
         info!(
             benchmark_id = %test_case.id,
@@ -428,94 +402,6 @@ pub async fn run_benchmarks(
             debug!("No tool calls found in agent log files");
         }
 
-        // 🎯 CONVERT ENHANCED OTEL TO YML AND STORE TO DATABASE
-        // This ensures the flow diagram API can access tool call data
-        if !tool_calls.is_empty() {
-            let otel_file_path =
-                PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.jsonl"));
-            let yml_file_path =
-                PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.yml"));
-
-            if otel_file_path.exists() {
-                info!(
-                    session_id = %session_id,
-                    otel_file = %otel_file_path.display(),
-                    yml_file = %yml_file_path.display(),
-                    "Converting enhanced_otel JSONL to YML for database storage"
-                );
-
-                match JsonlToYmlConverter::convert_file(&otel_file_path, &yml_file_path) {
-                    Ok(session_data) => {
-                        info!(
-                            session_id = %session_id,
-                            tool_calls_count = session_data.tool_calls.len(),
-                            "Successfully converted enhanced_otel to YML"
-                        );
-
-                        // Store YML content to database
-                        let yml_content = match std::fs::read_to_string(&yml_file_path) {
-                            Ok(content) => content,
-                            Err(e) => {
-                                error!(
-                                    session_id = %session_id,
-                                    error = %e,
-                                    "Failed to read YML file for database storage"
-                                );
-                                continue;
-                            }
-                        };
-
-                        // Create database connection directly
-                        let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| {
-                            // Use absolute path from current working directory
-                            let current_dir = std::env::current_dir()
-                                .unwrap_or_else(|_| std::path::PathBuf::from("."));
-                            current_dir
-                                .join("db/reev_results.db")
-                                .to_string_lossy()
-                                .to_string()
-                        });
-                        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
-
-                        match DatabaseWriter::new(db_config).await {
-                            Ok(db_writer) => {
-                                let flow_db_writer = FlowDatabaseWriter::new(db_writer);
-                                if let Err(e) = flow_db_writer
-                                    .store_complete_log(&session_id, &yml_content)
-                                    .await
-                                {
-                                    error!(
-                                        session_id = %session_id,
-                                        error = %e,
-                                        "Failed to store enhanced_otel YML to database"
-                                    );
-                                } else {
-                                    info!(
-                                        session_id = %session_id,
-                                        "Successfully stored enhanced_otel YML to database"
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                error!(
-                                    session_id = %session_id,
-                                    error = %e,
-                                    "Failed to create database connection for enhanced_otel storage"
-                                );
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            session_id = %session_id,
-                            error = %e,
-                            "Failed to convert enhanced_otel to YML"
-                        );
-                    }
-                }
-            }
-        }
-
         // Session file completion is handled automatically by SessionFileLogger
         info!(
             benchmark_id = %test_case.id,
@@ -673,8 +559,7 @@ async fn run_flow_benchmark(
             Some(path),
         )?)
     };
-
-    // Initialize flow logging for flow benchmarks with database support
+    // Initialize flow logging for flow benchmarks (file-based only)
     // Flow logging is always enabled
     let flow_logger = {
         let output_path =
@@ -682,38 +567,13 @@ async fn run_flow_benchmark(
         let path = PathBuf::from(output_path);
         std::fs::create_dir_all(&path)?;
 
-        // Try to create database connection for performance logging
-        let db_path =
-            std::env::var("DATABASE_PATH").unwrap_or_else(|_| "db/reev_results.db".to_string());
-
-        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
-        let db_writer = DatabaseWriter::new(db_config).await;
-        let flow_db_writer = db_writer.map(FlowDatabaseWriter::new);
-
-        match flow_db_writer {
-            Ok(flow_db_writer) => {
-                info!("🗄️ Flow logger initialized with database support");
-                Some(FlowLogger::new_with_database_preserve_session(
-                    test_case.id.clone(),
-                    agent_name.to_string(),
-                    path,
-                    Arc::new(flow_db_writer) as Arc<dyn reev_flow::logger::DatabaseWriter>,
-                    Some(session_id.to_string()),
-                ))
-            }
-            Err(e) => {
-                warn!(
-                    "⚠️ Failed to initialize database for flow logger: {}, proceeding without database",
-                    e
-                );
-                Some(FlowLogger::new_with_session(
-                    session_id.to_string(),
-                    test_case.id.clone(),
-                    agent_name.to_string(),
-                    path,
-                ))
-            }
-        }
+        info!("🗄️ Flow logger initialized (file-based only)");
+        Some(FlowLogger::new_with_session(
+            session_id.to_string(),
+            test_case.id.clone(),
+            agent_name.to_string(),
+            path,
+        ))
     };
 
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
