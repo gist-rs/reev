@@ -7,11 +7,13 @@ use anyhow::Result;
 use reev_lib::server_utils;
 use reev_runner::dependency::manager::ProcessDetector;
 use reev_runner::dependency::manager::{DependencyConfig, DependencyManager, DependencyType};
+use serial_test::serial;
 use std::time::Duration;
 use tokio::time::sleep;
 
 /// Test that reev-agent is not restarted unnecessarily
 #[tokio::test]
+#[serial]
 async fn test_reev_agent_reuse_existing_process() -> Result<()> {
     // Create dependency manager with shared instances enabled
     let mut manager = DependencyManager::new(DependencyConfig {
@@ -126,6 +128,7 @@ async fn test_reev_agent_restart_on_config_change() -> Result<()> {
 /// Test port release after stop
 #[ignore] // Temporarily ignored due to port conflicts in test environment
 #[tokio::test]
+#[serial]
 async fn test_port_released_after_stop() -> Result<()> {
     // Clean up any existing processes before starting test
     server_utils::kill_existing_api(3001).await?;

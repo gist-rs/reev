@@ -1,6 +1,6 @@
 //! End-to-End "Run All" Test
 //!
-//! This test validates the async threading fix by running multiple benchmarks
+//! This test validates async threading fix by running multiple benchmarks
 //! sequentially with different agents, similar to TUI's "Run All" functionality.
 //! Tests both shared surfpool (no re-init) and fresh surfpool modes.
 //!
@@ -14,6 +14,7 @@ use project_root::get_project_root;
 use reev_lib::benchmark::TestCase;
 use reev_lib::server_utils;
 use reev_runner::run_benchmarks;
+use serial_test::serial;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -160,6 +161,7 @@ fn validate_consistency(agent_name: &str, results: &[(PathBuf, f64)]) -> Result<
 
 /// Main E2E test: Run All functionality with multiple agents
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
     // Clean up any existing processes before starting
     info!("🧹 Cleaning up existing processes...");
@@ -186,6 +188,7 @@ async fn test_run_all_benchmarks_multi_agent_e2e() -> Result<()> {
 
 /// Test individual benchmark runs for quick debugging
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_single_benchmark_consistency() -> Result<()> {
     // Clean up any existing processes before starting
     info!("🧹 Cleaning up existing processes...");
