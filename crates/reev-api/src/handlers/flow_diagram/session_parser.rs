@@ -7,7 +7,6 @@ use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
 #[cfg(feature = "direct_runner")]
 use reev_tools::tool_names;
 use serde_json::Value;
-use std::path::Path;
 use tracing::{debug, info};
 
 // Import YAML parsing capabilities
