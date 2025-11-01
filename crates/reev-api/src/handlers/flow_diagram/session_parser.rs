@@ -241,7 +241,7 @@ impl SessionParser {
         })
     }
 
-    /// Parse tool call from YAML format (from enhanced_otel JSONL conversion)
+    /// Parse YAML tool call from tool_calls array
     fn parse_yml_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
         let tool_name = tool
             .get("tool_name")
@@ -258,30 +258,26 @@ impl SessionParser {
                 FlowDiagramError::InvalidLogFormat("Missing start_time in YAML".to_string())
             })?;
 
-        let end_time = tool
-            .get("end_time")
+        let execution_time_ms = tool
+            .get("execution_time_ms")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| {
-                FlowDiagramError::InvalidLogFormat("Missing end_time in YAML".to_string())
-            })?;
+            .unwrap_or(1000); // Default to 1 second if missing
 
-        let duration_ms = tool
-            .get("duration_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or_else(|| end_time.saturating_sub(start_time) * 1000);
+        let input_params = tool.get("input_params").cloned().unwrap_or(Value::Null);
+        let output_result = tool.get("output_result").cloned();
 
-        let input = tool.get("input").cloned().unwrap_or(Value::Null);
-        let output = tool.get("output").cloned();
-
-        debug!("Parsed YAML tool: {} ({}ms)", tool_name, duration_ms);
+        let tool_args = tool
+            .get("input_params")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         Ok(ParsedToolCall {
             tool_name,
             start_time,
-            params: input,
-            duration_ms,
-            result_data: output,
-            tool_args: None,
+            params: input_params,
+            duration_ms: execution_time_ms,
+            result_data: output_result,
+            tool_args,
         })
     }
 

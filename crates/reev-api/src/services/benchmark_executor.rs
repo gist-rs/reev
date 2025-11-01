@@ -874,7 +874,7 @@ mod tests {
         let temp_yml_path = PathBuf::from("test_conversion_output.yml");
 
         if !jsonl_path.exists() {
-            println!("❌ enhanced_otel file not found: {:?}", jsonl_path);
+            println!("❌ enhanced_otel file not found: {jsonl_path:?}");
             return Ok(());
         }
 
@@ -923,7 +923,7 @@ mod tests {
             .convert_and_store_enhanced_otel(&session_data.session_id)
             .await
         {
-            println!("❌ Enhanced_otel conversion failed: {}", e);
+            println!("❌ Enhanced_otel conversion failed: {e}");
         } else {
             println!("✅ Enhanced_otel conversion successful");
         }
@@ -949,7 +949,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("❌ Parser failed to read YML content: {}", e);
+                    println!("❌ Parser failed to read YML content: {e}");
                 }
             }
         } else {
