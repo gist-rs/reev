@@ -1,5 +1,4 @@
 //! Flow handlers - provides flow information with stateDiagram visualization
-use crate::handlers::flow_diagram::session_parser::ParsedToolCall;
 use crate::handlers::flow_diagram::{FlowDiagramError, SessionParser, StateDiagramGenerator};
 use crate::types::*;
 use axum::{
@@ -7,11 +6,8 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Json},
 };
-use chrono::DateTime;
-
 use serde::Deserialize;
 use serde_json::json;
-use std::path::PathBuf;
 use tracing::{error, info, warn};
 
 #[derive(Debug, Deserialize)]
@@ -31,154 +27,32 @@ pub async fn get_flow(
     );
 
     // Try to generate stateDiagram from database session data first
+    match generate_state_diagram_from_db(&state, &session_id).await {
+        Ok(flow_diagram) => {
+            let response_data = json!({
+                "session_id": session_id,
+                "diagram": flow_diagram.diagram,
+                "metadata": flow_diagram.metadata,
+                "sessions": []
+            });
 
-                Ok(flow_diagram) => {
-                    let response_data = json!({
-                        "session_id": session_id,
-                        "diagram": flow_diagram.diagram,
-                        "metadata": flow_diagram.metadata,
-                        "sessions": []
-                    });
-
-                    match query.format.as_deref() {
-                        Some("html") => Html(StateDiagramGenerator::generate_html(&flow_diagram))
-                            .into_response(),
-                        _ => Json(response_data).into_response(),
-                    }
+            match query.format.as_deref() {
+                Some("html") => {
+                    Html(StateDiagramGenerator::generate_html(&flow_diagram)).into_response()
                 }
-                Err(e) => {
-                    warn!(
-                        "Failed to generate state diagram from session files for session {}: {}, falling back to session data",
-                        session_id, e
-                    );
-
-                    // Final fallback to existing session data
-                    get_session_fallback(state, session_id, query).await
-                }
+                _ => Json(response_data).into_response(),
             }
         }
-    }
-}
-
-/// Generate stateDiagram from session logs
-async fn generate_state_diagram(
-    session_id: &str,
-) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
-    // Get session from database
-    let sessions_dir = PathBuf::from("logs/sessions");
-
-    // First try to find session file (for newer format)
-    if sessions_dir.exists() {
-        let session_file = format!("{}/session_{}.json", sessions_dir.display(), session_id);
-        let session_path = PathBuf::from(&session_file);
-
-        if session_path.exists() {
-            info!("Found session file: {}", session_file);
-            let mut parsed_session = SessionParser::parse_session_file(&session_path).await?;
-
-            // Try to read enhanced otel file for tool calls
-            let otel_file = format!(
-                "{}/enhanced_otel_{}.jsonl",
-                sessions_dir.display(),
-                session_id
+        Err(e) => {
+            warn!(
+                "Failed to generate state diagram from session files for session {}: {}, falling back to session data",
+                session_id, e
             );
-            let otel_path = PathBuf::from(&otel_file);
 
-            if otel_path.exists() {
-                info!("Found enhanced otel file: {}", otel_file);
-                let otel_content = tokio::fs::read_to_string(&otel_path).await.map_err(|e| {
-                    FlowDiagramError::ParseError(format!("Failed to read otel file: {e}"))
-                })?;
-
-                // Parse tool calls from enhanced otel JSONL
-                let mut enhanced_tool_calls = Vec::new();
-                for line in otel_content.lines() {
-                    if let Ok(otel_entry) = serde_json::from_str::<serde_json::Value>(line) {
-                        if let Some(event_type) =
-                            otel_entry.get("event_type").and_then(|v| v.as_str())
-                        {
-                            match event_type {
-                                "ToolInput" => {
-                                    if let Some(tool_input) = otel_entry.get("tool_input") {
-                                        if let (Some(tool_name), Some(tool_args)) = (
-                                            tool_input.get("tool_name").and_then(|v| v.as_str()),
-                                            tool_input.get("tool_args"),
-                                        ) {
-                                            enhanced_tool_calls.push(ParsedToolCall {
-                                                tool_name: tool_name.to_string(),
-                                                start_time: otel_entry
-                                                    .get("timestamp")
-                                                    .and_then(|v| v.as_str())
-                                                    .and_then(|timestamp_str| {
-                                                        // Parse ISO 8601 timestamp to Unix timestamp
-                                                        DateTime::parse_from_rfc3339(timestamp_str)
-                                                            .map(|dt| dt.timestamp() as u64)
-                                                            .ok()
-                                                    })
-                                                    .unwrap_or(0),
-                                                params: tool_args.clone(),
-                                                duration_ms: 0,
-                                                result_data: None,
-                                                tool_args: Some(tool_args.to_string()),
-                                            });
-                                        }
-                                    }
-                                }
-                                "ToolOutput" => {
-                                    // Update the last tool call with result data
-                                    if let (Some(tool_output), Some(tool_name)) = (
-                                        otel_entry.get("tool_output"),
-                                        otel_entry
-                                            .get("tool_input")
-                                            .and_then(|ti| ti.get("tool_name"))
-                                            .and_then(|v| v.as_str()),
-                                    ) {
-                                        if let Some(last_call) = enhanced_tool_calls.last_mut() {
-                                            if last_call.tool_name == tool_name {
-                                                last_call.result_data = Some(tool_output.clone());
-                                                last_call.duration_ms = otel_entry
-                                                    .get("timing")
-                                                    .and_then(|t| t.get("step_timeuse_ms"))
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(0);
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-
-                // Use enhanced tool calls if available, otherwise use session data
-                if !enhanced_tool_calls.is_empty() {
-                    parsed_session.tool_calls = enhanced_tool_calls.clone();
-                    info!("Using enhanced tool calls: {}", enhanced_tool_calls.len());
-                }
-            }
-
-            return if parsed_session.tool_calls.is_empty() {
-                info!("No tool calls found, generating simple diagram");
-                Ok(StateDiagramGenerator::generate_simple_diagram(
-                    &parsed_session,
-                ))
-            } else {
-                info!(
-                    "Generating diagram with {} tool calls",
-                    parsed_session.tool_calls.len()
-                );
-                StateDiagramGenerator::generate_diagram(&parsed_session)
-            };
+            // Final fallback to existing session data
+            get_session_fallback(state, session_id, query).await
         }
     }
-
-    // Fallback: try to get session from database using session_id
-    // This requires access to database state, which we don't have here
-    // For now, return an error to trigger fallback mechanism
-    Err(FlowDiagramError::SessionNotFound(format!(
-        "Session file not found for session_id: {session_id}"
-    )))
 }
 
 /// Generate stateDiagram from database session data
