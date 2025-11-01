@@ -868,13 +868,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_enhanced_otel_conversion() -> Result<(), Box<dyn std::error::Error>> {
-        // Test enhanced_otel to YML conversion
+        // Test enhanced_otel to YML conversion using test files
+        let current_dir = std::env::current_dir()?;
+        let test_files_dir = current_dir.join("tests");
         let jsonl_path =
-            PathBuf::from("/Users/katopz/git/gist/reev/logs/sessions/enhanced_otel_0cd1d311-5de8-427d-a522-a1fe930258d6.jsonl");
+            test_files_dir.join("enhanced_otel_057d2e4a-f687-469f-8885-ad57759817c0.jsonl");
         let temp_yml_path = PathBuf::from("test_conversion_output.yml");
 
         if !jsonl_path.exists() {
-            println!("❌ enhanced_otel file not found: {jsonl_path:?}");
+            println!("❌ enhanced_otel test file not found: {jsonl_path:?}");
             return Ok(());
         }
 
@@ -920,12 +922,32 @@ mod tests {
 
         // Test conversion method
         if let Err(e) = executor
-            .convert_and_store_enhanced_otel(&session_data.session_id)
+            .convert_and_store_enhanced_otel("057d2e4a-f687-469f-8885-ad57759817c0")
             .await
         {
             println!("❌ Enhanced_otel conversion failed: {e}");
         } else {
             println!("✅ Enhanced_otel conversion successful");
+        }
+
+        // Test with second test file
+        let jsonl_path2 =
+            test_files_dir.join("enhanced_otel_93aebfa7-cf08-4793-bc0e-7a8ef4cdddaa.jsonl");
+        if jsonl_path2.exists() {
+            println!("\n🔄 Testing second enhanced_otel file...");
+            let session_data2 = JsonlToYmlConverter::convert_file(&jsonl_path2, &temp_yml_path)?;
+            println!("✅ Second conversion successful!");
+            println!("   Session ID: {}", session_data2.session_id);
+            println!("   Tool calls: {}", session_data2.tool_calls.len());
+
+            if let Err(e) = executor
+                .convert_and_store_enhanced_otel("93aebfa7-cf08-4793-bc0e-7a8ef4cdddaa")
+                .await
+            {
+                println!("❌ Second enhanced_otel conversion failed: {e}");
+            } else {
+                println!("✅ Second enhanced_otel conversion successful");
+            }
         }
 
         // Test retrieval from pooled_db (same as API uses)

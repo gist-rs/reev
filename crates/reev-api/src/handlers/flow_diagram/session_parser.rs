@@ -130,37 +130,24 @@ impl SessionParser {
         // Extract tool calls from multiple sources
         let mut tool_calls = Vec::new();
 
-        // First try: Enhanced session logs with tools array (from enhanced_otel conversion)
-        if let Some(tools) = session_log
-            .get("final_result")
-            .and_then(|fr| fr.get("data"))
-            .and_then(|data| data.get("tools"))
-            .and_then(|tools| tools.as_array())
-        {
-            debug!("Found {} tools in enhanced session log", tools.len());
-            for tool in tools {
-                if let Ok(parsed_tool) = Self::parse_enhanced_tool(tool) {
-                    tool_calls.push(parsed_tool);
+        // First try: log_content format (from enhanced_otel JSONL conversion)
+        if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str()) {
+            // Try to extract from log_content as YAML first (from enhanced_otel conversion)
+            if let Ok(yaml_value) = serde_yaml::from_str::<Value>(log_content) {
+                if let Some(yml_tools) = yaml_value
+                    .get("tool_calls")
+                    .and_then(|tools| tools.as_array())
+                {
+                    debug!("Found {} tools in YAML log_content", yml_tools.len());
+                    for tool in yml_tools {
+                        if let Ok(parsed_tool) = Self::parse_enhanced_otel_yml_tool(tool) {
+                            tool_calls.push(parsed_tool);
+                        }
+                    }
                 }
             }
-        }
-        // Second try: YAML format from enhanced_otel JSONL conversion
-        else if let Some(yml_tools) = session_log
-            .get("tool_calls")
-            .and_then(|tools| tools.as_array())
-        {
-            debug!("Found {} tools in YAML format", yml_tools.len());
-            for tool in yml_tools {
-                if let Ok(parsed_tool) = Self::parse_yml_tool(tool) {
-                    tool_calls.push(parsed_tool);
-                }
-            }
-        }
-        // Third try: log_content format
-        else if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str())
-        {
-            // Try to extract from log_content JSON format
-            if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
+            // Fallback: Try to extract from log_content JSON format
+            else if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
                 if let Some(steps) = log_json.get("steps").and_then(|s| s.as_array()) {
                     debug!("Found {} steps in log_content", steps.len());
                     for (index, step) in steps.iter().enumerate() {
@@ -170,12 +157,11 @@ impl SessionParser {
                     }
                 }
             }
-        } else {
-            debug!("No tools array found, trying to extract from events");
-            // Fourth try: Extract from events (backward compatibility)
-            if let Some(events) = session_log.get("events").and_then(|e| e.as_array()) {
-                Self::extract_tools_from_events(events, &mut tool_calls);
-            }
+        }
+        // Second try: Extract from events (backward compatibility)
+        else if let Some(events) = session_log.get("events").and_then(|e| e.as_array()) {
+            debug!("Found {} events, extracting tools", events.len());
+            Self::extract_tools_from_events(events, &mut tool_calls);
         }
 
         // Sort tool calls by start time
@@ -241,7 +227,7 @@ impl SessionParser {
         })
     }
 
-    /// Parse YAML tool call from tool_calls array
+    /// Parse YAML tool call from tool_calls array (legacy format)
     fn parse_yml_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
         let tool_name = tool
             .get("tool_name")
@@ -278,6 +264,54 @@ impl SessionParser {
             duration_ms: execution_time_ms,
             result_data: output_result,
             tool_args,
+        })
+    }
+
+    /// Parse enhanced_otel YAML tool call from tool_calls array
+    fn parse_enhanced_otel_yml_tool(tool: &Value) -> Result<ParsedToolCall, FlowDiagramError> {
+        let tool_name = tool
+            .get("tool_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                FlowDiagramError::InvalidLogFormat(
+                    "Missing tool_name in enhanced_otel YAML".to_string(),
+                )
+            })?
+            .to_string();
+
+        // Parse start_time from RFC3339 format to timestamp
+        let start_time_str = tool
+            .get("start_time")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                FlowDiagramError::InvalidLogFormat(
+                    "Missing start_time in enhanced_otel YAML".to_string(),
+                )
+            })?;
+
+        let start_time = chrono::DateTime::parse_from_rfc3339(start_time_str)
+            .map_err(|_| {
+                FlowDiagramError::InvalidLogFormat(
+                    "Invalid start_time format in enhanced_otel YAML".to_string(),
+                )
+            })?
+            .timestamp_micros() as u64;
+
+        let duration_ms = tool
+            .get("duration_ms")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1000); // Default to 1 second if missing
+
+        let input_params = tool.get("input").cloned().unwrap_or(Value::Null);
+        let output_result = tool.get("output").cloned();
+
+        Ok(ParsedToolCall {
+            tool_name,
+            start_time,
+            params: input_params,
+            duration_ms,
+            result_data: output_result,
+            tool_args: None,
         })
     }
 

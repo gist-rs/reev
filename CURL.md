@@ -8,7 +8,7 @@ This document provides examples of how to interact with the Reev API using cURL 
 # 1. Check API health
 curl http://localhost:3001/api/v1/health
 
-# 2. List available benchmarks  
+# 2. List available benchmarks
 curl http://localhost:3001/api/v1/benchmarks | jq .
 
 # 3. Run a benchmark
@@ -93,18 +93,18 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
     "agent": "local"
   }'
 
-# Gemini model
+# GLM model
 curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
   -H "Content-Type: application/json" \
   -d '{
     "agent": "glm-4.6"
   }'
 
-# GLM model
+# GLM coding model
 curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
   -H "Content-Type: application/json" \
   -d '{
-    "agent": "glm-4-6"
+    "agent": "glm-4.6-coding"
   }'
 ```
 
@@ -331,7 +331,7 @@ The execution trace endpoint returns formatted ASCII tree structure:
 
 **Legend:**
 - 🖋️ = Signer account
-- 🖍️ = Non-signer account  
+- 🖍️ = Non-signer account
 - ➕ = Writable account
 - ➖ = Read-only account
 
@@ -476,7 +476,7 @@ time curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
    ```bash
    # Wrong endpoint - this won't work
    curl http://localhost:3001/api/v1/benchmarks/001-sol-transfer/trace
-   
+
    # Correct endpoint
    curl http://localhost:3001/api/v1/execution-logs/001-sol-transfer
    ```
@@ -485,7 +485,7 @@ time curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
    ```bash
    # Check if execution completed
    curl http://localhost:3001/api/v1/benchmarks/{id}/status/{execution_id} | jq '.status'
-   
+
    # Run new execution if needed
    curl -X POST http://localhost:3001/api/v1/benchmarks/{id}/run \
      -H "Content-Type: application/json" \
@@ -496,7 +496,7 @@ time curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
    ```bash
    # Check if API server is running
    curl http://localhost:3001/api/v1/health
-   
+
    # Start API server if needed
    cargo run -p reev-api
    ```
@@ -571,14 +571,14 @@ while true; do
     STATUS_CHECK=$(curl -s "$API_BASE/benchmarks/$BENCHMARK/status/$EXECUTION_ID")
     CURRENT_STATUS=$(echo "$STATUS_CHECK" | jq -r '.status')
     PROGRESS=$(echo "$STATUS_CHECK" | jq -r '.progress')
-    
+
     echo "🔄 Status: $CURRENT_STATUS ($PROGRESS%)"
-    
+
     if [[ "$CURRENT_STATUS" == "Completed" || "$CURRENT_STATUS" == "Failed" ]]; then
         echo "✅ Execution finished with status: $CURRENT_STATUS"
         break
     fi
-    
+
     sleep 2
 done
 
@@ -613,7 +613,7 @@ echo "=================================="
 ## 📖 Additional Resources
 
 - **FLOW.md**: Detailed flow visualization documentation
-- **ARCHITECTURE.md**: System architecture overview  
+- **ARCHITECTURE.md**: System architecture overview
 - **ISSUES.md**: Current issues and tracking
 - **REFLECT.md**: Implementation reflections
 - **TASKS.md**: Development tasks and progress
