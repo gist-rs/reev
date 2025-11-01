@@ -109,7 +109,8 @@ impl SessionParser {
                     .and_then(|p| p.as_str())
                     .map(|s| s.to_string())
             } else {
-                None
+                // Try to extract user_prompt from YAML-like format
+                Self::extract_user_prompt_from_yaml(log_content)
             }
         } else {
             None
@@ -381,6 +382,70 @@ impl SessionParser {
             execution_time_ms,
             benchmark_id: parsed.benchmark_id.clone(),
             session_id: Some(parsed.session_id.clone()),
+        }
+    }
+
+    /// Extract user_prompt from YAML-like session log format
+    fn extract_user_prompt_from_yaml(log_content: &str) -> Option<String> {
+        // Look for user_prompt in the YAML-like format
+        // It can be nested inside a "prompt:" section or at top level
+        let lines: Vec<&str> = log_content.lines().collect();
+
+        let mut in_main_prompt_section = false;
+        let mut in_user_prompt_section = false;
+        let mut prompt_lines = Vec::new();
+
+        for line in lines {
+            if line.trim() == "prompt:" {
+                in_main_prompt_section = true;
+                continue;
+            } else if (line.trim() == "user_prompt:" || line.trim().starts_with("user_prompt:"))
+                && in_main_prompt_section
+            {
+                in_user_prompt_section = true;
+                // Skip the "user_prompt:" line itself
+                continue;
+            } else if in_user_prompt_section {
+                // Handle both nested (4-space) and top-level (2-space) indented content
+                let indent_level = if in_main_prompt_section { 4 } else { 2 };
+                let indent_str = " ".repeat(indent_level);
+
+                if line.starts_with(&indent_str) && !line.trim().is_empty() {
+                    // This is a continuation of the prompt
+                    prompt_lines.push(line.trim_start());
+                } else if line.trim().is_empty() && !prompt_lines.is_empty() {
+                    // Empty line after we've started collecting, might be part of prompt
+                    prompt_lines.push("");
+                } else if !line.starts_with(&indent_str)
+                    && !line.trim().is_empty()
+                    && !prompt_lines.is_empty()
+                {
+                    // End of prompt section - we've moved to a non-indented line after collecting content
+                    break;
+                }
+            } else if in_main_prompt_section {
+                // Skip other sections within prompt section
+                if line.starts_with("  ") && line.trim().ends_with(":") {
+                    // We've encountered another subsection, skip until we find user_prompt or exit prompt section
+                    if line.trim() != "user_prompt:" {
+                        in_user_prompt_section = false;
+                    }
+                }
+            } else if line.trim() == "user_prompt:" || line.trim().starts_with("user_prompt:") {
+                // Top level user_prompt (not nested)
+                in_user_prompt_section = true;
+                continue;
+            }
+        }
+
+        if prompt_lines.is_empty() {
+            None
+        } else {
+            // Filter out any trailing empty lines
+            while prompt_lines.last() == Some(&"") {
+                prompt_lines.pop();
+            }
+            Some(prompt_lines.join("\n"))
         }
     }
 }
