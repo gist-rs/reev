@@ -2,7 +2,25 @@
 
 ---
 
-crates/reev-api/sqlite:/var/folders/99/x0p9r5553ld_b2bd6dys173w0000gn/T
+expect
+
+- run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
+- web <- api <- mermaid <- yml <- db
+
+i expect this diagram btw
+http://localhost:3001/api/v1/flows/0cd1d311-5de8-427d-a522-a1fe930258d6
+```
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).
+    Agent --> sol_transfer : 1 ix
+    state sol_transfer {
+        GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1 --> MXnpbf2eNu8WGt4sGzKX7asFAtkBdnuLXaGCGT1SwKx : 0.1 SOL
+    }
+    sol_transfer --> [*]
+classDef tools fill:grey
+class sol_transfer tools
+```
 
 ---
 
@@ -18,7 +36,7 @@ However, even when called with execution_id, there's a **synchronization issue**
 
 expect
 
-- run bench -> api -> agent -> otel -> enhanced_otel_{session_id}.jsonl -> yml -> db
+- run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
 - web <- api <- mermaid <- yml <- db
 
 can you check this correct for current code?
@@ -33,6 +51,8 @@ And
 ---
 
 i expect this diagram btw
+
+http://localhost:3001/api/v1/flows/0cd1d311-5de8-427d-a522-a1fe930258d6
 ```
 stateDiagram
     [*] --> Prompt
