@@ -41,6 +41,7 @@ pub enum FlowDiagramError {
     SessionNotFound(String),
     InvalidLogFormat(String),
     NoToolCalls,
+    #[allow(dead_code)]
     ParseError(String),
 }
 
