@@ -76,11 +76,7 @@ CREATE TABLE IF NOT EXISTS execution_states (
     metadata TEXT
 );
 
-CREATE TABLE IF NOT EXISTS schema_version (
-    version TEXT PRIMARY KEY,
-    applied_at INTEGER DEFAULT (strftime('%s', 'now')),
-    description TEXT
-);
+-- schema_version table removed - unused (no migration system implemented)
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_benchmarks_name ON benchmarks(benchmark_name);
@@ -111,4 +107,4 @@ CREATE INDEX IF NOT EXISTS idx_execution_states_created_at ON execution_states(c
 CREATE INDEX IF NOT EXISTS idx_execution_states_updated_at ON execution_states(updated_at);
 
 -- Initial data (skip auto-insertion for compatibility)
--- INSERT OR IGNORE INTO schema_version (version, description) VALUES ('1.0', 'Phase 25: Unified logging system with session management');
+-- Note: schema_version table removed - unused (no migration system implemented)

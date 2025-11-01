@@ -20,7 +20,6 @@ This directory contains the database schema definitions and migrations for the R
 2. **`execution_sessions`** - Unified session tracking for TUI and Web interfaces
 3. **`session_logs`** - Complete JSON logs from SessionFileLogger
 4. **`agent_performance`** - Performance metrics and analytics
-5. **`schema_version`** - Migration tracking
 
 ### Key Features
 
@@ -42,9 +41,9 @@ Migrations are currently applied through the consolidated schema in `current_sch
 Future versions may implement a proper migration runner.
 
 ### Schema Versioning
-- Version tracking in `schema_version` table
-- Each migration updates the version record
-- Supports rollback planning and deployment verification
+- No active migration system implemented
+- Schema managed through consolidated `current_schema.sql` file
+- Version tracking handled in documentation rather than database
 
 ## 🛠️ Development Guidelines
 
@@ -88,7 +87,7 @@ const CURRENT_SCHEMA: &str = include_str!("../.schema/current_schema.sql");
 1. Load consolidated schema from `current_schema.sql`
 2. Execute all CREATE and INDEX statements
 3. Verify schema version in `schema_version` table
-4. Initialize database health checks
+- Initialize database health checks
 
 ### Schema Validation
 - Compare deployed schema with `current_schema.sql`
@@ -98,9 +97,8 @@ const CURRENT_SCHEMA: &str = include_str!("../.schema/current_schema.sql");
 
 ## 🚀 Future Enhancements
 
-- **Migration Runner**: Automatic migration application system
+- **Migration System**: Consider implementing proper migration runner if needed
 - **Schema Diff Tools**: Automated change detection
-- **Rollback Support**: Safe schema version downgrades
 - **Environment-specific schemas**: Dev/staging/prod variations
 
 ---
