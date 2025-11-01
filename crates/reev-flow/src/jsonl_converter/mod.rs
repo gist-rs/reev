@@ -4,9 +4,9 @@
 //! OpenTelemetry system into readable YML format for easier analysis and
 //! ASCII tree generation.
 
-use crate::enhanced_otel::{EnhancedToolCall, EventType};
+use crate::enhanced_otel::{EnhancedToolCall, EventType, ToolInputInfo};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -181,31 +181,18 @@ impl JsonlToYmlConverter {
 
         // Extract tool calls
         let mut tool_calls = Vec::new();
-        let mut tool_input_map = HashMap::new();
+        let mut pending_tool_inputs: Vec<(DateTime<Utc>, ToolInputInfo)> = Vec::new();
 
-        // First collect all tool inputs
+        // Collect all tool inputs and outputs in order
         for event in &events {
             if matches!(event.event_type, EventType::ToolInput) {
                 if let Some(ref tool_input) = event.tool_input {
-                    tool_input_map.insert(
-                        tool_input.tool_name.clone(),
-                        (event.timestamp, tool_input.clone()),
-                    );
+                    pending_tool_inputs.push((event.timestamp, tool_input.clone()));
                 }
-            }
-        }
-
-        // Then match with tool outputs
-        for event in &events {
-            if matches!(event.event_type, EventType::ToolOutput) {
+            } else if matches!(event.event_type, EventType::ToolOutput) {
                 if let Some(ref tool_output) = event.tool_output {
-                    let tool_name = tool_output
-                        .results
-                        .get("tool_name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-
-                    if let Some((start_time, tool_input)) = tool_input_map.get(tool_name) {
+                    // Match with the most recent pending tool input
+                    if let Some((start_time, tool_input)) = pending_tool_inputs.pop() {
                         let duration_ms = event
                             .timestamp
                             .signed_duration_since(start_time)
@@ -479,9 +466,7 @@ impl JsonlToYmlConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enhanced_otel::{
-        PromptInfo, TimingInfo, ToolInputInfo, ToolOutputInfo,
-    };
+    use crate::enhanced_otel::{PromptInfo, TimingInfo, ToolInputInfo, ToolOutputInfo};
     use chrono::Utc;
     use std::fs;
     use tempfile::tempdir;

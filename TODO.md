@@ -24,7 +24,7 @@ expect
 can you check this correct for current code?
 
 it seem like we have duplicated `jsonl -> yml` and `mermaid <- yml`
-and i think all flow `jsonl -> yml` and `mermaid <- yml` should have it won crate reev-diagram
+and i think all flow `jsonl -> yml` and `mermaid <- yml` should have it when crate reev-diagram
 
 And
 - run bench -> api -> agent -> sessions log -> sessio_{session_id}.json -> db

@@ -2,7 +2,8 @@ use anyhow::{Context, Result, anyhow};
 
 use std::sync::Arc;
 
-use reev_flow::FlowLogger;
+use reev_flow::{FlowLogger, JsonlToYmlConverter};
+
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
@@ -425,6 +426,94 @@ pub async fn run_benchmarks(
             }
         } else {
             debug!("No tool calls found in agent log files");
+        }
+
+        // 🎯 CONVERT ENHANCED OTEL TO YML AND STORE TO DATABASE
+        // This ensures the flow diagram API can access tool call data
+        if !tool_calls.is_empty() {
+            let otel_file_path =
+                PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.jsonl"));
+            let yml_file_path =
+                PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.yml"));
+
+            if otel_file_path.exists() {
+                info!(
+                    session_id = %session_id,
+                    otel_file = %otel_file_path.display(),
+                    yml_file = %yml_file_path.display(),
+                    "Converting enhanced_otel JSONL to YML for database storage"
+                );
+
+                match JsonlToYmlConverter::convert_file(&otel_file_path, &yml_file_path) {
+                    Ok(session_data) => {
+                        info!(
+                            session_id = %session_id,
+                            tool_calls_count = session_data.tool_calls.len(),
+                            "Successfully converted enhanced_otel to YML"
+                        );
+
+                        // Store YML content to database
+                        let yml_content = match std::fs::read_to_string(&yml_file_path) {
+                            Ok(content) => content,
+                            Err(e) => {
+                                error!(
+                                    session_id = %session_id,
+                                    error = %e,
+                                    "Failed to read YML file for database storage"
+                                );
+                                continue;
+                            }
+                        };
+
+                        // Create database connection directly
+                        let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| {
+                            // Use absolute path from current working directory
+                            let current_dir = std::env::current_dir()
+                                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                            current_dir
+                                .join("db/reev_results.db")
+                                .to_string_lossy()
+                                .to_string()
+                        });
+                        let db_config = reev_lib::db::DatabaseConfig::new(&db_path);
+
+                        match DatabaseWriter::new(db_config).await {
+                            Ok(db_writer) => {
+                                let flow_db_writer = FlowDatabaseWriter::new(db_writer);
+                                if let Err(e) = flow_db_writer
+                                    .store_complete_log(&session_id, &yml_content)
+                                    .await
+                                {
+                                    error!(
+                                        session_id = %session_id,
+                                        error = %e,
+                                        "Failed to store enhanced_otel YML to database"
+                                    );
+                                } else {
+                                    info!(
+                                        session_id = %session_id,
+                                        "Successfully stored enhanced_otel YML to database"
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                error!(
+                                    session_id = %session_id,
+                                    error = %e,
+                                    "Failed to create database connection for enhanced_otel storage"
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            session_id = %session_id,
+                            error = %e,
+                            "Failed to convert enhanced_otel to YML"
+                        );
+                    }
+                }
+            }
         }
 
         // Session file completion is handled automatically by SessionFileLogger
