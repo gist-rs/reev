@@ -43,6 +43,21 @@ pub trait DatabaseWriterTrait: Send + Sync {
         &self,
         performance: &crate::shared::performance::AgentPerformance,
     ) -> crate::error::Result<()>;
+
+    /// Store session log content
+    async fn store_session_log(
+        &self,
+        session_id: &str,
+        log_content: &str,
+    ) -> crate::error::Result<()>;
+
+    /// Store tool call data
+    async fn store_tool_call(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        tool_data: &serde_json::Value,
+    ) -> crate::error::Result<()>;
 }
 
 /// Implementation of DatabaseWriterTrait for DatabaseWriter
@@ -85,5 +100,64 @@ impl DatabaseWriterTrait for crate::writer::DatabaseWriter {
         performance: &crate::shared::performance::AgentPerformance,
     ) -> crate::error::Result<()> {
         self.insert_agent_performance(performance).await
+    }
+
+    /// Store session log content
+    async fn store_session_log(
+        &self,
+        session_id: &str,
+        log_content: &str,
+    ) -> crate::error::Result<()> {
+        self.store_complete_log(session_id, log_content).await
+    }
+
+    /// Store tool call data
+    async fn store_tool_call(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        tool_data: &serde_json::Value,
+    ) -> crate::error::Result<()> {
+        use crate::writer::sessions::ToolCallData;
+
+        let start_time = tool_data
+            .get("start_time")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let execution_time_ms = tool_data
+            .get("duration_ms")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let input_params = tool_data.get("input").cloned().unwrap_or_default();
+        let output_result = tool_data.get("output").cloned().unwrap_or_default();
+
+        let success = tool_data
+            .get("success")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let error_message = tool_data
+            .get("error_message")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let tool_call_data = ToolCallData {
+            session_id: session_id.to_string(),
+            tool_name: tool_name.to_string(),
+            start_time,
+            execution_time_ms,
+            input_params,
+            output_result,
+            status: if success {
+                "success".to_string()
+            } else {
+                "failed".to_string()
+            },
+            error_message,
+        };
+
+        self.store_tool_call_consolidated(&tool_call_data).await
     }
 }

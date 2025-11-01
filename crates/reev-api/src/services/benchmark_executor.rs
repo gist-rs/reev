@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use chrono;
 use reev_db::shared::performance::AgentPerformance;
 use reev_db::writer::DatabaseWriterTrait;
+use reev_flow::JsonlToYmlConverter;
 use reev_types::{ExecutionRequest, ExecutionState, ExecutionStatus, RunnerConfig, TimeoutConfig};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -328,6 +329,77 @@ where
             .store_agent_performance_from_session(execution_state)
             .await;
 
+        // Convert enhanced_otel JSONL to YML and store in database for flow diagrams
+        let _ = self.convert_and_store_enhanced_otel(&session_id).await;
+
+        Ok(())
+    }
+
+    /// Convert enhanced_otel JSONL file to YML format and store in database
+    async fn convert_and_store_enhanced_otel(&self, session_id: &str) -> Result<()> {
+        let jsonl_path = PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.jsonl"));
+
+        if !jsonl_path.exists() {
+            debug!("No enhanced_otel file found for session: {}", session_id);
+            return Ok(());
+        }
+
+        info!(
+            "Converting enhanced_otel to YML for session: {}",
+            session_id
+        );
+
+        // Convert JSONL to YML format using temporary file
+        let temp_yml_path = jsonl_path.with_extension("yml");
+        let session_data = JsonlToYmlConverter::convert_file(&jsonl_path, &temp_yml_path)
+            .map_err(|e| anyhow!("Failed to convert enhanced_otel JSONL to YML: {e}"))?;
+
+        // Read YML content for database storage
+        let yml_content = tokio::fs::read_to_string(&temp_yml_path)
+            .await
+            .map_err(|e| anyhow!("Failed to read temporary YML file: {e}"))?;
+
+        // Clean up temporary file
+        let _ = tokio::fs::remove_file(&temp_yml_path).await;
+
+        // Store session log in database
+        if let Err(e) = self.db.store_session_log(session_id, &yml_content).await {
+            warn!("Failed to store session log in database: {}", e);
+        } else {
+            info!("Stored session log in database for session: {}", session_id);
+        }
+
+        // Store individual tool calls in database
+        for tool_call in &session_data.tool_calls {
+            let tool_data = serde_json::json!({
+                "tool_name": tool_call.tool_name,
+                "start_time": tool_call.start_time,
+                "end_time": tool_call.end_time,
+                "duration_ms": tool_call.duration_ms,
+                "input": tool_call.input,
+                "output": tool_call.output,
+                "success": tool_call.success,
+                "error_message": tool_call.error_message
+            });
+
+            if let Err(e) = self
+                .db
+                .store_tool_call(session_id, &tool_call.tool_name, &tool_data)
+                .await
+            {
+                warn!(
+                    "Failed to store tool call {} in database: {}",
+                    tool_call.tool_name, e
+                );
+            } else {
+                debug!("Stored tool call {} in database", tool_call.tool_name);
+            }
+        }
+
+        info!(
+            "Successfully converted and stored enhanced_otel data for session: {}",
+            session_id
+        );
         Ok(())
     }
 
@@ -787,3 +859,107 @@ where
 
 /// Type alias for BenchmarkExecutor with PooledDatabaseWriter
 pub type PooledBenchmarkExecutor = BenchmarkExecutor<reev_lib::db::PooledDatabaseWriter>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reev_db::{DatabaseConfig, DatabaseWriter};
+    use std::path::PathBuf;
+
+    #[tokio::test]
+    async fn test_enhanced_otel_conversion() -> Result<(), Box<dyn std::error::Error>> {
+        // Test enhanced_otel to YML conversion
+        let jsonl_path =
+            PathBuf::from("/Users/katopz/git/gist/reev/logs/sessions/enhanced_otel_0cd1d311-5de8-427d-a522-a1fe930258d6.jsonl");
+        let temp_yml_path = PathBuf::from("test_conversion_output.yml");
+
+        if !jsonl_path.exists() {
+            println!("❌ enhanced_otel file not found: {:?}", jsonl_path);
+            return Ok(());
+        }
+
+        println!("🔄 Converting enhanced_otel to YML...");
+
+        // Convert JSONL to YML
+        let session_data = JsonlToYmlConverter::convert_file(&jsonl_path, &temp_yml_path)?;
+
+        println!("✅ Conversion successful!");
+        println!("   Session ID: {}", session_data.session_id);
+        println!("   Tool calls: {}", session_data.tool_calls.len());
+
+        for (i, tool) in session_data.tool_calls.iter().enumerate() {
+            println!(
+                "   Tool {}: {} ({}ms) - success: {}",
+                i + 1,
+                tool.tool_name,
+                tool.duration_ms,
+                tool.success
+            );
+        }
+
+        // Read YML content
+        let yml_content = tokio::fs::read_to_string(&temp_yml_path).await?;
+        println!("📄 YML content (first 1000 chars):");
+        println!("{}", &yml_content[..yml_content.len().min(1000)]);
+
+        // Test database storage
+        println!("\n🗄️ Testing database storage...");
+
+        // Initialize database
+        let config = DatabaseConfig::default();
+        let db = DatabaseWriter::new(config.clone()).await?;
+        let db = std::sync::Arc::new(db);
+
+        // Create pooled database writer for benchmark executor
+        let pooled_db = reev_lib::db::PooledDatabaseWriter::new(config, 10).await?;
+        let pooled_db = std::sync::Arc::new(pooled_db);
+
+        // Create benchmark executor to test conversion
+        let executor =
+            PooledBenchmarkExecutor::new(pooled_db.clone(), Default::default(), Default::default());
+
+        // Test conversion method
+        if let Err(e) = executor
+            .convert_and_store_enhanced_otel(&session_data.session_id)
+            .await
+        {
+            println!("❌ Enhanced_otel conversion failed: {}", e);
+        } else {
+            println!("✅ Enhanced_otel conversion successful");
+        }
+
+        // Test retrieval from pooled_db (same as API uses)
+        if let Ok(Some(log_content)) = pooled_db.get_session_log(&session_data.session_id).await {
+            println!("✅ Retrieved session log from pooled database");
+            println!("   Content length: {} chars", log_content.len());
+
+            // Test if our parser can read it
+            use crate::handlers::flow_diagram::SessionParser;
+            match SessionParser::parse_session_content(&log_content) {
+                Ok(parsed) => {
+                    println!("✅ Parser successfully read YML content");
+                    println!("   Found {} tool calls", parsed.tool_calls.len());
+                    for (i, tool) in parsed.tool_calls.iter().enumerate() {
+                        println!(
+                            "   Tool {}: {} ({}ms)",
+                            i + 1,
+                            tool.tool_name,
+                            tool.duration_ms
+                        );
+                    }
+                }
+                Err(e) => {
+                    println!("❌ Parser failed to read YML content: {}", e);
+                }
+            }
+        } else {
+            println!("❌ Failed to retrieve session log from pooled database");
+        }
+
+        // Clean up
+        tokio::fs::remove_file(&temp_yml_path).await.ok();
+
+        println!("\n🎉 Enhanced_otel conversion test completed!");
+        Ok(())
+    }
+}

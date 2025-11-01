@@ -7,7 +7,7 @@ expect
 - run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
 - web <- api <- mermaid <- yml <- db
 
-i expect this diagram btw
+i expect this diagram btw e.g. after run 001-sol-transfer.yml should get
 http://localhost:3001/api/v1/flows/0cd1d311-5de8-427d-a522-a1fe930258d6
 ```
 stateDiagram
