@@ -485,3 +485,52 @@ curl -X GET http://localhost:3001/api/v1/flows
 - [ ] Trace extraction detects all tool calls
 - [ ] Mermaid diagrams show complete tool flows
 - [ ] Performance impact is minimal (<1ms per tool call)
+
+---
+
+## Issue #8: ZAI Agent Hardcoded Model Validation
+
+**Priority**: 🟡 HIGH
+**Status**: 🔴 **OPEN**
+**Assigned**: reev-agent
+
+**Problem**: ZAI Agent uses hardcoded `GLM_4_6` model without availability validation
+
+**Current Implementation**:
+```rust
+// CURRENT - Hardcoded without validation
+let model = client.completion_model(zai::GLM_4_6);  // GLM_4_6 is a constant
+```
+
+**Expected Issues**:
+- ❌ No model availability verification
+- ❌ No dynamic model parameter support
+- ❌ Missing connectivity validation
+- ❌ Hard-coded model name limits flexibility
+
+**Required Solution**:
+```rust
+// NEEDED - Model availability validation
+let model_name = "glm-4.6";  // Should be parameter, not hardcoded
+let model = client.completion_model(model_name);
+
+// Verify the model is actually available
+client.verify().await
+    .map_err(|e| anyhow!("ZAI model '{}' validation failed: {}", model_name, e))?;
+
+info!("ZAI model '{}' validated and ready", model_name);
+```
+
+**Tasks**:
+- [ ] Replace hardcoded `GLM_4_6` with dynamic model parameter
+- [ ] Add `client.verify()` call for model availability
+- [ ] Implement proper error handling for model validation failures
+- [ ] Update ZAI client initialization to include model verification
+- [ ] Test with invalid model names to ensure proper error handling
+
+**Acceptance Criteria**:
+- [ ] Model name is parameterized (not hardcoded)
+- [ ] Model availability is verified before use
+- [ ] Clear error messages for unavailable models
+- [ ] ZAI Agent fails fast with validation errors
+- [ ] No silent failures with unsupported models
