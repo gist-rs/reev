@@ -13,7 +13,7 @@ use thiserror::Error;
 use tracing::{info, instrument};
 
 /// The arguments for the lend/earn tokens tool
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct LendEarnTokensArgs {
     /// Optional: Filter by specific token symbol (e.g., "USDC", "SOL")
     pub symbol: Option<String>,
@@ -191,6 +191,9 @@ impl Tool for LendEarnTokensTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[LendEarnTokensTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
+
+        // 🎯 Add enhanced logging
+        reev_flow::log_tool_call!(Self::NAME, &args);
         // Fetch tokens from Jupiter API
         let tokens = self.fetch_tokens().await?;
 
@@ -219,6 +222,11 @@ impl Tool for LendEarnTokensTool {
             total_execution_time,
             filtered_tokens.len()
         );
+
+        let execution_time = start_time.elapsed().as_millis() as u64;
+
+        // 🎯 Add enhanced logging completion
+        reev_flow::log_tool_completion!(Self::NAME, execution_time, &response, true);
 
         Ok(serde_json::to_string_pretty(&response)?)
     }

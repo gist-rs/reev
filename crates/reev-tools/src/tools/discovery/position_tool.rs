@@ -13,9 +13,9 @@ use thiserror::Error;
 use tracing::{info, instrument};
 
 /// The arguments for the position info tool
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct PositionInfoArgs {
-    /// The public key of the user to query positions for
+    /// The public key of user to query positions for
     pub user_pubkey: String,
     /// Optional: The protocol to query positions for (jupiter, solend, etc.)
     pub protocol: Option<String>,
@@ -136,6 +136,9 @@ impl Tool for PositionInfoTool {
         info!("[PositionInfoTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
 
+        // 🎯 Add enhanced logging
+        reev_flow::log_tool_call!(Self::NAME, &args);
+
         // Query positions for the user (validation happens inside)
         let positions = self.query_positions(&args).await?;
 
@@ -154,6 +157,12 @@ impl Tool for PositionInfoTool {
                 "note": "No positions found for placeholder pubkey. This is simulated data.",
                 "placeholder_detected": args.user_pubkey
             });
+
+            let execution_time = start_time.elapsed().as_millis() as u64;
+
+            // 🎯 Add enhanced logging completion
+            reev_flow::log_tool_completion!(Self::NAME, execution_time, &response, true);
+
             Ok(serde_json::to_string_pretty(&response)?)
         } else {
             // Convert to JSON response for normal results
@@ -168,12 +177,15 @@ impl Tool for PositionInfoTool {
                 "total_positions": positions.len()
             });
 
-            let total_execution_time = start_time.elapsed().as_millis() as u32;
+            let total_execution_time = start_time.elapsed().as_millis() as u64;
             info!(
                 "[PositionInfoTool] Tool execution completed - total_time: {}ms, positions_found: {}",
                 total_execution_time,
                 positions.len()
             );
+
+            // 🎯 Add enhanced logging completion
+            reev_flow::log_tool_completion!(Self::NAME, total_execution_time, &response, true);
 
             Ok(serde_json::to_string_pretty(&response)?)
         }

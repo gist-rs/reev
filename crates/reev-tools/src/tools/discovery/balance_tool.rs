@@ -1,6 +1,6 @@
 //! Account Balance Discovery Tool
 //!
-//! This tool provides the LLM with the ability to query account balances
+//! This tool provides LLM with the ability to query account balances
 //! from the real surfpool testnet. This enables proper validation before operations
 //! by accessing actual on-chain state, not simulated data.
 
@@ -15,11 +15,12 @@ use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Instant;
 use thiserror::Error;
 use tracing::{info, instrument};
 
-/// The arguments for the account balance tool
-#[derive(Deserialize, Debug)]
+/// The arguments for account balance tool
+#[derive(Deserialize, Debug, Serialize)]
 pub struct AccountBalanceArgs {
     /// The public key of the account to query
     pub pubkey: String,
@@ -117,6 +118,11 @@ impl Tool for AccountBalanceTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let start_time = Instant::now();
+
+        // 🎯 Add enhanced logging
+        reev_flow::log_tool_call!(Self::NAME, &args);
+
         info!("[AccountBalanceTool] Starting tool execution with OpenTelemetry tracing");
 
         // Prepare tool args for logging
@@ -155,9 +161,22 @@ impl Tool for AccountBalanceTool {
                     "note": "This is REAL account data from surfpool testnet, not simulated values"
                 });
 
+                let execution_time = start_time.elapsed().as_millis() as u64;
+
+                // 🎯 Add enhanced logging completion
+                reev_flow::log_tool_completion!(Self::NAME, execution_time, &response, true);
+
                 Ok(serde_json::to_string_pretty(&response)?)
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                let error_data = json!({"error": e.to_string()});
+
+                // 🎯 Add enhanced logging for error case
+                reev_flow::log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                Err(e)
+            }
         }
     }
 }
