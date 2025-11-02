@@ -298,7 +298,6 @@ RUST_LOG=debug cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --age
 ```bash
 # Environment variables
 RUST_LOG=info                    # Log level (debug, info, warn, error)
-REEV_FLOW_LOG_PATH=logs/flows    # Flow log output directory
 GOOGLE_API_KEY=your-key          # Gemini API key
 GLM_API_KEY=your-key            # GLM API key (required for glm-4.6 agent)
 GLM_API_URL="https://api.z.ai/api/coding/paas/v4"  # GLM API endpoint
@@ -536,11 +535,10 @@ pub struct MetricsCollector {
 ```rust
 use reev_flow::{FlowLogger, FlowTracer};
 
-// Initialize flow tracing
+// Initialize flow tracing (database-only)
 let flow_logger = FlowLogger::new(
     benchmark_id.to_string(),
     agent_type.to_string(),
-    output_path,
 );
 
 // Log flow events

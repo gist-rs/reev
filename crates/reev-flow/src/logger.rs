@@ -3,12 +3,12 @@
 //! This module provides the main FlowLogger interface for tracking agent execution flows.
 //! It supports both file-based logging and database integration through the reev-db crate.
 
-use super::error::{FlowError, FlowResult};
+use super::error::FlowResult;
 use super::types::*;
 use super::utils::calculate_execution_statistics;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
 /// Database writer trait for integration with reev-db
@@ -48,13 +48,12 @@ pub struct FlowLogger {
     agent_type: String,
     start_time: SystemTime,
     events: Vec<FlowEvent>,
-    output_path: PathBuf,
     database: Option<Arc<dyn DatabaseWriter>>,
 }
 
 impl FlowLogger {
     /// Create a new flow logger instance
-    pub fn new(benchmark_id: String, agent_type: String, output_path: PathBuf) -> Self {
+    pub fn new(benchmark_id: String, agent_type: String) -> Self {
         let session_id = uuid::Uuid::new_v4().to_string();
         let start_time = SystemTime::now();
 
@@ -62,7 +61,7 @@ impl FlowLogger {
             session_id = %session_id,
             benchmark_id = %benchmark_id,
             agent_type = %agent_type,
-            "Initializing flow logger"
+            "Initializing flow logger (database-only)"
         );
 
         Self {
@@ -71,25 +70,19 @@ impl FlowLogger {
             agent_type,
             start_time,
             events: Vec::new(),
-            output_path,
             database: None,
         }
     }
 
     /// Create a new flow logger instance with specific session ID
-    pub fn new_with_session(
-        session_id: String,
-        benchmark_id: String,
-        agent_type: String,
-        output_path: PathBuf,
-    ) -> Self {
+    pub fn new_with_session(session_id: String, benchmark_id: String, agent_type: String) -> Self {
         let start_time = SystemTime::now();
 
         info!(
             session_id = %session_id,
             benchmark_id = %benchmark_id,
             agent_type = %agent_type,
-            "Initializing flow logger with session"
+            "Initializing flow logger with session (database-only)"
         );
 
         Self {
@@ -98,19 +91,17 @@ impl FlowLogger {
             agent_type,
             start_time,
             events: Vec::new(),
-            output_path,
             database: None,
         }
     }
 
-    /// Create a new flow logger with database support
+    /// Create a new flow logger instance with database support
     pub fn new_with_database(
+        session_id: String,
         benchmark_id: String,
         agent_type: String,
-        output_path: PathBuf,
         database: Arc<dyn DatabaseWriter>,
     ) -> Self {
-        let session_id = uuid::Uuid::new_v4().to_string();
         let start_time = SystemTime::now();
 
         info!(
@@ -126,7 +117,6 @@ impl FlowLogger {
             agent_type,
             start_time,
             events: Vec::new(),
-            output_path,
             database: Some(database),
         }
     }
@@ -135,7 +125,6 @@ impl FlowLogger {
     pub fn new_with_database_preserve_session(
         benchmark_id: String,
         agent_type: String,
-        output_path: PathBuf,
         database: Arc<dyn DatabaseWriter>,
         existing_session_id: Option<String>,
     ) -> Self {
@@ -158,7 +147,6 @@ impl FlowLogger {
             agent_type,
             start_time,
             events: Vec::new(),
-            output_path,
             database: Some(database),
         }
     }
@@ -358,37 +346,13 @@ impl FlowLogger {
             );
         }
 
-        // Still save YML file for debugging if enabled
-        if std::env::var("REEV_ENABLE_YML_EXPORT").unwrap_or_default() == "true" {
-            let timestamp = end_time
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let filename = format!(
-                "flow_{}_{}_{}.yml",
-                self.benchmark_id, self.agent_type, timestamp
-            );
-            let file_path = self.output_path.join(filename);
-
-            let yml_content = serde_yaml::to_string(&flow_log)
-                .map_err(|e| FlowError::serialization(e.to_string()))?;
-
-            std::fs::write(&file_path, yml_content).map_err(|e| FlowError::file(e.to_string()))?;
-
-            info!(
-                session_id = %self.session_id,
-                file_path = %file_path.display(),
-                "Flow log YML export completed"
-            );
-        }
-
         info!(
             session_id = %self.session_id,
             "Flow log completed"
         );
 
-        // Return output path for backward compatibility
-        Ok(self.output_path.clone())
+        // Return empty path for backward compatibility
+        Ok(PathBuf::new())
     }
 
     /// Get current statistics

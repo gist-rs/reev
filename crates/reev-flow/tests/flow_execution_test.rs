@@ -11,12 +11,9 @@ use reev_types::ToolResultStatus;
 /// Test basic flow logger functionality
 #[tokio::test]
 async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_dir = tempfile::tempdir()?;
-    let mut flow_logger = FlowLogger::new(
-        "test-benchmark".to_string(),
-        "deterministic".to_string(),
-        temp_dir.path().join("test_flow.json"), // Use a specific file, not directory
-    );
+    let _temp_dir = tempfile::tempdir()?;
+    let mut flow_logger =
+        FlowLogger::new("test-benchmark".to_string(), "deterministic".to_string());
 
     tracing::info!("🧪 Starting basic flow logger test");
 
@@ -92,12 +89,8 @@ async fn test_basic_flow_logger() -> Result<(), Box<dyn std::error::Error>> {
 /// Test flow with error handling
 #[tokio::test]
 async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_dir = tempfile::tempdir()?;
-    let mut flow_logger = FlowLogger::new(
-        "error-test".to_string(),
-        "deterministic".to_string(),
-        temp_dir.path().join("error_flow.json"),
-    );
+    let _temp_dir = tempfile::tempdir()?;
+    let mut flow_logger = FlowLogger::new("error-test".to_string(), "deterministic".to_string());
 
     tracing::info!("🧪 Starting flow error handling test");
 
@@ -173,12 +166,8 @@ async fn test_flow_error_handling() -> Result<(), Box<dyn std::error::Error>> {
 /// Test flow statistics calculation
 #[tokio::test]
 async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_dir = tempfile::tempdir()?;
-    let mut flow_logger = FlowLogger::new(
-        "stats-test".to_string(),
-        "deterministic".to_string(),
-        temp_dir.path().join("stats_flow.json"),
-    );
+    let _temp_dir = tempfile::tempdir()?;
+    let mut flow_logger = FlowLogger::new("stats-test".to_string(), "deterministic".to_string());
 
     tracing::info!("🧪 Starting flow statistics test");
 
@@ -276,12 +265,8 @@ async fn test_flow_statistics() -> Result<(), Box<dyn std::error::Error>> {
 /// Test different tool result statuses
 #[tokio::test]
 async fn test_tool_result_statuses() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_dir = tempfile::tempdir()?;
-    let mut flow_logger = FlowLogger::new(
-        "statuses-test".to_string(),
-        "deterministic".to_string(),
-        temp_dir.path().join("statuses_flow.json"),
-    );
+    let _temp_dir = tempfile::tempdir()?;
+    let mut flow_logger = FlowLogger::new("statuses-test".to_string(), "deterministic".to_string());
 
     tracing::info!("🧪 Starting tool result statuses test");
 

@@ -37,9 +37,7 @@ pub use logger::{init_flow_tracing, AgentPerformanceData, DatabaseWriter, FlowLo
 pub use otel::{init_flow_tracing_with_session, FlowTracer};
 pub use renderer::{render_flow_file_as_ascii_tree, FlowLogRenderer};
 pub use types::*;
-pub use utils::{
-    calculate_execution_statistics, get_default_flow_log_path, FlowSummary, FlowUtils,
-};
+pub use utils::{calculate_execution_statistics, FlowSummary, FlowUtils};
 pub use website_exporter::WebsiteExporter;
 
 #[cfg(feature = "database")]

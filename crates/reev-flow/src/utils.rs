@@ -312,13 +312,6 @@ impl FlowUtils {
 
         stats
     }
-
-    /// Get the default flow log output path
-    pub fn get_default_flow_log_path() -> std::path::PathBuf {
-        std::env::var("REEV_FLOW_LOG_PATH")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::path::PathBuf::from("logs/flows"))
-    }
 }
 
 /// Calculate execution statistics from flow events
@@ -328,11 +321,6 @@ pub fn calculate_execution_statistics(events: &[FlowEvent]) -> ExecutionStatisti
 
 /// Check if flow logging is enabled
 // Flow logging is always enabled by default
-/// Get the default flow log output path
-pub fn get_default_flow_log_path() -> std::path::PathBuf {
-    FlowUtils::get_default_flow_log_path()
-}
-
 /// Summary of flow execution for quick analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowSummary {

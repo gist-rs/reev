@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, anyhow};
 
-
 use reev_flow::FlowLogger;
 use reev_lib::{
     agent::{Agent, AgentObservation},
@@ -208,12 +207,11 @@ pub async fn run_benchmarks(
         // No database operations needed - API handles database storage
 
         // Initialize enhanced OTEL logging instead of basic flow logging
-        // File-based logging only - runner should not access database
+        // Database-only logging - runner should not access database
         let flow_logger = FlowLogger::new_with_session(
             session_id.clone(),
             test_case.id.clone(),
             agent_name.to_string(),
-            PathBuf::from("logs/flows"),
         );
 
         info!(
@@ -561,17 +559,11 @@ async fn run_flow_benchmark(
     // Initialize flow logging for flow benchmarks (file-based only)
     // Flow logging is always enabled
     let flow_logger = {
-        let output_path =
-            std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
-        let path = PathBuf::from(output_path);
-        std::fs::create_dir_all(&path)?;
-
-        info!("🗄️ Flow logger initialized (file-based only)");
+        info!("🗄️ Flow logger initialized (database-only)");
         Some(FlowLogger::new_with_session(
             session_id.to_string(),
             test_case.id.clone(),
             agent_name.to_string(),
-            path,
         ))
     };
 

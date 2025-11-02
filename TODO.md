@@ -28,47 +28,13 @@ class sol_transfer tools
 
 ---
 
-The execution logs handler checks the in-memory cache FIRST, and only goes to database if execution_id is specified. But when frontend calls without execution_id (old behavior), it still reads from stale memory cache.
-
-However, even when called with execution_id, there's a **synchronization issue**: The database was updated, but the in-memory cache wasn't updated to reflect the completed status.
-
----
-
 expect
 
 - run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
 - web <- api <- mermaid <- yml <- db
 
-can you check this correct for current code?
-
-it seem like we have duplicated `jsonl -> yml` and `mermaid <- yml`
-and i think all flow `jsonl -> yml` and `mermaid <- yml` should have it when crate reev-diagram
-
-And
 - run bench -> api -> agent -> sessions log -> sessio_{session_id}.json -> db
 - web <- api <- ascii tree <- json <- db
-
----
-
-i expect this diagram btw
-
-http://localhost:3001/api/v1/flows/0cd1d311-5de8-427d-a522-a1fe930258d6
-```
-stateDiagram
-    [*] --> Prompt
-    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).
-    Agent --> sol_transfer : 1 ix
-    state sol_transfer {
-        GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1 --> MXnpbf2eNu8WGt4sGzKX7asFAtkBdnuLXaGCGT1SwKx : 0.1 SOL
-    }
-    sol_transfer --> [*]
-classDef tools fill:grey
-class sol_transfer tools
-```
-current
-```
-stateDiagram\n    [*] --> Prompt\n    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).\n    Agent --> program_11111111111111111111111111111111 : data = \"3Bxs411Dtc7pkFQj\", data_length = 16, from = \"6Mkfyk5CktTDvW1KrFkphXYUi55Foh1LxbRYT7UAxvx5\"\n    program_11111111111111111111111111111111 --> [*]\n\nclassDef tools fill:lightgrey\nclass program_11111111111111111111111111111111 tools
-```
 
 ---
 

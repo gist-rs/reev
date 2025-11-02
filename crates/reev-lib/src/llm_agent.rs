@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::agent::{Agent, AgentAction, AgentObservation, RawInstruction, ToolResultStatus};
@@ -179,25 +178,15 @@ impl Agent for LlmAgent {
         // Initialize flow logger if not already done and logging is enabled
         // Flow logging is always enabled
         if self.flow_logger.is_none() {
-            let output_path =
-                std::env::var("REEV_FLOW_LOG_PATH").unwrap_or_else(|_| "logs/flows".to_string());
-            let path = PathBuf::from(output_path);
-            std::fs::create_dir_all(&path)?;
-
             // Use session_id if available, otherwise fallback to id (benchmark_id)
             if let Some(ref session_id) = self.session_id {
                 self.flow_logger = Some(FlowLogger::new_with_session(
                     session_id.clone(),
                     id.to_string(),
                     self.model_name.clone(),
-                    path,
                 ));
             } else {
-                self.flow_logger = Some(FlowLogger::new(
-                    id.to_string(),
-                    self.model_name.clone(),
-                    path,
-                ));
+                self.flow_logger = Some(FlowLogger::new(id.to_string(), self.model_name.clone()));
             }
 
             info!(

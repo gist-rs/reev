@@ -9,11 +9,11 @@ use std::path::{Path, PathBuf};
 
 // Re-export everything from reev-flow for backward compatibility
 pub use reev_flow::{
-    calculate_execution_statistics, get_default_flow_log_path, init_flow_tracing,
-    render_flow_file_as_ascii_tree, AgentBehaviorAnalysis, ErrorContent, EventContent,
-    ExecutionResult, ExecutionStatistics, FlowEdge, FlowError, FlowEvent, FlowEventType, FlowGraph,
-    FlowLog, FlowLogDbExt, FlowLogRenderer, FlowLogger, FlowNode, FlowResult, FlowTracer,
-    LlmRequestContent, PerformanceMetrics, ScoringBreakdown, ToolCallContent, ToolUsageStats,
+    calculate_execution_statistics, init_flow_tracing, render_flow_file_as_ascii_tree,
+    AgentBehaviorAnalysis, ErrorContent, EventContent, ExecutionResult, ExecutionStatistics,
+    FlowEdge, FlowError, FlowEvent, FlowEventType, FlowGraph, FlowLog, FlowLogDbExt,
+    FlowLogRenderer, FlowLogger, FlowNode, FlowResult, FlowTracer, LlmRequestContent,
+    PerformanceMetrics, ScoringBreakdown, ToolCallContent, ToolUsageStats,
     TransactionExecutionContent, WebsiteData, WebsiteExporter,
 };
 
@@ -38,15 +38,9 @@ pub use crate::session_logger::{
 pub fn create_flow_logger(
     benchmark_id: String,
     agent_type: String,
-    output_path: Option<std::path::PathBuf>,
+    _output_path: Option<std::path::PathBuf>,
 ) -> FlowLogger {
-    let output_path = output_path.unwrap_or_else(|| {
-        std::env::var("REEV_FLOW_LOG_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("logs/flows"))
-    });
-
-    FlowLogger::new(benchmark_id, agent_type, output_path)
+    FlowLogger::new(benchmark_id, agent_type)
 }
 
 /// Create a new session file logger with unified logging
