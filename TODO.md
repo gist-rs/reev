@@ -24,7 +24,7 @@ class sol_transfer tools
 
 ---
 
-🔥 step from yml at multi-step is cheating, we will need llm to create dynamic step anddynamic tools from that
+🔥 step from yml at multi-step is cheating, we will need llm to create dynamic step and dynamic tools from that
 
 ---
 
