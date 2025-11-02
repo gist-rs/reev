@@ -1,9 +1,24 @@
 # Issues
 
-## Issue #1: Deterministic Agent Completely Bypasses OTEL Logging
+## Issue #1: Deterministic Agent Enhanced OTEL Logging
 
 **Priority**: 🔴 CRITICAL
-**Status**: 🔄 Open
+**Status**: 🔄 In Progress - 90% Complete
+**Assigned**: reev-agent
+
+**Description**: Enhanced OTEL logging added to deterministic agents but events array is empty. Deterministic agent executes successfully but doesn't generate OTEL events.
+
+**Progress**:
+- ✅ Added `log_tool_call!` and `log_tool_completion!` to 3 deterministic agents
+- ✅ Added enhanced logging to `d_001_sol_transfer.rs` 
+- ✅ Added enhanced logging to `d_100_jup_swap_sol_usdc.rs`
+- ✅ Added enhanced logging to `d_114_jup_positions_and_earnings.rs`
+- ⚠️ Root cause: Enhanced OTEL logger not initialized for deterministic agent sessions
+- ⚠️ Session file created with empty `events: []` array
+
+**Root Cause**: Enhanced OTEL logger initialization bypassed in deterministic agent execution context.
+
+**Next Steps**: Fix logger initialization in deterministic agent runner.
 **Assigned**: Unassigned
 
 **Description**: The deterministic agent (used by default in all examples) completely bypasses the tool system and calls protocol handlers directly. This means NO OTEL logs are generated when using the default agent.
@@ -82,7 +97,23 @@ grep -i "tool_call\|tool_completion" traces_after.log | wc -l  # Should be >0
 ## Issue #2: Missing Enhanced Logging in Discovery Tools
 
 **Priority**: 🟡 HIGH
-**Status**: 🔄 Open
+**Status**: ✅ **COMPLETED**
+**Assigned**: reev-tools
+
+**Description**: Discovery tools have `#[instrument]` attributes but are missing the enhanced logging macros, reducing debugging visibility.
+
+**Files Affected**:
+- `reev-tools/src/tools/discovery/balance_tool.rs` - `get_account_balance`
+- `reev-tools/src/tools/discovery/lend_earn_tokens.rs` - `get_lend_earn_tokens`
+- `reev-tools/src/tools/discovery/position_tool.rs` - `get_position_info`
+
+**Implementation**:
+- ✅ Added `log_tool_call!` and `log_tool_completion!` to all 3 discovery tools
+- ✅ Added `Serialize` derive to all Args structs for OTEL compatibility
+- ✅ Added execution time tracking and result logging
+- ✅ Added error case logging with structured error data
+
+**Verification**: Tools now generate enhanced OTEL events with parameters, timing, and results.
 **Assigned**: Unassigned
 
 **Description**: Discovery tools have `#[instrument]` attributes but are missing the enhanced logging macros (`log_tool_call!` and `log_tool_completion!`), reducing debugging visibility.
@@ -146,6 +177,33 @@ impl Tool for AccountBalanceTool {
 **Files Affected**:
 - `reev-tools/src/tools/flow/jupiter_swap_flow.rs` - `jupiter_swap_flow`
 
+**Implementation Steps**:
+1. Add `use std::time::Instant;` and `use reev_flow::{log_tool_call, log_tool_completion};`
+2. Add `Serialize` derive to `JupiterSwapFlowArgs` struct
+3. In `call()` function:
+   - Add `let start_time = Instant::now();` at start
+   - Add `log_tool_call!(Self::NAME, &args);` after start_time
+   - Add completion logging before successful return:
+     ```rust
+     let execution_time = start_time.elapsed().as_millis() as u64;
+     reev_flow::log_tool_completion!(Self::NAME, execution_time, &response, true);
+     ```
+4. Add error case completion logging:
+   ```rust
+   let execution_time = start_time.elapsed().as_millis() as u64;
+   let error_data = json!({"error": e.to_string()});
+   reev_flow::log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+   ```
+
+**Verification**:
+```bash
+# Test with flow benchmark
+REEV_ENHANCED_OTEL=1 REEV_TRACE_FILE=traces_flow.log RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local
+
+# Check enhanced OTEL logs
+grep -i "jupiter_swap_flow" logs/sessions/enhanced_otel_*.jsonl
+```
+
 **Proposed Solution**: Add enhanced logging macros to flow tool with same pattern as Issue #2.
 
 **Acceptance Criteria**:
@@ -168,6 +226,33 @@ impl Tool for AccountBalanceTool {
 - `reev-tools/src/tools/jupiter_lend_earn_mint_redeem.rs` - `jupiter_lend_earn_mint`
 - `reev-tools/src/tools/jupiter_lend_earn_mint_redeem.rs` - `jupiter_lend_earn_redeem`
 
+**Implementation Steps** (apply to each file):
+1. Add imports: `use std::time::Instant;` and `use reev_flow::{log_tool_call, log_tool_completion};`
+2. Add `Serialize` derive to Args struct if missing
+3. In `call()` function:
+   - Add `let start_time = Instant::now();` at start
+   - Add `log_tool_call!(Self::NAME, &args);` after start_time
+   - Add completion logging before successful return:
+     ```rust
+     let execution_time = start_time.elapsed().as_millis() as u64;
+     reev_flow::log_tool_completion!(Self::NAME, execution_time, &output, true);
+     ```
+4. Add error case completion logging in Err match arms:
+   ```rust
+   let execution_time = start_time.elapsed().as_millis() as u64;
+   let error_data = json!({"error": e.to_string()});
+   reev_flow::log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+   ```
+
+**Verification**:
+```bash
+# Test with lend/earn benchmarks
+REEV_ENHANCED_OTEL=1 REEV_TRACE_FILE=traces_lend.log RUST_LOG=info cargo run -p reev-runner -- benchmarks/110-jup-lend-deposit-sol.yml --agent local
+
+# Check enhanced OTEL logs  
+grep -i "jupiter_lend_earn_deposit\|jupiter_lend_earn_withdraw" logs/sessions/enhanced_otel_*.jsonl
+```
+
 **Proposed Solution**: Add enhanced logging macros to all Jupiter lend/earn tools with same pattern as Issue #2.
 
 **Acceptance Criteria**:
@@ -186,6 +271,31 @@ impl Tool for AccountBalanceTool {
 
 **Files Affected**:
 - `reev-tools/src/tools/native.rs` - `spl_transfer` (in same file as `sol_transfer`)
+
+**Implementation Steps**:
+1. Find `SplTransferTool::call()` function (line ~271)
+2. Add `let start_time = Instant::now();` at function start
+3. Add `log_tool_call!("spl_transfer", &args);` after start_time  
+4. Add completion logging before successful return:
+   ```rust
+   let execution_time = start_time.elapsed().as_millis() as u64;
+   reev_flow::log_tool_completion!("spl_transfer", execution_time, &result, true);
+   ```
+5. Add error case completion logging in Err match arm:
+   ```rust
+   let execution_time = start_time.elapsed().as_millis() as u64;
+   let error_data = json!({"error": e.to_string()});
+   reev_flow::log_tool_completion!("spl_transfer", execution_time, &error_data, false);
+   ```
+
+**Verification**:
+```bash
+# Test with SPL transfer benchmark
+REEV_ENHANCED_OTEL=1 REEV_TRACE_FILE=traces_spl.log RUST_LOG=info cargo run -p reev-runner -- benchmarks/002-spl-transfer.yml --agent local
+
+# Check enhanced OTEL logs
+grep -i "spl_transfer" logs/sessions/enhanced_otel_*.jsonl
+```
 
 **Proposed Solution**: Add enhanced logging macros to `spl_transfer` tool with same pattern as existing `sol_transfer` tool.
 
@@ -217,6 +327,9 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     }
     if span_name.contains("deterministic_jupiter_swap") {
         return Some("deterministic_jupiter_swap".to_string());
+    }
+    if span_name.contains("deterministic_positions_and_earnings") {
+        return Some("deterministic_positions_and_earnings".to_string());
     }
     
     // 🎯 Add discovery tool patterns
@@ -258,6 +371,15 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
 }
 ```
 
+**Verification**:
+```bash
+# Test trace extraction
+curl -X GET http://localhost:3001/api/v1/flow-logs/001-sol-transfer
+
+# Check if tools appear in Mermaid diagrams
+curl -X GET http://localhost:3001/api/v1/flows
+```
+
 **Acceptance Criteria**:
 - [ ] Detection patterns added for all new tools
 - [ ] Detection patterns added for deterministic agents
@@ -279,25 +401,54 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
 **Test Plan**:
 1. **Deterministic Agent Testing**:
    ```bash
-   REEV_TRACE_FILE=traces_deterministic.log RUST_LOG=info cargo run -p reev-agent -- examples/001-sol-transfer.yml --agent deterministic
+   # Start API server in background FIRST
+   nohup bash -c 'REEV_TRACE_FILE=traces_server.log RUST_LOG=info cargo run -p reev-api' > server_output.log 2>&1 &
+   sleep 20
+   
+   # Test deterministic agent via API
+   curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+     -H "Content-Type: application/json" \
+     -d '{"agent": "deterministic"}'
+   
+   # Check enhanced OTEL logs
+   find logs/sessions/ -name "*deterministic*" -exec cat {} \;
    ```
 
 2. **Local Agent Testing**:
    ```bash
-   REEV_TRACE_FILE=traces_local.log RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local
+   REEV_ENHANCED_OTEL=1 REEV_TRACE_FILE=traces_local.log RUST_LOG=info cargo run -p reev-runner -- benchmarks/100-jup-swap-sol-usdc.yml --agent local
+   
+   # Check enhanced OTEL logs
+   grep -i "tool_call\|tool_completion" logs/sessions/enhanced_otel_*.jsonl
    ```
 
 3. **Tool Coverage Testing**:
    ```bash
-   # Test all benchmarks to ensure tool coverage
+   # Test all benchmarks via API to ensure tool coverage
    for benchmark in benchmarks/*.yml; do
-     REEV_TRACE_FILE=trace_$(basename $benchmark .yml).log RUST_LOG=info cargo run -p reev-runner -- $benchmark --agent local
+     benchmark_name=$(basename $benchmark .yml)
+     echo "Testing $benchmark_name..."
+     curl -X POST http://localhost:3001/api/v1/benchmarks/$benchmark_name/run \
+       -H "Content-Type: application/json" \
+       -d '{"agent": "local"}'
+     sleep 2  # Allow execution to complete
    done
+   
+   # Check enhanced OTEL logs coverage
+   find logs/sessions/ -name "enhanced_otel_*.jsonl" -exec wc -l {} \; | sort -nr
    ```
 
 4. **Mermaid Diagram Verification**:
-   - Check that all tools appear in generated diagrams
-   - Verify tool execution order and timing
+   ```bash
+   # Get flow diagrams
+   curl -X GET http://localhost:3001/api/v1/flows
+   
+   # Check flow logs for specific benchmark
+   curl -X GET http://localhost:3001/api/v1/flow-logs/001-sol-transfer
+   
+   # Verify all tools appear in generated diagrams
+   jq '.data.sessions[].tools[].tool_name' logs/sessions/enhanced_otel_*.jsonl | sort | uniq
+   ```
 
 **Acceptance Criteria**:
 - [ ] All deterministic agents generate OTEL logs
