@@ -491,46 +491,40 @@ curl -X GET http://localhost:3001/api/v1/flows
 ## Issue #8: ZAI Agent Hardcoded Model Validation
 
 **Priority**: 🟡 HIGH
-**Status**: 🔴 **OPEN**
+**Status**: ✅ **COMPLETED**
 **Assigned**: reev-agent
 
 **Problem**: ZAI Agent uses hardcoded `GLM_4_6` model without availability validation
 
-**Current Implementation**:
+**Solution Implemented**:
 ```rust
-// CURRENT - Hardcoded without validation
-let model = client.completion_model(zai::GLM_4_6);  // GLM_4_6 is a constant
+// FIXED - Dynamic model with validation
+let model = client.completion_model(model_name);  // Uses parameter from function
+
+// Verify the model is actually available before proceeding
+client.verify_model(model_name).await
+    .map_err(|e| anyhow!("ZAI model '{model_name}' validation failed: {e}. Please check if the model is available and your API credentials are correct."))?;
+
+info!("[ZAIAgent] ZAI model '{model_name}' validated and ready");
 ```
 
-**Expected Issues**:
-- ❌ No model availability verification
-- ❌ No dynamic model parameter support
-- ❌ Missing connectivity validation
-- ❌ Hard-coded model name limits flexibility
-
-**Required Solution**:
-```rust
-// NEEDED - Model availability validation
-let model_name = "glm-4.6";  // Should be parameter, not hardcoded
-let model = client.completion_model(model_name);
-
-// Verify the model is actually available
-client.verify().await
-    .map_err(|e| anyhow!("ZAI model '{}' validation failed: {}", model_name, e))?;
-
-info!("ZAI model '{}' validated and ready", model_name);
-```
-
-**Tasks**:
-- [ ] Replace hardcoded `GLM_4_6` with dynamic model parameter
-- [ ] Add `client.verify()` call for model availability
-- [ ] Implement proper error handling for model validation failures
-- [ ] Update ZAI client initialization to include model verification
-- [ ] Test with invalid model names to ensure proper error handling
+**Completed Tasks**:
+- [x] ✅ Replace hardcoded `GLM_4_6` with dynamic model parameter
+- [x] ✅ Add `client.verify_model()` call for model availability
+- [x] ✅ Implement proper error handling for model validation failures
+- [x] ✅ Update ZAI client to support dynamic model verification
+- [x] ✅ Test with comprehensive test suite in `/tests/zai_agent_model_validation_test.rs`
 
 **Acceptance Criteria**:
-- [ ] Model name is parameterized (not hardcoded)
-- [ ] Model availability is verified before use
-- [ ] Clear error messages for unavailable models
-- [ ] ZAI Agent fails fast with validation errors
-- [ ] No silent failures with unsupported models
+- [x] ✅ Model name is parameterized (uses `model_name` parameter)
+- [x] ✅ Model availability is verified before use
+- [x] ✅ Clear error messages for unavailable models
+- [x] ✅ ZAI Agent fails fast with validation errors
+- [x] ✅ No silent failures with unsupported models
+
+**Additional Improvements**:
+- ✅ Added `verify_model()` method to ZAI client for specific model validation
+- ✅ Enhanced error messages with specific model name and API guidance
+- ✅ Added dynamic base URL configuration support
+- ✅ Created comprehensive test suite with 4 test cases
+- ✅ Removed fallback logic for cleaner provider-specific design

@@ -177,8 +177,15 @@ impl CompletionClient for Client {
 impl VerifyClient for Client {
     async fn verify(&self) -> Result<(), VerifyError> {
         // ZAI doesn't have a dedicated models endpoint, so we'll try a minimal completion
+        self.verify_model("glm-4.6").await
+    }
+}
+
+impl Client {
+    /// Verify a specific model is available and accessible
+    pub async fn verify_model(&self, model_name: &str) -> Result<(), VerifyError> {
         let test_request = serde_json::json!({
-            "model": "glm-4.6",
+            "model": model_name,
             "messages": [{"role": "user", "content": "test"}],
             "max_tokens": 1
         });
@@ -188,7 +195,18 @@ impl VerifyClient for Client {
                 .await
                 .map_err(|e| match e {
                     CompletionError::HttpError(http_err) => VerifyError::HttpError(http_err),
-                    CompletionError::ProviderError(_) => VerifyError::InvalidAuthentication,
+                    CompletionError::ProviderError(provider_err) => {
+                        // Check if it's a model not found error
+                        if provider_err.to_lowercase().contains("model")
+                            && provider_err.to_lowercase().contains("not found")
+                        {
+                            VerifyError::ProviderError(format!(
+                                "Model '{model_name}' is not available"
+                            ))
+                        } else {
+                            VerifyError::InvalidAuthentication
+                        }
+                    }
                     _ => VerifyError::ProviderError(e.to_string()),
                 })?;
         Ok(())

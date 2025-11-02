@@ -76,12 +76,22 @@ impl ZAIAgent {
         let api_key = std::env::var("ZAI_API_KEY")
             .map_err(|_| anyhow::anyhow!("ZAI_API_KEY environment variable is required"))?;
 
-        let client = zai::Client::builder(&api_key).build();
+        let api_url = std::env::var("ZAI_API_URL")
+            .unwrap_or_else(|_| "https://api.z.ai/api/coding/paas/v4".to_string());
 
-        info!("[ZAIAgent] Starting ZAI completion request");
+        let client = zai::Client::builder(&api_key).base_url(&api_url).build();
 
-        // Create completion model using unified data
-        let model = client.completion_model(zai::GLM_4_6);
+        info!("[ZAIAgent] Starting ZAI completion with model: {model_name}");
+
+        // Create completion model using dynamic model parameter
+        let model = client.completion_model(model_name);
+
+        // Verify the model is actually available before proceeding
+        info!("[ZAIAgent] Validating ZAI model availability: {model_name}");
+        client.verify_model(model_name).await
+            .map_err(|e| anyhow::anyhow!("ZAI model '{model_name}' validation failed: {e}. Please check if the model is available and your API credentials are correct."))?;
+
+        info!("[ZAIAgent] ZAI model '{model_name}' validated and ready");
 
         // Helper function to check if a tool is allowed
         let is_tool_allowed = |tool_name: &str| -> bool {
