@@ -60,8 +60,12 @@ impl LlmAgent {
                 } else {
                     "http://localhost:9090/gen/tx".to_string()
                 };
-                // Preserve the original model name instead of hardcoding
-                let model_name = agent_name.to_string();
+                // Extract base model name for GLM models (strip mode suffixes like "-coding")
+                let model_name = if agent_name.starts_with("glm-") {
+                    agent_name.split('-').take(2).collect::<Vec<_>>().join("-")
+                } else {
+                    agent_name.to_string()
+                };
                 // GLM parsing should only be used for models starting with 'glm'
                 let is_glm = agent_name.starts_with("glm");
                 (final_url, None, model_name, agent_name.to_string(), is_glm)
@@ -89,11 +93,17 @@ impl LlmAgent {
 
                 // Pass through agent names directly - 'local' should remain 'local' for actual local models
                 // Add support for "glm" alias to "glm-4.6"
+                // Extract base model name for GLM models (strip mode suffixes like "-coding")
                 let model_name = match agent_name {
-                    "glm" => "glm-4.6",
-                    _ => agent_name,
-                }
-                .to_string();
+                    "glm" => "glm-4.6".to_string(),
+                    _ => {
+                        if agent_name.starts_with("glm-") {
+                            agent_name.split('-').take(2).collect::<Vec<_>>().join("-")
+                        } else {
+                            agent_name.to_string()
+                        }
+                    }
+                };
 
                 // Load API key from environment variables if it exists.
                 let api_key = match std::env::var("LLM_API_KEY") {
