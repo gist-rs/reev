@@ -1,8 +1,11 @@
 use anyhow::{Context, Result};
 use reev_lib::mock::MockGenerator;
 use serde_json::json;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 use tracing::info;
+
+// Import enhanced OTEL logging macros
+use reev_flow::{log_tool_call, log_tool_completion};
 
 /// Handles the deterministic logic for the `114-JUP-POSITIONS-AND-EARNINGS` benchmark.
 ///
@@ -12,11 +15,20 @@ use tracing::info;
 pub(crate) async fn handle_jup_positions_and_earnings(
     key_map: &HashMap<String, String>,
 ) -> Result<serde_json::Value> {
+    let start_time = Instant::now();
     info!("[reev-agent] Matched '114-jup-positions-and-earnings' id. Creating deterministic multi-step flow response.");
 
     let user_pubkey = key_map
         .get("USER_WALLET_PUBKEY")
         .context("USER_WALLET_PUBKEY not found in key_map")?;
+
+    // 🎯 Add enhanced logging for deterministic agents
+    let args = serde_json::json!({
+        "user_pubkey": user_pubkey,
+        "benchmark_type": "multi_step_flow",
+        "steps": ["positions", "earnings"]
+    });
+    log_tool_call!("deterministic_jup_positions_earnings", &args);
 
     // Create mock data generator
     let mut mock_gen = MockGenerator::with_seed(42); // Use fixed seed for deterministic results
@@ -76,6 +88,21 @@ pub(crate) async fn handle_jup_positions_and_earnings(
         "next_step": "flow_completed",
         "message": "Successfully retrieved Jupiter positions and earnings. User has 1 active jlUSDC position with earnings."
     });
+
+    let execution_time = start_time.elapsed().as_millis() as u64;
+
+    // 🎯 Add enhanced logging at SUCCESS
+    log_tool_completion!(
+        "deterministic_jup_positions_earnings",
+        execution_time,
+        &response,
+        true
+    );
+
+    info!(
+        "[deterministic_jup_positions_earnings] Flow execution completed in {}ms",
+        execution_time
+    );
 
     Ok(response)
 }

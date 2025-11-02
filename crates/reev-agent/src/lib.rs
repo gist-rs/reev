@@ -608,6 +608,34 @@ async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse
         payload.id
     );
 
+    // Initialize enhanced OTEL logger for deterministic agents
+    // This ensures enhanced logging works even when called via HTTP API
+    match reev_flow::get_enhanced_otel_logger() {
+        Ok(logger) => {
+            // Logger already initialized, check if it has the correct session_id
+            if logger.session_id() != payload.session_id {
+                tracing::warn!(
+                    "[run_deterministic_agent] Logger has different session_id: {} vs expected: {}",
+                    logger.session_id(),
+                    payload.session_id
+                );
+            }
+        }
+        Err(_) => {
+            // Logger not initialized, initialize with session_id
+            if let Ok(log_file) =
+                reev_flow::init_enhanced_otel_logging_with_session(payload.session_id.clone())
+            {
+                tracing::info!(
+                    "[run_deterministic_agent] Enhanced OpenTelemetry logging initialized for deterministic agent: {}",
+                    log_file
+                );
+            } else {
+                tracing::warn!("[run_deterministic_agent] Failed to initialize Enhanced OpenTelemetry logging for deterministic agent");
+            }
+        }
+    }
+
     let _yaml_str = payload
         .context_prompt
         .trim_start_matches("---\n\nCURRENT ON-CHAIN CONTEXT:\n")

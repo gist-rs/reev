@@ -17,8 +17,8 @@ struct AgentContext {
 pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> {
     info!("[run_agent] Dispatching to enhanced agent with model: {model_name}");
 
-    // Initialize enhanced otel logger with session ID from payload
-    // Check if global logger is already set, if not, initialize with session_id
+    // Initialize enhanced otel logger with session ID from payload - MUST HAPPEN FIRST
+    // This ensures deterministic agents also get enhanced OTEL logging
     match reev_flow::get_enhanced_otel_logger() {
         Ok(logger) => {
             // Logger already initialized, check if it has the correct session_id
