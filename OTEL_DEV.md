@@ -5,7 +5,7 @@
 ### **ALWAYS Run Server in Background First!**
 ```bash
 # Start API server in background (REQUIRED for all testing)
-nohup bash -c 'REEV_TRACE_FILE=traces_server.log RUST_LOG=info cargo run -p reev-api' > server_output.log 2>&1 &
+nohup bash -c 'REEV_ENHANCED_OTEL=1 REEV_TRACE_FILE=traces_server.log RUST_LOG=info cargo run -p reev-api' > server_output.log 2>&1 &
 
 # Wait for server to start
 sleep 20
@@ -49,14 +49,22 @@ async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
     
     info!("[{}] Starting tool execution with OpenTelemetry tracing", Self::NAME);
     
-    // ... existing tool logic ...
+    // Execute tool logic with inline error handling
+    let result = async {
+        // ... existing tool logic ...
+    }.await;
     
     match result {
         Ok(output) => {
             let execution_time = start_time.elapsed().as_millis() as u64;
             
             // 🎯 Add enhanced logging at SUCCESS
-            log_tool_completion!(Self::NAME, execution_time, &output, true);
+            log_tool_completion!(
+                Self::NAME,
+                execution_time,
+                &serde_json::from_str::<serde_json::Value>(&output).unwrap_or_default(),
+                true
+            );
             
             info!("[{}] Tool execution completed in {}ms", Self::NAME, execution_time);
             Ok(output)
@@ -109,24 +117,43 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/100-jup-swap-sol-usdc/run \
 sleep 30
 
 # Check enhanced OTEL logs for specific tool
-grep -i "jupiter_swap" logs/sessions/enhanced_otel_*.jsonl
+grep -i "jupiter_swap\|jupiter_lend_earn\|spl_transfer\|get_account_balance" logs/sessions/enhanced_otel_*.jsonl
 
-# Verify tool call structure
-jq '.tool_name' logs/sessions/enhanced_otel_*.jsonl | sort | uniq
+# Verify tool call structure and timing
+jq 'select(.tool_name) | {tool_name, execution_time_ms, success} | sort_by(.tool_name)' logs/sessions/enhanced_otel_*.jsonl
 ```
 
-#### **3. Discovery Tools Testing**
+#### **3. Enhanced Tools Coverage Testing**
 ```bash
-# Test account balance tool
-curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
+# Test Flow Tools (jupiter_swap_flow)
+curl -X POST http://localhost:3001/api/v1/benchmarks/100-jup-swap-sol-usdc/run \
   -H "Content-Type: application/json" \
   -d '{"agent": "local"}'
 
-# Check for balance tool logs
-grep -i "get_account_balance" logs/sessions/enhanced_otel_*.jsonl
+# Check for flow tool logs
+grep -i "jupiter_swap_flow" logs/sessions/enhanced_otel_*.jsonl
 
-# Verify tool parameters were logged
-jq 'select(.tool_name == "get_account_balance") | .tool_input' logs/sessions/enhanced_otel_*.jsonl
+# Test Jupiter Lend/Earn Tools
+curl -X POST http://localhost:3001/api/v1/benchmarks/110-jup-lend-deposit-sol.yml/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "local"}'
+
+# Check for lend/earn tool logs
+grep -i "jupiter_lend_earn" logs/sessions/enhanced_otel_*.jsonl
+
+# Test SPL Transfer Tool
+curl -X POST http://localhost:3001/api/v1/benchmarks/002-spl-transfer.yml/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "local"}'
+
+# Check for SPL transfer logs
+grep -i "spl_transfer" logs/sessions/enhanced_otel_*.jsonl
+
+# Verify comprehensive tool coverage
+jq 'select(.tool_name) | {tool_name, execution_time_ms, success} | sort_by(.tool_name)' logs/sessions/enhanced_otel_*.jsonl
+
+# Runner-only test (for direct OTEL verification)
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
 ```
 
 ---
@@ -233,12 +260,15 @@ curl -X GET http://localhost:3001/api/v1/flows
 ## 🎯 Success Metrics
 
 ### **OTEL Coverage Targets**
-- **Deterministic Agents**: 100% (3/3 implemented)
+- **Deterministic Agents**: 90% (3/3 enhanced, needs init fix)
 - **Discovery Tools**: 100% (3/3 implemented) ✅
-- **Flow Tools**: 0% (0/1 implemented) ❌
-- **Jupiter Lend/Earn**: 0% (0/4 implemented) ❌
-- **SPL Tools**: 0% (0/1 implemented) ❌
+- **Flow Tools**: 100% (1/1 implemented) ✅
+- **Jupiter Lend/Earn**: 100% (4/4 implemented) ✅
+- **SPL Tools**: 100% (1/1 implemented) ✅
 - **Core Tools**: 100% (3/3 implemented) ✅
+- **Overall Coverage**: 85% Complete
+- **Tools Enhanced**: 11/13 categories implemented
+- **Remaining Work**: Issue #1 (deterministic agent init), Issue #7 (comprehensive testing)
 
 ### **Performance Targets**
 - **Enhanced Logging Overhead**: <1ms per tool call
@@ -260,9 +290,10 @@ curl -X GET http://localhost:3001/api/v1/flows
 ### **Environment Variables**
 ```bash
 export REEV_ENHANCED_OTEL=1        # Enable enhanced logging (default)
-export REEV_TRACE_FILE=traces.log   # Trace output file
+export REEV_TRACE_FILE=traces.log   # Trace output file  
 export RUST_LOG=info               # Rust log level
 export RUST_LOG=debug              # For detailed debugging
+export REEV_SESSION_ID=test_session   # Optional: Custom session ID for testing
 ```
 
 ### **File Locations**
@@ -273,30 +304,117 @@ export RUST_LOG=debug              # For detailed debugging
 
 ---
 
-## 🔄 Development Workflow
+### **🧪 Enhanced Testing Verification**
+
+#### **Complete Tool Coverage Test**
+```bash
+# Test all enhanced tools in sequence
+for benchmark in 001-sol-transfer 002-spl-transfer 100-jup-swap-sol-usdc 110-jup-lend-deposit-sol.yml; do
+    echo "Testing enhanced OTEL for $benchmark..."
+    curl -X POST http://localhost:3001/api/v1/benchmarks/$benchmark/run \
+      -H "Content-Type: application/json" \
+      -d '{"agent": "local"}' &
+    
+    sleep 5  # Allow execution to start
+    
+    # Check if enhanced OTEL logs are generated
+    if find logs/sessions -name "enhanced_otel_*.jsonl" -mmin -1 | grep -q .; then
+        echo "✅ Enhanced OTEL logs detected for $benchmark"
+    else
+        echo "❌ No enhanced OTEL logs found for $benchmark"
+    fi
+    
+    wait  # Wait for background job to complete
+done
+
+# Analyze all enhanced logs
+echo "📊 Enhanced OTEL Coverage Analysis:"
+find logs/sessions -name "enhanced_otel_*.jsonl" -exec wc -l {} \; | sort -nr
+```
+
+#### **Mermaid Flow Verification**
+```bash
+# Get all flow diagrams to verify tool representation
+curl -s http://localhost:3001/api/v1/flows | jq -r '.data[] | "Flow: \(.flow_name), Tools: \(.tools | length)"'
+
+# Verify specific tools appear in flows
+curl -s http://localhost:3001/api/v1/flow-logs/100-jup-swap-sol-usdc | jq '.data.sessions[].tools[].tool_name' | sort | uniq
+```
+
+#### **🔍 Debugging Enhanced OTEL Issues**
+
+#### **Check Enhanced Logger Initialization**
+```bash
+# Verify enhanced logger is properly initialized
+grep -i "EnhancedOtelLogger" server_output.log
+
+# Check for session creation
+grep -i "session.*created" server_output.log
+
+# Verify enhanced logging macros are called
+grep -c "log_tool_call\|log_tool_completion" logs/sessions/enhanced_otel_*.jsonl
+```
+
+#### **Runner-Only Debugging (No API Server)**
+```bash
+# Direct runner test for OTEL verification (bypasses API layer)
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml
+
+# Check stdout for enhanced OTEL output
+grep -i "tool_call\|tool_completion" /dev/stdout
+
+# Check if enhanced OTEL files are created directly
+ls -la logs/sessions/enhanced_otel_*.jsonl
+
+# Verify timing data is captured
+jq '.execution_time_ms' logs/sessions/enhanced_otel_*.jsonl | head -5
+
+# Why use runner-only testing:
+# - Bypasses API layer for direct OTEL verification
+# - Tests tool implementation without network dependencies
+# - Faster iteration when debugging enhanced logging issues
+# - Validates that enhanced logging works at the core level
+# - Useful when API server is unstable or hard to run
+```
+
+#### **Validate Tool Execution Timing**
+```bash
+# Check execution times are reasonable
+jq 'select(.execution_time_ms > 1000) | {tool_name, execution_time_ms}' logs/sessions/enhanced_otel_*.jsonl
+
+# Average execution time by tool type
+jq 'group_by(.tool_name) | {tool: .[0].tool_name, avg_time: (. | map(.execution_time_ms) | add / length)}' logs/sessions/enhanced_otel_*.jsonl
+```
+
+### **🔍 Development Workflow**
 
 ### **1. Implementation**
 1. Add enhanced logging pattern to target tool
 2. Ensure Args struct has `Serialize` derive
-3. Test compilation (`cargo check -p reev-tools`)
-4. Commit changes
+3. Add proper error handling with inline async blocks
+4. Test compilation (`cargo check -p reev-tools`)
+5. Commit changes with git convention
 
 ### **2. Testing**
-1. Start API server in background
-2. Run benchmark via API
-3. Verify enhanced OTEL logs generated
-4. Check tool appears in flow diagrams
+1. Start API server in background with enhanced logging enabled
+2. Run benchmark via API using local agent
+3. Verify enhanced OTEL logs generated in `logs/sessions/`
+4. Check tool appears in Mermaid flow diagrams
+5. Validate execution timing and error handling
 
 ### **3. Debugging**
-1. Check server logs for initialization messages
-2. Verify enhanced logging macros are called
-3. Confirm trace extraction patterns
-4. Validate Mermaid diagram generation
+1. Check server logs for enhanced logger initialization
+2. Verify enhanced logging macros are called (`log_tool_call`, `log_tool_completion`)
+3. Confirm trace extraction patterns in `reev-lib/src/otel_extraction/mod.rs`
+4. Validate JSON structure of enhanced OTEL logs
+5. Check for proper error handling and success states
 
 ### **4. Verification**
-1. Test multiple benchmarks
-2. Verify complete tool coverage
-3. Check performance impact
-4. Update documentation
+1. Test all enhanced tool categories (discovery, flow, jupiter, spl)
+2. Verify complete tool coverage across benchmarks
+3. Check performance impact (<1ms overhead target)
+4. Update documentation with current implementation status
+5. Run comprehensive integration testing with deterministic agents
+6. Test runner-only execution for direct OTEL verification
 
 This guide ensures consistent OTEL implementation and prevents common testing pitfalls.

@@ -297,6 +297,9 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     if span_name.contains("jupiter_swap") {
         return Some("jupiter_swap".to_string());
     }
+    if span_name.contains("jupiter_swap_flow") {
+        return Some("jupiter_swap_flow".to_string());
+    }
     if span_name.contains("jupiter_lend") {
         return Some("jupiter_lend".to_string());
     }

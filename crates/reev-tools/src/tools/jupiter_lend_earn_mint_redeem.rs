@@ -3,6 +3,7 @@
 //! This tool provides AI agent access to Jupiter's earn/mint and earn/redeem functionality
 //! for lending positions.
 
+use reev_flow::{log_tool_call, log_tool_completion};
 use reev_lib::constants::usdc_mint;
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -12,7 +13,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 /// Custom deserializer to clean up shares parameter that may contain comments
 fn deserialize_shares<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -54,7 +55,7 @@ pub struct JupiterLendEarnMintArgs {
 }
 
 /// The arguments for the Jupiter lend earn redeem tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct JupiterLendEarnRedeemArgs {
     pub asset: String,
     pub signer: String,
@@ -173,7 +174,7 @@ impl Tool for JupiterLendEarnMintTool {
 
         // Call the centralized lend_mint protocol handler
         let protocol_start_time = Instant::now();
-        let raw_instructions = jupiter::execute_jupiter_lend_mint(&asset, shares, &key_map)
+        let _raw_instructions = jupiter::execute_jupiter_lend_mint(&asset, shares, &key_map)
             .await
             .map_err(JupiterLendEarnMintRedeemError::ProtocolError)?;
         let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
@@ -181,11 +182,11 @@ impl Tool for JupiterLendEarnMintTool {
 
         info!(
             "[JupiterLendEarnMintTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
-            protocol_execution_time, total_execution_time, raw_instructions.len()
+            protocol_execution_time, total_execution_time, _raw_instructions.len()
         );
 
         // Convert RawInstruction to JSON string
-        let instructions_json = serde_json::to_string(&raw_instructions)?;
+        let instructions_json = serde_json::to_string(&_raw_instructions)?;
 
         // Create the final response with context - this is the COMPLETE response
         let response = json!({
@@ -259,6 +260,10 @@ impl Tool for JupiterLendEarnRedeemTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         info!("[JupiterLendEarnRedeemTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
+
+        // 🎯 Add enhanced logging at START
+        log_tool_call!(Self::NAME, &args);
+
         info!("[JupiterLendEarnRedeem] === FLOW CONTEXT MODE ===");
         info!("[JupiterLendEarnRedeem] Ignoring LLM args, querying actual balance");
         info!(
@@ -279,9 +284,24 @@ impl Tool for JupiterLendEarnRedeemTool {
         // Query the actual jUSDC token balance
         use reev_lib::constants::addresses::tokens::jusdc_mint;
         let jupiter_usdc_mint = jusdc_mint();
-        let shares = self
-            .query_jusdc_balance(&signer, &jupiter_usdc_mint)
-            .await?;
+        let shares = match self.query_jusdc_balance(&signer, &jupiter_usdc_mint).await {
+            Ok(shares) => shares,
+            Err(e) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                let error_data = json!({"error": e.to_string()});
+
+                // 🎯 Add enhanced logging at ERROR
+                log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                error!(
+                    "[JupiterLendEarnRedeemTool] Balance query failed in {}ms: {}",
+                    execution_time, e
+                );
+                return Err(JupiterLendEarnMintRedeemError::ProtocolError(
+                    anyhow::anyhow!("Balance query failed: {e}"),
+                ));
+            }
+        };
 
         info!(
             "[JupiterLendEarnRedeem] Using actual balance - Asset: {}, Shares: {} (queried from on-chain)",
@@ -299,8 +319,26 @@ impl Tool for JupiterLendEarnRedeemTool {
         }
 
         // Call the centralized lend_redeem protocol handler
+        let _raw_instructions =
+            match jupiter::execute_jupiter_lend_redeem(&asset, shares, &key_map).await {
+                Ok(instructions) => instructions,
+                Err(e) => {
+                    let execution_time = start_time.elapsed().as_millis() as u64;
+                    let error_data = json!({"error": e.to_string()});
+
+                    // 🎯 Add enhanced logging at ERROR
+                    log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                    error!(
+                        "[JupiterLendEarnRedeemTool] Protocol call failed in {}ms: {}",
+                        execution_time, e
+                    );
+                    return Err(JupiterLendEarnMintRedeemError::ProtocolError(e));
+                }
+            };
+
         let protocol_start_time = Instant::now();
-        let raw_instructions = jupiter::execute_jupiter_lend_redeem(&asset, shares, &key_map)
+        let _raw_instructions = jupiter::execute_jupiter_lend_redeem(&asset, shares, &key_map)
             .await
             .map_err(JupiterLendEarnMintRedeemError::ProtocolError)?;
         let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
@@ -308,11 +346,11 @@ impl Tool for JupiterLendEarnRedeemTool {
 
         info!(
             "[JupiterLendEarnRedeemTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
-            protocol_execution_time, total_execution_time, raw_instructions.len()
+            protocol_execution_time, total_execution_time, _raw_instructions.len()
         );
 
         // Convert RawInstruction to JSON string
-        let instructions_json = serde_json::to_string(&raw_instructions)?;
+        let instructions_json = serde_json::to_string(&_raw_instructions)?;
         let output = instructions_json;
 
         // Create the final response with context - this is the COMPLETE response
@@ -325,11 +363,21 @@ impl Tool for JupiterLendEarnRedeemTool {
             "note": "These instructions redeem jTokens and withdraw the underlying assets from lending positions. Execute them to close the position.",
             "status": "ready",
             "action": "redeem_complete",
-            "message": format!("Successfully generated redemption instructions for {} shares (flow mode - half of Step 1 amount for safe redemption). After execution, the jTokens will be redeemed and underlying assets withdrawn to your wallet.", shares),
+            "message": format!("Successfully generated redemption instructions for {shares} shares (flow mode - half of Step 1 amount for safe redemption). After execution, the jTokens will be redeemed and underlying assets withdrawn to your wallet."),
             "completion": "OPERATION_COMPLETE_STOP_HERE",
             "final_response": true,
             "no_more_tools_needed": true
         });
+
+        let execution_time = start_time.elapsed().as_millis() as u64;
+
+        // 🎯 Add enhanced logging at SUCCESS
+        log_tool_completion!(Self::NAME, execution_time, &response, true);
+
+        info!(
+            "[JupiterLendEarnRedeemTool] Tool execution completed - total_time: {}ms",
+            execution_time
+        );
 
         Ok(response.to_string())
     }

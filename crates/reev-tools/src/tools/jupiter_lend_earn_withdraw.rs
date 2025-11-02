@@ -3,6 +3,7 @@
 //! This tool provides AI agent access to Jupiter's earn/withdraw functionality.
 //! It acts as a thin wrapper around the protocol handler.
 
+use reev_flow::{log_tool_call, log_tool_completion};
 use reev_protocols::jupiter::lend_withdraw::handle_jupiter_lend_withdraw;
 
 use reev_lib::constants::usdc_mint;
@@ -13,10 +14,10 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr, time::Instant};
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 /// The arguments for the Jupiter lend earn withdraw tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct JupiterLendEarnWithdrawArgs {
     pub user_pubkey: String,
     pub asset_mint: String,
@@ -92,8 +93,18 @@ impl Tool for JupiterLendEarnWithdrawTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[JupiterLendEarnWithdrawTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
+
+        // 🎯 Add enhanced logging at START
+        log_tool_call!(Self::NAME, &args);
+
+        info!("[JupiterLendEarnWithdrawTool] Starting tool execution with OpenTelemetry tracing");
+
+        // Execute withdraw logic with inline error handling
+        let swap_result = async {
+            info!("[JupiterLendEarnWithdrawTool] Executing withdraw logic");
+            let protocol_start_time = Instant::now();
+
         // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")
             || args.user_pubkey.starts_with("RECIPIENT_")
@@ -147,22 +158,54 @@ impl Tool for JupiterLendEarnWithdrawTool {
             ));
         }
 
-        // Call the protocol handler
-        let protocol_start_time = Instant::now();
         let raw_instructions = handle_jupiter_lend_withdraw(user_pubkey, asset_mint, args.amount)
             .await
             .map_err(JupiterLendEarnWithdrawError::ProtocolCall)?;
         let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
-        let total_execution_time = start_time.elapsed().as_millis() as u32;
 
         info!(
-            "[JupiterLendEarnWithdrawTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
-            protocol_execution_time, total_execution_time, raw_instructions.len()
+            "[JupiterLendEarnWithdrawTool] Protocol execution completed - protocol_time: {}ms, instructions: {}",
+            protocol_execution_time, raw_instructions.len()
         );
 
-        // Serialize the Vec<RawInstruction> to a JSON string.
-        let output = serde_json::to_string(&raw_instructions)?;
+            // Serialize the Vec<RawInstruction> to a JSON string.
+            let output = serde_json::to_string(&raw_instructions)?;
 
-        Ok(output)
+            Ok(output)
+        }
+        .await;
+
+        match swap_result {
+            Ok(output) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+
+                // 🎯 Add enhanced logging at SUCCESS
+                log_tool_completion!(
+                    Self::NAME,
+                    execution_time,
+                    &serde_json::from_str::<serde_json::Value>(&output).unwrap_or_default(),
+                    true
+                );
+
+                info!(
+                    "[JupiterLendEarnWithdrawTool] Tool execution completed in {}ms",
+                    execution_time
+                );
+                Ok(output)
+            }
+            Err(e) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                let error_data = json!({"error": e.to_string()});
+
+                // 🎯 Add enhanced logging at ERROR
+                log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                error!(
+                    "[JupiterLendEarnWithdrawTool] Tool execution failed in {}ms: {}",
+                    execution_time, e
+                );
+                Err(e)
+            }
+        }
     }
 }

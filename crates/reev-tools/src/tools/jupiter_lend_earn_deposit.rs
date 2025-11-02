@@ -3,6 +3,7 @@
 //! This tool provides AI agent access to Jupiter's earn/deposit functionality.
 //! It acts as a thin wrapper around the protocol handler.
 
+use reev_flow::{log_tool_call, log_tool_completion};
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use reev_lib::constants::usdc_mint;
 use reev_protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
@@ -13,10 +14,10 @@ use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr, time::Instant};
 use thiserror::Error;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 /// The arguments for the Jupiter lend earn deposit tool, which will be provided by the AI model.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct JupiterLendEarnDepositArgs {
     pub user_pubkey: String,
     pub asset_mint: String,
@@ -100,13 +101,22 @@ impl Tool for JupiterLendEarnDepositTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[JupiterLendEarnDepositTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
+
+        // 🎯 Add enhanced logging at START
+        log_tool_call!(Self::NAME, &args);
+
+        info!("[JupiterLendEarnDepositTool] Starting tool execution with OpenTelemetry tracing");
         debug!(
             "JupiterLendEarnDepositTool called with user_pubkey={}, asset_mint={}, amount={}",
             args.user_pubkey, args.asset_mint, args.amount
         );
         debug!("Tool key_map contains: {:?}", self.key_map);
+
+        // Execute deposit logic with inline error handling
+        let swap_result = async {
+            info!("[JupiterLendEarnDepositTool] Executing deposit logic");
+            let protocol_start_time = Instant::now();
 
         // Check for placeholder addresses and resolve them from key_map if possible
         let user_pubkey = if args.user_pubkey.starts_with("USER_")
@@ -216,22 +226,54 @@ impl Tool for JupiterLendEarnDepositTool {
             }
         }
 
-        // Call the protocol handler
-        let protocol_start_time = Instant::now();
         let raw_instructions = handle_jupiter_lend_deposit(user_pubkey, asset_mint, args.amount)
             .await
             .map_err(JupiterLendEarnDepositError::ProtocolCall)?;
         let protocol_execution_time = protocol_start_time.elapsed().as_millis() as u32;
-        let total_execution_time = start_time.elapsed().as_millis() as u32;
 
         info!(
-            "[JupiterLendEarnDepositTool] Protocol execution completed - protocol_time: {}ms, total_time: {}ms, instructions: {}",
-            protocol_execution_time, total_execution_time, raw_instructions.len()
+            "[JupiterLendEarnDepositTool] Protocol execution completed - protocol_time: {}ms, instructions: {}",
+            protocol_execution_time, raw_instructions.len()
         );
 
-        // Serialize the Vec<RawInstruction> to a JSON string.
-        let output = serde_json::to_string(&raw_instructions)?;
+            // Serialize the Vec<RawInstruction> to a JSON string.
+            let output = serde_json::to_string(&raw_instructions)?;
 
-        Ok(output)
+            Ok(output)
+        }
+        .await;
+
+        match swap_result {
+            Ok(output) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+
+                // 🎯 Add enhanced logging at SUCCESS
+                log_tool_completion!(
+                    Self::NAME,
+                    execution_time,
+                    &serde_json::from_str::<serde_json::Value>(&output).unwrap_or_default(),
+                    true
+                );
+
+                info!(
+                    "[JupiterLendEarnDepositTool] Tool execution completed in {}ms",
+                    execution_time
+                );
+                Ok(output)
+            }
+            Err(e) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                let error_data = json!({"error": e.to_string()});
+
+                // 🎯 Add enhanced logging at ERROR
+                log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                error!(
+                    "[JupiterLendEarnDepositTool] Tool execution failed in {}ms: {}",
+                    execution_time, e
+                );
+                Err(e)
+            }
+        }
     }
 }

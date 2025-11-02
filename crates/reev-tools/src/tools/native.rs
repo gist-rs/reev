@@ -317,10 +317,13 @@ impl Tool for SplTransferTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        info!("[SplTransferTool] Starting SPL transfer execution");
+        info!("[SplTransferTool] Starting SPL transfer execution with OpenTelemetry tracing");
 
         // Start timing for flow tracking
         let start_time = std::time::Instant::now();
+
+        // 🎯 Add enhanced logging at START
+        log_tool_call!(Self::NAME, &args);
 
         // Log the full key_map for debugging
         info!(
@@ -428,6 +431,24 @@ impl Tool for SplTransferTool {
         );
 
         // Serialize the Vec<RawInstruction> to a JSON string.
-        serde_json::to_string(&raw_instructions).map_err(SplTransferError::Serialization)
+        let output =
+            serde_json::to_string(&raw_instructions).map_err(SplTransferError::Serialization)?;
+
+        let execution_time = start_time.elapsed().as_millis() as u64;
+
+        // 🎯 Add enhanced logging at SUCCESS
+        log_tool_completion!(
+            Self::NAME,
+            execution_time,
+            &serde_json::from_str::<serde_json::Value>(&output).unwrap_or_default(),
+            true
+        );
+
+        info!(
+            "[SplTransferTool] Tool execution completed in {}ms",
+            execution_time
+        );
+
+        Ok(output)
     }
 }

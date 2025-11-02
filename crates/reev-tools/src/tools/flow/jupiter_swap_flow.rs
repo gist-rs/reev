@@ -11,6 +11,7 @@
 //! - Integration with Jupiter SDK for optimal routing
 
 use anyhow::Result;
+use reev_flow::{log_tool_call, log_tool_completion};
 use reev_protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
@@ -18,10 +19,10 @@ use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::time::Instant;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 /// Arguments for the Jupiter swap flow tool
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct JupiterSwapFlowArgs {
     /// The input token mint (e.g., SOL or USDC)
     pub input_mint: String,
@@ -97,78 +98,113 @@ impl Tool for JupiterSwapFlowTool {
         )
     )]
     async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
-        info!("[JupiterSwapFlowTool] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
 
-        // Validate arguments with flow context
-        self.validate_flow_args(&args)?;
+        // 🎯 Add enhanced logging at START
+        log_tool_call!(Self::NAME, &args);
 
-        // Get optimal swap parameters considering flow context
-        let optimized_args = self.optimize_for_flow(args)?;
+        info!("[JupiterSwapFlowTool] Starting tool execution with OpenTelemetry tracing");
 
-        // Execute actual Jupiter swap
-        let user_pubkey = Pubkey::from_str(&optimized_args.user_pubkey)
-            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("user_pubkey: {e}")))?;
+        // Execute swap logic with proper async error handling
+        let swap_result: std::result::Result<String, JupiterSwapFlowError> = async {
+            // Validate arguments with flow context
+            self.validate_flow_args(&args)?;
 
-        let input_mint = Pubkey::from_str(&optimized_args.input_mint)
-            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("input_mint: {e}")))?;
+            // Get optimal swap parameters considering flow context
+            let optimized_args = self.optimize_for_flow(args)?;
 
-        let output_mint = Pubkey::from_str(&optimized_args.output_mint)
-            .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("output_mint: {e}")))?;
+            // Execute actual Jupiter swap
+            let user_pubkey = Pubkey::from_str(&optimized_args.user_pubkey)
+                .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("user_pubkey: {e}")))?;
 
-        // Use default slippage from configuration if not provided
-        let config = get_jupiter_config();
-        let slippage_bps = match optimized_args.slippage_bps {
-            Some(slippage) => config
-                .validate_slippage(slippage)
-                .map_err(|e| JupiterSwapFlowError::InvalidSlippage(e.to_string()))?,
-            None => config.default_slippage(),
-        };
+            let input_mint = Pubkey::from_str(&optimized_args.input_mint)
+                .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("input_mint: {e}")))?;
 
-        // Call the actual Jupiter protocol handler
-        let raw_instructions = handle_jupiter_swap(
-            user_pubkey,
-            input_mint,
-            output_mint,
-            optimized_args.amount,
-            slippage_bps,
-        )
-        .await
-        .map_err(JupiterSwapFlowError::ProtocolCall)?;
+            let output_mint = Pubkey::from_str(&optimized_args.output_mint)
+                .map_err(|e| JupiterSwapFlowError::InvalidPubkey(format!("output_mint: {e}")))?;
 
-        let instruction_count = raw_instructions.len();
-        let transaction_data: Vec<serde_json::Value> = raw_instructions
-            .into_iter()
-            .map(|inst| serde_json::to_value(inst).unwrap_or_default())
-            .collect();
+            // Use default slippage from configuration if not provided
+            let config = get_jupiter_config();
+            let slippage_bps = match optimized_args.slippage_bps {
+                Some(slippage) => config
+                    .validate_slippage(slippage)
+                    .map_err(|e| JupiterSwapFlowError::InvalidSlippage(e.to_string()))?,
+                None => config.default_slippage(),
+            };
 
-        // Create enhanced response with swap_details structure expected by context processor
-        let swap_details = json!({
-            "input_mint": optimized_args.input_mint,
-            "output_mint": optimized_args.output_mint,
-            "input_amount": optimized_args.amount,
-            "output_amount": (optimized_args.amount * 95 / 100).to_string(), // Simulate 5% slippage
-            "slippage_bps": slippage_bps,
-            "user_pubkey": optimized_args.user_pubkey,
-            "recipient": optimized_args.recipient,
-        });
+            // Call the actual Jupiter protocol handler
+            let raw_instructions = handle_jupiter_swap(
+                user_pubkey,
+                input_mint,
+                output_mint,
+                optimized_args.amount,
+                slippage_bps,
+            )
+            .await
+            .map_err(JupiterSwapFlowError::ProtocolCall)?;
 
-        let result = json!({
-            "swap_details": swap_details,
-            "transactions": transaction_data,
-            "transaction_count": instruction_count,
-            "flow_enhanced": true
-        });
+            let instruction_count = raw_instructions.len();
+            let transaction_data: Vec<serde_json::Value> = raw_instructions
+                .into_iter()
+                .map(|inst| serde_json::to_value(inst).unwrap_or_default())
+                .collect();
 
-        let flow_result = result.to_string();
+            // Create enhanced response with swap_details structure expected by context processor
+            let swap_details = json!({
+                "input_mint": optimized_args.input_mint,
+                "output_mint": optimized_args.output_mint,
+                "input_amount": optimized_args.amount,
+                "output_amount": (optimized_args.amount * 95 / 100).to_string(), // Simulate 5% slippage
+                "slippage_bps": slippage_bps,
+                "user_pubkey": optimized_args.user_pubkey,
+                "recipient": optimized_args.recipient,
+            });
 
-        let total_execution_time = start_time.elapsed().as_millis() as u32;
-        info!(
-            "[JupiterSwapFlowTool] Tool execution completed - total_time: {}ms, flow_enhanced: true",
-            total_execution_time
-        );
+            let result = json!({
+                "swap_details": swap_details,
+                "transactions": transaction_data,
+                "transaction_count": instruction_count,
+                "flow_enhanced": true
+            });
 
-        Ok(flow_result)
+            Ok(result.to_string())
+        }
+        .await;
+
+        match swap_result {
+            Ok(output) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+
+                // 🎯 Add enhanced logging at SUCCESS
+                log_tool_completion!(
+                    Self::NAME,
+                    execution_time,
+                    &serde_json::from_str::<serde_json::Value>(&output).unwrap_or_default(),
+                    true
+                );
+
+                info!(
+                    "[JupiterSwapFlowTool] Tool execution completed - total_time: {}ms, flow_enhanced: true",
+                    execution_time
+                );
+
+                Ok(output)
+            }
+            Err(e) => {
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                let error_data = json!({"error": e.to_string()});
+
+                // 🎯 Add enhanced logging at ERROR
+                log_tool_completion!(Self::NAME, execution_time, &error_data, false);
+
+                error!(
+                    "[JupiterSwapFlowTool] Tool execution failed in {}ms: {}",
+                    execution_time, e
+                );
+
+                Err(e)
+            }
+        }
     }
 }
 
