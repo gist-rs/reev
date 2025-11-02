@@ -231,8 +231,8 @@ where
 
         // Wait for session file to be created (with timeout)
         // Runner can take up to 30 seconds, wait appropriately
-        let max_attempts = 300; // 300 attempts × 100ms = 30 seconds total wait
-        let delay_ms = 100;
+        let max_attempts = 30; // 30 attempts × 1 second = 30 seconds total wait
+        let delay_ms = 1000;
 
         for attempt in 1..=max_attempts {
             if session_file.exists() {
@@ -251,8 +251,8 @@ where
                 ));
             }
 
-            // Log every 10 attempts (1 second)
-            if attempt % 10 == 0 {
+            // Log every 5 attempts (5 seconds)
+            if attempt % 5 == 0 {
                 info!(
                     "Still waiting for session file... ({:.1}s elapsed, attempt {}/{})",
                     (attempt * delay_ms) as f64 / 1000.0,
