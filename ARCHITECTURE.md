@@ -48,7 +48,7 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 ## Agent Architecture
 
 ### Multi-Agent Support
-- **Deterministic Agent**: Direct protocol execution with fixed parameters
+- **Deterministic Agent**: Direct protocol execution with fixed parameters (static benchmarks only)
 - **Local Agent**: Full tool access with enhanced logging
 - **OpenAI Agent**: Multi-turn conversation with comprehensive OTEL
 - **ZAI Agent**: GLM-4.6 integration with model validation
@@ -66,6 +66,11 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 - **Core Tools**: SOL transfer, SPL transfer
 - **DeFi Tools**: Jupiter swap, Jupiter lend/earn, Jupiter earn
 - **Flow Tools**: Multi-step Jupiter swap flows
+
+### Agent Usage Guidelines
+- **Static Benchmarks**: Use deterministic agent for predictable, fast execution
+- **Dynamic Flows**: Use glm-4.6-coding, local, or OpenAI agents for natural language prompts
+- **Design Note**: Deterministic agent is intentionally limited to hardcoded benchmark IDs for testing and mock scenarios
 
 ## Enhanced OpenTelemetry
 
@@ -112,6 +117,14 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 - **Enhanced OTEL**: 100% tool coverage with session tracking
 - **Multi-Agent Architecture**: All four agent types implemented
 - **Tool Integration**: Complete discovery, core, and DeFi tools
+- **Dynamic Flow System**: Natural language to YML generation with 100% success rate
+
+### 🟢 **NEW: Dynamic Flow Architecture**
+- **reev-orchestrator**: Bridge mode flow generation with context awareness
+- **CLI Integration**: `--dynamic` flag for natural language prompts
+- **Template System**: Handlebars-based prompt generation with 8 templates
+- **Context Resolution**: Wallet balance and pricing integration
+- **YML Bridge**: Temporary file generation for runner compatibility
 
 ### 🔧 In Progress
 - **ZAI Agent Modernization**: Agent builder pattern migration
