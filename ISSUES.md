@@ -3,7 +3,7 @@
 ## Issue #7: Template Token Price Helper Not Working
 
 **Priority**: 🟡 **MEDIUM**
-**Status**: 🔴 **OPEN**
+**Status**: ✅ **FIXED**
 **Assigned**: reev-orchestrator
 **Component**: Template System
 
@@ -12,9 +12,15 @@ The `get_token_price` helper in Handlebars templates shows `$0.0` for all token 
 
 **Root Cause**: 
 - Template rendering nests `WalletContext` under a `"wallet"` key for template access
-- `get_token_price` helper expects direct access to `WalletContext.token_prices`
-- Current helper path: `render_context.context().data().get("wallet")` → deserialize to `WalletContext`
-- Issue may be in the data path traversal or deserialization step
+- `get_token_price` helper was using incorrect data path: `render_context.context().data().get("wallet")` 
+- Handlebars helper functions should access root data via `ctx.data()` instead of nested render context
+- Helper was not finding the nested context data structure properly
+
+**Fix Applied**:
+- Updated helper functions to access context data via `ctx.data()` instead of `render_context.context()`
+- Implemented direct JSON path traversal for better performance: `root_data.get("wallet")` → `token_prices` → token mint
+- Added fallback to full deserialization if direct JSON access fails
+- Applied same fix to both `get_token_price` and `get_token_balance` helpers
 
 **Current Behavior**:
 ```handlebars
@@ -48,20 +54,31 @@ Should render as: `Current SOL price: $150.00` (with actual price from context)
 - Affects context-awareness of dynamic flows
 
 **Acceptance Criteria**:
-- [ ] `get_token_price` helper returns correct prices from nested context
-- [ ] Templates display actual token prices instead of $0.0
-- [ ] All template integration tests pass with real price values
-- [ ] Price helper works with both mint addresses and token symbols (if supported)
+- [x] `get_token_price` helper returns correct prices from nested context
+- [x] Templates display actual token prices instead of $0.0
+- [x] All template integration tests pass with real price values
+- [x] Price helper works with both mint addresses and token symbols (if supported)
 
-**Investigation Steps**:
-1. Debug the data path in `get_token_price` helper
-2. Verify `WalletContext` deserialization from nested JSON structure
-3. Test with various token mint addresses and formats
-4. Ensure helper handles missing prices gracefully
+**Investigation Steps Completed**:
+1. ✅ Debugged the data path in `get_token_price` helper - found `render_context.context()` was returning None
+2. ✅ Verified `WalletContext` deserialization from nested JSON structure - switched to direct JSON access
+3. ✅ Tested with various token mint addresses and formats - all working correctly
+4. ✅ Ensured helper handles missing prices gracefully - returns 0.0 for unknown tokens
+
+**Test Results**:
+- Created comprehensive test suite in `crates/reev-orchestrator/tests/token_price_helper_test.rs`
+- All tests pass, including real template integration tests
+- Templates now correctly display: `$150.420000` for SOL, `$1.000000` for USDC
+- No more `$0.0` values for tokens with known prices
 
 **Dependencies**: None
-**Timeline**: 1-2 days (investigation and fix)
-**Risk**: Low - Helper functionality issue, no breaking changes expected
+**Timeline**: ✅ Completed (1 day)
+**Risk**: ✅ Low - No breaking changes, backward compatible fix
+
+**Files Modified**:
+- `crates/reev-orchestrator/src/templates/mod.rs` - Fixed helper functions
+- `crates/reev-orchestrator/tests/token_price_helper_test.rs` - Added test suite
+- `crates/reev-orchestrator/tests/real_template_test.rs` - Added integration tests
 
 ---
 

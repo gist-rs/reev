@@ -64,10 +64,9 @@ impl TemplateMetadata {
         }
 
         // Validate wallet-specific requirements
-        if self.required_variables.contains(&"wallet".to_string())
-            && context.owner.is_empty() {
-                return Err(anyhow::anyhow!("Wallet context is required but empty"));
-            }
+        if self.required_variables.contains(&"wallet".to_string()) && context.owner.is_empty() {
+            return Err(anyhow::anyhow!("Wallet context is required but empty"));
+        }
 
         Ok(())
     }
@@ -99,9 +98,9 @@ pub mod helpers {
     /// Helper to get token price from wallet context
     pub fn get_token_price(
         h: &Helper,
-        _: &Handlebars,
-        _: &Context,
-        render_context: &mut RenderContext,
+        _handlebars: &Handlebars,
+        ctx: &Context,
+        _render_context: &mut RenderContext,
         out: &mut dyn Output,
     ) -> Result<(), RenderError> {
         let token_mint = h
@@ -112,14 +111,30 @@ pub mod helpers {
             .as_str()
             .ok_or_else(|| RenderError::new("Token must be string"))?;
 
-        // Extract wallet from context
-        if let Some(context_data) = render_context.context() {
-            if let Some(wallet_value) = context_data.data().get("wallet") {
-                if let Ok(wallet) = serde_json::from_value::<WalletContext>(wallet_value.clone()) {
-                    if let Some(price) = wallet.get_token_price(token_str) {
-                        out.write(&format!("{price:.6}"))?;
-                        return Ok(());
+        // Access the root data directly from the context
+        let root_data = ctx.data();
+
+        // Try to access wallet data through different paths
+        if let Some(wallet_value) = root_data.get("wallet") {
+            // Direct approach: extract prices from JSON without full deserialization
+            if let Some(wallet_obj) = wallet_value.as_object() {
+                if let Some(token_prices) = wallet_obj.get("token_prices") {
+                    if let Some(prices_obj) = token_prices.as_object() {
+                        if let Some(price_value) = prices_obj.get(token_str) {
+                            if let Some(price) = price_value.as_f64() {
+                                out.write(&format!("{price:.6}"))?;
+                                return Ok(());
+                            }
+                        }
                     }
+                }
+            }
+
+            // Fallback: try full deserialization
+            if let Ok(wallet) = serde_json::from_value::<WalletContext>(wallet_value.clone()) {
+                if let Some(price) = wallet.get_token_price(token_str) {
+                    out.write(&format!("{price:.6}"))?;
+                    return Ok(());
                 }
             }
         }
@@ -131,9 +146,9 @@ pub mod helpers {
     /// Helper to get token balance from wallet context
     pub fn get_token_balance(
         h: &Helper,
-        _: &Handlebars,
-        _: &Context,
-        render_context: &mut RenderContext,
+        _handlebars: &Handlebars,
+        ctx: &Context,
+        _render_context: &mut RenderContext,
         out: &mut dyn Output,
     ) -> Result<(), RenderError> {
         let token_mint = h
@@ -144,14 +159,34 @@ pub mod helpers {
             .as_str()
             .ok_or_else(|| RenderError::new("Token must be string"))?;
 
-        // Extract wallet from context
-        if let Some(context_data) = render_context.context() {
-            if let Some(wallet_value) = context_data.data().get("wallet") {
-                if let Ok(wallet) = serde_json::from_value::<WalletContext>(wallet_value.clone()) {
-                    if let Some(balance) = wallet.get_token_balance(token_str) {
-                        out.write(&format!("{}", balance.balance))?;
-                        return Ok(());
+        // Access the root data directly from the context
+        let root_data = ctx.data();
+
+        // Try to access wallet data through different paths
+        if let Some(wallet_value) = root_data.get("wallet") {
+            // Direct approach: extract balances from JSON without full deserialization
+            if let Some(wallet_obj) = wallet_value.as_object() {
+                if let Some(token_balances) = wallet_obj.get("token_balances") {
+                    if let Some(balances_obj) = token_balances.as_object() {
+                        if let Some(balance_value) = balances_obj.get(token_str) {
+                            if let Some(balance_obj) = balance_value.as_object() {
+                                if let Some(balance) = balance_obj.get("balance") {
+                                    if let Some(balance_num) = balance.as_u64() {
+                                        out.write(&format!("{balance_num}"))?;
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+            }
+
+            // Fallback: try full deserialization
+            if let Ok(wallet) = serde_json::from_value::<WalletContext>(wallet_value.clone()) {
+                if let Some(balance) = wallet.get_token_balance(token_str) {
+                    out.write(&format!("{}", balance.balance))?;
+                    return Ok(());
                 }
             }
         }

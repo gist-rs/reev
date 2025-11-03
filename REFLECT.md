@@ -1,6 +1,17 @@
 # REEV IMPLEMENTATION REFLECTION
 
-## Execution Trace ASCII Tree Regression - RESOLVED ✅
+## Template Token Price Helper Not Working - RESOLVED ✅ [L3-4]
+- Fixed Issue #7: Template helpers `get_token_price` and `get_token_balance` returning $0.0
+- Root cause: Incorrect data path access in Handlebars helper functions
+- Solution: Changed from `render_context.context()` to `ctx.data()` for direct root data access
+- Implemented direct JSON traversal for performance: wallet → token_prices → mint address
+- Added fallback to full WalletContext deserialization if JSON access fails
+- Created comprehensive test suite in `token_price_helper_test.rs` and `real_template_test.rs`
+- Templates now correctly display real prices ($150.420000 for SOL, $1.000000 for USDC)
+- Applied same fix to both price and balance helpers for consistency
+- All integration tests pass, no breaking changes introduced
+
+## Execution Trace ASCII Tree Regression - RESOLVED ✅ [L5-6]
 **Problem:** Execution Trace showed raw JSON instead of ASCII tree format after refresh
 **Root Cause:** Missing format_execution_trace function call in execution_logs.rs
 **Solution:** Added proper formatting with fallback to raw JSON
