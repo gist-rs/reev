@@ -1,21 +1,41 @@
-# Reev API Server
+# reev-api: Dynamic Flow REST API
 
-REST API server for the Reev benchmark execution system. Provides endpoints for running benchmarks, managing agents, and tracking execution status.
+REST API server for reev dynamic flow system. Provides comprehensive endpoints for dynamic flow execution, recovery management, and real-time session tracking with atomic execution control.
+
+## 🏗️ Architecture Overview
+
+```mermaid
+graph TD
+    A[HTTP Client] --> B[API Gateway]
+    B --> C[Flow Execution Engine]
+    B --> D[Dynamic Flow Generator]
+    B --> E[Recovery Manager]
+    B --> F[Session Tracker]
+    C --> G[reev-runner]
+    D --> G
+    E --> G
+    F --> H[reev-agent Service]
+    G --> I[reev-tools]
+    H --> J[surfpool]
+    I --> J
+    J --> K[Flow Results]
+    K --> L[OpenTelemetry]
+```
 
 ## 🚀 Quick Start
 
 ### Development Mode with Auto-reload
 
-The easiest way to run the API server in development is with `cargo watch`:
-
 ```bash
 cargo watch -w crates -x "run -p reev-api --bin reev-api"
 ```
 
-This will:
-- Start the API server on port 3001
-- Automatically restart when code changes are detected
-- Show real-time logs
+**Features:**
+- Dynamic flow execution endpoints
+- Real-time session tracking
+- Automatic recovery management
+- Comprehensive OpenTelemetry integration
+- Hot reload during development
 
 ### Manual Start
 
@@ -30,21 +50,54 @@ cargo build --release -p reev-api
 ./target/release/reev-api
 ```
 
+## 📡 Dynamic Flow Endpoints
+
+### Flow Execution
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/v1/flows/execute-dynamic` | Execute dynamic flow with bridge mode |
+| `POST /api/v1/flows/execute-direct` | Execute dynamic flow with direct mode |
+| `POST /api/v1/flows/execute-recovery` | Execute dynamic flow with recovery mode |
+
+### Session Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/v1/sessions/{flow_id}` | Get flow execution session details |
+| `GET /api/v1/sessions/{flow_id}/status` | Get real-time execution status |
+| `GET /api/v1/sessions` | List all active sessions |
+| `DELETE /api/v1/sessions/{flow_id}` | Cancel active session |
+
+### Recovery Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/v1/recovery/config` | Get recovery configuration |
+| `PUT /api/v1/recovery/config` | Update recovery configuration |
+| `GET /api/v1/recovery/metrics` | Get recovery performance metrics |
+
+### Flow Configuration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/v1/flows/templates` | List available flow templates |
+| `GET /api/v1/flows/suggest` | Get flow suggestions from natural language |
+
 ## 📡 API Configuration
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3001` | Server port (changed from 3000 to avoid macOS Apple services conflicts) |
+| `PORT` | `3001` | Server port |
 | `DATABASE_PATH` | `db/reev_results.db` | SQLite database file path |
+| `REEV_API_SESSION_TIMEOUT` | `3600000` | Session timeout in milliseconds |
+| `REEV_API_MAX_CONCURRENT_FLOWS` | `100` | Maximum concurrent flow executions |
+| `REEV_API_RECOVERY_ENABLED` | `true` | Enable recovery system |
 
 ### Default Access
-
 - **API Server**: http://localhost:3001
 - **Health Check**: http://localhost:3001/api/v1/health
+- **API Documentation**: http://localhost:3001/docs (when compiled with docs feature)
 
-## 🛠️ Available Endpoints
+## 🛠️ Core Endpoints
 
 ### Health & Status
 
