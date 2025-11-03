@@ -1,0 +1,36 @@
+{{!-- Jupiter Lend Template --}}
+{{!-- Jupiter-specific lending with protocol details --}}
+
+Deposit {{amount}} {{token}} from wallet {{wallet.owner}} into Jupiter lending protocol.
+
+{{#if wallet.get_token_price token}}
+Current {{token}} price: ${{wallet.get_token_price token}}
+{{/if}}
+
+Jupiter lending features:
+- Access to multiple lending protocols (Kamino, Solend, Tulip)
+- Best yield rates across protocols
+- Automatic compounding and optimization
+- Real-time yield tracking
+
+{{#if apy}}
+Estimated APY: {{apy}}% (varies by protocol and market conditions)
+{{/if}}
+
+{{#if total_value}}
+Total deposit value: ${{total_value}} USD
+{{/if}}
+
+Jupiter lending protocol advantages:
+- Cross-protocol liquidity aggregation
+- Dynamic yield optimization
+- Risk diversification across protocols
+- Single interface for multiple lending markets
+
+Use Jupiter to find the best lending rates and deposit into the optimal protocol for maximum yield.
+
+{{#if wallet.get_token_balance token}}
+Available balance: {{wallet.get_token_balance token.formatted_amount}}
+{{/if}}
+
+Ensure you have sufficient {{token}} balance before proceeding with the deposit.

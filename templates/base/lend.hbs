@@ -1,0 +1,22 @@
+{{!-- Base Lend Template --}}
+{{!-- Generic lending operation for any token --}}
+
+Deposit {{amount}} {{token}} from wallet {{wallet.owner}} into {{protocol}} lending protocol.
+
+{{#if wallet.get_token_price token}}
+Current {{token}} price: ${{wallet.get_token_price token}}
+{{/if}}
+
+{{#if apy}}
+Estimated APY: {{apy}}%
+{{/if}}
+
+{{#if total_value}}
+Total deposit value: ${{total_value}} USD
+{{/if}}
+
+Use the lending protocol to deposit assets and start earning yield. Ensure sufficient token balance is available before depositing.
+
+{{#if wallet.get_token_balance token}}
+Available balance: {{wallet.get_token_balance token.formatted_amount}}
+{{/if}}

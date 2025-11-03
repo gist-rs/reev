@@ -1,0 +1,78 @@
+{{!-- Portfolio Rebalance Scenario Template --}}
+{{!-- Multi-step template for portfolio rebalancing with multiple assets --}}
+
+## Portfolio Rebalancing Strategy
+
+{{> base/swap amount=from_amount from_token=from_token to_token=to_token wallet=wallet}}
+
+{{> protocols/jupiter/swap amount=from_amount from_token=from_token to_token=to_token wallet=wallet}}
+
+Execute portfolio rebalancing for wallet {{wallet.owner}} to optimize asset allocation.
+
+---
+
+## Current Portfolio Analysis
+
+Total Portfolio Value: ${{wallet.total_value_usd}}
+
+{{#if wallet.sol_balance}}
+SOL Holdings: {{wallet.sol_balance_sol}} SOL ({{#if wallet.get_token_price "SOL"}}${{wallet.sol_balance_sol}}{{wallet.get_token_price "SOL"}}{{/if}} USD)
+{{/if}}
+
+{{#each wallet.token_balances}}
+{{symbol}} Holdings: {{formatted_amount}} ({{#if ../wallet.get_token_price mint}}${{balance}}{{../wallet.get_token_price mint}}{{/if}} USD)
+{{/each}}
+
+---
+
+## Rebalancing Target
+
+Target Allocation:
+- {{from_token}}: {{from_target_percent}}%
+- {{to_token}}: {{to_target_percent}}%
+
+{{#if from_amount}}
+Rebalancing Amount: {{from_amount}} {{from_token}} to {{to_token}}
+{{/if}}
+
+---
+
+## Execution Steps
+
+1. **Analysis Phase**: Review current portfolio composition and identify rebalancing needs
+2. **Swap Phase**: Execute {{from_amount}} {{from_token}} → {{to_token}} via Jupiter
+3. **Validation Phase**: Verify new allocation matches target percentages
+
+---
+
+## Jupiter Optimization Features
+
+- **Route Optimization**: Best execution across multiple DEXes
+- **Slippage Protection**: Built-in MEV and slippage guards
+- **Gas Optimization**: Efficient routing for maximum value retention
+- **Real-time Pricing**: Up-to-the-second market data
+
+{{#if slippage}}
+Maximum slippage tolerance: {{slippage}}%
+{{/if}}
+
+---
+
+## Risk Considerations
+
+- **Market Impact**: Large trades may affect price
+- **Impermanent Loss**: Consider for LP positions
+- **Gas Fees**: Factor in transaction costs
+- **Timing**: Market conditions can affect execution
+
+---
+
+## Post-Rebalance Monitoring
+
+After execution, monitor:
+- Portfolio allocation percentages
+- Asset price movements
+- Yield opportunities
+- Rebalancing frequency needs
+
+Use Jupiter's portfolio tools to track performance and identify future rebalancing opportunities.

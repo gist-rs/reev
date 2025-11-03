@@ -1,0 +1,22 @@
+{{!-- Base Swap Template --}}
+{{!-- Generic swap operation for any token pair --}}
+
+Swap {{amount}} {{from_token}} from wallet {{wallet.owner}} to {{to_token}} using Jupiter DEX.
+
+{{#if wallet.get_token_price from_token}}
+Current {{from_token}} price: ${{wallet.get_token_price from_token}}
+{{/if}}
+
+{{#if wallet.get_token_price to_token}}
+Current {{to_token}} price: ${{wallet.get_token_price to_token}}
+{{/if}}
+
+{{#if estimated_amount}}
+Estimated to receive: {{estimated_amount}} {{to_token}}
+{{/if}}
+
+{{#if slippage}}
+Maximum slippage: {{slippage}}%
+{{/if}}
+
+Use the Jupiter aggregator to find the best route and execute the swap with optimal pricing and minimal slippage.

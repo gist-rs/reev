@@ -1,0 +1,47 @@
+{{!-- Swap Then Lend Scenario Template --}}
+{{!-- Multi-step template for swapping SOL to USDC then lending the USDC --}}
+
+## Step 1: Swap {{amount}} SOL to USDC
+
+{{> base/swap amount=amount from_token="SOL" to_token="USDC" wallet=wallet}}
+
+{{> protocols/jupiter/swap amount=amount from_token="SOL" to_token="USDC" wallet=wallet}}
+
+Execute this swap using Jupiter DEX to get USDC for lending.
+
+---
+
+## Step 2: Deposit USDC into Lending
+
+{{> base/lend amount=estimated_amount token="USDC" protocol="Jupiter" wallet=wallet}}
+
+{{> protocols/jupiter/lend amount=estimated_amount token="USDC" protocol="Jupiter" wallet=wallet}}
+
+After receiving USDC from the swap, immediately deposit it into Jupiter lending to start earning yield.
+
+---
+
+## Strategy Overview
+
+This two-step strategy converts your {{amount}} SOL to USDC and then deposits the USDC into lending:
+
+1. **Swap Phase**: Use Jupiter to find best SOL→USDC rates
+2. **Lend Phase**: Deposit received USDC into Jupiter lending for yield
+
+{{#if wallet.get_token_price "SOL"}}
+Current SOL price: ${{wallet.get_token_price "SOL"}}
+{{/if}}
+
+{{#if wallet.get_token_price "USDC"}}
+Current USDC price: ${{wallet.get_token_price "USDC"}}
+{{/if}}
+
+{{#if estimated_amount}}
+Expected USDC to lend: {{estimated_amount}} USDC
+{{/if}}
+
+{{#if apy}}
+Estimated lending APY: {{apy}}%
+{{/if}}
+
+Complete both steps sequentially to maximize your portfolio's yield potential while maintaining exposure to USDC stability.

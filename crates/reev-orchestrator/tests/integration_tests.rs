@@ -270,6 +270,28 @@ async fn test_concurrent_flow_generation() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_template_system_integration() -> Result<()> {
+    // Test basic template suggestions functionality
+    let renderer = reev_orchestrator::TemplateRenderer::new("templates")?;
+
+    let suggestions = renderer.suggest_templates("swap SOL to USDC");
+    assert!(suggestions.contains(&"swap".to_string()));
+    assert!(suggestions.contains(&"jupiter/swap".to_string()));
+
+    let suggestions = renderer.suggest_templates("lend USDC for yield");
+    assert!(suggestions.contains(&"lend".to_string()));
+    assert!(suggestions.contains(&"jupiter/lend".to_string()));
+
+    let suggestions = renderer.suggest_templates("swap then lend");
+    assert!(suggestions.contains(&"scenarios/swap_then_lend".to_string()));
+
+    let suggestions = renderer.suggest_templates("rebalance portfolio");
+    assert!(suggestions.contains(&"scenarios/portfolio_rebalance".to_string()));
+
+    Ok(())
+}
+
 #[test]
 fn test_dynamic_step_creation() {
     let step = DynamicStep::new(

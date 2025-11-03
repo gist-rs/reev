@@ -8,10 +8,12 @@
 pub mod context_resolver;
 pub mod gateway;
 pub mod generators;
+pub mod templates;
 
 pub use context_resolver::ContextResolver;
 pub use gateway::OrchestratorGateway;
 pub use generators::YmlGenerator;
+pub use templates::{TemplateEngine, TemplateRenderer, TemplateType};
 
 /// Result type for orchestrator operations
 pub type Result<T> = anyhow::Result<T>;

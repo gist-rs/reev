@@ -1,0 +1,30 @@
+{{!-- Jupiter Swap Template --}}
+{{!-- Jupiter-specific swap with protocol optimizations }}
+
+Swap {{amount}} {{from_token}} from wallet {{wallet.owner}} to {{to_token}} using Jupiter DEX.
+
+{{#if wallet.get_token_price from_token}}
+Current {{from_token}} price: ${{wallet.get_token_price from_token}}
+{{/if}}
+
+{{#if wallet.get_token_price to_token}}
+Current {{to_token}} price: ${{wallet.get_token_price to_token}}
+{{/if}}
+
+{{#if estimated_amount}}
+Estimated to receive: {{estimated_amount}} {{to_token}}
+{{/if}}
+
+Use Jupiter's aggregator to access the deepest liquidity across Solana DEXes including Raydium, Orca, Serum, and more.
+
+Jupiter optimizations:
+- Automatic route splitting for large trades
+- Multi-hop routing for better prices
+- Slippage protection and MEV protection
+- Real-time pricing from multiple sources
+
+{{#if slippage}}
+Maximum slippage: {{slippage}}% (Jupiter default: 3%)
+{{/if}}
+
+Execute the swap using Jupiter's unified API for best execution prices and minimal failed transactions.
