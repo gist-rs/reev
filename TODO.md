@@ -2,66 +2,12 @@
 
 ---
 
-expect
+do we doing this rn for runner part?
 
-- run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
-- web <- api <- mermaid <- yml <- db
+- before: `manual -> static yml -> runner`
+- after: `reev-orchestrator -> dynamic yml -> runner`
 
-i expect this diagram btw e.g. after run 001-sol-transfer.yml should get
-http://localhost:3001/api/v1/flows/0cd1d311-5de8-427d-a522-a1fe930258d6
-```
-stateDiagram
-    [*] --> Prompt
-    Prompt --> Agent : Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).
-    Agent --> sol_transfer : 1 ix
-    state sol_transfer {
-        GVKYhnPTY4JRQSCM7NjbHNb3VJduWfHFRroWhUSMTYg1 --> MXnpbf2eNu8WGt4sGzKX7asFAtkBdnuLXaGCGT1SwKx : 0.1 SOL
-    }
-    sol_transfer --> [*]
-classDef tools fill:grey
-class sol_transfer tools
-```
-
----
-
-🔥 step from yml at multi-step is cheating, we will need llm to create dynamic step and dynamic tools from that
-
----
-
-expect
-
-- run bench -> api -> agent -> runner -> otel -> enhanced_otel_{session_id}.jsonl -> api (yml) -> db
-- web <- api <- mermaid <- yml <- db
-
-- run bench -> api -> agent -> sessions log -> sessio_{session_id}.json -> db
-- web <- api <- ascii tree <- json <- db
-
----
-
-help me test, i will run (watch) server api
-
----
-
-- flow tool is mess, we have `use reev_flow::log_tool_call; log_tool_call!("sol_transfer", &args);` in tools crate, we should get tool log from otel only in reev-agent? can you dig into this and
-file issue, create tasks for this, then fix
-
-file issue, create tasks for this, then fix
-in the end i expect log can tell me
-
-## All this in jsonl, i think it's already in jsonl?
-- reev-runner version
-- reev-agent version
-- prompt: tool_name list, user_prompt, final_prompt (for debug enriched context later and to see what llm see he prompt)
-- tool input : tool_name that llm chhose, tool_args that llm fill
-- tool output : succeed/failure, results
-- flow_timeuse_ms, step_timeuse_ms // so we can see latency for each , multi-step e.g. benchmarks/200-jup-swap-then-lend-deposit.yml
-
-// do i miss something? plz refine/add the variable name to fit properly wel define
-
-## And the way to convert jsonl to yml for easier reading and easier to convert to ascii tree later see
-[@FLOW.md](zed:///agent/file?path=%2FUsers%2Fkatopz%2Fgit%2Fgist%2Freev%2FFLOW.md) not sure it still work, maybe outdated plz check the code.
-
-ensure the check the code before sum to new PLAN_OTEL.md and file issue, create tasks for this, then fix
+see yml before send to runner will be easier to see and debug and runner behave to same?
 
 ---
 
@@ -74,24 +20,9 @@ ensure the check the code before sum to new PLAN_OTEL.md and file issue, create 
 
 ---
 
-can you check context prompt? we must provide all tools
-and check the code, we must not have any code that can create tx by ourself, only via llm tool calling
-
-and use 001-sol-transfer.yml for faster test
-
-can session_id same id as logs/sessions/session_283ffd95-e5b3-4d6c-92ba-b8f4d6ddf940.json
-
-so we can track both? if it's hard todo, that's fine.
-
-
-update TASKS.md then fix it step by step with test proof
-
-fix remain warning daig crates/reev-agent, scan all code for current state, update all md to reflect the code
-
-
-# Add required to when make a tool calling
 refer to
 
+```
 Here are the common settings for tool_choice:
 "auto" (Default): The model autonomously determines whether to call a tool and, if so, which tool to call based on the user's prompt and the available tool descriptions. This is the standard behavior for most conversational interactions.
 "none": This explicitly prevents the model from calling any tools. The model will only generate a text-based response.
@@ -110,8 +41,9 @@ Considerations:
 Using "required" or forcing a specific tool can be powerful but requires careful management of the conversation flow to avoid repetitive or non-responsive behavior from the model.
 In streaming or real-time applications, setting tool_choice to "required" on every turn without allowing for model responses can create a loop of tool invocations.
 The tool_choice parameter is crucial for building robust applications that integrate large language models with external functionalities.
+```
 
-can you check that we use it correct everywhere, grep for that
+can you check that we use it correctly everywhere? grep for that
 
 ---
 
