@@ -25,11 +25,11 @@ async fn test_wallet_context_resolution() {
 #[tokio::test]
 async fn test_token_price() {
     let resolver = ContextResolver::new();
-    let sol_mint = "So11111111111111111111111111111111111112";
+    let sol_mint = "So11111111111111111111111111111111111111112";
     println!("DEBUG: Token mint bytes: {:?}", sol_mint.as_bytes());
     println!(
         "DEBUG: Expected bytes: {:?}",
-        "So11111111111111111111111111111111112".as_bytes()
+        "So11111111111111111111111111111111111111112".as_bytes()
     );
 
     // Clear cache to ensure fresh price

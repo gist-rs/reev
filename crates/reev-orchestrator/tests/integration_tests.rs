@@ -3,6 +3,9 @@
 //! This file contains comprehensive integration tests for the orchestrator
 //! to ensure end-to-end functionality works correctly.
 
+mod mock_data;
+
+use mock_data::{all_mock_scenarios, create_mock_wallet_context, get_mock_scenario};
 use reev_orchestrator::{OrchestratorGateway, Result};
 use reev_types::flow::{DynamicStep, WalletContext};
 
@@ -284,6 +287,65 @@ fn test_dynamic_step_creation() {
     assert!(!step.critical);
     assert!(step.required_tools.contains(&"test_tool".to_string()));
     assert_eq!(step.estimated_time_seconds, 60);
+}
+
+#[tokio::test]
+async fn test_mock_data_coverage() -> Result<()> {
+    // Test that mock data covers all common DeFi scenarios
+    let scenarios = all_mock_scenarios();
+    assert!(
+        scenarios.len() >= 5,
+        "Should have at least 5 mock scenarios"
+    );
+
+    // Test specific scenarios
+    let empty_wallet = get_mock_scenario("empty_wallet").unwrap();
+    let empty_context = create_mock_wallet_context(empty_wallet);
+    assert!(empty_context.total_value_usd > 100.0); // At least 1 SOL worth
+
+    let defi_user = get_mock_scenario("defi_power_user").unwrap();
+    let defi_context = create_mock_wallet_context(defi_user);
+    assert!(defi_context.total_value_usd > 10000.0); // Substantial portfolio
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mock_data_integration() -> Result<()> {
+    let gateway = OrchestratorGateway::new();
+
+    // Test with each mock scenario
+    for scenario_name in ["empty_wallet", "balanced_portfolio", "defi_power_user"] {
+        let scenario = get_mock_scenario(scenario_name).unwrap();
+        let context = create_mock_wallet_context(scenario);
+
+        // Test flow generation with mock context
+        let plan = gateway.generate_flow_plan("use 50% sol to usdc", &context)?;
+
+        println!("DEBUG: Generated plan for {scenario_name}: {plan:?}");
+        println!("DEBUG: Step prompt: {}", plan.steps[0].prompt_template);
+
+        assert!(
+            !plan.steps.is_empty(),
+            "Should generate steps for {scenario_name}"
+        );
+        assert_eq!(plan.steps.len(), 1, "Should generate single swap step");
+
+        let step = &plan.steps[0];
+        println!(
+            "DEBUG: Checking prompt_template for 'swap': {}",
+            step.prompt_template
+        );
+        assert!(
+            step.prompt_template.contains("Swap") || step.prompt_template.contains("swap"),
+            "Should contain swap instruction, got: {}",
+            step.prompt_template
+        );
+        assert!(step.prompt_template.contains("SOL"), "Should contain SOL");
+        assert!(step.prompt_template.contains("USDC"), "Should contain USDC");
+    }
+
+    Ok(())
 }
 
 #[test]
