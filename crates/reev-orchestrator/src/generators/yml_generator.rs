@@ -68,58 +68,176 @@ impl YmlGenerator {
             serde_yaml::Value::String("description".to_string()),
             serde_yaml::Value::String(format!("Dynamic flow: {}", flow_plan.user_prompt)),
         );
+
+        // Add required tags field
+        let tags = serde_yaml::Value::Sequence(vec![
+            serde_yaml::Value::String("dynamic".to_string()),
+            serde_yaml::Value::String("jupiter".to_string()),
+        ]);
+        yml.insert(serde_yaml::Value::String("tags".to_string()), tags);
+
+        // Generate initial state from context
+        let initial_state = self.generate_initial_state(&flow_plan.context);
         yml.insert(
-            serde_yaml::Value::String("agent".to_string()),
-            serde_yaml::Value::String("glm-4.6".to_string()),
-        );
-        yml.insert(
-            serde_yaml::Value::String("agent_config".to_string()),
-            serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+            serde_yaml::Value::String("initial_state".to_string()),
+            serde_yaml::Value::Sequence(initial_state),
         );
 
-        // Create unified data from context
-        let mut unified_data = serde_yaml::Mapping::new();
-
-        // Add enhanced user request from first step
-        let enhanced_request = flow_plan
+        // Use the enhanced prompt from first step
+        let prompt = flow_plan
             .steps
             .first()
             .map(|step| step.prompt_template.clone())
             .unwrap_or_else(|| flow_plan.user_prompt.clone());
 
-        unified_data.insert(
-            serde_yaml::Value::String("enhanced_user_request".to_string()),
-            serde_yaml::Value::String(enhanced_request),
-        );
-
-        // Add wallet context as system prompt
-        let system_prompt = self.generate_system_prompt(&flow_plan.context);
-        unified_data.insert(
-            serde_yaml::Value::String("system_prompt".to_string()),
-            serde_yaml::Value::String(system_prompt),
-        );
-
-        // Add tools configuration
-        let tools = self.generate_tools_config(&flow_plan.steps);
-        unified_data.insert(
-            serde_yaml::Value::String("tools".to_string()),
-            serde_yaml::Value::Sequence(tools),
-        );
-
-        // Add step configuration
-        let steps = self.generate_steps_config(&flow_plan.steps);
-        unified_data.insert(
-            serde_yaml::Value::String("steps".to_string()),
-            serde_yaml::Value::Sequence(steps),
-        );
-
         yml.insert(
-            serde_yaml::Value::String("unified_data".to_string()),
-            serde_yaml::Value::Mapping(unified_data),
+            serde_yaml::Value::String("prompt".to_string()),
+            serde_yaml::Value::String(prompt),
+        );
+
+        // Generate basic ground truth
+        let ground_truth = self.generate_ground_truth(&flow_plan.steps);
+        yml.insert(
+            serde_yaml::Value::String("ground_truth".to_string()),
+            serde_yaml::Value::Mapping(ground_truth),
         );
 
         // Convert to string
         Ok(serde_yaml::to_string(&yml)?)
+    }
+
+    /// Generate initial state from wallet context
+    pub fn generate_initial_state(&self, context: &WalletContext) -> Vec<serde_yaml::Value> {
+        let mut state = Vec::new();
+
+        // User wallet with SOL balance
+        let mut user_wallet = serde_yaml::Mapping::new();
+        user_wallet.insert(
+            serde_yaml::Value::String("pubkey".to_string()),
+            serde_yaml::Value::String("USER_WALLET_PUBKEY".to_string()),
+        );
+        user_wallet.insert(
+            serde_yaml::Value::String("owner".to_string()),
+            serde_yaml::Value::String(context.owner.clone()),
+        );
+        user_wallet.insert(
+            serde_yaml::Value::String("lamports".to_string()),
+            serde_yaml::Value::Number(serde_yaml::Number::from(context.sol_balance)),
+        );
+        state.push(serde_yaml::Value::Mapping(user_wallet));
+
+        // USDC ATA with zero balance
+        let mut usdc_ata = serde_yaml::Mapping::new();
+        usdc_ata.insert(
+            serde_yaml::Value::String("pubkey".to_string()),
+            serde_yaml::Value::String("USER_USDC_ATA".to_string()),
+        );
+        usdc_ata.insert(
+            serde_yaml::Value::String("owner".to_string()),
+            serde_yaml::Value::String("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string()),
+        );
+        usdc_ata.insert(
+            serde_yaml::Value::String("lamports".to_string()),
+            serde_yaml::Value::Number(serde_yaml::Number::from(2039280)), // Standard rent
+        );
+
+        let mut ata_data = serde_yaml::Mapping::new();
+        ata_data.insert(
+            serde_yaml::Value::String("mint".to_string()),
+            serde_yaml::Value::String("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
+        );
+        ata_data.insert(
+            serde_yaml::Value::String("owner".to_string()),
+            serde_yaml::Value::String("USER_WALLET_PUBKEY".to_string()),
+        );
+        ata_data.insert(
+            serde_yaml::Value::String("amount".to_string()),
+            serde_yaml::Value::String("0".to_string()),
+        );
+
+        usdc_ata.insert(
+            serde_yaml::Value::String("data".to_string()),
+            serde_yaml::Value::Mapping(ata_data),
+        );
+        state.push(serde_yaml::Value::Mapping(usdc_ata));
+
+        state
+    }
+
+    /// Generate basic ground truth assertions
+    pub fn generate_ground_truth(
+        &self,
+        steps: &[reev_types::flow::DynamicStep],
+    ) -> serde_yaml::Mapping {
+        let mut ground_truth = serde_yaml::Mapping::new();
+
+        // For now, generate basic assertions that work for most flows
+        let mut assertions = Vec::new();
+
+        // Check if any step involves swap
+        let has_swap = steps.iter().any(|step| {
+            step.required_tools.contains(&"sol_tool".to_string())
+                || step.description.to_lowercase().contains("swap")
+        });
+
+        if has_swap {
+            // Add USDC balance assertion
+            let mut usdc_assertion = serde_yaml::Mapping::new();
+            usdc_assertion.insert(
+                serde_yaml::Value::String("type".to_string()),
+                serde_yaml::Value::String("TokenAccountBalance".to_string()),
+            );
+            usdc_assertion.insert(
+                serde_yaml::Value::String("pubkey".to_string()),
+                serde_yaml::Value::String("USER_USDC_ATA".to_string()),
+            );
+            usdc_assertion.insert(
+                serde_yaml::Value::String("expected_gte".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(1)),
+            );
+            usdc_assertion.insert(
+                serde_yaml::Value::String("weight".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(1)),
+            );
+            assertions.push(serde_yaml::Value::Mapping(usdc_assertion));
+        }
+
+        // Check if any step involves lend/earn
+        let has_lend = steps.iter().any(|step| {
+            step.required_tools
+                .contains(&"jupiter_earn_tool".to_string())
+                || step.description.to_lowercase().contains("lend")
+                || step.description.to_lowercase().contains("earn")
+        });
+
+        if has_lend {
+            // Add SOL balance change assertion for lend operations
+            let mut sol_assertion = serde_yaml::Mapping::new();
+            sol_assertion.insert(
+                serde_yaml::Value::String("type".to_string()),
+                serde_yaml::Value::String("SolBalanceChange".to_string()),
+            );
+            sol_assertion.insert(
+                serde_yaml::Value::String("pubkey".to_string()),
+                serde_yaml::Value::String("USER_WALLET_PUBKEY".to_string()),
+            );
+            sol_assertion.insert(
+                serde_yaml::Value::String("expected_gte".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(-100005000)), // Account for fees
+            );
+            sol_assertion.insert(
+                serde_yaml::Value::String("weight".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(1)),
+            );
+            assertions.push(serde_yaml::Value::Mapping(sol_assertion));
+        }
+
+        ground_truth.insert(
+            serde_yaml::Value::String("final_state_assertions".to_string()),
+            serde_yaml::Value::Sequence(assertions),
+        );
+
+        ground_truth
     }
 
     /// Generate system prompt from wallet context

@@ -3911,6 +3911,7 @@ dependencies = [
  "project-root",
  "reev-flow",
  "reev-lib",
+ "reev-orchestrator",
  "reqwest",
  "rstest",
  "serde_json",

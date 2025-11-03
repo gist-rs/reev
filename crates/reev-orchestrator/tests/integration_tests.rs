@@ -32,11 +32,12 @@ async fn test_end_to_end_flow_generation() -> Result<()> {
 
     // Verify YML content
     let yml_content = std::fs::read_to_string(&yml_path)?;
-    assert!(yml_content.contains("enhanced_user_request"));
-    assert!(yml_content.contains("system_prompt"));
-    assert!(yml_content.contains("tools"));
-    assert!(yml_content.contains("steps"));
-    assert!(yml_content.contains("glm-4.6"));
+    assert!(yml_content.contains("id"));
+    assert!(yml_content.contains("description"));
+    assert!(yml_content.contains("tags"));
+    assert!(yml_content.contains("initial_state"));
+    assert!(yml_content.contains("prompt"));
+    assert!(yml_content.contains("ground_truth"));
 
     // Clean up
     std::fs::remove_file(yml_path)?;
@@ -147,10 +148,10 @@ async fn test_context_injection() -> Result<()> {
     // Verify context was injected into prompt
     let yml_content = std::fs::read_to_string(&yml_path)?;
 
-    // Should contain wallet context in system prompt
+    // Should contain wallet context in prompt
     assert!(yml_content.contains(wallet_pubkey));
-    assert!(yml_content.contains("SOL Balance"));
-    assert!(yml_content.contains("Total Value"));
+    assert!(yml_content.contains("SOL")); // Should mention SOL
+    assert!(yml_content.contains("USDC")); // Should mention USDC
 
     // Should contain refined prompt with actual amounts
     assert!(yml_content.contains("1.25")); // 25% of default 5 SOL
@@ -184,34 +185,41 @@ async fn test_yml_structure_validation() -> Result<()> {
     // Verify required fields exist
     assert!(mapping.contains_key("id"));
     assert!(mapping.contains_key("description"));
-    assert!(mapping.contains_key("agent"));
-    assert!(mapping.contains_key("unified_data"));
+    assert!(mapping.contains_key("tags"));
+    assert!(mapping.contains_key("initial_state"));
+    assert!(mapping.contains_key("prompt"));
+    assert!(mapping.contains_key("ground_truth"));
 
-    // Verify unified_data structure
-    let unified_data = mapping
-        .get(serde_yaml::Value::String("unified_data".to_string()))
+    // Verify prompt contains context
+    let prompt = mapping
+        .get(serde_yaml::Value::String("prompt".to_string()))
         .unwrap();
-    let unified_mapping = unified_data.as_mapping().unwrap();
+    let prompt_str = prompt.as_str().unwrap();
 
-    assert!(unified_mapping.contains_key("enhanced_user_request"));
-    assert!(unified_mapping.contains_key("system_prompt"));
-    assert!(unified_mapping.contains_key("tools"));
-    assert!(unified_mapping.contains_key("steps"));
+    assert!(prompt_str.contains("SOL"));
+    assert!(prompt_str.contains("wallet"));
 
-    // Verify steps structure
-    let steps = unified_mapping
-        .get(serde_yaml::Value::String("steps".to_string()))
+    // Verify ground truth structure
+    let ground_truth = mapping
+        .get(serde_yaml::Value::String("ground_truth".to_string()))
         .unwrap();
-    let steps_array = steps.as_sequence().unwrap();
-    assert_eq!(steps_array.len(), 2);
+    let ground_truth_map = ground_truth.as_mapping().unwrap();
 
-    for step in steps_array {
-        let step_map = step.as_mapping().unwrap();
-        assert!(step_map.contains_key("id"));
-        assert!(step_map.contains_key("description"));
-        assert!(step_map.contains_key("prompt"));
-        assert!(step_map.contains_key("critical"));
-    }
+    assert!(ground_truth_map.contains_key("final_state_assertions"));
+
+    // Verify tags structure
+    let tags = mapping
+        .get(serde_yaml::Value::String("tags".to_string()))
+        .unwrap();
+    let tags_array = tags.as_sequence().unwrap();
+    assert!(!tags_array.is_empty());
+
+    // Verify initial state structure
+    let initial_state = mapping
+        .get(serde_yaml::Value::String("initial_state".to_string()))
+        .unwrap();
+    let initial_state_array = initial_state.as_sequence().unwrap();
+    assert!(!initial_state_array.is_empty());
 
     // Clean up
     std::fs::remove_file(yml_path)?;

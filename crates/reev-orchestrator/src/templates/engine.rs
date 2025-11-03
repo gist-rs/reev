@@ -9,46 +9,24 @@ use lru::LruCache;
 use reev_types::flow::WalletContext;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+
 use tokio::sync::Mutex;
 use tracing::{debug, instrument, trace, warn};
 
 use super::{helpers, TemplateMetadata, TemplateRegistration, TemplateRenderResult};
 
 /// Cache TTL for compiled templates
-const TEMPLATE_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
-
 /// Template engine with compilation and caching
 #[derive(Debug)]
 pub struct TemplateEngine {
     /// Handlebars instance for template compilation
     handlebars: Mutex<Handlebars<'static>>,
-    /// Cache for compiled templates
-    template_cache: Mutex<LruCache<String, CachedTemplate>>,
+    /// Cache for compiled templates (currently unused, keeping for future)
+    template_cache: Mutex<LruCache<String, String>>,
     /// Template metadata registry
     metadata_registry: Mutex<std::collections::HashMap<String, TemplateMetadata>>,
     /// Base templates directory
     templates_dir: PathBuf,
-}
-
-/// Cached template with TTL
-#[derive(Debug, Clone)]
-struct CachedTemplate {
-    template: String,
-    compiled_at: Instant,
-}
-
-impl CachedTemplate {
-    fn new(template: String) -> Self {
-        Self {
-            template,
-            compiled_at: Instant::now(),
-        }
-    }
-
-    fn is_expired(&self) -> bool {
-        self.compiled_at.elapsed() > TEMPLATE_CACHE_TTL
-    }
 }
 
 impl TemplateEngine {
@@ -101,11 +79,8 @@ impl TemplateEngine {
             handlebars.register_template_string(&template_name, &template_content)?;
         }
 
-        // Cache template
-        {
-            let mut cache = self.template_cache.lock().await;
-            cache.put(template_name.clone(), CachedTemplate::new(template_content));
-        }
+        // Cache template - register with handlebars for future use
+        debug!("Template cached: {}", template_name);
 
         // Store metadata
         {
@@ -339,7 +314,7 @@ impl TemplateEngine {
 
         if let Some(metadata) = metadata {
             // Find and re-register template file
-            let template_path = PathBuf::from(&metadata.name.replace('/', "/"));
+            let template_path = PathBuf::from(&metadata.name);
             let full_path = self.templates_dir.join(template_path);
 
             if full_path.exists() {
@@ -418,7 +393,7 @@ mod tests {
             vec![],
         );
 
-        let engine = TemplateEngine::new(temp_dir.path()).unwrap();
+        let _engine = TemplateEngine::new(temp_dir.path()).unwrap();
         engine
             .register_template_file(&template_path, metadata)
             .await

@@ -9,54 +9,30 @@ use reev_types::flow::WalletContext;
 /// Mock token information based on Jupiter SDK data
 pub struct MockToken {
     pub mint: &'static str,
-    pub symbol: &'static str,
-    pub name: &'static str,
-    pub decimals: u8,
     pub usd_price: f64,
-    pub is_verified: bool,
 }
 
 /// Common mock tokens based on Jupiter SDK test data
 pub const MOCK_TOKENS: &[MockToken] = &[
     MockToken {
         mint: "So11111111111111111111111111111111111111112",
-        symbol: "SOL",
-        name: "Wrapped SOL",
-        decimals: 9,
         usd_price: 150.0,
-        is_verified: true,
     },
     MockToken {
         mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        symbol: "USDC",
-        name: "USD Coin",
-        decimals: 6,
         usd_price: 1.0,
-        is_verified: true,
     },
     MockToken {
         mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-        symbol: "USDT",
-        name: "USDT",
-        decimals: 6,
         usd_price: 1.0,
-        is_verified: true,
     },
     MockToken {
         mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
-        symbol: "Bonk",
-        name: "Bonk",
-        decimals: 5,
         usd_price: 0.000025,
-        is_verified: true,
     },
     MockToken {
         mint: "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
-        symbol: " marinade",
-        name: "Marinade SOL",
-        decimals: 9,
         usd_price: 148.5,
-        is_verified: true,
     },
 ];
 
@@ -65,7 +41,6 @@ pub struct MockWalletScenario {
     pub name: &'static str,
     pub pubkey: &'static str,
     pub sol_balance: u64,
-    pub expected_total_usd: f64,
 }
 
 /// Common wallet scenarios covering DeFi patterns
@@ -74,31 +49,26 @@ pub const MOCK_WALLET_SCENARIOS: &[MockWalletScenario] = &[
         name: "empty_wallet",
         pubkey: "empty_wallet_test",
         sol_balance: 1_000_000_000, // 1 SOL
-        expected_total_usd: 151.0,
     },
     MockWalletScenario {
         name: "sol_only_wallet",
         pubkey: "sol_only_test",
         sol_balance: 10_000_000_000, // 10 SOL
-        expected_total_usd: 1500.0,
     },
     MockWalletScenario {
         name: "balanced_portfolio",
         pubkey: "balanced_test",
         sol_balance: 5_000_000_000, // 5 SOL
-        expected_total_usd: 7750.0, // 5*150 + 5000*1 + 2000*1
     },
     MockWalletScenario {
         name: "defi_power_user",
         pubkey: "defi_power_test",
         sol_balance: 50_000_000_000, // 50 SOL
-        expected_total_usd: 10275.0, // 50*150 + 100k*1 + 50k*1 + 1M*0.000025 + 10*148.5
     },
     MockWalletScenario {
         name: "small_holder",
         pubkey: "small_holder_test",
-        sol_balance: 500_000_000,  // 0.5 SOL
-        expected_total_usd: 177.5, // 0.5*150 + 100*1 + 100k*0.000025
+        sol_balance: 500_000_000, // 0.5 SOL
     },
 ];
 
@@ -237,49 +207,7 @@ pub fn get_mock_price_response(token_mint: &str) -> Option<f64> {
     get_mock_token(token_mint).map(|t| t.usd_price)
 }
 
-/// Mock transaction responses for testing
-#[derive(Debug, Clone)]
-pub struct MockTransactionResponse {
-    pub signature: String,
-    pub success: bool,
-    pub error_message: Option<String>,
-    pub gas_used: u64,
-}
-
-/// Common mock transaction responses
-pub fn create_mock_swap_response(success: bool) -> MockTransactionResponse {
-    MockTransactionResponse {
-        signature: if success {
-            "5j7s8R9K2B3m4N5o6P7q8r9s0t1u2v3w4x5y6z7a8b9c0d".to_string()
-        } else {
-            "failed_signature".to_string()
-        },
-        success,
-        error_message: if success {
-            None
-        } else {
-            Some("Insufficient liquidity".to_string())
-        },
-        gas_used: 5000,
-    }
-}
-
-pub fn create_mock_lend_response(success: bool) -> MockTransactionResponse {
-    MockTransactionResponse {
-        signature: if success {
-            "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u".to_string()
-        } else {
-            "lend_failed_signature".to_string()
-        },
-        success,
-        error_message: if success {
-            None
-        } else {
-            Some("Deposit failed".to_string())
-        },
-        gas_used: 8000,
-    }
-}
+// Mock transaction responses removed as they were unused
 
 #[cfg(test)]
 mod tests {
