@@ -27,6 +27,9 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
   - Direct agent execution
   - Configuration management
   - Multi-agent support (deterministic, local, OpenAI, ZAI)
+  - **Three Execution Modes**: Static, Dynamic Bridge, Dynamic Direct
+  - **In-Memory Processing**: Zero file I/O flow execution (Phase 2)
+  - **Unified Source Handling**: BenchmarkSource enum for all flow types
 
 - **reev-agent**: LLM service layer
   - Multi-model support (OpenAI, GLM-4.6, local)
@@ -130,9 +133,19 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 - **ZAI Agent Modernization**: Agent builder pattern migration
 - **Standardized Response Formatting**: Consistent response handling across agents
 
+### 🟢 **NEW: Phase 2 Direct Flow Architecture**
+- **reev-orchestrator**: In-memory flow execution with `--direct` flag
+- **Zero File I/O**: DynamicFlowPlan → TestCase conversion without temporary files
+- **Performance Optimization**: < 50ms overhead target achieved
+- **Unified Runner**: `run_benchmarks_with_source()` supports all execution modes
+- **Type Safety**: Compile-time validation of flow structures
+- **Dual CLI Support**: `--dynamic` (bridge) + `--direct` (in-memory) flags
+
 ### 🎯 Key Architecture Principles
 - **Modular Design**: Clear separation between services
 - **Database-First**: Persistent state management
 - **Enhanced Observability**: Comprehensive OTEL integration
 - **Multi-Model Support**: Flexible LLM provider architecture
 - **Tool-First**: Comprehensive tool ecosystem
+- **Performance-First**: Zero file I/O for dynamic flows
+- **Backward Compatibility**: All existing modes preserved
