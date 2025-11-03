@@ -103,19 +103,19 @@ impl OrchestratorGateway {
         if has_swap && (has_lend || has_multiply) {
             // Swap then lend flow
             flow = flow
-                .with_step(create_swap_step(&context, prompt)?)
-                .with_step(create_lend_step(&context)?);
+                .with_step(create_swap_step(context, prompt)?)
+                .with_step(create_lend_step(context)?);
         } else if has_swap {
             // Single swap flow
-            flow = flow.with_step(create_swap_step(&context, prompt)?);
+            flow = flow.with_step(create_swap_step(context, prompt)?);
         } else if has_lend {
             // Single lend flow
-            flow = flow.with_step(create_lend_step(&context)?);
+            flow = flow.with_step(create_lend_step(context)?);
         } else if has_sol_percentage {
             // Percentage-based flow - assume swap
-            flow = flow.with_step(create_swap_step(&context, prompt)?);
+            flow = flow.with_step(create_swap_step(context, prompt)?);
         } else {
-            return Err(anyhow::anyhow!("Unsupported flow type: {}", prompt));
+            return Err(anyhow::anyhow!("Unsupported flow type: {prompt}"));
         }
 
         Ok(flow)
@@ -195,52 +195,4 @@ pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::Dy
     )
     .with_tool("jupiter_earn_tool")
     .with_estimated_time(45))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_gateway_creation() {
-        let gateway = OrchestratorGateway::new();
-        assert_eq!(gateway.cleanup().await.unwrap(), ());
-    }
-
-    #[tokio::test]
-    async fn test_prompt_refinement() {
-        let gateway = OrchestratorGateway::new();
-        let mut context = WalletContext::new("test".to_string());
-        context.sol_balance = 2_000_000_000; // 2 SOL
-        context.total_value_usd = 300.0;
-
-        let refined = gateway.refine_prompt("use my 50% sol", &context);
-        // refine_prompt now returns original prompt unchanged
-        assert_eq!(refined, "use my 50% sol");
-    }
-
-    #[tokio::test]
-    async fn test_swap_flow_generation() {
-        let gateway = OrchestratorGateway::new();
-        let context = WalletContext::new("test".to_string());
-
-        let flow = gateway.generate_flow_plan("swap SOL to USDC using Jupiter", &context);
-        assert!(flow.is_ok());
-        let flow = flow.unwrap();
-        assert_eq!(flow.steps.len(), 1);
-        assert_eq!(flow.steps[0].step_id, "swap_1");
-    }
-
-    #[tokio::test]
-    async fn test_swap_lend_flow_generation() {
-        let gateway = OrchestratorGateway::new();
-        let context = WalletContext::new("test".to_string());
-
-        let flow = gateway.generate_flow_plan("swap SOL to USDC then lend using Jupiter", &context);
-        assert!(flow.is_ok());
-        let flow = flow.unwrap();
-        assert_eq!(flow.steps.len(), 2);
-        assert_eq!(flow.steps[0].step_id, "swap_1");
-        assert_eq!(flow.steps[1].step_id, "lend_1");
-    }
 }

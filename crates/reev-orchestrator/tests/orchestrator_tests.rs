@@ -65,7 +65,7 @@ async fn test_cache_functionality() {
 #[tokio::test]
 async fn test_gateway_creation() {
     let gateway = OrchestratorGateway::new();
-    assert_eq!(gateway.cleanup().await.unwrap(), ());
+    gateway.cleanup().await.unwrap();
 }
 
 #[tokio::test]
