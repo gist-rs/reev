@@ -158,18 +158,14 @@ impl OrchestratorGateway {
 
     /// Execute flow with Phase 3 recovery mechanisms
     #[instrument(skip(self, step_executor))]
-    pub async fn execute_flow_with_recovery<F>(
+    pub async fn execute_flow_with_recovery<F, Fut>(
         &self,
         flow_plan: DynamicFlowPlan,
         step_executor: F,
     ) -> Result<reev_types::flow::FlowResult>
     where
-        F: Fn(
-                &reev_types::flow::DynamicStep,
-                &Vec<reev_types::flow::StepResult>,
-            ) -> Result<reev_types::flow::StepResult>
-            + Send
-            + Sync,
+        F: FnMut(&reev_types::flow::DynamicStep, &Vec<reev_types::flow::StepResult>) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<reev_types::flow::StepResult>> + Send,
     {
         info!(
             flow_id = %flow_plan.flow_id,

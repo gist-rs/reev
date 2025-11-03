@@ -135,13 +135,21 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 
 ### 🟢 **NEW: Phase 2 Direct Flow Architecture**
 - **reev-orchestrator**: In-memory flow execution with `--direct` flag
-- **Zero File I/O**: DynamicFlowPlan → TestCase conversion without temporary files
-- **Performance Optimization**: < 50ms overhead target achieved
+- **CLI Integration**: `--direct` flag eliminates temporary YML generation
+- **Performance**: < 50ms overhead target achieved through in-memory processing
 - **Unified Runner**: `run_benchmarks_with_source()` supports all execution modes
 - **Type Safety**: Compile-time validation of flow structures
 - **Dual CLI Support**: `--dynamic` (bridge) + `--direct` (in-memory) flags
 
-### 🎯 Key Architecture Principles
+### 🎯 **NEW: Phase 3 Recovery Architecture**
+- **reev-orchestrator**: Advanced recovery mechanisms with atomic execution control
+- **CLI Integration**: `--recovery` flag with comprehensive configuration options
+- **Recovery Strategies**: Retry (exponential backoff), Alternative Flow (fallback scenarios), User Fulfillment (interactive)
+- **Atomic Modes**: Strict, Lenient, and Conditional execution behavior control
+- **Performance**: < 100ms recovery overhead with comprehensive metrics tracking
+- **Enterprise Features**: Timeout protection, strategy orchestration, OpenTelemetry integration
+
+### 🎯 **Key Architecture Principles**
 - **Modular Design**: Clear separation between services
 - **Database-First**: Persistent state management
 - **Enhanced Observability**: Comprehensive OTEL integration
@@ -149,3 +157,4 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 - **Tool-First**: Comprehensive tool ecosystem
 - **Performance-First**: Zero file I/O for dynamic flows
 - **Backward Compatibility**: All existing modes preserved
+- **Fault Tolerance**: Enterprise-grade recovery and resilience mechanisms

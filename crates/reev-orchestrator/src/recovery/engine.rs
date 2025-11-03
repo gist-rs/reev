@@ -84,15 +84,15 @@ pub struct RecoveryEngine {
 #[derive(Debug, Default, Clone)]
 pub struct RecoveryMetrics {
     /// Total recovery attempts made
-    total_attempts: usize,
+    pub total_attempts: usize,
     /// Successful recoveries
-    successful_recoveries: usize,
+    pub successful_recoveries: usize,
     /// Failed recoveries
-    failed_recoveries: usize,
+    pub failed_recoveries: usize,
     /// Total recovery time in milliseconds
-    total_recovery_time_ms: u64,
+    pub total_recovery_time_ms: u64,
     /// Recoveries by strategy
-    recoveries_by_strategy: std::collections::HashMap<String, usize>,
+    pub recoveries_by_strategy: std::collections::HashMap<String, usize>,
 }
 
 impl RecoveryEngine {
@@ -272,8 +272,7 @@ impl RecoveryEngine {
             recovery_time_ms: start_time.elapsed().as_millis() as u64,
         };
 
-        let outcome =
-            determine_recovery_outcome(step, &recovery_result, flow_plan.atomic_mode);
+        let outcome = determine_recovery_outcome(step, &recovery_result, flow_plan.atomic_mode);
 
         error!(
             step_id = %step.step_id,
@@ -286,13 +285,15 @@ impl RecoveryEngine {
 
     /// Execute a flow with recovery support
     #[instrument(skip(self, flow_plan, step_executor))]
-    pub async fn execute_flow_with_recovery(
+    pub async fn execute_flow_with_recovery<F, Fut>(
         &mut self,
         flow_plan: DynamicFlowPlan,
-        step_executor: impl Fn(&DynamicStep, &Vec<StepResult>) -> Result<StepResult, anyhow::Error>
-            + Send
-            + Sync,
-    ) -> FlowResult {
+        mut step_executor: F,
+    ) -> FlowResult
+    where
+        F: FnMut(&DynamicStep, &Vec<StepResult>) -> Fut,
+        Fut: std::future::Future<Output = Result<StepResult, anyhow::Error>> + Send,
+    {
         let start_time = Instant::now();
         let mut step_results = Vec::new();
         let mut successful_steps = 0;
@@ -318,7 +319,7 @@ impl RecoveryEngine {
             );
 
             // Attempt to execute step
-            match step_executor(step, &step_results) {
+            match step_executor(step, &step_results).await {
                 Ok(step_result) => {
                     successful_steps += 1;
                     step_results.push(step_result);

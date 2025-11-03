@@ -350,7 +350,7 @@ async fn test_mock_data_integration() -> Result<()> {
         let context = create_mock_wallet_context(scenario);
 
         // Test flow generation with mock context
-        let plan = gateway.generate_flow_plan("use 50% sol to usdc", &context)?;
+        let plan = gateway.generate_flow_plan("use 50% sol to usdc", &context, None)?;
 
         println!("DEBUG: Generated plan for {scenario_name}: {plan:?}");
         println!("DEBUG: Step prompt: {}", plan.steps[0].prompt_template);

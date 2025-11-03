@@ -145,7 +145,7 @@ impl RecoveryStrategyEngine for RetryStrategy {
         "retry"
     }
 
-    fn is_applicable(&self, step: &DynamicStep) -> bool {
+    fn is_applicable(&self, _step: &DynamicStep) -> bool {
         // Retry strategy is always applicable as a fallback
         true
     }
@@ -277,7 +277,7 @@ impl AlternativeFlowStrategy {
         }
 
         // Check general alternatives
-        for (key, alternative_flow) in &self.alternative_flows {
+        for alternative_flow in self.alternative_flows.values() {
             for condition in &alternative_flow.trigger_conditions {
                 if error_lower.contains(condition) {
                     return Some(alternative_flow);

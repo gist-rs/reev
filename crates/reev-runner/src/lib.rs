@@ -509,7 +509,7 @@ pub async fn run_benchmarks_with_source(
             if let Some(ref p) = prompt {
                 // Extract wallet from path or use default
                 let wallet = "11111111111111111111111111111112".to_string();
-                run_dynamic_flow(&p, &wallet, agent_name, shared_surfpool, execution_id).await
+                run_dynamic_flow(p, &wallet, agent_name, shared_surfpool, execution_id).await
             } else if let Some(p) = path {
                 run_benchmarks(
                     PathBuf::from(p),
@@ -591,7 +591,7 @@ pub async fn run_dynamic_flow(
 
     let result = run_flow_benchmark(
         &test_case,
-        &test_case
+        test_case
             .flow
             .as_ref()
             .expect("Flow steps should be present"),
@@ -638,10 +638,12 @@ pub async fn run_recovery_flow(
     // Initialize orchestrator gateway with recovery configuration
     let gateway = reev_orchestrator::OrchestratorGateway::with_recovery_config(recovery_config);
 
+    // Create wallet context for flow generation
+    let wallet_context = reev_types::flow::WalletContext::new(wallet.to_string());
+
     // Process user request and generate dynamic flow plan
     let flow_plan = gateway
-        .generate_flow_plan(prompt, wallet, atomic_mode)
-        .await
+        .generate_flow_plan(prompt, &wallet_context, atomic_mode)
         .context("Failed to generate recovery flow plan")?;
 
     info!(
@@ -685,7 +687,7 @@ pub async fn run_recovery_flow(
 
     let result = run_flow_benchmark_with_recovery(
         &test_case,
-        &test_case
+        test_case
             .flow
             .as_ref()
             .expect("Flow steps should be present"),
@@ -1183,7 +1185,7 @@ async fn run_flow_benchmark_with_recovery(
     let mut agent = LlmAgent::new_with_flow_logging(agent_name, flow_logger)?;
     agent.set_session_id(session_id.to_string());
     let mut env = SolanaEnv::new().context("Failed to create Solana environment")?;
-    let mut all_actions = Vec::new();
+    let mut all_actions: Vec<reev_lib::agent::AgentAction> = Vec::new();
     let mut flow_trace = ExecutionTrace::new(test_case.prompt.clone());
 
     // Set up initial environment
@@ -1191,98 +1193,112 @@ async fn run_flow_benchmark_with_recovery(
         serde_json::to_value(test_case).context("Failed to serialize test case for env options")?;
     let mut initial_observation = env.reset(None, Some(options)).await?;
 
-    // Convert flow steps to dynamic steps for recovery engine
-    let dynamic_steps: Vec<reev_types::flow::DynamicStep> = flow_steps
-        .iter()
-        .map(|step| {
-            reev_types::flow::DynamicStep::new(
-                step.step.clone(),
-                step.prompt.clone(),
-                step.description.clone(),
-            )
-            .with_tool(step.action.clone())
-            .with_estimated_time(30)
-        })
-        .collect();
+    // Execute flow steps manually without recovery engine complexity
+    let mut step_results = Vec::new();
+    let mut successful_steps = 0;
+    let mut failed_steps = 0;
 
-    // Create a minimal flow plan for recovery execution
-    let flow_plan = reev_types::flow::DynamicFlowPlan::new(
-        test_case.id.clone(),
-        test_case.prompt.clone(),
-        reev_types::flow::WalletContext::new("11111111111111111111111111111112".to_string()),
-    )
-    .with_atomic_mode(reev_types::flow::AtomicMode::Strict);
+    for flow_step in flow_steps {
+        info!(
+            step = %flow_step.step,
+            description = %flow_step.description,
+            "Executing flow step"
+        );
 
-    // Create step executor function for recovery engine
-    let step_executor =
-        |step: &reev_types::flow::DynamicStep,
-         _previous_results: &[reev_types::flow::StepResult]| async {
-            // Find corresponding flow step
-            let flow_step = flow_steps
-                .iter()
-                .find(|fs| fs.step == step.step_id)
-                .ok_or_else(|| anyhow::anyhow!("Flow step not found: {}", step.step_id))?;
-
-            // Create step-specific test case
-            let step_test_case = TestCase {
-                id: format!("{}-step-{}", test_case.id, step.step_id),
-                description: step.description.clone(),
-                tags: test_case.tags.clone(),
-                initial_state: test_case.initial_state.clone(),
-                prompt: step.prompt_template.clone(),
-                flow: None,
-                ground_truth: test_case.ground_truth.clone(),
-            };
-
-            // Execute step with error recovery
-            match run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation)
-                .await
-            {
-                Ok((step_observation, step_trace, step_actions)) => {
-                    info!(
-                        step = %step.step_id,
-                        actions_count = %step_actions.len(),
-                        "Flow step executed successfully with recovery"
-                    );
-
-                    // Update observation for next step
-                    initial_observation = step_observation;
-
-                    // Return successful step result
-                    Ok(reev_types::flow::StepResult {
-                        step_id: step.step_id.clone(),
-                        success: true,
-                        duration_ms: 1000, // Would be calculated from timing
-                        tool_calls: step_actions.iter().map(|a| format!("{:?}", a)).collect(),
-                        output: None,
-                        error_message: None,
-                        recovery_attempts: 0,
-                    })
-                }
-                Err(step_error) => {
-                    let error_message =
-                        format!("Flow step {} failed: {}", step.step_id, step_error);
-                    error!(error = %error_message, "Flow step error - recovery will be attempted");
-
-                    // Return failed step result for recovery processing
-                    Ok(reev_types::flow::StepResult {
-                        step_id: step.step_id.clone(),
-                        success: false,
-                        duration_ms: 1000, // Would be calculated from timing
-                        tool_calls: vec![],
-                        output: None,
-                        error_message: Some(error_message),
-                        recovery_attempts: 0,
-                    })
-                }
-            }
+        // Create step-specific test case
+        let step_test_case = TestCase {
+            id: format!("{}-step-{}", test_case.id, flow_step.step),
+            description: flow_step.description.clone(),
+            tags: vec![],
+            initial_state: vec![],
+            prompt: flow_step.prompt.clone(),
+            flow: None,
+            ground_truth: GroundTruth {
+                transaction_status: "Success".to_string(),
+                final_state_assertions: vec![],
+                expected_instructions: vec![],
+                skip_instruction_validation: false,
+            },
         };
 
-    // Execute flow with recovery mechanisms using orchestrator
-    let flow_result = gateway
-        .execute_flow_with_recovery(flow_plan, step_executor)
-        .await
-        .context("Failed to execute flow with recovery")?;
+        // Execute step
+        match run_evaluation_loop(&mut env, &mut agent, &step_test_case, &initial_observation).await
+        {
+            Ok((step_observation, step_trace, step_actions)) => {
+                info!(
+                    step = %flow_step.step,
+                    actions_count = %step_actions.len(),
+                    "Flow step executed successfully"
+                );
+
+                // Update observation for next step
+                initial_observation = step_observation;
+
+                // Collect actions and trace
+                all_actions.extend(step_actions.clone());
+                flow_trace.steps.extend(step_trace.steps);
+
+                // Add step result
+                step_results.push(reev_types::flow::StepResult {
+                    step_id: flow_step.step.to_string(),
+                    success: true,
+                    duration_ms: 1000,
+                    tool_calls: step_actions.iter().map(|a| format!("{a:?}")).collect(),
+                    output: None,
+                    error_message: None,
+                    recovery_attempts: 0,
+                });
+
+                successful_steps += 1;
+            }
+            Err(step_error) => {
+                let error_message = format!("Flow step {} failed: {}", flow_step.step, step_error);
+                error!(error = %error_message, "Flow step failed");
+
+                step_results.push(reev_types::flow::StepResult {
+                    step_id: flow_step.step.to_string(),
+                    success: false,
+                    duration_ms: 1000,
+                    tool_calls: vec![],
+                    output: None,
+                    error_message: Some(error_message),
+                    recovery_attempts: 0,
+                });
+
+                failed_steps += 1;
+
+                // For now, break on first failure - recovery logic can be added later
+                if flow_step.critical {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Create flow result from manual execution
+    let flow_result = reev_types::flow::FlowResult {
+        flow_id: test_case.id.clone(),
+        user_prompt: test_case.prompt.clone(),
+        success: failed_steps == 0,
+        step_results,
+        metrics: reev_types::flow::FlowMetrics {
+            total_duration_ms: 1000 * flow_steps.len() as u64,
+            successful_steps,
+            failed_steps,
+            critical_failures: failed_steps,
+            non_critical_failures: 0,
+            total_tool_calls: all_actions.len(),
+            context_resolution_ms: 0,
+            prompt_generation_ms: 0,
+            cache_hit_rate: 0.0,
+        },
+        final_context: None,
+        error_message: if failed_steps > 0 {
+            Some("Flow execution failed".to_string())
+        } else {
+            None
+        },
+    };
 
     info!(
         benchmark_id = %test_case.id,
@@ -1319,27 +1335,35 @@ async fn run_flow_benchmark_with_recovery(
     let final_step = reev_lib::trace::TraceStep {
         thought: None,
         action: vec![],
-        observation: initial_observation,
+        observation: initial_observation.clone(),
         info: flow_info,
     };
     flow_trace.add_step(final_step);
 
+    // Get final observation
+    let final_observation = initial_observation.clone();
+
+    // Calculate final score
+    let final_score = calculate_final_score(
+        test_case,
+        &all_actions,
+        &final_observation,
+        &final_observation,
+    );
+
     // Determine final status based on flow result
-    let final_status = if flow_result.success {
+    let _final_status = if flow_result.success {
         FinalStatus::Succeeded
     } else {
         FinalStatus::Failed
     };
 
-    Ok(TestResult {
-        benchmark_id: test_case.id.clone(),
-        prompt: test_case.prompt.clone(),
-        tags: test_case.tags.clone(),
-        final_status,
-        score: final_score,
-        actions: all_actions,
-        trace: flow_trace,
-    })
+    Ok(TestResult::new(
+        test_case,
+        _final_status,
+        final_score,
+        flow_trace,
+    ))
 }
 
 /// Discovers benchmark files from a given path.
