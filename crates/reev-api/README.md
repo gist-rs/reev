@@ -1,6 +1,6 @@
-# reev-api: Dynamic Flow REST API
+# reev-api: REST API Server
 
-REST API server for reev dynamic flow system. Provides comprehensive endpoints for dynamic flow execution, recovery management, and real-time session tracking with atomic execution control.
+REST API server for reev benchmark system. Provides comprehensive endpoints for static benchmark execution, session tracking, and agent management.
 
 ## 🏗️ Architecture Overview
 
@@ -8,11 +8,9 @@ REST API server for reev dynamic flow system. Provides comprehensive endpoints f
 graph TD
     A[HTTP Client] --> B[API Gateway]
     B --> C[Flow Execution Engine]
-    B --> D[Dynamic Flow Generator]
-    B --> E[Recovery Manager]
-    B --> F[Session Tracker]
+    D[Benchmark Manager]
+    B --> E[Session Tracker]
     C --> G[reev-runner]
-    D --> G
     E --> G
     F --> H[reev-agent Service]
     G --> I[reev-tools]
@@ -31,9 +29,9 @@ cargo watch -w crates -x "run -p reev-api --bin reev-api"
 ```
 
 **Features:**
-- Dynamic flow execution endpoints
+- Static benchmark execution endpoints
 - Real-time session tracking
-- Automatic recovery management
+- Agent configuration and management
 - Comprehensive OpenTelemetry integration
 - Hot reload during development
 
@@ -50,26 +48,23 @@ cargo build --release -p reev-api
 ./target/release/reev-api
 ```
 
-## 📡 Dynamic Flow Endpoints
+## 📊 Current Status
+
+**Note**: Dynamic flow execution via API endpoints is planned but not yet implemented. The API currently supports static benchmark execution only.
+
+### Static Benchmark Endpoints
 
 ### Flow Execution
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `POST /api/v1/flows/execute-dynamic` | Execute dynamic flow with bridge mode |
-| `POST /api/v1/flows/execute-direct` | Execute dynamic flow with direct mode |
-| `POST /api/v1/flows/execute-recovery` | Execute dynamic flow with recovery mode |
+| `POST /api/v1/benchmarks/{id}/run` | Execute static benchmark |
 
 ### Session Management
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `GET /api/v1/sessions/{flow_id}` | Get flow execution session details |
-| `GET /api/v1/sessions/{flow_id}/status` | Get real-time execution status |
-| `GET /api/v1/sessions` | List all active sessions |
-| `DELETE /api/v1/sessions/{flow_id}` | Cancel active session |
+| `GET /api/v1/flow-logs/{benchmark_id}` | Get execution flow logs |
+| `GET /api/v1/flows/{session_id}` | Get flow session details |
 
-### Recovery Management
-| Endpoint | Method | Description |
-|----------|--------|-------------|
 | `GET /api/v1/recovery/config` | Get recovery configuration |
 | `PUT /api/v1/recovery/config` | Update recovery configuration |
 | `GET /api/v1/recovery/metrics` | Get recovery performance metrics |

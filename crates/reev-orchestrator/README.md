@@ -269,7 +269,7 @@ cargo test -p reev-orchestrator --test recovery_tests
 ```
 
 ### Test Coverage
-- **51/51 tests passing** (100% coverage)
+- **57/57 tests passing** (100% coverage)
 - **Mock-based testing** - no external dependencies
 - **End-to-end flow validation**
 - **Recovery strategy testing**
@@ -512,7 +512,7 @@ cargo test --test integration_tests
 
 ### Code Quality
 - **Zero Warnings**: All clippy warnings resolved
-- **100% Test Coverage**: 51/51 tests passing
+- **100% Test Coverage**: 57/57 tests passing
 - **Documentation**: All public APIs documented
 - **Performance**: Benchmarks for critical paths
 

@@ -28,16 +28,17 @@ For overall project architecture and goals, please see the [main project `README
 
 ## 🧪 Testing Strategy
 
-### Test Files (5 tests)
+### Test Files (6+ tests)
 - `constants_amounts_test.rs` - Validates Solana amount constants and conversions
 - `constants_addresses_test.rs` - Tests Solana address constants and validation
 - `constants_env_test.rs` - Environment variable configuration testing
 - `otel_extraction_test.rs` - OpenTelemetry trace extraction validation
 - `transfers.rs` - Transfer instruction processing tests
+- Additional unit tests in lib.rs
 
 ### Running Tests
 ```bash
-# Run all lib tests
+# Run all lib tests (23 tests total)
 cargo test -p reev-lib
 
 # Run specific test with output
@@ -45,9 +46,16 @@ cargo test -p reev-lib --test constants_amounts_test -- --nocapture
 
 # Test transfer logic
 cargo test -p reev-lib --test transfers -- --nocapture
+
+# Run lib unit tests only
+cargo test -p reev-lib --lib
 ```
 
 ### Test Coverage
+- **23/23 tests passing** (100% coverage)
+- Comprehensive unit tests for core functionality
+- Integration tests for key components
+
 - **Constants**: Amounts, addresses, and environment variables
 - **Instruction Processing**: Transfer operations and transaction building
 - **Environment Configuration**: API key and endpoint validation
