@@ -210,10 +210,9 @@ async fn create_ai_agent() -> Result<reev_lib::llm_agent::LlmAgent> {
     // Check if we have API keys for cloud models
     let has_gemini_key = std::env::var("GEMINI_API_KEY").is_ok();
     let has_openai_key = std::env::var("OPENAI_API_KEY").is_ok();
-    let has_glm_key = std::env::var("GLM_CODING_API_KEY").is_ok();
-    let has_glm_url = std::env::var("GLM_CODING_API_URL").is_ok();
+    let has_glm_key = std::env::var("ZAI_API_KEY").is_ok();
 
-    let model_name = if has_glm_key && has_glm_url {
+    let model_name = if has_glm_key {
         "glm-4.6".to_string()
     } else if has_gemini_key || has_openai_key {
         std::env::var("LLM_MODEL").unwrap_or_else(|_| "gemini-2.5-flash-lite".to_string())

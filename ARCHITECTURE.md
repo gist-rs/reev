@@ -53,6 +53,14 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 - **OpenAI Agent**: Multi-turn conversation with comprehensive OTEL
 - **ZAI Agent**: GLM-4.6 integration with model validation
 
+### GLM Agent Configuration
+- **glm-4.6-coding**: Routes through reev-agent → ZAIAgent with model `glm-4.6`
+- **glm-4.6**: Routes through reev-agent → OpenAI compatible format with model `glm-4.6`
+- **Authentication**: Both GLM agents use `ZAI_API_KEY` environment variable
+- **URL Routing**: Different endpoint configurations for each GLM agent variant
+- **Error Handling**: No fallbacks - throws error if `ZAI_API_KEY` missing for GLM agents
+- **Fallback Policy**: Only deterministic agent used when no specific agent configuration provided
+
 ### Tool Categories
 - **Discovery Tools**: Account balance, position info, lend/earn tokens
 - **Core Tools**: SOL transfer, SPL transfer
@@ -85,7 +93,16 @@ web(5173) → api(3001) → runner → agent(9090) → tools → jupiter(sdk) �
 ### Multi-Model Support
 - **OpenAI**: GPT-4, GPT-4-turbo with API key authentication
 - **GLM-4.6**: Via ZAI provider with model validation
+  - Both `glm-4.6` and `glm-4.6-coding` use same underlying model `glm-4.6`
+  - `glm-4.6-coding` uses ZAIAgent for enhanced tool integration
+  - `glm-4.6` uses OpenAI compatible format with ZAI endpoint
 - **Local Models**: Configurable endpoint for local model serving
+
+### GLM Authentication Requirements
+- **Required**: `ZAI_API_KEY` environment variable for all GLM agents
+- **No Fallbacks**: Explicit error if `ZAI_API_KEY` missing when using GLM agents
+- **Model Validation**: ZAI API validates model availability before execution
+- **Agent-Specific Routing**: Different URL endpoints but same authentication method
 
 ## Current Implementation Status
 

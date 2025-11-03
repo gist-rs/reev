@@ -38,89 +38,109 @@ impl LlmAgent {
     ) -> anyhow::Result<Self> {
         info!("[LlmAgent] Initializing agent: '{agent_name}'");
 
-        // Check for GLM Coding environment variables
-        let glm_api_key = std::env::var("GLM_CODING_API_KEY").ok();
-        let glm_api_url = std::env::var("GLM_CODING_API_URL").ok();
+        // Handle GLM models specifically - both glm-4.6 and glm-4.6-coding use ZAI_API_KEY
+        let (api_url, api_key, model_name, agent_name_for_type, is_glm) = if agent_name
+            .starts_with("glm-")
+        {
+            // Check for ZAI_API_KEY for GLM models
+            match std::env::var("ZAI_API_KEY") {
+                Ok(zai_key) if !zai_key.is_empty() => {
+                    info!("[LlmAgent] GLM model detected, using ZAI API key");
 
-        // Check if GLM environment is set (for determining parsing mode)
-        let _glm_env_available = glm_api_key.is_some() && glm_api_url.is_some();
-
-        let (api_url, api_key, model_name, agent_name_for_type, is_glm) = match (
-            glm_api_key,
-            glm_api_url,
-        ) {
-            (Some(key), Some(url))
-                if !key.is_empty() && !url.is_empty() && agent_name != "local" =>
-            {
-                info!("[LlmAgent] GLM Coding environment detected, routing through reev-agent");
-                // Route GLM through reev-agent instead of direct API calls
-                let final_url = if agent_name == "deterministic" {
-                    "http://localhost:9090/gen/tx?mock=true".to_string()
-                } else {
-                    "http://localhost:9090/gen/tx".to_string()
-                };
-                // Extract base model name for GLM models (strip mode suffixes like "-coding")
-                let model_name = if agent_name.starts_with("glm-") {
-                    agent_name.split('-').take(2).collect::<Vec<_>>().join("-")
-                } else {
-                    agent_name.to_string()
-                };
-                // GLM parsing should only be used for models starting with 'glm'
-                let is_glm = agent_name.starts_with("glm");
-                (final_url, None, model_name, agent_name.to_string(), is_glm)
-            }
-            (Some(_), None) => {
-                anyhow::bail!("GLM_CODING_API_KEY is set but GLM_CODING_API_URL is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");
-            }
-            (None, Some(_)) => {
-                anyhow::bail!("GLM_CODING_API_URL is set but GLM_CODING_API_KEY is missing. Please set both GLM_CODING_API_KEY and GLM_CODING_API_URL for GLM Coding 4.6 support.");
-            }
-            _ => {
-                info!("[LlmAgent] GLM environment variables not found, using default LLM configuration");
-
-                // Load base API URL from environment variables, falling back to a default.
-                let base_url = std::env::var("LLM_API_URL")
-                    .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
-                info!("[LlmAgent] Using base URL: {base_url}");
-
-                // Append `?mock=true` if the deterministic agent is selected.
-                let api_url = if agent_name == "deterministic" {
-                    format!("{base_url}?mock=true")
-                } else {
-                    base_url
-                };
-
-                // Pass through agent names directly - 'local' should remain 'local' for actual local models
-                // Add support for "glm" alias to "glm-4.6"
-                // Extract base model name for GLM models (strip mode suffixes like "-coding")
-                let model_name = match agent_name {
-                    "glm" => "glm-4.6".to_string(),
-                    _ => {
-                        if agent_name.starts_with("glm-") {
-                            agent_name.split('-').take(2).collect::<Vec<_>>().join("-")
-                        } else {
-                            agent_name.to_string()
+                    // Determine URL based on agent type
+                    let (url, use_agent_endpoint) = match agent_name {
+                        "glm-4.6-coding" => {
+                            // glm-4.6-coding routes through reev-agent with ZAI handling
+                            (
+                                if agent_name == "deterministic" {
+                                    "http://localhost:9090/gen/tx?mock=true".to_string()
+                                } else {
+                                    "http://localhost:9090/gen/tx".to_string()
+                                },
+                                true,
+                            )
                         }
-                    }
-                };
+                        "glm-4.6" => {
+                            // glm-4.6 uses OpenAI compatible format but with ZAI endpoint
+                            (
+                                std::env::var("LLM_API_URL")
+                                    .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string()),
+                                false,
+                            )
+                        }
+                        _ => {
+                            // Other GLM variants use default endpoint
+                            (
+                                if agent_name == "deterministic" {
+                                    "http://localhost:9090/gen/tx?mock=true".to_string()
+                                } else {
+                                    "http://localhost:9090/gen/tx".to_string()
+                                },
+                                true,
+                            )
+                        }
+                    };
 
-                // Load API key from environment variables if it exists.
-                let api_key = match std::env::var("LLM_API_KEY") {
-                    Ok(key) if !key.is_empty() => {
-                        info!("[LlmAgent] Using LLM_API_KEY from environment.");
-                        Some(key)
-                    }
-                    _ => {
-                        info!("[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty.");
+                    // Extract base model name (strip mode suffixes like "-coding")
+                    let model_name = agent_name.split('-').take(2).collect::<Vec<_>>().join("-");
+
+                    // For glm-4.6-coding, don't pass API key to reev-agent (it will use ZAI_API_KEY internally)
+                    // For glm-4.6, pass the API key for OpenAI compatible calls
+                    let api_key = if use_agent_endpoint {
                         None
-                    }
-                };
+                    } else {
+                        Some(zai_key)
+                    };
 
-                // GLM parsing should only be used for models starting with 'glm'
-                let is_glm = agent_name.starts_with("glm");
-
-                (api_url, api_key, model_name, agent_name.to_string(), is_glm)
+                    (url, api_key, model_name, agent_name.to_string(), true)
+                }
+                Ok(_) => {
+                    anyhow::bail!("ZAI_API_KEY is set but empty for GLM model '{agent_name}'. Please provide a valid API key.");
+                }
+                Err(_) => {
+                    anyhow::bail!("ZAI_API_KEY environment variable is required for GLM model '{agent_name}'. Please set ZAI_API_KEY to use GLM models.");
+                }
             }
+        } else {
+            // Non-GLM models use default configuration
+            info!("[LlmAgent] Non-GLM model, using default LLM configuration");
+
+            // Load base API URL from environment variables, falling back to a default.
+            let base_url = std::env::var("LLM_API_URL")
+                .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string());
+            info!("[LlmAgent] Using base URL: {base_url}");
+
+            // Append `?mock=true` if the deterministic agent is selected.
+            let api_url = if agent_name == "deterministic" {
+                format!("{base_url}?mock=true")
+            } else {
+                base_url
+            };
+
+            // Pass through agent names directly - 'local' should remain 'local' for actual local models
+            let model_name = match agent_name {
+                "glm" => "glm-4.6".to_string(),
+                _ => agent_name.to_string(),
+            };
+
+            // Load API key from environment variables if it exists.
+            let api_key = match std::env::var("LLM_API_KEY") {
+                Ok(key) if !key.is_empty() => {
+                    info!("[LlmAgent] Using LLM_API_KEY from environment.");
+                    Some(key)
+                }
+                _ => {
+                    info!(
+                        "[LlmAgent] WARNING: LLM_API_KEY environment variable not set or is empty."
+                    );
+                    None
+                }
+            };
+
+            // GLM parsing should only be used for models starting with 'glm'
+            let is_glm = agent_name.starts_with("glm");
+
+            (api_url, api_key, model_name, agent_name.to_string(), is_glm)
         };
 
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
@@ -250,7 +270,7 @@ impl Agent for LlmAgent {
                 "id": id,
                 "context_prompt": enhanced_context,
                 "prompt": prompt,
-                "model_name": self.agent_type, // Use agent_type for routing
+                "model_name": self.model_name, // Use model_name for routing (already stripped to glm-4.6)
                 "mock": false,
                 "initial_state": initial_state.map(|state| {
                     serde_json::to_value(state).unwrap_or(serde_json::Value::Null)
@@ -340,7 +360,9 @@ impl Agent for LlmAgent {
         // 5. Send the request to the LLM API.
         let mut request_builder = self.client.post(&self.api_url);
         if let Some(api_key) = &self.api_key {
-            if self.is_glm {
+            // For GLM models using OpenAI compatible format, use Bearer token
+            // For other models, use X-API-Key header
+            if self.agent_type == "glm-4.6" {
                 request_builder =
                     request_builder.header("Authorization", format!("Bearer {api_key}"));
             } else {
