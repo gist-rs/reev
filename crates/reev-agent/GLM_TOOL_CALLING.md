@@ -113,7 +113,7 @@ let response = GlmAgent::run(
 ### Running Tests
 ```bash
 # Set environment variables
-export GLM_API_KEY=your_api_key_here
+export ZAI_API_KEY=your_api_key_here
 export GLM_API_URL=https://api.z.ai/api/coding/paas/v4
 
 # Run specific test
@@ -142,7 +142,7 @@ cargo test -p reev-agent glm -- --ignored
 ### Interactive Demo
 ```bash
 # Set API key
-export GLM_API_KEY=your_api_key_here
+export ZAI_API_KEY=your_api_key_here
 
 # Run demo
 ./crates/reev-agent/run_glm_demo.sh
@@ -158,7 +158,7 @@ export GLM_API_KEY=your_api_key_here
 ## Environment Variables
 
 ### Required
-- `GLM_API_KEY` - Your GLM API key from z.ai
+- `ZAI_API_KEY` - Your ZAI API key from z.ai
 
 ### Optional
 - `GLM_API_URL` - GLM API endpoint (defaults to https://api.z.ai/api/coding/paas/v4)
@@ -182,7 +182,7 @@ The GLM tool calling implementation is designed to integrate seamlessly with the
 ## Error Handling
 
 ### Common Errors
-1. **Missing API Key** - Set GLM_API_KEY environment variable
+1. **Missing API Key** - Set ZAI_API_KEY environment variable
 2. **Invalid Parameters** - Tool validates parameters before execution
 3. **Network Issues** - Automatic retry with exponential backoff
 4. **Tool Execution Failure** - Graceful fallback to direct response
@@ -287,7 +287,7 @@ Option 2: Custom GLM Agent
    - Verify parameter types
 
 3. **API Connection Issues**
-   - Check GLM_API_KEY validity
+   - Check ZAI_API_KEY validity
    - Verify GLM_API_URL accessibility
    - Review network connectivity
 

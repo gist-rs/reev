@@ -166,7 +166,7 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
    
    **GLM Coding API** (for coding-specific tasks):
    ```bash
-   export GLM_CODING_API_KEY="your-glm-coding-api-key"
+   export ZAI_API_KEY="your-zai-api-key"
    export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"  # optional
    ```
 5. **OpenTelemetry Setup** (Tool call tracking always enabled):

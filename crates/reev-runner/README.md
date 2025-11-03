@@ -25,7 +25,7 @@ To run a specific benchmark, provide the path to the benchmark YAML file. You ca
 | `deterministic` | Default agent with predefined actions | None |
 | `local` | Local LLM agent for custom models | None |
 | `glm-4.6` | GLM 4.6 general purpose model | `GLM_API_KEY`, `GLM_API_URL` |
-| `glm-4.6-coding` | GLM 4.6 specialized for coding tasks | `GLM_CODING_API_KEY`, `GLM_CODING_API_URL` |
+| `glm-4.6-coding` | GLM 4.6 specialized for coding tasks | `ZAI_API_KEY`, `GLM_CODING_API_URL` |
 | `gemini-2.5-flash-lite` | Google's Gemini 2.5 Flash Lite model | `GEMINI_API_KEY` |
 
 ### Command Structure
@@ -66,7 +66,7 @@ RUST_LOG=info cargo run -p reev-runner -- <PATH_TO_BENCHMARK> [--agent <AGENT_NA
 *   **GLM 4.6 Coding Agent:**
     For coding-specific tasks, use the GLM 4.6 Coding variant:
     ```sh
-    export GLM_CODING_API_KEY="your-glm-coding-api-key"
+    export ZAI_API_KEY="your-zai-api-key"
     export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding
     ```
@@ -134,8 +134,8 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     export GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo test -p reev-runner --test e2e_run_all_test -- --agent glm-4.6 -- --nocapture
     
-    # Test GLM 4.6 Coding agent (requires GLM_CODING_API_KEY and GLM_CODING_API_URL)
-    export GLM_CODING_API_KEY="your-glm-coding-api-key"
+    # Test GLM 4.6 Coding agent (requires ZAI_API_KEY and GLM_CODING_API_URL)
+    export ZAI_API_KEY="your-zai-api-key"
     export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo test -p reev-runner --test e2e_run_all_test -- --agent glm-4.6-coding -- --nocapture
     
@@ -157,8 +157,8 @@ To see detailed log output for any test, add the `-- --nocapture` flag.
     export GLM_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --agent glm-4.6 -- --nocapture
     
-    # Test with GLM 4.6 Coding agent (requires GLM_CODING_API_KEY and GLM_CODING_API_URL)
-    export GLM_CODING_API_KEY="your-glm-coding-api-key"
+    # Test with GLM 4.6 Coding agent (requires ZAI_API_KEY and GLM_CODING_API_URL)
+    export ZAI_API_KEY="your-zai-api-key"
     export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
     RUST_LOG=info cargo test -p reev-runner --test benchmarks_test -- --agent glm-4.6-coding -- --nocapture
     

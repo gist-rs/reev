@@ -6,19 +6,19 @@
 echo "🚀 GLM Agent Tool Calling Demo Runner"
 echo "====================================="
 
-# Check if GLM_API_KEY is set
-if [ -z "$GLM_API_KEY" ]; then
-    echo "❌ GLM_API_KEY environment variable not set"
+# Check if ZAI_API_KEY is set
+if [ -z "$ZAI_API_KEY" ]; then
+    echo "❌ ZAI_API_KEY environment variable not set"
     echo ""
-    echo "Please set your GLM API key:"
-    echo "export GLM_API_KEY=your_api_key_here"
+    echo "Please set your ZAI API key:"
+    echo "export ZAI_API_KEY=your_api_key_here"
     echo ""
     echo "Then run this script again."
     exit 1
 fi
 
-echo "✅ GLM_API_KEY is set"
-echo "🔑 Using API key: ${GLM_API_KEY:0:8}..."
+echo "✅ ZAI_API_KEY is set"
+echo "🔑 Using API key: ${ZAI_API_KEY:0:8}..."
 echo ""
 
 # Set GLM API URL if not already set

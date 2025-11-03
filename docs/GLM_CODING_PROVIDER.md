@@ -19,7 +19,7 @@ The GLM Coding provider is a custom implementation for integrating GLM Coding mo
 Set the required environment variables:
 
 ```bash
-export GLM_CODING_API_KEY="your_glm_coding_api_key"
+export ZAI_API_KEY="your_zai_api_key"
 export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"  # Optional, defaults to this URL
 ```
 
@@ -107,7 +107,7 @@ if !tool_calls.is_empty() {
 Create a new client with API key.
 
 #### `Client::from_env() -> Client`
-Create client from environment variables (`GLM_CODING_API_KEY`, `GLM_CODING_API_URL`).
+Create client from environment variables (`ZAI_API_KEY`, `GLM_CODING_API_URL`).
 
 #### `Client::builder(api_key: &str) -> ClientBuilder`
 Create a client builder for custom configuration.
@@ -203,7 +203,7 @@ let response = GlmCodingAgent::run("glm-4.6", request, key_map).await?;
 
 The GLM Coding provider uses the following environment variables:
 
-- `GLM_CODING_API_KEY`: Required API key for GLM Coding API
+- `ZAI_API_KEY`: Required API key for GLM Coding API
 - `GLM_CODING_API_URL`: Optional custom API URL (defaults to `https://api.z.ai/api/coding/paas/v4`)
 
 ## Error Handling
@@ -263,7 +263,7 @@ If you're migrating from the previous GLM implementation:
    export GLM_API_URL="your_url"
 
    # New
-   export GLM_CODING_API_KEY="your_key"
+   export ZAI_API_KEY="your_key"
    export GLM_CODING_API_URL="your_url"
    ```
 
@@ -291,7 +291,7 @@ If you're migrating from the previous GLM implementation:
 
 ### Common Issues
 
-**Q: Getting "GLM_CODING_API_KEY environment variable not set" error**
+**Q: Getting "ZAI_API_KEY environment variable not set" error**
 A: Ensure the environment variable is set before running your application
 
 **Q: Tool calls are not being executed**
