@@ -7,7 +7,6 @@ use crate::context_resolver::ContextResolver;
 use crate::generators::YmlGenerator;
 use crate::Result;
 use reev_types::flow::{DynamicFlowPlan, WalletContext};
-
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::RwLock;
@@ -70,13 +69,17 @@ impl OrchestratorGateway {
     }
 
     /// Refine user prompt with wallet context
-    fn refine_prompt(&self, prompt: &str, _context: &WalletContext) -> String {
+    pub fn refine_prompt(&self, prompt: &str, _context: &WalletContext) -> String {
         // Return original prompt unchanged for now - refinement will be done in step generation
         prompt.to_string()
     }
 
     /// Generate flow plan from refined prompt
-    fn generate_flow_plan(&self, prompt: &str, context: &WalletContext) -> Result<DynamicFlowPlan> {
+    pub fn generate_flow_plan(
+        &self,
+        prompt: &str,
+        context: &WalletContext,
+    ) -> Result<DynamicFlowPlan> {
         let flow_id = format!(
             "dynamic-{}-{}",
             chrono::Utc::now().timestamp(),
@@ -138,7 +141,7 @@ impl Default for OrchestratorGateway {
 }
 
 /// Create a swap step based on context
-fn create_swap_step(
+pub fn create_swap_step(
     context: &WalletContext,
     prompt: &str,
 ) -> Result<reev_types::flow::DynamicStep> {
@@ -179,10 +182,10 @@ fn create_swap_step(
 }
 
 /// Create a lend step based on context
-fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::DynamicStep> {
+pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::DynamicStep> {
     let prompt_template =
-        "Deposit the USDC from the previous swap into Jupiter lending to earn yield. \
-                           Use the maximum available USDC balance for optimal returns."
+        "Depositing USDC from the previous swap into Jupiter lending to earn yield. \
+         Using the maximum available USDC balance for optimal returns."
             .to_string();
 
     Ok(reev_types::flow::DynamicStep::new(

@@ -186,7 +186,7 @@ async fn test_yml_structure_validation() -> Result<()> {
 
     // Verify unified_data structure
     let unified_data = mapping
-        .get(&serde_yaml::Value::String("unified_data".to_string()))
+        .get(serde_yaml::Value::String("unified_data".to_string()))
         .unwrap();
     let unified_mapping = unified_data.as_mapping().unwrap();
 
@@ -197,7 +197,7 @@ async fn test_yml_structure_validation() -> Result<()> {
 
     // Verify steps structure
     let steps = unified_mapping
-        .get(&serde_yaml::Value::String("steps".to_string()))
+        .get(serde_yaml::Value::String("steps".to_string()))
         .unwrap();
     let steps_array = steps.as_sequence().unwrap();
     assert_eq!(steps_array.len(), 2);

@@ -18,7 +18,7 @@ use tracing::{debug, instrument};
 pub struct YmlGenerator {
     /// Template directory for YML templates (for future template system)
     #[allow(dead_code)]
-    template_dir: PathBuf,
+    pub template_dir: PathBuf,
     /// Keep generated files alive
     generated_files: Arc<Mutex<Vec<NamedTempFile>>>,
 }
@@ -56,7 +56,7 @@ impl YmlGenerator {
     }
 
     /// Generate YML content from flow plan
-    fn generate_yml_content(&self, flow_plan: &DynamicFlowPlan) -> Result<String> {
+    pub fn generate_yml_content(&self, flow_plan: &DynamicFlowPlan) -> Result<String> {
         let mut yml = serde_yaml::Mapping::new();
 
         // Basic metadata
@@ -123,7 +123,7 @@ impl YmlGenerator {
     }
 
     /// Generate system prompt from wallet context
-    fn generate_system_prompt(&self, context: &WalletContext) -> String {
+    pub fn generate_system_prompt(&self, context: &WalletContext) -> String {
         format!(
             "You are a DeFi assistant helping the user manage their Solana wallet.\n\
              \n\
@@ -144,7 +144,7 @@ impl YmlGenerator {
     }
 
     /// Generate tools configuration from flow steps
-    fn generate_tools_config(
+    pub fn generate_tools_config(
         &self,
         steps: &[reev_types::flow::DynamicStep],
     ) -> Vec<serde_yaml::Value> {
@@ -171,7 +171,7 @@ impl YmlGenerator {
     }
 
     /// Generate steps configuration
-    fn generate_steps_config(
+    pub fn generate_steps_config(
         &self,
         steps: &[reev_types::flow::DynamicStep],
     ) -> Vec<serde_yaml::Value> {
@@ -209,86 +209,5 @@ impl YmlGenerator {
 impl Default for YmlGenerator {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use reev_types::flow::{DynamicStep, WalletContext};
-
-    #[tokio::test]
-    async fn test_yml_generator_creation() {
-        let generator = YmlGenerator::new();
-        assert_eq!(generator.template_dir, PathBuf::from("templates"));
-    }
-
-    #[tokio::test]
-    async fn test_yml_generation() {
-        let generator = YmlGenerator::new();
-        let context = WalletContext::new("test_wallet".to_string());
-
-        let step = DynamicStep::new(
-            "swap_1".to_string(),
-            "Swap 1 SOL to USDC".to_string(),
-            "Swap SOL to USDC".to_string(),
-        );
-
-        let flow_plan = DynamicFlowPlan::new(
-            "test_flow".to_string(),
-            "swap SOL to USDC".to_string(),
-            context,
-        )
-        .with_step(step);
-
-        // Generate YML content without file for testing
-        let yml_content = generator.generate_yml_content(&flow_plan).unwrap();
-        assert!(!yml_content.is_empty());
-        assert!(yml_content.contains("dynamic-test_flow"));
-
-        // Test that generated content is valid YAML
-        let parsed: serde_yaml::Value = serde_yaml::from_str(&yml_content).unwrap();
-        assert!(parsed.is_mapping());
-    }
-
-    #[test]
-    fn test_system_prompt_generation() {
-        let generator = YmlGenerator::new();
-        let mut context = WalletContext::new("test".to_string());
-        context.sol_balance = 2_000_000_000; // 2 SOL
-        context.total_value_usd = 300.0;
-
-        let prompt = generator.generate_system_prompt(&context);
-        assert!(prompt.contains("2.00 SOL"));
-        assert!(prompt.contains("$300.00"));
-        assert!(prompt.contains("test"));
-    }
-
-    #[test]
-    fn test_tools_config_generation() {
-        let generator = YmlGenerator::new();
-        let steps = vec![
-            DynamicStep::new("1".to_string(), "test".to_string(), "test".to_string())
-                .with_tool("sol_tool"),
-            DynamicStep::new("2".to_string(), "test".to_string(), "test".to_string())
-                .with_tool("jupiter_earn_tool"),
-        ];
-
-        let tools = generator.generate_tools_config(&steps);
-        assert_eq!(tools.len(), 2);
-    }
-
-    #[test]
-    fn test_steps_config_generation() {
-        let generator = YmlGenerator::new();
-        let steps = vec![DynamicStep::new(
-            "step_1".to_string(),
-            "prompt".to_string(),
-            "desc".to_string(),
-        )
-        .with_critical(true)];
-
-        let steps_config = generator.generate_steps_config(&steps);
-        assert_eq!(steps_config.len(), 1);
     }
 }

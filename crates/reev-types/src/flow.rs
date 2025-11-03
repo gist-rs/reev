@@ -224,6 +224,12 @@ pub struct FlowMetadata {
     pub version: String,
 }
 
+impl Default for FlowMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlowMetadata {
     /// Create new flow metadata
     pub fn new() -> Self {
@@ -336,6 +342,12 @@ pub struct FlowMetrics {
     pub prompt_generation_ms: u64,
     /// Cache hit rate (0.0 to 1.0)
     pub cache_hit_rate: f64,
+}
+
+impl Default for FlowMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FlowMetrics {

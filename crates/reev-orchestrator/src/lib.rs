@@ -9,7 +9,6 @@ pub mod context_resolver;
 pub mod gateway;
 pub mod generators;
 
-#[cfg(test)]
 pub use context_resolver::ContextResolver;
 pub use gateway::OrchestratorGateway;
 pub use generators::YmlGenerator;
