@@ -117,9 +117,9 @@ impl OrchestratorGateway {
         );
 
         // Set atomic mode based on parameter or default to Strict
-        let atomic_mode = atomic_mode.unwrap_or(AtomicMode::Strict);
+        let atomic_mode_for_logging = atomic_mode.unwrap_or(AtomicMode::Strict);
         let mut flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone())
-            .with_atomic_mode(atomic_mode);
+            .with_atomic_mode(atomic_mode_for_logging);
 
         // Parse intent and generate steps with recovery strategies
         let prompt_lower = prompt.to_lowercase();
@@ -150,7 +150,7 @@ impl OrchestratorGateway {
         debug!(
             flow_id = %flow.flow_id,
             total_steps = %flow.steps.len(),
-            atomic_mode = %atomic_mode.as_str(),
+            atomic_mode = %atomic_mode_for_logging.as_str(),
             "Generated flow plan with recovery support"
         );
 

@@ -272,7 +272,8 @@ impl RecoveryEngine {
             recovery_time_ms: start_time.elapsed().as_millis() as u64,
         };
 
-        let outcome = determine_recovery_outcome(step, &recovery_result, flow_plan.atomic_mode);
+        let outcome =
+            determine_recovery_outcome(step, &recovery_result, flow_plan.atomic_mode);
 
         error!(
             step_id = %step.step_id,

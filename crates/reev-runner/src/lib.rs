@@ -763,27 +763,26 @@ fn create_test_case_from_flow_plan(flow_plan: &DynamicFlowPlan) -> Result<TestCa
 fn generate_initial_accounts_from_context(
     context: &reev_types::flow::WalletContext,
 ) -> Result<Vec<InitialStateItem>> {
-    let mut accounts = Vec::new();
-
-    // User wallet with SOL balance
-    accounts.push(InitialStateItem {
-        pubkey: "USER_WALLET_PUBKEY".to_string(),
-        owner: context.owner.clone(),
-        lamports: context.sol_balance,
-        data: None, // System account, no data
-    });
-
-    // USDC ATA with zero balance
-    accounts.push(InitialStateItem {
-        pubkey: "USER_USDC_ATA".to_string(),
-        owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // Token program
-        lamports: 2039280,                                                // Standard rent exemption
-        data: Some(reev_lib::benchmark::SplAccountData {
-            mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC mint
-            owner: "USER_WALLET_PUBKEY".to_string(),
-            amount: "0".to_string(),
-        }),
-    });
+    let accounts = vec![
+        // User wallet with SOL balance
+        InitialStateItem {
+            pubkey: "USER_WALLET_PUBKEY".to_string(),
+            owner: context.owner.clone(),
+            lamports: context.sol_balance,
+            data: None, // System account, no data
+        },
+        // USDC ATA with zero balance
+        InitialStateItem {
+            pubkey: "USER_USDC_ATA".to_string(),
+            owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // Token program
+            lamports: 2039280, // Standard rent exemption
+            data: Some(reev_lib::benchmark::SplAccountData {
+                mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC mint
+                owner: "USER_WALLET_PUBKEY".to_string(),
+                amount: "0".to_string(),
+            }),
+        },
+    ];
 
     Ok(accounts)
 }
@@ -1149,7 +1148,7 @@ async fn run_flow_benchmark_with_recovery(
     agent_name: &str,
     _benchmark_path: &str,
     session_id: &str,
-    gateway: &reev_orchestrator::OrchestratorGateway,
+    _gateway: &reev_orchestrator::OrchestratorGateway,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -1158,7 +1157,7 @@ async fn run_flow_benchmark_with_recovery(
     );
 
     // Initialize unified session logging for consistency with regular benchmarks
-    let session_logger = {
+    let _session_logger = {
         let log_path =
             std::env::var("REEV_SESSION_LOG_PATH").unwrap_or_else(|_| "logs/sessions".to_string());
         let path = PathBuf::from(log_path);
@@ -1309,8 +1308,8 @@ async fn run_flow_benchmark_with_recovery(
     );
 
     // Convert flow result to test result
-    let final_score = if flow_result.success { 1.0 } else { 0.0 };
-    let final_status = if flow_result.success {
+    let _final_score = if flow_result.success { 1.0 } else { 0.0 };
+    let _final_status = if flow_result.success {
         FinalStatus::Succeeded
     } else {
         FinalStatus::Failed
