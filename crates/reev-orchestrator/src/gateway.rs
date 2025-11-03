@@ -5,8 +5,10 @@
 
 use crate::context_resolver::ContextResolver;
 use crate::generators::YmlGenerator;
+use crate::recovery::engine::RecoveryMetrics;
+use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
-use reev_types::flow::{DynamicFlowPlan, WalletContext};
+use reev_types::flow::{AtomicMode, DynamicFlowPlan, WalletContext};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::RwLock;
@@ -21,15 +23,37 @@ pub struct OrchestratorGateway {
     yml_generator: Arc<YmlGenerator>,
     /// Generated files tracker for cleanup
     generated_files: Arc<RwLock<Vec<NamedTempFile>>>,
+    /// Recovery engine for Phase 3 recovery mechanisms
+    recovery_engine: Arc<RwLock<RecoveryEngine>>,
+    /// Recovery configuration
+    recovery_config: RecoveryConfig,
 }
 
 impl OrchestratorGateway {
-    /// Create a new orchestrator gateway
+    /// Create a new orchestrator gateway with default recovery configuration
     pub fn new() -> Self {
+        let recovery_config = RecoveryConfig::default();
+        let recovery_engine = RecoveryEngine::new(recovery_config.clone());
+
         Self {
             context_resolver: Arc::new(ContextResolver::new()),
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
+            recovery_engine: Arc::new(RwLock::new(recovery_engine)),
+            recovery_config,
+        }
+    }
+
+    /// Create a new orchestrator gateway with custom recovery configuration
+    pub fn with_recovery_config(recovery_config: RecoveryConfig) -> Self {
+        let recovery_engine = RecoveryEngine::new(recovery_config.clone());
+
+        Self {
+            context_resolver: Arc::new(ContextResolver::new()),
+            yml_generator: Arc::new(YmlGenerator::new()),
+            generated_files: Arc::new(RwLock::new(Vec::new())),
+            recovery_engine: Arc::new(RwLock::new(recovery_engine)),
+            recovery_config,
         }
     }
 
@@ -58,7 +82,7 @@ impl OrchestratorGateway {
         debug!("Refined prompt: {}", refined_prompt);
 
         // 3. Generate flow plan (use original prompt, not refined)
-        let flow_plan = self.generate_flow_plan(user_prompt, &context)?;
+        let flow_plan = self.generate_flow_plan(user_prompt, &context, None)?;
         debug!("Generated flow plan with {} steps", flow_plan.steps.len());
 
         // 4. Generate YML for bridge mode
@@ -74,11 +98,12 @@ impl OrchestratorGateway {
         prompt.to_string()
     }
 
-    /// Generate flow plan from refined prompt
+    /// Generate flow plan from refined prompt with Phase 3 recovery support
     pub fn generate_flow_plan(
         &self,
         prompt: &str,
         context: &WalletContext,
+        atomic_mode: Option<AtomicMode>,
     ) -> Result<DynamicFlowPlan> {
         let flow_id = format!(
             "dynamic-{}-{}",
@@ -90,9 +115,12 @@ impl OrchestratorGateway {
                 .collect::<String>()
         );
 
-        let mut flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone());
+        // Set atomic mode based on parameter or default to Strict
+        let atomic_mode = atomic_mode.unwrap_or(AtomicMode::Strict);
+        let mut flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone())
+            .with_atomic_mode(atomic_mode);
 
-        // Parse intent and generate steps - more flexible matching
+        // Parse intent and generate steps with recovery strategies
         let prompt_lower = prompt.to_lowercase();
         let has_swap = prompt_lower.contains("swap") || prompt_lower.contains("sol");
         let has_lend = prompt_lower.contains("lend");
@@ -101,24 +129,81 @@ impl OrchestratorGateway {
 
         // Check for complex flows first
         if has_swap && (has_lend || has_multiply) {
-            // Swap then lend flow
+            // Swap then lend flow with recovery strategies
             flow = flow
-                .with_step(create_swap_step(context, prompt)?)
-                .with_step(create_lend_step(context)?);
+                .with_step(create_swap_step_with_recovery(context, prompt)?)
+                .with_step(create_lend_step_with_recovery(context)?);
         } else if has_swap {
-            // Single swap flow
-            flow = flow.with_step(create_swap_step(context, prompt)?);
+            // Single swap flow with recovery strategy
+            flow = flow.with_step(create_swap_step_with_recovery(context, prompt)?);
         } else if has_lend {
-            // Single lend flow
-            flow = flow.with_step(create_lend_step(context)?);
+            // Single lend flow with recovery strategy
+            flow = flow.with_step(create_lend_step_with_recovery(context)?);
         } else if has_sol_percentage {
-            // Percentage-based flow - assume swap
-            flow = flow.with_step(create_swap_step(context, prompt)?);
+            // Percentage-based flow - assume swap with recovery strategy
+            flow = flow.with_step(create_swap_step_with_recovery(context, prompt)?);
         } else {
             return Err(anyhow::anyhow!("Unsupported flow type: {prompt}"));
         }
 
+        debug!(
+            flow_id = %flow.flow_id,
+            total_steps = %flow.steps.len(),
+            atomic_mode = %atomic_mode.as_str(),
+            "Generated flow plan with recovery support"
+        );
+
         Ok(flow)
+    }
+
+    /// Execute flow with Phase 3 recovery mechanisms
+    #[instrument(skip(self, step_executor))]
+    pub async fn execute_flow_with_recovery<F>(
+        &self,
+        flow_plan: DynamicFlowPlan,
+        step_executor: F,
+    ) -> Result<reev_types::flow::FlowResult>
+    where
+        F: Fn(
+                &reev_types::flow::DynamicStep,
+                &Vec<reev_types::flow::StepResult>,
+            ) -> Result<reev_types::flow::StepResult>
+            + Send
+            + Sync,
+    {
+        info!(
+            flow_id = %flow_plan.flow_id,
+            total_steps = %flow_plan.steps.len(),
+            atomic_mode = %flow_plan.atomic_mode.as_str(),
+            "Starting flow execution with Phase 3 recovery"
+        );
+
+        let mut recovery_engine = self.recovery_engine.write().await;
+        let flow_result = recovery_engine
+            .execute_flow_with_recovery(flow_plan, step_executor)
+            .await;
+
+        info!(
+            flow_id = %flow_result.flow_id,
+            success = %flow_result.success,
+            successful_steps = %flow_result.metrics.successful_steps,
+            failed_steps = %flow_result.metrics.failed_steps,
+            "Flow execution with recovery completed"
+        );
+
+        Ok(flow_result)
+    }
+
+    /// Get recovery metrics for monitoring
+    pub async fn get_recovery_metrics(&self) -> RecoveryMetrics {
+        let recovery_engine = self.recovery_engine.read().await;
+        recovery_engine.get_metrics().clone()
+    }
+
+    /// Reset recovery metrics
+    pub async fn reset_recovery_metrics(&self) {
+        let mut recovery_engine = self.recovery_engine.write().await;
+        recovery_engine.reset_metrics();
     }
 
     /// Clean up generated temporary files
@@ -140,7 +225,69 @@ impl Default for OrchestratorGateway {
     }
 }
 
-/// Create a swap step based on context
+/// Create a swap step based on context with recovery strategy
+pub fn create_swap_step_with_recovery(
+    context: &WalletContext,
+    prompt: &str,
+) -> Result<reev_types::flow::DynamicStep> {
+    let sol_balance = context.sol_balance_sol();
+    // Extract amount from prompt or use 50% default
+    let prompt_lower = prompt.to_lowercase();
+    let swap_amount = if prompt_lower.contains("1 sol") {
+        "1".to_string()
+    } else if prompt_lower.contains("0.5 sol") {
+        "0.5".to_string()
+    } else if prompt_lower.contains("25%") {
+        (sol_balance * 0.25).to_string()
+    } else if prompt_lower.contains("50%") {
+        (sol_balance * 0.5).to_string()
+    } else if prompt_lower.contains("100%") {
+        sol_balance.to_string()
+    } else {
+        (sol_balance * 0.5).to_string() // Default 50%
+    };
+
+    let prompt_template = format!(
+        "Swap {} SOL from wallet {} to USDC using Jupiter DEX. \
+         Current SOL price: ${:.2}, USDC available for lending at 5-8% APY.",
+        swap_amount,
+        context.owner,
+        context
+            .get_token_price("So11111111111111111111111111111111111111112")
+            .unwrap_or(150.0)
+    );
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "swap_1".to_string(),
+        prompt_template,
+        "Swap SOL to USDC using Jupiter".to_string(),
+    )
+    .with_tool("sol_tool")
+    .with_estimated_time(30)
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
+}
+
+/// Create a lend step based on context with recovery strategy
+pub fn create_lend_step_with_recovery(
+    _context: &WalletContext,
+) -> Result<reev_types::flow::DynamicStep> {
+    let prompt_template =
+        "Depositing USDC from the previous swap into Jupiter lending to earn yield. \
+         Using the maximum available USDC balance for optimal returns."
+            .to_string();
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "lend_1".to_string(),
+        prompt_template,
+        "Deposit USDC into Jupiter lending".to_string(),
+    )
+    .with_tool("jupiter_earn_tool")
+    .with_estimated_time(45)
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+    .with_critical(false)) // Lending is often non-critical
+}
+
+/// Create a swap step based on context (legacy, non-recovery)
 pub fn create_swap_step(
     context: &WalletContext,
     prompt: &str,
@@ -181,7 +328,7 @@ pub fn create_swap_step(
     .with_estimated_time(30))
 }
 
-/// Create a lend step based on context
+/// Create a lend step based on context (legacy, non-recovery)
 pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::DynamicStep> {
     let prompt_template =
         "Depositing USDC from the previous swap into Jupiter lending to earn yield. \

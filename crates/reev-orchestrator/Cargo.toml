@@ -28,6 +28,12 @@ reev-protocols = { path = "../reev-protocols" }
 # Template engine
 handlebars = "4.5"
 
+# Async trait support
+async-trait = "0.1"
+
+# Futures for async closures
+futures = "0.3"
+
 # Caching
 lru = "0.12"
 

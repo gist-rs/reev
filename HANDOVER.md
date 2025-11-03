@@ -34,6 +34,13 @@
    - Maintains existing runner infrastructure
 
 3. **Dynamic Direct Mode** (Phase 2): `--direct --prompt --wallet`
+
+4. **Dynamic Recovery Mode** (Phase 3): `--recovery --prompt --wallet`
+   - NEW: Advanced recovery mechanisms with atomic execution control
+   - Three recovery strategies: Retry, Alternative Flow, User Fulfillment
+   - Atomic modes: Strict, Lenient, Conditional
+   - Recovery configuration with time limits and strategy selection
+   - Comprehensive recovery metrics tracking
    - **NEW**: Pure in-memory execution with zero file I/O
    - < 50ms performance overhead
    - Type-safe flow object conversion

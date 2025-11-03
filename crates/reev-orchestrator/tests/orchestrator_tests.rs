@@ -84,7 +84,7 @@ async fn test_swap_flow_generation() {
     let gateway = OrchestratorGateway::new();
     let context = WalletContext::new("test".to_string());
 
-    let flow = gateway.generate_flow_plan("swap SOL to USDC using Jupiter", &context);
+    let flow = gateway.generate_flow_plan("swap SOL to USDC using Jupiter", &context, None);
     assert!(flow.is_ok());
     let flow = flow.unwrap();
     assert_eq!(flow.steps.len(), 1);
@@ -96,7 +96,8 @@ async fn test_swap_lend_flow_generation() {
     let gateway = OrchestratorGateway::new();
     let context = WalletContext::new("test".to_string());
 
-    let flow = gateway.generate_flow_plan("swap SOL to USDC then lend using Jupiter", &context);
+    let flow =
+        gateway.generate_flow_plan("swap SOL to USDC then lend using Jupiter", &context, None);
     assert!(flow.is_ok());
     let flow = flow.unwrap();
     assert_eq!(flow.steps.len(), 2);

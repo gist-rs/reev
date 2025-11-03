@@ -53,6 +53,30 @@ struct Cli {
     /// Natural language prompt for dynamic flow generation
     #[arg(long)]
     prompt: Option<String>,
+
+    /// Enable Phase 3 recovery mechanisms
+    #[arg(long)]
+    recovery: bool,
+
+    /// Atomic mode for flow execution: strict, lenient, or conditional
+    #[arg(long, value_parser = ["strict", "lenient", "conditional"])]
+    atomic_mode: Option<String>,
+
+    /// Maximum recovery time per step in milliseconds
+    #[arg(long, default_value = "30000")]
+    max_recovery_time_ms: u64,
+
+    /// Enable alternative flow recovery strategies
+    #[arg(long)]
+    enable_alternative_flows: bool,
+
+    /// Enable user fulfillment recovery (interactive mode)
+    #[arg(long)]
+    enable_user_fulfillment: bool,
+
+    /// Number of retry attempts for recovery
+    #[arg(long, default_value = "3")]
+    retry_attempts: usize,
 }
 
 /// Initializes OpenTelemetry pipeline for tracing with console output.
@@ -97,6 +121,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     info!("--- Reev Evaluation Runner ---");
+
+    // Handle Phase 3 recovery flow execution
+    if cli.recovery {
+        return handle_recovery_flow(cli).await;
+    }
 
     // Handle Phase 2 direct flow execution
     if cli.direct {
@@ -200,6 +229,70 @@ async fn handle_dynamic_flow(cli: Cli) -> Result<()> {
     )
     .await
     .context("Failed to execute generated dynamic flow")?;
+
+    // Render the results
+    for result in &results {
+        let tree_output = renderer::render_result_as_tree(result);
+        info!("\n{tree_output}");
+    }
+
+    Ok(())
+}
+
+/// Handle Phase 3 recovery flow execution from natural language prompt
+async fn handle_recovery_flow(cli: Cli) -> Result<()> {
+    info!("--- Phase 3: Recovery Flow Execution ---");
+
+    // Validate required parameters
+    let prompt = cli
+        .prompt
+        .ok_or_else(|| anyhow::anyhow!("--prompt is required when using --recovery"))?;
+    let wallet = cli
+        .wallet
+        .ok_or_else(|| anyhow::anyhow!("--wallet is required when using --recovery"))?;
+
+    info!(
+        "Executing recovery flow for prompt: '{}' with wallet: {}",
+        prompt, wallet
+    );
+
+    // Parse atomic mode
+    let atomic_mode = match cli.atomic_mode.as_deref() {
+        Some("lenient") => Some(reev_types::flow::AtomicMode::Lenient),
+        Some("conditional") => Some(reev_types::flow::AtomicMode::Conditional),
+        _ => Some(reev_types::flow::AtomicMode::Strict), // default
+    };
+
+    info!(
+        "Atomic mode: {:?}, Max recovery time: {}ms, Alternative flows: {}, User fulfillment: {}",
+        atomic_mode,
+        cli.max_recovery_time_ms,
+        cli.enable_alternative_flows,
+        cli.enable_user_fulfillment
+    );
+
+    // Create recovery configuration
+    let recovery_config = reev_orchestrator::RecoveryConfig {
+        max_recovery_time_ms: cli.max_recovery_time_ms,
+        enable_alternative_flows: cli.enable_alternative_flows,
+        enable_user_fulfillment: cli.enable_user_fulfillment,
+        base_retry_delay_ms: 1000,
+        max_retry_delay_ms: 10000,
+        backoff_multiplier: 2.0,
+    };
+
+    // Use new recovery execution function
+    let results = reev_runner::run_recovery_flow(
+        &prompt,
+        &wallet,
+        &cli.agent,
+        cli.shared_surfpool,
+        cli.execution_id,
+        recovery_config,
+        atomic_mode,
+    )
+    .await
+    .context("Failed to execute recovery flow")?;
 
     // Render the results
     for result in &results {
