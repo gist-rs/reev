@@ -11,7 +11,7 @@ use std::collections::HashMap;
 #[tokio::test]
 async fn test_real_swap_template_with_prices() {
     // Create template renderer with real templates
-    let renderer = TemplateRenderer::new("../../templates").unwrap();
+    let renderer = TemplateRenderer::new("templates").unwrap();
 
     // Initialize and register all templates
     renderer.initialize().await.unwrap();
@@ -55,7 +55,7 @@ async fn test_real_swap_template_with_prices() {
 #[tokio::test]
 async fn test_real_lend_template_with_prices() {
     // Create template renderer with real templates
-    let renderer = TemplateRenderer::new("../../templates").unwrap();
+    let renderer = TemplateRenderer::new("templates").unwrap();
 
     // Initialize and register all templates
     renderer.initialize().await.unwrap();
@@ -94,7 +94,7 @@ async fn test_real_lend_template_with_prices() {
 #[tokio::test]
 async fn test_jupiter_swap_template_with_prices() {
     // Create template renderer with real templates
-    let renderer = TemplateRenderer::new("../../templates").unwrap();
+    let renderer = TemplateRenderer::new("templates").unwrap();
 
     // Initialize and register all templates
     renderer.initialize().await.unwrap();
@@ -138,7 +138,7 @@ async fn test_jupiter_swap_template_with_prices() {
 #[tokio::test]
 async fn test_custom_template_with_token_helpers() {
     // Create template renderer with real templates
-    let renderer = TemplateRenderer::new("../../templates").unwrap();
+    let renderer = TemplateRenderer::new("templates").unwrap();
 
     // Initialize and register all templates
     renderer.initialize().await.unwrap();

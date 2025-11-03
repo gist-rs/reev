@@ -281,7 +281,7 @@ async fn test_concurrent_flow_generation() -> Result<()> {
 #[tokio::test]
 async fn test_template_system_integration() -> Result<()> {
     // Test basic template suggestions functionality
-    let renderer = reev_orchestrator::TemplateRenderer::new("../../templates")?;
+    let renderer = reev_orchestrator::TemplateRenderer::new("templates")?;
 
     // Initialize renderer and register all templates
     renderer.initialize().await?;
