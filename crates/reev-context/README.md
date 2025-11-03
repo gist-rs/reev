@@ -196,5 +196,3 @@ let resolver = ContextResolver::new()
 
 ---
 
-*Last Updated: December 2024*
-*Version: v1.0.0 (Production Ready)*

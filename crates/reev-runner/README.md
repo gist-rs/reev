@@ -458,6 +458,3 @@ reev-runner --direct --prompt "monitored flow"
 ```
 
 ---
-
-*Last Updated: December 2024*
-*Version: v1.0.0 (Production Ready)*

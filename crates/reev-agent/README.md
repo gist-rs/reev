@@ -347,8 +347,7 @@ impl AgentMonitor {
 
 ---
 
-*Last Updated: December 2024*
-*Version: v1.0.0 (Production Ready)*
+
 
 The `examples/` directory contains several standalone programs that demonstrate how to make direct API calls to the agent. These examples automatically spawn the agent server in the background.
 

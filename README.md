@@ -131,23 +131,44 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
     *   **Agent Interface**: Defines a simple `Agent` trait and provides an `LlmAgent` that can reason about prompts.
     *   **Benchmark Structs**: Rust types that define the structure of a benchmark YAML file, enabling strongly-typed parsing.
 
-2.  **`reev-runner` (CLI Orchestrator)**:
-    *   The command-line tool for loading and running benchmarks.
-    *   Orchestrates the entire evaluation loop, from setting up the environment to calculating metrics and reporting results.
+2.  **`reev-orchestrator` (Dynamic Flow Engine)**:
+    *   **Natural Language Processing**: Context-aware prompt generation with template system
+    *   **Dynamic Flow Generation**: Transforms natural language into atomic, executable flows
+    *   **Context Resolution**: Real-time wallet balance and pricing data integration
+    *   **Recovery Engine**: Enterprise-grade failure handling with three recovery strategies
+    *   **Execution Modes**: Bridge (compatibility), Direct (zero file I/O), and Recovery (resilient) modes
 
-3.  **`reev-agent` (LLM Service)**:
+3.  **`reev-runner` (CLI Orchestrator)**:
+    *   The command-line tool for loading and running benchmarks.
+    *   Supports both static YML files and dynamic natural language flows
+    *   Orchestrates the entire evaluation loop, from setting up the environment to calculating metrics and reporting results.
+    *   Features atomic execution modes: Strict, Lenient, and Conditional
+
+4.  **`reev-agent` (LLM Service)**:
     *   A standalone server that exposes an LLM's reasoning capabilities over an API.
-    *   Can be configured to use different models (local, Gemini, GLM, etc.) and includes a deterministic agent for generating ground-truth instructions.
+    *   Multi-agent architecture: deterministic, local, OpenAI, and GLM-4.6-coding variants
+    *   Context injection with wallet state and flow context for intelligent responses
     *   Features OpenTelemetry integration for automatic tool call tracking and Mermaid diagram generation.
 
-4.  **`reev-api` (Web API & Flow Visualization)**:
+5.  **`reev-api` (Web API & Flow Visualization)**:
     *   RESTful API for benchmark execution and flow diagram generation.
+    *   Dynamic flow execution endpoints with real-time monitoring
     *   Automatic tool call extraction from OpenTelemetry traces.
     *   Mermaid diagram generation for visualizing agent execution flows.
 
-5.  **Benchmark Suite**:
+6.  **Additional Core Services**:
+    *   **`reev-tools`**: 13 DeFi tools with 100% OpenTelemetry coverage
+    *   **`reev-protocols`**: Protocol abstractions and Jupiter integration
+    *   **`reev-flow`**: Session management and flow visualization
+    *   **`reev-context`**: Context resolution with caching
+    *   **`reev-types`**: Shared type system and flow structures
+    *   **`reev-db`**: SQLite database with connection pooling
+    *   **`reev-tui`**: Interactive terminal UI for flow management
+
+7.  **Benchmark Suite**:
     *   A suite of evaluation tasks defined in YAML files located in the `benchmarks/` directory.
     *   Each test case includes a declarative `initial_state`, a natural language `prompt`, and `ground_truth` criteria for success.
+    *   Supports both static benchmarks and dynamic flow generation
 
 ## 🚀 Quick Start
 
@@ -202,6 +223,36 @@ cargo run -p reev-runner -- benchmarks/004-partial-score-spl-transfer.yml --agen
 # View OpenTelemetry traces and tool calls
 cat traces.log
 ```
+
+### 🚀 Dynamic Flow Execution (Natural Language to Execution)
+
+The framework supports **dynamic flow generation** from natural language prompts:
+
+```bash
+# Bridge mode (temporary YML file for compatibility)
+reev-runner --dynamic --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+
+# Direct mode (zero file I/O, optimal performance)
+reev-runner --direct --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+
+# Recovery mode (resilient execution with failure handling)
+reev-runner --recovery --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+
+# Comprehensive recovery configuration
+reev-runner --recovery \
+  --atomic-mode conditional \
+  --max-recovery-time-ms 60000 \
+  --enable-alternative-flows \
+  --retry-attempts 5 \
+  --prompt "high-value transaction" \
+  --wallet <pubkey> \
+  --agent glm-4.6-coding
+```
+
+**Atomic Execution Modes:**
+- **Strict Mode** (default): Any critical step failure aborts entire flow
+- **Lenient Mode**: Continue execution regardless of step failures  
+- **Conditional Mode**: Non-critical steps can fail without aborting flow
 
 ### 🤖 Agent Options
 
