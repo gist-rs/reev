@@ -1,98 +1,126 @@
 # Issues
 
-## Issue #7: Template Token Price Helper Not Working
+## Issue #8: Dynamic Flow API Implementation
 
 **Priority**: 🟡 **MEDIUM**
-**Status**: ✅ **FIXED**
-**Assigned**: reev-orchestrator
-**Component**: Template System
+**Status**: 📝 **PLANNED**
+**Assigned**: TBD
+**Component**: reev-api, reev-orchestrator Integration
 
-**Problem**: 
-The `get_token_price` helper in Handlebars templates shows `$0.0` for all token prices, even when the `WalletContext.token_prices` map contains correct prices. The helper is not finding prices in the correct location within the nested template rendering structure.
+### 🎯 **Problem Statement**
 
-**Root Cause**: 
-- Template rendering nests `WalletContext` under a `"wallet"` key for template access
-- `get_token_price` helper was using incorrect data path: `render_context.context().data().get("wallet")` 
-- Handlebars helper functions should access root data via `ctx.data()` instead of nested render context
-- Helper was not finding the nested context data structure properly
+The reev system has fully functional dynamic flow capabilities via CLI (bridge/direct/recovery modes), but these features are not accessible through the REST API. Users can only execute static benchmarks via the current API endpoints.
 
-**Fix Applied**:
-- Updated helper functions to access context data via `ctx.data()` instead of `render_context.context()`
-- Implemented direct JSON path traversal for better performance: `root_data.get("wallet")` → `token_prices` → token mint
-- Added fallback to full deserialization if direct JSON access fails
-- Applied same fix to both `get_token_price` and `get_token_balance` helpers
+### 📋 **Current Status**
 
-**Current Behavior**:
-```handlebars
-{{#if (get_token_price "So11111111111111111111111111111111111112")}}
-Current SOL price: ${{get_token_price "So11111111111111111111111111111111111112"}}
-{{/if}}
+**✅ Implemented (CLI Only)**:
+- Dynamic flow generation from natural language prompts
+- Bridge mode: Temporary YML file generation
+- Direct mode: Zero file I/O in-memory execution  
+- Recovery mode: Enterprise-grade failure handling with 3 strategies
+- Context resolution with wallet balance and pricing
+- Template system with caching and inheritance
+
+**❌ Missing (API Endpoints)**:
+- `POST /api/v1/benchmarks/execute-dynamic` - Bridge mode execution
+- `POST /api/v1/benchmarks/execute-direct` - Direct mode execution
+- `POST /api/v1/benchmarks/execute-recovery` - Recovery mode execution
+- `GET /api/v1/flows/{flow_id}/sessions` - Session management
+- `GET /api/v1/metrics/recovery` - Recovery performance metrics
+- Real-time session tracking and WebSocket support
+
+### 🏗️ **Required Implementation**
+
+#### Phase 4.1: Dynamic Flow Endpoints
+```rust
+// Add to reev-api/src/handlers/dynamic_flows.rs
+pub async fn execute_dynamic_flow(
+    State(state): State<ApiState>,
+    Json(request): Json<DynamicFlowRequest>,
+) -> Result<Json<ExecutionResponse>, ApiError>
+
+pub async fn execute_direct_flow(
+    State(state): State<ApiState>, 
+    Json(request): Json<DynamicFlowRequest>,
+) -> Result<Json<ExecutionResponse>, ApiError>
+
+pub async fn execute_recovery_flow(
+    State(state): State<ApiState>,
+    Json(request): Json<RecoveryFlowRequest>,
+) -> Result<Json<ExecutionResponse>, ApiError>
 ```
-Renders as: `Current SOL price: $0.0` (incorrect)
 
-**Expected Behavior**:
-Should render as: `Current SOL price: $150.00` (with actual price from context)
+#### Phase 4.2: API Dependencies
+```toml
+# Add to crates/reev-api/Cargo.toml
+[dependencies]
+reev-orchestrator = { path = "../reev-orchestrator" }
+```
 
-**Debug Information Found**:
-- `WalletContext` JSON correctly contains token prices:
-  ```json
-  "token_prices": {
-    "So11111111111111111111111111111111111112": 150.0,
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 1.0
-  }
-  ```
-- Helper function is being called correctly
-- Issue is in the price lookup within the helper
+#### Phase 4.3: Session Management
+```rust
+// Real-time flow execution tracking
+pub struct SessionManager {
+    active_sessions: Arc<RwLock<HashMap<String, FlowSession>>>,
+}
 
-**Files Affected**:
-- `crates/reev-orchestrator/src/templates/mod.rs` (helper implementation)
-- All template files using `get_token_price` helper
+pub async fn get_flow_session(
+    Path(session_id): Path<String>,
+    State(state): State<ApiState>,
+) -> Result<Json<FlowSession>, ApiError>
+```
 
-**Impact**:
-- Templates cannot display real-time price information
-- Reduces user experience in generated prompts
-- Affects context-awareness of dynamic flows
+### 🔄 **Integration Points**
 
-**Acceptance Criteria**:
-- [x] `get_token_price` helper returns correct prices from nested context
-- [x] Templates display actual token prices instead of $0.0
-- [x] All template integration tests pass with real price values
-- [x] Price helper works with both mint addresses and token symbols (if supported)
+1. **reev-api → reev-orchestrator**: Use existing gateway functions
+2. **Request Validation**: Leverage existing flow planning and context resolution
+3. **Session Tracking**: Integrate with reev-flow session management
+4. **Error Handling**: Use existing recovery and atomic execution patterns
+5. **OpenTelemetry**: Extend current tracing for API-based flow execution
 
-**Investigation Steps Completed**:
-1. ✅ Debugged the data path in `get_token_price` helper - found `render_context.context()` was returning None
-2. ✅ Verified `WalletContext` deserialization from nested JSON structure - switched to direct JSON access
-3. ✅ Tested with various token mint addresses and formats - all working correctly
-4. ✅ Ensured helper handles missing prices gracefully - returns 0.0 for unknown tokens
+### 📊 **Success Criteria**
 
-**Test Results**:
-- Created comprehensive test suite in `crates/reev-orchestrator/tests/token_price_helper_test.rs`
-- All tests pass, including real template integration tests
-- Templates now correctly display: `$150.420000` for SOL, `$1.000000` for USDC
-- No more `$0.0` values for tokens with known prices
+- [ ] All dynamic flow modes accessible via REST API
+- [ ] Real-time session management and monitoring
+- [ ] Full recovery system integration via API  
+- [ ] Live flow visualization and Mermaid diagram generation
+- [ ] < 100ms API response time for flow initiation
+- [ ] Backward compatibility with existing static endpoints
+- [ ] Comprehensive error handling and status reporting
 
-**Dependencies**: None
-**Timeline**: ✅ Completed (1 day)
-**Risk**: ✅ Low - No breaking changes, backward compatible fix
+### ⚠️ **Blockers & Dependencies**
 
-**Files Modified**:
-- `crates/reev-orchestrator/src/templates/mod.rs` - Fixed helper functions
-- `crates/reev-orchestrator/tests/token_price_helper_test.rs` - Added test suite
-- `crates/reev-orchestrator/tests/real_template_test.rs` - Added integration tests
+**Technical Blockers**:
+- None - all underlying functionality (reev-orchestrator) is production-ready
+
+**Required Dependencies**:
+- Add `reev-orchestrator` dependency to `reev-api/Cargo.toml`
+- WebSocket support for real-time session updates
+- Enhanced request validation and security middleware
+
+**Integration Requirements**:
+- Must work seamlessly with existing static benchmark system
+- Preserve all current CLI functionality and performance characteristics
+- Maintain backward compatibility with existing API clients
+
+### 📈 **Impact Assessment**
+
+**User Impact**: High - Enables web-based access to dynamic flow capabilities
+**Development Impact**: Medium - Well-defined integration points with existing code
+**Operational Impact**: Low - No changes to existing static benchmark workflow
+
+**Estimated Effort**: 2-3 weeks (Phase 4 implementation)
+**Priority**: Medium - CLI implementation provides core functionality, API enables broader adoption
+
+### 🗓️ **Timeline**
+
+**Week 1**: Basic dynamic flow endpoints (execute-dynamic, execute-direct)
+**Week 2**: Recovery endpoints and session management
+**Week 3**: Real-time features, WebSocket support, and comprehensive testing
 
 ---
 
-## 🎯 **Issues Status Summary**
+*Last Updated: Current*
+*Related Files*: TASKS.md, ARCHITECTURE.md, crates/reev-api/Cargo.toml
+*Dependencies*: reev-orchestrator integration, reev-flow session management
 
-### 🟡 **CURRENT WORK**
-- **Issue #7**: Template Token Price Helper Not Working (Medium Priority)
-- **Issue #1**: ZAI Agent Agent Builder Pattern Migration (Low Priority Enhancement)
-
-### 📊 **System Status**
-
-**Dynamic Flow Implementation**: ✅ COMPLETE (Phases 1-3)
-**Template System**: ✅ IMPLEMENTED (8 templates, caching, validation)
-**Recovery Framework**: ✅ COMPLETE (Enterprise-grade with 3 strategies)
-**Production Readiness**: ✅ PRODUCTION READY
-
-All major phases completed. Remaining work consists of bug fixes and enhancements.
