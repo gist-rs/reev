@@ -372,9 +372,9 @@ mod tests {
     }
 
     #[tokio::test]
+
     async fn test_template_registration() {
         let temp_dir = TempDir::new().unwrap();
-        let engine = TemplateEngine::new(temp_dir.path()).unwrap();
 
         // Create a simple template file
         let template_path = temp_dir.path().join("test.hbs");
@@ -397,7 +397,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(registration.name, "test");
-        assert!(registration.compilation_time_ms >= 0);
     }
 
     #[tokio::test]
