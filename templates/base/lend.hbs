@@ -3,8 +3,8 @@
 
 Deposit {{amount}} {{token}} from wallet {{wallet.owner}} into {{protocol}} lending protocol.
 
-{{#if wallet.get_token_price token}}
-Current {{token}} price: ${{wallet.get_token_price token}}
+{{#if (get_token_price token)}}
+Current {{token}} price: ${{get_token_price token}}
 {{/if}}
 
 {{#if apy}}
@@ -17,6 +17,6 @@ Total deposit value: ${{total_value}} USD
 
 Use the lending protocol to deposit assets and start earning yield. Ensure sufficient token balance is available before depositing.
 
-{{#if wallet.get_token_balance token}}
-Available balance: {{wallet.get_token_balance token.formatted_amount}}
+{{#if (get_token_balance token)}}
+Available balance: {{get_token_balance token}}
 {{/if}}

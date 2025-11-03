@@ -16,11 +16,11 @@ Execute portfolio rebalancing for wallet {{wallet.owner}} to optimize asset allo
 Total Portfolio Value: ${{wallet.total_value_usd}}
 
 {{#if wallet.sol_balance}}
-SOL Holdings: {{wallet.sol_balance_sol}} SOL ({{#if wallet.get_token_price "SOL"}}${{wallet.sol_balance_sol}}{{wallet.get_token_price "SOL"}}{{/if}} USD)
+SOL Holdings: {{wallet.sol_balance_sol}} SOL ({{#if (get_token_price "SOL")}}${{wallet.sol_balance_sol}}{{get_token_price "SOL"}}{{/if}} USD)
 {{/if}}
 
 {{#each wallet.token_balances}}
-{{symbol}} Holdings: {{formatted_amount}} ({{#if ../wallet.get_token_price mint}}${{balance}}{{../wallet.get_token_price mint}}{{/if}} USD)
+{{symbol}} Holdings: {{formatted_amount}} ({{#if (get_token_price mint)}}${{balance}}{{get_token_price mint}}{{/if}} USD)
 {{/each}}
 
 ---

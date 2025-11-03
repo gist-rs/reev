@@ -173,11 +173,15 @@ Handlebars-based template system with inheritance and caching.
 ```rust
 use reev_orchestrator::TemplateRenderer;
 
-let renderer = TemplateRenderer::new("templates/")?;
+let renderer = TemplateRenderer::new("../../../templates/")?;
 
 // Suggest templates based on intent
 let suggestions = renderer.suggest_templates("swap SOL to USDC");
 // Returns: ["swap", "jupiter/swap", "scenarios/swap_then_lend"]
+
+// Initialize renderer and register templates
+let renderer = TemplateRenderer::new("../../../templates/")?;
+renderer.initialize().await?;
 
 // Render template with context
 let rendered = renderer.render("jupiter/swap", &context)?;
@@ -381,7 +385,7 @@ RecoveryStrategy::UserFulfillment {
 
 ### Directory Structure
 ```
-templates/
+templates/                    # Located at project root
 ├── base/                    # Generic templates
 │   ├── swap.hbs             # Basic swap template
 │   └── lend.hbs             # Basic lend template

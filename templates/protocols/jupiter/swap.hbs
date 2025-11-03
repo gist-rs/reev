@@ -3,12 +3,12 @@
 
 Swap {{amount}} {{from_token}} from wallet {{wallet.owner}} to {{to_token}} using Jupiter DEX.
 
-{{#if wallet.get_token_price from_token}}
-Current {{from_token}} price: ${{wallet.get_token_price from_token}}
+{{#if (get_token_price from_token)}}
+Current {{from_token}} price: ${{get_token_price from_token}}
 {{/if}}
 
-{{#if wallet.get_token_price to_token}}
-Current {{to_token}} price: ${{wallet.get_token_price to_token}}
+{{#if (get_token_price to_token)}}
+Current {{to_token}} price: ${{get_token_price to_token}}
 {{/if}}
 
 {{#if estimated_amount}}

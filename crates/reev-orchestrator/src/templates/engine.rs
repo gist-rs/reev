@@ -130,7 +130,7 @@ impl TemplateEngine {
                         name.clone(),
                         super::TemplateType::Base,
                         format!("Base template: {name}"),
-                        vec!["wallet".to_string()],
+                        vec![], // No required variables - wallet provided as context
                         vec!["amount".to_string(), "slippage".to_string()],
                     );
 
@@ -175,7 +175,7 @@ impl TemplateEngine {
                                 format!("{protocol_name}/{name}"),
                                 super::TemplateType::Protocol(protocol_name.to_string()),
                                 format!("{protocol_name} protocol template: {name}"),
-                                vec!["wallet".to_string()],
+                                vec![], // No required variables - wallet provided as context
                                 vec!["amount".to_string(), "apy".to_string()],
                             );
 
@@ -207,7 +207,7 @@ impl TemplateEngine {
                         format!("scenarios/{name}"),
                         super::TemplateType::Scenario(name.clone()),
                         format!("Scenario template: {name}"),
-                        vec!["wallet".to_string(), "amount".to_string()],
+                        vec!["amount".to_string()], // Only amount required for scenarios
                         vec!["slippage".to_string(), "apy".to_string()],
                     );
 
@@ -245,8 +245,11 @@ impl TemplateEngine {
             warn!("Template metadata not found for: {}", template_name);
         }
 
-        // Prepare render data
-        let mut render_data = serde_json::to_value(context)?;
+        // Prepare render data - put context under "wallet" key for template access
+        let context_value = serde_json::to_value(context)?;
+        let mut render_data = serde_json::json!({
+            "wallet": context_value
+        });
         if let serde_json::Value::Object(ref mut map) = render_data {
             for (key, value) in variables {
                 map.insert(key.clone(), value.clone());

@@ -28,12 +28,12 @@ This two-step strategy converts your {{amount}} SOL to USDC and then deposits th
 1. **Swap Phase**: Use Jupiter to find best SOL→USDC rates
 2. **Lend Phase**: Deposit received USDC into Jupiter lending for yield
 
-{{#if wallet.get_token_price "SOL"}}
-Current SOL price: ${{wallet.get_token_price "SOL"}}
+{{#if (get_token_price "SOL")}}
+Current SOL price: ${{get_token_price "SOL"}}
 {{/if}}
 
-{{#if wallet.get_token_price "USDC"}}
-Current USDC price: ${{wallet.get_token_price "USDC"}}
+{{#if (get_token_price "USDC")}}
+Current USDC price: ${{get_token_price "USDC"}}
 {{/if}}
 
 {{#if estimated_amount}}

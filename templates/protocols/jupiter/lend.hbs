@@ -3,8 +3,8 @@
 
 Deposit {{amount}} {{token}} from wallet {{wallet.owner}} into Jupiter lending protocol.
 
-{{#if wallet.get_token_price token}}
-Current {{token}} price: ${{wallet.get_token_price token}}
+{{#if (get_token_price token)}}
+Current {{token}} price: ${{get_token_price token}}
 {{/if}}
 
 Jupiter lending features:
@@ -29,8 +29,8 @@ Jupiter lending protocol advantages:
 
 Use Jupiter to find the best lending rates and deposit into the optimal protocol for maximum yield.
 
-{{#if wallet.get_token_balance token}}
-Available balance: {{wallet.get_token_balance token.formatted_amount}}
+{{#if (get_token_balance token)}}
+Available balance: {{get_token_balance token}}
 {{/if}}
 
 Ensure you have sufficient {{token}} balance before proceeding with the deposit.
