@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context", "crates/reev-types"]
+members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context", "crates/reev-types", "crates/reev-orchestrator"]
 exclude = ["turso-test"]
 resolver = "2"
 
@@ -47,3 +47,5 @@ chrono = { version = "0.4", features = ["serde"] }
 serial_test = "3.0"
 dotenvy = "0.15"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
+handlebars = "4.5"
+lru = "0.12"
