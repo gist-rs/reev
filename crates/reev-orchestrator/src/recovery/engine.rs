@@ -19,7 +19,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 /// Enum for different recovery strategy types
 #[derive(Debug)]
-enum RecoveryStrategyType {
+pub enum RecoveryStrategyType {
     Retry(crate::recovery::strategies::RetryStrategy),
     AlternativeFlow(crate::recovery::strategies::AlternativeFlowStrategy),
     UserFulfillment(crate::recovery::strategies::UserFulfillmentStrategy),

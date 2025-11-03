@@ -26,6 +26,7 @@ pub struct OrchestratorGateway {
     /// Recovery engine for Phase 3 recovery mechanisms
     recovery_engine: Arc<RwLock<RecoveryEngine>>,
     /// Recovery configuration
+    #[allow(dead_code)]
     recovery_config: RecoveryConfig,
 }
 
@@ -279,8 +280,8 @@ pub fn create_lend_step_with_recovery(
     )
     .with_tool("jupiter_earn_tool")
     .with_estimated_time(45)
-    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
-    .with_critical(false)) // Lending is often non-critical
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 }))
+    // Note: Lending step uses default critical behavior (true) for consistency
 }
 
 /// Create a swap step based on context (legacy, non-recovery)

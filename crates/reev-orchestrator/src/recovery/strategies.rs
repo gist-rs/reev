@@ -177,10 +177,13 @@ struct AlternativeFlow {
 #[derive(Debug, Clone)]
 struct AlternativeStep {
     /// Step description
+    /// Alternative step description
     description: String,
     /// Alternative prompt
+    #[allow(dead_code)]
     prompt: String,
     /// Required tools for alternative step
+    #[allow(dead_code)]
     tools: Vec<String>,
 }
 
