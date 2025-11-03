@@ -13,6 +13,8 @@ use reev_lib::{
     solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
+use reev_orchestrator::OrchestratorGateway;
+use reev_types::flow::{BenchmarkSource, DynamicFlowPlan};
 
 use std::{
     fs,
@@ -22,6 +24,7 @@ use std::{
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::dependency::{DependencyConfig, DependencyManager};
+use reev_lib::benchmark::{GroundTruth, InitialStateItem};
 
 pub mod dependency;
 pub mod renderer;
@@ -476,6 +479,255 @@ pub async fn run_benchmarks(
     info!("All benchmarks completed (database-free runner)");
 
     Ok(results)
+}
+
+/// Unified runner function supporting both static files and dynamic flows (Phase 2)
+pub async fn run_benchmarks_with_source(
+    source: BenchmarkSource,
+    agent_name: &str,
+    shared_surfpool: bool,
+    execution_id: Option<String>,
+) -> Result<Vec<TestResult>> {
+    match source {
+        BenchmarkSource::StaticFile { path } => {
+            // Use existing function for static files
+            run_benchmarks(
+                PathBuf::from(path),
+                agent_name,
+                shared_surfpool,
+                false,
+                execution_id,
+            )
+            .await
+        }
+        BenchmarkSource::DynamicFlow { prompt, wallet } => {
+            // Use new direct execution for dynamic flows
+            run_dynamic_flow(&prompt, &wallet, agent_name, shared_surfpool, execution_id).await
+        }
+        BenchmarkSource::Hybrid { path, prompt } => {
+            // For hybrid, prefer dynamic if prompt available
+            if let Some(ref p) = prompt {
+                // Extract wallet from path or use default
+                let wallet = "11111111111111111111111111111112".to_string();
+                run_dynamic_flow(&p, &wallet, agent_name, shared_surfpool, execution_id).await
+            } else if let Some(p) = path {
+                run_benchmarks(
+                    PathBuf::from(p),
+                    agent_name,
+                    shared_surfpool,
+                    false,
+                    execution_id,
+                )
+                .await
+            } else {
+                Err(anyhow::anyhow!(
+                    "Hybrid source requires either path or prompt"
+                ))
+            }
+        }
+    }
+}
+
+/// Runs dynamic flow directly in memory without temporary files (Phase 2)
+pub async fn run_dynamic_flow(
+    prompt: &str,
+    wallet: &str,
+    agent_name: &str,
+    shared_surfpool: bool,
+    execution_id: Option<String>,
+) -> Result<Vec<TestResult>> {
+    info!("--- Phase 2: Direct Dynamic Flow Execution ---");
+    info!(
+        "Generating flow for prompt: '{}' with wallet: {}",
+        prompt, wallet
+    );
+
+    // Initialize orchestrator gateway
+    let gateway = OrchestratorGateway::new();
+
+    // Process user request and generate dynamic flow plan
+    let (flow_plan, _yml_path) = gateway
+        .process_user_request(prompt, wallet)
+        .await
+        .context("Failed to process dynamic flow request")?;
+
+    info!(
+        "Generated flow plan '{}' with {} steps (direct execution)",
+        flow_plan.flow_id,
+        flow_plan.steps.len()
+    );
+
+    // Initialize dependency management system
+    let mut dependency_guard = init_dependencies_with_config(DependencyConfig {
+        shared_instances: shared_surfpool,
+        agent_type: Some(agent_name.to_string()),
+        ..Default::default()
+    })
+    .await
+    .context("Failed to initialize dependencies")?;
+
+    // Create test case from flow plan (in-memory)
+    let test_case = create_test_case_from_flow_plan(&flow_plan)?;
+
+    // Start reev-agent for this flow
+    info!(
+        "Starting reev-agent for dynamic flow: {} with agent: {}",
+        flow_plan.flow_id, agent_name
+    );
+    dependency_guard
+        .manager
+        .update_config_and_restart_agent(
+            Some(agent_name.to_string()),
+            Some(flow_plan.flow_id.clone()),
+        )
+        .await
+        .context("Failed to start reev-agent for dynamic flow")?;
+
+    // Execute the dynamic flow
+    let session_id = execution_id
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let result = run_flow_benchmark(
+        &test_case,
+        &test_case
+            .flow
+            .as_ref()
+            .expect("Flow steps should be present"),
+        agent_name,
+        &format!("dynamic://{}", flow_plan.flow_id),
+        &session_id,
+    )
+    .await?;
+
+    info!("Dynamic flow execution completed successfully");
+
+    // Stop reev-agent after flow completion
+    info!(
+        "Stopping reev-agent after dynamic flow: {}",
+        flow_plan.flow_id
+    );
+    if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
+        warn!(
+            flow_id = %flow_plan.flow_id,
+            error = %e,
+            "Failed to stop reev-agent gracefully after dynamic flow"
+        );
+    }
+
+    Ok(vec![result])
+}
+
+/// Create TestCase from DynamicFlowPlan for execution
+fn create_test_case_from_flow_plan(flow_plan: &DynamicFlowPlan) -> Result<TestCase> {
+    // Convert dynamic steps to flow steps
+    let flow_steps: Vec<FlowStep> = flow_plan
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(index, step)| FlowStep {
+            step: (index + 1) as u32,
+            description: step.description.clone(),
+            prompt: step.prompt_template.clone(),
+            critical: step.critical,
+            timeout: Some(step.estimated_time_seconds as u32),
+            depends_on: Vec::new(),
+        })
+        .collect();
+
+    // Generate initial accounts from context
+    let initial_accounts = generate_initial_accounts_from_context(&flow_plan.context)?;
+
+    // Generate ground truth from steps
+    let ground_truth = generate_ground_truth_from_steps(&flow_plan.steps)?;
+
+    Ok(TestCase {
+        id: flow_plan.flow_id.clone(),
+        description: format!("Dynamic flow: {}", flow_plan.user_prompt),
+        prompt: flow_plan.user_prompt.clone(),
+        initial_state: initial_accounts,
+        ground_truth,
+        flow: Some(flow_steps),
+        tags: vec!["dynamic".to_string(), "phase2".to_string()],
+    })
+}
+
+/// Generate initial accounts from wallet context
+fn generate_initial_accounts_from_context(
+    context: &reev_types::flow::WalletContext,
+) -> Result<Vec<InitialStateItem>> {
+    let mut accounts = Vec::new();
+
+    // User wallet with SOL balance
+    accounts.push(InitialStateItem {
+        pubkey: "USER_WALLET_PUBKEY".to_string(),
+        owner: context.owner.clone(),
+        lamports: context.sol_balance,
+        data: None, // System account, no data
+    });
+
+    // USDC ATA with zero balance
+    accounts.push(InitialStateItem {
+        pubkey: "USER_USDC_ATA".to_string(),
+        owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // Token program
+        lamports: 2039280,                                                // Standard rent exemption
+        data: Some(reev_lib::benchmark::SplAccountData {
+            mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC mint
+            owner: "USER_WALLET_PUBKEY".to_string(),
+            amount: "0".to_string(),
+        }),
+    });
+
+    Ok(accounts)
+}
+
+/// Generate ground truth assertions from dynamic steps
+fn generate_ground_truth_from_steps(
+    steps: &[reev_types::flow::DynamicStep],
+) -> Result<GroundTruth> {
+    use reev_lib::benchmark::StateAssertion;
+
+    let mut assertions = Vec::new();
+
+    // Check if any step involves swap
+    let has_swap = steps.iter().any(|step| {
+        step.required_tools.contains(&"sol_tool".to_string())
+            || step.description.to_lowercase().contains("swap")
+    });
+
+    if has_swap {
+        assertions.push(StateAssertion::TokenAccountBalance {
+            pubkey: "USER_USDC_ATA".to_string(),
+            expected_gte: Some(1),
+            expected: None,
+            address_derivation: None,
+            weight: 1.0,
+        });
+    }
+
+    // Check if any step involves lend/earn
+    let has_lend = steps.iter().any(|step| {
+        step.required_tools
+            .contains(&"jupiter_earn_tool".to_string())
+            || step.description.to_lowercase().contains("lend")
+            || step.description.to_lowercase().contains("earn")
+    });
+
+    if has_lend {
+        assertions.push(StateAssertion::SolBalanceChange {
+            pubkey: "USER_WALLET_PUBKEY".to_string(),
+            expected_change_gte: -100005000, // Account for fees
+            weight: 1.0,
+        });
+    }
+
+    Ok(GroundTruth {
+        final_state_assertions: assertions,
+        transaction_status: "Success".to_string(),
+        expected_instructions: Vec::new(),
+        skip_instruction_validation: false,
+    })
 }
 
 /// Extract tool calls from agent's enhanced otel log files

@@ -41,6 +41,7 @@ path = "tests/agent_restart_test.rs"
  reev-lib = { path = "../reev-lib" }
  reev-flow = { path = "../reev-flow" }
  reev-orchestrator = { path = "../reev-orchestrator" }
+ reev-types = { path = "../reev-types" }
  anyhow = "1.0"
 serde_yaml = "0.9"
 serde_json = "1.0"

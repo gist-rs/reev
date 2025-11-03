@@ -9,7 +9,7 @@ use project_root::get_project_root;
 use reev_orchestrator::OrchestratorGateway;
 use reev_runner::renderer;
 use std::path::PathBuf;
-use tracing::{error, info, subscriber};
+use tracing::{info, subscriber};
 use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
 
 /// A command-line runner for the Reev evaluation framework.
@@ -17,8 +17,8 @@ use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
 #[command(version, about, long_about = None)]
 struct Cli {
     /// Path to a specific benchmark YAML file, a directory containing multiple benchmarks, or a flow log file.
-    /// Not used when --dynamic is specified.
-    #[arg(required_unless_present = "dynamic")]
+    /// Not used when --dynamic or --direct is specified.
+    #[arg(required_unless_present_any = ["dynamic", "direct"])]
     path: Option<PathBuf>,
 
     /// The agent to run the benchmarks with.
@@ -41,6 +41,10 @@ struct Cli {
     /// Use dynamic flow generation from natural language prompt
     #[arg(long)]
     dynamic: bool,
+
+    /// Use direct in-memory flow execution (Phase 2 - no temporary files)
+    #[arg(long)]
+    direct: bool,
 
     /// Wallet pubkey for dynamic flow context resolution
     #[arg(long)]
@@ -94,7 +98,12 @@ async fn main() -> Result<()> {
 
     info!("--- Reev Evaluation Runner ---");
 
-    // Handle dynamic flow generation
+    // Handle Phase 2 direct flow execution
+    if cli.direct {
+        return handle_direct_flow(cli).await;
+    }
+
+    // Handle dynamic flow generation (Phase 1 - backward compatibility)
     if cli.dynamic {
         return handle_dynamic_flow(cli).await;
     }
@@ -198,20 +207,41 @@ async fn handle_dynamic_flow(cli: Cli) -> Result<()> {
         info!("\n{tree_output}");
     }
 
-    // Cleanup generated files
-    if let Err(e) = gateway.cleanup().await {
-        error!("Failed to cleanup generated files: {}", e);
-    }
+    Ok(())
+}
 
-    // Clean up temporary YML file
-    if let Err(e) = std::fs::remove_file(&yml_path) {
-        error!(
-            "Failed to remove temporary YML file '{}': {}",
-            yml_path.display(),
-            e
-        );
-    } else {
-        info!("Cleaned up temporary YML file: {}", yml_path.display());
+/// Handle Phase 2 direct flow execution from natural language prompt
+async fn handle_direct_flow(cli: Cli) -> Result<()> {
+    info!("--- Phase 2: Direct Dynamic Flow Execution ---");
+
+    // Validate required parameters
+    let prompt = cli
+        .prompt
+        .ok_or_else(|| anyhow::anyhow!("--prompt is required when using --direct"))?;
+    let wallet = cli
+        .wallet
+        .ok_or_else(|| anyhow::anyhow!("--wallet is required when using --direct"))?;
+
+    info!(
+        "Executing direct flow for prompt: '{}' with wallet: {}",
+        prompt, wallet
+    );
+
+    // Use new direct execution function
+    let results = reev_runner::run_dynamic_flow(
+        &prompt,
+        &wallet,
+        &cli.agent,
+        cli.shared_surfpool,
+        cli.execution_id,
+    )
+    .await
+    .context("Failed to execute direct dynamic flow")?;
+
+    // Render the results
+    for result in &results {
+        let tree_output = renderer::render_result_as_tree(result);
+        info!("\n{tree_output}");
     }
 
     Ok(())
