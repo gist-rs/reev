@@ -159,7 +159,12 @@ impl StateDiagramGenerator {
 
             for tool_call in session.tool_calls.iter() {
                 let tool_state = Self::sanitize_tool_name(&tool_call.tool_name);
-                let transition_label = if tool_call.tool_name.contains("transfer") {
+
+                // Enhanced transition label: try result_data first, then params
+                let transition_label = if let Some(result_data) = &tool_call.result_data {
+                    Self::summarize_result_data(result_data)
+                        .unwrap_or_else(|| Self::summarize_params(&tool_call.params))
+                } else if tool_call.tool_name.contains("transfer") {
                     Self::extract_amount_from_params(tool_call)
                         .unwrap_or_else(|| Self::summarize_params(&tool_call.params))
                 } else {
@@ -274,6 +279,30 @@ impl StateDiagramGenerator {
     fn summarize_params(params: &serde_json::Value) -> String {
         match params {
             serde_json::Value::Object(map) => {
+                // Enhanced Jupiter transaction parsing
+                if let (Some(input_mint), Some(output_mint), Some(amount)) = (
+                    map.get("input_mint").and_then(|v| v.as_str()),
+                    map.get("output_mint").and_then(|v| v.as_str()),
+                    map.get("amount").and_then(|v| v.as_u64()),
+                ) {
+                    let input_symbol = Self::mint_to_symbol(input_mint);
+                    let output_symbol = Self::mint_to_symbol(output_mint);
+                    let input_amount = Self::lamports_to_token_amount(amount, input_mint);
+                    return format!("{input_amount} {input_symbol} → {output_symbol}");
+                }
+
+                // Jupiter lend/deposit parsing
+                if let (Some(action), Some(mint), Some(amount)) = (
+                    map.get("action").and_then(|v| v.as_str()),
+                    map.get("mint").and_then(|v| v.as_str()),
+                    map.get("amount").and_then(|v| v.as_u64()),
+                ) {
+                    let symbol = Self::mint_to_symbol(mint);
+                    let amount_formatted = Self::lamports_to_token_amount(amount, mint);
+                    return format!("{action} {amount_formatted} {symbol}");
+                }
+
+                // Generic parameter parsing
                 let mut summaries = Vec::new();
                 for (key, value) in map {
                     if key == "pubkey" || key == "user_pubkey" {
@@ -293,18 +322,7 @@ impl StateDiagramGenerator {
                     } else if key == "input_mint" || key == "output_mint" {
                         if let Some(mint) = value.as_str() {
                             // Show token symbol if recognizable
-                            let token_symbol = match mint {
-                                "So11111111111111111111111111111111111111112" => "SOL",
-                                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => "USDC",
-                                "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => "USDT",
-                                _ => {
-                                    if mint.len() > 8 {
-                                        &format!("{}...", &mint[..8])
-                                    } else {
-                                        mint
-                                    }
-                                }
-                            };
+                            let token_symbol = Self::mint_to_symbol(mint);
                             summaries.push(format!(
                                 "{} = {}",
                                 key.replace("_mint", ""),
@@ -332,6 +350,44 @@ impl StateDiagramGenerator {
             }
             _ => {
                 format!("{params:?}")
+            }
+        }
+    }
+
+    /// Convert mint address to token symbol
+    fn mint_to_symbol(mint: &str) -> &str {
+        match mint {
+            "So11111111111111111111111111111111111111112" => "SOL",
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => "USDC",
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => "USDT",
+            _ => {
+                if mint.len() > 8 {
+                    "UNKNOWN"
+                } else {
+                    mint
+                }
+            }
+        }
+    }
+
+    /// Convert lamports to readable token amount based on mint
+    fn lamports_to_token_amount(lamports: u64, mint: &str) -> String {
+        match mint {
+            "So11111111111111111111111111111111111111112" => {
+                // SOL: 9 decimal places
+                format!("{:.3}", lamports as f64 / 1_000_000_000.0)
+            }
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => {
+                // USDC: 6 decimal places
+                format!("{:.2}", lamports as f64 / 1_000_000.0)
+            }
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => {
+                // USDT: 6 decimal places
+                format!("{:.2}", lamports as f64 / 1_000_000.0)
+            }
+            _ => {
+                // Default: assume 6 decimal places
+                format!("{:.6}", lamports as f64 / 1_000_000.0)
             }
         }
     }
@@ -387,6 +443,88 @@ impl StateDiagramGenerator {
             }
             Some(value) => Self::clean_value(value),
             None => "Complete".to_string(),
+        }
+    }
+
+    /// Summarize result data for enhanced transaction visualization
+    fn summarize_result_data(result_data: &serde_json::Value) -> Option<String> {
+        match result_data {
+            serde_json::Value::Object(map) => {
+                // Handle Jupiter swap results
+                if let (Some(input_amount), Some(output_amount), Some(signature)) = (
+                    map.get("input_amount").and_then(|v| v.as_u64()),
+                    map.get("output_amount").and_then(|v| v.as_u64()),
+                    map.get("signature").and_then(|v| v.as_str()),
+                ) {
+                    let input_formatted = Self::lamports_to_token_amount(
+                        input_amount,
+                        "So11111111111111111111111111111111111111112",
+                    );
+                    let output_formatted = Self::lamports_to_token_amount(
+                        output_amount,
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    );
+                    let short_sig = if signature.len() > 12 {
+                        format!("{}...", &signature[..12])
+                    } else {
+                        signature.to_string()
+                    };
+                    return Some(format!(
+                        "{input_formatted} SOL → {output_formatted} USDC ({short_sig})"
+                    ));
+                }
+
+                // Handle Jupiter lend results
+                if let (Some(deposited), Some(apy), Some(signature)) = (
+                    map.get("deposited").and_then(|v| v.as_u64()),
+                    map.get("apy").and_then(|v| v.as_f64()),
+                    map.get("signature").and_then(|v| v.as_str()),
+                ) {
+                    let deposited_formatted = Self::lamports_to_token_amount(
+                        deposited,
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    );
+                    let short_sig = if signature.len() > 12 {
+                        format!("{}...", &signature[..12])
+                    } else {
+                        signature.to_string()
+                    };
+                    return Some(format!(
+                        "deposit {deposited_formatted} USDC @ {apy:.1}% APY ({short_sig})"
+                    ));
+                }
+
+                // Handle balance check results
+                if let (Some(balance), Some(usdc_balance)) = (
+                    map.get("balance").and_then(|v| v.as_u64()),
+                    map.get("usdc_balance").and_then(|v| v.as_u64()),
+                ) {
+                    let sol_formatted = Self::lamports_to_token_amount(
+                        balance,
+                        "So11111111111111111111111111111111111111112",
+                    );
+                    let usdc_formatted = Self::lamports_to_token_amount(
+                        usdc_balance,
+                        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    );
+                    return Some(format!(
+                        "Balance: {sol_formatted} SOL, {usdc_formatted} USDC"
+                    ));
+                }
+
+                // Generic result with signature
+                if let Some(signature) = map.get("signature").and_then(|v| v.as_str()) {
+                    let short_sig = if signature.len() > 12 {
+                        format!("{}...", &signature[..12])
+                    } else {
+                        signature.to_string()
+                    };
+                    return Some(format!("Tx: {short_sig}"));
+                }
+
+                None
+            }
+            _ => None,
         }
     }
 

@@ -45,7 +45,7 @@ pub struct ParsedToolCall {
     pub duration_ms: u64,
     /// Tool result data (includes instruction count, etc.)
     pub result_data: Option<JsonValue>,
-    /// Original tool arguments as JSON string
+    /// Raw tool arguments from agent execution
     pub tool_args: Option<String>,
 }
 
@@ -110,20 +110,31 @@ impl SessionParser {
         // Extract tool calls
         let mut tool_calls = Vec::new();
 
+        // NEW: Direct tool_calls format (for enhanced ToolCallSummary objects)
+        if let Some(direct_tools) = session_log.get("tool_calls").and_then(|t| t.as_array()) {
+            for (i, tool) in direct_tools.iter().enumerate() {
+                if let Ok(parsed_tool) = parse_direct_tool_call(tool, i) {
+                    tool_calls.push(parsed_tool);
+                } else {
+                    warn!("❌ Failed to parse direct tool {}: {}", i, "parsing error");
+                }
+            }
+        }
         // First try: Extract from log_content (enhanced_otel format)
-        if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str()) {
-            info!("🔍 Parsing log_content (length: {})", log_content.len());
+        else if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str())
+        {
+            debug!("🔍 Parsing log_content (length: {})", log_content.len());
 
             // Try YAML parsing first (for OTEL-derived data)
             match serde_yaml::from_str::<YamlValue>(log_content) {
                 Ok(yaml_value) => {
-                    info!("✅ YAML parsing successful");
+                    debug!("✅ YAML parsing successful");
                     if let Some(yml_tools) =
                         yaml_value.get("tool_calls").and_then(|t| t.as_sequence())
                     {
-                        info!("🛠️  Found {} tools in YAML log_content", yml_tools.len());
+                        debug!("🛠️  Found {} tools in YAML log_content", yml_tools.len());
                         for (i, tool) in yml_tools.iter().enumerate() {
-                            info!("🛠️  Parsing tool {}: {:?}", i, tool);
+                            debug!("🛠️  Parsing tool {}: {:?}", i, tool);
                             if let Ok(parsed_tool) = parse_yaml_tool(tool) {
                                 tool_calls.push(parsed_tool);
                             } else {
@@ -131,7 +142,7 @@ impl SessionParser {
                             }
                         }
                     } else {
-                        warn!("⚠️  YAML parsed but no tool_calls array found");
+                        debug!("⚠️  YAML parsed but no tool_calls array found");
                     }
                 }
                 Err(yaml_err) => {
@@ -343,26 +354,33 @@ fn parse_yaml_tool(tool: &YamlValue) -> Result<ParsedToolCall, FlowDiagramError>
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
 
-    // Parse input parameters
+    // Parse input parameters - check for new ToolCallSummary fields first
     let params = tool
-        .get("input")
+        .get("params")
+        .or_else(|| tool.get("input"))
         .or_else(|| tool.get("tool_args"))
         .cloned()
         .map(|v| yaml_value_to_json(&v))
         .unwrap_or(JsonValue::Null);
 
-    // Parse result data
+    // Parse result data - check for new ToolCallSummary fields first
     let result_data = tool
-        .get("output")
+        .get("result_data")
+        .or_else(|| tool.get("output"))
         .or_else(|| tool.get("tool_output"))
         .cloned()
         .map(|v| yaml_value_to_json(&v));
 
-    // Extract original tool arguments as JSON string
+    // Extract original tool arguments as JSON string - check for new field first
     let tool_args = tool
-        .get("tool_input")
-        .cloned()
-        .map(|v| yaml_value_to_json(&v).to_string());
+        .get("tool_args")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            tool.get("tool_input")
+                .cloned()
+                .map(|v| yaml_value_to_json(&v).to_string())
+        });
 
     Ok(ParsedToolCall {
         tool_name: tool_name.to_string(),
@@ -585,6 +603,7 @@ fn parse_step_as_tool_call(step: &JsonValue, _step_index: usize) -> Option<Parse
                                 JsonValue::String(from_pubkey.to_string()),
                             );
                         }
+
                         if accounts.len() > 1 {
                             if let Some(to_pubkey) =
                                 accounts[1].get("pubkey").and_then(|v| v.as_str())
@@ -615,4 +634,61 @@ fn parse_step_as_tool_call(step: &JsonValue, _step_index: usize) -> Option<Parse
     }
 
     None
+}
+
+/// Parse direct ToolCallSummary format from enhanced dynamic flows
+fn parse_direct_tool_call(
+    tool: &JsonValue,
+    _index: usize,
+) -> Result<ParsedToolCall, FlowDiagramError> {
+    let tool_name = tool
+        .get("tool_name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            FlowDiagramError::InvalidLogFormat("Missing tool_name in direct tool call".to_string())
+        })?;
+
+    // Parse timestamp
+    let start_time = tool
+        .get("timestamp")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<i64>().ok())
+        .and_then(|ts| ts.try_into().ok())
+        .unwrap_or(0);
+
+    // Parse duration
+    let duration_ms = tool
+        .get("duration_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+
+    // Parse params (new field)
+    let params = tool.get("params").cloned().unwrap_or(JsonValue::Null);
+
+    // Parse result_data (new field)
+    let result_data = tool.get("result_data").cloned();
+
+    // Parse tool_args (new field)
+    let tool_args = tool
+        .get("tool_args")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    debug!(
+        "Parsed direct tool: {} ({}ms, params: {}, result: {}, args: {:?})",
+        tool_name,
+        duration_ms,
+        !params.is_null(),
+        result_data.is_some(),
+        tool_args
+    );
+
+    Ok(ParsedToolCall {
+        tool_name: tool_name.to_string(),
+        start_time,
+        duration_ms,
+        params,
+        result_data,
+        tool_args,
+    })
 }

@@ -174,6 +174,12 @@ pub struct ToolCallSummary {
     pub success: bool,
     /// Error message if failed
     pub error: Option<String>,
+    /// Tool parameters (input_mint, output_mint, amount, etc.)
+    pub params: Option<serde_json::Value>,
+    /// Tool execution result data (signatures, balances, etc.)
+    pub result_data: Option<serde_json::Value>,
+    /// Raw tool arguments from agent execution
+    pub tool_args: Option<String>,
 }
 
 /// Timeout configuration for RPC calls

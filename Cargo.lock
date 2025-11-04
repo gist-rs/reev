@@ -3752,6 +3752,7 @@ dependencies = [
  "axum",
  "chrono",
  "project-root",
+ "reev-agent",
  "reev-db",
  "reev-flow",
  "reev-lib",
