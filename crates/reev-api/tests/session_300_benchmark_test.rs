@@ -17,7 +17,7 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
     let temp_yml_path = PathBuf::from("test_300_output.yml");
 
     if !test_file.exists() {
-        println!("❌ 300 benchmark test file not found: {:?}", test_file);
+        println!("❌ 300 benchmark test file not found: {test_file:?}");
         return Ok(());
     }
 
@@ -70,7 +70,7 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
             }
         }
         Err(e) => {
-            println!("❌ FAILED: Direct parsing failed: {}", e);
+            println!("❌ FAILED: Direct parsing failed: {e}");
 
             // Debug: Show first 200 chars of YML
             println!("📝 First 200 chars of YML content:");
@@ -98,7 +98,7 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
             }
         }
         Err(e) => {
-            println!("❌ FAILED: Full JSON parsing failed: {}", e);
+            println!("❌ FAILED: Full JSON parsing failed: {e}");
         }
     }
 
