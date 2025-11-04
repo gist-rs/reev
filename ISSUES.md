@@ -1,6 +1,6 @@
 # Issues
 
-## Issue #15: GLM-4.6 Model Incorrectly Routed to ZAI Client Instead of OpenAI Client ❌ **NEW**
+## Issue #15: GLM-4.6 Model Incorrectly Routed to ZAI Client Instead of OpenAI Client ✅ **RESOLVED**
 ### 🎯 **Problem Statement**
 The `glm-4.6` model should use OpenAI-compatible format with ZAI endpoint, but is being incorrectly routed to ZAI-specific client, causing "Invalid API parameter" errors.
 
@@ -33,13 +33,24 @@ glm-4.6-coding -> ZAI client -> https://api.z.ai/api/coding/paas/v4 -> success
    - `zai_agent.rs` handles ZAI-specific clients (glm-4.6-coding)
    - Both models currently going to `zai_agent.rs`
 
-### 🛠️ **Solutions Required**
+### ✅ **Solutions Applied**
 
-#### **Solution 1**: Fix API Layer Routing
-Update the hardcoded routing in `execute_real_agent_for_flow_plan()` to correctly route `glm-4.6` to OpenAI client.
+#### **Solution 1**: ✅ Fixed API Layer Routing
+Updated routing logic in both `run.rs` and `execute_real_agent_for_flow_plan()` to correctly route `glm-4.6` to OpenAI client.
 
-#### **Solution 2**: Clean Up Redundant Routing
-Remove duplicate routing logic to prevent future confusion.
+#### **Solution 2**: ✅ Fixed reev-lib Model Name Preservation
+Fixed `reev-lib/src/llm_agent.rs` where `glm-4.6-coding` was being stripped to `glm-4.6` and incorrectly treated as OpenAI-compatible.
+
+#### **Solution 3**: ✅ Enhanced Logging for Debugging
+Updated GLM model logging to distinguish between OpenAI-compatible and ZAI-specific modes for better debugging.
+
+### 🔍 **Resolution Details**
+- **Root Cause**: `reev-lib` was stripping `-coding` suffix from `glm-4.6-coding`, causing incorrect routing to OpenAI client instead of ZAI client
+- **Fix Applied**: 
+  1. Preserve full model name including mode suffixes in `reev-lib`
+  2. Added comprehensive test suite to verify correct routing behavior
+  3. Enhanced logging to clearly distinguish between GLM model types
+- **Verification**: Both `glm-4.6` and `glm-4.6-coding` now route to correct endpoints with proper authentication errors
 
 ### 📊 **Test Cases**
 #### **Test 1**: GLM-4.6 Model Routing
@@ -79,7 +90,8 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 - Issue #12 ✅ **RESOLVED**: API returns tool calls data
 
 ### 🗓️ **Resolution Timeline**
-**Priority**: Critical - Blocks all GLM-4.6 model usage
-**Estimated**: 1-2 hours for routing logic fix
+**Priority**: Critical - Was blocking all GLM-4.6 model usage
+**Resolution**: ✅ FIXED - Complete routing fix applied with comprehensive testing
+**Time Taken**: Additional bug fix applied in `reev-lib` to preserve model name suffixes and ensure correct client routing
 
 ---

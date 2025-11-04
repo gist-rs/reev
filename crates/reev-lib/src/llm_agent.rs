@@ -82,8 +82,8 @@ impl LlmAgent {
                         }
                     };
 
-                    // Extract base model name (strip mode suffixes like "-coding")
-                    let model_name = agent_name.split('-').take(2).collect::<Vec<_>>().join("-");
+                    // Keep the full model name including mode suffixes for correct routing
+                    let model_name = agent_name.to_string();
 
                     // For glm-4.6-coding, don't pass API key to reev-agent (it will use ZAI_API_KEY internally)
                     // For glm-4.6, pass the API key for OpenAI compatible calls via OpenAI client
@@ -147,7 +147,13 @@ impl LlmAgent {
         info!("[LlmAgent] Final API URL for agent '{agent_name}': {api_url}");
         info!("[LlmAgent] Model name being sent in payload: '{model_name}'");
         if is_glm {
-            info!("[LlmAgent] GLM 4.6 mode enabled with OpenAI-compatible API");
+            if agent_name == "glm-4.6-coding" {
+                info!("[LlmAgent] GLM-4.6-coding mode enabled with ZAI-specific API");
+            } else if agent_name == "glm-4.6" {
+                info!("[LlmAgent] GLM-4.6 mode enabled with OpenAI-compatible API");
+            } else {
+                info!("[LlmAgent] GLM model detected: {agent_name}");
+            }
         }
 
         Ok(Self {
