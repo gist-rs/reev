@@ -348,7 +348,7 @@ The dynamic flow implementation is **production-ready** for:
 
 ### 🎯 **Implementation Results**
 - ✅ **All API Endpoints**: Direct, Bridge, and Recovery modes implemented
-- ✅ **Type System**: Complete request/response schemas for dynamic flows  
+- ✅ **Type System**: Complete request/response schemas for dynamic flows
 - ✅ **Handler Integration**: Proper Axum Handler trait compatibility
 - ✅ **Error Handling**: HTTP status codes and JSON error responses
 - ✅ **Documentation**: Updated CURL.md with complete examples
@@ -558,7 +558,7 @@ The reev dynamic flow system has successfully completed all planned phases:
 **🔧 Quality Metrics**: 57+ tests passing, zero clippy warnings, enterprise-grade production ready
 **📋 Polling Strategy**: ✅ COMPREHENSIVE HTTP POLLING INFRASTRUCTURE ALREADY EXISTS
 
-**🚀 Existing Polling Infrastructure**: 
+**🚀 Existing Polling Infrastructure**:
 - **State Tracking**: ExecutionState & ExecutionStatus enums (Queued, Running, Completed, Failed, Stopped, Timeout)
 - **Session Management**: FlowLog & FlowEvent structures with SystemTime timestamps and event content
 - **API Endpoints**: 5+ existing polling endpoints with real-time status updates
@@ -597,7 +597,7 @@ The reev dynamic flow system has successfully completed all planned phases:
 
   #### Task 4.1: Dynamic Flow Endpoints ✅
   - [x] `POST /api/v1/benchmarks/execute-direct` - Direct mode execution
-  - [x] `POST /api/v1/benchmarks/execute-bridge` - Bridge mode execution  
+  - [x] `POST /api/v1/benchmarks/execute-bridge` - Bridge mode execution
   - [x] `POST /api/v1/benchmarks/execute-recovery` - Recovery mode execution
   - [x] Request/response schema design for dynamic flow execution
   - [x] Error handling and status codes for dynamic flow failures
@@ -624,7 +624,7 @@ The reev dynamic flow system has successfully completed all planned phases:
    - [x] FlowEvent & ExecutionResult types ✅ EXISTING: Rich event content for visualization
    - [x] FlowLogRenderer ✅ EXISTING: ASCII tree rendering from session data
    - [ ] Document polling frequency recommendations (1-5 seconds for active flows)
-   - [ ] Add Last-Modified and ETag support to existing flow endpoints
+   - [ ] Add Last-Modified and ETag support to existing flow endpoints, ref https://docs.rs/http_cache_tags_axum/latest/http_cache_tags_axum/
    - [ ] Extend existing flow visualization for dynamic flow sessions
 
     ### 🔧 **Technical Requirements**
@@ -643,7 +643,7 @@ The reev dynamic flow system has successfully completed all planned phases:
     - [ ] Complete documentation, integration tests, performance monitoring
 
   ### ⚠️ **Known Dependencies**
-  **Thread Safety Issues Identified**: 
+  **Thread Safety Issues Identified**:
   - Thread safety problems in `reev-runner` dependency chain (Cell<u64>, RefCell<dyn std::io::Read>)
   - Root cause: `run_benchmarks_with_source` function uses non-thread-safe types
   - Current solution: Mock implementations return proper API responses
