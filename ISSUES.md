@@ -16,18 +16,24 @@ The reev system has fully functional dynamic flow capabilities via CLI (bridge/d
 **✅ Implemented (CLI Only)**:
 - Dynamic flow generation from natural language prompts
 - Bridge mode: Temporary YML file generation
-- Direct mode: Zero file I/O in-memory execution  
+- Direct mode: Zero file I/O in-memory execution
 - Recovery mode: Enterprise-grade failure handling with 3 strategies
 - Context resolution with wallet balance and pricing
 - Template system with caching and inheritance
 
 **❌ Missing (API Endpoints)**:
 - `POST /api/v1/benchmarks/execute-dynamic` - Bridge mode execution
-- `POST /api/v1/benchmarks/execute-direct` - Direct mode execution
+- `POST /api/v1/benchmarks/execute-direct` - Direct mode execution  
 - `POST /api/v1/benchmarks/execute-recovery` - Recovery mode execution
-- `GET /api/v1/flows/{flow_id}/sessions` - Session management
 - `GET /api/v1/metrics/recovery` - Recovery performance metrics
-- Real-time session tracking and WebSocket support
+
+**✅ Existing Polling Infrastructure**:
+- `GET /api/v1/benchmarks/{id}/status/{execution_id}` - Execution status polling
+- `GET /api/v1/benchmarks/{id}/status` - Most recent execution status
+- `GET /api/v1/flows/{session_id}` - Flow diagram with stateDiagram visualization
+- `GET /api/v1/flow-logs/{benchmark_id}` - Flow execution logs
+- `GET /api/v1/execution-logs/{benchmark_id}` - Execution trace logs
+- ExecutionState and ExecutionStatus enums for state tracking
 
 ### 🏗️ **Required Implementation**
 
@@ -40,7 +46,7 @@ pub async fn execute_dynamic_flow(
 ) -> Result<Json<ExecutionResponse>, ApiError>
 
 pub async fn execute_direct_flow(
-    State(state): State<ApiState>, 
+    State(state): State<ApiState>,
     Json(request): Json<DynamicFlowRequest>,
 ) -> Result<Json<ExecutionResponse>, ApiError>
 
@@ -57,17 +63,11 @@ pub async fn execute_recovery_flow(
 reev-orchestrator = { path = "../reev-orchestrator" }
 ```
 
-#### Phase 4.3: Session Management
+#### Phase 4.3: Session Management Enhancement
 ```rust
-// Real-time flow execution tracking
-pub struct SessionManager {
-    active_sessions: Arc<RwLock<HashMap<String, FlowSession>>>,
-}
-
-pub async fn get_flow_session(
-    Path(session_id): Path<String>,
-    State(state): State<ApiState>,
-) -> Result<Json<FlowSession>, ApiError>
+// Extend existing session tracking for dynamic flows
+// Existing: get_flow(), get_execution_status(), ExecutionState struct
+// Add: caching headers, frequency recommendations, dynamic flow integration
 ```
 
 ### 🔄 **Integration Points**
@@ -82,9 +82,8 @@ pub async fn get_flow_session(
 
 - [ ] All dynamic flow modes accessible via REST API
 - [ ] Real-time session management and monitoring
-- [ ] Full recovery system integration via API  
+- [ ] Full recovery system integration via API
 - [ ] Live flow visualization and Mermaid diagram generation
-- [ ] < 100ms API response time for flow initiation
 - [ ] Backward compatibility with existing static endpoints
 - [ ] Comprehensive error handling and status reporting
 
@@ -95,13 +94,15 @@ pub async fn get_flow_session(
 
 **Required Dependencies**:
 - Add `reev-orchestrator` dependency to `reev-api/Cargo.toml`
-- WebSocket support for real-time session updates
+- Polling for session updates
 - Enhanced request validation and security middleware
 
 **Integration Requirements**:
 - Must work seamlessly with existing static benchmark system
 - Preserve all current CLI functionality and performance characteristics
 - Maintain backward compatibility with existing API clients
+- Enhance existing polling infrastructure: add caching headers, document frequency recommendations
+- Extend existing ExecutionState tracking to support dynamic flow sessions
 
 ### 📈 **Impact Assessment**
 
@@ -115,12 +116,12 @@ pub async fn get_flow_session(
 ### 🗓️ **Timeline**
 
 **Week 1**: Basic dynamic flow endpoints (execute-dynamic, execute-direct)
-**Week 2**: Recovery endpoints and session management
-**Week 3**: Real-time features, WebSocket support, and comprehensive testing
+**Week 1**: Basic dynamic flow endpoints (execute-dynamic, execute-direct)
+**Week 2**: Recovery endpoints and enhanced session management with caching headers
+**Timeline reduced to 1-2 weeks due to comprehensive existing polling infrastructure
 
 ---
 
 *Last Updated: Current*
 *Related Files*: TASKS.md, ARCHITECTURE.md, crates/reev-api/Cargo.toml
 *Dependencies*: reev-orchestrator integration, reev-flow session management
-

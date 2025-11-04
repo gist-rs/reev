@@ -5,48 +5,19 @@
 ### Issue #2: reev-orchestrator Crate Setup
 
 #### Task 2.1: Initialize reev-orchestrator Crate - ✅ COMPLETED
-- [✅] Create `Cargo.toml` with dependencies: reev-types, reev-tools, reev-protocols, tokio, serde, anyhow, handlebars, lru
-- [✅] Set up `src/lib.rs` with basic module structure
-- [✅] Create `src/gateway.rs` for user prompt processing
-- [✅] Create `src/context_resolver.rs` for wallet context
-- [✅] Create `src/generators/mod.rs`, `src/generators/yml_generator.rs`
-- [✅] Create `tests/` directory structure
-- [✅] Add feature flags: `dynamic_flows = ["bridge"]`
-
-**Acceptance**: Crate compiles, basic structure in place
-**Estimated**: 0.5 days - COMPLETED
+- [✅] Crate setup with dependencies, module structure, feature flags
+**Acceptance**: Crate compiles, basic structure in place | **Time**: 0.5 days
 
 #### Task 2.2: Context Resolver Implementation - ✅ COMPLETED
-- [✅] Extract token/price data from `protocols/jupiter/jup-sdk/tests/token_test.rs`
-- [✅] Implement `WalletContext` struct in reev-types
-- [✅] Create `ContextResolver` with Jupiter SDK integration
-- [✅] Add parallel context resolution (balance + prices + metadata)
-- [✅] Implement LRU cache with TTL (wallet: 5min, prices: 30s)
-- [✅] Add OpenTelemetry tracing for context resolution
-
-**Acceptance**: Context resolves < 500ms for typical wallet
-**Estimated**: 2 days - COMPLETED
-**Dependency**: Task 5.1 (Mock Data) - COMPLETED
+- [✅] WalletContext, Jupiter SDK integration, LRU cache (5min/30s TTL), OTEL tracing
+**Acceptance**: Context resolves < 500ms | **Time**: 2 days | **Dep**: Task 5.1
 
 #### Task 2.3: YML Generator Implementation - ✅ COMPLETED
-- [✅] Design YML structure matching existing benchmark format
-- [✅] Implement template engine with Handlebars
-- [✅] Create base templates for swap, lend, swap+lend
-- [✅] Add context variable injection (amount, wallet, prices)
-- [✅] Implement temporary file generation in `/tmp/dynamic-{timestamp}.yml`
-- [✅] Add validation for generated YML structure
-
-**Acceptance**: Generated YML validates against schema, loads in runner
-**Estimated**: 1.5 days - COMPLETED
-**Dependency**: Task 6.1 (Template System) - COMPLETED
+- [✅] Handlebars templates, context injection, temp file generation, validation
+**Acceptance**: Generated YML validates against schema | **Time**: 1.5 days | **Dep**: Task 6.1
 
 #### Task 2.4: Gateway Implementation - ✅ COMPLETED
-- [✅] Implement `OrchestratorGateway` with prompt refinement
-- [✅] Add natural language to intent parsing
-- [✅] Create flow planner for step generation
-- [✅] Integrate context resolver with prompt generation
-- [✅] Add error handling and validation
-
+- [✅] OrchestratorGateway, NLP intent parsing, flow planner, error handling
 **Acceptance**: "use 50% sol to 1.5x usdc" generates valid YML
 **Estimated**: 2 days - COMPLETED
 **Dependencies**: Tasks 2.2, 2.3 - COMPLETED
@@ -76,49 +47,22 @@
 **Estimated**: 1 day
 
 #### Task 5.2: Integration Test Suite
-- [ ] Create `tests/integration_tests.rs`
-- [ ] Add tests for basic swap flow generation
-- [ ] Add tests for lend flow generation
-- [ ] Add tests for swap+lend multi-step flows
-- [ ] Add tests for context injection accuracy
-- [ ] Add performance tests for context resolution
-
-**Acceptance**: 100% test coverage for Phase 1 features
-**Estimated**: 1.5 days
-**Dependency**: Task 5.1
+- [ ] Integration tests: swap/lend flows, context accuracy, performance
+**Acceptance**: 100% test coverage for Phase 1 | **Time**: 1.5 days | **Dep**: Task 5.1
 
 ### Issue #6: Template System
 
 #### Task 6.1: Template Engine Setup
-- [ ] Design template hierarchy structure
-- [ ] Create `templates/` directory with base, protocols, scenarios
-- [ ] Implement Handlebars template compilation
-- [ ] Add template inheritance and partials
-- [ ] Create template validation system
-
-**Acceptance**: Template engine compiles and validates templates
-**Estimated**: 1 day
+- [ ] Handlebars engine with hierarchy, inheritance, validation
+**Acceptance**: Template engine compiles and validates | **Time**: 1 day
 
 #### Task 6.2: Template Creation
-- [ ] Create `templates/base/swap.hbs` for generic swap
-- [ ] Create `templates/base/lend.hbs` for generic lend
-- [ ] Create `templates/protocols/jupiter/` overrides
-- [ ] Create `templates/scenarios/swap_then_lend.hbs`
-- [ ] Add template documentation and examples
-
-**Acceptance**: Templates generate context-aware prompts
-**Estimated**: 1 day
-**Dependency**: Task 6.1
+- [ ] Base/protocols/scenarios templates with docs
+**Acceptance**: Context-aware prompts | **Time**: 1 day | **Dep**: Task 6.1
 
 #### Task 6.3: Template Caching
-- [ ] Implement LRU cache for compiled templates
-- [ ] Add template hot-reload for development
-- [ ] Add cache hit rate metrics
-- [ ] Add template compilation performance tracking
-
-**Acceptance**: Template compilation < 10ms, cache hit rate > 90%
-**Estimated**: 0.5 days
-**Dependency**: Task 6.1
+- [ ] LRU cache, hot-reload, metrics, performance tracking
+**Acceptance**: <10ms compilation, >90% cache hit | **Time**: 0.5 days | **Dep**: Task 6.1
 
 ### Issue #3: Runner Integration
 
@@ -199,61 +143,11 @@
 - [✅] Clear error messages with recovery suggestions
 - [✅] CLI `--dynamic` flag works seamlessly
 - [✅] 100% success rate with glm-4.6-coding agent
+## Phase 1 Success Gates - ✅ COMPLETED
 
-### Developer Experience
-- [✅] Comprehensive mock-based testing (100% coverage)
-- [✅] Clear separation between static and dynamic flows
-- [✅] Template inheritance and validation working
-- [✅] Performance parity with existing system
-- [✅] Phase 2 direct execution with < 50ms overhead
-- [✅] 57/57 tests passing in reev-orchestrator  
-- [✅] Phase 2 direct execution with zero file I/O overhead
-
-## Phase 1 Testing Strategy - ✅ COMPLETED
-
-### Unit Tests
-- [✅] Context resolver with various wallet states
-- [✅] Template compilation and rendering
-- [✅] YML generation validation
-- [✅] Prompt refinement logic
-
-### Integration Tests
-- [✅] End-to-end dynamic flow execution
-- [✅] Context accuracy verification
-- [✅] Performance benchmarking
-- [✅] Backward compatibility validation
-
-### Mock Tests
-- [✅] Jupiter SDK response mocking
-- [✅] Token price simulation
-- [✅] Wallet balance scenarios
-- [✅] Error condition handling
-
-## Risk Mitigation Tasks - ✅ COMPLETED
-
-### Performance Risks
-- [✅] Implement aggressive caching (Task 2.2, 6.3)
-- [✅] Add performance budgets and monitoring
-- [✅] Create performance regression tests
-
-### Compatibility Risks
-- [✅] Comprehensive backward compatibility testing
-- [✅] Feature flag controlled rollout
-- [✅] Static flow preservation guarantees
-
-### Integration Risks
-- [✅] Clear contract definitions between components
-- [✅] Integration tests for all boundaries
-- [✅] Error handling and graceful degradation
-
-## Phase 1 Timeline Summary
-
-| Week | Tasks | Focus | Status |
-|------|-------|-------|--------|
-| Week 1 | 2.1, 2.2, 5.1, 5.2, 6.1 | Foundation & Mock Data | ✅ COMPLETED |
-| Week 1 | 6.2, 6.3, 3.1, 3.3 | Templates & Runner | ✅ COMPLETED |
-| Week 2 | 2.3, 2.4, 4.1, 4.2 | Generation & Agent | ✅ COMPLETED |
-| Week 2 | 2.5, 3.2, 4.3, Validation | Integration & Testing | ✅ COMPLETED |
+**Technical Validation**: Dynamic flow generation, context resolution, templates, <50ms overhead, 57/57 tests passing
+**Testing**: Unit, integration, and mock tests all completed with full coverage
+**Risk Mitigation**: Performance, compatibility, and integration risks addressed with caching and testing
 
 **Total Estimated**: 14 days (2 weeks)
 **Buffer Time**: 2 days
@@ -303,57 +197,31 @@
 - `reev-runner/src/main.rs`: CLI options for Phase 3
 - `reev-runner/src/lib.rs`: Recovery flow execution integration
 
-**Key Files Created/Modified**:
-- ✅ `crates/reev-orchestrator/src/recovery/mod.rs` - Recovery types
-- ✅ `crates/reev-orchestrator/src/recovery/engine.rs` - RecoveryEngine
-- ✅ `crates/reev-orchestrator/src/recovery/strategies.rs` - Strategy implementations
-- ✅ `crates/reev-orchestrator/src/gateway.rs` - Recovery integration
-- ✅ `crates/reev-runner/src/main.rs` - CLI recovery options
-- ✅ `crates/reev-runner/src/lib.rs` - Recovery execution
-- ✅ `crates/reev-orchestrator/tests/recovery_tests.rs` - Comprehensive tests
+**Key Files**: Recovery engine, strategies, CLI integration, comprehensive tests
 
 ### 🚀 **Phase 3 Usage Examples**
-
 ```bash
-# Basic recovery with default strict mode
+# Basic recovery
 reev-runner --recovery --prompt "swap 0.1 SOL to USDC" --wallet <pubkey> --agent glm-4.6-coding
 
-# Lenient mode - continue on failures
-reev-runner --recovery --atomic-mode lenient --prompt "swap then lend" --wallet <pubkey> --agent glm-4.6-coding
+# Lenient mode with alternatives
+reev-runner --recovery --atomic-mode lenient --enable-alternative-flows --prompt "complex DeFi" --wallet <pubkey> --agent glm-4.6-coding
 
-# Conditional mode with alternative flows enabled
-reev-runner --recovery --atomic-mode conditional --enable-alternative-flows --prompt "complex DeFi operation" --wallet <pubkey> --agent glm-4.6-coding
-
-# Full recovery configuration
-reev-runner --recovery \
-  --atomic-mode lenient \
-  --max-recovery-time-ms 60000 \
-  --enable-alternative-flows \
-  --enable-user-fulfillment \
-  --retry-attempts 5 \
-  --prompt "high-value transaction" \
-  --wallet <pubkey> \
-  --agent glm-4.6-coding
+# Full config
+reev-runner --recovery --atomic-mode conditional --max-recovery-time-ms 60000 --retry-attempts 5 --prompt "high-value" --wallet <pubkey> --agent glm-4.6-coding
 ```
 
 ### ✅ **Phase 3 Success Criteria Met**
+- [✅] All recovery strategies functional (retry, alternative, user fulfillment)
+- [✅] Atomic modes control flow behavior (strict/lenient/conditional)
+- [✅] CLI recovery options comprehensive with full configuration
+- [✅] Recovery metrics tracked, pipeline integration seamless
+- [✅] **Production Ready**: Enterprise-grade reliability implemented
 
-**Technical Requirements**:
-**Acceptance Criteria**:
-- [✅] Recovery strategies work for transient and permanent errors
-- [✅] Atomic modes control flow behavior correctly
-- [✅] Retry mechanism with exponential backoff functional  
-- [✅] Alternative flow strategies for common scenarios
-- [✅] User fulfillment strategy available for interactive modes
-- [✅] CLI options comprehensive for recovery configuration
-- [✅] Recovery metrics tracked and reported
-- [✅] Integration with existing flow execution pipeline seamless
-- [✅] **Production Ready**: Enterprise-grade reliability and resilience implemented
-
-### 🚀 **CURRENT PRODUCTION CAPABILITIES**
-- **✅ RecoveryEngine**: Complete with strategy orchestration and timeout protection
-- **✅ Three Recovery Strategies**: Retry (exponential backoff), AlternativeFlow (fallback scenarios), UserFulfillment (interactive)
-- **✅ Atomic Modes**: Strict, Lenient, and Conditional execution behavior control
+**🚀 CURRENT PRODUCTION CAPABILITIES**
+- **✅ RecoveryEngine**: Strategy orchestration, timeout protection
+- **✅ Three Strategies**: Retry (exponential), AlternativeFlow (fallback), UserFulfillment (interactive)
+- **✅ Atomic Modes**: Strict, Lenient, Conditional execution control
 - **✅ Comprehensive Configuration**: Time limits, strategy selection, retry parameters
 - **✅ Metrics & Monitoring**: Detailed recovery performance tracking with OpenTelemetry integration
 - **✅ Full CLI Integration**: New `--recovery` flag and configuration options
@@ -381,35 +249,13 @@ reev-runner --recovery \
 2. **Performance Monitoring**: Track recovery effectiveness in production
 3. **Documentation**: Create user guides for recovery configuration
 
-**Future (Phase 4 Planning)**:
-1. **Enhanced Alternative Flows**: More sophisticated fallback strategies
-2. **Machine Learning**: Learn optimal recovery strategies from execution data
-3. **Flow Visualization**: Real-time recovery process visualization
-4. **Advanced User Interaction**: GUI for recovery decision making
-
 ## Phase 2 Timeline Summary
-
-| Week | Tasks | Focus | Status |
-|------|--------|-------|
-| Week 3 | Direct execution implementation | Core runner modifications | ✅ COMPLETED |
-| Week 3 | CLI integration and testing | --direct flag and validation | ✅ COMPLETED |
-| Week 3 | Performance optimization | <50ms overhead target | ✅ COMPLETED |
-
-
 **Total Phase 2**: 3 days - **COMPLETED** ✅
 
 ## Phase 1 & 2 Final Summary
-
 ### ✅ **COMPLETE - All Success Criteria Met**
-
-**Dynamic Flow System**:
-- ✅ Natural language prompts work perfectly: `"swap 0.1 SOL to USDC"`
-- ✅ Context-aware prompts with wallet state and pricing
-- ✅ 100% success rate with glm-4.6-coding agent
-- ✅ CLI `--dynamic` flag working seamlessly
-
-**Technical Implementation**:
-- [✅] 57/57 tests passing in reev-orchestrator
+**Dynamic Flow System**: Natural language prompts work perfectly, context-aware with wallet/pricing, 100% success rate with glm-4.6-coding
+**Technical Implementation**: 57/57 tests passing, CLI flags working seamlessly
 - [✅] Complete mock data system with Jupiter SDK integration
 - ✅ Handlebars template system with 8 templates
 - ✅ LRU caching for performance optimization
@@ -565,7 +411,7 @@ All planning and implementation documentation has been consolidated into a compr
 The reev dynamic flow system has successfully completed all planned phases:
 
 - **✅ PHASE 1**: Dynamic Flow Bridge Mode - COMPLETE
-- **✅ PHASE 2**: Direct In-Memory Flow Execution - COMPLETE  
+- **✅ PHASE 2**: Direct In-Memory Flow Execution - COMPLETE
 - **✅ PHASE 3**: Recovery Mechanisms Implementation - COMPLETE
 
 ### **🚀 Production Readiness**
@@ -581,124 +427,112 @@ The reev dynamic flow system has successfully completed all planned phases:
 
 ## Phase 3: Recovery Mechanisms Implementation - ✅ COMPLETE
 
-### 🎯 **Phase 3 Goals Achieved**
-- ✅ **Recovery Engine**: Comprehensive recovery orchestration system
-- ✅ **Three Recovery Strategies**: Retry (exponential backoff), AlternativeFlow (fallback scenarios), UserFulfillment (interactive)
-- ✅ **Atomic Execution Control**: Strict, Lenient, and Conditional modes
-- ✅ **CLI Integration**: `--recovery` flag with comprehensive configuration options
-- ✅ **Metrics & Monitoring**: Performance tracking with OpenTelemetry integration
-- ✅ **Test Coverage**: 51/51 tests passing, all clippy warnings resolved
-
-### 🚀 **Implementation Summary**
-- **Recovery Module**: Complete recovery framework with strategy orchestration
-- **Atomic Modes**: Flexible execution behavior for different operational requirements
-- **Recovery Configuration**: Time limits, strategy selection, retry parameters
-- **Performance**: < 100ms recovery overhead with enterprise-grade reliability
-- **Test Fixes**: Fixed all recovery test API issues and integration test expectations
-
-**Status**: ✅ **FULLY IMPLEMENTED AND TESTED** - Production-ready recovery system
+**🎯 Key Achievements**: Recovery engine with 3 strategies, atomic execution modes, CLI integration, OTEL monitoring, full test coverage
+**🚀 Status**: Production-ready with <100ms overhead, 57+ tests passing
 
 ---
 
-**CURRENT SYSTEM STATUS**: ✅ **ALL PHASES COMPLETE**
-- Phase 1: Dynamic Flow Bridge Mode ✅
-- Phase 2: Direct In-Memory Execution ✅  
-- Phase 3: Recovery Mechanisms ✅
-- Phase 4: API Integration ⏳ **PLANNED (Dynamic Flow Endpoints Not Yet Implemented)**
+**🎯 SYSTEM STATUS**: Phases 1-3 ✅ COMPLETE, Phase 4 ⏳ PLANNED
 
-**Total Test Coverage**: 57/57 tests passing
-**Code Quality**: Zero clippy warnings
-**Production Readiness**: Enterprise-grade dynamic flow system
+**📊 Current Capabilities**:
+- ✅ CLI Dynamic Flows (bridge/direct/recovery modes)
+- ✅ Static API Endpoints (20+ endpoints)
+- ✅ Real-time Features (price data, wallet context, templates)
+- ⏳ Dynamic Flow API (Issue #8 created, detailed specs ready)
 
-**Current Implementation Status**:
-- ✅ **CLI Dynamic Flows**: Fully operational (bridge/direct/recovery modes)
-- ✅ **Static API Endpoints**: 20+ endpoints for static benchmark execution
-- ⏳ **Dynamic Flow API Endpoints**: Planned for Phase 4, not yet implemented
-  - POST /api/v1/benchmarks/execute-dynamic
-  - POST /api/v1/benchmarks/execute-recovery
-  - GET /api/v1/flows/{flow_id}/sessions
-  - GET /api/v1/metrics/recovery
+**🔧 Quality Metrics**: 57+ tests passing, zero clippy warnings, enterprise-grade production ready
+**📋 Polling Strategy**: ✅ COMPREHENSIVE HTTP POLLING INFRASTRUCTURE ALREADY EXISTS
 
-  ## Phase 4: API Integration - ⏳ **PLANNED**
+**🚀 Existing Polling Infrastructure**: 
+- **State Tracking**: ExecutionState & ExecutionStatus enums (Queued, Running, Completed, Failed, Stopped, Timeout)
+- **Session Management**: FlowLog & FlowEvent structures with SystemTime timestamps and event content
+- **API Endpoints**: 5+ existing polling endpoints with real-time status updates
+- **Data Conversion**: JsonlToYmlConverter, SessionData, SessionSummary for session management
+- **Visualization**: StateDiagramGenerator with HTML export, ASCII tree rendering
+- **Enhanced OTEL**: Complete tool call tracking with timing and status
+
+**📊 Core Polling Endpoints**:
+- `GET /api/v1/benchmarks/{id}/status/{execution_id}` - Individual execution status
+- `GET /api/v1/benchmarks/{id}/status` - Most recent execution for benchmark
+- `GET /api/v1/flows/{session_id}` - Mermaid stateDiagram with format=html support
+- `GET /api/v1/flow-logs/{benchmark_id}` - Complete flow execution logs
+- `GET /api/v1/execution-logs/{benchmark_id}` - Detailed execution trace
+
+**🔧 Existing Session Infrastructure**:
+- ExecutionState with progress tracking, metadata, and error handling
+- FlowLog with chronological events, depth tracking, and final results
+- EnhancedOtelLogger with tool call extraction and performance metrics
+- Database persistence with connection pooling and sync capabilities
+
+  ## Phase 4: API Integration - ⏳ **PLANNED** (Issue #8 Created)
 
   ### 🎯 **Phase 4 Goals**
   1. **Dynamic Flow API Endpoints**: Expose all dynamic flow capabilities via REST API
-  2. **Real-time Session Management**: Live flow execution monitoring and control
+  2. **Real-time Session Management**: Live flow execution monitoring and control (polling already exists)
   3. **Recovery API Integration**: Full recovery system accessible via API
-  4. **Enhanced Flow Visualization**: Real-time Mermaid diagram generation via API
+  4. **Enhanced Flow Visualization**: Polling-based Mermaid diagram generation via API (already implemented)
+
+  **📋 Planning Status**: ✅ **COMPLETE** - Issue #8 documents all implementation requirements
+  - Comprehensive API endpoint specifications
+  - Integration points between reev-api and reev-orchestrator
+  - Technical requirements and success criteria
+  - Timeline: 2-3 weeks estimated
 
   ### 📋 **Planned Implementation Tasks**
 
   #### Task 4.1: Dynamic Flow Endpoints
   - [ ] `POST /api/v1/benchmarks/execute-dynamic` - Bridge mode execution
-  - [ ] `POST /api/v1/benchmarks/execute-direct` - Direct mode execution  
+  - [ ] `POST /api/v1/benchmarks/execute-direct` - Direct mode execution
   - [ ] `POST /api/v1/benchmarks/execute-recovery` - Recovery mode execution
   - [ ] Request/response schema design for dynamic flow execution
   - [ ] Error handling and status codes for dynamic flow failures
 
-  #### Task 4.2: Session Management API
-  - [ ] `GET /api/v1/flows/{flow_id}/sessions` - List flow sessions
-  - [ ] `GET /api/v1/sessions/{session_id}` - Get session details
-  - [ ] `GET /api/v1/sessions/{session_id}/status` - Real-time status
-  - [ ] `DELETE /api/v1/sessions/{session_id}` - Cancel active session
-  - [ ] Session persistence and cleanup mechanisms
+  #### Task 4.2: Session Management API Enhancement
+  - [x] `GET /api/v1/flows/{session_id}` - ✅ EXISTING: Get flow with stateDiagram visualization
+  - [x] `GET /api/v1/benchmarks/{id}/status/{execution_id}` - ✅ EXISTING: Polling-based execution status
+  - [x] `GET /api/v1/benchmarks/{id}/status` - ✅ EXISTING: Most recent execution status
+  - [x] `GET /api/v1/flow-logs/{benchmark_id}` - ✅ EXISTING: Flow execution logs with FlowLog structure
+  - [x] `GET /api/v1/execution-logs/{benchmark_id}` - ✅ EXISTING: Execution trace logs
+  - [x] FlowLog & FlowEvent types - ✅ EXISTING: Complete session tracking infrastructure
+  - [x] SessionData & JsonlToYmlConverter - ✅ EXISTING: Session data management
+  - [ ] `DELETE /api/v1/sessions/{session_id}` - Cancel active session (extend existing stop_benchmark)
+  - [ ] Add Last-Modified/ETag headers to existing session endpoints
+  - [ ] Document polling frequency recommendations and caching headers
 
   #### Task 4.3: Recovery API Integration
-  - [ ] `GET /api/v1/recovery/config` - Get recovery configuration
-  - [ ] `PUT /api/v1/recovery/config` - Update recovery configuration
-  - [ ] `GET /api/v1/metrics/recovery` - Recovery performance metrics
-  - [ ] `POST /api/v1/recovery/strategies` - Custom recovery strategies
-  - [ ] Real-time recovery status tracking
+    - [ ] Recovery config/metrics endpoints, custom strategies, real-time tracking
 
-  #### Task 4.4: Enhanced Flow Visualization
-  - [ ] `GET /api/v1/flows/{session_id}/diagram` - Mermaid diagram generation
-  - [ ] `GET /api/v1/flows/{session_id}/diagram?format=html` - Interactive HTML
-  - [ ] WebSocket support for real-time flow updates
-  - [ ] Flow event streaming for live monitoring
-  - [ ] Integration with existing session tracking
+    #### Task 4.4: Enhanced Flow Visualization
+   - [x] Mermaid diagram generation ✅ EXISTING: stateDiagram from FlowLog session data
+   - [x] `GET /api/v1/flows/{session_id}` ✅ EXISTING: Current diagram state with format=html support
+   - [x] SessionParser and StateDiagramGenerator ✅ EXISTING: Flow diagram generation from events
+   - [x] FlowEvent & ExecutionResult types ✅ EXISTING: Rich event content for visualization
+   - [x] FlowLogRenderer ✅ EXISTING: ASCII tree rendering from session data
+   - [ ] Document polling frequency recommendations (1-5 seconds for active flows)
+   - [ ] Add Last-Modified and ETag support to existing flow endpoints
+   - [ ] Extend existing flow visualization for dynamic flow sessions
 
-  ### 🔧 **Technical Requirements**
+    ### 🔧 **Technical Requirements**
 
-  #### Dependencies
-  - [ ] Add `reev-orchestrator` dependency to `reev-api/Cargo.toml`
-  - [ ] WebSocket support for real-time updates
-  - [ ] Enhanced OpenTelemetry integration for API tracing
-  - [ ] Request validation and security middleware
+    #### Dependencies & Integration
+    - [ ] Add `reev-orchestrator` dependency, enhanced OTEL
+    - [ ] API → orchestrator gateway, session management, error handling
+    - [x] Session management ✅ EXISTING: ExecutionState, ExecutionStatus, FlowLog, FlowEvent
+    - [x] Polling endpoints ✅ EXISTING: Multiple status/flow endpoints with comprehensive state tracking
+    - [x] Data conversion ✅ EXISTING: JsonlToYmlConverter, SessionData, SessionSummary
+    - [ ] Add caching headers, state management optimizations to existing endpoints
 
-  #### Integration Points
-  - [ ] `reev-api` → `reev-orchestrator` gateway integration
-  - [ ] Session management between API and orchestrator
-  - [ ] Recovery configuration API integration
-  - [ ] Flow visualization API endpoints
-  - [ ] Error handling and status reporting consistency
+    ### 📊 **Success Criteria**
 
-  ### 📊 **Success Criteria**
-
-  #### API Functionality
-  - [ ] All dynamic flow modes accessible via REST API
-  - [ ] Real-time session management and monitoring
-  - [ ] Full recovery system integration via API
-  - [ ] Live flow visualization and diagram generation
-  - [ ] Backward compatibility with existing static endpoints
-
-  #### Performance Requirements
-  - [ ] < 100ms API response time for flow initiation
-  - [ ] < 50ms WebSocket latency for real-time updates
-  - [ ] Support for 100+ concurrent flow executions
-  - [ ] 99.9% API uptime and reliability
-
-  #### Developer Experience
-  - [ ] Complete API documentation with examples
-  - [ ] SDK/client library for easier integration
-  - [ ] Comprehensive error handling and debugging tools
-  - [ ] Integration tests covering all API endpoints
-  - [ ] Performance benchmarks and monitoring
+    - [ ] All dynamic flow modes via REST API, real-time monitoring, recovery integration
+    - [ ] Complete documentation, integration tests, performance monitoring
 
   ### ⚠️ **Known Dependencies**
-  - **Requires**: `reev-orchestrator` integration in `reev-api`
-  - **Prerequisite**: All CLI dynamic flow features stable and tested
-  - **Integration**: Must work with existing static benchmark system
-  - **Security**: Proper authentication and authorization for dynamic flows
-
-  **Estimated Timeline**: 2-3 weeks
+  - **Requires**: `reev-orchestrator` integration in `reev-api` (add to Cargo.toml)
+  - **Status**: All underlying functionality production-ready, comprehensive polling infrastructure already exists
+    - **Reference**: See Issue #8 for detailed integration specifications
+    - **Reduction**: Timeline reduced from 2-3 weeks to 1-2 weeks due to existing infrastructure
+  - **Timeline**: 1-2 weeks estimated (significantly reduced since core polling infrastructure exists)
   **Priority**: Medium (CLI implementation is production-ready, API is for broader accessibility)
+  **Polling Status**: ✅ COMPREHENSIVE INFRASTRUCTURE EXISTS - ExecutionState, FlowLog, FlowEvent, multiple endpoints
+  **Implementation Focus**: Add reev-orchestrator integration, caching headers, dynamic flow session support
