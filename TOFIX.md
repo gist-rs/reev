@@ -103,36 +103,75 @@ tool_calls:
 - **Example Session**: `306114a3-3d36-43bb-ac40-335fef6307ac` has jupiter_swap tool call logged
 - **API Issue**: Tool calls not accessible via API because CLI doesn't convert/store them in database
 
-## 🛠️ **Resolution Status** ⚠️ **PARTIALLY COMPLETED**
+## 🔧 **Resolution Status** ⚠️ **NEEDS IMPLEMENTATION**
 
 ### **✅ Completed Fixes**
 1. ✅ SessionParser format compatibility - handles both 001-series and 300-series OTEL formats
 2. ✅ JSON wrapper parsing - works with session JSON structure  
 3. ✅ Test framework - validates OTEL format handling
 4. ✅ Documentation - comprehensive examples and troubleshooting guides
+5. ✅ Fixed async function call in reev-runner (added .await)
+6. ✅ Runner now creates cli_sessions.json with session data
+7. ✅ 300-swap-sol-then-mul-usdc.yml benchmark works correctly with GLM-4.6 agent via CLI (100% score, 3 tool calls)
+8. ✅ Identified root cause: CLI stores sessions in cli_sessions.json, API reads from SQLite database
 
 ### **❌ New Issues Identified**
-1. ❌ **OTEL Trace Capture**: Local agent executions not generating OTEL traces consistently
-2. ❌ **Enhanced OTEL Files**: Empty `enhanced_otel_*.jsonl` files for some sessions
-3. ❌ **Flow Visualization**: Still broken for sessions with empty OTEL data
+1. ❌ **Database Storage Mismatch**: Runner stores sessions in `cli_sessions.json` (file-based), API reads from SQLite database
+   - CLI runs work correctly and generate proper enhanced_otel JSONL files with tool calls
+   - YML files are created successfully with tool call data
+   - But API `/api/v1/flows/{session_id}` returns 0 tool calls because it only checks SQLite
+   - Session IDs from CLI: `f582da4d-7f51-4e1f-b6be-f5dbce750f4c`, `68efd03d-d2e9-4430-8559-8beb2ca22228`
+2. ❌ **OTEL Trace Capture**: Local agent executions not generating OTEL traces consistently (minor)
+3. ❌ **Enhanced OTEL Files**: Empty `enhanced_otel_*.jsonl` files for some sessions (minor)
 
 ### **🔍 Investigation Required**
-- **OTEL Trace Generation**: Why do some local agent executions generate empty enhanced OTEL files?
-- **Agent Logging**: Are agent tool calls being properly traced in local mode?
-- **File Creation**: Is JsonlToYmlConverter being called with valid data?
+- **Database Integration**: Should API read from both SQLite database AND cli_sessions.json, or should runner store directly to SQLite?
+- **CLI to API Bridge**: How to make CLI-executed sessions visible in API without manual intervention?
+
+## 🔧 **Resolution Options**
+
+### **Option 1: API Reads Both Sources** (Recommended - Minimal)
+- Modify `generate_state_diagram_from_db()` in `crates/reev-api/src/handlers/flows.rs`
+- Add fallback to read from `db/cli_sessions.json` when session not found in SQLite
+- Pros: Minimal changes, preserves CLI database-free approach
+- Cons: API needs to handle two data sources
+
+### **Option 2: Runner Stores Directly to SQLite** (Cleanest)
+- Modify `reev-runner` to use `DatabaseWriter` like API does
+- Remove "database-free runner" approach
+- Store sessions directly to SQLite instead of `cli_sessions.json`
+- Pros: Single source of truth, cleaner architecture
+- Cons: More changes to runner architecture
+
+### **Option 3: Sync Process** (Immediate Fix)
+- Add a sync process that reads `cli_sessions.json` and updates SQLite
+- Run this sync when API starts up
+- Pros: Works without changing core logic
+- Cons: Delayed data availability, extra sync step
+
+## 📋 **Recommended Implementation Plan**
+
+1. **Immediate (Option 1)**: Add API fallback to read `cli_sessions.json`
+2. **Medium-term (Option 2)**: Refactor runner to use SQLite directly
+3. **Long-term**: Consolidate on single database approach
 
 **Implementation Steps**:
 ```rust
-// Update extract_tool_calls_from_yaml() method for 300-series compatibility
-fn extract_tool_calls_from_yaml(yaml_value: &Value) -> Option<&Vec<Value>> {
-    // Method 1: Look for direct tool_calls array (works for 001-series)
-    if let Some(tools) = yaml_value.get("tool_calls").and_then(|t| t.as_array()) {
-        return Some(tools);
+// Option 1: Add fallback in API handler
+async fn generate_state_diagram_from_db(
+    state: &ApiState,
+    session_id: &str,
+) -> Result<FlowDiagram, FlowDiagramError> {
+    // Try SQLite first
+    match state.db.get_session_log(session_id).await {
+        Ok(log_content) => { /* existing logic */ }
+        Err(_) => {
+            // Fallback to cli_sessions.json
+            if let Ok(cli_content) = read_cli_session(session_id) {
+                // Parse and return flow diagram
+            }
+        }
     }
-
-    // Method 2: Handle 300-series OTEL JsonlToYmlConverter format with headers
-    // Look through 300-series YAML structure with comments and headers
-    Self::find_tool_calls_in_300_series_yaml_structure(yaml_value)
 }
 ```
 
