@@ -1,4 +1,4 @@
-# TASKS.md - 300-Series Dynamic Flow Benchmark Implementation
+# TASKS.md - 300-Series Dynamic Flow Benchmark Implementation + OTEL Format Compatibility
 
 ## 🎯 **Mission Statement**
 
@@ -96,6 +96,7 @@ Create comprehensive 300-series benchmarks to demonstrate reev's dynamic flow ca
 - [x] Create performance validation in integration tests
 
 ### Phase 4: Validation & Documentation ✅ COMPLETED
+### Phase 5: OTEL Format Compatibility 🟡 IN PROGRESS
 
 #### Task 4.1: Success Criteria Validation** ✅ COMPLETED
 - [x] Validate natural language parsing accuracy in test utilities
@@ -112,14 +113,26 @@ Create comprehensive 300-series benchmarks to demonstrate reev's dynamic flow ca
 - [x] Update `HANDOVER.md` with complete implementation status
 - [x] Update `ISSUES.md` to reflect completion status
 - [x] Update `PLAN_DYNAMIC_FLOW.md` with implementation details
+- [x] Add Issue #10: API Flow Visualization OTEL Format Compatibility
+- [x] Verify architecture: tool calls come from OTEL only, not sessions
 
-**Task 4.3: Production Readiness** 🟡 IN PROGRESS
+**Task 5.1: Fix OTEL Format Compatibility** 🟡 IN PROGRESS
+- [x] Identify format incompatibility between JsonlToYmlConverter and SessionParser
+- [x] Create comprehensive test framework for OTEL format debugging
+- [x] Confirm tool calls come from OTEL traces only (not sessions)
+- [ ] Update SessionParser to handle OTEL-derived YML format with headers
+- [ ] Add database bridging for CLI OTEL sessions to API
+- [ ] Validate API flow visualization with real OTEL data
+
+**Task 5.2: Production Readiness** 🟡 IN PROGRESS
 - [x] Ensure all benchmarks compile without warnings (cargo clippy --fix passed)
 - [x] Verify test suite framework created (comprehensive test coverage)
 - [x] Validate design philosophy corrections (all use expected_tool_calls)
 - [ ] Validate API integration success in production environment
 - [ ] Confirm performance targets met in real execution
 - [x] Update `ARCHITECTURE.md` references to 300-series capabilities
+- [ ] Update `ARCHITECTURE.md` to reflect OTEL-only tool call architecture
+- [ ] Create TOFIX.md with detailed OTEL format compatibility issue
 
 ## 🏗️ **Technical Requirements**
 
@@ -230,23 +243,26 @@ expected_otel_tracking:
 - [ ] Production deployment readiness validation
 - [ ] Complete documentation and examples
 
-## 🎯 **Success Criteria**
+### 🎯 **Success Criteria**
 
 ### Phase Completion Gates
-- **Phase 1 Complete**: Benchmark 300 working, design philosophy fixed
-- **Phase 2 Complete**: All 301-305 benchmarks implemented and tested
-- **Phase 3 Complete**: Full validation, documentation, production readiness
-- **Phase 4 Complete**: CI/CD integration, performance monitoring
+- **Phase 1 Complete**: Benchmark 300 working, design philosophy fixed ✅
+- **Phase 2 Complete**: All 301-305 benchmarks implemented and tested ✅
+- **Phase 3 Complete**: Full validation, documentation, production readiness ✅
+- **Phase 4 Complete**: CI/CD integration, performance monitoring ✅
+- **Phase 5 Complete**: OTEL format compatibility fixed, API visualization working 🟡
 
 ### Final Deliverables
-- **6 Complete Benchmarks**: 300, 301, 302, 303, 304, 305
-- **Comprehensive Test Suite**: Unit, integration, and performance tests
-- **Updated Documentation**: Correct design patterns and usage guides
-- **API Integration**: Full REST API support with dynamic flow detection
-- **Production Ready**: Zero warnings, >90% test coverage, <50ms overhead
+- **6 Complete Benchmarks**: 300, 301, 302, 303, 304, 305 ✅
+- **Comprehensive Test Suite**: Unit, integration, and performance tests ✅
+- **Updated Documentation**: Correct design patterns and usage guides ✅
+- **API Integration**: Full REST API support with dynamic flow detection ✅
+- **OTEL Format Compatibility**: Fixed parser and database bridging 🟡
+- **Production Ready**: Zero warnings, >90% test coverage, <50ms overhead 🟡
 
 ---
 
-**Status**: 🟡 **IN PROGRESS** - Foundation complete, series implementation needed
-**Priority**: 🟢 **HIGH** - Core capability demonstration
-**Dependencies**: reev-orchestrator, OpenTelemetry, reev-tools, test framework
+**Status**: 🟡 **IN PROGRESS** - All benchmarks complete, OTEL format compatibility needed
+**Priority**: 🟢 **HIGH** - API flow visualization broken
+**Dependencies**: reev-orchestrator, OpenTelemetry, reev-tools, SessionParser fix
+**Blocking Issue**: Issue #10 - API Flow Visualization OTEL Format Compatibility

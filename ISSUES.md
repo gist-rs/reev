@@ -1,5 +1,161 @@
 # Issues
 
+## Issue #10: API Flow Visualization OTEL Format Compatibility
+
+**Priority**: 🟡 **HIGH MEDIUM**
+**Status**: 🟡 **IN PROGRESS**
+**Component**: API Flow Visualization, OpenTelemetry Integration
+
+### 🎯 **Problem Statement**
+
+API flow visualization endpoint (`/api/v1/flows/{session_id}`) returns empty data (`tool_count: 0`) despite successful CLI execution due to format incompatibility between OTEL-derived data and SessionParser expectations.
+
+### 📋 **Root Cause Analysis**
+
+**Architecture Confirmation**: ✅ **VERIFIED**
+- Tool calls come from OpenTelemetry (OTEL) traces ONLY
+- Sessions do NOT contain tool_calls directly
+- SessionParser is meant to parse OTEL-derived data stored in session logs
+
+**Data Flow Issue**:
+```
+Agent Execution → OpenTelemetry Traces → enhanced_otel_*.jsonl 
+                  ↓
+JsonlToYmlConverter → OTEL YML format with headers → SessionParser → API Flow Diagram
+```
+
+**Format Compatibility Issue**:
+- `JsonlToYmlConverter` creates complex YAML format with headers from OTEL data
+- `SessionParser::parse_session_content()` expects clean `tool_calls:` array format
+- Format incompatibility prevents OTEL-derived tool call extraction
+
+### 🔍 **Evidence from Code Analysis**
+
+**From `reev-runner/src/lib.rs`**:
+```rust
+// 🎯 CAPTURE TOOL CALLS FROM AGENT'S ENHANCED OTEL LOG FILES
+let tool_calls = extract_tool_calls_from_agent_logs(&session_id).await;
+```
+
+**From `reev-agent/src/enhanced/common/mod.rs`**:
+```rust
+// 🎯 Extract tool calls from OpenTelemetry traces
+let tool_calls = AgentHelper::extract_tool_calls_from_otel();
+```
+
+**From OTEL extraction module**:
+```rust
+// This module provides functionality to extract tool call information from
+// rig's OpenTelemetry traces and convert them to the session log format
+```
+
+### 📊 **Current Status**
+
+#### ✅ **Working Components**
+- **CLI Execution**: Perfect - creates `enhanced_otel_*.jsonl` files
+- **OTEL Data Generation**: Complete - 6 jupiter_swap tool calls captured
+- **JsonlToYmlConverter**: Working - generates tool call data from OTEL
+- **Enhanced OTEL Files**: Created - `logs/sessions/enhanced_otel_*.jsonl`
+
+#### ❌ **Broken Components**
+- **SessionParser**: Cannot parse 300-series OTEL-derived YML format (returns 0 tool calls)
+- **API Flow Endpoint**: Returns empty visualization data for 300-series
+- **Database Bridge**: Missing bridging from CLI OTEL files to database
+
+#### ✅ **Working Components** (For Comparison)
+- **001-Series SessionParser**: Correctly parses clean OTEL YML format (returns correct tool count)
+- **001-Series API Flow Endpoint**: Returns proper visualization data
+- **001-Series JsonlToYmlConverter**: Generates clean format without headers
+
+### 🛠️ **Resolution Options**
+
+#### **Option 1: Fix SessionParser** (Recommended)
+1. Update `SessionParser::parse_session_content()` to handle both 001-series (clean) and 300-series (headers) OTEL formats
+2. Add robust YAML parsing that handles headers and comments from 300-series OTEL conversion
+3. Ensure backward compatibility with working 001-series sessions
+4. Add unit tests for parser with both OTEL YML formats
+5. **Critical**: Ensure no regression to working 001-series flow visualization
+
+#### **Option 2: Fix JsonlToYmlConverter** (Alternative)
+1. Modify OTEL converter to output clean `tool_calls:` array format (matching 001-series)
+2. Remove headers and comments from 300-series OTEL YML output  
+3. Ensure parser compatibility by following working 001-series format exactly
+4. Update OTEL conversion to use consistent YAML structure across all series
+
+#### **Option 3: Add Database Bridging** (Immediate)
+1. Implement automatic OTEL session file import in `benchmark_executor`
+2. Add process to detect new CLI OTEL sessions and store in database
+3. Create sync utility for existing OTEL session files
+4. Ensure API can read both CLI-generated and API-generated OTEL sessions
+
+### 📈 **Impact Assessment**
+
+**User Impact**: 
+- **High** - Flow visualization broken in web interface
+- **Medium** - API users cannot see execution diagrams
+- **Low** - CLI functionality unaffected
+
+**Development Impact**:
+- **High** - Blocks flow visualization feature
+- **Medium** - Requires format standardization
+- **Low** - No data loss or corruption
+
+### 🧪 **Test Framework Created**
+
+**Comprehensive Test Suite**: 
+- `tests/session_300_benchmark_test.rs` for systematic debugging
+- Isolates parser vs OTEL converter issues
+- Provides clear reproduction steps
+- Tests multiple resolution approaches
+
+**Test Results**:
+- **001-Series**: ✅ JsonlToYmlConverter generates clean format, SessionParser works correctly
+- **300-Series**: ❌ JsonlToYmlConverter generates format with headers, SessionParser fails (0 tool calls)
+- **JSON Wrapper**: ✅ Both series work when YML wrapped in session JSON structure
+- **Root Cause**: Format inconsistency between 001-series (clean) and 300-series (headers) OTEL conversion
+
+### 🔄 **Dependencies**
+
+**Core Dependencies**:
+- `reev-runner`: Creates OTEL session files ✅
+- `JsonlToYmlConverter`: Converts OTEL data to YML ✅  
+- `SessionParser`: Parses OTEL-derived data ❌
+- `OpenTelemetry`: Tool call tracking infrastructure ✅
+- `reev-api`: REST API and flow visualization ❌
+
+### 🗓️ **Resolution Timeline**
+
+**Phase 1: Format Standardization** (Current Week)
+- [ ] Choose between fixing SessionParser or JsonlToYmlConverter
+- [ ] Implement format compatibility solution for both 001 and 300 series
+- [ ] Add comprehensive test coverage for both series
+- [ ] Validate with real OTEL data from both series
+- [ ] **Critical**: Test regression prevention for working 001-series
+
+**Phase 2: Database Integration** (Next Week)
+- [ ] Implement automatic OTEL session bridging
+- [ ] Add CLI OTEL file detection and storage
+- [ ] Ensure API can read both OTEL sources
+- [ ] Complete end-to-end integration testing
+
+### 🎯 **Success Metrics**
+
+**Quantitative Targets**:
+- **API Flow Success Rate**: 100% (all sessions return proper diagrams)
+- **OTEL Data Extraction**: 100% (all tool calls captured from OTEL)
+- **Format Compatibility**: 100% (parser handles both 001-series and 300-series OTEL formats)
+- **Database Coverage**: 100% (all CLI OTEL sessions accessible via API)
+- **Regression Prevention**: 0% impact on working 001-series sessions
+
+**Qualitative Targets**:
+- **Clear Separation**: OTEL as source, sessions as storage
+- **Consistent Format**: Standardized OTEL-derived data handling across all series (001, 300, etc.)
+- **Robust Parsing**: Handles both clean format (001-series) and headers/comments (300-series)
+- **Backward Compatibility**: Working 001-series sessions continue to work, 300-series fixed
+- **No Regression**: Fix must not break existing working 001-series flow visualization
+
+---
+
 ## Issue #9: 300-Series Dynamic Flow Benchmark Implementation
 
 **Priority**: 🟢 **HIGH**

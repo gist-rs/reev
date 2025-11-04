@@ -266,13 +266,17 @@ async fn resolve_context(wallet: String) -> WalletContext {
 ### Comprehensive OTEL Coverage
 - **100% Tool Coverage**: All 13 tools enhanced with automatic logging
 - **Flow-Level Tracing**: Complete execution flow visibility
-- **Session Management**: Persistent session data in logs/sessions/
+- **Session Management**: Persistent OTEL-derived data in logs/sessions/
 - **Performance Tracking**: < 1ms overhead for instrumentation
-- **Mermaid Generation**: Automatic flow diagram generation from traces
+- **Mermaid Generation**: Automatic flow diagram generation from OTEL traces
+- **Critical Architecture**: Tool calls come from OTEL traces ONLY, not sessions
 
 ### OTEL Features
 ```rust
-// Automatic tool call extraction
+// Tool calls come from OTEL traces ONLY
+// Agent execution → OTEL traces → JsonlToYmlConverter → SessionParser → API
+
+// Automatic tool call extraction from OTEL traces
 log_tool_call!(tool_name, parameters);
 log_tool_completion!(tool_name, result, duration);
 
@@ -280,11 +284,29 @@ log_tool_completion!(tool_name, result, duration);
 #[instrument(fields(flow_id, step_id, user_prompt))]
 pub async fn execute_dynamic_flow(flow: DynamicFlowPlan) -> FlowResult
 
-// Session format conversion
+// OTEL data conversion to session-compatible format
 fn convert_session_to_mermaid(session: &SessionData) -> String;
+
+// OTEL trace extraction from agent logs
+fn extract_tool_calls_from_agent_logs(session_id: &str) -> Vec<EnhancedToolCall>;
 ```
 
-## 🎮 **CLI Integration**
+## 🔍 **Architecture Note: OTEL-Only Tool Call Source**
+
+**Critical Design Principle**: Tool calls come from OpenTelemetry (OTEL) traces ONLY, not from session data directly.
+
+```
+Agent Execution → OpenTelemetry Traces → enhanced_otel_*.jsonl 
+                  ↓
+JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
+```
+
+- **Sessions** store OTEL-derived data, not native tool calls
+- **SessionParser** parses OTEL-derived YML format for API visualization
+- **JsonlToYmlConverter** converts OTEL traces to session-compatible format
+- **API Flow Visualization** reads OTEL-derived data from sessions
+
+## 🎮 **CLI Integration
 
 ### Dynamic Flow Commands
 ```bash

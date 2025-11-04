@@ -9,6 +9,22 @@ The 300-series benchmarks demonstrate the full capabilities of the reev dynamic 
 - **Context Intelligence**: Real-time market analysis and wallet state resolution
 - **Decision Making**: Strategic choices based on multiple data sources
 - **Recovery Mechanisms**: Fault tolerance and fallback strategies
+- **OpenTelemetry Integration**: Complete tool call tracking via OTEL traces only
+
+## 🔍 **Critical Architecture: OTEL-Only Tool Calls**
+
+**Design Principle**: Tool calls come from OpenTelemetry (OTEL) traces ONLY, not from session data directly.
+
+```
+Agent Execution → OpenTelemetry Traces → enhanced_otel_*.jsonl 
+                  ↓
+JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
+```
+
+- **Sessions** store OTEL-derived data, not native tool calls
+- **SessionParser** parses OTEL-derived YML format for visualization
+- **JsonlToYmlConverter** converts OTEL traces to session-compatible format
+- **API Flow Visualization** reads OTEL-derived data from sessions
 
 ## 📊 **Benchmark Categories**
 
@@ -261,16 +277,17 @@ curl -H "Accept: application/json" \
 - **Recovery Effectiveness**: Increase success rate of fallbacks
 - **User Satisfaction**: Gather qualitative feedback
 
-### **Expected Demonstrations - Tool Call Intelligence**
+### **Expected Demonstrations - OTEL-Tracked Tool Call Intelligence**
 
-### **Dynamic Flow Capabilities via Tool Calls**
+### **Dynamic Flow Capabilities via OTEL-Tracked Tool Calls**
 1. **Natural Language → Tool Sequence**: Complex prompts to logical tool orchestration
 2. **Context-Aware Tool Selection**: Tools selected based on wallet state and goals
 3. **Intelligent Parameter Passing**: Correct tool parameters from prompt analysis
 4. **Multi-Step Tool Orchestration**: Sequential tool execution with dependencies
 5. **Fault-Tolerant Tool Execution**: Recovery mechanisms when tools fail
-6. **OTEL-Based Monitoring**: Complete tool call tracking and visualization
+6. **OTEL-Based Monitoring**: Complete tool call tracking and visualization (ONLY source)
 7. **Performance Optimization**: < 50ms overhead per tool call
+8. **Format Compatibility**: OTEL data properly converted to session-compatible format
 
 ### **Tool Call Examples by Scenario:**
 

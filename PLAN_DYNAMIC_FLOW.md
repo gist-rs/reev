@@ -2,7 +2,22 @@
 
 ## 🎯 **Mission Statement**
 
-Create comprehensive 300-series benchmarks to demonstrate reev's dynamic flow capabilities through realistic DeFi scenarios that showcase natural language processing, intelligent decision-making, and multi-step orchestration.
+Create comprehensive 300-series benchmarks to demonstrate reev's dynamic flow capabilities through realistic DeFi scenarios that showcase natural language processing, intelligent decision-making, and multi-step orchestration with OpenTelemetry-based tool call tracking.
+
+## 🔍 **Architecture Note: OTEL-Only Tool Calls**
+
+**Critical Design Principle**: Tool calls come from OpenTelemetry (OTEL) traces ONLY, not from session data directly.
+
+```
+Agent Execution → OpenTelemetry Traces → enhanced_otel_*.jsonl 
+                  ↓
+JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
+```
+
+- **Sessions** store OTEL-derived data, not native tool calls
+- **SessionParser** parses OTEL-derived YML format  
+- **JsonlToYmlConverter** converts OTEL traces to session-compatible format
+- **API Flow Visualization** reads OTEL-derived data from sessions
 
 ## 📋 **Benchmark 300: "use my 50% sol to multiply usdc 1.5x on jup"**
 
@@ -41,28 +56,34 @@ Final: ~0 USDC in wallet + ~60 USDC in lending + 2 SOL remaining
 - **Tool Sequence Completion**: All 4 tools execute successfully
 - **Context Resolution**: Agent discovers wallet state before action
 
-#### OpenTelemetry Validation:
+#### OpenTelemetry Validation (Tool Call Source):
 ```rust
+// Note: All tool calls come from OTEL traces, not session data
 expected_otel_tracking:
+  - type: "tool_call_logging"
+    description: "OpenTelemetry tracks all tool execution"
+    required_tools: ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+    weight: 0.5
+    
   - tool_name: "account_balance"
-    description: "Wallet discovery and position analysis"
+    description: "Wallet discovery via OTEL traces"
     critical: false
     weight: 0.1
     
   - tool_name: "jupiter_swap"  
-    description: "50% SOL to USDC conversion"
+    description: "50% SOL to USDC conversion tracked via OTEL"
     critical: true
     expected_params: ["input_amount", "output_token", "slippage_tolerance"]
     weight: 0.4
     
   - tool_name: "jupiter_lend"
-    description: "USDC yield generation for multiplication"
+    description: "USDC yield generation tracked via OTEL"
     critical: true  
     expected_params: ["mint", "deposit_amount", "auto_compound"]
     weight: 0.4
     
   - tool_name: "jupiter_positions"
-    description: "Final position validation"
+    description: "Final position validation tracked via OTEL"
     critical: false
     weight: 0.1
 ```
@@ -352,16 +373,18 @@ curl -H "Accept: application/json" \
 
 ### **Current Status**: 
 - **Benchmark 300**: Complete and tested
-- **Design Philosophy**: Corrected from API calls to tool calls
+- **Design Philosophy**: Corrected from API calls to OTEL-tracked tool calls
 - **Implementation**: Proper encapsulation with OTEL tracking
 - **Documentation**: Comprehensive guides and examples created
+- **Architecture**: Confirmed - tool calls come from OTEL only, not sessions
 
-### **Next Development Phase**: 301-305 series implementation
+### **Next Development Phase**: 301-305 series implementation + OTEL format compatibility fix
 ### **Key Files**: 
 - `benchmarks/300-swap-sol-then-mul-usdc.yml`
 - `tests/dynamic_flow_benchmark_test.rs`
 - `DYNAMIC_BENCHMARK_DESIGN.md`
 - `PLAN_DYNAMIC_FLOW.md`
+- `ISSUES.md` (Issue #10: API Flow Visualization OTEL Format Compatibility)
 
-### **Dependencies**: reev-orchestrator, OpenTelemetry, Jupiter tools
-### **Blocking Issues**: None identified - ready for production deployment
+### **Dependencies**: reev-orchestrator, OpenTelemetry, Jupiter tools, SessionParser fix
+### **Blocking Issues**: Issue #10 - API Flow Visualization OTEL Format Compatibility needs resolution

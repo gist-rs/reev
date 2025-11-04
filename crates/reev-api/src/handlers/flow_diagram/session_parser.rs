@@ -3,13 +3,6 @@
 //! This module handles parsing of enhanced session logs to extract tool calls
 //! and execution information for flow diagram generation.
 
-use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
-#[cfg(feature = "direct_runner")]
-#[allow(unused_imports)]
-use reev_tools::tool_names;
-use serde_json::Value;
-use tracing::{debug, info};
-
 // Import YAML parsing capabilities
 use serde_yaml;
 
@@ -122,28 +115,59 @@ impl SessionParser {
 
         // First try: log_content format (from enhanced_otel JSONL conversion)
         if let Some(log_content) = session_log.get("log_content").and_then(|lc| lc.as_str()) {
+            info!("🔍 Parsing log_content (length: {})", log_content.len());
+            info!(
+                "📝 Log content preview: {}",
+                &log_content[..log_content.len().min(200)]
+            );
+
             // Try to extract from log_content as YAML first (from enhanced_otel conversion)
-            if let Ok(yaml_value) = serde_yaml::from_str::<Value>(log_content) {
-                if let Some(yml_tools) = yaml_value
-                    .get("tool_calls")
-                    .and_then(|tools| tools.as_array())
-                {
-                    debug!("Found {} tools in YAML log_content", yml_tools.len());
-                    for tool in yml_tools {
-                        if let Ok(parsed_tool) = Self::parse_enhanced_otel_yml_tool(tool) {
-                            tool_calls.push(parsed_tool);
+            match serde_yaml::from_str::<Value>(log_content) {
+                Ok(yaml_value) => {
+                    info!("✅ YAML parsing successful");
+
+                    // The JsonlToYmlConverter creates a format with headers and comments
+                    // We need to find the actual tool_calls array which might be nested
+                    if let Some(yml_tools) = Self::extract_tool_calls_from_yaml(&yaml_value) {
+                        info!("🔧 Found {} tools in YAML log_content", yml_tools.len());
+                        for (i, tool) in yml_tools.iter().enumerate() {
+                            info!("🛠️  Parsing tool {}: {:?}", i, tool);
+                            match Self::parse_enhanced_otel_yml_tool(tool) {
+                                Ok(parsed_tool) => {
+                                    info!(
+                                        "✅ Tool {} parsed successfully: {}",
+                                        i, parsed_tool.tool_name
+                                    );
+                                    tool_calls.push(parsed_tool);
+                                }
+                                Err(e) => {
+                                    warn!("❌ Failed to parse tool {}: {}", i, e);
+                                }
+                            }
                         }
+                    } else {
+                        warn!("⚠️  YAML parsed but no tool_calls array found");
                     }
                 }
-            }
-            // Fallback: Try to extract from log_content JSON format
-            else if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
-                if let Some(steps) = log_json.get("steps").and_then(|s| s.as_array()) {
-                    debug!("Found {} steps in log_content", steps.len());
-                    for (index, step) in steps.iter().enumerate() {
-                        if let Some(tool_call) = Self::parse_step_as_tool_call(step, index) {
-                            tool_calls.push(tool_call);
+                Err(yaml_err) => {
+                    warn!("❌ YAML parsing failed: {}", yaml_err);
+                    info!("🔄 Trying JSON fallback");
+
+                    // Fallback: Try to extract from log_content JSON format
+                    if let Ok(log_json) = serde_json::from_str::<Value>(log_content) {
+                        if let Some(steps) = log_json.get("steps").and_then(|s| s.as_array()) {
+                            debug!("Found {} steps in log_content", steps.len());
+                            for (index, step) in steps.iter().enumerate() {
+                                if let Some(tool_call) = Self::parse_step_as_tool_call(step, index)
+                                {
+                                    tool_calls.push(tool_call);
+                                }
+                            }
+                        } else {
+                            warn!("⚠️  JSON parsed but no steps array found");
                         }
+                    } else {
+                        warn!("❌ JSON fallback parsing also failed");
                     }
                 }
             }
@@ -447,6 +471,69 @@ impl SessionParser {
                 prompt_lines.pop();
             }
             Some(prompt_lines.join("\n"))
+        }
+    }
+
+    /// Extract tool_calls from complex YAML format created by JsonlToYmlConverter
+    /// The JsonlToYmlConverter creates a format with headers and comments,
+    /// so we need to navigate the structure to find the actual tool_calls array
+    fn extract_tool_calls_from_yaml(yaml_value: &Value) -> Option<&Vec<Value>> {
+        // Method 1: Look for direct tool_calls array
+        if let Some(tools) = yaml_value.get("tool_calls").and_then(|t| t.as_array()) {
+            return Some(tools);
+        }
+
+        // Method 2: Handle JsonlToYmlConverter format which has headers
+        // The format looks like:
+        // # Reev Session Log Analysis
+        // session_id: ...
+        // tool_calls:
+        //   - # Tool Call 1
+        //     tool_name: ...
+        //     ...
+
+        // Look through all scalar values in the YAML document to find tool_calls
+        Self::find_tool_calls_in_yaml_structure(yaml_value)
+    }
+
+    /// Recursively search through YAML structure to find tool_calls arrays
+    /// This handles the complex format created by JsonlToYmlConverter
+    fn find_tool_calls_in_yaml_structure(yaml_value: &Value) -> Option<&Vec<Value>> {
+        match yaml_value {
+            Value::Sequence(seq) => {
+                // Check if this sequence contains tool call objects
+                let tool_calls: Vec<Value> = seq
+                    .iter()
+                    .filter_map(|item| {
+                        // Look for mappings that might be tool calls
+                        match item {
+                            Value::Mapping(mapping) => {
+                                // Check if this mapping has tool_name field (indicating tool call)
+                                if mapping.contains_key("tool_name") {
+                                    Some(Value::Mapping(mapping.clone()))
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        }
+                    })
+                    .collect();
+
+                if !tool_calls.is_empty() {
+                    return Some(&tool_calls);
+                }
+            }
+            Value::Mapping(mapping) => {
+                // Search through all values in this mapping
+                for (key, value) in mapping {
+                    if let Some(tool_calls) = Self::find_tool_calls_in_yaml_structure(value) {
+                        return Some(tool_calls);
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 }
