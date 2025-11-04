@@ -1,5 +1,160 @@
 # Issues
 
+## Issue #11: Deterministic Agent Missing 300-Series Support
+
+**Priority**: 🟡 **MEDIUM**
+**Status**: 🔴 **OPEN** ✅ **GLM-4.6 WORKING PERFECTLY**
+**Component**: reev-agent, Deterministic Agent Router, CLI Runner
+
+### 🎯 **Problem Statement**
+
+**Partially Resolved**: GLM-4.6 agent works perfectly with 300-series benchmarks, but deterministic agent lacks support.
+
+#### ✅ **GLM-4.6 Status**: WORKING
+- Successfully executes "300-swap-sol-then-mul-usdc" benchmark
+- Generates proper OTEL traces with jupiter_swap tool calls
+- Creates enhanced_otel_*.jsonl files with correct data
+
+#### ❌ **Deterministic Agent Status**: BROKEN
+- Results in error: `Internal agent error: Coding agent does not support this id: '300-swap-sol-then-mul-usdc'`
+- Missing 300-series handler in deterministic agent routing
+
+#### ❌ **CLI Runner Issue**: OTEL DATA NOT STORED IN DATABASE
+- GLM-4.6 generates enhanced_otel_*.jsonl files ✅
+- CLI runner extracts tool calls but doesn't convert/store them ❌
+- API cannot access tool calls from CLI runs (tool_count: 0) ❌
+
+### 📋 **Root Cause Analysis**
+
+**Missing Router Logic**: The deterministic agent in `crates/reev-agent/src/lib.rs` only handles:
+- 001-003 series (simple transfers)
+- 100 series (Jupiter swap)
+- 110-111 series (Jupiter lending)  
+- 200 series (flow benchmarks)
+- **Missing**: 300 series (multiplication benchmarks)
+
+**Current Routing Logic**:
+```rust
+let instructions_json = match handle_simple_transfer_benchmarks(&payload.id, &key_map).await {
+    Ok(result) => result,
+    Err(_) => match handle_jupiter_swap_benchmarks(&payload.id, &key_map).await {
+        Ok(result) => result,
+        Err(_) => match handle_jupiter_lending_benchmarks(&payload.id, &key_map).await {
+            Ok(result) => result,
+            Err(_) => match handle_flow_step_benchmarks(&payload.id, &key_map).await {
+                Ok(result) => result,
+                Err(_) => match handle_flow_benchmarks(&payload.id, &key_map).await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        // 300-series benchmarks should be handled here but are missing
+                        anyhow::bail!("Coding agent does not support this id: '{}'", payload.id)
+                    }
+                },
+            },
+        },
+    },
+};
+```
+
+### 🛠️ **Solutions Required**
+
+#### **Solution 1**: Add Deterministic Agent 300-Series Support
+1. **Add `handle_multiplication_benchmarks()` function**:
+   - Handle "300-swap-sol-then-mul-usdc" with deterministic logic
+   - Implement 50% SOL swap → USDC lending → multiplication strategy
+   - Return proper tool call sequence matching expected flow
+
+2. **Update routing logic**:
+   - Add multiplication benchmarks to chain in `run_deterministic_agent()`
+   - Ensure proper error handling and fallback
+
+3. **Implementation Requirements**:
+   - Use same Jupiter swap/lend functions as other deterministic handlers
+   - Generate proper tool call sequence: account_balance → jupiter_swap → jupiter_lend → jupiter_positions
+   - Support OpenTelemetry logging for deterministic 300-series flows
+
+2. **Update routing logic**:
+   - Add multiplication benchmarks to the chain in `run_deterministic_agent()`
+   - Ensure proper error handling and fallback
+
+3. **Implementation Requirements**:
+   - Use same Jupiter swap/lend functions as other deterministic handlers
+   - Generate proper tool call sequence: account_balance → jupiter_swap → jupiter_lend → jupiter_positions
+   - Support OpenTelemetry logging for deterministic 300-series flows
+
+### 📊 **Expected Behavior**
+### 🧪 **Validation Tests**
+
+#### **Test 1**: GLM-4.6 Agent (Working)
+```bash
+# ✅ WORKING - Successfully generates OTEL traces
+RUST_LOG=info cargo run --bin reev-runner --agent glm-4.6 benchmarks/300-swap-sol-then-mul-usdc.yml
+# Result: enhanced_otel_*.jsonl with jupiter_swap tool call
+```
+
+#### **Test 2**: Deterministic Agent (Broken)
+```bash
+# ❌ BROKEN - Missing 300-series handler
+cargo run --bin reev-runner --agent deterministic benchmarks/300-swap-sol-then-mul-usdc.yml
+# Error: Coding agent does not support this id: '300-swap-sol-then-mul-usdc'
+```
+
+#### **Test 3**: CLI Runner JsonlToYmlConverter Link (Missing)
+```bash
+# ❌ MISSING - GLM-4.6 generates OTEL but CLI doesn't store in database
+RUST_LOG=info cargo run --bin reev-runner --agent glm-4.6 benchmarks/300-swap-sol-then-mul-usdc.yml
+# Result: API shows tool_count: 0 for this session
+```
+
+**Expected After Fixes**:
+```bash
+# ✅ GLM-4.6: Works and stores OTEL data in database
+# ✅ Deterministic: Works with 300-series benchmarks  
+# ✅ API Access: Both show proper tool counts and flow diagrams
+```
+
+### 🔧 **Implementation Steps**
+
+#### **Phase 1**: Complete CLI JsonlToYmlConverter Integration (Current)
+1. Fix compilation errors in `convert_and_store_enhanced_otel_for_cli()` function
+2. Ensure CLI runner calls JsonlToYmlConverter after benchmark completion  
+3. Test GLM-4.6 CLI run stores data in `db/cli_sessions.json`
+4. Verify API can read tool calls from CLI sessions
+
+#### **Phase 2**: Add Deterministic Agent 300-Series Support
+1. Create `handle_multiplication_benchmarks()` function in `crates/reev-agent/src/lib.rs`
+2. Add 300-series deterministic routing to `run_deterministic_agent()`
+3. Test deterministic agent with 300-swap-sol-then-mul-usdc.yml
+4. Verify OpenTelemetry logging works for deterministic runs
+
+#### **Phase 3**: End-to-End Validation
+1. Test both GLM-4.6 and deterministic agents with 300-series
+2. Verify API flow visualization works for both execution methods
+3. Validate no regressions to working 001-series sessions
+4. Update documentation and handover information
+
+### 🧪 **Validation Tests**
+
+```bash
+# Test deterministic agent
+cargo run --bin reev-runner --agent deterministic benchmarks/300-swap-sol-then-mul-usdc.yml
+
+# Test OpenTelemetry logging 
+ls -la logs/sessions/enhanced_otel_*.jsonl
+# Should contain tool call traces for multiplication strategy
+```
+
+**Expected Tool Calls**:
+```yaml
+tool_calls:
+  - tool_name: account_balance
+  - tool_name: jupiter_swap (50% SOL → USDC)
+  - tool_name: jupiter_lend (USDC deposit for yield)
+  - tool_name: jupiter_positions (check final state)
+```
+
+---
+
 ## Issue #10: API Flow Visualization OTEL Format Compatibility
 
 **Priority**: 🟡 **HIGH MEDIUM**
@@ -62,13 +217,13 @@ let tool_calls = AgentHelper::extract_tool_calls_from_otel();
 
 #### ❌ **Previously Broken Components** (Now Fixed)
 - ~~**SessionParser**: Cannot parse OTEL-derived YML format (returns 0 tool calls)~~ ✅ FIXED
-- ~~**API Flow Endpoint**: Returns empty visualization data due to parsing failure~~ ✅ FIXED
-- **Database Bridge**: Missing bridging from CLI OTEL files to database (Future Work)
+#### ❌ **API Flow Endpoint**: Returns empty visualization data for CLI runs because OTEL data not in database
 
 #### ✅ **Working Components** (For Comparison)
 - **001-Series SessionParser**: Correctly parses clean OTEL YML format (returns correct tool count)
 - **001-Series API Flow Endpoint**: Returns proper visualization data
 - **001-Series JsonlToYmlConverter**: Generates clean format without headers
+- **GLM-4.6 Agent**: Successfully executes 300-series with proper OTEL logging
 
 ### 🛠️ **Resolution Options**
 

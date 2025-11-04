@@ -9,6 +9,8 @@
 **Working Example**: `http://localhost:3001/api/v1/flows/373a5db0-a520-43b5-aeb4-46c4c0506e79` (001-sol-transfer.yml) ✅
 **Fixed Example**: `http://localhost:3001/api/v1/flows/21b6bb59-025f-4525-97e1-47f0961e5697` (300-swap-sol-then-mul-usdc.yml) ✅
 
+**NEW ISSUE DISCOVERED**: CLI runs generate enhanced_otel data but don't convert/store it for API access
+
 **Critical Architecture Note**: ✅ **VERIFIED** - Tool calls come from OpenTelemetry (OTEL) traces ONLY, not from session data directly.
 
 **NEW REGRESSION ISSUE**: Session ID `1965f7c8-92aa-48f8-9ff7-4fd416ca76b8` has empty `enhanced_otel_*.jsonl` file (0 bytes), causing API to return `tool_count: 0`.
@@ -92,8 +94,14 @@ tool_calls:
 - **Root Cause**: Local agent executions not generating OTEL traces properly in some cases
 
 **Current Examples**:
-- ✅ **Working**: `http://localhost:3001/api/v1/flows/373a5db0-a520-43b5-aeb4-46c4c0506e79` (001-sol-transfer.yml)
+- ✅ **Working**: `http://localhost:3001/api/v1/flows/373a5db0-a520-43b5-aeb4-46c4c0506e79` (001-sol-transfer.yml) 
 - ❌ **Broken**: `http://localhost:3001/api/v1/flows/1965f7c8-92aa-48f8-9ff7-4fd416ca76b8` (300-swap-sol-then-mul-usdc.yml)
+
+**GLM-4.6 Test Results**: ✅ **WORKING**
+- **CLI Execution**: Successfully runs 300-series benchmarks with proper tool calls
+- **OTEL Generation**: Creates enhanced_otel_*.jsonl files with tool call data
+- **Example Session**: `306114a3-3d36-43bb-ac40-335fef6307ac` has jupiter_swap tool call logged
+- **API Issue**: Tool calls not accessible via API because CLI doesn't convert/store them in database
 
 ## 🛠️ **Resolution Status** ⚠️ **PARTIALLY COMPLETED**
 
@@ -126,13 +134,26 @@ fn extract_tool_calls_from_yaml(yaml_value: &Value) -> Option<&Vec<Value>> {
     // Look through 300-series YAML structure with comments and headers
     Self::find_tool_calls_in_300_series_yaml_structure(yaml_value)
 }
-
-// Ensure backward compatibility with working 001-series format
 ```
 
-### **Option 2: Fix JsonlToYmlConverter** (Alternative)
+**CLI vs API Issue - Missing JsonlToYmlConverter Link**:
+- **API Execution**: ✅ Calls `JsonlToYmlConverter::convert_file()` and stores in database
+- **CLI Execution**: ❌ Only extracts tool calls but doesn't convert/store them
+- **Solution Needed**: CLI runner must call JsonlToYmlConverter after benchmark completion
+
+**Code Evidence**:
+```rust
+// API benchmark_executor.rs - ✅ HAS conversion
+let _ = self.convert_and_store_enhanced_otel(&session_id).await;
+
+// CLI runner lib.rs - ❌ MISSING conversion  
+let tool_calls = extract_tool_calls_from_agent_logs(&session_id).await;
+// Missing: let _ = convert_and_store_enhanced_otel_for_cli(&session_id).await;
+```
+
+**Option 2: Fix JsonlToYmlConverter** (Alternative)
 1. Modify OTEL converter to output clean `tool_calls:` array format
-2. Remove headers and comments from OTEL YML output
+2. Remove headers and comments from 300-series OTEL YML output
 3. Ensure parser compatibility by following expected OTEL format exactly
 4. Update OTEL conversion to use proper YAML structure
 
@@ -157,6 +178,16 @@ impl JsonlToYmlConverter {
 }
 ```
 
+**CLI vs API Implementation Gap - DISCOVERED**:
+- **API Executor**: ✅ Has `convert_and_store_enhanced_otel()` function  
+- **CLI Runner**: ❌ Missing JsonlToYmlConverter call after benchmark completion
+- **Root Cause**: Git history shows JsonlToYmlConverter was added to API but not CLI runner
+- **Fix Status**: 🟡 **IN PROGRESS** - Started implementation but compilation errors remain
+
+**Files to Modify**:
+- `crates/reev-runner/src/lib.rs`: Add JsonlToYmlConverter call in `run_evaluation_loop()`
+- Follow same pattern as `crates/reev-api/src/services/benchmark_executor.rs`
+
 ### **Option 3: Add Database Bridging** (Immediate)
 1. Implement automatic OTEL session file import in `benchmark_executor`
 2. Add process to detect new CLI OTEL sessions and store in database
@@ -178,7 +209,7 @@ impl JsonlToYmlConverter {
 - `crates/reev-flow/src/jsonl_converter/mod.rs`: OTEL converter to potentially fix
 - `crates/reev-lib/src/otel_extraction/mod.rs`: OTEL trace extraction source
 
-## 🧪 **Test Framework Established**
+### 🧪 **Test Framework Established**
 
 ### **Comprehensive Test Suite** 
 - `tests/session_300_benchmark_test.rs` for systematic OTEL debugging
@@ -186,7 +217,7 @@ impl JsonlToYmlConverter {
 - Provides clear reproduction steps
 - Tests multiple resolution approaches
 
-### **Test Methods Available**
+### **Test Methods Available**:
 ```rust
 #[tokio::test]
 async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::Error>> {
@@ -204,6 +235,21 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
         }
     }
 }
+```
+
+**Quick Test Results**:
+```bash
+# GLM-4.6 generates proper OTEL traces ✅
+RUST_LOG=info cargo run --bin reev-runner -- --agent glm-4.6 benchmarks/300-swap-sol-then-mul-usdc.yml
+# Result: enhanced_otel_306114a3-3d36-43bb-ac40-335fef6307ac.jsonl (3 lines, 1 jupiter_swap tool)
+
+# JsonlToYmlConverter can parse OTEL data ✅  
+python3 convert_otel_simple.py
+# Result: Successfully converted to YML format with tool_calls array
+
+# API shows tool_count: 0 because CLI never stored converted data ❌
+curl http://localhost:3001/api/v1/flows/306114a3-3d36-43bb-ac40-335fef6307ac
+# Result: {"metadata":{"tool_count":0,"state_count":2}}
 ```
 
 ## 📈 **Impact Assessment**
@@ -269,10 +315,10 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
 ## 🚀 **Implementation Priority**
 
 ### **High Priority** (This Week)
-1. **Fix 300-Series OTEL Format Compatibility**: Choose and implement solution
-2. **Update SessionParser**: Handle both 001-series (clean) and 300-series (headers) formats
-3. **Validate with Real Data**: Use actual CLI OTEL session files from both series
-4. **API Endpoint Testing**: Confirm flow visualization works for both series
+1. **Fix CLI JsonlToYmlConverter Link**: Complete implementation in reev-runner/lib.rs
+2. **Test End-to-End**: Verify GLM-4.6 CLI runs generate API-accessible tool calls
+3. **Validate with GLM-4.6**: Use actual session: `306114a3-3d36-43bb-ac40-335fef6307ac`
+4. **API Endpoint Testing**: Confirm flow visualization shows tool_count > 0 after CLI runs
 5. **Regression Testing**: Ensure 001-series continues working: `373a5db0-a520-43b5-aeb4-46c4c0506e79`
 
 ### **Medium Priority** (Next Week)
@@ -289,14 +335,31 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
 
 ## 🎉 **Expected Outcome**
 
-After resolving this OTEL format compatibility issue:
+After resolving this CLI JsonlToYmlConverter linking issue:
 
-- **Flow Visualization**: API will return correct Mermaid diagrams for both 001-series and 300-series
-- **User Experience**: Web interface will show proper execution flows for all benchmarks
-- **Data Integrity**: OTEL traces will be correctly parsed and visualized across all series
-- **Production Ready**: Complete end-to-end flow visualization working with no regressions
-- **Architecture Clarity**: Clear OTEL-only tool call source with consistent formatting
-- **Series Consistency**: Both 001 and 300 series use compatible OTEL-derived formats
+- **CLI + API Integration**: CLI runs will store tool calls in database for API access
+- **Flow Visualization**: API will return correct Mermaid diagrams for GLM-4.6 CLI runs  
+- **User Experience**: Both direct CLI and API executions show consistent flow visualization
+- **Data Integrity**: OTEL traces correctly converted and stored across all execution methods
+- **Production Ready**: Complete end-to-end OTEL-to-API pipeline working
+- **Architecture Consistency**: CLI and API use identical JsonlToYmlConverter process
+- **GLM-4.6 Full Support**: 300-series benchmarks work seamlessly via both CLI and API
+
+**Success Criteria**:
+```bash
+# CLI run generates OTEL ✅
+cargo run --bin reev-runner --agent glm-4.6 benchmarks/300-swap-sol-then-mul-usdc.yml
+
+# OTEL converted to database ✅ (NEW)
+# Session stored in db/cli_sessions.json with tool_calls data
+
+# API shows correct tool_count > 0 ✅ (NEW)
+curl http://localhost:3001/api/v1/flows/[session_id]
+# Expected: {"metadata":{"tool_count":1,"state_count":4}}
+
+# Flow visualization works ✅ (NEW)
+# Mermaid diagram shows: Prompt → jupiter_swap → Success
+```
 
 **Key Result**: Users will see proper tool call sequences like:
 ```

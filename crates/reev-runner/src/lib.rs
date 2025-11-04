@@ -411,6 +411,10 @@ pub async fn run_benchmarks(
             "Session completed in session file"
         );
 
+        // Convert enhanced_otel JSONL to YML and store in database for flow diagrams
+        // This ensures API can read tool calls from CLI executions
+        let _ = convert_and_store_enhanced_otel_for_cli(&session_id);
+
         // Performance metrics stored in session file
         // Database storage handled by API after reading session file
 
@@ -479,6 +483,76 @@ pub async fn run_benchmarks(
     info!("All benchmarks completed (database-free runner)");
 
     Ok(results)
+}
+
+/// Convert enhanced_otel JSONL file to YML format and store in database for CLI runs
+async fn convert_and_store_enhanced_otel_for_cli(session_id: &str) -> Result<()> {
+    use std::path::PathBuf;
+
+    let jsonl_path = PathBuf::from(format!("logs/sessions/enhanced_otel_{session_id}.jsonl"));
+
+    if !jsonl_path.exists() {
+        debug!("No enhanced_otel file found for session: {}", session_id);
+        return Ok(());
+    }
+
+    info!(
+        "Converting enhanced_otel to YML for CLI session: {}",
+        session_id
+    );
+
+    // Use JsonlToYmlConverter to convert to session format
+    let temp_yml_path = jsonl_path.with_extension("yml");
+    let session_data = reev_flow::JsonlToYmlConverter::convert_file(&jsonl_path, &temp_yml_path)
+        .map_err(|e| anyhow!("Failed to convert enhanced_otel JSONL to YML: {e}"))?;
+
+    // Read YML content for storage
+    let yml_content = std::fs::read_to_string(&temp_yml_path)
+        .map_err(|e| anyhow!("Failed to read temporary YML file: {e}"))?;
+
+    // Clean up temporary file
+    let _ = std::fs::remove_file(&temp_yml_path);
+
+    // Store in a simple database file for API to access
+    let db_path = PathBuf::from("db/cli_sessions.json");
+    std::fs::create_dir_all(db_path.parent().unwrap())?;
+
+    // Read existing sessions or create new
+    let mut sessions = if db_path.exists() {
+        let content = std::fs::read_to_string(&db_path)?;
+        serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // Add new session data
+    sessions.as_object_mut().unwrap().insert(session_id.to_string(), serde_json::json!({
+        "yml_content": yml_content,
+        "tool_calls": session_data.tool_calls.len(),
+        "session_id": session_id,
+        "benchmark_id": session_data.tool_calls.first().map(|t| &t.tool_name).unwrap_or(&"unknown".to_string()),
+        "created_at": chrono::Utc::now().to_rfc3339()
+    }));
+
+    // Write back to database file
+    let sessions_json = serde_json::to_string_pretty(&sessions)?;
+    if let Err(e) = std::fs::write(&db_path, sessions_json) {
+        warn!("Failed to write CLI sessions database: {}", e);
+    } else {
+        info!(
+            "Successfully wrote CLI sessions database: {} ({} sessions)",
+            db_path.display(),
+            sessions.as_object().unwrap().len()
+        );
+    }
+
+    info!(
+        "Successfully converted and stored enhanced_otel data for CLI session: {} ({} tool calls)",
+        session_id,
+        session_data.tool_calls.len()
+    );
+
+    Ok(())
 }
 
 /// Unified runner function supporting both static files and dynamic flows (Phase 2)
