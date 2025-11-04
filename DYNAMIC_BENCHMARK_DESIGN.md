@@ -76,16 +76,19 @@ The 300-series benchmarks demonstrate the full capabilities of the reev dynamic 
 - **304**: Crisis response (time pressure, safety first)
 - **305**: Advanced optimization (multi-pool, mathematical optimization)
 
-### **2. Natural Language Complexity**
+### **3. Natural Language to Tool Call Mapping**
 ```yaml
-# Simple (301)
-"Use my 50% SOL to maximize my USDC returns through Jupiter lending."
+# Simple (301) - Direct instructions
++"Use my 50% SOL to maximize my USDC returns through Jupiter lending."
+→ Tools: [account_balance] → [jupiter_swap] → [jupiter_lend]
 
-# Complex (302)
-"I want to rebalance my portfolio based on current market conditions. Please analyze my current holdings (SOL and USDC), check current market prices and Jupiter lending rates, then execute optimal rebalancing to maximize returns while maintaining some liquidity."
+# Complex (302) - Portfolio analysis required
++"I want to rebalance my portfolio based on current market conditions."
+→ Tools: [account_balance, jupiter_positions] → Analysis → [jupiter_swap] → [jupiter_lend]
 
-# Emergency (304)
-"I need an emergency exit strategy for all my positions due to market stress. Please immediately analyze my current holdings, withdraw all lending positions, convert risky assets to stable ones, and preserve capital."
+# Emergency (304) - Crisis response
++"I need an emergency exit strategy for all my positions due to market stress."
+→ Tools: [account_balance, jupiter_positions] → [jupiter_withdraw] → [jupiter_swap] → Stable assets
 ```
 
 ### **3. Capital Allocation Patterns**
@@ -97,45 +100,71 @@ The 300-series benchmarks demonstrate the full capabilities of the reev dynamic 
 | 304 | Minimal (fees) | Maximum | Emergency Preservation | Crisis Mode |
 | 305 | 70% | 70% | Yield Farming Optimization | High |
 
-### **4. Success Criteria Evolution**
+### **4. Tool Call Evolution & Success Criteria**
 
-**Basic Validation (301)**:
-- Context resolution ✓
-- Percentage calculation ✓
-- Yield optimization ✓
+**Basic Tool Sequence (301)**:
+```yaml
+Expected Tools:
+  - account_balance (context)
+  - jupiter_swap (execution) 
+  - jupiter_lend (yield)
+  - jupiter_positions (validation)
+```
 
-**Intermediate Validation (302-303)**:
-- Portfolio analysis ✓
-- Market assessment ✓
-- Risk management ✓
+**Intermediate Tool Sequences (302-303)**:
+```yaml
+Expected Tools (302 - Rebalancing):
+  - account_balance (initial state)
+  - jupiter_positions (current holdings)
+  - jupiter_swap (rebalancing trades)
+  - jupiter_lend (new positions)
+  - jupiter_positions (final validation)
 
-**Advanced Validation (304-305)**:
-- Emergency response ✓
-- Multi-pool coordination ✓
-- Recovery mechanisms ✓
-- Complex optimization ✓
+Expected Tools (303 - Risk-Adjusted):
+  - account_balance (capital assessment)
+  - jupiter_lend_rates (risk analysis)
+  - jupiter_swap (partial conversion)
+  - jupiter_lend (conservative deposit)
+```
+
+**Advanced Tool Orchestrations (304-305)**:
+```yaml
+Expected Tools (304 - Emergency Exit):
+  - account_balance (position analysis)
+  - jupiter_positions (withdraw targets)
+  - jupiter_withdraw (rapid liquidation)
+  - jupiter_swap (stable conversion)
+  - account_balance (final validation)
+
+Expected Tools (305 - Multi-Pool):
+  - account_balance (total capital)
+  - jupiter_pools (pool analysis)
+  - jupiter_lend_rates (apy comparison)
+  - jupiter_swap (pool conversions)
+  - jupiter_lend (multi-pool deposits)
+```
 
 ## 🧪 **Testing Strategy**
 
-### **API Integration Testing**
+### **OpenTelemetry Integration Testing**
 ```rust
-// Direct Mode Testing
+// Tool Call Tracking
 POST /api/v1/benchmarks/execute-direct
-- Tests natural language processing
-- Validates flow generation
-- Confirms execution coordination
+- Triggers: account_balance, jupiter_swap, jupiter_lend tools
+- Validates: OpenTelemetry captures tool_name, parameters, execution_time
+- Confirms: Sequential tool execution with proper dependencies
 
 // Recovery Mode Testing  
 POST /api/v1/benchmarks/execute-recovery
-- Tests emergency scenarios (304)
-- Validates recovery config
-- Confirms fallback mechanisms
+- Tests: Tool failure scenarios and recovery mechanisms
+- Validates: Automatic retry with exponential backoff
+- Confirms: Alternative tool sequences when primary fails
 
-// Visualization Testing
+// Flow Visualization from OTEL
 GET /api/v1/flows/{session_id}
-- Tests dynamic flow detection
-- Validates enhanced Mermaid diagrams
-- Confirms HTTP caching headers
+- Tests: Mermaid diagram generation from tool call traces
+- Validates: State transitions (account_balance → swap → lend → validation)
+- Confirms: Dynamic flow detection by execution_id prefixes
 ```
 
 ### **Progressive Validation**
@@ -145,14 +174,22 @@ GET /api/v1/flows/{session_id}
 4. **Performance Tests**: < 50ms overhead verification
 5. **Recovery Tests**: Failure scenario handling
 
-### **Expected Success Rates**
-| Benchmark | Min Score | Target Score | Expected Pass Rate |
-|-----------|-------------|---------------|-------------------|
-| 301 | 0.7 | 0.8+ | 90%+ |
-| 302 | 0.7 | 0.75+ | 85%+ |
-| 303 | 0.75 | 0.8+ | 85%+ |
-| 304 | 0.8 | 0.85+ | 80%+ |
-| 305 | 0.75 | 0.8+ | 75%+ |
+### **Expected Tool Call Success Rates**
+| Benchmark | Min Score | Target Score | Tool Call Success | Expected Pass Rate |
+|-----------|-------------|---------------|------------------|-------------------|
+| 301 | 0.7 | 0.8+ | 3/4 tools | 90%+ |
+| 302 | 0.7 | 0.75+ | 4/5 tools | 85%+ |
+| 303 | 0.75 | 0.8+ | 4/5 tools | 85%+ |
+| 304 | 0.8 | 0.85+ | 5/6 tools | 80%+ |
+| 305 | 0.75 | 0.8+ | 5/7 tools | 75%+ |
+
+**Tool Call Validation:**
+- **account_balance**: State discovery, non-critical
+- **jupiter_swap**: Execution step, critical
+- **jupiter_lend**: Yield generation, critical  
+- **jupiter_positions**: Validation step, non-critical
+- **jupiter_withdraw**: Emergency response, critical
+- **jupiter_pools**: Analysis step, non-critical
 
 ## 📈 **Performance Metrics**
 
@@ -166,12 +203,13 @@ GET /api/v1/flows/{session_id}
 | **API Call Efficiency** | Minimal | Count of external calls |
 | **Recovery Overhead** | < 100ms | Recovery mechanism timing |
 
-### **Quality Assurance Metrics**
-- **Natural Language Success Rate**: > 95%
-- **Step Completion Rate**: > 90%
-- **Error Recovery Rate**: > 85%
-- **Flow Visualization Generation**: 100%
-- **HTTP Caching Efficiency**: > 80% hit rate
+### **OpenTelemetry-Based Quality Metrics**
+- **Tool Call Success Rate**: > 95% (agent executes correct tools)
+- **Parameter Accuracy**: > 90% (correct params passed to tools)
+- **Tool Sequence Logic**: > 85% (logical flow between tools)
+- **Recovery Mechanism Success**: > 80% (fallback strategies work)
+- **Flow Visualization Generation**: 100% (Mermaid from OTEL traces)
+- **Performance Overhead**: < 50ms (tool call execution time)
 
 ## 🎮 **Usage Examples**
 
@@ -223,16 +261,33 @@ curl -H "Accept: application/json" \
 - **Recovery Effectiveness**: Increase success rate of fallbacks
 - **User Satisfaction**: Gather qualitative feedback
 
-## 🎯 **Expected Demonstrations**
+### **Expected Demonstrations - Tool Call Intelligence**
 
-### **Dynamic Flow Capabilities**
-1. **Natural Language → Action**: Complex prompts to executable steps
-2. **Context Awareness**: Real-time wallet and market integration
-3. **Intelligent Decision Making**: Optimal strategy selection
-4. **Multi-Step Coordination**: Seamless step orchestration
-5. **Fault Tolerance**: Recovery mechanisms and fallbacks
-6. **Performance Optimization**: Minimal overhead with maximum efficiency
-7. **Real-Time Monitoring**: Live flow visualization and status tracking
+### **Dynamic Flow Capabilities via Tool Calls**
+1. **Natural Language → Tool Sequence**: Complex prompts to logical tool orchestration
+2. **Context-Aware Tool Selection**: Tools selected based on wallet state and goals
+3. **Intelligent Parameter Passing**: Correct tool parameters from prompt analysis
+4. **Multi-Step Tool Orchestration**: Sequential tool execution with dependencies
+5. **Fault-Tolerant Tool Execution**: Recovery mechanisms when tools fail
+6. **OTEL-Based Monitoring**: Complete tool call tracking and visualization
+7. **Performance Optimization**: < 50ms overhead per tool call
+
+### **Tool Call Examples by Scenario:**
+
+**301 Yield Optimization:**
+```
+account_balance → jupiter_swap → jupiter_lend → jupiter_positions
+```
+
+**304 Emergency Exit:**
+```
+account_balance → jupiter_positions → jupiter_withdraw → jupiter_swap → account_balance
+```
+
+**305 Multi-Pool:**
+```
+account_balance → jupiter_pools → jupiter_lend_rates → jupiter_swap → jupiter_lend → jupiter_positions
+```
 
 ### **Production Readiness Indicators**
 - **All benchmarks passing** with target scores

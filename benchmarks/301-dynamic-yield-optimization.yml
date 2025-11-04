@@ -43,18 +43,28 @@ ground_truth:
       expected_gte: 40000000 # ~40 USDC in lending
       weight: 0.3
 
-  expected_api_calls:
-    - service: "jupiter_prices"
-      method: "GET"
-      endpoint_pattern: "quote-api.jup.ag/v6/quote"
-      weight: 0.15
-      critical: true
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and positions"
+      critical: false
+      weight: 0.1
 
-    - service: "jupiter_lend_rates"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
-      weight: 0.15
+    - tool_name: "jupiter_swap"
+      description: "Swap SOL to USDC using Jupiter"
       critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.4
+
+    - tool_name: "jupiter_lend"
+      description: "Deposit USDC into Jupiter lending for yield"
+      critical: true
+      expected_params: ["mint", "amount"]
+      weight: 0.4
+
+    - tool_name: "jupiter_positions"
+      description: "Check final lending positions"
+      critical: false
+      weight: 0.1
 
   success_criteria:
     - type: "context_resolution"
@@ -78,13 +88,29 @@ ground_truth:
       weight: 0.3
 
   expected_data_structure:
-    - path: "$.result.data.wallet_balance"
+    - path: "$.result.data.wallet_context"
       type: "object"
+      required_fields: ["sol_balance", "usdc_balance", "total_portfolio_value"]
       weight: 0.1
-    - path: "$.result.data.token_prices"
+
+    - path: "$.result.data.swap_execution"
       type: "object"
-      weight: 0.1
-    - path: "$.result.data.flow_plan"
+      required_fields: ["input_amount", "output_amount", "exchange_rate"]
+      weight: 0.2
+
+    - path: "$.result.data.lend_execution"
+      type: "object"
+      required_fields: ["deposit_amount", "expected_yield", "apy_rate"]
+      weight: 0.2
+
+    - path: "$.result.data.optimization_strategy"
+      type: "object"
+      required_fields:
+        ["target_percentage", "optimal_allocation", "expected_return"]
+      weight: 0.2
+
+    - path: "$.result.data.tool_calls"
       type: "array"
       min_items: 2
+      required_fields: ["tool_name", "parameters", "success"]
       weight: 0.2

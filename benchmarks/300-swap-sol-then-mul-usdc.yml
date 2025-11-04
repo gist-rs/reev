@@ -1,0 +1,190 @@
+id: 300-swap-sol-then-mul-usdc
+description: Dynamic multiplication strategy - Agent uses 50% of SOL to multiply USDC position by 1.5x using Jupiter swap and lending strategies.
+tags: ["dynamic", "multiplication", "jupiter", "yield", "strategy"]
+
+initial_state:
+  # User's main wallet with SOL for multiplication strategy
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 4000000000 # 4 SOL
+
+  # User's existing USDC position to be multiplied
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "20000000" # 20 USDC existing
+
+prompt: "use my 50% sol to multiply usdc 1.5x on jup"
+
+ground_truth:
+  min_score: 0.7
+
+  final_state_assertions:
+    # Should have used ~2 SOL (50% of 4 SOL + fees)
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_lte: -200500000 # Should not use more than 2 SOL + fees
+      weight: 0.3
+
+    # Should have ~50 USDC total (20 existing + 30 from multiplication)
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected_gte: 45000000 # ~45 USDC (20 existing + 25 from swap + yield)
+      expected_lte: 55000000 # ~55 USDC maximum
+      weight: 0.4
+
+    # Should have some position in lending for yield generation
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_gte: 10000000 # At least 10 USDC in lending
+      weight: 0.3
+
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and positions"
+      critical: false
+      weight: 0.1
+
+    - tool_name: "jupiter_swap"
+      description: "Swap SOL to USDC using Jupiter"
+      critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.4
+
+    - tool_name: "jupiter_lend"
+      description: "Deposit USDC into Jupiter lending for yield"
+      critical: true
+      expected_params: ["mint", "amount"]
+      weight: 0.4
+
+    - tool_name: "jupiter_positions"
+      description: "Check final lending positions"
+      critical: false
+      weight: 0.1
+
+  success_criteria:
+    - type: "percentage_calculation"
+      description: "Correctly calculate and use 50% of SOL balance"
+      required: true
+      weight: 0.25
+
+    - type: "multiplication_strategy"
+      description: "Implement strategy to multiply USDC by 1.5x"
+      required: true
+      weight: 0.3
+
+    - type: "tool_coordination"
+      description: "Coordinate swap and lend operations properly"
+      required: true
+      weight: 0.25
+
+    - type: "yield_generation"
+      description: "Generate additional yield through lending"
+      required: true
+      weight: 0.2
+
+  expected_data_structure:
+    - path: "$.result.data.wallet_context"
+      type: "object"
+      required_fields: ["sol_balance", "usdc_balance", "total_portfolio_value"]
+      weight: 0.2
+
+    - path: "$.result.data.swap_execution"
+      type: "object"
+      required_fields: ["input_amount", "output_amount", "exchange_rate"]
+      weight: 0.2
+
+    - path: "$.result.data.lend_execution"
+      type: "object"
+      required_fields: ["deposit_amount", "expected_yield", "apy_rate"]
+      weight: 0.2
+
+    - path: "$.result.data.final_state"
+      type: "object"
+      required_fields: ["final_sol_balance", "final_usdc_balance", "multiplication_ratio"]
+      weight: 0.2
+
+    - path: "$.result.data.tool_calls"
+      type: "array"
+      min_items: 2
+      required_fields: ["tool_name", "parameters", "success"]
+      weight: 0.2
+
+  expected_flow_complexity:
+    - type: "multi_step_execution"
+      description: "Should execute swap → lend sequence"
+      min_steps: 2
+      weight: 0.3
+
+    - type: "context_awareness"
+      description: "Should use wallet context for calculations"
+      required: true
+      weight: 0.3
+
+    - type: "strategic_planning"
+      description: "Should plan multiplication strategy rather than simple actions"
+      required: true
+      weight: 0.4
+
+  expected_multiplication_metrics:
+    - type: "target_achievement"
+      description: "Should achieve ~1.5x USDC multiplication"
+      target_ratio: 1.5
+      tolerance: 0.2 # Allow 1.3x to 1.7x range
+      weight: 0.4
+
+    - type: "capital_efficiency"
+      description: "Should efficiently use 50% of SOL for multiplication"
+      min_efficiency: 0.8 # 80% capital efficiency
+      weight: 0.3
+
+    - type: "yield_contribution"
+      description: "Yield should contribute to multiplication goal"
+      min_yield_contribution: 0.1 # 10% of target from yield
+      weight: 0.3
+
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all tool calls"
+      required_tools: ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Flow execution should be traceable end-to-end"
+      required_spans: ["prompt_processing", "context_resolution", "swap_execution", "lend_execution"]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from tool calls"
+      required: true
+      weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and resource usage"
+      required_metrics: ["execution_time_ms", "tool_call_count", "success_rate"]
+      weight: 0.2
+
+  recovery_expectations:
+    - type: "swap_failure_recovery"
+      description: "Should recover from failed swap with alternative routes"
+      required: true
+      weight: 0.2
+
+    - type: "lend_failure_recovery"
+      description: "Should recover from failed lend with retry mechanism"
+      required: true
+      weight: 0.2
+
+    - type: "atomic_execution"
+      description: "Multiplication strategy should execute atomically"
+      required: true
+      weight: 0.3
+
+    - type: "partial_success_handling"
+      description: "Should handle partial successes gracefully"
+      required: true
+      weight: 0.3
