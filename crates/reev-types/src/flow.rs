@@ -261,10 +261,11 @@ impl FlowMetadata {
     }
 }
 
-/// Atomic execution mode for flows
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+/// Atomic execution mode for flow control
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AtomicMode {
     /// Strict - any critical failure fails the entire flow
+    #[default]
     Strict,
     /// Lenient - mark failures but continue execution
     Lenient,

@@ -5,6 +5,7 @@
 
 use crate::handlers::flow_diagram::{DiagramMetadata, FlowDiagramError};
 #[cfg(feature = "direct_runner")]
+#[allow(unused_imports)]
 use reev_tools::tool_names;
 use serde_json::Value;
 use tracing::{debug, info};

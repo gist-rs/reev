@@ -99,6 +99,11 @@ impl OrchestratorGateway {
         prompt.to_string()
     }
 
+    /// Get a reference to the context resolver
+    pub fn context_resolver(&self) -> &crate::context_resolver::ContextResolver {
+        &self.context_resolver
+    }
+
     /// Generate flow plan from refined prompt with Phase 3 recovery support
     pub fn generate_flow_plan(
         &self,

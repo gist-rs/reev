@@ -27,9 +27,12 @@ direct_runner = []
 reev-lib = { path = "../reev-lib", features = ["database"] }
 reev-db = { path = "../reev-db" }
 reev-flow = { path = "../reev-flow" }
+reev-orchestrator = { path = "../reev-orchestrator" }
+reev-runner = { path = "../reev-runner" }
+reev-tools = { path = "../reev-tools" }
 
 reev-types = { path = "../reev-types" }
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["macros"] }
 tokio = { workspace = true, features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 serde = { workspace = true, features = ["derive"] }

@@ -74,6 +74,41 @@ pub struct HealthResponse {
     pub version: String,
 }
 
+/// Dynamic flow execution request
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields are used in handlers but not directly in this module
+pub struct DynamicFlowRequest {
+    pub prompt: String,
+    pub wallet: String,
+    pub agent: String,
+    pub execution_id: Option<String>,
+    pub config: Option<AgentConfig>,
+    pub shared_surfpool: bool,
+    pub atomic_mode: Option<reev_types::flow::AtomicMode>,
+}
+
+/// Recovery flow execution request
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields are used in handlers but not directly in this module
+pub struct RecoveryFlowRequest {
+    pub prompt: String,
+    pub wallet: String,
+    pub agent: Option<String>,
+    pub recovery_config: Option<RecoveryConfig>,
+}
+
+/// Recovery configuration
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields are used in handlers but not directly in this module
+pub struct RecoveryConfig {
+    pub base_retry_delay_ms: Option<u64>,
+    pub max_retry_delay_ms: Option<u64>,
+    pub backoff_multiplier: Option<f64>,
+    pub max_recovery_time_ms: Option<u64>,
+    pub enable_alternative_flows: Option<bool>,
+    pub enable_user_fulfillment: Option<bool>,
+}
+
 /// Error response type
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {

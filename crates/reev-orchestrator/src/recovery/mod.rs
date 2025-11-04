@@ -4,9 +4,8 @@
 //! including retry strategies, alternative flows, and user fulfillment.
 
 use crate::Result;
-use reev_types::flow::{
-    AtomicMode, DynamicFlowPlan, DynamicStep, RecoveryStrategy, StepResult,
-};
+use reev_types::flow::{AtomicMode, DynamicFlowPlan, DynamicStep, RecoveryStrategy, StepResult};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tracing::{debug, instrument, warn};
 
@@ -32,7 +31,7 @@ pub struct RecoveryResult {
 }
 
 /// Recovery configuration for fine-tuning behavior
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryConfig {
     /// Base delay between retries in milliseconds
     pub base_retry_delay_ms: u64,

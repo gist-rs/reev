@@ -117,6 +117,20 @@ async fn main() -> Result<()> {
         // Agent configuration endpoints
         .route("/api/v1/agents/config", post(save_agent_config))
         .route("/api/v1/agents/config/{agent_type}", get(get_agent_config))
+        // Dynamic flow execution endpoints (NEW)
+        .route(
+            "/api/v1/benchmarks/execute-direct",
+            post(execute_dynamic_flow),
+        )
+        .route(
+            "/api/v1/benchmarks/execute-bridge",
+            post(execute_dynamic_flow),
+        )
+        .route(
+            "/api/v1/benchmarks/execute-recovery",
+            post(execute_recovery_flow),
+        )
+        .route("/api/v1/metrics/recovery", get(get_recovery_metrics))
         // Debug endpoints
         .route("/api/v1/debug/benchmarks", get(debug_benchmarks))
         .route("/api/v1/agents/test", post(test_agent_connection))
@@ -128,6 +142,16 @@ async fn main() -> Result<()> {
             get(get_transaction_logs),
         )
         .route("/api/v1/transaction-logs/demo", get(get_transaction_logs))
+        // Dynamic flow execution endpoints
+        .route(
+            "/api/v1/benchmarks/execute-direct",
+            post(execute_dynamic_flow),
+        )
+        .route(
+            "/api/v1/benchmarks/execute-bridge",
+            post(execute_dynamic_flow),
+        )
+        // Recovery flow and metrics endpoints to be added later
         // Execution trace endpoints
         .route(
             "/api/v1/execution-logs/{benchmark_id}",
