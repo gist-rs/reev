@@ -1,7 +1,7 @@
 # Development & Testing Guide: API Flow Visualization
 
 ## 🎯 **Purpose**
-This guide provides curl commands for testing and developing the API flow visualization functionality, focusing on GLM-4.6 agent dynamic flows.
+This guide provides curl commands for testing and developing the API flow visualization functionality, focusing on glm-4.6 agent dynamic flows.
 
 ## 🚀 **Quick Start**
 
@@ -29,7 +29,7 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -d '{
     "prompt": "swap 1 SOL for USDC",
     "wallet": "test_swap_wallet",
-    "agent": "GLM-4.6",
+    "agent": "glm-4.6",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id'
 
@@ -38,8 +38,8 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap 1 SOL for USDC",
-    "wallet": "test_swap_wallet", 
-    "agent": "GLM-4.6",
+    "wallet": "test_swap_wallet",
+    "agent": "glm-4.6",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id')
 
@@ -55,7 +55,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
     "wallet": "complex_flow_wallet",
-    "agent": "GLM-4.6", 
+    "agent": "glm-4.6",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id')
 
@@ -74,7 +74,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-bridge
   -d '{
     "prompt": "use 75% of my SOL to get maximum USDC yield on Jupiter",
     "wallet": "bridge_test_wallet",
-    "agent": "GLM-4.6",
+    "agent": "glm-4.6",
     "shared_surfpool": true
   }' | jq -r '.result.flow_id')
 
@@ -90,7 +90,7 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-recovery \
   -d '{
     "prompt": "swap all my SOL to USDC with maximum yield",
     "wallet": "recovery_test_wallet",
-    "agent": "GLM-4.6",
+    "agent": "glm-4.6",
     "recovery_config": {
       "base_retry_delay_ms": 1000,
       "max_retry_delay_ms": 10000,
@@ -158,7 +158,7 @@ class jupiter_swap tools
 **Problems:**
 - `: Null` transitions - no useful information
 - No transaction amounts
-- No wallet addresses  
+- No wallet addresses
 - No execution results
 - No timing details
 
@@ -182,7 +182,7 @@ note right of Lend_75_USDC: Deposit: 75.23 USDC<br/>APY: 5.8%<br/>Position: jUSD
 # Test current mock generation
 curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.5 SOL", "wallet": "debug_wallet", "agent": "GLM-4.6", "shared_surfpool": false}' | \
+  -d '{"prompt": "swap 0.5 SOL", "wallet": "debug_wallet", "agent": "glm-4.6", "shared_surfpool": false}' | \
   jq '.tool_calls | length'
 
 # Expected: 1 tool call
@@ -190,13 +190,13 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 ```
 
 ### **Phase 2: Real Execution Integration (Major)**
-**Target:** Replace mock data with actual GLM-4.6 agent execution results.
+**Target:** Replace mock data with actual glm-4.6 agent execution results.
 
 **Current Location:** `crates/reev-api/src/handlers/dynamic_flows/mod.rs`
 **Function:** `create_mock_tool_calls_from_flow_plan()`
 
 **Required Changes:**
-1. Execute actual GLM-4.6 agent with generated flow plan
+1. Execute actual glm-4.6 agent with generated flow plan
 2. Capture real tool calls, parameters, results
 3. Store transaction signatures, amounts, addresses
 4. Update SessionParser to handle rich tool data
@@ -216,7 +216,7 @@ echo "🧪 Testing API Flow Visualization..."
 echo "📋 Test 1: Basic flow execution"
 RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.5 SOL", "wallet": "auto_test", "agent": "GLM-4.6", "shared_surfpool": false}')
+  -d '{"prompt": "swap 0.5 SOL", "wallet": "auto_test", "agent": "glm-4.6", "shared_surfpool": false}')
 
 FLOW_ID=$(echo $RESPONSE | jq -r '.result.flow_id')
 TOOL_COUNT=$(echo $RESPONSE | jq '.tool_calls | length')
@@ -266,7 +266,7 @@ echo "🎉 Test completed!"
 ### **Target Data Flow:**
 1. User sends prompt → API
 2. Orchestrator creates flow plan
-3. **✅ GOAL**: Execute GLM-4.6 agent with plan
+3. **✅ GOAL**: Execute glm-4.6 agent with plan
 4. **✅ GOAL**: Capture real tool execution data
 5. **✅ GOAL**: Store real transaction information
 6. **✅ GOAL**: Visualize meaningful execution flow
@@ -278,6 +278,6 @@ echo "🎉 Test completed!"
 
 ---
 
-**Last Updated:** 2025-11-04  
-**Focus:** GLM-4.6 agent API flow visualization
+**Last Updated:** 2025-11-04
+**Focus:** glm-4.6 agent API flow visualization
 **Status:** Mock data working, real execution integration needed

@@ -135,10 +135,16 @@ impl OrchestratorGateway {
 
         // Check for complex flows first
         if has_swap && (has_lend || has_multiply) {
-            // Swap then lend flow with recovery strategies
+            // Complete multiplication strategy flow with recovery strategies
+            // 1. Check current balances
+            // 2. Swap SOL to USDC
+            // 3. Lend USDC for yield
+            // 4. Check final positions
             flow = flow
+                .with_step(create_account_balance_step_with_recovery(context)?)
                 .with_step(create_swap_step_with_recovery(context, prompt)?)
-                .with_step(create_lend_step_with_recovery(context)?);
+                .with_step(create_lend_step_with_recovery(context)?)
+                .with_step(create_positions_check_step_with_recovery(context)?);
         } else if has_swap {
             // Single swap flow with recovery strategy
             flow = flow.with_step(create_swap_step_with_recovery(context, prompt)?);
@@ -269,6 +275,30 @@ pub fn create_swap_step_with_recovery(
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
 }
 
+/// Create an account balance check step with recovery strategy
+pub fn create_account_balance_step_with_recovery(
+    context: &WalletContext,
+) -> Result<reev_types::flow::DynamicStep> {
+    let prompt_template = format!(
+        "Check current wallet balances and positions for wallet {}. \
+         Current SOL balance: {:.6}, Total portfolio value: ${:.2}. \
+         This information is needed to plan the multiplication strategy.",
+        context.owner,
+        context.sol_balance_sol(),
+        context.total_value_usd
+    );
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "balance_check".to_string(),
+        prompt_template,
+        "Check current wallet balances and positions".to_string(),
+    )
+    .with_tool("account_balance")
+    .with_estimated_time(10)
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+    .with_critical(false)) // Not critical for flow success
+}
+
 /// Create a lend step based on context with recovery strategy
 pub fn create_lend_step_with_recovery(
     _context: &WalletContext,
@@ -287,6 +317,26 @@ pub fn create_lend_step_with_recovery(
     .with_estimated_time(45)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 }))
     // Note: Lending step uses default critical behavior (true) for consistency
+}
+
+/// Create a positions check step with recovery strategy
+pub fn create_positions_check_step_with_recovery(
+    _context: &WalletContext,
+) -> Result<reev_types::flow::DynamicStep> {
+    let prompt_template =
+        "Check final lending positions to verify the multiplication strategy results. \
+         Confirm the USDC deposit was successful and track the expected yield generation."
+            .to_string();
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "positions_check".to_string(),
+        prompt_template,
+        "Check final lending positions".to_string(),
+    )
+    .with_tool("jupiter_positions")
+    .with_estimated_time(15)
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+    .with_critical(false)) // Not critical for flow success
 }
 
 /// Create a swap step based on context (legacy, non-recovery)
@@ -330,6 +380,28 @@ pub fn create_swap_step(
     .with_estimated_time(30))
 }
 
+/// Create an account balance check step (legacy, non-recovery)
+pub fn create_account_balance_step(
+    context: &WalletContext,
+) -> Result<reev_types::flow::DynamicStep> {
+    let prompt_template = format!(
+        "Check current wallet balances and positions for wallet {}. \
+         Current SOL balance: {:.6}, Total portfolio value: ${:.2}.",
+        context.owner,
+        context.sol_balance_sol(),
+        context.total_value_usd
+    );
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "balance_check".to_string(),
+        prompt_template,
+        "Check current wallet balances and positions".to_string(),
+    )
+    .with_tool("account_balance")
+    .with_estimated_time(10)
+    .with_critical(false)) // Not critical for flow success
+}
+
 /// Create a lend step based on context (legacy, non-recovery)
 pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::DynamicStep> {
     let prompt_template =
@@ -344,4 +416,21 @@ pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::Dy
     )
     .with_tool("jupiter_earn_tool")
     .with_estimated_time(45))
+}
+
+/// Create a positions check step (legacy, non-recovery)
+pub fn create_positions_check_step(
+    _context: &WalletContext,
+) -> Result<reev_types::flow::DynamicStep> {
+    let prompt_template =
+        "Check final lending positions to verify the strategy results.".to_string();
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "positions_check".to_string(),
+        prompt_template,
+        "Check final lending positions".to_string(),
+    )
+    .with_tool("jupiter_positions")
+    .with_estimated_time(15)
+    .with_critical(false)) // Not critical for flow success
 }

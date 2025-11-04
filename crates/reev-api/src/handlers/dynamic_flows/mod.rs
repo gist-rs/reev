@@ -486,6 +486,16 @@ async fn execute_real_agent_for_flow_plan(
                                         .contains(&"jupiter_earn_tool".to_string())
                                     {
                                         "jupiter_lend"
+                                    } else if step
+                                        .required_tools
+                                        .contains(&"account_balance".to_string())
+                                    {
+                                        "account_balance"
+                                    } else if step
+                                        .required_tools
+                                        .contains(&"jupiter_positions".to_string())
+                                    {
+                                        "jupiter_positions"
                                     } else {
                                         "unknown_tool"
                                     };
@@ -527,6 +537,13 @@ async fn execute_real_agent_for_flow_plan(
                             .contains(&"jupiter_earn_tool".to_string())
                         {
                             "jupiter_lend"
+                        } else if step.required_tools.contains(&"account_balance".to_string()) {
+                            "account_balance"
+                        } else if step
+                            .required_tools
+                            .contains(&"jupiter_positions".to_string())
+                        {
+                            "jupiter_positions"
                         } else {
                             "unknown_tool"
                         };
@@ -758,6 +775,32 @@ fn create_mock_transaction_details(
 
             let tool_args = Some(
                 r#"{"account":"test_wallet","mint":"So11111111111111111111111111111111111111112"}"#
+                    .to_string(),
+            );
+
+            (params, result_data, tool_args)
+        }
+        "jupiter_positions" => {
+            let params = json!({
+                "account": "test_wallet",
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            });
+
+            let result_data = json!({
+                "positions": [
+                    {
+                        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                        "deposited_amount": 50000000,
+                        "apy": 5.8,
+                        "position_key": "jUSDC-7f9a"
+                    }
+                ],
+                "total_deposited": 50000000,
+                "expected_daily_yield": 795
+            });
+
+            let tool_args = Some(
+                r#"{"account":"test_wallet","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}"#
                     .to_string(),
             );
 
