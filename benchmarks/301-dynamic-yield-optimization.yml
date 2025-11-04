@@ -1,0 +1,90 @@
+id: 301-dynamic-yield-optimization
+description: Dynamic flow optimization - Agent analyzes wallet, finds best yield strategy using 50% of SOL to maximize USDC returns through Jupiter lending with current market rates.
+tags:
+  ["dynamic", "yield", "optimization", "jupiter", "percentages", "ai-decision"]
+
+initial_state:
+  # User's main wallet with substantial SOL for optimization
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 8000000000 # 8 SOL
+
+  # User's existing USDC position (smaller amount)
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "25000000" # 25 USDC existing
+
+prompt: "Use my 50% SOL to maximize my USDC returns through Jupiter lending. Please check current market rates, calculate optimal strategy, and execute the best yield approach for my remaining portfolio. I want to maximize my USD value while managing risk appropriately."
+
+ground_truth:
+  min_score: 0.7
+
+  final_state_assertions:
+    # Should have approximately 4 SOL remaining (50% used + fees)
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_gte: -400500000 # Approx 4 SOL + fees
+      weight: 0.3
+
+    # Should have significantly more USDC (existing 25M + new from 4 SOL)
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected_gte: 85000000 # ~85 USDC total (25 existing + ~60 from swap)
+      weight: 0.4
+
+    # Should have jUSDC lending position if optimal
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_gte: 40000000 # ~40 USDC in lending
+      weight: 0.3
+
+  expected_api_calls:
+    - service: "jupiter_prices"
+      method: "GET"
+      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+      weight: 0.15
+      critical: true
+
+    - service: "jupiter_lend_rates"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
+      weight: 0.15
+      critical: true
+
+  success_criteria:
+    - type: "context_resolution"
+      description: "Agent should resolve wallet context and current market rates"
+      required: true
+      weight: 0.2
+
+    - type: "percentage_calculation"
+      description: "Correctly calculate and use 50% of SOL balance"
+      required: true
+      weight: 0.2
+
+    - type: "yield_optimization"
+      description: "Agent should analyze yield options and choose optimal strategy"
+      required: true
+      weight: 0.3
+
+    - type: "multi_step_execution"
+      description: "Execute swap and lending operations in correct sequence"
+      required: true
+      weight: 0.3
+
+  expected_data_structure:
+    - path: "$.result.data.wallet_balance"
+      type: "object"
+      weight: 0.1
+    - path: "$.result.data.token_prices"
+      type: "object"
+      weight: 0.1
+    - path: "$.result.data.flow_plan"
+      type: "array"
+      min_items: 2
+      weight: 0.2

@@ -1,0 +1,173 @@
+id: 304-emergency-exit-strategy
+description: Dynamic emergency exit strategy - Agent detects market stress conditions and implements protective exit strategy for all positions, prioritizing capital preservation through rapid liquidation and stable asset conversion.
+tags:
+  [
+    "dynamic",
+    "emergency",
+    "risk-management",
+    "exit-strategy",
+    "capital-preservation",
+    "market-stress",
+  ]
+
+initial_state:
+  # User's main wallet with positions that need emergency protection
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 2000000000 # 2 SOL
+
+  # User's USDC position - moderate amount
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "80000000" # 80 USDC
+
+  # User's jUSDC lending position that needs emergency withdrawal
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9"
+    data:
+      jUSDC_balance: "120000000" # 120 jUSDC in lending
+
+prompt: "I need an emergency exit strategy for all my positions due to market stress. Please immediately analyze my current holdings, withdraw all lending positions, convert risky assets to stable ones, and preserve capital. Focus on speed and capital preservation over optimization."
+
+ground_truth:
+  min_score: 0.8
+
+  final_state_assertions:
+    # Should have withdrawn all lending positions
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_lte: 1000 # Near-zero lending positions
+      weight: 0.3
+
+    # Should have consolidated USDC position (existing + withdrawn + converted)
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected_gte: 150000000 # At least 150 USDC (80 existing + 70 from conversions)
+      weight: 0.4
+
+    # Should maintain minimal SOL for fees
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_gte: 500000000 # At least 0.5 SOL for transaction fees
+      weight: 0.2
+
+    # Should have high liquidity ratio
+    - type: LiquidityRatio
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_gte: 0.85 # 85%+ in stable/liquid assets
+      weight: 0.1
+
+  expected_api_calls:
+    - service: "jupiter_positions"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+      weight: 0.1
+      critical: true
+
+    - service: "jupiter_withdraw"
+      method: "POST"
+      endpoint_pattern: "jup.ag/lend/v1/withdraw"
+      weight: 0.15
+      critical: true
+
+    - service: "jupiter_prices"
+      method: "GET"
+      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+      weight: 0.1
+
+    - service: "jupiter_swap"
+      method: "POST"
+      endpoint_pattern: "jup.ag/api/v6/swap"
+      weight: 0.15
+      critical: true
+
+  success_criteria:
+    - type: "emergency_detection"
+      description: "Agent should recognize emergency context and act accordingly"
+      required: true
+      weight: 0.2
+
+    - type: "position_liquidation"
+      description: "Successfully withdraw all lending positions"
+      required: true
+      weight: 0.25
+
+    - type: "asset_consolidation"
+      description: "Convert volatile assets to stable ones"
+      required: true
+      weight: 0.25
+
+    - type: "capital_preservation"
+      description: "Prioritize capital preservation over optimization"
+      required: true
+      weight: 0.2
+
+    - type: "speed_execution"
+      description: "Execute emergency strategy quickly and efficiently"
+      required: true
+      weight: 0.1
+
+  expected_data_structure:
+    - path: "$.result.data.emergency_analysis"
+      type: "object"
+      required_fields:
+        ["market_stress_level", "positions_at_risk", "recommended_actions"]
+      weight: 0.2
+
+    - path: "$.result.data.exit_plan"
+      type: "array"
+      min_items: 2
+      required_fields: ["action", "priority", "expected_outcome"]
+      weight: 0.2
+
+    - path: "$.result.data.liquidation_steps"
+      type: "array"
+      min_items: 1
+      weight: 0.15
+
+    - path: "$.result.data.capital_preservation_metrics"
+      type: "object"
+      required_fields: ["total_preserved", "liquidity_ratio", "emergency_fund"]
+      weight: 0.15
+
+    - path: "$.result.data.execution_results"
+      type: "array"
+      min_items: 1
+      required_fields: ["action_type", "success", "capital_preserved"]
+      weight: 0.2
+
+  expected_flow_complexity:
+    - type: "multi_step_coordination"
+      description: "Should coordinate position analysis → withdrawal → conversion"
+      min_steps: 2
+      weight: 0.2
+
+    - type: "conditional_logic"
+      description: "Should adapt strategy based on position analysis"
+      required: true
+      weight: 0.15
+
+    - type: "timeout_handling"
+      description: "Should handle urgent execution with appropriate timeouts"
+      max_timeout_per_step: 15
+      weight: 0.15
+
+  recovery_expectations:
+    - type: "recovery_enabled"
+      description: "Should have recovery mechanisms for failed steps"
+      required: true
+      weight: 0.1
+
+    - type: "fallback_strategies"
+      description: "Should have alternative exit routes if primary fails"
+      required: true
+      weight: 0.1
+
+    - type: "atomic_execution"
+      description: "Emergency strategy should execute atomically"
+      required: true
+      weight: 0.1

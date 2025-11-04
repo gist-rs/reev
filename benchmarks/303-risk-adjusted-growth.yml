@@ -1,0 +1,127 @@
+id: 303-risk-adjusted-growth
+description: Dynamic risk-adjusted growth strategy - Agent implements capital preservation with growth, using 30% of SOL for controlled USDC exposure and Jupiter lending with conservative parameters.
+tags:
+  [
+    "dynamic",
+    "risk-management",
+    "capital-preservation",
+    "jupiter",
+    "conservative",
+    "growth",
+  ]
+
+initial_state:
+  # User's main wallet - portfolio requiring preservation focus
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 6000000000 # 6 SOL
+
+  # User's existing USDC position for risk assessment
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "50000000" # 50 USDC existing
+
+prompt: "I want to implement a risk-adjusted growth strategy using 30% of my SOL. Please preserve most of my capital while generating some yield through conservative Jupiter lending. Analyze current market conditions and implement a strategy that prioritizes capital preservation with moderate growth. Keep enough SOL for transaction fees and emergencies."
+
+ground_truth:
+  min_score: 0.75
+
+  final_state_assertions:
+    # Should preserve ~70% of SOL (4.2 SOL remaining)
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_lte: -180500000 # Should not use more than 30% (~1.8 SOL + fees)
+      weight: 0.35
+
+    # Should increase USDC position conservatively
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected_gte: 70000000 # At least 70 USDC total (50 existing + ~20 from swap)
+      expected_lte: 90000000 # Not too aggressive, max ~90 USDC
+      weight: 0.3
+
+    # Should have conservative lending position
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_gte: 20000000 # At least 20 USDC in lending
+      expected_lte: 40000000 # Not too aggressive, max ~40 USDC
+      weight: 0.25
+
+    # Should maintain liquidity buffer
+    - type: SolBalance
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_gte: 3500000000 # At least 3.5 SOL for fees/emergencies
+      weight: 0.1
+
+  expected_api_calls:
+    - service: "jupiter_prices"
+      method: "GET"
+      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+      weight: 0.15
+      critical: true
+
+    - service: "jupiter_lend_rates"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
+      weight: 0.15
+      critical: true
+
+  success_criteria:
+    - type: "risk_assessment"
+      description: "Agent should assess risk tolerance and implement conservative strategy"
+      required: true
+      weight: 0.25
+
+    - type: "percentage_discipline"
+      description: "Correctly calculate and use exactly 30% of SOL balance"
+      required: true
+      weight: 0.2
+
+    - type: "capital_preservation"
+      description: "Maintain majority of SOL for liquidity and emergencies"
+      required: true
+      weight: 0.25
+
+    - type: "conservative_yield"
+      description: "Implement conservative lending strategy with moderate returns"
+      required: true
+      weight: 0.2
+
+    - type: "market_analysis"
+      description: "Analyze current conditions for informed decision-making"
+      required: true
+      weight: 0.1
+
+  expected_data_structure:
+    - path: "$.result.data.risk_analysis"
+      type: "object"
+      required_fields:
+        ["risk_tolerance", "capital_preservation_ratio", "growth_target"]
+      weight: 0.2
+
+    - path: "$.result.data.portfolio_allocation"
+      type: "object"
+      required_fields:
+        ["sol_percentage", "usdc_percentage", "lending_percentage"]
+      weight: 0.2
+
+    - path: "$.result.data.growth_strategy"
+      type: "object"
+      required_fields: ["swap_amount", "lend_amount", "liquidity_buffer"]
+      weight: 0.2
+
+    - path: "$.result.data.execution_plan"
+      type: "array"
+      min_items: 2
+      weight: 0.2
+
+    - path: "$.result.data.market_conditions"
+      type: "object"
+      required_fields:
+        ["price_volatility", "lending_rates", "recommended_approach"]
+      weight: 0.2

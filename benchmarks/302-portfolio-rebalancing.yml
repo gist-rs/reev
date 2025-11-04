@@ -1,0 +1,118 @@
+id: 302-portfolio-rebalancing
+description: Dynamic portfolio rebalancing - Agent analyzes current holdings, calculates optimal allocation between SOL and USDC based on market conditions, and executes rebalancing trades through Jupiter.
+tags:
+  [
+    "dynamic",
+    "rebalancing",
+    "portfolio",
+    "jupiter",
+    "market-analysis",
+    "risk-management",
+  ]
+
+initial_state:
+  # User's main wallet with mixed holdings
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 3000000000 # 3 SOL
+
+  # User's USDC position - substantial amount for rebalancing
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "150000000" # 150 USDC
+
+prompt: "I want to rebalance my portfolio based on current market conditions. Please analyze my current holdings (SOL and USDC), check current market prices and Jupiter lending rates, then execute optimal rebalancing to maximize returns while maintaining some liquidity. I'm comfortable with moderate risk and want to optimize for yield."
+
+ground_truth:
+  min_score: 0.7
+
+  final_state_assertions:
+    # SOL balance should change based on rebalancing decision
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      # Should either increase (selling USDC for SOL) or decrease (selling SOL for USDC)
+      expected_change_not_zero: true
+      weight: 0.25
+
+    # USDC balance should be rebalanced
+    - type: TokenAccountBalanceChange
+      pubkey: "USER_USDC_ATA"
+      expected_change_not_zero: true
+      weight: 0.25
+
+    # Should have some lending position if yield is optimal
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_gte: 10000000 # At least 10 USDC in lending if optimal
+      weight: 0.25
+
+    # Total portfolio value should increase or be optimized
+    - type: TotalPortfolioValue
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_gte: 250000000 # At least maintain or increase portfolio value
+      weight: 0.25
+
+  expected_api_calls:
+    - service: "jupiter_prices"
+      method: "GET"
+      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+      weight: 0.15
+      critical: true
+
+    - service: "jupiter_lend_rates"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
+      weight: 0.15
+      critical: true
+
+    - service: "jupiter_positions"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+      weight: 0.1
+
+  success_criteria:
+    - type: "portfolio_analysis"
+      description: "Agent should analyze current holdings and calculate portfolio allocation"
+      required: true
+      weight: 0.25
+
+    - type: "market_conditions_assessment"
+      description: "Agent should check current prices and lending rates"
+      required: true
+      weight: 0.25
+
+    - type: "rebalancing_execution"
+      description: "Execute trades to achieve optimal portfolio allocation"
+      required: true
+      weight: 0.3
+
+    - type: "risk_management"
+      description: "Maintain appropriate liquidity and manage risk levels"
+      required: true
+      weight: 0.2
+
+  expected_data_structure:
+    - path: "$.result.data.current_portfolio"
+      type: "object"
+      required_fields: ["sol_balance", "usdc_balance", "total_value_usd"]
+      weight: 0.15
+
+    - path: "$.result.data.market_analysis"
+      type: "object"
+      required_fields: ["sol_price", "usdc_rate", "recommended_allocation"]
+      weight: 0.15
+
+    - path: "$.result.data.rebalancing_plan"
+      type: "array"
+      min_items: 1
+      weight: 0.2
+
+    - path: "$.result.data.execution_steps"
+      type: "array"
+      min_items: 1
+      weight: 0.2

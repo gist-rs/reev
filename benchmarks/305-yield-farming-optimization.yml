@@ -1,0 +1,213 @@
+id: 305-yield-farming-optimization
+description: Advanced dynamic yield farming optimization - Agent analyzes multiple Jupiter lending pools, compares APYs, and implements optimal yield farming strategy using 70% of available capital with auto-compounding considerations.
+tags:
+  [
+    "dynamic",
+    "yield-farming",
+    "multi-pool",
+    "apy-optimization",
+    "jupiter",
+    "auto-compounding",
+    "advanced",
+  ]
+
+initial_state:
+  # User's main wallet with significant capital for yield farming
+  - pubkey: "USER_WALLET_PUBKEY"
+    owner: "11111111111111111111111111111111"
+    lamports: 10000000000 # 10 SOL
+
+  # User's existing USDC position for diversification
+  - pubkey: "USER_USDC_ATA"
+    owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    lamports: 2039280
+    data:
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      owner: "USER_WALLET_PUBKEY"
+      amount: "100000000" # 100 USDC existing
+
+prompt: "I want to optimize my yield farming strategy using 70% of my available capital. Please analyze all Jupiter lending pools, compare current APYs, and implement the best multi-pool strategy for maximum returns. Consider auto-compounding opportunities and risk diversification across different tokens. Optimize for long-term yield growth."
+
+ground_truth:
+  min_score: 0.75
+
+  final_state_assertions:
+    # Should use ~70% of capital (7 SOL + 70M USDC)
+    - type: SolBalanceChange
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_change_lte: -700500000 # Should not use more than 70% (~7 SOL + fees)
+      weight: 0.2
+
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      expected_lte: 30000000 # Should not use more than 70% of USDC
+      weight: 0.2
+
+    # Should have diversified lending positions across multiple pools
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_gte: 40000000 # At least 40 USDC in USDC lending
+      weight: 0.15
+
+    - type: JupiterLendingPosition
+      pubkey: "USER_WALLET_PUBKEY"
+      mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNY"
+      expected_gte: 500000000 # At least 5 SOL in SOL lending
+      weight: 0.15
+
+    - type: MultiPoolDiversification
+      pubkey: "USER_WALLET_PUBKEY"
+      min_pools: 2
+      max_pools: 4
+      weight: 0.15
+
+    # Should maintain 30% capital for opportunities/emergencies
+    - type: CapitalReserve
+      pubkey: "USER_WALLET_PUBKEY"
+      expected_gte: 3000000000 # At least 3 SOL + 30M USDC reserved
+      weight: 0.15
+
+  expected_api_calls:
+    - service: "jupiter_all_pools"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/pools"
+      weight: 0.1
+      critical: true
+
+    - service: "jupiter_lend_rates"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
+      weight: 0.1
+      critical: true
+
+    - service: "jupiter_prices"
+      method: "GET"
+      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+      weight: 0.1
+      critical: true
+
+    - service: "jupiter_positions"
+      method: "GET"
+      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+      weight: 0.05
+
+  success_criteria:
+    - type: "pool_analysis"
+      description: "Agent should analyze all available Jupiter lending pools"
+      required: true
+      weight: 0.2
+
+    - type: "apy_comparison"
+      description: "Compare and rank pools by APY and risk factors"
+      required: true
+      weight: 0.2
+
+    - type: "multi_pool_strategy"
+      description: "Implement diversified strategy across multiple high-yield pools"
+      required: true
+      weight: 0.25
+
+    - type: "capital_allocation"
+      description: "Optimal allocation of 70% capital across pools"
+      required: true
+      weight: 0.15
+
+    - type: "auto_compounding_consideration"
+      description: "Consider auto-compounding opportunities in strategy"
+      required: true
+      weight: 0.1
+
+    - type: "risk_diversification"
+      description: "Diversify across different token types and risk levels"
+      required: true
+      weight: 0.1
+
+  expected_data_structure:
+    - path: "$.result.data.pool_analysis"
+      type: "array"
+      min_items: 5
+      required_fields: ["token_symbol", "apy", "tvl", "risk_level"]
+      weight: 0.15
+
+    - path: "$.result.data.optimization_strategy"
+      type: "object"
+      required_fields:
+        ["total_capital", "allocation_percentage", "expected_apy", "risk_score"]
+      weight: 0.15
+
+    - path: "$.result.data.pool_allocations"
+      type: "array"
+      min_items: 2
+      required_fields: ["pool", "amount", "expected_yield", "risk_weight"]
+      weight: 0.2
+
+    - path: "$.result.data.execution_plan"
+      type: "array"
+      min_items: 3
+      required_fields: ["step", "action", "pool", "amount"]
+      weight: 0.2
+
+    - path: "$.result.data.compounding_schedule"
+      type: "object"
+      required_fields: ["frequency", "auto_compound", "expected_compound_apy"]
+      weight: 0.1
+
+    - path: "$.result.data.risk_metrics"
+      type: "object"
+      required_fields:
+        ["diversification_score", "concentration_risk", "volatility_adjustment"]
+      weight: 0.1
+
+  expected_flow_complexity:
+    - type: "multi_pool_coordination"
+      description: "Should coordinate operations across multiple lending pools"
+      min_steps: 3
+      weight: 0.2
+
+    - type: "apy_optimization_logic"
+      description: "Should implement mathematical APY optimization"
+      required: true
+      weight: 0.2
+
+    - type: "dynamic_allocation"
+      description: "Should adapt allocations based on real-time rates"
+      required: true
+      weight: 0.15
+
+    - type: "auto_compounding_integration"
+      description: "Should set up auto-compounding where available"
+      required: true
+      weight: 0.15
+
+  expected_yield_optimization:
+    - type: "target_apy_achievement"
+      description: "Should achieve target APY based on pool selection"
+      min_target_apy: 5.0 # 5% minimum APY target
+      weight: 0.2
+
+    - type: "capital_efficiency"
+      description: "Should optimize capital efficiency across pools"
+      min_efficiency: 0.8 # 80% capital efficiency
+      weight: 0.2
+
+    - type: "yield_diversification"
+      description: "Should diversify yield sources"
+      min_yield_sources: 2
+      weight: 0.15
+
+  recovery_expectations:
+    - type: "partial_failure_recovery"
+      description: "Should recover if some pool operations fail"
+      required: true
+      weight: 0.1
+
+    - type: "alternative_pool_fallback"
+      description: "Should have backup pool options"
+      required: true
+      weight: 0.1
+
+    - type: "allocation_rebalancing"
+      description: "Should rebalance if initial allocations fail"
+      required: true
+      weight: 0.1
