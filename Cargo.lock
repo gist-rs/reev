@@ -3751,6 +3751,7 @@ dependencies = [
  "ascii_tree",
  "axum",
  "chrono",
+ "dotenvy",
  "project-root",
  "reev-agent",
  "reev-db",

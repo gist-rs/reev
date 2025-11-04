@@ -61,11 +61,12 @@ impl LlmAgent {
                             )
                         }
                         "glm-4.6" => {
-                            // glm-4.6 uses OpenAI compatible format but with ZAI endpoint
+                            // glm-4.6 uses OpenAI compatible format with ZAI endpoint
+                            // Route through OpenAI client but with ZAI API URL
                             (
                                 std::env::var("LLM_API_URL")
                                     .unwrap_or_else(|_| "http://localhost:9090/gen/tx".to_string()),
-                                false,
+                                false, // Use OpenAI-compatible routing
                             )
                         }
                         _ => {
@@ -85,7 +86,7 @@ impl LlmAgent {
                     let model_name = agent_name.split('-').take(2).collect::<Vec<_>>().join("-");
 
                     // For glm-4.6-coding, don't pass API key to reev-agent (it will use ZAI_API_KEY internally)
-                    // For glm-4.6, pass the API key for OpenAI compatible calls
+                    // For glm-4.6, pass the API key for OpenAI compatible calls via OpenAI client
                     let api_key = if use_agent_endpoint {
                         None
                     } else {

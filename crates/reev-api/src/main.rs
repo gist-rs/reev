@@ -24,6 +24,9 @@ use crate::services::benchmark_executor::PooledBenchmarkExecutor;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+
     // Initialize tracing
     tracing_subscriber::registry()
         .with(

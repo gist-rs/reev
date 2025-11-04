@@ -85,10 +85,29 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
 
     // Route to appropriate enhanced agent based on model type
     if model_name.starts_with("glm-") {
+        info!("[run_agent] Routing GLM model: {}", model_name);
         if std::env::var("ZAI_API_KEY").is_ok() {
-            // All GLM models - use ZAIAgent with ZAI_API_KEY
-            info!("[run_agent] Using GLM model via ZAIAgent with ZAI_API_KEY");
-            ZAIAgent::run(model_name, payload, key_map).await
+            // Route GLM models to appropriate agent based on type
+            match model_name {
+                "glm-4.6" => {
+                    // glm-4.6 uses OpenAI-compatible format via OpenAI client with ZAI endpoint
+                    info!("[run_agent] ROUTING: glm-4.6 -> OpenAI client with ZAI endpoint");
+                    OpenAIAgent::run(model_name, payload, key_map).await
+                }
+                "glm-4.6-coding" => {
+                    // glm-4.6-coding uses ZAI-specific client
+                    info!("[run_agent] ROUTING: glm-4.6-coding -> ZAI client");
+                    ZAIAgent::run(model_name, payload, key_map).await
+                }
+                _ => {
+                    // Other GLM models default to ZAI client
+                    info!(
+                        "[run_agent] ROUTING: {} -> ZAI client (default)",
+                        model_name
+                    );
+                    ZAIAgent::run(model_name, payload, key_map).await
+                }
+            }
         } else {
             Err(anyhow::anyhow!(
                 "GLM model '{model_name}' requires ZAI_API_KEY environment variable"

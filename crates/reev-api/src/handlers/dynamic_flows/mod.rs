@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use tracing::{error, info, instrument, warn};
 
 use chrono::Utc;
 use reev_orchestrator::OrchestratorGateway;
@@ -15,7 +16,6 @@ use reev_types::{ExecutionResponse, ExecutionStatus};
 use serde_json::json;
 use std::time::Instant;
 use tokio::task;
-use tracing::{error, info, instrument};
 
 use crate::types::ApiState;
 use reev_agent::LlmRequest;
@@ -90,7 +90,7 @@ pub async fn execute_dynamic_flow(
                 "Dynamic flow execution completed successfully"
             );
 
-            // Execute real GLM-4.6 agent and capture actual tool calls
+            // Execute real glm-4.6 agent and capture actual tool calls
             let real_tool_calls = execute_real_agent_for_flow_plan(&flow_plan, &agent_type).await;
 
             // Store session log with tool calls for API visualization
@@ -344,7 +344,7 @@ pub async fn execute_recovery_flow(
     }
 }
 
-/// Execute real GLM-4.6 agent for flow plan and capture actual tool calls
+/// Execute real glm-4.6 agent for flow plan and capture actual tool calls
 async fn execute_real_agent_for_flow_plan(
     flow_plan: &reev_types::flow::DynamicFlowPlan,
     agent_type: &str,
@@ -396,8 +396,114 @@ async fn execute_real_agent_for_flow_plan(
     );
 
     // Execute agent based on type
+    info!(
+        "[RealExecution] DEBUG: agent_type='{}', checking match cases",
+        agent_type
+    );
     match agent_type {
-        "GLM-4.6" | "glm-4.6" | "glm-4.6-coding" => {
+        "glm-4.6" => {
+            // glm-4.6 uses OpenAI-compatible format via OpenAI client
+            info!(
+                "[RealExecution] MATCHED: glm-4.6 -> OpenAI client, agent_type='{}'",
+                agent_type
+            );
+            match reev_agent::enhanced::openai::OpenAIAgent::run(
+                agent_type,
+                llm_request,
+                HashMap::new(),
+            )
+            .await
+            {
+                Ok(response_str) => {
+                    info!("[RealExecution] OpenAI agent execution completed successfully");
+                    info!(
+                        "[RealExecution] Response length: {} chars",
+                        response_str.len()
+                    );
+
+                    // Parse response to extract tool execution details
+                    if let Ok(parsed_response) =
+                        serde_json::from_str::<serde_json::Value>(&response_str)
+                    {
+                        info!("[RealExecution] Successfully parsed agent response");
+
+                        // Extract transactions from response
+                        if let Some(transactions) = parsed_response
+                            .get("transactions")
+                            .and_then(|t| t.as_array())
+                        {
+                            info!(
+                                "[RealExecution] Found {} transactions in response",
+                                transactions.len()
+                            );
+
+                            for (index, tx) in transactions.iter().enumerate() {
+                                let tool_name = tx
+                                    .get("tool_name")
+                                    .and_then(|n| n.as_str())
+                                    .or_else(|| {
+                                        // Infer tool name from transaction content
+                                        if tx.get("swap").is_some() {
+                                            Some("jupiter_swap")
+                                        } else if tx.get("lend").is_some() {
+                                            Some("jupiter_lend")
+                                        } else {
+                                            Some("unknown_tool")
+                                        }
+                                    })
+                                    .unwrap_or("unknown_tool");
+
+                                let duration_ms = if index == 0 {
+                                    (chrono::Utc::now() - execution_start_time).num_milliseconds()
+                                        as u64
+                                } else {
+                                    3000 + (index as u64 * 1000) // Estimate for subsequent tools
+                                };
+
+                                // Extract real transaction details from response
+                                let (params, result_data, tool_args) =
+                                    extract_transaction_details(tx);
+
+                                let real_tool_call = reev_types::execution::ToolCallSummary {
+                                    tool_name: tool_name.to_string(),
+                                    timestamp: execution_start_time
+                                        + chrono::Duration::milliseconds(index as i64 * 2000),
+                                    duration_ms,
+                                    success: true,
+                                    error: None,
+                                    params: Some(params),
+                                    result_data: Some(result_data),
+                                    tool_args,
+                                };
+
+                                tool_calls.push(real_tool_call);
+                                info!(
+                                    "[RealExecution] Added tool call: {} ({}ms)",
+                                    tool_name, duration_ms
+                                );
+                            }
+                        } else {
+                            error!("[RealExecution] No transactions found in agent response");
+                            warn!("[RealExecution] Agent executed but returned no transactions - execution FAILED");
+                            // Return empty tool_calls - this will result in proper poor agent scoring
+                        }
+                    } else {
+                        error!("[RealExecution] Failed to parse agent response as JSON");
+                        warn!("[RealExecution] Agent response parsing failed - no tool execution data");
+                    }
+                }
+                Err(e) => {
+                    error!("[RealExecution] OpenAI agent execution failed: {}", e);
+                    error!("[RealExecution] Agent execution FAILED - will receive poor scoring");
+                    error!("[RealExecution] Check environment variables and agent configuration");
+                    // Return empty tool_calls - this will result in proper poor agent scoring
+                }
+            }
+        }
+        // Execute real glm-4.6-coding agent for flow plan and capture actual tool calls
+        "glm-4.6-coding" => {
+            // glm-4.6-coding uses ZAI-specific client
+            info!("[RealExecution] Using glm-4.6-coding via ZAI client");
             match reev_agent::enhanced::zai_agent::ZAIAgent::run(
                 agent_type,
                 llm_request,
@@ -474,51 +580,9 @@ async fn execute_real_agent_for_flow_plan(
                                 );
                             }
                         } else {
-                            info!("[RealExecution] No transactions found in response, using fallback tool detection");
-
-                            // Fallback: create tool calls based on flow plan steps
-                            for (index, step) in flow_plan.steps.iter().enumerate() {
-                                let tool_name =
-                                    if step.required_tools.contains(&"sol_tool".to_string()) {
-                                        "jupiter_swap"
-                                    } else if step
-                                        .required_tools
-                                        .contains(&"jupiter_earn_tool".to_string())
-                                    {
-                                        "jupiter_lend"
-                                    } else if step
-                                        .required_tools
-                                        .contains(&"account_balance".to_string())
-                                    {
-                                        "account_balance"
-                                    } else if step
-                                        .required_tools
-                                        .contains(&"jupiter_positions".to_string())
-                                    {
-                                        "jupiter_positions"
-                                    } else {
-                                        "unknown_tool"
-                                    };
-
-                                // Create realistic mock transaction data
-                                let (params, result_data, tool_args) =
-                                    create_mock_transaction_details(tool_name);
-
-                                let real_tool_call = reev_types::execution::ToolCallSummary {
-                                    tool_name: tool_name.to_string(),
-                                    timestamp: execution_start_time
-                                        + chrono::Duration::milliseconds(index as i64 * 2000),
-                                    duration_ms: 3000 + (index as u64 * 1000),
-                                    success: true,
-                                    error: None,
-                                    params: Some(params),
-                                    result_data: Some(result_data),
-                                    tool_args,
-                                };
-
-                                tool_calls.push(real_tool_call);
-                                info!("[RealExecution] Added fallback tool call: {}", tool_name);
-                            }
+                            error!("[RealExecution] No transactions found in agent response");
+                            warn!("[RealExecution] Agent executed but returned no transactions - execution FAILED");
+                            // Return empty tool_calls - this will result in proper poor agent scoring
                         }
                     } else {
                         error!("[RealExecution] Failed to parse agent response as JSON");
@@ -527,85 +591,19 @@ async fn execute_real_agent_for_flow_plan(
                 }
                 Err(e) => {
                     error!("[RealExecution] ZAIAgent execution failed: {}", e);
-                    // Fallback to mock data when real execution fails
-                    info!("[RealExecution] Using fallback logic due to execution failure");
-                    for (index, step) in flow_plan.steps.iter().enumerate() {
-                        let tool_name = if step.required_tools.contains(&"sol_tool".to_string()) {
-                            "jupiter_swap"
-                        } else if step
-                            .required_tools
-                            .contains(&"jupiter_earn_tool".to_string())
-                        {
-                            "jupiter_lend"
-                        } else if step.required_tools.contains(&"account_balance".to_string()) {
-                            "account_balance"
-                        } else if step
-                            .required_tools
-                            .contains(&"jupiter_positions".to_string())
-                        {
-                            "jupiter_positions"
-                        } else {
-                            "unknown_tool"
-                        };
-
-                        // Create realistic mock transaction data for fallback
-                        let (params, result_data, tool_args) =
-                            create_mock_transaction_details(tool_name);
-
-                        let fallback_tool_call = reev_types::execution::ToolCallSummary {
-                            tool_name: tool_name.to_string(),
-                            timestamp: execution_start_time
-                                + chrono::Duration::milliseconds(index as i64 * 2000),
-                            duration_ms: 3000 + (index as u64 * 1000),
-                            success: true,
-                            error: None,
-                            params: Some(params),
-                            result_data: Some(result_data),
-                            tool_args,
-                        };
-
-                        tool_calls.push(fallback_tool_call);
-                        info!("[RealExecution] Added fallback tool call: {}", tool_name);
-                    }
+                    error!("[RealExecution] Agent execution FAILED - will receive poor scoring");
+                    error!("[RealExecution] Check environment variables and agent configuration");
+                    // Return empty tool_calls - this will result in proper poor agent scoring
                 }
             }
         }
         _ => {
-            info!(
-                "[RealExecution] Agent type '{}' not supported for real execution, using fallback",
+            error!("[RealExecution] Unsupported agent type: {}", agent_type);
+            error!(
+                "[RealExecution] Agent '{}' is not supported - no execution possible",
                 agent_type
             );
-
-            // Fallback to mock data for unsupported agents
-            for (index, step) in flow_plan.steps.iter().enumerate() {
-                let tool_name = if step.required_tools.contains(&"sol_tool".to_string()) {
-                    "jupiter_swap"
-                } else if step
-                    .required_tools
-                    .contains(&"jupiter_earn_tool".to_string())
-                {
-                    "jupiter_lend"
-                } else {
-                    "unknown_tool"
-                };
-
-                // Create realistic mock transaction data for unsupported agents
-                let (params, result_data, tool_args) = create_mock_transaction_details(tool_name);
-
-                let fallback_tool_call = reev_types::execution::ToolCallSummary {
-                    tool_name: tool_name.to_string(),
-                    timestamp: execution_start_time
-                        + chrono::Duration::milliseconds(index as i64 * 2000),
-                    duration_ms: 3000 + (index as u64 * 1000),
-                    success: true,
-                    error: None,
-                    params: Some(params),
-                    result_data: Some(result_data),
-                    tool_args,
-                };
-
-                tool_calls.push(fallback_tool_call);
-            }
+            // Return empty tool_calls - this will result in proper poor agent scoring
         }
     }
 
@@ -718,103 +716,10 @@ fn extract_transaction_details(
     (params, result_data, tool_args)
 }
 
-/// Create realistic mock transaction details for fallback scenarios
-fn create_mock_transaction_details(
-    tool_name: &str,
-) -> (serde_json::Value, serde_json::Value, Option<String>) {
-    use serde_json::json;
-
-    match tool_name {
-        "jupiter_swap" => {
-            let params = json!({
-                "input_mint": "So11111111111111111111111111111111111111112",
-                "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "amount": 500000000,
-                "slippage": 100
-            });
-
-            let result_data = json!({
-                "signature": format!("5XJ3X{}...", uuid::Uuid::new_v4().to_string()[..8].to_uppercase()),
-                "input_amount": 500000000,
-                "output_amount": 75230000,
-                "impact": 2.3
-            });
-
-            let tool_args = Some(r#"{"inputMint":"So11111111111111111111111111111111111111112","outputMint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","inputAmount":500000000,"slippageBps":100}"#.to_string());
-
-            (params, result_data, tool_args)
-        }
-        "jupiter_lend" => {
-            let params = json!({
-                "action": "deposit",
-                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "amount": 50000000,
-                "reserve_id": "USDC-Reserve"
-            });
-
-            let result_data = json!({
-                "signature": format!("3YK4Y{}...", uuid::Uuid::new_v4().to_string()[..8].to_uppercase()),
-                "deposited": 50000000,
-                "apy": 5.8
-            });
-
-            let tool_args = Some(r#"{"action":"deposit","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","amount":50000000}"#.to_string());
-
-            (params, result_data, tool_args)
-        }
-        "account_balance" => {
-            let params = json!({
-                "account": "test_wallet",
-                "mint": "So11111111111111111111111111111111111111112"
-            });
-
-            let result_data = json!({
-                "balance": 1500000000,
-                "usdc_balance": 25000000
-            });
-
-            let tool_args = Some(
-                r#"{"account":"test_wallet","mint":"So11111111111111111111111111111111111111112"}"#
-                    .to_string(),
-            );
-
-            (params, result_data, tool_args)
-        }
-        "jupiter_positions" => {
-            let params = json!({
-                "account": "test_wallet",
-                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-            });
-
-            let result_data = json!({
-                "positions": [
-                    {
-                        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                        "deposited_amount": 50000000,
-                        "apy": 5.8,
-                        "position_key": "jUSDC-7f9a"
-                    }
-                ],
-                "total_deposited": 50000000,
-                "expected_daily_yield": 795
-            });
-
-            let tool_args = Some(
-                r#"{"account":"test_wallet","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}"#
-                    .to_string(),
-            );
-
-            (params, result_data, tool_args)
-        }
-        _ => {
-            let params = json!({"tool": tool_name});
-            let result_data = json!({"status": "completed"});
-            let tool_args = Some(format!(r#"{{"tool":"{tool_name}"}}"#));
-
-            (params, result_data, tool_args)
-        }
-    }
-}
+// NOTE: Mock transaction details function completely removed from production code
+// Mock data should NEVER be used in production - only in test files
+// Production code must handle real agent execution failures properly
+// by returning empty results, which leads to proper agent scoring
 
 /// Get recovery metrics
 #[instrument(skip_all)]
