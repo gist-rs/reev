@@ -58,18 +58,30 @@ ground_truth:
       expected_gte: 3500000000 # At least 3.5 SOL for fees/emergencies
       weight: 0.1
 
-  expected_api_calls:
-    - service: "jupiter_prices"
-      method: "GET"
-      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and assess total portfolio"
+      critical: false
+      expected_params: ["wallet_pubkey"]
       weight: 0.15
-      critical: true
 
-    - service: "jupiter_lend_rates"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
-      weight: 0.15
+    - tool_name: "jupiter_swap"
+      description: "Swap 30% of SOL to USDC for conservative growth"
       critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.3
+
+    - tool_name: "jupiter_lend"
+      description: "Deposit USDC into Jupiter lending with conservative parameters"
+      critical: true
+      expected_params: ["mint", "amount"]
+      weight: 0.3
+
+    - tool_name: "jupiter_positions"
+      description: "Validate final lending positions and risk exposure"
+      critical: false
+      expected_params: ["user_pubkey"]
+      weight: 0.15
 
   success_criteria:
     - type: "risk_assessment"
@@ -102,26 +114,93 @@ ground_truth:
       type: "object"
       required_fields:
         ["risk_tolerance", "capital_preservation_ratio", "growth_target"]
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.portfolio_allocation"
       type: "object"
       required_fields:
         ["sol_percentage", "usdc_percentage", "lending_percentage"]
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.growth_strategy"
       type: "object"
       required_fields: ["swap_amount", "lend_amount", "liquidity_buffer"]
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.execution_plan"
       type: "array"
       min_items: 2
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.market_conditions"
       type: "object"
       required_fields:
         ["price_volatility", "lending_rates", "recommended_approach"]
+      weight: 0.1
+
+    - path: "$.result.data.tool_calls"
+      type: "array"
+      min_items: 3
+      required_fields: ["tool_name", "parameters", "success"]
+      weight: 0.15
+
+  expected_flow_complexity:
+    - type: "multi_step_execution"
+      description: "Should execute risk analysis → conservative swap → lend sequence"
+      min_steps: 3
+      weight: 0.3
+
+    - type: "context_awareness"
+      description: "Should analyze portfolio for risk assessment"
+      required: true
+      weight: 0.3
+
+    - type: "strategic_planning"
+      description: "Should plan conservative growth with capital preservation"
+      required: true
+      weight: 0.4
+
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all risk-adjusted growth tool calls"
+      required_tools:
+        ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Flow execution should be traceable end-to-end"
+      required_spans:
+        ["prompt_processing", "risk_analysis", "conservative_execution"]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from risk-aware sequence"
+      required: true
       weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and risk metrics"
+      required_metrics:
+        ["execution_time_ms", "tool_call_count", "capital_preservation_ratio"]
+      weight: 0.2
+
+  recovery_expectations:
+    - type: "risk_analysis_failure_recovery"
+      description: "Should recover from failed risk analysis with conservative defaults"
+      required: true
+      weight: 0.2
+
+    - type: "conservative_swap_failure_recovery"
+      description: "Should recover from failed swap with smaller amounts"
+      required: true
+      weight: 0.2
+
+    - type: "atomic_execution"
+      description: "Risk-adjusted growth should execute atomically"
+      required: true
+      weight: 0.3
+
+    - type: "capital_preservation_priority"
+      description: "Should prioritize capital preservation over growth"
+      required: true
+      weight: 0.3

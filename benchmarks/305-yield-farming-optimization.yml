@@ -68,29 +68,42 @@ ground_truth:
       expected_gte: 3000000000 # At least 3 SOL + 30M USDC reserved
       weight: 0.15
 
-  expected_api_calls:
-    - service: "jupiter_all_pools"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/pools"
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and total available capital"
+      critical: false
+      expected_params: ["wallet_pubkey"]
       weight: 0.1
-      critical: true
 
-    - service: "jupiter_lend_rates"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
+    - tool_name: "jupiter_pools"
+      description: "Analyze all available Jupiter lending pools for yield optimization"
+      critical: true
+      expected_params: []
+      weight: 0.15
+
+    - tool_name: "jupiter_lend_rates"
+      description: "Compare current APY rates across all lending pools"
+      critical: true
+      expected_params: []
+      weight: 0.15
+
+    - tool_name: "jupiter_swap"
+      description: "Convert tokens to optimal allocation for yield farming"
+      critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.2
+
+    - tool_name: "jupiter_lend"
+      description: "Deposit capital into optimized multi-pool yield strategy"
+      critical: true
+      expected_params: ["mint", "amount", "auto_compound"]
+      weight: 0.2
+
+    - tool_name: "jupiter_positions"
+      description: "Validate final diversified yield farming positions"
+      critical: false
+      expected_params: ["user_pubkey"]
       weight: 0.1
-      critical: true
-
-    - service: "jupiter_prices"
-      method: "GET"
-      endpoint_pattern: "quote-api.jup.ag/v6/quote"
-      weight: 0.1
-      critical: true
-
-    - service: "jupiter_positions"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
-      weight: 0.05
 
   success_criteria:
     - type: "pool_analysis"
@@ -157,28 +170,34 @@ ground_truth:
       type: "object"
       required_fields:
         ["diversification_score", "concentration_risk", "volatility_adjustment"]
+      weight: 0.05
+
+    - path: "$.result.data.tool_calls"
+      type: "array"
+      min_items: 5
+      required_fields: ["tool_name", "parameters", "success"]
       weight: 0.1
 
   expected_flow_complexity:
     - type: "multi_pool_coordination"
       description: "Should coordinate operations across multiple lending pools"
-      min_steps: 3
-      weight: 0.2
+      min_steps: 5
+      weight: 0.3
 
     - type: "apy_optimization_logic"
       description: "Should implement mathematical APY optimization"
       required: true
-      weight: 0.2
+      weight: 0.3
 
     - type: "dynamic_allocation"
       description: "Should adapt allocations based on real-time rates"
       required: true
-      weight: 0.15
+      weight: 0.2
 
     - type: "auto_compounding_integration"
       description: "Should set up auto-compounding where available"
       required: true
-      weight: 0.15
+      weight: 0.2
 
   expected_yield_optimization:
     - type: "target_apy_achievement"
@@ -196,18 +215,64 @@ ground_truth:
       min_yield_sources: 2
       weight: 0.15
 
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all yield farming optimization tool calls"
+      required_tools:
+        [
+          "account_balance",
+          "jupiter_pools",
+          "jupiter_lend_rates",
+          "jupiter_swap",
+          "jupiter_lend",
+          "jupiter_positions",
+        ]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Yield farming flow execution should be traceable end-to-end"
+      required_spans:
+        [
+          "prompt_processing",
+          "pool_analysis",
+          "apy_comparison",
+          "multi_pool_execution",
+        ]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from yield farming sequence"
+      required: true
+      weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and optimization metrics"
+      required_metrics:
+        ["execution_time_ms", "tool_call_count", "apy_optimization_score"]
+      weight: 0.2
+
   recovery_expectations:
-    - type: "partial_failure_recovery"
-      description: "Should recover if some pool operations fail"
+    - type: "pool_analysis_failure_recovery"
+      description: "Should recover from failed pool analysis with cached data"
       required: true
-      weight: 0.1
+      weight: 0.15
 
-    - type: "alternative_pool_fallback"
-      description: "Should have backup pool options"
+    - type: "apy_comparison_failure_recovery"
+      description: "Should recover from failed APY comparison with conservative defaults"
       required: true
-      weight: 0.1
+      weight: 0.15
 
-    - type: "allocation_rebalancing"
-      description: "Should rebalance if initial allocations fail"
+    - type: "multi_pool_failure_recovery"
+      description: "Should recover if some pool operations fail and redistribute"
       required: true
-      weight: 0.1
+      weight: 0.2
+
+    - type: "atomic_execution"
+      description: "Yield farming optimization should execute atomically"
+      required: true
+      weight: 0.25
+
+    - type: "optimization_fallback"
+      description: "Should fallback to simpler strategy if complex optimization fails"
+      required: true
+      weight: 0.25

@@ -114,3 +114,69 @@ ground_truth:
       min_items: 2
       required_fields: ["tool_name", "parameters", "success"]
       weight: 0.2
+
+  expected_flow_complexity:
+    - type: "multi_step_execution"
+      description: "Should execute swap → lend → optimization sequence"
+      min_steps: 2
+      weight: 0.3
+
+    - type: "context_awareness"
+      description: "Should analyze wallet context for yield optimization"
+      required: true
+      weight: 0.3
+
+    - type: "strategic_planning"
+      description: "Should plan optimal yield strategy based on market rates"
+      required: true
+      weight: 0.4
+
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all yield optimization tool calls"
+      required_tools:
+        ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Flow execution should be traceable end-to-end"
+      required_spans:
+        [
+          "prompt_processing",
+          "yield_analysis",
+          "swap_execution",
+          "lend_execution",
+        ]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from yield optimization sequence"
+      required: true
+      weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and yield metrics"
+      required_metrics:
+        ["execution_time_ms", "tool_call_count", "yield_optimization_score"]
+      weight: 0.2
+
+  recovery_expectations:
+    - type: "market_analysis_failure_recovery"
+      description: "Should recover from failed market analysis with cached rates"
+      required: true
+      weight: 0.2
+
+    - type: "swap_failure_recovery"
+      description: "Should recover from failed swap with alternative amounts"
+      required: true
+      weight: 0.2
+
+    - type: "atomic_execution"
+      description: "Yield optimization should execute atomically"
+      required: true
+      weight: 0.3
+
+    - type: "optimization_fallback"
+      description: "Should fallback to simpler strategy if complex optimization fails"
+      required: true
+      weight: 0.3

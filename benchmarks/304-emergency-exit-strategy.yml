@@ -61,29 +61,36 @@ ground_truth:
       expected_gte: 0.85 # 85%+ in stable/liquid assets
       weight: 0.1
 
-  expected_api_calls:
-    - service: "jupiter_positions"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
-      weight: 0.1
-      critical: true
-
-    - service: "jupiter_withdraw"
-      method: "POST"
-      endpoint_pattern: "jup.ag/lend/v1/withdraw"
-      weight: 0.15
-      critical: true
-
-    - service: "jupiter_prices"
-      method: "GET"
-      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and positions"
+      critical: false
+      expected_params: ["wallet_pubkey"]
       weight: 0.1
 
-    - service: "jupiter_swap"
-      method: "POST"
-      endpoint_pattern: "jup.ag/api/v6/swap"
-      weight: 0.15
+    - tool_name: "jupiter_positions"
+      description: "Identify all lending positions for emergency withdrawal"
       critical: true
+      expected_params: ["user_pubkey"]
+      weight: 0.15
+
+    - tool_name: "jupiter_withdraw"
+      description: "Emergency withdrawal from all lending positions"
+      critical: true
+      expected_params: ["mint", "amount"]
+      weight: 0.2
+
+    - tool_name: "jupiter_swap"
+      description: "Convert volatile assets to stable USDC"
+      critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.2
+
+    - tool_name: "jupiter_positions"
+      description: "Validate final position state after emergency exit"
+      critical: false
+      expected_params: ["user_pubkey"]
+      weight: 0.1
 
   success_criteria:
     - type: "emergency_detection"
@@ -116,58 +123,108 @@ ground_truth:
       type: "object"
       required_fields:
         ["market_stress_level", "positions_at_risk", "recommended_actions"]
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.exit_plan"
       type: "array"
-      min_items: 2
+      min_items: 3
       required_fields: ["action", "priority", "expected_outcome"]
-      weight: 0.2
+      weight: 0.15
 
     - path: "$.result.data.liquidation_steps"
       type: "array"
-      min_items: 1
-      weight: 0.15
+      min_items: 2
+      weight: 0.1
 
     - path: "$.result.data.capital_preservation_metrics"
       type: "object"
       required_fields: ["total_preserved", "liquidity_ratio", "emergency_fund"]
-      weight: 0.15
+      weight: 0.1
 
     - path: "$.result.data.execution_results"
       type: "array"
-      min_items: 1
+      min_items: 3
       required_fields: ["action_type", "success", "capital_preserved"]
-      weight: 0.2
+      weight: 0.1
+
+    - path: "$.result.data.tool_calls"
+      type: "array"
+      min_items: 4
+      required_fields: ["tool_name", "parameters", "success"]
+      weight: 0.15
 
   expected_flow_complexity:
     - type: "multi_step_coordination"
       description: "Should coordinate position analysis → withdrawal → conversion"
-      min_steps: 2
-      weight: 0.2
+      min_steps: 4
+      weight: 0.3
 
     - type: "conditional_logic"
       description: "Should adapt strategy based on position analysis"
       required: true
-      weight: 0.15
+      weight: 0.3
 
     - type: "timeout_handling"
       description: "Should handle urgent execution with appropriate timeouts"
       max_timeout_per_step: 15
-      weight: 0.15
+      weight: 0.2
+
+    - type: "emergency_prioritization"
+      description: "Should prioritize speed and capital preservation"
+      required: true
+      weight: 0.2
+
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all emergency exit tool calls"
+      required_tools:
+        [
+          "account_balance",
+          "jupiter_positions",
+          "jupiter_withdraw",
+          "jupiter_swap",
+        ]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Emergency flow execution should be traceable end-to-end"
+      required_spans:
+        [
+          "prompt_processing",
+          "position_analysis",
+          "emergency_withdrawal",
+          "asset_conversion",
+        ]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from emergency exit sequence"
+      required: true
+      weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and emergency response metrics"
+      required_metrics:
+        ["execution_time_ms", "tool_call_count", "capital_preservation_ratio"]
+      weight: 0.2
 
   recovery_expectations:
-    - type: "recovery_enabled"
-      description: "Should have recovery mechanisms for failed steps"
+    - type: "position_analysis_failure_recovery"
+      description: "Should recover from failed position analysis with conservative defaults"
       required: true
-      weight: 0.1
+      weight: 0.2
 
-    - type: "fallback_strategies"
-      description: "Should have alternative exit routes if primary fails"
+    - type: "withdrawal_failure_recovery"
+      description: "Should recover from failed withdrawal with retry mechanisms"
       required: true
-      weight: 0.1
+      weight: 0.2
 
     - type: "atomic_execution"
-      description: "Emergency strategy should execute atomically"
+      description: "Emergency exit should execute atomically"
       required: true
-      weight: 0.1
+      weight: 0.3
+
+    - type: "speed_priority_recovery"
+      description: "Should prioritize speed in recovery mechanisms"
+      required: true
+      weight: 0.3

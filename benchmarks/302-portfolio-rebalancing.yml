@@ -57,22 +57,29 @@ ground_truth:
       expected_gte: 250000000 # At least maintain or increase portfolio value
       weight: 0.25
 
-  expected_api_calls:
-    - service: "jupiter_prices"
-      method: "GET"
-      endpoint_pattern: "quote-api.jup.ag/v6/quote"
+  expected_tool_calls:
+    - tool_name: "account_balance"
+      description: "Check current wallet balances and positions"
+      critical: false
+      expected_params: ["wallet_pubkey"]
       weight: 0.15
-      critical: true
 
-    - service: "jupiter_lend_rates"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/rates"
-      weight: 0.15
+    - tool_name: "jupiter_swap"
+      description: "Execute rebalancing swaps through Jupiter"
       critical: true
+      expected_params: ["input_token", "output_token", "amount"]
+      weight: 0.25
 
-    - service: "jupiter_positions"
-      method: "GET"
-      endpoint_pattern: "lite-api.jup.ag/lend/v1/earn/positions"
+    - tool_name: "jupiter_lend"
+      description: "Deposit USDC into Jupiter lending for yield"
+      critical: true
+      expected_params: ["mint", "amount"]
+      weight: 0.25
+
+    - tool_name: "jupiter_positions"
+      description: "Check current and final lending positions"
+      critical: false
+      expected_params: ["user_pubkey"]
       weight: 0.1
 
   success_criteria:
@@ -82,19 +89,19 @@ ground_truth:
       weight: 0.25
 
     - type: "market_conditions_assessment"
-      description: "Agent should check current prices and lending rates"
+      description: "Agent should check current prices and lending rates via tools"
       required: true
       weight: 0.25
 
     - type: "rebalancing_execution"
       description: "Execute trades to achieve optimal portfolio allocation"
       required: true
-      weight: 0.3
+      weight: 0.25
 
     - type: "risk_management"
       description: "Maintain appropriate liquidity and manage risk levels"
       required: true
-      weight: 0.2
+      weight: 0.25
 
   expected_data_structure:
     - path: "$.result.data.current_portfolio"
@@ -116,3 +123,70 @@ ground_truth:
       type: "array"
       min_items: 1
       weight: 0.2
+
+    - path: "$.result.data.tool_calls"
+      type: "array"
+      min_items: 3
+      required_fields: ["tool_name", "parameters", "success"]
+      weight: 0.2
+
+  expected_flow_complexity:
+    - type: "multi_step_execution"
+      description: "Should execute portfolio analysis → rebalancing sequence"
+      min_steps: 3
+      weight: 0.3
+
+    - type: "context_awareness"
+      description: "Should analyze current holdings for rebalancing decisions"
+      required: true
+      weight: 0.3
+
+    - type: "strategic_planning"
+      description: "Should plan optimal allocation based on market conditions"
+      required: true
+      weight: 0.4
+
+  expected_otel_tracking:
+    - type: "tool_call_logging"
+      description: "OpenTelemetry should track all rebalancing tool calls"
+      required_tools:
+        ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+      weight: 0.3
+
+    - type: "execution_tracing"
+      description: "Flow execution should be traceable end-to-end"
+      required_spans:
+        ["prompt_processing", "portfolio_analysis", "rebalancing_execution"]
+      weight: 0.3
+
+    - type: "mermaid_generation"
+      description: "Should generate flow diagram from rebalancing sequence"
+      required: true
+      weight: 0.2
+
+    - type: "performance_metrics"
+      description: "Should track execution time and decision metrics"
+      required_metrics:
+        ["execution_time_ms", "tool_call_count", "rebalancing_efficiency"]
+      weight: 0.2
+
+  recovery_expectations:
+    - type: "market_analysis_failure_recovery"
+      description: "Should recover from failed market analysis with cached data"
+      required: true
+      weight: 0.2
+
+    - type: "swap_failure_recovery"
+      description: "Should recover from failed rebalancing swap with alternative amounts"
+      required: true
+      weight: 0.2
+
+    - type: "atomic_execution"
+      description: "Portfolio rebalancing should execute atomically"
+      required: true
+      weight: 0.3
+
+    - type: "partial_success_handling"
+      description: "Should handle partial rebalancing gracefully"
+      required: true
+      weight: 0.3
