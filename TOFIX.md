@@ -2,14 +2,16 @@
 
 ## 🎯 **Issue Summary** ✅ **RESOLVED**
 
-**Problem**: API flow visualization endpoint returns empty data (`tool_count: 0`) for 300-series benchmarks but works correctly for 001-series benchmarks due to format differences in OTEL-derived data and SessionParser expectations.
+**Problem**: API flow visualization endpoint returns empty data (`tool_count: 0`) for 300-series benchmarks due to empty enhanced_otel session files, indicating OTEL trace capture issues.
 
-**Resolution**: ✅ **FIXED** - SessionParser now correctly handles both 001-series (clean) and 300-series (headers) OTEL formats
+**Resolution**: ✅ **PARTIALLY FIXED** - SessionParser format compatibility resolved, but OTEL trace capture still failing for some local agent executions.
 
 **Working Example**: `http://localhost:3001/api/v1/flows/373a5db0-a520-43b5-aeb4-46c4c0506e79` (001-sol-transfer.yml) ✅
 **Fixed Example**: `http://localhost:3001/api/v1/flows/21b6bb59-025f-4525-97e1-47f0961e5697` (300-swap-sol-then-mul-usdc.yml) ✅
 
 **Critical Architecture Note**: ✅ **VERIFIED** - Tool calls come from OpenTelemetry (OTEL) traces ONLY, not from session data directly.
+
+**NEW REGRESSION ISSUE**: Session ID `1965f7c8-92aa-48f8-9ff7-4fd416ca76b8` has empty `enhanced_otel_*.jsonl` file (0 bytes), causing API to return `tool_count: 0`.
 
 ## 🔍 **Root Cause Analysis**
 
@@ -83,18 +85,33 @@ tool_calls:
 - **Database Bridge**: Missing bridging from CLI OTEL files to database
 
 ### 🔍 **Test Results**
+**Test Results** ⚠️ **MIXED RESULTS**
 - **001-Series**: ✅ JsonlToYmlConverter generates clean format, SessionParser works correctly
-- **300-Series**: ❌ JsonlToYmlConverter generates format with headers, SessionParser fails (0 tool calls)
-- **JSON Wrapper**: ✅ Both series work when YML wrapped in session JSON structure
-- **Root Cause**: Format inconsistency between 001-series (clean) and 300-series (headers) OTEL conversion
+- **300-Series**: ❌ Enhanced OTEL files are empty (0 bytes), preventing any tool call extraction
+- **SessionParser**: ✅ Format compatibility confirmed working with test data
+- **Root Cause**: Local agent executions not generating OTEL traces properly in some cases
 
-## 🛠️ **Resolution Applied** ✅ **COMPLETED**
+**Current Examples**:
+- ✅ **Working**: `http://localhost:3001/api/v1/flows/373a5db0-a520-43b5-aeb4-46c4c0506e79` (001-sol-transfer.yml)
+- ❌ **Broken**: `http://localhost:3001/api/v1/flows/1965f7c8-92aa-48f8-9ff7-4fd416ca76b8` (300-swap-sol-then-mul-usdc.yml)
 
-### **SessionParser Fix** (Option 1 - Implemented)
-1. ✅ Updated `SessionParser::parse_session_content()` to handle OTEL-derived YML format
-2. ✅ Added robust YAML parsing that handles headers and comments from OTEL conversion
-3. ✅ Ensured backward compatibility with existing OTEL session formats
-4. ✅ Added comprehensive test framework with real OTEL data validation
+## 🛠️ **Resolution Status** ⚠️ **PARTIALLY COMPLETED**
+
+### **✅ Completed Fixes**
+1. ✅ SessionParser format compatibility - handles both 001-series and 300-series OTEL formats
+2. ✅ JSON wrapper parsing - works with session JSON structure  
+3. ✅ Test framework - validates OTEL format handling
+4. ✅ Documentation - comprehensive examples and troubleshooting guides
+
+### **❌ New Issues Identified**
+1. ❌ **OTEL Trace Capture**: Local agent executions not generating OTEL traces consistently
+2. ❌ **Enhanced OTEL Files**: Empty `enhanced_otel_*.jsonl` files for some sessions
+3. ❌ **Flow Visualization**: Still broken for sessions with empty OTEL data
+
+### **🔍 Investigation Required**
+- **OTEL Trace Generation**: Why do some local agent executions generate empty enhanced OTEL files?
+- **Agent Logging**: Are agent tool calls being properly traced in local mode?
+- **File Creation**: Is JsonlToYmlConverter being called with valid data?
 
 **Implementation Steps**:
 ```rust
@@ -288,9 +305,58 @@ account_balance → jupiter_swap → jupiter_lend → jupiter_positions
 
 Instead of the current empty visualization with `tool_count: 0`.
 
+
+## 🔍 **Debugging Steps for Current Issue**
+
+### **1. Verify OTEL File Generation**
+```bash
+# Check if enhanced OTEL file has content
+ls -la logs/sessions/enhanced_otel_*.jsonl
+
+# Check file size and content
+wc -l logs/sessions/enhanced_otel_1965f7c8-92aa-48f8-9ff7-4fd416ca76b8.jsonl
+cat logs/sessions/enhanced_otel_1965f7c8-92aa-48f8-9ff7-4fd416ca76b8.jsonl | head -5
+```
+
+### **2. Test Different Agent Types**
+```bash
+# Test with deterministic agent (should work)
+RUST_LOG=debug cargo run --bin reev-runner --quiet --agent deterministic benchmarks/300-swap-sol-then-mul-usdc.yml
+
+# Test with local agent (current issue)
+RUST_LOG=debug cargo run --bin reev-runner --quiet --agent local benchmarks/300-swap-sol-then-mul-usdc.yml
+
+# Compare OTEL file outputs
+ls -la logs/sessions/enhanced_otel_*.jsonl | grep $(date +%Y%m%d)
+```
+
+### **3. Check Agent Log Files**
+```bash
+# Check agent execution logs
+find logs -name "*300-swap-sol-then-mul-usdc*" -type f | head -3
+
+# Look for tool execution traces
+grep -i "jupiter_swap\|tool_call\|otel" logs/*300-swap-sol-then-mul-usdc* | head -10
+```
+
+### **4. Verify JsonlToYmlConverter Input**
+```bash
+# Find where OTEL traces should be captured
+grep -r "extract_tool_calls_from_agent_logs\|enhanced_otel" crates/reev-runner/src/
+
+# Check if conversion is being called
+grep -i "jsonl.*yml\|converter" logs/reev-agent_*300-swap* | head -5
+```
+
+**Expected Investigation Results**:
+- ✅ **Deterministic Agent**: Should generate proper OTEL traces
+- ❌ **Local Agent**: Currently not generating OTEL traces (empty enhanced_otel files)
+- 🎯 **Root Cause**: OTEL instrumentation may be missing in local agent tool execution path
+
 ---
 
-*Last Updated: 2025-11-04T08:30:00.000000Z*
-*Related Files: HANDOVER.md, ISSUES.md, TASKS.md, tests/session_300_benchmark_test.rs*
-*Status: ✅ **RESOLVED** - API Flow Visualization working correctly*
-*Test Validation: Comprehensive test framework confirms fix across both 001-series and 300-series*
+*Last Updated: 2025-11-04T09:30:00.000000Z*
+*Related Files: HANDOVER.md, ISSUES.md, TASKS.md, README.md, tests/session_300_benchmark_test.rs*
+*Status: ⚠️ **PARTIALLY RESOLVED** - Format compatibility fixed, OTEL trace capture broken*
+*New Blocking Issue: Local agent executions not generating OTEL traces*
+*Investigation Needed: Enhanced OTEL files are empty (0 bytes) for 300-series executions*
