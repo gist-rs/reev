@@ -3,16 +3,57 @@ use crate::handlers::flow_diagram::{FlowDiagramError, SessionParser, StateDiagra
 use crate::types::*;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::{Html, IntoResponse, Json},
 };
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Deserialize)]
 pub struct FlowQuery {
     format: Option<String>,
+}
+
+/// Generate ETag from content
+fn generate_etag(content: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    format!(r#""{}""#, hasher.finish())
+}
+
+/// Add caching headers to response
+fn add_caching_headers(
+    response: &mut axum::response::Response,
+    last_modified: DateTime<Utc>,
+    content: &str,
+) {
+    let headers = response.headers_mut();
+
+    // Add Last-Modified header
+    headers.insert(
+        header::LAST_MODIFIED,
+        last_modified.to_rfc2822().parse().unwrap(),
+    );
+
+    // Add ETag header
+    let etag = generate_etag(content);
+    headers.insert(header::ETAG, etag.parse().unwrap());
+
+    // Add Cache-Control header for reasonable caching
+    headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=30, must-revalidate".parse().unwrap(),
+    );
+
+    // Add polling frequency recommendation header
+    headers.insert(
+        "X-Polling-Recommendation",
+        "Recommended polling interval: 1-5 seconds for active flows, 30-60 seconds for completed flows".parse().unwrap(),
+    );
 }
 
 /// Get flows for a benchmark with optional stateDiagram visualization
@@ -26,6 +67,8 @@ pub async fn get_flow(
         session_id, query.format
     );
 
+    let current_time = Utc::now();
+
     // Try to generate stateDiagram from database session data first
     match generate_state_diagram_from_db(&state, &session_id).await {
         Ok(flow_diagram) => {
@@ -36,12 +79,27 @@ pub async fn get_flow(
                 "sessions": []
             });
 
-            match query.format.as_deref() {
+            let mut response = match query.format.as_deref() {
                 Some("html") => {
-                    Html(StateDiagramGenerator::generate_html(&flow_diagram)).into_response()
+                    let html_content = StateDiagramGenerator::generate_html(&flow_diagram);
+                    let mut resp = Html(html_content).into_response();
+                    add_caching_headers(&mut resp, current_time, &flow_diagram.diagram);
+                    resp
                 }
-                _ => Json(response_data).into_response(),
-            }
+                _ => {
+                    let json_content = response_data.to_string();
+                    let mut resp = Json(response_data).into_response();
+                    add_caching_headers(&mut resp, current_time, &json_content);
+                    resp
+                }
+            };
+
+            // Add dynamic flow session support header
+            response
+                .headers_mut()
+                .insert("X-Flow-Type", "dynamic-flow-capable".parse().unwrap());
+
+            response
         }
         Err(e) => {
             warn!(
@@ -60,6 +118,15 @@ async fn generate_state_diagram_from_db(
     state: &ApiState,
     session_id: &str,
 ) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
+    // Check if this is a dynamic flow session
+    let is_dynamic_flow = session_id.starts_with("direct-")
+        || session_id.starts_with("bridge-")
+        || session_id.starts_with("recovery-");
+
+    if is_dynamic_flow {
+        info!("Processing dynamic flow session: {}", session_id);
+    }
+
     // Get session log from database
     match state.db.get_session_log(session_id).await {
         Ok(log_content) => {
@@ -70,7 +137,17 @@ async fn generate_state_diagram_from_db(
                 "session_id": session_id,
                 "log_content": log_content,
                 "start_time": 0,
-                "end_time": 1
+                "end_time": 1,
+                "is_dynamic_flow": is_dynamic_flow,
+                "flow_type": if session_id.starts_with("direct-") {
+                    "direct"
+                } else if session_id.starts_with("bridge-") {
+                    "bridge"
+                } else if session_id.starts_with("recovery-") {
+                    "recovery"
+                } else {
+                    "static"
+                }
             });
 
             // Parse the session content
@@ -78,16 +155,31 @@ async fn generate_state_diagram_from_db(
 
             // Generate the diagram
             if parsed_session.tool_calls.is_empty() {
-                info!("No tool calls found in database log, generating simple diagram");
-                Ok(StateDiagramGenerator::generate_simple_diagram(
-                    &parsed_session,
-                ))
+                if is_dynamic_flow {
+                    info!("No tool calls found in dynamic flow log, generating enhanced diagram");
+                    Ok(StateDiagramGenerator::generate_dynamic_flow_diagram(
+                        &parsed_session,
+                        session_id,
+                    ))
+                } else {
+                    info!("No tool calls found in database log, generating simple diagram");
+                    Ok(StateDiagramGenerator::generate_simple_diagram(
+                        &parsed_session,
+                    ))
+                }
             } else {
                 info!(
                     "Generating diagram with {} tool calls from database",
                     parsed_session.tool_calls.len()
                 );
-                StateDiagramGenerator::generate_diagram(&parsed_session)
+                if is_dynamic_flow {
+                    Ok(StateDiagramGenerator::generate_dynamic_flow_diagram(
+                        &parsed_session,
+                        session_id,
+                    ))
+                } else {
+                    StateDiagramGenerator::generate_diagram(&parsed_session)
+                }
             }
         }
         Err(e) => {
@@ -95,6 +187,38 @@ async fn generate_state_diagram_from_db(
                 "Failed to get session log from database for session {}: {}",
                 session_id, e
             );
+
+            // For dynamic flows, provide a fallback diagram even if session not found
+            if is_dynamic_flow {
+                info!(
+                    "Creating fallback diagram for dynamic flow session: {}",
+                    session_id
+                );
+                let fallback_session = json!({
+                    "session_id": session_id,
+                    "tool_calls": [],
+                    "start_time": 0,
+                    "end_time": 1,
+                    "is_dynamic_flow": true,
+                    "flow_type": if session_id.starts_with("direct-") {
+                        "direct"
+                    } else if session_id.starts_with("bridge-") {
+                        "bridge"
+                    } else if session_id.starts_with("recovery-") {
+                        "recovery"
+                    } else {
+                        "static"
+                    }
+                });
+
+                let parsed_fallback =
+                    SessionParser::parse_session_content(&fallback_session.to_string())?;
+                return Ok(StateDiagramGenerator::generate_dynamic_flow_diagram(
+                    &parsed_fallback,
+                    session_id,
+                ));
+            }
+
             Err(FlowDiagramError::SessionNotFound(format!(
                 "Session not found in database: {session_id}"
             )))
@@ -263,6 +387,14 @@ fn generate_fallback_html(data: &serde_json::Value) -> String {
             border-radius: 4px;
             margin-bottom: 20px;
         }}
+        .info {{
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }}
         .sessions {{
             margin-top: 20px;
         }}
@@ -273,10 +405,27 @@ fn generate_fallback_html(data: &serde_json::Value) -> String {
             border-radius: 5px;
             background: #fafafa;
         }}
+        .dynamic-flow {{
+            border-left: 4px solid #28a745;
+            background-color: #f8fff9;
+        }}
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="info">
+            <strong>Dynamic Flow Support</strong><br>
+            This API supports dynamic flow execution with the following endpoints:<br>
+            • <code>POST /api/v1/benchmarks/execute-direct</code> - Zero file I/O execution<br>
+            • <code>POST /api/v1/benchmarks/execute-bridge</code> - Compatibility mode<br>
+            • <code>POST /api/v1/benchmarks/execute-recovery</code> - Resilient execution<br>
+            <br>
+            <strong>API Usage Guidelines:</strong><br>
+            • Polling frequency: 1-5 seconds for active flows, 30-60 seconds for completed<br>
+            • Use ETag/Last-Modified headers for conditional requests<br>
+            • Dynamic flow sessions are marked with <span class="dynamic-flow">green border</span>
+        </div>
+
         <div class="warning">
             <strong>Flow Diagram Not Available</strong><br>
             Unable to generate state diagram for this benchmark. This could be because:
@@ -284,6 +433,7 @@ fn generate_fallback_html(data: &serde_json::Value) -> String {
                 <li>No session logs found with tool call information</li>
                 <li>Session logs are in an older format without tool tracking</li>
                 <li>The benchmark execution didn't involve any tool calls</li>
+                <li>Dynamic flow session may still be initializing</li>
             </ul>
         </div>
 
@@ -303,7 +453,7 @@ fn generate_fallback_html(data: &serde_json::Value) -> String {
 fn format_sessions_for_fallback(data: &serde_json::Value) -> String {
     if let Some(sessions) = data.get("sessions").and_then(|s| s.as_array()) {
         if sessions.is_empty() {
-            "<p>No sessions found for this benchmark.</p>".to_string()
+            "<p>No sessions found for this benchmark.</p><p><strong>Note:</strong> Dynamic flow sessions use execution IDs starting with 'direct-', 'bridge-', or 'recovery-' prefixes.</p>".to_string()
         } else {
             sessions
                 .iter()
@@ -321,15 +471,35 @@ fn format_sessions_for_fallback(data: &serde_json::Value) -> String {
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
 
+                    let session_class = if session_id.starts_with("direct-")
+                        || session_id.starts_with("bridge-")
+                        || session_id.starts_with("recovery-")
+                    {
+                        "session dynamic-flow"
+                    } else {
+                        "session"
+                    };
+
                     format!(
-                        r#"<div class="session">
+                        r#"<div class="{}">
                             <strong>Session:</strong> {}<br>
                             <strong>Agent:</strong> {}<br>
-                            <strong>Status:</strong> {}
+                            <strong>Status:</strong> {}<br>
+                            <strong>Type:</strong> {}
                         </div>"#,
+                        session_class,
                         &session_id[..8.min(session_id.len())],
                         agent_type,
-                        status
+                        status,
+                        if session_id.starts_with("direct-") {
+                            "Direct Dynamic Flow"
+                        } else if session_id.starts_with("bridge-") {
+                            "Bridge Dynamic Flow"
+                        } else if session_id.starts_with("recovery-") {
+                            "Recovery Dynamic Flow"
+                        } else {
+                            "Static Flow"
+                        }
                     )
                 })
                 .collect::<Vec<_>>()

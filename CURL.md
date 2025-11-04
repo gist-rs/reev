@@ -413,6 +413,43 @@ curl http://localhost:3001/api/v1/flows/{session-id}?format=html > flow.html
 
 ## 🛠️ Tips
 
+### 📊 Polling Frequency Recommendations
+
+For optimal API performance and real-time monitoring:
+
+**Active Flows (running/queued status):**
+- Poll every **1-2 seconds** for near real-time updates
+- Use `Last-Modified` and `ETag` headers for conditional requests
+- Recommended for: dynamic flow execution, recovery operations
+
+**Completed Flows (completed/failed status):**
+- Poll every **30-60 seconds** for final results
+- Can use longer intervals since flow is finished
+- Recommended for: static benchmarks, historical data
+
+**HTTP Caching Headers:**
+- All flow endpoints return `Cache-Control: public, max-age=30, must-revalidate`
+- Use `ETag` for efficient conditional requests
+- `Last-Modified` indicates when data was last updated
+- `X-Polling-Recommendation` header provides guidance per endpoint
+
+**Dynamic Flow Session Detection:**
+- Sessions starting with `direct-`, `bridge-`, or `recovery-` are dynamic flows
+- Use more frequent polling for these sessions (1-5 seconds)
+- Static flows use standard polling intervals (30-60 seconds)
+
+**Example Conditional Request:**
+```bash
+# First request - get initial data with ETag
+curl -H "Accept: application/json" \
+  http://localhost:3001/api/v1/flows/session-123
+
+# Subsequent requests - use If-None-Match
+curl -H "Accept: application/json" \
+  -H "If-None-Match: \"123456789\"" \
+  http://localhost:3001/api/v1/flows/session-123
+```
+
 1. **Pretty Print JSON**: Add `| jq` to any curl command for formatted output
    ```bash
    curl http://localhost:3001/api/v1/benchmarks | jq
@@ -598,6 +635,47 @@ done > all_traces.txt
 
 ## 🎯 CLI Integration Testing
 
+### Dynamic Flow Polling Example
+
+```bash
+# Start a dynamic flow execution
+EXECUTION_RESPONSE=$(curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "use 50% SOL to get USDC",
+    "wallet": "YourWalletPubkey",
+    "agent": "glm-4.6-coding",
+    "shared_surfpool": false
+  }' \
+  http://localhost:3001/api/v1/benchmarks/execute-direct)
+
+EXECUTION_ID=$(echo $EXECUTION_RESPONSE | jq -r '.execution_id')
+
+echo "Started dynamic flow: $EXECUTION_ID"
+
+# Poll for completion with optimal frequency (1-2 seconds for active flows)
+while true; do
+  STATUS=$(curl -s -H "Accept: application/json" \
+    http://localhost:3001/api/v1/benchmarks/dynamic-flow/status/$EXECUTION_ID | \
+    jq -r '.status')
+
+  echo "Flow status: $STATUS"
+
+  if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
+    echo "Flow finished with status: $STATUS"
+    break
+  fi
+
+  sleep 2  # Optimal polling for active flows
+done
+
+# Get final flow diagram
+curl -s "http://localhost:3001/api/v1/flows/$EXECUTION_ID?format=html" > \
+  dynamic_flow_diagram.html
+
+echo "Flow diagram saved to dynamic_flow_diagram.html"
+```
+
 ### Test CLI-Based Benchmark Execution
 
 The API now uses CLI-based runner communication. Test the new implementation:
@@ -655,6 +733,26 @@ time curl -X POST http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run \
 ## 🛠️ Tips
 
 #### Dynamic Flow Best Practices
+
+1. **Execution Mode Selection:**
+   - Use `direct` mode for production (zero file I/O)
+   - Use `bridge` mode for compatibility with existing tools
+   - Use `recovery` mode for critical transactions
+
+2. **Polling Strategy:**
+   - Active dynamic flows: 1-2 second polling intervals
+   - Completed flows: 30-60 second intervals sufficient
+   - Use ETag/Last-Modified headers to reduce bandwidth
+
+3. **Error Handling:**
+   - Check `status` field in responses for completion
+   - Monitor `error` field for failure details
+   - Use recovery mode for resilient execution
+
+4. **Flow Visualization:**
+   - Dynamic flows use enhanced stateDiagram with flow type indicators
+   - Sessions marked with colored borders in HTML view
+   - Support for all three execution modes in diagrams
 - **Direct Mode**: Use for production (zero file I/O, optimal performance)
 - **Bridge Mode**: Use for compatibility testing (temporary YML generation)
 - **Recovery Mode**: Use for critical transactions (enterprise-grade failure handling)
