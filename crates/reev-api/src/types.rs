@@ -88,7 +88,7 @@ pub struct DynamicFlowRequest {
 }
 
 /// Recovery flow execution request
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)] // Fields are used in handlers but not directly in this module
 pub struct RecoveryFlowRequest {
     pub prompt: String,
@@ -98,7 +98,7 @@ pub struct RecoveryFlowRequest {
 }
 
 /// Recovery configuration
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Fields are used in handlers but not directly in this module
 pub struct RecoveryConfig {
     pub base_retry_delay_ms: Option<u64>,

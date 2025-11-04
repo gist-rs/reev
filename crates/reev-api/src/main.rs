@@ -142,16 +142,6 @@ async fn main() -> Result<()> {
             get(get_transaction_logs),
         )
         .route("/api/v1/transaction-logs/demo", get(get_transaction_logs))
-        // Dynamic flow execution endpoints
-        .route(
-            "/api/v1/benchmarks/execute-direct",
-            post(execute_dynamic_flow),
-        )
-        .route(
-            "/api/v1/benchmarks/execute-bridge",
-            post(execute_dynamic_flow),
-        )
-        // Recovery flow and metrics endpoints to be added later
         // Execution trace endpoints
         .route(
             "/api/v1/execution-logs/{benchmark_id}",
