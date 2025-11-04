@@ -30,6 +30,7 @@ reev-flow = { path = "../reev-flow" }
 reev-orchestrator = { path = "../reev-orchestrator" }
 reev-runner = { path = "../reev-runner" }
 reev-tools = { path = "../reev-tools" }
+reev-agent = { path = "../reev-agent" }
 
 reev-types = { path = "../reev-types" }
 axum = { version = "0.8.4", features = ["macros"] }
