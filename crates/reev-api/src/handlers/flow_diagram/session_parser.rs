@@ -4,6 +4,7 @@
 //! and execution information for flow diagram generation.
 
 // Import YAML parsing capabilities
+use serde::Serialize;
 use serde_json::Value as JsonValue;
 use serde_yaml::Value as YamlValue;
 
@@ -32,7 +33,7 @@ pub struct ParsedSession {
 }
 
 /// Parsed tool call information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ParsedToolCall {
     /// Tool identifier
     pub tool_name: String,

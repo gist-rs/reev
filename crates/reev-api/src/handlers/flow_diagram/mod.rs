@@ -18,6 +18,8 @@ pub struct FlowDiagram {
     pub diagram: String,
     /// Metadata about the diagram
     pub metadata: DiagramMetadata,
+    /// Tool calls used in this flow
+    pub tool_calls: Vec<session_parser::ParsedToolCall>,
 }
 
 /// Diagram metadata

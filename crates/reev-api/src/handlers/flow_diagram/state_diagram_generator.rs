@@ -93,7 +93,11 @@ impl StateDiagramGenerator {
         let metadata =
             crate::handlers::flow_diagram::session_parser::SessionParser::create_metadata(session);
 
-        Ok(FlowDiagram { diagram, metadata })
+        Ok(FlowDiagram {
+            diagram,
+            metadata,
+            tool_calls: session.tool_calls.clone(),
+        })
     }
 
     /// Generate a dynamic flow diagram with enhanced features
@@ -226,7 +230,11 @@ impl StateDiagramGenerator {
             session_id: Some(session_id.to_string()),
         };
 
-        FlowDiagram { diagram, metadata }
+        FlowDiagram {
+            diagram,
+            metadata,
+            tool_calls: session.tool_calls.clone(),
+        }
     }
 
     /// Generate a simple diagram for sessions without tool calls
@@ -255,7 +263,11 @@ impl StateDiagramGenerator {
         let metadata =
             crate::handlers::flow_diagram::session_parser::SessionParser::create_metadata(session);
 
-        FlowDiagram { diagram, metadata }
+        FlowDiagram {
+            diagram,
+            metadata,
+            tool_calls: session.tool_calls.clone(),
+        }
     }
 
     /// Summarize tool parameters for display

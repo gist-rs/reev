@@ -1,4 +1,239 @@
 # Issues
+## Issue #12: API Flow Visualization Returns Empty Tool Calls ✅ **RESOLVED** [L3-4]
+### 🎯 **Problem Statement** [L9-10]
+The `/api/v1/flows/{session_id}` endpoint returns empty tool call data and generic flow diagrams instead of actual execution flow visualization.
+
+#### ❌ **Previous Broken Behavior** [L18-19]
+```json
+{
+"diagram": "stateDiagram\n    [*] --> Prompt\n    Prompt --> Agent : Execute task\n    Agent --> [*]",
+"metadata": {
+"benchmark_id": "unknown",
+"execution_time_ms": 1000,
+"session_id": "dynamic-1762250999-51422802",
+"state_count": 2,
+"tool_count": 0
+},
+"session_id": "dynamic-1762250999-51422802",
+"sessions": []
+}
+```
+
+#### ✅ **Current Fixed Behavior** [L27-28]
+#### ⚠️ **Partially Fixed Behavior**
+```json
+{
+"diagram": "stateDiagram\n    [*] --> Prompt\n    Prompt --> Agent : Execute task\n    Agent --> jupiter_swap : Null\n    jupiter_swap --> [*]",
+"metadata": {
+"benchmark_id": "unknown",
+"execution_time_ms": 1000,
+"session_id": "dynamic-1762252083-26f0eb3b",
+"state_count": 3,
+"tool_count": 1
+},
+"tool_calls": [{"tool_name": "jupiter_swap", "timestamp": "2025-11-04T10:24:37.599Z", "duration_ms": 5000, "success": true}]
+}
+```
+
+#### ❌ **CRITICAL USER INFORMATION MISSING**
+- No actual **transaction amounts** shown
+- No **wallet addresses** involved
+- No **slippage/parameters** used
+- No **execution results** (signatures, balances)
+- `: Null` transitions provide no useful information
+- No **error states** or **recovery paths** visible
+- Static timestamps (mock data) not real execution times
+
+### 📋 **Root Cause Analysis** [L37-38]
+- Dynamic flow executions create flow plans but don't store tool call data in database
+- SessionParser finds 0 tool calls for dynamic flow sessions
+- Flow visualization falls back to generic template when no tool calls found
+
+### 🔍 **Evidence from Testing** [L47-48]
+1. **Direct Mode**: Creates flow ID but no tool calls stored
+2. **Bridge Mode**: Creates YML files but tool data not captured for API visualization
+3. **Flow Endpoint**: Returns `tool_count: 0` and empty sessions array
+
+### 🛠️ **Solutions Required** [L59-60]
+#### **Solution 1**: Fix Dynamic Flow Tool Call Storage [L61-62]
+- Modify orchestrator to store tool calls in database during dynamic flow execution
+- Ensure proper session logging for API visualization compatibility
+
+#### **Solution 2**: Update SessionParser for Dynamic Flows [L67-68]
+- Extend SessionParser to handle dynamic flow session formats
+- Extract tool calls from flow execution results
+
+### 📊 **Test Cases** [L75-76]
+#### **Test 1**: API Dynamic Flow Visualization [L77-78]
+```bash
+curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "use my 50% sol to multiply usdc 1.5x on jup", "wallet": "test_wallet_123", "agent": "Deterministic", "shared_surfpool": false}'
+
+# Expect: Actual tool calls in flow visualization
+# Actual: Generic template with tool_count: 0
+```
+
+#### **Test 2**: Bridge Mode Flow Visualization [L89-90]
+```bash
+curl -s http://localhost:3001/api/v1/flows/{dynamic-flow-session-id}
+
+# Expect: Jupiter swap and lend tool calls visible
+# Actual: Empty sessions array
+```
+
+### 🧪 **Validation Steps** [L99-100]
+1. Execute dynamic flow with complex prompt
+2. Check `/api/v1/flows/{session_id}` response
+3. Verify `tool_count > 0` and `sessions` populated
+4. Confirm diagram shows actual execution steps
+
+### 📈 **Impact Assessment** ⚠️ **PARTIALLY RESOLVED** [L154-155]
+- **Critical**: ⚠️ **MINIMAL IMPROVEMENT** - Users can see tool names but no execution details
+- **Medium**: ⚠️ **LIMITED USEFULNESS** - API flow monitoring shows mock data only
+- **High**: ❌ **MAJOR VALUE MISSING** - No actual transaction information, amounts, or results
+
+### 🔗 **Related Issues** [L119-120]
+- **Issue #10**: API Flow Visualization OTEL Format Compatibility
+- **Issue #11**: Deterministic Agent Missing 300-Series Support
+
+### 🗓️ **Resolution Timeline** ⚠️ **PHASE 1 COMPLETE** [L127-128]
+- **Phase 1**: ✅ Investigate dynamic flow tool call storage - COMPLETED
+- **Phase 2**: ✅ Fix session logging integration - COMPLETED  
+- **Phase 3**: ✅ Update flow visualization parsers - COMPLETED
+- **Phase 4**: ❌ **REAL EXECUTION DATA MISSING** - NOT STARTED
+
+### 🎯 **Current Implementation Limitations** [L130-132]
+1. **Mock Data Only**: All tool calls are synthetic mock data, not real execution results
+2. **No Transaction Details**: Missing amounts, addresses, signatures, balances
+3. **Generic Transitions**: All transitions show `: Null` - no meaningful information
+4. **Static Timing**: Fake timestamps (30s intervals) not real execution times
+5. **No Error Handling**: No visualization of failed steps or recovery attempts
+
+### 🚨 **NEW REQUIREMENTS FOR Phase 4** [L135-140]
+1. **Real Execution Integration**: Connect dynamic flows to actual agent execution
+2. **Transaction Data Capture**: Store real amounts, addresses, signatures
+3. **Parameter Visualization**: Show slippage, prices, routing decisions
+4. **Result Integration**: Display balance changes, transaction outcomes
+5. **Error State Flow**: Visualize failures and recovery paths
+
+### ❌ **Validation Results** [L135-140]
+#### **Test 1**: GLM-4.6 Direct Mode
+```bash
+curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "use my 50% sol to multiply usdc 1.5x on jup", "wallet": "test_wallet_123", "agent": "GLM-4.6", "shared_surfpool": false}'
+```
+❌ **Result**: `tool_count: 2`, `state_count: 4` but all data is **MOCK/SYNTHETIC**
+- `jupiter_swap`: No SOL amount, no USDC received, no transaction signature
+- `jupiter_lend`: No deposit amount, no APY shown, no position created
+- Transitions: `: Null` provides zero user value
+
+#### **Test 2**: Bridge Mode  
+❌ **Same Issue**: Mock visualization with YML file, still no real execution data
+
+## Issue #13: Dynamic Flow Visualization Shows No Useful User Information [L3-4]
+### 🎯 **Problem Statement** [L9-10]
+The current dynamic flow visualization shows tool names but provides zero useful information about what actually happened during execution.
+
+#### ❌ **Current Behavior** [L18-19]
+```mermaid
+stateDiagram
+   [*] --> Prompt
+   Prompt --> Agent : Execute task
+   Agent --> jupiter_swap : Null
+   jupiter_swap --> [*]
+
+classDef tools fill:grey
+class jupiter_swap tools
+```
+**User Gets ZERO Information:**
+- How much SOL was swapped? ❌
+- How much USDC received? ❌
+- What was the slippage? ❌
+- Which wallet addresses involved? ❌
+- Transaction signatures? ❌
+- Execution time? ❌ (mock 5 seconds)
+- What went wrong if failed? ❌
+
+#### ✅ **Expected Behavior** [L27-28]
+Should show:
+```mermaid
+stateDiagram
+   [*] --> Swap_0.5_SOL
+   Swap_0.5_SOL --> Check_USDC_Balance
+   Check_USDC_Balance --> Lend_75_USDC
+   Lend_75_USDC --> [*]
+
+classDef transaction fill:blue
+class Swap_0.5_SOL transaction
+class Check_USDC_Balance transaction  
+class Lend_75_USDC transaction
+
+note right of Swap_0.5_SOL: 0.5 SOL → 75.23 USDC<br/>Slippage: 2.1%<br/>Signature: 5xK7m...
+note right of Lend_75_USDC: Deposit: 75.23 USDC<br/>APY: 5.8%<br/>Position: jUSDC-7f9a
+```
+
+### 📋 **Root Cause Analysis** [L37-38]
+1. **Dynamic Flows Create Plans Only**: No actual agent execution, just flow planning
+2. **Mock Tool Call Generation**: All tool data is synthetic, not real
+3. **No OTEL Integration**: Real tool execution data not captured
+4. **Generic Diagram Generator**: Creates templates without execution context
+
+### 🛠️ **Solutions Required** [L59-60]
+#### **Solution 1**: Real Execution Integration [L61-62]
+- Connect dynamic flows to actual GLM-4.6 agent execution
+- Capture real tool calls, parameters, and results
+- Store actual transaction data in database
+
+#### **Solution 2**: Enhanced Visualization [L67-68]
+- Show transaction amounts, addresses, signatures
+- Display balance changes and execution results
+- Add error states and recovery paths
+- Include timing information and gas costs
+
+#### **Solution 3**: Parameter-Rich Tool Data [L73-74]
+- Capture swap amounts, slippage, routing
+- Store lending APY, position sizes, durations
+- Include wallet states before/after operations
+
+### 📊 **Test Cases** [L75-76]
+#### **Test 1**: Information-Poor Current Flow [L77-78]
+```bash
+curl -s http://localhost:3001/api/v1/flows/dynamic-1762252083-26f0eb3b
+```
+❌ **Expected**: Zero useful information  
+✅ **Actual**: Confirmed - tool names only
+
+#### **Test 2**: Missing Transaction Details [L89-90]
+```bash
+# What user should see but doesn't:
+curl -s http://localhost:3001/api/v1/flows/dynamic-1762252083-26f0eb3b | jq '.tool_calls[0]'
+```
+❌ **Current**: `{"tool_name": "jupiter_swap", "duration_ms": 5000, "success": true}`
+✅ **Needed**: `{"tool_name": "jupiter_swap", "input_sol": "0.5", "output_usdc": "75.23", "slippage": "2.1", "signature": "5xK7m...", "from_wallet": "EgMiz...", "to_wallet": "9FEt5..."}`
+
+### 🧪 **Validation Steps** [L99-100]
+1. Execute dynamic flow with GLM-4.6
+2. Check `/api/v1/flows/{session_id}` response
+3. Verify tool calls contain actual execution data
+4. Confirm diagram shows meaningful transaction information
+5. Test error scenarios and recovery visualization
+
+### 📈 **Impact Assessment** [L109-110]
+- **Critical**: Users get zero actionable information from flow visualization
+- **High**: Reduces debugging capability to almost useless
+- **Medium**: Makes API flow monitoring ineffective for real-world usage
+
+### 🔗 **Related Issues**
+- **Issue #12**: API Flow Visualization Returns Empty Tool Calls (Partially Fixed)
+- **Issue #10**: API Flow Visualization OTEL Format Compatibility
+
+### 🗓️ **Resolution Timeline** [L127-128]
+- **Phase 1**: Investigate real execution integration (Current)
+- **Phase 2**: Connect GLM-4.6 agent to dynamic flows
+- **Phase 3**: Enhance tool call data capture
+- **Phase 4**: Implement rich visualization components
 
 ## Issue #11: Deterministic Agent Missing 300-Series Support
 
@@ -575,6 +810,7 @@ otel_spans:
 ### 🚀 **Production Readiness**
 
 ### **Current Status**: 🟢 **COMPLETED**
+
 - **Foundation**: All 300-series benchmarks completed and validated
 - **Design**: Philosophy corrected from API calls to tool calls - ALL FIXED
 - **Framework**: Comprehensive test infrastructure established

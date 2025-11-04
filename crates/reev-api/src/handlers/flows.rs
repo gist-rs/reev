@@ -76,7 +76,8 @@ pub async fn get_flow(
                 "session_id": session_id,
                 "diagram": flow_diagram.diagram,
                 "metadata": flow_diagram.metadata,
-                "sessions": []
+                "sessions": [],
+                "tool_calls": flow_diagram.tool_calls
             });
 
             let mut response = match query.format.as_deref() {
