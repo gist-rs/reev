@@ -229,16 +229,80 @@ cat traces.log
 The framework supports **dynamic flow generation** from natural language prompts:
 
 ```bash
-# Bridge mode (temporary YML file for compatibility)
-reev-runner --dynamic --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+# 🌊 **Dynamic Flow Execution** (Natural Language → Programmatic Flow)
 
-# Direct mode (zero file I/O, optimal performance)
-reev-runner --direct --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+Convert natural language prompts into executable DeFi operations using **dynamic flow generation**:
 
-# Recovery mode (resilient execution with failure handling)
-reev-runner --recovery --prompt "use 50% SOL to get USDC" --wallet <pubkey> --agent glm-4.6-coding
+```bash
+# 🔹 Bridge Mode (temporary YML for OTEL compatibility)
+reev-runner --dynamic --prompt "use 50% SOL to get USDC via Jupiter swap" --agent local
 
-# Comprehensive recovery configuration
+# ⚡ Direct Mode (zero file I/O, optimal performance)
+reev-runner --direct --prompt "swap 1 SOL to USDC using best Jupiter rate" --agent glm-4.6-coding
+
+# 🛡️ Recovery Mode (resilient execution with failure handling)
+reev-runner --recovery --prompt "use 30% SOL to maximize yield via lending" --agent local --atomic-mode lenient
+
+# 🔄 Phase 1 → Phase 2 → Phase 3 (Complete Pipeline)
+reev-runner --recovery --prompt "complex DeFi strategy" --enable-alternative-flows --enable-user-fulfillment
+```
+
+#### **Dynamic Mode Examples**
+
+```bash
+# 🌾 Yield Optimization
+reev-runner --dynamic --prompt "use my SOL to maximize yield through lending" --agent local
+
+# 💱 Portfolio Rebalancing  
+reev-runner --dynamic --prompt "rebalance portfolio based on market conditions" --wallet <PUBKEY>
+
+# 🚨 Emergency Exit Strategy
+reev-runner --recovery --prompt "emergency liquidation due to market stress" --agent glm-4.6-coding
+
+# 🎯 Multi-step Operations
+reev-runner --direct --prompt "swap SOL to USDC, then lend 70% for yield farming" --agent local --max-recovery-time-ms 60000
+```
+
+#### **Advanced Options**
+
+```bash
+# 🎛️ Atomic Modes
+--atomic-mode strict    # Fail on any error
+--atomic-mode lenient   # Continue on non-critical errors  
+--atomic-mode conditional # Adaptive error handling
+
+# 🔧 Recovery Controls
+--retry-attempts 5              # Max retry attempts
+--enable-alternative-flows      # Enable alternative strategies
+--enable-user-fulfillment         # Interactive recovery prompts
+
+# 📊 Execution Context
+--shared-surfpool              # Reuse service instances
+--execution-id <UUID>           # API coordination
+```
+
+#### **Dynamic Flow Parameters**
+
+```bash
+# 🎯 Natural Language Prompts
+--prompt "text"              # Natural language DeFi request
+--wallet <PUBKEY>           # Target wallet address
+--agent <TYPE>              # Agent type (local, deterministic, glm-4.6-coding)
+
+# 🏗️ Flow Generation Modes
+--dynamic                   # Phase 1+2: Dynamic flow with temp files
+--direct                    # Phase 1+2: In-memory flow (optimal)
+--recovery                  # Phase 1+2+3: Full pipeline with recovery
+
+# ⚙️ Recovery Configuration
+--atomic-mode <MODE>        # strict|lenient|conditional error handling
+--retry-attempts <N>         # Max retry attempts per step
+--max-recovery-time-ms <MS>  # Timeout for recovery attempts
+--enable-alternative-flows   # Enable alternative flow strategies
+--enable-user-fulfillment     # Interactive recovery prompts
+```
+
+#### **Complete Recovery Configuration**
 reev-runner --recovery \
   --atomic-mode conditional \
   --max-recovery-time-ms 60000 \
