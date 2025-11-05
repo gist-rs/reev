@@ -329,6 +329,19 @@ impl PingPongExecutor {
             }
         };
 
+        // Resolve wallet pubkey using context resolver (handles placeholders like USER_WALLET_PUBKEY)
+        let resolved_wallet_pubkey = match self
+            .context_resolver
+            .resolve_placeholder(wallet_pubkey)
+            .await
+        {
+            Ok(resolved) => resolved,
+            Err(e) => {
+                error!("[PingPongExecutor] Failed to resolve wallet pubkey: {}", e);
+                wallet_pubkey.to_string() // Fallback to original
+            }
+        };
+
         // Create LlmRequest for real agent execution
         let request = LlmRequest {
             id: Uuid::new_v4().to_string(),

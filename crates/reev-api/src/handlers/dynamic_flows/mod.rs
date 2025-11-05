@@ -353,6 +353,19 @@ pub async fn execute_recovery_flow(
             })
             .into_response()
         }
+        Err(e) => {
+            error!(error = %e, "Recovery task execution failed");
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "error": "Internal server error during recovery flow execution",
+                    "execution_id": execution_id,
+                    "details": format!("Task failed: {}", e)
+                })),
+            )
+                .into_response()
+        }
     }
 }
 

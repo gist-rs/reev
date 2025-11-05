@@ -88,75 +88,62 @@ error[E0599]: no method named `process_user_request` found for opaque type `impl
 ```
 
 **Current Status**:
-- ✅ Removed duplicate incomplete `process_user_request()` function
-- ✅ Fixed type mismatches in `PingPongExecutor` struct
-- ✅ Fixed async/await issues across all calling sites
-- ✅ Updated test expectations to match enhanced flow generation
-- ✅ All crates compile successfully
-- ✅ All integration tests pass
+- ✅ Dynamic flow generation working correctly
+- ✅ ZAI API connectivity established  
+- ✅ Orchestrator context resolver implemented with SolanaEnv integration
+- ❌ Tool execution failing with unresolved placeholders
+- ✅ Flow diagram generation working
 
-### **Implementation Completed**
+### **Implementation Progress**
 
-**Phase 1: Code Cleanup**
-- [✅] Removed duplicate incomplete `process_user_request()` function
-- [✅] Fixed `PingPongExecutor` type: `ContextResolver` → `Arc<ContextResolver>`
-- [✅] Removed duplicate code blocks causing unused variable warnings
+**Phase 1: Context Resolver Integration** 
+- [✅] Added `SolanaEnv` integration to `ContextResolver`
+- [✅] Implemented placeholder detection using same logic as static benchmarks
+- [✅] Added pubkey generation with `Keypair::new()` for placeholders
+- [✅] Added placeholder mapping with `Arc<Mutex<HashMap>>`
 
-**Phase 2: Async/Await Fixes**
-- [✅] Added `.await` to all `OrchestratorGateway::new()` calls in tests
-- [✅] Added `.await` to all `OrchestratorGateway::with_recovery_config()` calls
-- [✅] Fixed async/await structure in API handlers
-- [✅] Fixed error handling in `execute_recovery_flow` function
+**Phase 2: Orchestrator Integration**
+- [✅] Updated `OrchestratorGateway` to create `SolanaEnv` with RPC client
+- [✅] Integrated context resolver with Solana environment
+- [✅] Updated constructor to be async and handle SolanaEnv creation errors
 
-**Phase 3: Test Updates**
-- [✅] Updated `test_end_to_end_flow_generation` to expect 4 steps (enhanced flow)
-- [✅] All integration tests passing: `test_end_to_end_flow_generation`, `test_simple_swap_flow`, `test_simple_lend_flow`
+**Phase 3: Ping-Pong Executor Integration**
+- [🔄] IN PROGRESS: Adding context resolver to `PingPongExecutor`
+- [🔄] IN PROGRESS: Implementing placeholder resolution before key map creation
+- [🔄] IN PROGRESS: Updating `create_key_map_with_wallet()` to use resolved pubkeys
 
-**Phase 4: Compiler Cleanup**
-- [✅] Removed unused `Keypair` import from context_resolver.rs
-- [✅] Removed empty line after doc comment (clippy warning)
-- [✅] Fixed all compilation errors and warnings
+### **Technical Implementation**
 
-### **Files Modified**:
-
-**Primary Implementation File**:
+**Files Modified**:
+- `crates/reev-orchestrator/src/context_resolver.rs`
+  - Added `SolanaEnv` field and `with_solana_env()` constructor
+  - Implemented `resolve_placeholder()` method with placeholder detection logic
+  - Added real pubkey generation using `Keypair::new()`
+  
 - `crates/reev-orchestrator/src/gateway.rs`
   - Removed duplicate incomplete `process_user_request()` function
   - Complete implementation working with 4-step flow generation
 
 **Type System Fixes**:
 - `crates/reev-orchestrator/src/execution/ping_pong_executor.rs`
-  - Fixed struct field: `context_resolver: Arc<ContextResolver>`
-  - Removed duplicate resolved_wallet_pubkey code block
+  - Added `context_resolver: Arc<ContextResolver>` field
+  - Updated `execute_agent_step()` to resolve wallet pubkey before creating key map
+  - Modified `create_key_map_with_wallet()` to use resolved pubkey
 
-**Test Suite Updates**:
-- `crates/reev-orchestrator/tests/integration_tests.rs`
-  - Added `.await` to all gateway constructor calls
-  - Updated flow step expectations (2 → 4 steps)
-  - All tests passing
+### **Critical Issue Identified**
+**Compilation Error in `PingPongExecutor`**: Multiple type and syntax conflicts preventing successful build:
+- Arc vs owned ContextResolver type mismatches
+- Missing import for `Arc<ContextResolver>`
+- Brace matching issues in struct definitions
 
-**API Handler Fixes**:
-- `crates/reev-api/src/handlers/dynamic_flows/mod.rs`
-  - Fixed async/await structure in recovery flow execution
-  - Proper error handling for `IntoResponse` functions
+### **Next Critical Steps Required**
+1. **Fix Compilation Errors**: Resolve type mismatches and syntax errors in ping-pong executor
+2. **Test Placeholder Resolution**: Verify `USER_WALLET_PUBKEY` → real pubkey resolution works end-to-end
+3. **Test Dynamic Flow**: Confirm `300-jup-swap-then-lend-deposit-dyn.yml` works with resolved pubkeys
+4. **Test Static Flow**: Confirm `001-sol-transfer.yml` works with same placeholder resolution system
+5. **Generate Flow Diagrams**: Verify both test cases produce proper mermaid diagrams
 
-**Runner Components**:
-- `crates/reev-runner/src/lib.rs` and `main.rs`
-  - Added `.await` to gateway constructor calls
-  - Proper error context handling
-
-### **Dynamic Flow Generation Enhanced**
-
-The complete flow generation now includes comprehensive steps:
-1. **balance_check** - Initial account balance verification
-2. **swap_1** - Jupiter swap operation
-3. **lend_1** - Jupiter lending operation  
-4. **positions_check** - Final position verification
-
-This represents a more robust and complete flow generation system compared to the previous 2-step approach.
-
-### **Validation Results**
-
+### **Expected Results After Fix**
 ```bash
 # All tests passing
 cargo test --package reev-orchestrator
@@ -175,16 +162,8 @@ cargo clippy --fix --allow-dirty
 **Status**: 🟢 **COMPLETED - ALL FUNCTIONALITY WORKING**
 **Assigned**: reev-orchestrator
 
-**Impact**: Dynamic flow system fully operational with enhanced step-by-step execution and comprehensive error handling.
+**Root Cause**: Placeholder resolution logic implemented but compilation errors in executor integration preventing testing.
 
-### **Next Steps for Dynamic Flow Development**
-Now that `process_user_request` is complete, the focus can shift to:
-1. **Real Tool Execution**: Test with actual ZAI API calls
-2. **Placeholder Resolution**: Implement `USER_WALLET_PUBKEY` → real pubkey mapping
-3. **Flow Visualization**: Test mermaid diagram generation with real execution data
-4. **Performance Optimization**: Benchmark flow generation and execution speeds
-
-### **Priority**: LOW - Infrastructure now stable for continued development
-
+### **Priority**: HIGH - Critical for dynamic flow functionality
 
 ---
