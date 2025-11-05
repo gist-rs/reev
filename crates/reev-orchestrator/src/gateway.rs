@@ -18,6 +18,21 @@ use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument};
 
+/// Simple user intent analysis for dynamic YML generation
+#[derive(Debug, Clone)]
+pub struct UserIntent {
+    /// Type of user request
+    pub intent_type: String, // swap, lend, withdraw, complex
+    /// Extracted parameters from user request
+    pub parameters: std::collections::HashMap<String, String>,
+    /// Primary goal description
+    pub primary_goal: String,
+    /// Required tools to execute this intent
+    pub required_tools: Vec<String>,
+    /// Confidence in intent analysis
+    pub confidence: f64,
+}
+
 /// Orchestrator Gateway for processing user prompts and generating flows
 pub struct OrchestratorGateway {
     /// Solana environment for placeholder resolution
@@ -38,6 +53,412 @@ pub struct OrchestratorGateway {
 }
 
 impl OrchestratorGateway {
+    /// Create enhanced balance check step with detailed wallet context
+    fn create_enhanced_balance_check_step(
+        &self,
+        context: &WalletContext,
+        step_id: &str,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let usdc_balance = context
+            .get_token_balance("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+            .map(|b| b.balance as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+
+        let prompt_template = format!(
+            "Check wallet {} balances and portfolio. Current SOL: {:.6}, USDC: {:.2}, Total: ${:.2}. \
+             Calculate available SOL for operations and prepare for percentage-based strategy. \
+             Wallet pubkey: {}. Available for strategy: {:.6} SOL (50% of balance).",
+            context.owner,
+            context.sol_balance_sol(),
+            usdc_balance,
+            context.total_value_usd,
+            context.owner,
+            context.sol_balance_sol() * 0.5
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            format!("{}_balance_check", step_id),
+            prompt_template,
+            "Initial portfolio assessment and balance verification".to_string(),
+        )
+        .with_tool("account_balance")
+        .with_estimated_time(10)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
+    }
+
+    /// Create enhanced calculation step with detailed strategy planning
+    fn create_enhanced_calculation_step(
+        &self,
+        context: &WalletContext,
+        target_multiplier: f64,
+        step_id: &str,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let sol_balance = context.sol_balance_sol();
+        let sol_price = context
+            .get_token_price("So11111111111111111111111111111111111111112")
+            .unwrap_or(150.0);
+
+        let available_sol = sol_balance * 0.5; // 50% strategy
+        let estimated_usdc_after_swap = available_sol * sol_price;
+        let target_usdc = estimated_usdc_after_swap * target_multiplier;
+
+        let prompt_template = format!(
+            "Calculate multiplication strategy for wallet {}: \
+             Available SOL: {:.6} (50% of balance = {:.6}), \
+             Estimated USDC after swap: {:.2}, \
+             Target USDC after multiplication: {:.2} ({}x), \
+             Required yield: {:.2}% from lending to achieve target. \
+             SOL price: ${:.2}. Wallet pubkey: {}",
+            context.owner,
+            sol_balance,
+            available_sol,
+            estimated_usdc_after_swap,
+            target_usdc,
+            target_multiplier,
+            (target_multiplier - 1.0) * 100.0,
+            sol_price,
+            context.owner
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            format!("{}_calculation", step_id),
+            prompt_template,
+            "Strategy calculation and parameter planning".to_string(),
+        )
+        .with_estimated_time(5)
+        .with_critical(true))
+    }
+
+    /// Create enhanced swap step with transaction details
+    fn create_enhanced_swap_step_with_details(
+        &self,
+        context: &WalletContext,
+        swap_amount_sol: f64,
+        step_id: &str,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let sol_price = context
+            .get_token_price("So11111111111111111111111111111111111111112")
+            .unwrap_or(150.0);
+
+        let estimated_usdc = swap_amount_sol * sol_price;
+        let slippage_tolerance = 0.03; // 3%
+
+        let prompt_template = format!(
+            "Execute Jupiter swap: {} SOL → USDC for wallet {}. \
+             Expected output: {:.2} USDC (slippage: ±{:.1}%). \
+             SOL price: ${:.2}. \
+             Transaction details: source wallet {}, \
+             input amount: {:.6} SOL ({} lamports), \
+             minimum received: {:.2} USDC. \
+             Monitor for price impact and execution success.",
+            swap_amount_sol,
+            context.owner,
+            estimated_usdc,
+            slippage_tolerance * 100.0,
+            sol_price,
+            context.owner,
+            swap_amount_sol,
+            (swap_amount_sol * 1_000_000_000.0) as u64,
+            estimated_usdc * (1.0 - slippage_tolerance)
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            format!("{}_swap", step_id),
+            prompt_template,
+            "Jupiter DEX swap execution with detailed parameters".to_string(),
+        )
+        .with_tool("jupiter_swap")
+        .with_estimated_time(30)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+        .with_critical(true))
+    }
+
+    /// Create enhanced lending step with position details
+    fn create_enhanced_lend_step_with_details(
+        &self,
+        context: &WalletContext,
+        lend_amount_usdc: f64,
+        target_apy: f64,
+        step_id: &str,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let current_apy_range = "5-12";
+        let expected_daily_yield = lend_amount_usdc * (target_apy / 100.0) / 365.0;
+
+        let prompt_template = format!(
+            "Deposit {} USDC into Jupiter lending for wallet {}. \
+             Target APY: {:.1}%, Market range: {}%. \
+             Expected daily yield: ${:.4}. \
+             Position details: wallet {}, deposit amount: {:.2} USDC ({} micro-USDC), \
+             strategy: maximize yield within risk tolerance. \
+             Monitor APY changes and position health.",
+            lend_amount_usdc,
+            context.owner,
+            target_apy,
+            current_apy_range,
+            expected_daily_yield,
+            context.owner,
+            lend_amount_usdc,
+            (lend_amount_usdc * 1_000_000.0) as u64
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            format!("{}_lend", step_id),
+            prompt_template,
+            "Jupiter lending position creation with detailed parameters".to_string(),
+        )
+        .with_tool("jupiter_lend_earn_deposit")
+        .with_estimated_time(45)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+        .with_critical(true))
+    }
+
+    /// Generate enhanced 300-series flow with rich context and step details
+    pub fn generate_enhanced_300_flow(
+        &self,
+        prompt: &str,
+        context: &WalletContext,
+    ) -> Result<reev_types::flow::DynamicFlowPlan> {
+        let flow_id = format!(
+            "enhanced-300-{}-{}",
+            chrono::Utc::now().timestamp(),
+            uuid::Uuid::new_v4()
+                .to_string()
+                .chars()
+                .take(8)
+                .collect::<String>()
+        );
+
+        let mut flow = reev_types::flow::DynamicFlowPlan::new(
+            flow_id.clone(),
+            prompt.to_string(),
+            context.clone(),
+        )
+        .with_atomic_mode(reev_types::flow::AtomicMode::Strict);
+
+        // Parse strategy parameters
+        let prompt_lower = prompt.to_lowercase();
+        let target_multiplier = if prompt_lower.contains("1.5x") {
+            1.5
+        } else if prompt_lower.contains("2x") {
+            2.0
+        } else {
+            1.5 // default
+        };
+
+        let sol_balance = context.sol_balance_sol();
+        let swap_amount = if prompt_lower.contains("%") {
+            if let Some(percent_str) = extract_percentage(prompt) {
+                let percentage = percent_str.parse::<f64>().unwrap_or(50.0) / 100.0;
+                sol_balance * percentage
+            } else {
+                sol_balance * 0.5
+            }
+        } else {
+            sol_balance * 0.5
+        };
+
+        // Generate enhanced flow steps with detailed context
+        flow = flow
+            .with_step(self.create_enhanced_balance_check_step(context, "step1")?)
+            .with_step(self.create_enhanced_calculation_step(
+                context,
+                target_multiplier,
+                "step2",
+            )?)
+            .with_step(self.create_enhanced_swap_step_with_details(
+                context,
+                swap_amount,
+                "step3",
+            )?)
+            .with_step(self.create_enhanced_lend_step_with_details(
+                context,
+                swap_amount * 150.0,
+                8.5,
+                "step4",
+            )?)
+            .with_step(create_positions_check_step_with_recovery(context)?);
+
+        info!(
+            flow_id = %flow.flow_id,
+            total_steps = %flow.steps.len(),
+            swap_amount = %swap_amount,
+            target_multiplier = %target_multiplier,
+            "Generated enhanced 300-series flow with detailed steps"
+        );
+
+        Ok(flow)
+    }
+
+    /// Generate simple dynamic flow plan for user requests (like 100/200 series)
+    ///
+    /// Note: This is for USER-FACING dynamic requests only.
+    /// 300-series benchmarks are STATIC YML files for internal testing.
+    ///
+    /// User flows: Natural language → Simple dynamic YML → Existing static runner
+    /// 300-series: Pre-defined comprehensive test cases → Runner for systematic testing
+    fn generate_simple_dynamic_flow(
+        &self,
+        prompt: &str,
+        context: &WalletContext,
+        intent: &UserIntent,
+    ) -> Result<DynamicFlowPlan> {
+        let flow_id = format!(
+            "dynamic-{}-{}",
+            chrono::Utc::now().timestamp(),
+            uuid::Uuid::new_v4()
+                .to_string()
+                .chars()
+                .take(8)
+                .collect::<String>()
+        );
+
+        let flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone())
+            .with_atomic_mode(AtomicMode::Strict);
+
+        // Simple flows: swap, lend, withdraw - like existing 100/200 series
+        match intent.intent_type.as_str() {
+            "swap" => {
+                let sol_amount = intent
+                    .parameters
+                    .get("sol_amount")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .unwrap_or(1.0);
+
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(
+                        self.create_enhanced_swap_step_with_details(context, sol_amount, "swap")?,
+                    )
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
+            "lend" => {
+                let usdc_amount = intent
+                    .parameters
+                    .get("usdc_amount")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .unwrap_or(100.0);
+
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(self.create_enhanced_lend_step_with_details(
+                        context,
+                        usdc_amount,
+                        8.5,
+                        "lend",
+                    )?)
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
+            "complex" => {
+                // Multi-step strategies
+                let sol_amount = context.sol_balance_sol() * 0.5;
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(
+                        self.create_enhanced_swap_step_with_details(
+                            context, sol_amount, "complex",
+                        )?,
+                    )
+                    .with_step(self.create_enhanced_lend_step_with_details(
+                        context,
+                        sol_amount * 150.0,
+                        8.5,
+                        "complex",
+                    )?)
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
+            _ => {
+                // Default to simple flow
+                let sol_amount = context.sol_balance_sol() * 1.0;
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(
+                        self.create_enhanced_swap_step_with_details(
+                            context, sol_amount, "default",
+                        )?,
+                    )
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
+        }
+    }
+
+    /// Create emergency withdraw step for crisis situations
+    fn create_emergency_withdraw_step(
+        &self,
+        context: &WalletContext,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let prompt_template = format!(
+            "Emergency withdrawal of all Jupiter lending positions for wallet {}. \
+             Crisis protocol activated - prioritize capital preservation over yield. \
+             Withdraw all positions to stable assets immediately. \
+             Current portfolio value: ${:.2}, SOL balance: {:.6}.",
+            context.owner,
+            context.total_value_usd,
+            context.sol_balance_sol()
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            "emergency_withdraw".to_string(),
+            prompt_template,
+            "Emergency withdrawal from all lending positions".to_string(),
+        )
+        .with_tool("jupiter_lend_earn_withdraw")
+        .with_estimated_time(30)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 })
+        .with_critical(true))
+    }
+
+    /// Create emergency swap to stable assets step
+    fn create_emergency_swap_to_stable_step(
+        &self,
+        context: &WalletContext,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let prompt_template = format!(
+            "Emergency swap all volatile assets to stablecoins for wallet {}. \
+             Crisis mode - convert SOL to USDC or other stable assets. \
+             Use minimal SOL for transaction fees only. \
+             Current SOL: {:.6}, Portfolio value: ${:.2}.",
+            context.owner,
+            context.sol_balance_sol(),
+            context.total_value_usd
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            "emergency_swap_to_stable".to_string(),
+            prompt_template,
+            "Emergency swap to stable assets".to_string(),
+        )
+        .with_tool("jupiter_swap")
+        .with_estimated_time(25)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 })
+        .with_critical(true))
+    }
+
+    /// Create multi-pool lending step for advanced strategies
+    fn create_multi_pool_lend_step(
+        &self,
+        context: &WalletContext,
+        usdc_amount: f64,
+    ) -> Result<reev_types::flow::DynamicStep> {
+        let prompt_template = format!(
+            "Advanced yield farming optimization for wallet {}: \
+             Allocate {:.2} USDC across multiple Jupiter lending pools for optimal yield. \
+             Strategy: 60% primary pool, 30% secondary pool, 10% experimental pool. \
+             Target APY: 10-15% across diversified positions. \
+             Monitor for impermanent loss and rebalance as needed. \
+             Wallet: {}, Total portfolio: ${:.2}.",
+            context.owner, usdc_amount, context.owner, context.total_value_usd
+        );
+
+        Ok(reev_types::flow::DynamicStep::new(
+            "multi_pool_lend".to_string(),
+            prompt_template,
+            "Advanced multi-pool yield optimization".to_string(),
+        )
+        .with_tool("jupiter_lend_earn_deposit")
+        .with_estimated_time(60)
+        .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+        .with_critical(true))
+    }
     /// Create a new orchestrator gateway with default recovery configuration
     pub async fn new() -> Result<Self> {
         let recovery_config = RecoveryConfig::default();
@@ -118,7 +539,9 @@ impl OrchestratorGateway {
         debug!("Refined prompt: {}", refined_prompt);
 
         // 3. Generate enhanced flow plan using real context
-        let flow_plan = self.generate_enhanced_flow_plan(user_prompt, &context, None)?;
+        let flow_plan = self
+            .generate_enhanced_flow_plan(user_prompt, &context, None)
+            .await?;
         debug!(
             "Generated enhanced flow plan with {} steps using real wallet data",
             flow_plan.steps.len()
@@ -150,90 +573,140 @@ impl OrchestratorGateway {
     }
 
     /// Generate enhanced flow plan from refined prompt with real context data
-    pub fn generate_enhanced_flow_plan(
+    /// Simple intent analysis for user requests (like 100/200 series logic)
+    pub async fn analyze_user_intent(
         &self,
         prompt: &str,
         context: &WalletContext,
-        atomic_mode: Option<AtomicMode>,
-    ) -> Result<DynamicFlowPlan> {
-        let flow_id = format!(
-            "dynamic-{}-{}",
-            chrono::Utc::now().timestamp(),
-            uuid::Uuid::new_v4()
-                .to_string()
-                .chars()
-                .take(8)
-                .collect::<String>()
-        );
-
-        // Set atomic mode based on parameter or default to Strict
-        let atomic_mode_for_logging = atomic_mode.unwrap_or(AtomicMode::Strict);
-        let mut flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone())
-            .with_atomic_mode(atomic_mode_for_logging);
-
-        // Parse intent and generate steps with real context awareness
+    ) -> Result<UserIntent> {
+        // TODO: Replace with actual LLM call
+        // For now, simple rule-based analysis for user requests
         let prompt_lower = prompt.to_lowercase();
-        let has_swap = prompt_lower.contains("swap") || prompt_lower.contains("sol");
-        let has_lend = prompt_lower.contains("lend") || prompt_lower.contains("yield");
-        let has_multiply = prompt_lower.contains("multiply") || prompt_lower.contains("1.5x");
-        let has_sol_percentage = prompt_lower.contains("%") && prompt_lower.contains("sol");
 
-        // Use real wallet data to determine feasible operations
-        let has_sol_balance = context.sol_balance > 1_000_000_000; // > 1 SOL
-        let has_usdc_balance = context
-            .token_balances
-            .contains_key("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-        let _is_high_value_portfolio = context.total_value_usd > 1000.0;
-
-        // Check for complex flows first
-        if has_swap && (has_lend || has_multiply) {
-            // Complete multiplication strategy flow with recovery strategies
-            // 1. Check current balances
-            // 2. Swap SOL to USDC
-            // 3. Lend USDC for yield
-            // 4. Check final positions
-            flow = flow
-                .with_step(create_account_balance_step_with_recovery(context)?)
-                .with_step(create_swap_step_with_recovery(context, prompt)?)
-                .with_step(create_lend_step_with_recovery(context)?)
-                .with_step(create_positions_check_step_with_recovery(context)?);
-        } else if has_swap {
-            if !has_sol_balance {
-                return Err(anyhow::anyhow!(
-                    "Insufficient SOL balance for swap. Current: {:.6} SOL",
-                    context.sol_balance_sol()
-                ));
-            }
-            flow = flow.with_step(create_enhanced_swap_step(context, prompt)?);
-        } else if has_lend {
-            if !has_usdc_balance && !has_sol_balance {
-                return Err(anyhow::anyhow!(
-                    "No SOL or USDC balance available for lending. SOL: {:.6}, USDC: available: {}",
-                    context.sol_balance_sol(),
-                    has_usdc_balance
-                ));
-            }
-            flow = flow.with_step(create_enhanced_lend_step(context)?);
-        } else if has_sol_percentage {
-            if !has_sol_balance {
-                return Err(anyhow::anyhow!(
-                    "Insufficient SOL balance for percentage-based operation. Current: {:.6} SOL",
-                    context.sol_balance_sol()
-                ));
-            }
-            flow = flow.with_step(create_enhanced_swap_step(context, prompt)?);
+        let (intent_type, primary_goal, parameters) = if prompt_lower.contains("lend")
+            || prompt_lower.contains("deposit")
+            || prompt_lower.contains("yield")
+        {
+            (
+                "lend".to_string(),
+                "Deposit funds for yield generation".to_string(),
+                {
+                    let mut params = std::collections::HashMap::new();
+                    // Extract USDC amount if mentioned
+                    if let Some(usdc_match) =
+                        regex::Regex::new(r"(\d+)\s*usdc").unwrap().captures(prompt)
+                    {
+                        if let Some(usdc) = usdc_match.get(1) {
+                            params.insert("usdc_amount".to_string(), usdc.as_str().to_string());
+                        } else {
+                            params.insert("usdc_amount".to_string(), "100.0".to_string());
+                        }
+                    } else {
+                        params.insert("usdc_amount".to_string(), "100.0".to_string());
+                    }
+                    params
+                },
+            )
+        } else if prompt_lower.contains("swap")
+            || prompt_lower.contains("exchange")
+            || prompt_lower.contains("convert")
+        {
+            (
+                "swap".to_string(),
+                "Swap tokens between different assets".to_string(),
+                {
+                    let mut params = std::collections::HashMap::new();
+                    // Extract SOL amount if mentioned
+                    if let Some(sol_match) = regex::Regex::new(r"(\d+(?:\.\d+)?)\s*sol")
+                        .unwrap()
+                        .captures(prompt)
+                    {
+                        if let Some(sol) = sol_match.get(1) {
+                            params.insert("sol_amount".to_string(), sol.as_str().to_string());
+                        } else {
+                            params.insert("sol_amount".to_string(), "1.0".to_string());
+                        }
+                    } else {
+                        params.insert("sol_amount".to_string(), "1.0".to_string());
+                    }
+                    params
+                },
+            )
+        } else if prompt_lower.contains("multiply")
+            || prompt_lower.contains("then")
+            || (prompt_lower.contains("lend") && prompt_lower.contains("swap"))
+        {
+            (
+                "complex".to_string(),
+                "Multi-step DeFi strategy execution".to_string(),
+                {
+                    let mut params = std::collections::HashMap::new();
+                    params.insert("strategy".to_string(), "swap_then_lend".to_string());
+                    params
+                },
+            )
         } else {
-            return Err(anyhow::anyhow!("Unsupported flow type: {prompt}"));
-        }
+            // Default to simple swap
+            (
+                "swap".to_string(),
+                "Execute simple token swap".to_string(),
+                {
+                    let mut params = std::collections::HashMap::new();
+                    params.insert("sol_amount".to_string(), "1.0".to_string());
+                    params
+                },
+            )
+        };
 
-        debug!(
-            flow_id = %flow.flow_id,
-            total_steps = %flow.steps.len(),
-            atomic_mode = %atomic_mode_for_logging.as_str(),
-            "Generated flow plan with recovery support"
+        let required_tools = match intent_type.as_str() {
+            "lend" => vec!["account_balance".to_string(), "jupiter_lend".to_string()],
+            "complex" => vec![
+                "account_balance".to_string(),
+                "jupiter_swap".to_string(),
+                "jupiter_lend".to_string(),
+            ],
+            _ => vec!["account_balance".to_string(), "jupiter_swap".to_string()],
+        };
+
+        Ok(UserIntent {
+            intent_type,
+            parameters,
+            primary_goal,
+            required_tools,
+            confidence: 0.9,
+        })
+    }
+
+    /// Generate simple dynamic YML from user intent (like 100/200 series)
+    pub async fn generate_dynamic_yml(
+        &self,
+        intent: &UserIntent,
+        prompt: &str,
+        context: &WalletContext,
+    ) -> Result<String> {
+        let flow_plan = self.generate_simple_dynamic_flow(prompt, context, intent)?;
+        let yml_path = self.yml_generator.generate_yml(&flow_plan).await?;
+        Ok(yml_path)
+    }
+
+    pub async fn generate_enhanced_flow_plan(
+        &self,
+        prompt: &str,
+        context: &WalletContext,
+        _atomic_mode: Option<AtomicMode>,
+    ) -> Result<DynamicFlowPlan> {
+        // Simple intent analysis for user requests (like 100/200 series)
+        let intent = self.analyze_user_intent(prompt, context).await?;
+
+        info!(
+            intent_type = %intent.intent_type,
+            primary_goal = %intent.primary_goal,
+            confidence = %intent.confidence,
+            "Simple user intent analysis completed"
         );
 
-        Ok(flow)
+        // Generate simple dynamic flow for user requests
+        self.generate_simple_dynamic_flow(prompt, context, &intent)
     }
 
     /// Execute flow with Phase 3 recovery mechanisms

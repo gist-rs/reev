@@ -313,11 +313,10 @@ The 300-series benchmarks demonstrate the full capabilities of the reev dynamic 
 ## 🔍 **Critical Architecture: OTEL-Only Tool Calls**
 
 **Design Principle**: Tool calls captured at orchestrator level via OpenTelemetry (OTEL), unified across all agents.
-
-```
-Agent Execution → Orchestrator (OTEL) → Direct JSON + OTEL traces → enhanced_otel_*.jsonl
+ ```
+ Agent Execution → Orchestrator (OTEL) → Direct JSON + OTEL traces → enhanced_otel_*.jsonl
                   ↓                           ↓
-JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
+ JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
 ```
 
 - **Orchestrator** owns OTEL session initialization per flow
@@ -326,6 +325,201 @@ JsonlToYmlConverter → OTEL YML format → SessionParser → API Flow Diagram
 - **Enhanced OTEL Logging**: Tool calls captured with parameters and results from orchestrator level
 - **JsonlToYmlConverter** processes OTEL traces from orchestrator level
 - **API Flow Visualization** reads consistent format from sessions with enhanced tool call data
+
+## 🎯 **Mode-Based Execution: Same Core Logic, Different Data Source**
+
+### **Critical Design Principle: Top-Level Mode Separation Only**
+
+The dynamic execution system uses **identical core logic** for both benchmark and user modes, with separation only at the data source level.
+
+#### **Execution Flow Comparison:**
+```bash
+# Benchmark Mode (300-Series):
+User/CI → Select benchmark ID → Use static YML file → Core runner → Same execution pipeline
+
+# Dynamic Mode (User Requests):  
+User → Natural language prompt → Generate temporary YML → Core runner → Same execution pipeline
+```
+
+#### **What's IDENTICAL Across Modes:**
+- ✅ **Same runner** (`reev-runner`) parses and executes YML
+- ✅ **Same agent** (`reev-agent`) executes prompts via ping-pong
+- ✅ **Same orchestrator** coordinates step-by-step execution
+- ✅ **Same OTEL capture** tracks all tool calls with parameters
+- ✅ **Same database storage** saves execution results
+- ✅ **Same scoring system** evaluates success criteria
+- ✅ **Same API visualization** generates Mermaid diagrams
+
+#### **What's DIFFERENT (Top-Level Only):**
+- 🔄 **YML source**: Static files vs. temporary generated files
+- 🔄 **Entry point**: Benchmark ID selection vs. natural language processing
+- 🔄 **Mode detection**: Configuration-based routing
+
+#### **Implementation Pattern:**
+```rust
+// ONLY at entry points - NOT scattered throughout codebase
+fn route_execution(request: UserRequest) -> Result<ExecutionResult> {
+    let yml_path = match config.mode {
+        ExecutionMode::Benchmark => {
+            // ONLY difference: Use pre-defined static file
+            get_static_benchmark_path(request.benchmark_id)
+        }
+        ExecutionMode::Dynamic => {
+            // ONLY difference: Generate on-demand
+            generate_dynamic_yml(request.prompt, &context).await?
+        }
+    };
+    
+    // SAME core execution for both modes
+    execute_with_runner(yml_path).await
+}
+
+// Core logic - NO mode-specific code here
+fn execute_with_runner(yml_path: PathBuf) -> Result<ExecutionResult> {
+    // Same runner, same agent, same orchestrator, same OTEL, same DB, same API
+}
+```
+
+**This principle ensures zero code duplication while maintaining clean separation of concerns.**
+
+## 🏗️ **Dynamic Execution Architecture: Reusing 100/200 Infrastructure**
+
+### **Core Design Principle: Same Runner, Different YML Source**
+
+The dynamic execution system reuses the proven 100/200 series infrastructure, only changing the YML source from static files to runtime-generated files.
+
+#### **Static 100/200 Series Flow (Existing & Tested):**
+```bash
+# Static YML files:
+100-jupiter-swap.yml
+200-jupiter-lend.yml
+
+# Execution Path:
+reev-runner --benchmark 100-jupiter-swap.yml
+↓
+1. Read static YML file
+2. Parse prompt, initial_state, ground_truth
+3. Execute prompt via reev-agent
+4. Agent calls tools → results captured via OTEL
+5. Store in database → score → visualize via API
+```
+
+#### **Dynamic Execution Flow (User-Facing):**
+```bash
+# User request via API:
+curl -X POST /api/v1/benchmarks/execute-direct \
+  -d '{"prompt": "swap 1 SOL to USDC", "agent": "glm-4.6"}'
+↓
+
+# Step 1: Dynamic YML Generation (replaces static file)
+reev-orchestrator generates temporary YML:
+{
+  "id": "dynamic-swap-abc123",
+  "prompt": "swap 1 SOL to USDC",
+  "initial_state": [...],  // From wallet context
+  "ground_truth": [...]   // Dynamic validation rules
+}
+↓
+
+# Step 2: Same Execution Path as 100/200
+reev-runner --benchmark /tmp/dynamic-swap-abc123.yml
+↓
+3. Parse dynamic YML (same format as static)
+4. Execute prompt via reev-agent
+5. Agent calls tools → results captured via OTEL
+6. Store in database → score → visualize via API
+```
+
+#### **Architecture Comparison:**
+
+| Aspect | Static 100/200 Series | Dynamic Execution |
+|---------|-----------------------|------------------|
+| **YML Source** | Pre-defined static files | Generated on-demand |
+| **YML Format** | Standard benchmark format | Same standard format |
+| **Runner** | reev-runner | reev-runner (same) |
+| **Agent Execution** | reev-agent | reev-agent (same) |
+| **OTEL Capture** | ✅ | ✅ (same) |
+| **Database Storage** | ✅ | ✅ (same) |
+| **Scoring** | ✅ | ✅ (same) |
+| **Visualization** | ✅ | ✅ (same) |
+
+### **Implementation Details:**
+
+#### **Dynamic YML Generation Process:**
+```rust
+// Current: Static path
+let yml_path = "benchmarks/100-jupiter-swap.yml";
+
+// Dynamic: Generated path
+let yml_path = reev_orchestrator.generate_dynamic_yml(prompt, context).await?;
+// Returns: "/tmp/dynamic-swap-abc123.yml"
+
+// Same runner execution (no changes needed)
+reev_runner::execute_benchmark(yml_path).await
+```
+
+#### **YML Format Consistency:**
+Generated dynamic YML files must maintain exact same structure as static 100/200 series:
+```yaml
+id: dynamic-swap-abc123
+description: Dynamic user request execution
+tags: ["dynamic", "jupiter", "generated"]
+
+prompt: "swap 1 SOL to USDC"  # User's natural language
+
+initial_state: [...]            # Real wallet context
+ground_truth: [...]            # Dynamic validation rules
+
+# Must be compatible with existing runner parsing
+```
+
+#### **Benefits of This Architecture:**
+
+1. **Zero Infrastructure Changes**: All existing components (runner, agent, OTEL, DB, scoring, API) work unchanged
+2. **Proven Foundation**: 100/200 series already tested and production-ready
+3. **Incremental Development**: Only YML generation logic needs implementation
+4. **Scalable**: Handles infinite user variations without pre-defined YML files
+5. **Consistent Data Flow**: Same OTEL capture, database storage, and API visualization
+6. **Risk-Managed**: Leverages battle-tested execution pipeline
+
+#### **Error Handling & Fallbacks:**
+
+```rust
+match generate_dynamic_yml(prompt, context).await {
+    Ok(yml_path) => {
+        // Execute with proven runner
+        execute_with_runner(yml_path).await
+    }
+    Err(e) => {
+        // Fallback to simple default flow
+        execute_simple_swap_flow(prompt).await
+    }
+}
+```
+
+#### **Temporary File Management:**
+
+```rust
+// Generate unique temporary YML
+let temp_file = NamedTempFile::with_prefix("dynamic-")?.into_temp_path();
+let yml_path = temp_file.to_string_lossy().to_string();
+
+// Auto-cleanup after execution (or use reev-orchestrator cleanup)
+tokio::spawn(async move {
+    tokio::time::sleep(Duration::from_secs(300)).await; // 5 min cleanup
+    let _ = std::fs::remove_file(&temp_file);
+});
+```
+
+### **Why This Approach is Optimal:**
+
+1. **Don't Reinvent the Wheel**: All execution infrastructure already exists and works
+2. **Separate Concerns Properly**: YML generation is separate concern from execution
+3. **Build on Success**: 100/200 series provide proven foundation
+4. **Design for Scale**: Users can request anything, system generates appropriate YML
+5. **Maintain Compatibility**: Same file format, same runner, same database schema
+
+This architecture maximizes code reuse while minimizing development risk and complexity.
 
 ## 🔍 **Critical Architecture: Orchestrator-Agent Ping-Pong Mechanism**
 

@@ -5,6 +5,7 @@
 //! DeFi automation through natural language processing and intelligent orchestration.
 
 pub mod dynamic_flow;
+pub mod enhanced_flows;
 
 // Re-export common test utilities
 pub use dynamic_flow::TestUtils;
