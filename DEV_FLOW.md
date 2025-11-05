@@ -299,21 +299,49 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 
 ### **✅ Execute 300 Benchmark:**
 ```bash
-curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
+FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
   -H "Content-Type: application/json" \
   -d '{
     "agent": "glm-4.6-coding"
-  }' | jq '.'
+  }' | jq -r '.execution_id')
+
+echo "FLOW_ID=$FLOW_ID"
 ```
 
 ### **✅ Get Mermaid Diagram:**
 ```bash
-# Get execution_id from response, then:
-FLOW_ID="5e05380f-627d-4db1-a2bc-b549126a7cf1"
 curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID" | jq -r '.diagram'
 ```
 
 ### **✅ Check Execution Status:**
 ```bash
 curl -s "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/status/$EXECUTION_ID" | jq .
+```
+
+---
+
+###  **dynamic flow execution**
+
+```bash
+# This uses static benchmark runner (no enhanced context)
+curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "glm-4.6-coding"}'
+
+# ❌ This uses static YAML, not enhanced context
+
+# ✅ Use this instead - DYNAMIC FLOW with enhanced context
+FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
+    "wallet": "USER_WALLET_PUBKEY",
+    "agent": "glm-4.6-coding",
+    "shared_surfpool": false
+  }' | jq -r '.execution_id')
+
+echo "FLOW_ID=$FLOW_ID"
+
+# Get enhanced flow diagram with real context
+curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID" | jq -r '.diagram'
 ```
