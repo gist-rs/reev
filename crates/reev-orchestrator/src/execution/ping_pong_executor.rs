@@ -317,7 +317,7 @@ impl PingPongExecutor {
 
         // Create LlmRequest for real agent execution
         // Resolve wallet pubkey using context resolver (handles placeholders like USER_WALLET_PUBKEY)
-        let resolved_wallet_pubkey = match self
+        let _resolved_wallet_pubkey = match self
             .context_resolver
             .resolve_placeholder(wallet_pubkey)
             .await

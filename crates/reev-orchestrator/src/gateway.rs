@@ -11,6 +11,7 @@ use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
 use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
+use regex::Regex;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
@@ -116,9 +117,12 @@ impl OrchestratorGateway {
         let refined_prompt = self.refine_prompt(user_prompt, &context);
         debug!("Refined prompt: {}", refined_prompt);
 
-        // 3. Generate flow plan (use original prompt, not refined)
-        let flow_plan = self.generate_flow_plan(user_prompt, &context, None)?;
-        debug!("Generated flow plan with {} steps", flow_plan.steps.len());
+        // 3. Generate enhanced flow plan using real context
+        let flow_plan = self.generate_enhanced_flow_plan(user_prompt, &context, None)?;
+        debug!(
+            "Generated enhanced flow plan with {} steps using real wallet data",
+            flow_plan.steps.len()
+        );
 
         // 4. Generate YML for bridge mode
         let yml_path = self.yml_generator.generate_yml(&flow_plan).await?;
@@ -128,9 +132,16 @@ impl OrchestratorGateway {
     }
 
     /// Refine user prompt with wallet context
-    pub fn refine_prompt(&self, prompt: &str, _context: &WalletContext) -> String {
-        // Return original prompt unchanged for now - refinement will be done in step generation
-        prompt.to_string()
+    pub fn refine_prompt(&self, prompt: &str, context: &WalletContext) -> String {
+        // Enhance prompt with real wallet context for better flow generation
+        let context_info = format!(
+            "\n\nWALLET CONTEXT:\n- SOL Balance: {:.6} SOL\n- Total Portfolio Value: ${:.2}\n- Available Tokens: {}\n\n",
+            context.sol_balance_sol(),
+            context.total_value_usd,
+            context.token_balances.len()
+        );
+
+        format!("{context_info}{prompt}")
     }
 
     /// Get a reference to the context resolver
@@ -138,8 +149,8 @@ impl OrchestratorGateway {
         &self.context_resolver
     }
 
-    /// Generate flow plan from refined prompt with Phase 3 recovery support
-    pub fn generate_flow_plan(
+    /// Generate enhanced flow plan from refined prompt with real context data
+    pub fn generate_enhanced_flow_plan(
         &self,
         prompt: &str,
         context: &WalletContext,
@@ -160,12 +171,19 @@ impl OrchestratorGateway {
         let mut flow = DynamicFlowPlan::new(flow_id.clone(), prompt.to_string(), context.clone())
             .with_atomic_mode(atomic_mode_for_logging);
 
-        // Parse intent and generate steps with recovery strategies
+        // Parse intent and generate steps with real context awareness
         let prompt_lower = prompt.to_lowercase();
         let has_swap = prompt_lower.contains("swap") || prompt_lower.contains("sol");
         let has_lend = prompt_lower.contains("lend") || prompt_lower.contains("yield");
         let has_multiply = prompt_lower.contains("multiply") || prompt_lower.contains("1.5x");
         let has_sol_percentage = prompt_lower.contains("%") && prompt_lower.contains("sol");
+
+        // Use real wallet data to determine feasible operations
+        let has_sol_balance = context.sol_balance > 1_000_000_000; // > 1 SOL
+        let has_usdc_balance = context
+            .token_balances
+            .contains_key("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        let _is_high_value_portfolio = context.total_value_usd > 1000.0;
 
         // Check for complex flows first
         if has_swap && (has_lend || has_multiply) {
@@ -180,14 +198,30 @@ impl OrchestratorGateway {
                 .with_step(create_lend_step_with_recovery(context)?)
                 .with_step(create_positions_check_step_with_recovery(context)?);
         } else if has_swap {
-            // Single swap flow with recovery strategy
-            flow = flow.with_step(create_swap_step_with_recovery(context, prompt)?);
+            if !has_sol_balance {
+                return Err(anyhow::anyhow!(
+                    "Insufficient SOL balance for swap. Current: {:.6} SOL",
+                    context.sol_balance_sol()
+                ));
+            }
+            flow = flow.with_step(create_enhanced_swap_step(context, prompt)?);
         } else if has_lend {
-            // Single lend flow with recovery strategy
-            flow = flow.with_step(create_lend_step_with_recovery(context)?);
+            if !has_usdc_balance && !has_sol_balance {
+                return Err(anyhow::anyhow!(
+                    "No SOL or USDC balance available for lending. SOL: {:.6}, USDC: available: {}",
+                    context.sol_balance_sol(),
+                    has_usdc_balance
+                ));
+            }
+            flow = flow.with_step(create_enhanced_lend_step(context)?);
         } else if has_sol_percentage {
-            // Percentage-based flow - assume swap with recovery strategy
-            flow = flow.with_step(create_swap_step_with_recovery(context, prompt)?);
+            if !has_sol_balance {
+                return Err(anyhow::anyhow!(
+                    "Insufficient SOL balance for percentage-based operation. Current: {:.6} SOL",
+                    context.sol_balance_sol()
+                ));
+            }
+            flow = flow.with_step(create_enhanced_swap_step(context, prompt)?);
         } else {
             return Err(anyhow::anyhow!("Unsupported flow type: {prompt}"));
         }
@@ -314,7 +348,7 @@ pub fn create_swap_step_with_recovery(
         prompt_template,
         "Swap SOL to USDC using Jupiter".to_string(),
     )
-    .with_tool("sol_tool")
+    .with_tool("jupiter_swap")
     .with_estimated_time(30)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
 }
@@ -383,27 +417,39 @@ pub fn create_positions_check_step_with_recovery(
     .with_critical(false)) // Not critical for flow success
 }
 
-/// Create a swap step based on context (legacy, non-recovery)
-pub fn create_swap_step(
+/// Create an enhanced swap step using real wallet context
+pub fn create_enhanced_swap_step(
     context: &WalletContext,
     prompt: &str,
 ) -> Result<reev_types::flow::DynamicStep> {
     let sol_balance = context.sol_balance_sol();
-    // Extract amount from prompt or use 50% default
+    let sol_price = context
+        .get_token_price("So11111111111111111111111111111111111111112")
+        .unwrap_or(150.0);
+
+    // Parse amount from prompt with real balance validation
     let prompt_lower = prompt.to_lowercase();
-    let swap_amount = if prompt_lower.contains("1 sol") {
-        "1".to_string()
+    let (swap_amount, _swap_reason) = if prompt_lower.contains("1 sol") {
+        ("1".to_string(), "User requested 1 SOL swap".to_string())
     } else if prompt_lower.contains("0.5 sol") {
-        "0.5".to_string()
-    } else if prompt_lower.contains("25%") {
-        (sol_balance * 0.25).to_string()
-    } else if prompt_lower.contains("50%") {
-        (sol_balance * 0.5).to_string()
-    } else if prompt_lower.contains("100%") {
-        sol_balance.to_string()
+        ("0.5".to_string(), "User requested 0.5 SOL swap".to_string())
+    } else if let Some(percent_str) = extract_percentage(prompt) {
+        let percentage = percent_str.parse::<f64>().unwrap_or(50.0) / 100.0;
+        let amount = (sol_balance * percentage).max(0.001).min(sol_balance);
+        (
+            format!("{amount:.6}"),
+            format!("User requested {percent_str}% of SOL"),
+        )
     } else {
-        (sol_balance * 0.5).to_string() // Default 50%
+        // Default to 50% with smart cap
+        let default_amount = (sol_balance * 0.5).max(0.001).min(sol_balance);
+        (
+            format!("{default_amount:.6}"),
+            "Default: 50% of SOL balance".to_string(),
+        )
     };
+
+    let _estimated_usdc = (swap_amount.parse::<f64>().unwrap_or(0.0) * sol_price).to_string();
 
     let prompt_template = format!(
         "Swap {} SOL from wallet {} to USDC using Jupiter DEX. \
@@ -420,8 +466,54 @@ pub fn create_swap_step(
         prompt_template,
         "Swap SOL to USDC using Jupiter".to_string(),
     )
-    .with_tool("sol_tool")
+    .with_tool("jupiter_swap")
     .with_estimated_time(30))
+}
+
+/// Create an enhanced lending step using real wallet context
+pub fn create_enhanced_lend_step(context: &WalletContext) -> Result<reev_types::flow::DynamicStep> {
+    let usdc_balance = context
+        .token_balances
+        .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+        .map(|balance| {
+            let decimals = balance.decimals.unwrap_or(6) as f64;
+            balance.balance as f64 / 10_f64.powi(decimals as i32)
+        })
+        .unwrap_or(0.0);
+
+    let sol_balance_value = context.sol_balance_sol()
+        * context
+            .get_token_price("So11111111111111111111111111111111111111112")
+            .unwrap_or(150.0);
+
+    let prompt_template = format!(
+        "Deposit available USDC into Jupiter lending for yield generation. \
+         Wallet Context: {:.2} USDC available, {:.6} SOL (${:.2} value). \
+         Total portfolio value: ${:.2}. \
+         Strategy: Use maximum available USDC for optimal yield at current APY rates (5-12%). \
+         If insufficient USDC, consider swapping SOL to USDC first.",
+        usdc_balance,
+        context.sol_balance_sol(),
+        sol_balance_value,
+        context.total_value_usd
+    );
+
+    Ok(reev_types::flow::DynamicStep::new(
+        "enhanced_lend".to_string(),
+        prompt_template,
+        "Enhanced USDC lending using real wallet data".to_string(),
+    )
+    .with_tool("jupiter_lend_earn_deposit")
+    .with_estimated_time(45)
+    .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
+    .with_critical(true))
+}
+
+/// Extract percentage from prompt string
+fn extract_percentage(prompt: &str) -> Option<String> {
+    let re = Regex::new(r"(\d+\.?\d*)\s*%").ok()?;
+    let caps = re.captures(prompt)?;
+    Some(caps.get(1)?.as_str().to_string())
 }
 
 /// Create an account balance check step (legacy, non-recovery)

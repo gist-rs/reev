@@ -723,7 +723,7 @@ pub async fn run_recovery_flow(
 
     // Process user request and generate dynamic flow plan
     let flow_plan = gateway
-        .generate_flow_plan(prompt, &wallet_context, atomic_mode)
+        .generate_enhanced_flow_plan(prompt, &wallet_context, atomic_mode)
         .context("Failed to generate recovery flow plan")?;
 
     info!(

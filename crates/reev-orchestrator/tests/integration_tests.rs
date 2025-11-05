@@ -392,7 +392,7 @@ async fn test_mock_data_integration() -> Result<()> {
         let context = create_mock_wallet_context(scenario);
 
         // Test flow generation with mock context
-        let plan = gateway.generate_flow_plan("use 50% sol to usdc", &context, None)?;
+        let plan = gateway.generate_enhanced_flow_plan("use 50% sol to usdc", &context, None)?;
 
         println!("DEBUG: Generated plan for {scenario_name}: {plan:?}");
         println!("DEBUG: Step prompt: {}", plan.steps[0].prompt_template);
@@ -555,7 +555,7 @@ async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
     println!("📋 Testing direct mode (in-memory flow)...");
 
     // Generate flow plan directly (no file I/O)
-    let flow_plan = gateway.generate_flow_plan(prompt, &context, None)?;
+    let flow_plan = gateway.generate_enhanced_flow_plan(prompt, &context, None)?;
 
     println!("  ✅ Generated flow: {}", flow_plan.flow_id);
     println!("  ✅ Number of steps: {}", flow_plan.steps.len());
