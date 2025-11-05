@@ -90,22 +90,22 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
             // Route GLM models to appropriate agent based on type
             match model_name {
                 "glm-4.6" => {
-                    // glm-4.6 uses OpenAI-compatible format via OpenAI client with ZAI endpoint
-                    info!("[run_agent] ROUTING: glm-4.6 -> OpenAI client with ZAI endpoint");
+                    // glm-4.6 uses OpenAI agent with ZAI_API_URL
+                    info!("[run_agent] ROUTING: glm-4.6 -> OpenAI agent (ZAI_API_URL)");
                     OpenAIAgent::run(model_name, payload, key_map).await
                 }
                 "glm-4.6-coding" => {
-                    // glm-4.6-coding uses ZAI-specific client
-                    info!("[run_agent] ROUTING: glm-4.6-coding -> ZAI client");
+                    // glm-4.6-coding uses ZAI-specific client with GLM_CODING_API_URL
+                    info!("[run_agent] ROUTING: glm-4.6-coding -> ZAI agent (GLM_CODING_API_URL)");
                     ZAIAgent::run(model_name, payload, key_map).await
                 }
                 _ => {
-                    // Other GLM models default to ZAI client
+                    // Other GLM models default to OpenAI agent
                     info!(
-                        "[run_agent] ROUTING: {} -> ZAI client (default)",
+                        "[run_agent] ROUTING: {} -> OpenAI agent (default)",
                         model_name
                     );
-                    ZAIAgent::run(model_name, payload, key_map).await
+                    OpenAIAgent::run(model_name, payload, key_map).await
                 }
             }
         } else {

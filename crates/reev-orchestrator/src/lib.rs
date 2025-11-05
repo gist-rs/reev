@@ -6,12 +6,14 @@
 //! replacing static YML files with dynamic, adaptable flow execution.
 
 pub mod context_resolver;
+pub mod execution;
 pub mod gateway;
 pub mod generators;
 pub mod recovery;
 pub mod templates;
 
 pub use context_resolver::ContextResolver;
+pub use execution::{ExecutionContext, PingPongExecutor, StepResultExt};
 pub use gateway::OrchestratorGateway;
 pub use generators::YmlGenerator;
 pub use recovery::{RecoveryConfig, RecoveryEngine, RecoveryOutcome, RecoveryResult};

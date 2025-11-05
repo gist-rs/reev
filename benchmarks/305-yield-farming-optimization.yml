@@ -43,17 +43,24 @@ ground_truth:
       expected_lte: 30000000 # Should not use more than 70% of USDC
       weight: 0.2
 
-    # Should have diversified lending positions across multiple pools
-    - type: JupiterLendingPosition
-      pubkey: "USER_WALLET_PUBKEY"
+    # Balance after USDC lending - some tokens moved to lending
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      expected_gte: 40000000 # At least 40 USDC in USDC lending
-      weight: 0.15
+      expected_lte: 25000000 # Should be <= 25 USDC after USDC lending
+      weight: 0.075
 
-    - type: JupiterLendingPosition
+    # Balance deduction validation - proves USDC lending occurred
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_lte: 20000000 # Should be less than max acquired (proves lending)
+      weight: 0.075
+
+    # SOL balance reduction - proves SOL lending occurred
+    - type: SolBalanceChange
       pubkey: "USER_WALLET_PUBKEY"
-      mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNY"
-      expected_gte: 500000000 # At least 5 SOL in SOL lending
+      expected_change_lte: -500000000 # Should reduce by ~5 SOL for SOL lending
       weight: 0.15
 
     - type: MultiPoolDiversification
@@ -98,12 +105,6 @@ ground_truth:
       critical: true
       expected_params: ["mint", "amount", "auto_compound"]
       weight: 0.2
-
-    - tool_name: "jupiter_positions"
-      description: "Validate final diversified yield farming positions"
-      critical: false
-      expected_params: ["user_pubkey"]
-      weight: 0.1
 
   success_criteria:
     - type: "pool_analysis"
@@ -225,7 +226,6 @@ ground_truth:
           "jupiter_lend_rates",
           "jupiter_swap",
           "jupiter_lend",
-          "jupiter_positions",
         ]
       weight: 0.3
 

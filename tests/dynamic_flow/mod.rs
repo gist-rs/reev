@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_tool_call_design_validation() {
         let benchmark_ids = vec![
-            "300-swap-sol-then-mul-usdc",
+            "300-jup-swap-then-lend-deposit-dyn",
             "301-dynamic-yield-optimization",
             "302-portfolio-rebalancing",
             "303-risk-adjusted-growth",

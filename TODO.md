@@ -1,4 +1,110 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
+ALWAYS RUN SERVER IN BG
+---
+
+1. refine PLAN_DYNAMIC_FLOW.md
+2. refine DYNAMIC_BENCHMARK_DESIGN.md
+3. refine/compact tasks.md
+
+
+[@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md), [@DEV_FLOW.md](file:///Users/katopz/git/gist/reev/DEV_FLOW.md) ,[@DYNAMIC_BENCHMARK_DESIGN.md](file:///Users/katopz/git/gist/reev/DYNAMIC_BENCHMARK_DESIGN.md) ,[@HANDOVER.md](file:///Users/katopz/git/gist/reev/HANDOVER.md), [@TASKS.md](file:///Users/katopz/git/gist/reev/TASKS.md), [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md) ,[@PLAN_DYNAMIC_FLOW.md](file:///Users/katopz/git/gist/reev/PLAN_DYNAMIC_FLOW.md) , impl issues, tasks, ALWAYS RUN SERVER IN BG, focus on `glm-4.6-coding` only
+
+---
+
+the problem is rig framework use otel, that's why de design like that, somehow you avoid that design decision, create issue, this is critical misconcept
+
+the problem is openai flow use rig framework and otel, that's why de design like that, it work now because we mod zai agent req/res so we can capture but for openai and other agent in the future, we will have to impl all this all over again and there's is no reason to use rig at that point if we keep doing that.
+
+but we control orchestrator so is fine for orchestrator part but
+1. Agent → Orchestrator → JSON → YML → DB → YML Parser → Mermaid // because yml has better comment and newline
+2. Did `Agent → Orchestrator → JSON` will work for openai agent flow? // if yes it's fine
+3. All other tool call is in rig+otel, what your plan for this? if you tend to use direct way? consolidate each flow/step as chuck later?
+
+
+```
+Agent Execution → Ping-Pong Orchestrator → Direct JSON → Database → JSON Parser → Mermaid
+                               ↓
+                         (No OTEL involved)
+```
+
+```
+Agent → Orchestrator → JSON → DB → JSON Parser → Mermaid
+```
+
+```
+Agent → OTEL Traces → enhanced_otel.jsonl → JsonlToYmlConverter → OTEL YML → SessionParser → Mermaid
+```
+---
+
+---
+i exepect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml work with dynamic flow ping png
+---
+
+RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding
+---
+Caused by:
+    LLM API request failed with status 500 Internal Server Error: {"error":"Internal agent error: ZAI model 'glm-4.6-coding' validation failed: invalid authentication. Please check if the model is available and your API credentials are correct."}
+
+
+[@ARCHITECTURE.md](file:///Users/katopz/git/gist/reev/ARCHITECTURE.md)
+
+---
+GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
+ZAI_API_URL="https://api.z.ai/api/paas/v4"
+
+---
+has been set in .env
+
+glm-4.6 must use ZAI_API_URL="https://api.z.ai/api/paas/v4"
+curl --location 'https://api.z.ai/api/paas/v4/chat/completions' \
+--header 'Authorization: Bearer YOUR_API_KEY' \
+--header 'Accept-Language: en-US,en' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "glm-4.6",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello"
+        }
+    ]
+}'
+glm-4.6-coding must use GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
+curl --location 'https://api.z.ai/api/coding/paas/v4/chat/completions' \
+--header 'Authorization: Bearer YOUR_API_KEY' \
+--header 'Accept-Language: en-US,en' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "glm-4.6",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello"
+        }
+    ]
+}'
+
+glm-4.6 and glm-4.6-coding use same `"model": "glm-4.6 ",`
+
+glm-4.6 must use openai compatible crates/reev-agent/src/enhanced/openai.rs
+glm-4.6-coding must use crates/reev-agent/src/enhanced/zai_agent.rs
+
+---
+
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6
+cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding
+
+---
+
+Test this and see flow work or not via api curl only (not cli) focus on agent glm-4.6 only
+1. 001-sol-transfer.yml
+2. 300-jup-swap-then-lend-deposit-dyn.yml
+
+expect flow working e.g. http://localhost:3001/api/v1/flows/306114a3-3d36-43bb-ac40-335fef6307ac
+
+---
+
+ALWAYS RUN SERVER IN BG
 
 create handover.md
 

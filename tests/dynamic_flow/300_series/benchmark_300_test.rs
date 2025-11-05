@@ -14,7 +14,7 @@ async fn test_benchmark_300_multiplication_strategy() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Multiplication Strategy");
 
     let utils = TestUtils::new();
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Create test wallet context matching benchmark initial state
     let context = create_test_wallet_context(4, 20); // 4 SOL, 20 USDC
@@ -58,7 +58,7 @@ async fn test_benchmark_300_percentage_calculation() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Percentage Calculation");
 
     let utils = TestUtils::new();
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Test with different wallet sizes
     let test_cases = vec![
@@ -118,7 +118,7 @@ async fn test_benchmark_300_multiplication_achievement() -> anyhow::Result<()> {
 async fn test_benchmark_300_tool_call_expectations() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Tool Call Expectations");
 
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
     let utils = TestUtils::new();
 
     // Extract expected tools from benchmark
@@ -179,7 +179,7 @@ async fn test_benchmark_300_tool_call_expectations() -> anyhow::Result<()> {
 async fn test_benchmark_300_flow_complexity() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Flow Complexity");
 
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
     let utils = TestUtils::new();
 
     // Test tool sequence complexity
@@ -260,7 +260,7 @@ async fn test_benchmark_300_critical_step_handling() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Critical Step Handling");
 
     let utils = TestUtils::new();
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Extract critical tools from benchmark
     let critical_tools: Vec<String> = benchmark
@@ -314,7 +314,7 @@ async fn test_benchmark_300_critical_step_handling() -> anyhow::Result<()> {
 async fn test_benchmark_300_success_criteria() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Success Criteria");
 
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Extract success criteria from benchmark
     let success_criteria = benchmark
@@ -365,7 +365,7 @@ async fn test_benchmark_300_success_criteria() -> anyhow::Result<()> {
 async fn test_benchmark_300_expected_data_structure() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: Expected Data Structure");
 
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Extract expected data structure from benchmark
     let expected_data = benchmark
@@ -422,7 +422,7 @@ async fn test_benchmark_300_expected_data_structure() -> anyhow::Result<()> {
 async fn test_benchmark_300_otel_tracking_expectations() -> anyhow::Result<()> {
     println!("🎯 Testing Benchmark 300: OpenTelemetry Tracking Expectations");
 
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
 
     // Extract expected OTEL tracking from benchmark
     let expected_otel = benchmark

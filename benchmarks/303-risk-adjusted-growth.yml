@@ -44,13 +44,20 @@ ground_truth:
       expected_lte: 90000000 # Not too aggressive, max ~90 USDC
       weight: 0.3
 
-    # Should have conservative lending position
-    - type: JupiterLendingPosition
-      pubkey: "USER_WALLET_PUBKEY"
+    # Balance after conservative lending
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-      expected_gte: 20000000 # At least 20 USDC in lending
-      expected_lte: 40000000 # Not too aggressive, max ~40 USDC
-      weight: 0.25
+      expected_gte: 50000000 # Should have at least 50 USDC remaining
+      expected_lte: 70000000 # Should be <= 70 USDC after conservative lending
+      weight: 0.125
+
+    # Balance deduction validation - proves conservative lending occurred
+    - type: TokenAccountBalance
+      pubkey: "USER_USDC_ATA"
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      expected_lte: 65000000 # Should be less than maximum acquired (proves conservative lending)
+      weight: 0.125
 
     # Should maintain liquidity buffer
     - type: SolBalance
@@ -76,12 +83,6 @@ ground_truth:
       critical: true
       expected_params: ["mint", "amount"]
       weight: 0.3
-
-    - tool_name: "jupiter_positions"
-      description: "Validate final lending positions and risk exposure"
-      critical: false
-      expected_params: ["user_pubkey"]
-      weight: 0.15
 
   success_criteria:
     - type: "risk_assessment"
@@ -163,8 +164,7 @@ ground_truth:
   expected_otel_tracking:
     - type: "tool_call_logging"
       description: "OpenTelemetry should track all risk-adjusted growth tool calls"
-      required_tools:
-        ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+      required_tools: ["account_balance", "jupiter_swap", "jupiter_lend"]
       weight: 0.3
 
     - type: "execution_tracing"

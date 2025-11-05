@@ -4,11 +4,12 @@
 //! acting as the entry point for dynamic flow generation.
 
 use crate::context_resolver::ContextResolver;
+use crate::execution::PingPongExecutor;
 use crate::generators::YmlGenerator;
 use crate::recovery::engine::RecoveryMetrics;
 use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
-use reev_types::flow::{AtomicMode, DynamicFlowPlan, WalletContext};
+use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::RwLock;
@@ -28,6 +29,8 @@ pub struct OrchestratorGateway {
     /// Recovery configuration
     #[allow(dead_code)]
     recovery_config: RecoveryConfig,
+    /// Ping-pong executor for step-by-step coordination
+    ping_pong_executor: Arc<RwLock<PingPongExecutor>>,
 }
 
 impl OrchestratorGateway {
@@ -42,6 +45,7 @@ impl OrchestratorGateway {
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(30000))), // 30s timeout
         }
     }
 
@@ -55,6 +59,7 @@ impl OrchestratorGateway {
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(30000))), // 30s timeout
         }
     }
 
@@ -129,7 +134,7 @@ impl OrchestratorGateway {
         // Parse intent and generate steps with recovery strategies
         let prompt_lower = prompt.to_lowercase();
         let has_swap = prompt_lower.contains("swap") || prompt_lower.contains("sol");
-        let has_lend = prompt_lower.contains("lend");
+        let has_lend = prompt_lower.contains("lend") || prompt_lower.contains("yield");
         let has_multiply = prompt_lower.contains("multiply") || prompt_lower.contains("1.5x");
         let has_sol_percentage = prompt_lower.contains("%") && prompt_lower.contains("sol");
 
@@ -224,6 +229,22 @@ impl OrchestratorGateway {
             }
         }
         Ok(())
+    }
+
+    /// Execute flow plan with ping-pong coordination
+    #[instrument(skip(self))]
+    pub async fn execute_flow_with_ping_pong(
+        &self,
+        flow_plan: &DynamicFlowPlan,
+        agent_type: &str,
+    ) -> Result<Vec<StepResult>> {
+        info!(
+            "[Gateway] Starting ping-pong execution: {} steps",
+            flow_plan.steps.len()
+        );
+
+        let mut executor = self.ping_pong_executor.write().await;
+        executor.execute_flow_plan(flow_plan, agent_type).await
     }
 }
 

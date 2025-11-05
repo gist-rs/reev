@@ -84,6 +84,7 @@ impl OpenAIAgent {
                 let client = Client::builder(&zai_api_key)
                     .base_url(&zai_api_url)
                     .build()?;
+
                 (client, model_name.to_string())
             } else {
                 return Err(anyhow::anyhow!(
@@ -307,6 +308,19 @@ impl OpenAIAgent {
                 zai_api_url
             );
 
+            info!(
+                "[OpenAIAgent] 🔍 GLM CLIENT DEBUG: Built client with URL: {}",
+                zai_api_url
+            );
+            info!(
+                "[OpenAIAgent] 🔍 GLM CLIENT DEBUG: Model name: {}",
+                model_name
+            );
+            info!(
+                "[OpenAIAgent] 🔍 GLM CLIENT DEBUG: API Key (first 10): {}...",
+                &zai_api_key[..10.min(zai_api_key.len())]
+            );
+
             let client = Client::builder(&zai_api_key)
                 .base_url(&zai_api_url)
                 .build()?;
@@ -352,7 +366,8 @@ impl OpenAIAgent {
             unified_data.enhanced_user_request
         );
 
-        // Execute the request using OpenAI's multi-turn agent
+        // Execute request using OpenAI's multi-turn agent
+
         let response = agent
             .prompt(&unified_data.enhanced_user_request)
             .multi_turn(unified_data.conversation_depth as usize)
@@ -360,10 +375,6 @@ impl OpenAIAgent {
 
         let response_str = response.to_string();
         info!("[OpenAIAgent] OpenAI GLM execution completed");
-        info!(
-            "[OpenAIAgent] Raw response from OpenAI GLM agent: {}",
-            response_str
-        );
 
         // 🎯 Extract tool calls from OpenTelemetry traces
         let tool_calls = AgentHelper::extract_tool_calls_from_otel();

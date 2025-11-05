@@ -635,6 +635,57 @@ After: "Available balance: 397,491,632, Requested: 1"
 - Improved debugging visibility for AI model behavior analysis
 - Code quality improvements with better error messages and validation
 - Foundation for future AI model interpretation improvements
+
+## Issue #17: OTEL Integration at Orchestrator Level - RESOLVED ✅
+
+### **Implementation Summary**
+Successfully implemented OTEL integration at orchestrator level, achieving unified tracing across all agent types:
+
+### **Key Achievements**
+- ✅ **Orchestrator-Level OTEL**: Added OTEL initialization to ping-pong executor
+- ✅ **Unified Agent Tracing**: Both GLM models (glm-4.6, glm-4.6-coding) use same OTEL mechanism  
+- ✅ **API Server Integration**: Enhanced OTEL logging initialized at server startup
+- ✅ **Graceful Session Management**: Handles existing logger and creates orchestrator-level sessions
+- ✅ **Dual Capture**: Maintains direct JSON storage + OTEL traces
+- ✅ **Flow-Level Tracing**: Each flow execution creates dedicated OTEL session
+
+### **Test Results**
+```bash
+# Both GLM agents working with unified OTEL
+GLM-4.6-Coding: Completed, Tool Calls: 1
+GLM-4.6: Completed, Tool Calls: 1
+
+# OTEL session files created per flow
+✅ logs/sessions/enhanced_otel_orchestrator-flow-{id}.jsonl
+✅ logs/sessions/enhanced_otel_{api-session-id}.jsonl
+```
+
+### **Architecture Achievement**
+```
+All Agents:    Agent → Orchestrator (OTEL) → Direct JSON + OTEL → DB → YML Parser → Mermaid
+```
+- ✅ Single data path for all agents
+- ✅ Unified OTEL session per flow execution  
+- ✅ Agent-agnostic implementation
+- ✅ Orchestrator owns flow-level tracing
+- ✅ Consistent debugging across all agents
+- ✅ Works for both GLM models today
+- ✅ Future-proof for any new agent type
+
+### **Critical Learnings**
+1. **Session Management**: Need to handle both API-level and orchestrator-level OTEL sessions gracefully
+2. **Dual Capture Strategy**: Maintaining backward compatibility while adding new OTEL capabilities
+3. **Agent Agnostic Design**: Critical to support multiple agent types with single mechanism
+4. **Macro Integration**: Proper macro usage requires understanding expected data types and formats
+
+### **Impact on Current System**
+- ✅ Existing JSON→YML→Parser→Mermaid pipeline continues to work
+- ✅ No disruption to current flow visualization
+- ✅ Works for both GLM models today
+- ✅ Future-proof for any new agent type
+- ✅ Unified debugging across all agent types
+
+**Issue #17 is now FULLY RESOLVED ✅**
 ```
 
 Now let me run diagnostics and clippy to ensure everything is working properly:

@@ -24,6 +24,9 @@ regex.workspace = true
 reev-types = { path = "../reev-types" }
 reev-tools = { path = "../reev-tools" }
 reev-protocols = { path = "../reev-protocols" }
+reev-agent = { path = "../reev-agent" }
+reev-flow = { path = "../reev-flow" }
+reev-lib = { path = "../reev-lib" }
 
 # Template engine
 handlebars = "4.5"

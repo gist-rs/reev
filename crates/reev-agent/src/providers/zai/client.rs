@@ -86,7 +86,11 @@ impl Client {
         path: &str,
         request: &T,
     ) -> Result<R, CompletionError> {
-        let url = format!("{}/{}", self.base_url, path);
+        let url = if path.is_empty() {
+            self.base_url.clone()
+        } else {
+            format!("{}/{}", self.base_url, path)
+        };
 
         let response = self
             .http_client

@@ -16,7 +16,7 @@ async fn test_all_300_series_benchmarks_flow_generation() -> anyhow::Result<()> 
 
     let gateway = OrchestratorGateway::new();
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",
@@ -35,7 +35,7 @@ async fn test_all_300_series_benchmarks_flow_generation() -> anyhow::Result<()> 
 
         // Create appropriate wallet context based on benchmark
         let context = match benchmark_id {
-            "300-swap-sol-then-mul-usdc" => create_test_wallet_context(4, 20),
+            "300-jup-swap-then-lend-deposit-dyn" => create_test_wallet_context(4, 20),
             "301-dynamic-yield-optimization" => create_test_wallet_context(8, 25),
             "302-portfolio-rebalancing" => create_test_wallet_context(3, 150),
             "303-risk-adjusted-growth" => create_test_wallet_context(6, 50),
@@ -80,7 +80,7 @@ async fn test_300_series_tool_call_validation() -> anyhow::Result<()> {
 
     let utils = TestUtils::new();
     let benchmark_ids = vec![
-        ("300-swap-sol-then-mul-usdc", vec![
+        ("300-jup-swap-then-lend-deposit-dyn", vec![
             "account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"
         ]),
         ("301-dynamic-yield-optimization", vec![
@@ -169,7 +169,7 @@ async fn test_300_series_complexity_progression() -> anyhow::Result<()> {
 
     // Expected complexity progression (minimum steps)
     let expected_complexity = vec![
-        ("300-swap-sol-then-mul-usdc", 2), // swap + lend
+        ("300-jup-swap-then-lend-deposit-dyn", 2), // swap + lend
         ("301-dynamic-yield-optimization", 2), // swap + lend
         ("302-portfolio-rebalancing", 3), // analysis + swap + lend
         ("303-risk-adjusted-growth", 3), // analysis + swap + lend
@@ -227,7 +227,7 @@ async fn test_300_series_percentage_calculations() -> anyhow::Result<()> {
 
     // Test percentage-based benchmarks
     let percentage_tests = vec![
-        ("300-swap-sol-then-mul-usdc", 4, "50%", 2.0),
+        ("300-jup-swap-then-lend-deposit-dyn", 4, "50%", 2.0),
         ("301-dynamic-yield-optimization", 8, "50%", 4.0),
         ("302-portfolio-rebalancing", 3, "rebalance", 0.0), // No specific percentage
         ("303-risk-adjusted-growth", 6, "30%", 1.8),
@@ -335,7 +335,7 @@ async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
            "Should contain jupiter_lend step");
 
     // Test tool call expectations from benchmark
-    let benchmark = load_benchmark_yaml("300-swap-sol-then-mul-usdc");
+    let benchmark = load_benchmark_yaml("300-jup-swap-then-lend-deposit-dyn");
     let expected_tools = benchmark
         .get("ground_truth")
         .and_then(|gt| gt.get("expected_tool_calls"))
@@ -517,7 +517,7 @@ async fn test_300_series_end_to_end_with_yml_generation() -> anyhow::Result<()> 
     println!("🎯 Testing 300-Series: End-to-End with YML Generation");
 
     let gateway = OrchestratorGateway::new();
-    let benchmark_id = "300-swap-sol-then-mul-usdc";
+    let benchmark_id = "300-jup-swap-then-lend-deposit-dyn";
 
     let benchmark = load_benchmark_yaml(benchmark_id);
     let prompt = benchmark.get("prompt").unwrap().as_str().unwrap();
@@ -616,7 +616,7 @@ async fn test_300_series_performance_metrics() -> anyhow::Result<()> {
     let start_time = std::time::Instant::now();
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",

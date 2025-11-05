@@ -413,7 +413,9 @@ pub async fn run_benchmarks(
 
         // Convert enhanced_otel JSONL to YML and store in database for flow diagrams
         // This ensures API can read tool calls from CLI executions
-        let _ = convert_and_store_enhanced_otel_for_cli(&session_id);
+        convert_and_store_enhanced_otel_for_cli(&session_id)
+            .await
+            .ok();
 
         // Performance metrics stored in session file
         // Database storage handled by API after reading session file

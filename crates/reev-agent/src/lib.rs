@@ -331,6 +331,9 @@ mod agents;
 pub mod common;
 mod prompt;
 
+// Export the run_agent function for external use
+pub use run::run_agent;
+
 use reev_protocols::jupiter::lend_deposit::handle_jupiter_lend_deposit;
 use reev_protocols::jupiter::swap::handle_jupiter_swap;
 

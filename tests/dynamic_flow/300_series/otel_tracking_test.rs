@@ -15,7 +15,7 @@ async fn test_300_series_otel_tracking_completeness() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: OpenTelemetry Tracking Completeness");
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",
@@ -69,7 +69,7 @@ async fn test_300_series_tool_call_logging_requirements() -> anyhow::Result<()> 
     println!("🎯 Testing 300-Series: Tool Call Logging Requirements");
 
     let expected_tool_requirements = vec![
-        ("300-swap-sol-then-mul-usdc", vec![
+        ("300-jup-swap-then-lend-deposit-dyn", vec![
             "account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"
         ]),
         ("301-dynamic-yield-optimization", vec![
@@ -152,7 +152,7 @@ async fn test_300_series_execution_tracing_spans() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: Execution Tracing Spans");
 
     let expected_span_requirements = vec![
-        ("300-swap-sol-then-mul-usdc", vec![
+        ("300-jup-swap-then-lend-deposit-dyn", vec![
             "prompt_processing", "context_resolution", "swap_execution", "lend_execution"
         ]),
         ("301-dynamic-yield-optimization", vec![
@@ -240,7 +240,7 @@ async fn test_300_series_mermaid_generation_expectations() -> anyhow::Result<()>
     println!("🎯 Testing 300-Series: Mermaid Generation Expectations");
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",
@@ -306,7 +306,7 @@ async fn test_300_series_performance_metrics_tracking() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: Performance Metrics Tracking");
 
     let expected_metrics_requirements = vec![
-        ("300-swap-sol-then-mul-usdc", vec![
+        ("300-jup-swap-then-lend-deposit-dyn", vec![
             "execution_time_ms", "tool_call_count", "success_rate"
         ]),
         ("301-dynamic-yield-optimization", vec![
@@ -398,7 +398,7 @@ async fn test_300_series_otel_weight_distribution() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: OTEL Weight Distribution");
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",
@@ -472,7 +472,7 @@ async fn test_300_series_otel_description_completeness() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: OTEL Description Completeness");
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",
@@ -536,7 +536,7 @@ async fn test_300_series_otel_critical_path_tracking() -> anyhow::Result<()> {
     println!("🎯 Testing 300-Series: OTEL Critical Path Tracking");
 
     let benchmark_ids = vec![
-        "300-swap-sol-then-mul-usdc",
+        "300-jup-swap-then-lend-deposit-dyn",
         "301-dynamic-yield-optimization",
         "302-portfolio-rebalancing",
         "303-risk-adjusted-growth",

@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use reev_flow::init_enhanced_otel_logging;
 use reev_lib::db::{DatabaseConfig, PooledDatabaseWriter};
 use reev_lib::server_utils::kill_existing_api;
 use std::collections::HashMap;
@@ -52,6 +53,20 @@ async fn main() -> Result<()> {
     let db_config = DatabaseConfig::new(&db_path);
     let db = PooledDatabaseWriter::new(db_config, 10).await?;
     info!("Database connection pool established");
+
+    // Initialize enhanced OTEL logging for unified tracing
+    match init_enhanced_otel_logging() {
+        Ok(session_id) => {
+            info!(
+                "✅ Enhanced OTEL logging initialized with session: {}",
+                session_id
+            );
+        }
+        Err(e) => {
+            debug!("⚠️ Failed to initialize enhanced OTEL logging: {}", e);
+            // Continue without OTEL logging - not critical for API server
+        }
+    }
 
     // Sync benchmarks to database on startup
     let benchmarks_dir = "benchmarks";

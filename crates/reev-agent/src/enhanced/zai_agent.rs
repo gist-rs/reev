@@ -76,22 +76,33 @@ impl ZAIAgent {
         let api_key = std::env::var("ZAI_API_KEY")
             .map_err(|_| anyhow::anyhow!("ZAI_API_KEY environment variable is required"))?;
 
-        let api_url = std::env::var("ZAI_API_URL")
-            .unwrap_or_else(|_| "https://api.z.ai/api/coding/paas/v4".to_string());
+        // 🔧 ROUTING: Use correct API URL based on model
+        // glm-4.6 uses ZAI_API_URL, glm-4.6-coding uses GLM_CODING_API_URL
 
-        let client = zai::Client::builder(&api_key).base_url(&api_url).build();
+        let base_url = match model_name {
+            "glm-4.6-coding" => std::env::var("GLM_CODING_API_URL")
+                .unwrap_or_else(|_| "https://api.z.ai/api/coding/paas/v4".to_string()),
+            "glm-4.6" => std::env::var("ZAI_API_URL")
+                .unwrap_or_else(|_| "https://api.z.ai/api/paas/v4".to_string()),
+            _ => std::env::var("ZAI_API_URL")
+                .unwrap_or_else(|_| "https://api.z.ai/api/paas/v4".to_string()),
+        };
 
-        info!("[ZAIAgent] Starting ZAI completion with model: {model_name}");
+        let client = zai::Client::builder(&api_key).base_url(&base_url).build();
+
+        // 🔧 MODEL MAPPING: glm-4.6-coding uses glm-4.6 at the coding endpoint
+        let actual_model_name = match model_name {
+            "glm-4.6-coding" => "glm-4.6",
+            "glm-4.6" => "glm-4.6",
+            _ => model_name,
+        };
 
         // Create completion model using dynamic model parameter
-        let model = client.completion_model(model_name);
+        let model = client.completion_model(actual_model_name);
 
         // Verify the model is actually available before proceeding
-        info!("[ZAIAgent] Validating ZAI model availability: {model_name}");
-        client.verify_model(model_name).await
-            .map_err(|e| anyhow::anyhow!("ZAI model '{model_name}' validation failed: {e}. Please check if the model is available and your API credentials are correct."))?;
-
-        info!("[ZAIAgent] ZAI model '{model_name}' validated and ready");
+        client.verify_model(actual_model_name).await
+            .map_err(|e| anyhow::anyhow!("ZAI model '{actual_model_name}' validation failed: {e}. Please check if the model is available and your API credentials are correct."))?;
 
         // Helper function to check if a tool is allowed
         let is_tool_allowed = |tool_name: &str| -> bool {

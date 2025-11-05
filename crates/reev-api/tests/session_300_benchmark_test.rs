@@ -81,7 +81,7 @@ async fn test_300_benchmark_session_parsing() -> Result<(), Box<dyn std::error::
     // Test with full session JSON structure (like database stores)
     let full_session_json = serde_json::json!({
         "session_id": session_data.session_id,
-        "benchmark_id": "300-swap-sol-then-mul-usdc",
+        "benchmark_id": "300-jup-swap-then-lend-deposit-dyn",
         "log_content": yml_content,
     });
 

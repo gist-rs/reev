@@ -3,12 +3,13 @@
 //! This module provides API endpoints for executing dynamic flows through REST API.
 //! It integrates with reev-orchestrator to provide same functionality available via CLI.
 
+use anyhow;
 use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 use chrono::Utc;
 use reev_orchestrator::OrchestratorGateway;
@@ -18,7 +19,7 @@ use std::time::Instant;
 use tokio::task;
 
 use crate::types::ApiState;
-use reev_agent::LlmRequest;
+
 use reev_db::writer::DatabaseWriterTrait;
 
 /// Execute a dynamic flow (direct mode - zero file I/O)
@@ -90,8 +91,8 @@ pub async fn execute_dynamic_flow(
                 "Dynamic flow execution completed successfully"
             );
 
-            // Execute real glm-4.6 agent and capture actual tool calls
-            let real_tool_calls = execute_real_agent_for_flow_plan(&flow_plan, &agent_type).await;
+            // Execute flow plan with ping-pong coordination and capture actual tool calls
+            let real_tool_calls = execute_flow_plan_with_ping_pong(&flow_plan, &agent_type).await;
 
             // Store session log with tool calls for API visualization
             let session_log_content = json!({
@@ -144,6 +145,9 @@ pub async fn execute_dynamic_flow(
             {
                 error!("Failed to store execution session log: {}", e);
             }
+
+            // Note: OTEL data is handled by agent execution directly
+            // No additional conversion needed for flow visualization
 
             let mut result_data = json!({
                 "flow_id": flow_plan.flow_id,
@@ -344,273 +348,124 @@ pub async fn execute_recovery_flow(
     }
 }
 
-/// Execute real glm-4.6 agent for flow plan and capture actual tool calls
-async fn execute_real_agent_for_flow_plan(
+/// Execute flow plan with ping-pong coordination and capture actual tool calls
+async fn execute_flow_plan_with_ping_pong(
     flow_plan: &reev_types::flow::DynamicFlowPlan,
     agent_type: &str,
 ) -> Vec<reev_types::execution::ToolCallSummary> {
     // Import already handled at module level
-    use std::collections::HashMap;
-    use tracing::{error, info};
+    use tracing::info;
 
     let mut tool_calls = Vec::new();
     let execution_start_time = chrono::Utc::now();
 
     info!(
-        "[RealExecution] Starting real agent execution for flow plan: {}",
+        "[PingPongExecution] Starting ping-pong execution for flow plan: {}",
         flow_plan.flow_id
     );
     info!(
-        "[RealExecution] Agent type: {}, Steps: {}",
+        "[PingPongExecution] Agent type: {}, Steps: {}",
         agent_type,
         flow_plan.steps.len()
     );
 
-    // Create LlmRequest for agent execution
-    let llm_request = LlmRequest {
-        id: uuid::Uuid::new_v4().to_string(),
-        session_id: flow_plan.flow_id.clone(),
-        prompt: flow_plan.user_prompt.clone(),
-        context_prompt: format!("Executing flow plan with {} steps", flow_plan.steps.len()),
-        model_name: agent_type.to_string(),
-        mock: false,
-        initial_state: None,
-        allowed_tools: Some(
-            flow_plan
-                .steps
-                .iter()
-                .flat_map(|step| step.required_tools.clone())
-                .collect(),
-        ),
-        account_states: None,
-        key_map: Some({
-            let mut map = HashMap::new();
-            map.insert("wallet".to_string(), flow_plan.context.owner.clone());
-            map
-        }),
+    // Use orchestrator gateway for ping-pong execution
+    let gateway = OrchestratorGateway::new();
+    let step_results = match gateway
+        .execute_flow_with_ping_pong(flow_plan, agent_type)
+        .await
+    {
+        Ok(results) => {
+            info!(
+                "[PingPongExecution] ✅ Flow execution completed: {} step results",
+                results.len()
+            );
+            results
+        }
+        Err(e) => {
+            error!("[PingPongExecution] ❌ Flow execution failed: {}", e);
+            // Return empty tool calls on execution failure
+            return vec![];
+        }
     };
 
     info!(
-        "[RealExecution] Created LlmRequest with {} tools",
-        llm_request.allowed_tools.as_ref().map_or(0, |t| t.len())
+        "[PingPongExecution] Converting {} step results to tool calls",
+        step_results.len()
     );
 
     // Execute agent based on type
-    info!(
-        "[RealExecution] DEBUG: agent_type='{}', checking match cases",
-        agent_type
-    );
-    match agent_type {
-        "glm-4.6" => {
-            // glm-4.6 uses OpenAI-compatible format via OpenAI client
-            info!(
-                "[RealExecution] MATCHED: glm-4.6 -> OpenAI client, agent_type='{}'",
-                agent_type
-            );
-            match reev_agent::enhanced::openai::OpenAIAgent::run(
-                agent_type,
-                llm_request,
-                HashMap::new(),
-            )
-            .await
-            {
-                Ok(response_str) => {
-                    info!("[RealExecution] OpenAI agent execution completed successfully");
-                    info!(
-                        "[RealExecution] Response length: {} chars",
-                        response_str.len()
-                    );
+    // Convert step results to tool call summaries
+    for (index, step_result) in step_results.iter().enumerate() {
+        let duration_ms = step_result.duration_ms;
 
-                    // Parse response to extract tool execution details
-                    if let Ok(parsed_response) =
-                        serde_json::from_str::<serde_json::Value>(&response_str)
-                    {
-                        info!("[RealExecution] Successfully parsed agent response");
-
-                        // Extract transactions from response
-                        if let Some(transactions) = parsed_response
-                            .get("transactions")
-                            .and_then(|t| t.as_array())
-                        {
-                            info!(
-                                "[RealExecution] Found {} transactions in response",
-                                transactions.len()
-                            );
-
-                            for (index, tx) in transactions.iter().enumerate() {
-                                let tool_name = tx
-                                    .get("tool_name")
-                                    .and_then(|n| n.as_str())
-                                    .or_else(|| {
-                                        // Infer tool name from transaction content
-                                        if tx.get("swap").is_some() {
-                                            Some("jupiter_swap")
-                                        } else if tx.get("lend").is_some() {
-                                            Some("jupiter_lend")
-                                        } else {
-                                            Some("unknown_tool")
-                                        }
-                                    })
-                                    .unwrap_or("unknown_tool");
-
-                                let duration_ms = if index == 0 {
-                                    (chrono::Utc::now() - execution_start_time).num_milliseconds()
-                                        as u64
-                                } else {
-                                    3000 + (index as u64 * 1000) // Estimate for subsequent tools
-                                };
-
-                                // Extract real transaction details from response
-                                let (params, result_data, tool_args) =
-                                    extract_transaction_details(tx);
-
-                                let real_tool_call = reev_types::execution::ToolCallSummary {
-                                    tool_name: tool_name.to_string(),
-                                    timestamp: execution_start_time
-                                        + chrono::Duration::milliseconds(index as i64 * 2000),
-                                    duration_ms,
-                                    success: true,
-                                    error: None,
-                                    params: Some(params),
-                                    result_data: Some(result_data),
-                                    tool_args,
-                                };
-
-                                tool_calls.push(real_tool_call);
-                                info!(
-                                    "[RealExecution] Added tool call: {} ({}ms)",
-                                    tool_name, duration_ms
-                                );
-                            }
-                        } else {
-                            error!("[RealExecution] No transactions found in agent response");
-                            warn!("[RealExecution] Agent executed but returned no transactions - execution FAILED");
-                            // Return empty tool_calls - this will result in proper poor agent scoring
-                        }
-                    } else {
-                        error!("[RealExecution] Failed to parse agent response as JSON");
-                        warn!("[RealExecution] Agent response parsing failed - no tool execution data");
-                    }
-                }
-                Err(e) => {
-                    error!("[RealExecution] OpenAI agent execution failed: {}", e);
-                    error!("[RealExecution] Agent execution FAILED - will receive poor scoring");
-                    error!("[RealExecution] Check environment variables and agent configuration");
-                    // Return empty tool_calls - this will result in proper poor agent scoring
-                }
+        // Extract tool name from step or tool calls
+        let tool_name = if !step_result.tool_calls.is_empty() {
+            step_result.tool_calls[0].clone()
+        } else {
+            // Infer from step ID
+            if step_result.step_id.contains("swap") {
+                "jupiter_swap".to_string()
+            } else if step_result.step_id.contains("lend") {
+                "jupiter_lend_earn_deposit".to_string()
+            } else if step_result.step_id.contains("balance") {
+                "account_balance".to_string()
+            } else if step_result.step_id.contains("position") {
+                "jupiter_positions".to_string()
+            } else {
+                format!("tool_{}", step_result.step_id)
             }
-        }
-        // Execute real glm-4.6-coding agent for flow plan and capture actual tool calls
-        "glm-4.6-coding" => {
-            // glm-4.6-coding uses ZAI-specific client
-            info!("[RealExecution] Using glm-4.6-coding via ZAI client");
-            match reev_agent::enhanced::zai_agent::ZAIAgent::run(
-                agent_type,
-                llm_request,
-                HashMap::new(),
-            )
-            .await
-            {
-                Ok(response_str) => {
-                    info!("[RealExecution] ZAIAgent execution completed successfully");
-                    info!(
-                        "[RealExecution] Response length: {} chars",
-                        response_str.len()
-                    );
+        };
 
-                    // Parse response to extract tool execution details
-                    if let Ok(parsed_response) =
-                        serde_json::from_str::<serde_json::Value>(&response_str)
-                    {
-                        info!("[RealExecution] Successfully parsed agent response");
-
-                        // Extract transactions from response
-                        if let Some(transactions) = parsed_response
-                            .get("transactions")
-                            .and_then(|t| t.as_array())
-                        {
-                            info!(
-                                "[RealExecution] Found {} transactions in response",
-                                transactions.len()
-                            );
-
-                            for (index, tx) in transactions.iter().enumerate() {
-                                let tool_name = tx
-                                    .get("tool_name")
-                                    .and_then(|n| n.as_str())
-                                    .or_else(|| {
-                                        // Infer tool name from transaction content
-                                        if tx.get("swap").is_some() {
-                                            Some("jupiter_swap")
-                                        } else if tx.get("lend").is_some() {
-                                            Some("jupiter_lend")
-                                        } else {
-                                            Some("unknown_tool")
-                                        }
-                                    })
-                                    .unwrap_or("unknown_tool");
-
-                                let duration_ms = if index == 0 {
-                                    (chrono::Utc::now() - execution_start_time).num_milliseconds()
-                                        as u64
-                                } else {
-                                    3000 + (index as u64 * 1000) // Estimate for subsequent tools
-                                };
-
-                                // Extract real transaction details from response
-                                let (params, result_data, tool_args) =
-                                    extract_transaction_details(tx);
-
-                                let real_tool_call = reev_types::execution::ToolCallSummary {
-                                    tool_name: tool_name.to_string(),
-                                    timestamp: execution_start_time
-                                        + chrono::Duration::milliseconds(index as i64 * 2000),
-                                    duration_ms,
-                                    success: true,
-                                    error: None,
-                                    params: Some(params),
-                                    result_data: Some(result_data),
-                                    tool_args,
-                                };
-
-                                tool_calls.push(real_tool_call);
-                                info!(
-                                    "[RealExecution] Added tool call: {} ({}ms)",
-                                    tool_name, duration_ms
-                                );
-                            }
-                        } else {
-                            error!("[RealExecution] No transactions found in agent response");
-                            warn!("[RealExecution] Agent executed but returned no transactions - execution FAILED");
-                            // Return empty tool_calls - this will result in proper poor agent scoring
-                        }
-                    } else {
-                        error!("[RealExecution] Failed to parse agent response as JSON");
-                        // Return empty tool calls on parse error
-                    }
-                }
-                Err(e) => {
-                    error!("[RealExecution] ZAIAgent execution failed: {}", e);
-                    error!("[RealExecution] Agent execution FAILED - will receive poor scoring");
-                    error!("[RealExecution] Check environment variables and agent configuration");
-                    // Return empty tool_calls - this will result in proper poor agent scoring
-                }
+        // Extract execution data from step output
+        let (params, result_data, tool_args) = if let Some(output) = &step_result.output {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(output) {
+                extract_transaction_details(&parsed)
+            } else {
+                (json!({}), json!({}), None)
             }
-        }
-        _ => {
-            error!("[RealExecution] Unsupported agent type: {}", agent_type);
-            error!(
-                "[RealExecution] Agent '{}' is not supported - no execution possible",
-                agent_type
-            );
-            // Return empty tool_calls - this will result in proper poor agent scoring
-        }
+        } else {
+            (json!({}), json!({}), None)
+        };
+
+        let tool_call_summary = reev_types::execution::ToolCallSummary {
+            tool_name: tool_name.to_string(),
+            timestamp: execution_start_time + chrono::Duration::milliseconds(index as i64 * 2000),
+            duration_ms,
+            success: step_result.success,
+            error: step_result.error_message.clone(),
+            params: Some(params),
+            result_data: Some(result_data),
+            tool_args,
+        };
+
+        tool_calls.push(tool_call_summary);
+
+        info!(
+            "[PingPongExecution] Added tool call: {} ({}ms) - {}",
+            tool_name,
+            duration_ms,
+            if step_result.success {
+                "SUCCESS"
+            } else {
+                "FAILED"
+            }
+        );
     }
-
     info!(
-        "[RealExecution] Completed real agent execution with {} tool calls",
+        "[PingPongExecution] Ping-pong execution completed, total tool calls: {}",
         tool_calls.len()
     );
+
+    // Log completion summary
+    let successful_calls = tool_calls.iter().filter(|t| t.success).count();
+    let failed_calls = tool_calls.len() - successful_calls;
+
+    info!(
+        "[PingPongExecution] Execution summary: {} successful, {} failed tool calls",
+        successful_calls, failed_calls
+    );
+
     tool_calls
 }
 

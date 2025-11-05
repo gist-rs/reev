@@ -443,7 +443,11 @@ impl completion::CompletionModel for CompletionModel {
     {
         let request = self.create_completion_request(completion_request)?;
 
-        let response: CompletionResponse = self.client.post("chat/completions", &request).await?;
+        // For ZAI API, we always need to add /chat/completions to base URL
+        // Whether it's regular or coding endpoint, completion path is always /chat/completions
+        let endpoint = "chat/completions";
+
+        let response: CompletionResponse = self.client.post(endpoint, &request).await?;
 
         response.try_into()
     }
@@ -461,7 +465,15 @@ impl completion::CompletionModel for CompletionModel {
         let builder = self
             .client
             .http_client
-            .post(format!("{}/chat/completions", self.client.base_url))
+            .post(
+                if self.client.base_url.contains("/chat/completions")
+                    || self.client.base_url.contains("/coding/")
+                {
+                    self.client.base_url.clone()
+                } else {
+                    format!("{}/chat/completions", self.client.base_url)
+                },
+            )
             .bearer_auth(&self.client.api_key)
             .header("Content-Type", "application/json")
             .json(&request);
