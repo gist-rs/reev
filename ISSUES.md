@@ -168,6 +168,77 @@ cargo clippy --fix --allow-dirty
 
 ---
 
+## Issue #22: Incomplete Flow Execution & Missing Details in Dynamic Flows - ACTIVE 🔴
+
+### **Problem Summary**
+Dynamic flows are terminating early at the swap step without completing the full multiplication strategy, and flow visualization lacks detailed execution information (amounts, addresses, specific parameters).
+
+### **Root Cause Analysis**
+**Early Flow Termination**: Dynamic flows with complex strategies (e.g., "multiply USDC 1.5x") are stopping after the jupiter_swap step without proceeding to the expected jupiter_lend step, resulting in incomplete 2-step flows instead of 4-step strategies.
+
+**Missing Flow Details**: Flow visualization only shows high-level step names without execution details like:
+- Specific amounts being swapped (e.g., "2 SOL → 300 USDC")
+- Wallet addresses involved
+- Jupiter transaction parameters
+- Error details when steps fail
+
+**Expected vs Actual Flow**:
+- **Expected**: account_balance → jupiter_swap → jupiter_lend → positions_check
+- **Actual**: account_balance → jupiter_swap → [*] (terminates early)
+
+### **Evidence from Current Execution**
+```bash
+# Expected: 4-step multiplication strategy
+curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
+    "wallet": "USER_WALLET_PUBKEY", 
+    "agent": "glm-4.6-coding"
+  }'
+
+# Actual result: Incomplete 2-step flow
+{
+  "diagram": "stateDiagram\n    [*] --> DynamicFlow\n    DynamicFlow --> Orchestrator\n...",
+  "metadata": {
+    "state_count": 3,
+    "tool_count": 2
+  }
+}
+```
+
+### **Investigation Required**
+**Flow Generation Logic**: Check if enhanced flow plan generation in `gateway.rs` is creating incomplete flows for complex prompts.
+
+**Execution Pipeline**: Verify if ping-pong executor is properly continuing to subsequent steps after successful swap completion.
+
+**Flow Visualization**: Ensure flow diagram generation captures detailed execution data with amounts, addresses, and parameters.
+
+**Error Handling**: Check if silent failures or timeout issues are causing early termination without proper error reporting.
+
+### **Files to Examine**
+- `crates/reev-orchestrator/src/gateway.rs` - Enhanced flow plan generation
+- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs` - Step-by-step execution
+- `crates/reev-api/src/handlers/dynamic_flows/mod.rs` - Flow execution coordination
+- `crates/reev-flow/src/utils.rs` - Flow visualization and diagram generation
+
+### **Next Steps Required**
+1. **Debug Flow Generation**: Add logging to verify 4-step flows are being generated for multiplication strategies
+2. **Fix Step Continuation**: Ensure ping-pong executor continues to lending steps after successful swaps  
+3. **Enhance Visualization**: Add detailed execution information to flow diagrams (amounts, addresses, parameters)
+4. **Error Diagnostics**: Improve error reporting for early flow termination
+
+### **Expected Results After Fix**
+- Dynamic flows should execute complete 4-step strategies
+- Flow diagrams should show specific amounts (e.g., "2 SOL → 300 USDC")
+- Wallet addresses and transaction details should be visible
+- Early terminations should have clear error messages
+
+### **Priority**: 🔴 HIGH - Blocks complex dynamic flow execution
+
+
+---
+
 ## Issue #22: Enhanced Flow Generation & Mermaid Visualization - ACTIVE 🟡
 
 ### **Problem Summary**
