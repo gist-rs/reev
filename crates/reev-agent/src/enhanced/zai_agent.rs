@@ -205,13 +205,14 @@ impl ZAIAgent {
                     .await,
             );
         }
-        let request_builder = request_builder;
-
-        let request = request_builder
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // .tool(balance_tool_def)
-            .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
-            .build();
+        let request_builder = request_builder.tool(
+            unified_data
+                .tools
+                .balance_tool
+                .definition(String::new())
+                .await,
+        );
+        let request = request_builder.build();
 
         let result = model.completion(request).await?;
 
