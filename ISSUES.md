@@ -1,84 +1,51 @@
 # Issues
 
-## Issue #21: ZAI API 400 Bad Request Errors - ACTIVE 🔴
+## Issue #22
+**Date**: 2025-11-05
+**Status**: In Progress
+**Type**: Bug
 
-### **Problem Summary**
-GLM agents (glm-4.6 and glm-4.6-coding) are encountering ZAI API 400 Bad Request errors with "Invalid API parameter, please check documentation" messages, preventing successful tool execution despite proper API configuration.
+### Description
+Fixed `.definition(String::new())` issue in ZAI agent by implementing proper helper function and uncommenting `get_account_balance` tool. However, discovered that `USER_WALLET_PUBKEY` placeholder is being hardcoded to `"11111111111111111111111113"` instead of using a generated pubkey.
 
-### **Root Cause Analysis**
-**API Parameter Format Issue**: The ZAI API is rejecting requests due to malformed parameter structure or missing required fields in the tool call JSON sent to the API.
+### Root Cause
+The orchestrator's `create_key_map_with_wallet()` function correctly creates key mapping, but `resolve_fresh_wallet_context()` in `context_resolver.rs` returns mock data with hardcoded placeholder pubkeys instead of generating real Solana pubkeys.
 
-**Error Pattern**:
-```
-"ProviderError: ZAI API error 400 Bad Request: {\"error\":{\"code\":\"1210\",\"message\":\"Invalid API parameter, please check the documentation.\"}}"
-```
+### Current Status
+- ✅ **Fixed**: Tool definition calls use proper helper function instead of `String::new()`
+- ✅ **Fixed**: Uncommented `get_account_balance` tool support in ZAI agent
+- ✅ **Working**: 001-sol-transfer.yml and 300-jup-swap-then-lend-deposit-dyn.yml flow generation
+- ❌ **Blocking**: All tool executions fail because AccountBalanceTool rejects placeholder pubkeys
 
-**Current Status**:
-- ✅ API endpoints correctly constructed (Issue #18 resolved)
-- ✅ Agent routing working (glm-4.6 → OpenAI, glm-4.6-coding → ZAI)
-- ✅ Dynamic flow orchestration operational
-- ❌ ZAI API parameter formatting causing 400 errors
-
-### **Evidence from Current Execution**
+### Test Results
 ```bash
-# Test execution showing the error
+# Flow generation works correctly
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
-    "agent": "glm-4.6-coding",
-    "shared_surfpool": false
-  }'
+  -d '{"prompt": "swap 2 SOL for USDC", "wallet": "real_pubkey", "agent": "glm-4.6-coding"}'
 
-# Response shows 400 Bad Request errors
-{
-  "tool_calls": [
-    {
-      "tool_name": "account_balance",
-      "success": false,
-      "error": "ProviderError: ZAI API error 400 Bad Request..."
-    },
-    {
-      "tool_name": "jupiter_swap", 
-      "success": false,
-      "error": "ProviderError: ZAI API error 400 Bad Request..."
-    }
-  ]
-}
+# Response shows 4 steps generated correctly
+{"result": {"steps_generated": 4, "flow_id": "dynamic-123"}}
+
+# But tool execution fails
+{"tool_calls": [{"tool_name": "account_balance", "error": "Account balance error: Invalid account pubkey: 11111111111111111111111113"}]}
 ```
 
-### **Investigation Required**
-1. **Tool Call JSON Structure**: Verify tool parameters are properly formatted for ZAI API
-2. **API Request Headers**: Check Content-Type and Authorization headers
-3. **Parameter Encoding**: Ensure JSON serialization matches ZAI API expectations
-4. **Tool Definition**: Validate tool schemas align with ZAI API requirements
+### Investigation
+- Key map resolution working: `create_key_map_with_wallet()` properly maps wallet pubkey
+- AccountBalanceTool correctly resolves placeholder pubkeys using key_map
+- **Problem**: Context resolver generates hardcoded placeholder `"11111111111111111111111113"` instead of real pubkey
 
-### **Debug Commands**
-```bash
-# Monitor detailed agent execution logs
-tail -f api_server_*.log | grep -E "(ZAI|tool_call|400)"
+### Files to Examine
+- `crates/reev-orchestrator/src/context_resolver.rs` - `resolve_fresh_wallet_context()` needs pubkey generation
+- `crates/reev-orchestrator/src/gateway.rs` - Check flow creation process
+- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs` - Key map creation working correctly
 
-# Test simple account_balance tool call
-curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "account_balance",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
-    "agent": "glm-4.6-coding",
-    "shared_surfpool": false
-  }'
+### Next Steps Required
+1. **Generate real Solana pubkeys** in context resolver for placeholder keys
+2. **Add pubkey preparation phase** before flow execution
+3. **Test with real pubkeys** to verify tool execution success
+4. **Update test scenarios** to use generated pubkeys instead of hardcoded ones
 
-# Check OTEL traces for parameter details
-tail -f logs/sessions/enhanced_otel_orchestrator-flow-*.jsonl
-```
-
-### **Status**: ACTIVE 🔴
-- Dynamic flow architecture working correctly
-- Tool orchestration generating proper step sequences
-- ZAI API connectivity established
-- **Blocker**: API parameter formatting causing 400 rejections
-
-### **Priority**: HIGH - Critical for dynamic flow functionality
-
----
+### Related Issues
+- Issue #19: Pubkey resolution in dynamic flow execution (partially addressed)
+- Issue #17: OTEL integration at orchestrator level (working)
