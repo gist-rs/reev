@@ -11,16 +11,10 @@
 use anyhow::Result;
 
 use rig::{
-    completion::{CompletionModel, CompletionRequestBuilder, ToolDefinition},
+    completion::{CompletionModel, CompletionRequestBuilder},
     prelude::*,
     tool::Tool,
 };
-
-/// Helper function to get tool definition without semantic issues
-/// Note: All tools ignore the prompt parameter, so we pass an empty string
-async fn get_tool_definition<T: Tool>(tool: &T) -> ToolDefinition {
-    tool.definition(String::new()).await
-}
 use serde_json::json;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -121,6 +115,9 @@ impl ZAIAgent {
             }
         };
 
+        // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+        // let balance_tool_def = unified_data.tools.balance_tool.definition(String::new()).await;
+
         // Build completion request using unified enhanced user request
         let mut request_builder =
             CompletionRequestBuilder::new(model.clone(), &unified_data.enhanced_user_request);
@@ -128,55 +125,93 @@ impl ZAIAgent {
         // Add each tool only if it's allowed
         if is_tool_allowed("sol_transfer") {
             request_builder =
-                request_builder.tool(get_tool_definition(&unified_data.tools.sol_tool).await);
+                request_builder.tool(unified_data.tools.sol_tool.definition(String::new()).await);
         }
         if is_tool_allowed("spl_transfer") {
             request_builder =
-                request_builder.tool(get_tool_definition(&unified_data.tools.spl_tool).await);
+                request_builder.tool(unified_data.tools.spl_tool.definition(String::new()).await);
         }
         if is_tool_allowed("jupiter_swap") {
             // Use flow-aware tool in flow mode for proper swap_details structure
             let flow_mode = flow_mode_indicator.is_some();
             if flow_mode {
                 if let Some(ref flow_tool) = unified_data.tools.jupiter_swap_flow_tool {
-                    request_builder = request_builder.tool(get_tool_definition(flow_tool).await);
+                    request_builder =
+                        request_builder.tool(flow_tool.definition(String::new()).await);
                     info!("[ZAIAgent] Using JupiterSwapFlowTool in flow mode");
                 } else {
-                    request_builder = request_builder
-                        .tool(get_tool_definition(&unified_data.tools.jupiter_swap_tool).await);
+                    request_builder = request_builder.tool(
+                        unified_data
+                            .tools
+                            .jupiter_swap_tool
+                            .definition(String::new())
+                            .await,
+                    );
                     info!("[ZAIAgent] Falling back to JupiterSwapTool (flow tool not available)");
                 }
             } else {
-                request_builder = request_builder
-                    .tool(get_tool_definition(&unified_data.tools.jupiter_swap_tool).await);
+                request_builder = request_builder.tool(
+                    unified_data
+                        .tools
+                        .jupiter_swap_tool
+                        .definition(String::new())
+                        .await,
+                );
                 info!("[ZAIAgent] Using JupiterSwapTool in normal mode");
             }
         }
         if is_tool_allowed("jupiter_lend_earn_deposit") {
             request_builder = request_builder.tool(
-                get_tool_definition(&unified_data.tools.jupiter_lend_earn_deposit_tool).await,
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_deposit_tool
+                    .definition(String::new())
+                    .await,
             );
         }
         if is_tool_allowed("jupiter_lend_earn_withdraw") {
             request_builder = request_builder.tool(
-                get_tool_definition(&unified_data.tools.jupiter_lend_earn_withdraw_tool).await,
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_withdraw_tool
+                    .definition(String::new())
+                    .await,
             );
         }
         if is_tool_allowed("jupiter_lend_earn_mint") {
-            request_builder = request_builder
-                .tool(get_tool_definition(&unified_data.tools.jupiter_lend_earn_mint_tool).await);
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_mint_tool
+                    .definition(String::new())
+                    .await,
+            );
         }
         if is_tool_allowed("jupiter_lend_earn_redeem") {
-            request_builder = request_builder
-                .tool(get_tool_definition(&unified_data.tools.jupiter_lend_earn_redeem_tool).await);
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_lend_earn_redeem_tool
+                    .definition(String::new())
+                    .await,
+            );
         }
         if is_tool_allowed("jupiter_earn") {
-            request_builder = request_builder
-                .tool(get_tool_definition(&unified_data.tools.jupiter_earn_tool).await);
+            request_builder = request_builder.tool(
+                unified_data
+                    .tools
+                    .jupiter_earn_tool
+                    .definition(String::new())
+                    .await,
+            );
         }
-        let request_builder =
-            request_builder.tool(get_tool_definition(&unified_data.tools.balance_tool).await);
-        let request = request_builder.build();
+        let request_builder = request_builder;
+
+        let request = request_builder
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // .tool(balance_tool_def)
+            .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
+            .build();
 
         let result = model.completion(request).await?;
 
@@ -360,17 +395,14 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            /*
             "get_account_balance" => {
                 let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .balance_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Account balance error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                tools.balance_tool.call(args).await
             }
+            */
             "get_lend_earn_tokens" => {
                 let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
@@ -400,7 +432,8 @@ impl ZAIAgent {
             "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
             "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
             "jupiter_earn" => "Jupiter earn operation completed successfully",
-            "get_account_balance" => "Account balance retrieved successfully",
+            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
+            // "get_account_balance" => "Account balance retrieved successfully",
             "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
             _ => "Tool operation completed successfully",
         }
