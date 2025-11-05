@@ -19,7 +19,7 @@
 
 **API Endpoints:**
 - `POST /api/v1/benchmarks/execute-direct` - Zero file I/O execution
-- `POST /api/v1/benchmarks/execute-bridge` - Temporary YML compatibility  
+- `POST /api/v1/benchmarks/execute-bridge` - Temporary YML compatibility
 - `POST /api/v1/benchmarks/execute-recovery` - Enterprise-grade resilient execution
 - `GET /api/v1/metrics/recovery` - Recovery performance metrics
 - `GET /api/v1/flows/{session_id}` - Enhanced flow visualization with caching
@@ -38,9 +38,9 @@
 setCurrentExecution(execution || null);
 ```
 
-**Benefits**: 
+**Benefits**:
 - Eliminated state confusion between current and historical executions
-- Cleaner benchmark completion handling  
+- Cleaner benchmark completion handling
 - Reduced unnecessary API calls
 - Immediate display of run complete state
 
@@ -55,7 +55,7 @@ setCurrentExecution(execution || null);
 - Deterministic agent had GLM context knowledge when it shouldn't
 
 **Fix**: Modified logic to `is_glm = agent_name.starts_with("glm")` in both GLM and fallback paths:
-- ✅ GLM models (glm-4.6, etc.) → `is_glm = true` 
+- ✅ GLM models (glm-4.6, etc.) → `is_glm = true`
 - ✅ Deterministic agent → `is_glm = false` (no GLM context)
 - ✅ Other models (local, jupiter) → `is_glm = false`
 
@@ -134,7 +134,7 @@ if !config_changed && is_existing_healthy {
 
 **Fix Applied**:
 - Modified ZAIAgent to check `allowed_tools` before adding tools to request builder
-- Modified OpenAIAgent to check `allowed_tools` before adding tools to request builder  
+- Modified OpenAIAgent to check `allowed_tools` before adding tools to request builder
 - Both agents now properly restrict to only allowed tools (e.g., `jupiter_earn` for benchmark 114)
 
 **Result**: API now correctly calls `jupiter_earn` with `operation=Both` and succeeds, matching CLI behavior ✅
@@ -191,7 +191,7 @@ let key_map = if yaml_str.contains("🔄 MULTI-STEP FLOW CONTEXT") {
 
 **Results**:
 - ✅ Critical regression fixed - deterministic agent working again
-- ✅ Backward compatibility maintained - legacy formats still supported  
+- ✅ Backward compatibility maintained - legacy formats still supported
 - ✅ Forward compatibility enabled - ready for enhanced context features
 - ✅ Perfect benchmark scores achieved across all test cases
 
@@ -219,7 +219,7 @@ let key_map = if yaml_str.contains("🔄 MULTI-STEP FLOW CONTEXT") {
 - **Score Improvement**: `002-spl-transfer` improved from 56.2% to 100.0%
 - **Score Achievement**: `final_score=1.0` (perfect score)
 
-**Results**: 
+**Results**:
 - ✅ Perfect benchmark score achieved (1.0)
 - ✅ Transaction simulation successful: `"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"`
 - ✅ Correct recipient ATA used: `"9schhcuL7AaY5xNcemwdrWaNtcnDaLPqGajBkQECq2hx"`
@@ -256,13 +256,13 @@ let payload = LlmRequest {
 - ✅ Verified `reev-agent` properly imports from `reev-tools` crate
 - ✅ Confirmed no broken references after removal
 
-**Results**: 
+**Results**:
 - ✅ All diagnostic errors resolved
 - ✅ Tests compile and run successfully: `2 passed; 0 failed; 1 ignored`
 - ✅ Example file compiles without errors
 - ✅ Zero clippy warnings
 
-**Impact**: 
+**Impact**:
 - Eliminated code duplication
 - Simplified maintenance
 - Clear separation of concerns: `reev-tools` crate is the single source of truth for tools
@@ -271,9 +271,9 @@ let payload = LlmRequest {
 ## Closed Issues
 
 ### #2 Database Test Failure - Fixed
-**Date**: 2025-06-20  
-**Status**: Fixed  
-**Priority**: Medium  
+**Date**: 2025-06-20
+**Status**: Fixed
+**Priority**: Medium
 
 SQL query in `get_session_tool_calls` referencing non-existent `metadata` column in `session_tool_calls` table.
 
@@ -283,10 +283,10 @@ SQL query in `get_session_tool_calls` referencing non-existent `metadata` column
 
 ---
 
-### #3 Flow Test Assertion Failure - Fixed  
-**Date**: 2025-06-20  
-**Status**: Fixed  
-**Priority**: Low  
+### #3 Flow Test Assertion Failure - Fixed
+**Date**: 2025-06-20
+**Status**: Fixed
+**Priority**: Low
 
 Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
@@ -297,8 +297,8 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ### #2 Jupiter Lend Deposit Amount Parsing Issue - RESOLVED ✅
-**Date**: 2025-10-26  
-**Status**: Closed  
+**Date**: 2025-10-26
+**Status**: Closed
 **Resolution**: Enhanced context format implemented to clearly separate INITIAL vs CURRENT state with step numbers and visual indicators.
 
 **Test Results**:
@@ -313,9 +313,9 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ### #1 Jupiter Earn Tool Scope Issue - Fixed
-**Date**: 2025-10-26  
-**Status**: Fixed  
-**Priority**: Critical  
+**Date**: 2025-10-26
+**Status**: Fixed
+**Priority**: Critical
 
 **Issue**: `jupiter_earn` tool is incorrectly available to all benchmarks instead of only `114-jup-positions-and-earnings.yml`, causing API calls that bypass surfpool's forked mainnet state.
 
@@ -344,9 +344,9 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ### #4 SOL Transfer Placeholder Resolution Issue - High
-**Date**: 2025-10-26  
-**Status**: Open  
-**Priority**: Medium  
+**Date**: 2025-10-26
+**Status**: Open
+**Priority**: Medium
 
 **Issue**: GLM-4.6 LLM uses placeholder names directly instead of resolved addresses from key_map, causing "Failed to parse pubkey: Invalid Base58 string" errors.
 
@@ -378,7 +378,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 **Current Debugging Findings**:
 - Context properly includes resolved addresses: `"RECIPIENT_WALLET_PUBKEY": "AFsX1jD6JTb2hLFsLBzkHMWGy6UWDMaEY8UVnacwRWUH"`
-- Tool receives correct key_map with resolved addresses  
+- Tool receives correct key_map with resolved addresses
 - Auto-resolution logic: detects placeholder and should resolve to real address
 - LLM still calls tool with: `{"recipient_pubkey":"RECIPIENT_WALLET_PUBKEY"}`
 - Issue: Despite auto-resolution, parsing still fails with "Invalid Base58 string"
@@ -391,7 +391,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 - 🔧 **Test Auto-Resolution**: Verify resolved address appears in parsing step
 - 📊 **Monitor Behavior**: Track whether LLM adapts to better error messages
 
-**Impact**: 
+**Impact**:
 - Issue #2: Resolved - Enhanced context prevents amount confusion
 - Issue #4: Active - LLM still ignores resolved address guidance despite clear context
 - Affects all operations requiring resolved addresses from key_map
@@ -399,9 +399,9 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ### #3 GLM SPL Transfer ATA Resolution Issue - Medium
-**Date**: 2025-10-26  
-**Status**: In Progress  
-**Priority**: Medium  
+**Date**: 2025-10-26
+**Status**: In Progress
+**Priority**: Medium
 
 **Issue**: GLM models (glm-4.6-coding) through reev-agent are generating wrong recipient ATAs for SPL transfers. Instead of using pre-created ATAs from benchmark setup, the LLM generates new ATAs or uses incorrect ATA names.
 
@@ -423,7 +423,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 - Fixed context serialization to use numbers instead of strings
 - Enhanced tool description to be more explicit about reading exact balances
 
-**Next Steps**: 
+**Next Steps**:
 - Test unified GLM logic with updated code
 - Verify SPL transfer tool prioritizes pre-created ATAs from key_map
 - Check if LLM correctly uses placeholder names in recipient_pubkey field
@@ -431,9 +431,9 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ### #7 SPL Transfer Uses Wrong Recipient Address - RESOLVED ✅
-**Date**: 2025-10-26  
-**Status**: Closed  
-**Priority**: High  
+**Date**: 2025-10-26
+**Status**: Closed
+**Priority**: High
 
 **Issue**: GLM-4.6 agent uses `RECIPIENT_WALLET_PUBKEY` instead of `RECIPIENT_USDC_ATA` for SPL transfers, causing "invalid account data for instruction" errors.
 
@@ -455,7 +455,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 - ✅ **Transaction Success**: `"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"`
 - ✅ **Score Achievement**: `final_score=1.0` (perfect score)
 
-**Impact**: 
+**Impact**:
 - Fixed SPL transfer benchmark failures
 - Improved agent understanding of ATA vs wallet addresses
 - Enhanced tool descriptions prevent confusion between SOL and SPL transfers
@@ -469,7 +469,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ## API Decoupling - CLI-Based Runner Communication - IN PROGRESS 🚧
 ### Fixed Issues ✅
 - DatabaseWriterTrait compatibility issues between DatabaseWriter and PooledDatabaseWriter
-- Generic BenchmarkExecutor trait object safety problems 
+- Generic BenchmarkExecutor trait object safety problems
 - Async function in trait warnings and compilation errors
 - CLI execution infrastructure foundation setup
 - Execution state management via database abstraction
@@ -482,7 +482,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 ### ✅ CLI Integration Complete 🎉
 - [x] Implement real CLI execution in BenchmarkExecutor (placeholder replaced with actual CLI calls)
-- [x] Replace placeholder with real RunnerProcessManager integration  
+- [x] Replace placeholder with real RunnerProcessManager integration
 - [x] Add timeout and error handling for CLI processes
 - [x] Test with actual benchmark files (CLI integration tests passing)
 
@@ -511,7 +511,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 **Issue**: The `jupiter_earn` tool was incorrectly available in normal agent mode, allowing benchmarks like `116-jup-lend-redeem-usdc.yml` to access position/earnings data instead of executing proper redeem transactions.
 
-**Root Cause**: 
+**Root Cause**:
 1. OpenAI agent normal mode was adding `jupiter_earn_tool` to all tools
 2. ZAI agent was returning `true` for all tools when `allowed_tools` was `None`
 
@@ -519,7 +519,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 1. **OpenAI Agent**: Removed `.tool(tools.jupiter_earn_tool)` from normal mode tool list
 2. **ZAI Agent**: Added explicit restriction to return `false` for `jupiter_earn` when `allowed_tools` is `None`
 
-**Result**: 
+**Result**:
 - Before: Step 2 failed with "Agent returned no actions to execute" (75% score)
 - After: Both steps succeed with proper Jupiter lend/redeem transactions (100% score)
 
@@ -529,7 +529,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 ---
 
 ## ✅ **Test Organization - Move Tests to Dedicated Folders - COMPLETED**
-**Problem Solved**: 
+**Problem Solved**:
 - ❌ **Before**: Tests embedded in source files causing mixed concerns and violation of Rust best practices
 - ✅ **After**: Clean separation of production and test code in dedicated `tests/` folders
 
@@ -545,7 +545,7 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 **Source Files Cleaned:**
 - `crates/reev-agent/src/context/mod.rs` - Removed embedded tests
-- `crates/reev-agent/src/providers/zai/completion.rs` - Removed embedded tests  
+- `crates/reev-agent/src/providers/zai/completion.rs` - Removed embedded tests
 - `crates/reev-context/src/lib.rs` - Removed embedded tests
 - `crates/reev-api/src/services/benchmark_executor.rs` - Removed embedded tests
 - `crates/reev-api/src/services/runner_manager.rs` - Removed embedded tests
@@ -553,14 +553,14 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 
 **Quality Improvements:**
 - ✅ Zero embedded tests remaining in source files
-- ✅ All tests compile and run independently  
+- ✅ All tests compile and run independently
 - ✅ Proper module imports and separation
 - ✅ Follows Rust best practices for test organization
 
 **Result**: Codebase now has clean, maintainable separation between production and test code.
 
 
-**Root Cause**: 
+**Root Cause**:
 - Successful executions → FlowLogger::complete() → Creates agent performance record → Shows red color
 - Failed executions → Only session status update → No agent performance record → Shows grey color
 
@@ -581,9 +581,9 @@ Test expecting `.json` extension but log files use `.jsonl` (JSON Lines format).
 - ✅ Frontend will display red color for failed tests instead of grey
 - ✅ No database corruption or type errors
 
-**Date**: 2025-10-26  
-**Status**: Closed  
-**Priority**: Medium  
+**Date**: 2025-10-26
+**Status**: Closed
+**Priority**: Medium
 
 **Issue**: AI model consistently requests incorrect amounts for Jupiter lending deposits despite comprehensive context and validation improvements.
 
@@ -616,7 +616,7 @@ After: "Available balance: 397,491,632, Requested: 1"
 ✅ Balance validation passed: requested 1 for mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 ```
 
-**Current Status**: 
+**Current Status**:
 - Code infrastructure correctly prevents extreme amount requests
 - Balance validation works as intended
 - AI model behavior suggests fundamental interpretation challenge
@@ -628,7 +628,7 @@ After: "Available balance: 397,491,632, Requested: 1"
 - Consider model-specific prompt engineering strategies
 - May need fallback mechanisms for persistent interpretation issues
 
-**Impact**: 
+**Impact**:
 - Issue #2: Resolved - Enhanced context prevents amount confusion
 - Enhanced system robustness with comprehensive validation
 - Reduced error rates from impossible requests to minimal conservative requests
@@ -643,7 +643,7 @@ Successfully implemented OTEL integration at orchestrator level, achieving unifi
 
 ### **Key Achievements**
 - ✅ **Orchestrator-Level OTEL**: Added OTEL initialization to ping-pong executor
-- ✅ **Unified Agent Tracing**: Both GLM models (glm-4.6, glm-4.6-coding) use same OTEL mechanism  
+- ✅ **Unified Agent Tracing**: Both GLM models (glm-4.6, glm-4.6-coding) use same OTEL mechanism
 - ✅ **API Server Integration**: Enhanced OTEL logging initialized at server startup
 - ✅ **Graceful Session Management**: Handles existing logger and creates orchestrator-level sessions
 - ✅ **Dual Capture**: Maintains direct JSON storage + OTEL traces
@@ -665,7 +665,7 @@ GLM-4.6: Completed, Tool Calls: 1
 All Agents:    Agent → Orchestrator (OTEL) → Direct JSON + OTEL → DB → YML Parser → Mermaid
 ```
 - ✅ Single data path for all agents
-- ✅ Unified OTEL session per flow execution  
+- ✅ Unified OTEL session per flow execution
 - ✅ Agent-agnostic implementation
 - ✅ Orchestrator owns flow-level tracing
 - ✅ Consistent debugging across all agents
@@ -684,12 +684,3 @@ All Agents:    Agent → Orchestrator (OTEL) → Direct JSON + OTEL → DB → Y
 - ✅ Works for both GLM models today
 - ✅ Future-proof for any new agent type
 - ✅ Unified debugging across all agent types
-
-**Issue #17 is now FULLY RESOLVED ✅**
-```
-
-Now let me run diagnostics and clippy to ensure everything is working properly:
-<tool_call>diagnostics
-<arg_key>path</arg_key>
-<arg_value>crates/reev-tools/src/tools/jupiter_lend_earn_deposit.rs</arg_value>
-</tool_call>
