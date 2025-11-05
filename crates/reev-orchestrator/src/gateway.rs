@@ -11,6 +11,7 @@ use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
 use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
+use reev_types::tools::ToolName;
 use regex::Regex;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
@@ -77,11 +78,11 @@ impl OrchestratorGateway {
         );
 
         Ok(reev_types::flow::DynamicStep::new(
-            format!("{}_balance_check", step_id),
+            format!("{step_id}_balance_check"),
             prompt_template,
             "Initial portfolio assessment and balance verification".to_string(),
         )
-        .with_tool("account_balance")
+        .with_tool(ToolName::AccountBalance)
         .with_estimated_time(10)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
     }
@@ -121,7 +122,7 @@ impl OrchestratorGateway {
         );
 
         Ok(reev_types::flow::DynamicStep::new(
-            format!("{}_calculation", step_id),
+            format!("{step_id}_calculation"),
             prompt_template,
             "Strategy calculation and parameter planning".to_string(),
         )
@@ -163,11 +164,11 @@ impl OrchestratorGateway {
         );
 
         Ok(reev_types::flow::DynamicStep::new(
-            format!("{}_swap", step_id),
+            format!("{step_id}_swap"),
             prompt_template,
             "Jupiter DEX swap execution with detailed parameters".to_string(),
         )
-        .with_tool("jupiter_swap")
+        .with_tool(ToolName::JupiterSwap)
         .with_estimated_time(30)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
         .with_critical(true))
@@ -202,11 +203,11 @@ impl OrchestratorGateway {
         );
 
         Ok(reev_types::flow::DynamicStep::new(
-            format!("{}_lend", step_id),
+            format!("{step_id}_lend"),
             prompt_template,
             "Jupiter lending position creation with detailed parameters".to_string(),
         )
-        .with_tool("jupiter_lend_earn_deposit")
+        .with_tool(ToolName::JupiterLendEarnDeposit)
         .with_estimated_time(45)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
         .with_critical(true))
@@ -401,7 +402,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Emergency withdrawal from all lending positions".to_string(),
         )
-        .with_tool("jupiter_lend_earn_withdraw")
+        .with_tool(ToolName::JupiterWithdraw)
         .with_estimated_time(30)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 })
         .with_critical(true))
@@ -427,7 +428,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Emergency swap to stable assets".to_string(),
         )
-        .with_tool("jupiter_swap")
+        .with_tool(ToolName::JupiterSwap)
         .with_estimated_time(25)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 })
         .with_critical(true))
@@ -454,7 +455,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Advanced multi-pool yield optimization".to_string(),
         )
-        .with_tool("jupiter_lend_earn_deposit")
+        .with_tool(ToolName::JupiterLendEarnDeposit)
         .with_estimated_time(60)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
         .with_critical(true))
@@ -577,7 +578,7 @@ impl OrchestratorGateway {
     pub async fn analyze_user_intent(
         &self,
         prompt: &str,
-        context: &WalletContext,
+        _context: &WalletContext,
     ) -> Result<UserIntent> {
         // TODO: Replace with actual LLM call
         // For now, simple rule-based analysis for user requests
@@ -821,7 +822,7 @@ pub fn create_swap_step_with_recovery(
         prompt_template,
         "Swap SOL to USDC using Jupiter".to_string(),
     )
-    .with_tool("jupiter_swap")
+    .with_tool(ToolName::JupiterSwap)
     .with_estimated_time(30)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
 }
@@ -844,7 +845,7 @@ pub fn create_account_balance_step_with_recovery(
         prompt_template,
         "Check current wallet balances and positions".to_string(),
     )
-    .with_tool("get_account_balance")
+    .with_tool(ToolName::AccountBalance)
     .with_estimated_time(10)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -864,7 +865,7 @@ pub fn create_lend_step_with_recovery(
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool("jupiter_earn")
+    .with_tool(ToolName::JupiterEarn)
     .with_estimated_time(45)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 }))
     // Note: Lending step uses default critical behavior (true) for consistency
@@ -884,7 +885,7 @@ pub fn create_positions_check_step_with_recovery(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool("jupiter_positions")
+    .with_tool(ToolName::JupiterPositions)
     .with_estimated_time(15)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -939,7 +940,7 @@ pub fn create_enhanced_swap_step(
         prompt_template,
         "Swap SOL to USDC using Jupiter".to_string(),
     )
-    .with_tool("jupiter_swap")
+    .with_tool(ToolName::JupiterSwap)
     .with_estimated_time(30))
 }
 
@@ -976,7 +977,7 @@ pub fn create_enhanced_lend_step(context: &WalletContext) -> Result<reev_types::
         prompt_template,
         "Enhanced USDC lending using real wallet data".to_string(),
     )
-    .with_tool("jupiter_lend_earn_deposit")
+    .with_tool(ToolName::JupiterLendEarnDeposit)
     .with_estimated_time(45)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(true))
@@ -1006,7 +1007,7 @@ pub fn create_account_balance_step(
         prompt_template,
         "Check current wallet balances and positions".to_string(),
     )
-    .with_tool("account_balance")
+    .with_tool(ToolName::AccountBalance)
     .with_estimated_time(10)
     .with_critical(false)) // Not critical for flow success
 }
@@ -1023,7 +1024,7 @@ pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::Dy
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool("jupiter_earn")
+    .with_tool(ToolName::JupiterEarn)
     .with_estimated_time(45))
 }
 
@@ -1039,7 +1040,7 @@ pub fn create_positions_check_step(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool("jupiter_positions")
+    .with_tool(ToolName::JupiterPositions)
     .with_estimated_time(15)
     .with_critical(false)) // Not critical for flow success
 }

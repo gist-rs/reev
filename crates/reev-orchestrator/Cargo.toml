@@ -59,5 +59,7 @@ tracing-opentelemetry.workspace = true
 tokio-test = "0.4"
 
 [features]
-default = ["dynamic_flows"]
+default = ["dynamic_flows", "benchmark", "production"]
 dynamic_flows = []
+benchmark = []
+production = []

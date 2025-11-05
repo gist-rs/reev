@@ -8,6 +8,7 @@ mod mock_data;
 use mock_data::{all_mock_scenarios, create_mock_wallet_context, get_mock_scenario};
 use reev_orchestrator::{OrchestratorGateway, Result};
 use reev_types::flow::{DynamicStep, WalletContext};
+use reev_types::tools::ToolName;
 
 #[tokio::test]
 async fn test_end_to_end_flow_generation() -> Result<()> {
@@ -65,7 +66,7 @@ async fn test_simple_swap_flow() -> Result<()> {
     assert!(flow_plan.steps[0].prompt_template.contains("1")); // Less specific check
     assert!(flow_plan.steps[0]
         .required_tools
-        .contains(&"sol_tool".to_string()));
+        .contains(&reev_types::tools::ToolName::SolTransfer));
 
     // Clean up
     std::fs::remove_file(yml_path)?;
@@ -90,7 +91,7 @@ async fn test_simple_lend_flow() -> Result<()> {
     assert!(flow_plan.steps[0].prompt_template.contains("USDC"));
     assert!(flow_plan.steps[0]
         .required_tools
-        .contains(&"jupiter_earn_tool".to_string()));
+        .contains(&reev_types::tools::ToolName::JupiterEarn));
 
     // Clean up
     std::fs::remove_file(yml_path)?;
@@ -350,14 +351,14 @@ fn test_dynamic_step_creation() {
         "Test description".to_string(),
     )
     .with_critical(false)
-    .with_tool("test_tool")
+    .with_tool(ToolName::AccountBalance)
     .with_estimated_time(60);
 
     assert_eq!(step.step_id, "test_step");
     assert_eq!(step.prompt_template, "Test prompt template");
     assert_eq!(step.description, "Test description");
     assert!(!step.critical);
-    assert!(step.required_tools.contains(&"test_tool".to_string()));
+    assert!(step.required_tools.contains(&ToolName::AccountBalance));
     assert_eq!(step.estimated_time_seconds, 60);
 }
 
@@ -392,7 +393,9 @@ async fn test_mock_data_integration() -> Result<()> {
         let context = create_mock_wallet_context(scenario);
 
         // Test flow generation with mock context
-        let plan = gateway.generate_enhanced_flow_plan("use 50% sol to usdc", &context, None)?;
+        let plan = gateway
+            .generate_enhanced_flow_plan("use 50% sol to usdc", &context, None)
+            .await?;
 
         println!("DEBUG: Generated plan for {scenario_name}: {plan:?}");
         println!("DEBUG: Step prompt: {}", plan.steps[0].prompt_template);
@@ -468,7 +471,8 @@ async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
     );
 
     // Validate required_tools match benchmark expectations
-    let all_tools: Vec<String> = flow_plan
+    // Should contain Jupiter tools for swap and multiply strategy
+    let all_tools: Vec<reev_types::tools::ToolName> = flow_plan
         .steps
         .iter()
         .flat_map(|s| s.required_tools.clone())
@@ -477,8 +481,12 @@ async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
     println!("  ✅ Generated tools: {all_tools:?}");
 
     // Should contain Jupiter tools for swap and multiply strategy
-    let has_swap_step = all_tools.iter().any(|t| t.contains("swap"));
-    let has_lend_step = all_tools.iter().any(|t| t.contains("lend"));
+    let has_swap_step = all_tools
+        .iter()
+        .any(|t| matches!(t, ToolName::JupiterSwap | ToolName::SolTransfer));
+    let has_lend_step = all_tools
+        .iter()
+        .any(|t| matches!(t, ToolName::JupiterLend | ToolName::JupiterLendEarnDeposit));
 
     assert!(
         has_swap_step,
@@ -555,7 +563,9 @@ async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
     println!("📋 Testing direct mode (in-memory flow)...");
 
     // Generate flow plan directly (no file I/O)
-    let flow_plan = gateway.generate_enhanced_flow_plan(prompt, &context, None)?;
+    let flow_plan = gateway
+        .generate_enhanced_flow_plan(prompt, &context, None)
+        .await?;
 
     println!("  ✅ Generated flow: {}", flow_plan.flow_id);
     println!("  ✅ Number of steps: {}", flow_plan.steps.len());
@@ -587,6 +597,7 @@ async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
         .steps
         .iter()
         .flat_map(|s| s.required_tools.clone())
+        .map(|tool| tool.to_string())
         .collect();
 
     let has_swap = all_tools.contains(&"jupiter_swap".to_string());

@@ -19,6 +19,7 @@ use reev_flow::{
     get_enhanced_otel_logger, init_enhanced_otel_logging_with_session, log_prompt_event,
     log_step_complete, log_tool_call,
 };
+use reev_types::tools::ToolName;
 // Re-export constants from reev-lib
 use reev_lib::constants::{sol_mint, usdc_mint};
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
@@ -309,7 +310,7 @@ impl PingPongExecutor {
         // Log step start to OTEL if available
         if self.otel_session_id.is_some() {
             log_prompt_event!(
-                step.required_tools.clone(),
+                ToolName::vec_to_string(&step.required_tools),
                 format!("Orchestrator executing step: {}", step.description),
                 prompt.clone()
             );
@@ -354,7 +355,7 @@ impl PingPongExecutor {
             model_name: agent_type.to_string(),
             mock: false, // Use real execution
             initial_state: None,
-            allowed_tools: Some(step.required_tools.clone()), // Pass allowed tools
+            allowed_tools: Some(ToolName::vec_to_string(&step.required_tools)), // Pass allowed tools
             account_states: None,
             key_map: Some(self.create_key_map_with_wallet(&resolved_wallet_pubkey)), // Provide key mapping with resolved wallet
         };
@@ -413,8 +414,11 @@ impl PingPongExecutor {
                         .required_tools
                         .first()
                         .cloned()
-                        .unwrap_or_else(|| "unknown".to_string());
-                    log_tool_call!(failed_tool, serde_json::json!({"error": error.to_string()}));
+                        .unwrap_or(ToolName::ExecuteTransaction);
+                    log_tool_call!(
+                        failed_tool.to_string(),
+                        serde_json::json!({"error": error.to_string()})
+                    );
                 }
 
                 Ok(StepResult {

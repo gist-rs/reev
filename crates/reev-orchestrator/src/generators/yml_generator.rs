@@ -5,6 +5,7 @@
 
 use crate::Result;
 use reev_types::flow::{DynamicFlowPlan, WalletContext};
+use reev_types::tools::ToolName;
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -176,7 +177,7 @@ impl YmlGenerator {
 
         // Check if any step involves swap
         let has_swap = steps.iter().any(|step| {
-            step.required_tools.contains(&"sol_tool".to_string())
+            step.required_tools.contains(&ToolName::SolTransfer)
                 || step.description.to_lowercase().contains("swap")
         });
 
@@ -204,10 +205,9 @@ impl YmlGenerator {
 
         // Check if any step involves lend/earn
         let has_lend = steps.iter().any(|step| {
-            step.required_tools
-                .contains(&"jupiter_earn_tool".to_string())
+            step.required_tools.contains(&ToolName::JupiterEarn)
                 || step.description.to_lowercase().contains("lend")
-                || step.description.to_lowercase().contains("earn")
+                || step.description.to_lowercase().contains("deposit")
         });
 
         if has_lend {

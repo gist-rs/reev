@@ -3,6 +3,7 @@
 //! This module contains types for dynamic flow orchestration, including
 //! wallet context, flow plans, and related structures.
 
+use super::tools::ToolName;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -91,7 +92,7 @@ pub struct DynamicStep {
     /// Step description for users
     pub description: String,
     /// Required tools for this step
-    pub required_tools: Vec<String>,
+    pub required_tools: Vec<ToolName>,
     /// Recovery strategy if step fails
     pub recovery_strategy: Option<RecoveryStrategy>,
     /// Estimated execution time in seconds
@@ -119,8 +120,8 @@ impl DynamicStep {
     }
 
     /// Add required tool and return self for chaining
-    pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
-        self.required_tools.push(tool.into());
+    pub fn with_tool(mut self, tool: ToolName) -> Self {
+        self.required_tools.push(tool);
         self
     }
 

@@ -5,6 +5,7 @@
 
 use reev_orchestrator::{ContextResolver, OrchestratorGateway, YmlGenerator};
 use reev_types::flow::{DynamicStep, WalletContext};
+use reev_types::tools::ToolName;
 
 #[tokio::test]
 async fn test_context_resolver_creation() {
@@ -89,8 +90,9 @@ async fn test_swap_flow_generation() {
     let context = WalletContext::new("test".to_string());
 
     // Check if flow fails due to insufficient SOL balance (0 SOL in context)
-    let flow =
-        gateway.generate_enhanced_flow_plan("swap SOL to USDC using Jupiter", &context, None);
+    let flow = gateway
+        .generate_enhanced_flow_plan("swap SOL to USDC using Jupiter", &context, None)
+        .await;
     // Flow should fail because context has 0 SOL balance
     assert!(flow.is_err());
     // Don't unwrap since it's an error case
@@ -105,11 +107,9 @@ async fn test_swap_lend_flow_generation() {
     context.total_value_usd = 300.0;
 
     // Flow should succeed with sufficient balance
-    let flow = gateway.generate_enhanced_flow_plan(
-        "swap SOL to USDC then lend using Jupiter",
-        &context,
-        None,
-    );
+    let flow = gateway
+        .generate_enhanced_flow_plan("swap SOL to USDC then lend using Jupiter", &context, None)
+        .await;
     assert!(flow.is_ok());
     let flow = flow.unwrap();
     // Should generate 4 steps for complex multiplication strategy
@@ -171,9 +171,9 @@ fn test_tools_config_generation() {
     let generator = YmlGenerator::new();
     let steps = vec![
         DynamicStep::new("1".to_string(), "test".to_string(), "test".to_string())
-            .with_tool("sol_tool"),
+            .with_tool(ToolName::SolTransfer),
         DynamicStep::new("2".to_string(), "test".to_string(), "test".to_string())
-            .with_tool("jupiter_earn_tool"),
+            .with_tool(ToolName::JupiterEarn),
     ];
 
     let tools = generator.generate_tools_config(&steps);
@@ -202,14 +202,16 @@ fn test_dynamic_step_creation() {
         "Test description".to_string(),
     )
     .with_critical(false)
-    .with_tool("test_tool")
+    .with_tool(ToolName::AccountBalance)
     .with_estimated_time(60);
 
     assert_eq!(step.step_id, "test_step");
     assert_eq!(step.prompt_template, "Test prompt template");
     assert_eq!(step.description, "Test description");
     assert!(!step.critical);
-    assert!(step.required_tools.contains(&"test_tool".to_string()));
+    assert!(step
+        .required_tools
+        .contains(&reev_types::tools::ToolName::AccountBalance));
     assert_eq!(step.estimated_time_seconds, 60);
 }
 
