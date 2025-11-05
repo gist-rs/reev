@@ -435,26 +435,29 @@ impl PingPongExecutor {
         // This is a simplified parser - in production, you'd want more robust parsing
         let mut tool_calls = Vec::new();
 
-        // Look for tool call indicators in the response
+        // Look for tool call indicators in the response using correct tool names
         if response.contains("jupiter_swap") {
             tool_calls.push("jupiter_swap".to_string());
         }
 
-        if response.contains("jupiter_lend") {
-            tool_calls.push("jupiter_lend".to_string());
+        if response.contains("jupiter_lend_earn_deposit") {
+            tool_calls.push("jupiter_lend_earn_deposit".to_string());
         }
 
-        if response.contains("account_balance") {
-            tool_calls.push("account_balance".to_string());
+        if response.contains("jupiter_earn") {
+            tool_calls.push("jupiter_earn".to_string());
+        }
+
+        if response.contains("get_account_balance") {
+            tool_calls.push("get_account_balance".to_string());
         }
 
         if response.contains("jupiter_positions") {
             tool_calls.push("jupiter_positions".to_string());
         }
 
-        // If no specific tools found but response is successful, log a generic tool call
-        if tool_calls.is_empty() && !response.to_lowercase().contains("error") {
-            tool_calls.push("agent_response".to_string());
+        if response.contains("lend_earn_tokens") {
+            tool_calls.push("lend_earn_tokens".to_string());
         }
 
         Ok(tool_calls)

@@ -19,6 +19,7 @@ uuid.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 
 # Local dependencies
 reev-types = { path = "../reev-types" }

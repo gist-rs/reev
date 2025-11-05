@@ -14,6 +14,7 @@ use reev_tools::tools::discovery::balance_tool::{
     AccountBalanceArgs, AccountBalanceError, AccountBalanceTool,
 };
 use reev_types::flow::{TokenBalance, WalletContext};
+use solana_client::client_error::reqwest;
 // Temporarily removed rig::tool::Tool due to dependency issues
 // use rig::tool::Tool;
 use solana_client::rpc_client::RpcClient;
@@ -28,7 +29,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 /// Cache TTL configuration
 const WALLET_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 const PRICE_CACHE_TTL: Duration = Duration::from_secs(30); // 30 seconds
@@ -155,7 +156,7 @@ impl ContextResolver {
             }
         }
 
-        // Resolve context from sources (mock for now)
+        // Resolve context from sources
         let context = self.resolve_fresh_wallet_context(&resolved_pubkey).await?;
 
         // Cache the result (using resolved pubkey as key)
@@ -223,10 +224,31 @@ impl ContextResolver {
             }
             Err(e) => {
                 warn!(
-                    "Failed to query real balance for {}: {}, using zero balances",
+                    "Failed to query real balance for {}: {}, funding account via surfpool",
                     pubkey, e
                 );
-                // Continue with zero balances - this is expected for new accounts
+
+                // Fund the account using surfpool for testing
+                if let Err(fund_err) = self.fund_account_via_surfpool(pubkey).await {
+                    error!("Failed to fund account {}: {}", pubkey, fund_err);
+                    // Continue with zero balances if funding fails
+                } else {
+                    info!("Successfully funded account {} via surfpool", pubkey);
+                    // Create context with default balances after funding
+                    let mut wallet_context = WalletContext::new(pubkey.to_string());
+                    wallet_context.sol_balance = 5_000_000_000; // 5 SOL
+
+                    let usdc_balance = TokenBalance {
+                        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                        balance: 1_000_000_000, // 1000 USDC
+                        decimals: Some(6),
+                        symbol: Some("USDC".to_string()),
+                        formatted_amount: Some("1000 USDC".to_string()),
+                        owner: Some(pubkey.to_string()),
+                    };
+                    wallet_context.add_token_balance(usdc_balance.mint.clone(), usdc_balance);
+                    return Ok(wallet_context);
+                }
             }
         }
 
@@ -302,7 +324,73 @@ impl ContextResolver {
         Ok(price)
     }
 
-    /// Fetch fresh token price from Jupiter API with fallback to defaults
+    /// Fund account via surfpool for testing
+    async fn fund_account_via_surfpool(&self, pubkey: &str) -> Result<()> {
+        let surfpool_url = std::env::var("SURFPOOL_RPC_URL")
+            .unwrap_or_else(|_| "http://localhost:8899".to_string());
+
+        let client = reqwest::Client::new();
+        let owner_pubkey = pubkey;
+
+        // Fund SOL balance (5 SOL = 5 * 10^9 lamports)
+        let sol_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "surfnet_setAccount",
+            "params": [
+                owner_pubkey,
+                { "lamports": 5000000000_i64 }
+            ]
+        });
+
+        let response = client
+            .post(&surfpool_url)
+            .json(&sol_request)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fund SOL balance via surfpool: {e}"))?;
+
+        if !response.status().is_success() {
+            let error_body = response
+                .text()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to read error response: {e}"))?;
+            anyhow::bail!("Failed to fund SOL: {error_body}");
+        }
+
+        // Fund USDC balance (1000 USDC with 6 decimals)
+        let usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+        let usdc_request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "surfnet_setTokenAccount",
+            "params": [
+                owner_pubkey,
+                usdc_mint,
+                { "amount": 1_000_000_000 },
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            ]
+        });
+
+        let response = client
+            .post(&surfpool_url)
+            .json(&usdc_request)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fund USDC balance via surfpool: {e}"))?;
+
+        if !response.status().is_success() {
+            let error_body = response
+                .text()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to read error response: {e}"))?;
+            anyhow::bail!("Failed to fund USDC: {error_body}");
+        }
+
+        Ok(())
+    }
+
+    /// Fetch fresh price from Jupiter API or fallback to defaults
     async fn fetch_fresh_token_price(&self, token_mint: &str) -> Result<f64> {
         // Try to get price from Jupiter API for real-time data
         if let Ok(price) = self.fetch_jupiter_price(token_mint).await {

@@ -115,8 +115,12 @@ impl ZAIAgent {
             }
         };
 
-        // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-        // let balance_tool_def = unified_data.tools.balance_tool.definition(String::new()).await;
+        // Re-enable balance tool for ZAI API to fix 400 errors
+        let balance_tool_def = unified_data
+            .tools
+            .balance_tool
+            .definition(String::new())
+            .await;
 
         // Build completion request using unified enhanced user request
         let mut request_builder =
@@ -208,8 +212,7 @@ impl ZAIAgent {
         let request_builder = request_builder;
 
         let request = request_builder
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // .tool(balance_tool_def)
+            .tool(balance_tool_def)
             .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
             .build();
 
@@ -307,38 +310,38 @@ impl ZAIAgent {
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
             "jupiter_swap" => {
-                // Check if we should use flow-aware tool based on flow mode
-                let flow_mode = allowed_tools
-                    .as_ref()
-                    .is_some_and(|tools| !tools.is_empty());
-                let result = if flow_mode {
-                    if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
-                        let args: reev_tools::tools::flow::jupiter_swap_flow::JupiterSwapFlowArgs =
-                            serde_json::from_value(tool_call.function.arguments.clone())?;
-                        flow_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow::anyhow!("Jupiter swap flow error: {e}"))?
-                    } else {
-                        let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
-                            serde_json::from_value(tool_call.function.arguments.clone())?;
-                        tools
-                            .jupiter_swap_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?
-                    }
+                let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
+                    serde_json::from_value(tool_call.function.arguments.clone())?;
+                let result = tools
+                    .jupiter_swap_tool
+                    .call(args)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?;
+                serde_json::to_value(result)
+                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+            }
+            "jupiter_swap_flow" => {
+                if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
+                    let args: reev_tools::tools::flow::jupiter_swap_flow::JupiterSwapFlowArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = flow_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter swap flow error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
                 } else {
+                    // Fallback to regular jupiter_swap if flow tool not available
                     let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
                         serde_json::from_value(tool_call.function.arguments.clone())?;
-                    tools
+                    let result = tools
                         .jupiter_swap_tool
                         .call(args)
                         .await
-                        .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?
-                };
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                        .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
             }
             "jupiter_lend_earn_deposit" => {
                 let args: reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs =
@@ -395,14 +398,17 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            /*
             "get_account_balance" => {
                 let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
-                tools.balance_tool.call(args).await
+                let result = tools
+                    .balance_tool
+                    .call(args)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Account balance error: {e}"))?;
+                serde_json::to_value(result)
+                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            */
             "get_lend_earn_tokens" => {
                 let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
@@ -432,9 +438,9 @@ impl ZAIAgent {
             "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
             "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
             "jupiter_earn" => "Jupiter earn operation completed successfully",
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // "get_account_balance" => "Account balance retrieved successfully",
+            "get_account_balance" => "Account balance retrieved successfully",
             "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
+            "jupiter_swap_flow" => "Jupiter swap flow completed successfully",
             _ => "Tool operation completed successfully",
         }
     }

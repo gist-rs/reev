@@ -192,10 +192,10 @@ impl OpenAIAgent {
             if is_tool_allowed("get_lend_earn_tokens") {
                 builder = builder.tool(tools.lend_earn_tokens_tool);
             }
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // if is_tool_allowed("get_account_balance") {
-            //     builder = builder.tool(tools.balance_tool);
-            // }
+            // Re-enable balance tool for consistency with ZAI agent
+            if is_tool_allowed("get_account_balance") {
+                builder = builder.tool(tools.balance_tool);
+            }
             if is_tool_allowed("jupiter_earn") {
                 builder = builder.tool(tools.jupiter_earn_tool);
             }
@@ -217,8 +217,7 @@ impl OpenAIAgent {
                 .tool(tools.jupiter_lend_earn_mint_tool)
                 .tool(tools.jupiter_lend_earn_redeem_tool)
                 // jupiter_earn_tool only available for position/earnings benchmarks (114-*.yml)
-                // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-                // .tool(tools.balance_tool)
+                .tool(tools.balance_tool)
                 // .tool(tools.jupiter_earn_tool) - REMOVED: Should only be available for position/earnings benchmarks
                 .tool(tools.lend_earn_tokens_tool)
                 .build()
@@ -355,8 +354,7 @@ impl OpenAIAgent {
             .tool(unified_data.tools.jupiter_lend_earn_mint_tool)
             .tool(unified_data.tools.jupiter_lend_earn_redeem_tool)
             // jupiter_earn_tool only available for position/earnings benchmarks (114-*.yml)
-            // TODO: Temporarily disabled - comment out balance_tool to fix SOL transfers
-            // .tool(unified_data.tools.balance_tool)
+            .tool(unified_data.tools.balance_tool)
             .tool(unified_data.tools.lend_earn_tokens_tool)
             .build();
 

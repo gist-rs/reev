@@ -371,7 +371,7 @@ pub fn create_account_balance_step_with_recovery(
         prompt_template,
         "Check current wallet balances and positions".to_string(),
     )
-    .with_tool("account_balance")
+    .with_tool("get_account_balance")
     .with_estimated_time(10)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -391,7 +391,7 @@ pub fn create_lend_step_with_recovery(
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool("jupiter_earn_tool")
+    .with_tool("jupiter_earn")
     .with_estimated_time(45)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 }))
     // Note: Lending step uses default critical behavior (true) for consistency
@@ -550,7 +550,7 @@ pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::Dy
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool("jupiter_earn_tool")
+    .with_tool("jupiter_earn")
     .with_estimated_time(45))
 }
 
