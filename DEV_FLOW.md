@@ -179,7 +179,7 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 ```mermaid
 stateDiagram
     [*] --> Swap_2_SOL
-    Swap_2_SOL --> Check_USDC_Balance  
+    Swap_2_SOL --> Check_USDC_Balance
     Check_USDC_Balance --> Lend_USDC
     Lend_USDC --> [*]
 
@@ -295,14 +295,25 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -d '{"prompt": "swap 1 SOL for USDC", "agent": "glm-4.6", ...}'
 # ✅ Response: {"tool_calls":[{"tool_name":"jupiter_swap",...}],"status":"Completed"}
 ```
-
-## 🔗 **Related Issues**
-- **Issue #12**: API Flow Visualization Returns Empty Tool Calls (Partially Fixed)
-- **Issue #13**: Dynamic Flow Visualization Shows No Useful User Information (Current)
-- ✅ RESOLVED: Issue #10 - API Flow Visualization OTEL Format Compatibility
-
 ---
 
-**Last Updated:** 2025-11-04
-**Focus:** Issue #17 OTEL Integration at Orchestrator Level
-**Status:** ✅ FULLY IMPLEMENTED AND WORKING
+### **✅ Execute 300 Benchmark:**
+```bash
+curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent": "glm-4.6-coding"
+  }' | jq '.'
+```
+
+### **✅ Get Mermaid Diagram:**
+```bash
+# Get execution_id from response, then:
+FLOW_ID="5e05380f-627d-4db1-a2bc-b549126a7cf1"
+curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID" | jq -r '.diagram'
+```
+
+### **✅ Check Execution Status:**
+```bash
+curl -s "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/status/$EXECUTION_ID" | jq .
+```
