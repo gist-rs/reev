@@ -1,6 +1,6 @@
 ## DO
 - DO add test to tests folder.
-- Create/refine issues in `ISSUES.md` before fix anything and updated when fixed, keep only last 10 issues.
+- Create/refine issues in `ISSUES.md` before fix anything and update after fixed, keep only last 10 issues.
 - When remove old isses do reflect critical one in `REFLECT.md`.
 - Try to keep all md under 320-512 lines, keep only important and use short word, less noise, keep revise for compact.
 - Follow modular architecture, Keep coding files under 320-512 lines, sparate to smalelr files if need, askfor separation if number of lines exceed limits.

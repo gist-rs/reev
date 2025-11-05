@@ -26,7 +26,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
     "prompt": "swap 0.1 SOL for USDC",
     "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
-    "shared_surfpool": false
+    "shared_surfpool": true
   }'
 
 # Multi-step yield strategy - 4 steps generated, 2+ tool calls
@@ -36,7 +36,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
     "prompt": "use 50% of my SOL to get USDC yield on jupiter",
     "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6",
-    "shared_surfpool": false
+    "shared_surfpool": true
   }'
 
 # Advanced optimization - complex strategy execution
@@ -46,7 +46,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
     "prompt": "Use my 50% SOL to maximize my USDC returns through Jupiter lending. Please check current market rates, calculate optimal strategy, and execute the best yield approach for my remaining portfolio.",
     "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
-    "shared_surfpool": false
+    "shared_surfpool": true
   }'
 ```
 
@@ -78,7 +78,7 @@ Dynamic flows capture rich execution data from OpenTelemetry traces:
       "success": true
     },
     {
-      "tool_name": "jupiter_swap", 
+      "tool_name": "jupiter_swap",
       "duration_ms": 13839,
       "params": {
         "input_token": "SOL",
@@ -101,7 +101,7 @@ Required environment variables for GLM agents:
 
 ```bash
 export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
-export ZAI_API_URL="https://api.z.ai/api/paas/v4" 
+export ZAI_API_URL="https://api.z.ai/api/paas/v4"
 export ZAI_API_KEY="your-api-key"
 export RUST_LOG=info
 ```
@@ -183,7 +183,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "swap 1 SOL for USDC", 
+    "prompt": "swap 1 SOL for USDC",
     "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
@@ -246,12 +246,12 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
     "agent": "glm-4.6-coding"
   }'
 
-# Benchmark 301: Yield Optimization  
+# Benchmark 301: Yield Optimization
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Use my 50% SOL to maximize my USDC returns through Jupiter lending",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", 
+    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6"
   }'
 
@@ -487,11 +487,11 @@ EXECUTION_ID=$(echo $RESPONSE | jq -r '.execution_id')
 while true; do
   STATUS=$(curl -s http://localhost:3001/api/v1/executions/$EXECUTION_ID | jq -r '.status')
   echo "Status: $STATUS"
-  
+
   if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
     break
   fi
-  
+
   sleep 2
 done
 
@@ -567,7 +567,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 - **Data**: Jupiter swap amounts, lending deposits, transaction signatures
 - **Update**: Real-time as tool calls execute
 
-### Static Benchmarks  
+### Static Benchmarks
 - **Source**: Session-based YML files
 - **Format**: Traditional Mermaid with state transitions
 - **Data**: Pre-defined execution paths

@@ -1,5 +1,11 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 ALWAYS RUN SERVER IN BG
+
+---
+
+❌ **First issue**: Account balance RPC error (AccountNotFound) - expected for test wallet
+❌ **Second issue**: `jupiter_swap_flow` tool not found
+
 ---
 
 1. refine PLAN_DYNAMIC_FLOW.md
@@ -49,11 +55,9 @@ Caused by:
 [@ARCHITECTURE.md](file:///Users/katopz/git/gist/reev/ARCHITECTURE.md)
 
 ---
-GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
-ZAI_API_URL="https://api.z.ai/api/paas/v4"
-
----
-has been set in .env
+GLM_CODING_API_URL must defsult to "https://api.z.ai/api/coding/paas/v4"
+ZAI_API_URL must defsult to  "https://api.z.ai/api/paas/v4"
+ZAI_API_KEY has been set in .env
 
 glm-4.6 must use ZAI_API_URL="https://api.z.ai/api/paas/v4"
 curl --location 'https://api.z.ai/api/paas/v4/chat/completions' \
