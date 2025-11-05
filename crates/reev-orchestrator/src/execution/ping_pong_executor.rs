@@ -12,6 +12,7 @@
 //! This executor now properly prepares key_map for user wallet resolution,
 //! enabling tools to resolve placeholder addresses correctly.
 
+use crate::context_resolver::ContextResolver;
 use anyhow::Result;
 use reev_agent::{run_agent, LlmRequest};
 use reev_flow::{
@@ -23,24 +24,27 @@ use reev_lib::constants::{sol_mint, usdc_mint};
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 /// Ping-pong executor that coordinates step-by-step execution
-#[derive(Debug)]
 pub struct PingPongExecutor {
     /// Maximum time per step (milliseconds)
     step_timeout_ms: u64,
     /// OTEL session ID for unified tracing
     otel_session_id: Option<String>,
+    /// Context resolver for placeholder resolution
+    context_resolver: Arc<ContextResolver>,
 }
 
 impl PingPongExecutor {
     /// Create new ping-pong executor
-    pub fn new(step_timeout_ms: u64) -> Self {
+    pub fn new(step_timeout_ms: u64, context_resolver: Arc<ContextResolver>) -> Self {
         Self {
             step_timeout_ms,
             otel_session_id: None,
+            context_resolver,
         }
     }
 
@@ -312,6 +316,20 @@ impl PingPongExecutor {
         }
 
         // Create LlmRequest for real agent execution
+        // Resolve wallet pubkey using context resolver (handles placeholders like USER_WALLET_PUBKEY)
+        let resolved_wallet_pubkey = match self
+            .context_resolver
+            .resolve_placeholder(wallet_pubkey)
+            .await
+        {
+            Ok(resolved) => resolved,
+            Err(e) => {
+                error!("[PingPongExecutor] Failed to resolve wallet pubkey: {}", e);
+                wallet_pubkey.to_string() // Fallback to original
+            }
+        };
+
+        // Create LlmRequest for real agent execution
         let request = LlmRequest {
             id: Uuid::new_v4().to_string(),
             session_id: self
@@ -325,7 +343,7 @@ impl PingPongExecutor {
             initial_state: None,
             allowed_tools: Some(step.required_tools.clone()), // Pass allowed tools
             account_states: None,
-            key_map: Some(self.create_key_map_with_wallet(wallet_pubkey)), // Provide key mapping with actual wallet
+            key_map: Some(self.create_key_map_with_wallet(&resolved_wallet_pubkey)), // Provide key mapping with resolved wallet
         };
 
         // Execute real agent
@@ -467,11 +485,5 @@ impl PingPongExecutor {
         );
 
         key_map
-    }
-}
-
-impl Default for PingPongExecutor {
-    fn default() -> Self {
-        Self::new(30000) // 30 second default timeout per step
     }
 }

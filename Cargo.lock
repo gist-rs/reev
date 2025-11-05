@@ -3882,6 +3882,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "solana-client",
+ "solana-sdk",
  "tempfile",
  "tokio",
  "tokio-test",

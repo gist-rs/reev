@@ -24,7 +24,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap 0.1 SOL for USDC",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }'
@@ -34,7 +34,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use 50% of my SOL to get USDC yield on jupiter",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6",
     "shared_surfpool": false
   }'
@@ -44,7 +44,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Use my 50% SOL to maximize my USDC returns through Jupiter lending. Please check current market rates, calculate optimal strategy, and execute the best yield approach for my remaining portfolio.",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }'
@@ -78,7 +78,7 @@ Dynamic flows capture rich execution data from OpenTelemetry traces:
       "success": true
     },
     {
-      "tool_name": "jupiter_swap", 
+      "tool_name": "jupiter_swap",
       "duration_ms": 13839,
       "params": {
         "input_token": "SOL",
@@ -101,7 +101,7 @@ Required environment variables for GLM agents:
 
 ```bash
 export GLM_CODING_API_URL="https://api.z.ai/api/coding/paas/v4"
-export ZAI_API_URL="https://api.z.ai/api/paas/v4" 
+export ZAI_API_URL="https://api.z.ai/api/paas/v4"
 export ZAI_API_KEY="your-api-key"
 export RUST_LOG=info
 ```
@@ -116,7 +116,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }'
@@ -133,7 +133,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap 1 SOL for USDC",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }'
@@ -174,7 +174,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap 1 SOL for USDC",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6",
     "shared_surfpool": false
   }'
@@ -183,8 +183,8 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "swap 1 SOL for USDC", 
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "prompt": "swap 1 SOL for USDC",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }'
@@ -242,16 +242,16 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'
 
-# Benchmark 301: Yield Optimization  
+# Benchmark 301: Yield Optimization
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Use my 50% SOL to maximize my USDC returns through Jupiter lending",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", 
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6"
   }'
 
@@ -260,7 +260,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "I want to rebalance my portfolio based on current market conditions",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'
 
@@ -269,7 +269,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "I want to implement a risk-adjusted growth strategy using 30% of my SOL",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6"
   }'
 
@@ -278,7 +278,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "I need an emergency exit strategy for all my positions due to market stress",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'
 
@@ -287,7 +287,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "I want to optimize my yield farming strategy using 70% of my available capital",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6"
   }'
 ```
@@ -300,7 +300,7 @@ FLOW_RESULT=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-di
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }')
@@ -338,7 +338,7 @@ RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direc
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }')
@@ -365,7 +365,7 @@ curl http://localhost:3001/api/v1/executions/{execution_id}/trace
 # Example trace output:
 # flow_execution
 # ├── prompt: "use my 50% sol to multiply usdc 1.5x on jup"
-# ├── wallet: 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM
+# ├── wallet: USER_WALLET_PUBKEY
 # ├── steps_generated: 4
 # └── tool_calls: 2
 #     ├── account_balance (✅ success, 11596ms)
@@ -443,7 +443,7 @@ for BENCHMARK in "swap 0.1 SOL for USDC" "use 50% SOL for yield"; do
     -H "Content-Type: application/json" \
     -d "{
       \"prompt\": \"$BENCHMARK\",
-      \"wallet\": \"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",
+      \"wallet\": \"USER_WALLET_PUBKEY\",
       \"agent\": \"glm-4.6-coding\",
       \"shared_surfpool\": false
     }" &
@@ -476,7 +476,7 @@ RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direc
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }')
@@ -487,11 +487,11 @@ EXECUTION_ID=$(echo $RESPONSE | jq -r '.execution_id')
 while true; do
   STATUS=$(curl -s http://localhost:3001/api/v1/executions/$EXECUTION_ID | jq -r '.status')
   echo "Status: $STATUS"
-  
+
   if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
     break
   fi
-  
+
   sleep 2
 done
 
@@ -530,7 +530,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap 0.1 SOL for USDC",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'
 ```
@@ -554,7 +554,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "account_balance",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'
 ```
@@ -567,7 +567,7 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
 - **Data**: Jupiter swap amounts, lending deposits, transaction signatures
 - **Update**: Real-time as tool calls execute
 
-### Static Benchmarks  
+### Static Benchmarks
 - **Source**: Session-based YML files
 - **Format**: Traditional Mermaid with state transitions
 - **Data**: Pre-defined execution paths
@@ -584,7 +584,7 @@ RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direc
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }')

@@ -619,7 +619,9 @@ pub async fn run_dynamic_flow(
     );
 
     // Initialize orchestrator gateway
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new()
+        .await
+        .context("Failed to create orchestrator gateway")?;
 
     // Process user request and generate dynamic flow plan
     let (flow_plan, _yml_path) = gateway
@@ -712,7 +714,9 @@ pub async fn run_recovery_flow(
     );
 
     // Initialize orchestrator gateway with recovery configuration
-    let gateway = reev_orchestrator::OrchestratorGateway::with_recovery_config(recovery_config);
+    let gateway = reev_orchestrator::OrchestratorGateway::with_recovery_config(recovery_config)
+        .await
+        .context("Failed to create orchestrator gateway with recovery config")?;
 
     // Create wallet context for flow generation
     let wallet_context = reev_types::flow::WalletContext::new(wallet.to_string());

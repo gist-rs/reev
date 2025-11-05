@@ -28,6 +28,10 @@ reev-agent = { path = "../reev-agent" }
 reev-flow = { path = "../reev-flow" }
 reev-lib = { path = "../reev-lib" }
 
+# Solana dependencies
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
+
 # Template engine
 handlebars = "4.5"
 

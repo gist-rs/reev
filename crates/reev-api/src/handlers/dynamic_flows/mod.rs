@@ -64,13 +64,18 @@ pub async fn execute_dynamic_flow(
 
     // Execute flow plan in blocking task
     let flow_result = task::spawn_blocking(move || {
-        let gateway = OrchestratorGateway::new();
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
             error!("Failed to create tokio runtime: {}", e);
             anyhow::anyhow!("Runtime creation failed: {e}")
         })?;
 
-        rt.block_on(async { gateway.process_user_request(&prompt, &wallet).await })
+        rt.block_on(async {
+            let gateway = OrchestratorGateway::new().await.map_err(|e| {
+                error!("Failed to create gateway: {}", e);
+                anyhow::anyhow!("Gateway creation failed: {e}")
+            })?;
+            gateway.process_user_request(&prompt, &wallet).await
+        })
     })
     .await;
 
@@ -270,21 +275,37 @@ pub async fn execute_recovery_flow(
         })
         .unwrap_or_default();
 
+    // Create new gateway instance for each request
+    let gateway = match OrchestratorGateway::with_recovery_config(recovery_config).await {
+        Ok(gateway) => gateway,
+        Err(e) => {
+            error!("Failed to create gateway: {}", e);
+            return Json(json!({
+                "error": format!("Gateway creation failed: {}", e),
+                "execution_id": execution_id,
+                "execution_mode": "recovery"
+            }))
+            .into_response();
+        }
+    };
+
     // Execute flow in a blocking task to avoid async context issues
     let flow_result = task::spawn_blocking(move || {
-        // Create new gateway instance for each request (thread-safe approach)
-        let gateway = OrchestratorGateway::with_recovery_config(recovery_config);
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            error!("Failed to create tokio runtime: {}", e);
-            anyhow::anyhow!("Runtime creation failed: {e}")
-        })?;
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                error!("Failed to create tokio runtime: {}", e);
+                return Err(anyhow::anyhow!("Runtime creation failed: {e}"));
+            }
+        };
 
         rt.block_on(async { gateway.process_user_request(&prompt, &wallet).await })
     })
-    .await;
+    .await
+    .unwrap_or_else(|e| Err(anyhow::anyhow!("Task execution failed: {e}")));
 
     match flow_result {
-        Ok(Ok((flow_plan, _yml_path))) => {
+        Ok((flow_plan, _yml_path)) => {
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
             info!(
@@ -318,7 +339,7 @@ pub async fn execute_recovery_flow(
             })
             .into_response()
         }
-        Ok(Err(e)) => {
+        Err(e) => {
             error!(error = %e, "Failed to process recovery flow request");
 
             Json(ExecutionResponse {
@@ -331,19 +352,6 @@ pub async fn execute_recovery_flow(
                 tool_calls: vec![],
             })
             .into_response()
-        }
-        Err(e) => {
-            error!(error = %e, "Recovery task execution failed");
-
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": "Internal server error during recovery flow execution",
-                    "execution_id": execution_id,
-                    "details": format!("Task failed: {}", e)
-                })),
-            )
-                .into_response()
         }
     }
 }
@@ -370,7 +378,14 @@ async fn execute_flow_plan_with_ping_pong(
     );
 
     // Use orchestrator gateway for ping-pong execution
-    let gateway = OrchestratorGateway::new();
+    let gateway = match OrchestratorGateway::new().await {
+        Ok(gateway) => gateway,
+        Err(e) => {
+            error!("Failed to create gateway for ping-pong execution: {}", e);
+            // Return empty tool calls on gateway creation failure
+            return vec![];
+        }
+    };
     let step_results = match gateway
         .execute_flow_with_ping_pong(flow_plan, agent_type)
         .await

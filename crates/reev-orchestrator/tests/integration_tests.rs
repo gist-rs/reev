@@ -11,7 +11,7 @@ use reev_types::flow::{DynamicStep, WalletContext};
 
 #[tokio::test]
 async fn test_end_to_end_flow_generation() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "use my 50% sol to multiply usdc 1.5x on jup";
     let wallet_pubkey = "test_wallet_12345";
 
@@ -23,9 +23,12 @@ async fn test_end_to_end_flow_generation() -> Result<()> {
     // Verify flow plan
     assert_eq!(flow_plan.user_prompt, user_prompt);
     assert_eq!(flow_plan.context.owner, wallet_pubkey);
-    assert_eq!(flow_plan.steps.len(), 2); // swap + lend
-    assert_eq!(flow_plan.steps[0].step_id, "swap_1");
-    assert_eq!(flow_plan.steps[1].step_id, "lend_1");
+
+    assert_eq!(flow_plan.steps.len(), 4); // balance_check + swap + lend + positions_check
+    assert_eq!(flow_plan.steps[0].step_id, "balance_check");
+    assert_eq!(flow_plan.steps[1].step_id, "swap_1");
+    assert_eq!(flow_plan.steps[2].step_id, "lend_1");
+    assert_eq!(flow_plan.steps[3].step_id, "positions_check");
 
     // Verify YML file was generated
     assert!(std::path::Path::new(&yml_path).exists());
@@ -48,7 +51,7 @@ async fn test_end_to_end_flow_generation() -> Result<()> {
 
 #[tokio::test]
 async fn test_simple_swap_flow() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "swap 1 SOL to USDC using Jupiter";
     let wallet_pubkey = "swap_test_wallet";
 
@@ -73,7 +76,7 @@ async fn test_simple_swap_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_simple_lend_flow() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "lend my USDC on Jupiter";
     let wallet_pubkey = "lend_test_wallet";
 
@@ -98,7 +101,7 @@ async fn test_simple_lend_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_complex_swap_lend_flow() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "use my 100% sol to multiply usdc 2x on jup then lend all";
     let wallet_pubkey = "complex_test_wallet";
 
@@ -137,7 +140,7 @@ async fn test_complex_swap_lend_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_context_injection() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "use my 25% sol";
     let wallet_pubkey = "context_test_wallet";
 
@@ -165,7 +168,7 @@ async fn test_context_injection() -> Result<()> {
 
 #[tokio::test]
 async fn test_yml_structure_validation() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "swap 0.5 SOL to USDC then lend";
     let wallet_pubkey = "validation_test_wallet";
 
@@ -230,7 +233,7 @@ async fn test_yml_structure_validation() -> Result<()> {
 
 #[tokio::test]
 async fn test_error_handling() {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await.unwrap();
 
     // Test unsupported flow type
     let result = gateway
@@ -246,7 +249,7 @@ async fn test_error_handling() {
 
 #[tokio::test]
 async fn test_concurrent_flow_generation() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
 
     // Generate multiple flows concurrently
     let mut handles = Vec::new();
@@ -381,7 +384,7 @@ async fn test_mock_data_coverage() -> Result<()> {
 
 #[tokio::test]
 async fn test_mock_data_integration() -> Result<()> {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
 
     // Test with each mock scenario
     for scenario_name in ["empty_wallet", "balanced_portfolio", "defi_power_user"] {
@@ -434,7 +437,7 @@ fn test_wallet_context_calculation() {
 async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
     println!("🎯 Testing 300 Benchmark: API Integration");
 
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let prompt = "use my 50% sol to multiply usdc 1.5x on jup";
     let wallet_pubkey = "USER_WALLET_PUBKEY";
 
@@ -522,7 +525,7 @@ async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
 async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
     println!("🎯 Testing 300 Benchmark: Direct Mode");
 
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await?;
     let prompt = "use my 50% sol to multiply usdc 1.5x on jup";
 
     // Create test wallet context matching benchmark
@@ -569,9 +572,7 @@ async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
 
     // Validate percentage calculation from context
     let expected_sol_usage = context.sol_balance / 2; // 50%
-    println!(
-        "  📊 Expected SOL usage: {expected_sol_usage} lamports (50%)"
-    );
+    println!("  📊 Expected SOL usage: {expected_sol_usage} lamports (50%)");
 
     // Validate multiplication target
     let initial_usdc_balance =

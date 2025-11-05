@@ -5,12 +5,17 @@
 
 use anyhow::Result;
 use lru::LruCache;
+use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::WalletContext;
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Signer;
+
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-use tracing::{debug, instrument, trace};
-
+use tracing::{debug, info, instrument, trace};
 /// Cache TTL configuration
 const WALLET_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 const PRICE_CACHE_TTL: Duration = Duration::from_secs(30); // 30 seconds
@@ -36,8 +41,9 @@ impl<T> CacheEntry<T> {
 }
 
 /// Context resolver for wallet and token information
-#[derive(Debug)]
 pub struct ContextResolver {
+    /// Solana environment for placeholder resolution
+    solana_env: Option<Arc<tokio::sync::Mutex<SolanaEnv>>>,
     /// Cache for wallet context data
     wallet_cache: Mutex<LruCache<String, CacheEntry<WalletContext>>>,
     /// Cache for token price data
@@ -48,8 +54,62 @@ impl ContextResolver {
     /// Create a new context resolver
     pub fn new() -> Self {
         Self {
+            solana_env: None,
             wallet_cache: Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())),
-            price_cache: Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())),
+            price_cache: Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())),
+        }
+    }
+
+    /// Create a new context resolver with Solana environment
+    pub fn with_solana_env(solana_env: Arc<tokio::sync::Mutex<SolanaEnv>>) -> Self {
+        Self {
+            solana_env: Some(solana_env),
+            wallet_cache: Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())),
+            price_cache: Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())),
+        }
+    }
+
+    /// Check if a string is a placeholder and resolve it to a real pubkey using SolanaEnv
+    pub async fn resolve_placeholder(&self, input: &str) -> Result<String> {
+        // Check if this looks like a placeholder (all caps with underscores)
+        if input.chars().all(|c| c.is_uppercase() || c == '_') && input.contains('_') {
+            // Use SolanaEnv if available (same system as static benchmarks)
+            if let Some(ref solana_env) = self.solana_env {
+                let mut env = solana_env.lock().await;
+
+                // Return existing mapping if available
+                if let Some(pubkey) = env.pubkey_map.get(input) {
+                    debug!(
+                        "Using existing pubkey for placeholder {}: {}",
+                        input, pubkey
+                    );
+                    return Ok(pubkey.to_string());
+                }
+
+                // Generate new keypair for this placeholder (same logic as static benchmarks)
+                let keypair = solana_sdk::signer::keypair::Keypair::new();
+                let pubkey = keypair.pubkey();
+
+                // Store in both maps (same as static benchmarks)
+                env.pubkey_map.insert(input.to_string(), pubkey);
+                env.keypair_map.insert(input.to_string(), keypair);
+
+                info!(
+                    "Generated new address for placeholder '{}': {}",
+                    input, pubkey
+                );
+                Ok(pubkey.to_string())
+            } else {
+                // Fallback to simple generation if no SolanaEnv available
+                debug!(
+                    "No SolanaEnv available, using simple pubkey generation for placeholder: {}",
+                    input
+                );
+                Ok(Pubkey::new_unique().to_string())
+            }
+        } else {
+            // Return as-is if not a placeholder
+            Ok(input.to_string())
         }
     }
 
@@ -58,10 +118,14 @@ impl ContextResolver {
     pub async fn resolve_wallet_context(&self, pubkey: &str) -> Result<WalletContext> {
         debug!("Resolving context for wallet: {}", pubkey);
 
-        // Check cache first
+        // First resolve any placeholders to real pubkeys
+        let resolved_pubkey = self.resolve_placeholder(pubkey).await?;
+        debug!("Resolved pubkey: {} -> {}", pubkey, resolved_pubkey);
+
+        // Check cache first (using resolved pubkey as cache key)
         {
             let mut cache = self.wallet_cache.lock().await;
-            if let Some(entry) = cache.get(pubkey) {
+            if let Some(entry) = cache.get(&resolved_pubkey) {
                 if !entry.is_expired(WALLET_CACHE_TTL) {
                     trace!("Using cached wallet context");
                     return Ok(entry.data.clone());
@@ -70,12 +134,12 @@ impl ContextResolver {
         }
 
         // Resolve context from sources (mock for now)
-        let context = self.resolve_fresh_wallet_context(pubkey).await?;
+        let context = self.resolve_fresh_wallet_context(&resolved_pubkey).await?;
 
-        // Cache the result
+        // Cache the result (using resolved pubkey as key)
         {
             let mut cache = self.wallet_cache.lock().await;
-            cache.put(pubkey.to_string(), CacheEntry::new(context.clone()));
+            cache.put(resolved_pubkey.clone(), CacheEntry::new(context.clone()));
         }
 
         Ok(context)
@@ -84,6 +148,7 @@ impl ContextResolver {
     /// Resolve fresh wallet context from data sources
     async fn resolve_fresh_wallet_context(&self, pubkey: &str) -> Result<WalletContext> {
         // For now, return mock data - will be implemented in next task
+        // Note: pubkey is already resolved to a real pubkey at this point
         Ok(WalletContext {
             owner: pubkey.to_string(),
             sol_balance: 5_000_000_000, // 5 SOL in lamports
@@ -91,6 +156,19 @@ impl ContextResolver {
             token_prices: std::collections::HashMap::new(),
             total_value_usd: 600.0, // Mock value
         })
+    }
+
+    /// Get placeholder mappings (useful for debugging)
+    pub async fn get_placeholder_mappings(&self) -> HashMap<String, String> {
+        if let Some(ref solana_env) = self.solana_env {
+            let env = solana_env.lock().await;
+            env.pubkey_map
+                .iter()
+                .map(|(k, v)| (k.clone(), v.to_string()))
+                .collect()
+        } else {
+            HashMap::new()
+        }
     }
 
     /// Get token price with caching

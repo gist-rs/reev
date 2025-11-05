@@ -203,7 +203,9 @@ async fn handle_dynamic_flow(cli: Cli) -> Result<()> {
     info!("Using wallet: {}", wallet);
 
     // Initialize orchestrator gateway
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new()
+        .await
+        .context("Failed to create orchestrator gateway")?;
 
     // Process user request and generate dynamic flow
     let (flow_plan, yml_path) = gateway

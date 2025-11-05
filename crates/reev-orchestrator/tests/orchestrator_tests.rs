@@ -64,13 +64,13 @@ async fn test_cache_functionality() {
 
 #[tokio::test]
 async fn test_gateway_creation() {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await.unwrap();
     gateway.cleanup().await.unwrap();
 }
 
 #[tokio::test]
 async fn test_prompt_refinement() {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await.unwrap();
     let mut context = WalletContext::new("test".to_string());
     context.sol_balance = 2_000_000_000; // 2 SOL
     context.total_value_usd = 300.0;
@@ -81,7 +81,7 @@ async fn test_prompt_refinement() {
 
 #[tokio::test]
 async fn test_swap_flow_generation() {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await.unwrap();
     let context = WalletContext::new("test".to_string());
 
     let flow = gateway.generate_flow_plan("swap SOL to USDC using Jupiter", &context, None);
@@ -93,7 +93,7 @@ async fn test_swap_flow_generation() {
 
 #[tokio::test]
 async fn test_swap_lend_flow_generation() {
-    let gateway = OrchestratorGateway::new();
+    let gateway = OrchestratorGateway::new().await.unwrap();
     let context = WalletContext::new("test".to_string());
 
     let flow =

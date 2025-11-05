@@ -9,15 +9,18 @@ use crate::generators::YmlGenerator;
 use crate::recovery::engine::RecoveryMetrics;
 use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
+use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
+use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument};
 
 /// Orchestrator Gateway for processing user prompts and generating flows
-#[derive(Debug)]
 pub struct OrchestratorGateway {
+    /// Solana environment for placeholder resolution
+    solana_env: Arc<Mutex<SolanaEnv>>,
     /// Context resolver for wallet and price information
     context_resolver: Arc<ContextResolver>,
     /// YML generator for creating benchmark files
@@ -35,32 +38,58 @@ pub struct OrchestratorGateway {
 
 impl OrchestratorGateway {
     /// Create a new orchestrator gateway with default recovery configuration
-    pub fn new() -> Self {
+    pub async fn new() -> Result<Self> {
         let recovery_config = RecoveryConfig::default();
         let recovery_engine = RecoveryEngine::new(recovery_config.clone());
 
-        Self {
-            context_resolver: Arc::new(ContextResolver::new()),
+        // Create Solana environment (uses hardcoded surfpool URL)
+        let solana_env =
+            Arc::new(Mutex::new(SolanaEnv::new().map_err(|e| {
+                anyhow::anyhow!("Failed to create SolanaEnv: {e}")
+            })?));
+
+        // Create context resolver with Solana environment
+        let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
+
+        Ok(Self {
+            solana_env,
+            context_resolver: context_resolver.clone(),
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
-            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(30000))), // 30s timeout
-        }
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
+                30000,
+                context_resolver,
+            ))), // 30s timeout
+        })
     }
 
     /// Create a new orchestrator gateway with custom recovery configuration
-    pub fn with_recovery_config(recovery_config: RecoveryConfig) -> Self {
+    pub async fn with_recovery_config(recovery_config: RecoveryConfig) -> Result<Self> {
         let recovery_engine = RecoveryEngine::new(recovery_config.clone());
 
-        Self {
-            context_resolver: Arc::new(ContextResolver::new()),
+        // Create Solana environment (uses hardcoded surfpool URL)
+        let solana_env =
+            Arc::new(Mutex::new(SolanaEnv::new().map_err(|e| {
+                anyhow::anyhow!("Failed to create SolanaEnv: {e}")
+            })?));
+
+        // Create context resolver with Solana environment
+        let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
+
+        Ok(Self {
+            solana_env,
+            context_resolver: context_resolver.clone(),
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
-            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(30000))), // 30s timeout
-        }
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
+                30000,
+                context_resolver,
+            ))), // 30s timeout
+        })
     }
 
     /// Process user request and generate dynamic flow
@@ -245,12 +274,6 @@ impl OrchestratorGateway {
 
         let mut executor = self.ping_pong_executor.write().await;
         executor.execute_flow_plan(flow_plan, agent_type).await
-    }
-}
-
-impl Default for OrchestratorGateway {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
