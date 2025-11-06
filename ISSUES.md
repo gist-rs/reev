@@ -1,39 +1,219 @@
 # Issues
 
-## Issue #36 - 300 Benchmark Two-Step Flow Not Matching 200 Pattern - RESOLVED ✅
-**Status**: RESOLVED - Issue Was Based on Incorrect Assumption
-**Description**: Issue #36 was based on incorrect assumption - jupiter_lend_earn_deposit IS the correct lending tool
-**Root Cause**: Issue description assumed jupiter_lend tool exists, but no such tool exists in codebase
-**Correct Analysis**:
-- **Expected**: Prompt → jupiter_swap → jupiter_lend_earn_deposit → [*] (CORRECT)
-- **Actual**: Prompt → jupiter_swap → jupiter_lend_earn_deposit → [*] (ALREADY CORRECT)
-- jupiter_lend_earn_deposit IS the correct lending tool (used by 110, 111, 200 benchmarks)
-- Both 200 and 300 correctly use same two-step flow: jupiter_swap → jupiter_lend_earn_deposit
-- No jupiter_lend tool exists in tools directory or AgentTools struct
+## Issue #37 - ToolName Enum Mismatch and Missing Tools - NEW 🔴
+**Status**: CRITICAL
+**Description**: ToolName enum has multiple serious issues: missing tools, wrong serialization names, and redundant tools, PLUS entire codebase uses untyped strings instead of type-safe enum
+**Problems**:
+- `spl_transfer` tool is missing from enum but actively used throughout codebase
+- `jupiter_withdraw` serializes to wrong name - should be `jupiter_lend_earn_withdraw`
+- `account_balance` serializes to wrong name - should be `get_account_balance`
+- `lend_earn_tokens` serializes to wrong name - should be `get_jupiter_lend_earn_tokens`
+- `JupiterLend` tool is ambiguous/unused and doesn't exist in actual tools
+- `ExecuteTransaction` has no actual implementation (conceptual only)
+- `JupiterPositions` is redundant with `GetPositionInfo`
 
-**Evidence**:
-- All lending benchmarks (110, 111, 200) use jupiter_lend_earn_deposit
-- Tools directory only has jupiter_lend_earn_deposit.rs, no jupiter_lend.rs
-- AgentTools struct only includes jupiter_lend_earn_deposit_tool, no jupiter_lend_tool
-- 300 dynamic flow generates correct sequence: balance_check → jupiter_swap → jupiter_lend_earn_deposit → positions_check ✓
-- 300 prompt: "use my 50% sol to multiply usdc 1.5x on jup" correctly triggers swap then deposit ✓
-- Agent executes jupiter_swap → jupiter_lend_earn_deposit (correct two-step process) ✓
-- Issue assumption was wrong - flow already matches 200 pattern correctly ✓
-- Both 200 and 300 benchmarks correctly use the same tool sequence: jupiter_swap → jupiter_lend_earn_deposit ✓
-**Resolution**: 
-- Issue was based on incorrect understanding of available tools
-- jupiter_lend tool does not exist - jupiter_lend_earn_deposit is the correct lending tool
-- Both 200 (static) and 300 (dynamic) benchmarks correctly implement the same two-step pattern
-- Dynamic flow generation works as intended, matching static benchmark behavior
-- No code changes were needed - the issue was in the issue description itself
-- Doesn't match expected behavior pattern from 200 benchmark
-- Violates design principle: 200 = static flow, 300 = dynamic execution of same flow
+### **CRITICAL ARCHITECTURAL PROBLEM: String-based Tool Names Everywhere**
+
+The codebase violates type safety by using hardcoded strings instead of the type-safe enum:
+
+```rust
+// ❌ CURRENT - UNSAFE STRINGS EVERYWHERE
+let tool_name_list = vec![
+    "sol_transfer".to_string(),
+    "spl_transfer".to_string(),
+    "jupiter_swap".to_string(),
+    "jupiter_earn".to_string(),
+    "jupiter_lend_earn_deposit".to_string(),
+    "jupiter_lend_earn_withdraw".to_string(),
+    "jupiter_lend_earn_mint".to_string(),
+    "jupiter_lend_earn_redeem".to_string(),
+    "account_balance".to_string(),  // WRONG - should be "get_account_balance"
+    "lend_earn_tokens".to_string(), // WRONG - should be "get_jupiter_lend_earn_tokens"
+];
+
+// ❌ HARDCODED STRING MATCHING
+match tool_name.as_str() {
+    "sol_transfer" => { /* ... */ },
+    "spl_transfer" => { /* ... */ },
+    "jupiter_swap" => { /* ... */ },
+    // Hundreds of these throughout codebase!
+}
+```
+
+### **RIG TOOL ALREADY PROVIDES TYPE-SAFE NAMES**
+
+Every tool already implements `const NAME: &'static str`:
+
+```rust
+// ✅ FROM RIG TOOL TRAIT - ALREADY TYPE-SAFE
+impl Tool for SolTransferTool {
+    const NAME: &'static str = "sol_transfer";  // ✅ SINGLE SOURCE OF TRUTH
+    // ...
+}
+
+impl Tool for JupiterEarnTool {
+    const NAME: &'static str = "jupiter_earn";   // ✅ SINGLE SOURCE OF TRUTH
+    // ...
+}
+```
+
 **Root Cause**:
-LLM agent chooses most efficient path (single tool) but benchmark expects specific two-step sequence to test orchestration
+- ToolName enum created without auditing actual tool implementations
+- String-based tool management defeats purpose of type-safe enum
+- Rig's `Tool::NAME` constants exist but aren't used
+- No shared type crate for tool management
+**Required Changes**:
+### Required Changes:
+
+### 1. Move ToolName to Shared Type Crate
+Create `crates/reev-types/src/tool_registry.rs` with:
+
+```rust
+// ✅ TYPE-SAFE TOOL REGISTRY
+pub struct ToolRegistry;
+
+impl ToolRegistry {
+    /// Get ALL tool names using Rig's type-safe constants
+    pub fn all_tools() -> Vec<&'static str> {
+        vec![
+            SolTransferTool::NAME,      // "sol_transfer"
+            SplTransferTool::NAME,      // "spl_transfer" 
+            JupiterSwapTool::NAME,      // "jupiter_swap"
+            JupiterEarnTool::NAME,       // "jupiter_earn"
+            // ... use actual Tool::NAME constants
+        ]
+    }
+    
+    /// Get tool category using enum
+    pub fn category(tool_name: &str) -> Option<ToolCategory> {
+        ToolName::from_str_safe(tool_name)?.category().into()
+    }
+    
+    /// Validate tool name against Rig constants
+    pub fn is_valid_tool(tool_name: &str) -> bool {
+        Self::all_tools().contains(&tool_name)
+    }
+}
+```
+
+### 2. Enhanced ToolName enum with strum integration
+```rust
+// ✅ USE STRUM FOR TYPE-SAFE CONVERSIONS
+use strum::{Display, EnumString, IntoStaticStr, VariantNames};
+
+#[derive(Debug, Clone, Display, EnumString, IntoStaticStr, VariantNames)]
+pub enum ToolName {
+    // Discovery & Information Tools (Jupiter-focused)
+    GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
+    GetJupiterPositionInfo,       // serialize: "get_jupiter_position_info" ✅
+    GetJupiterEarn,               // serialize: "get_jupiter_earn" ✅ RENAMED
+    GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ RENAMED
+    
+    // Transaction Tools (Jupiter operations)
+    SolTransfer,                   // serialize: "sol_transfer" ✅
+    SplTransfer,                   // serialize: "spl_transfer" ✅ ADDED
+    JupiterSwap,                   // serialize: "jupiter_swap" ✅
+    JupiterSwapFlow,               // serialize: "jupiter_swap_flow" ✅
+    JupiterLendEarnDeposit,       // serialize: "jupiter_lend_earn_deposit" ✅
+    JupiterLendEarnWithdraw,       // serialize: "jupiter_lend_earn_withdraw" ✅ RENAMED
+    JupiterLendEarnMint,          // serialize: "jupiter_lend_earn_mint" ✅
+    JupiterLendEarnRedeem,        // serialize: "jupiter_lend_earn_redeem" ✅
+}
+
+impl ToolName {
+    /// ✅ TYPE-SAFE VALIDATION against Rig constants
+    pub fn validate_against_rig_tools(&self) -> bool {
+        ToolRegistry::all_tools().contains(&self.as_str())
+    }
+    
+    /// ✅ GET ALL TOOLS without string literals
+    pub fn all_tools() -> Vec<Self> {
+        Self::VARIANTS.iter().map(|&variant| variant).collect()
+    }
+}
+```
+
+### 3. Replace String-based Tool Management
+```rust
+// ❌ BEFORE - HARDCODED STRINGS
+let tool_name_list = vec![
+    "sol_transfer".to_string(),
+    "spl_transfer".to_string(),
+    // ... error-prone, untyped
+];
+
+// ✅ AFTER - TYPE-SAFE
+let tool_name_list = ToolName::all_tools()
+    .iter()
+    .map(|tool| tool.to_string())
+    .collect();
+
+// ✅ TYPE-SATE MATCHING
+match tool_name.parse::<ToolName>() {
+    Ok(ToolName::JupiterSwap) => { /* ... */ },
+    Ok(ToolName::SplTransfer) => { /* ... */ },
+    Err(_) => return Err("Invalid tool name"),
+}
+```
+
+### Code Updates Required:
+### Files to Update (EXTENSIVE STRING->ENUM REPLACEMENT):
+
+#### Core Type System:
+1. **crates/reev-types/src/tools.rs** - Update enum with strum integration
+2. **crates/reev-types/src/tool_registry.rs** - Create type-safe tool registry
+
+#### Agent Tool Management:
+3. **crates/reev-agent/src/enhanced/common/mod.rs** - Replace string tool lists
+4. **crates/reev-agent/src/enhanced/openai.rs** - Tool availability checks
+5. **crates/reev-agent/src/enhanced/zai_agent.rs** - Tool execution logic
+6. **crates/reev-agent/src/flow/agent.rs** - Tool list creation
+
+#### Orchestrator Logic:
+7. **crates/reev-orchestrator/src/dynamic_mode.rs** - String matching → enum matching
+8. **crates/reev-orchestrator/src/gateway.rs** - Tool references
+9. **crates/reev-orchestrator/src/execution/ping_pong_executor.rs** - Tool validation
+
+#### Infrastructure:
+10. **crates/reev-lib/src/otel_extraction/mod.rs** - Tool pattern matching
+11. **crates/reev-lib/src/llm_agent.rs** - Tool determination logic
+12. **crates/reev-tools/src/tool_names.rs** - Replace with enum constants
+
+#### Tests & Benchmarks:
+13. All test files with hardcoded tool strings
+14. Any YAML files with hardcoded tool names
+15. Integration tests with tool name assertions
+
+#### String Pattern Replacements (500+ locations):
+```rust
+// ❌ FIND AND REPLACE THESE PATTERNS:
+"sol_transfer" -> ToolName::SolTransfer
+"spl_transfer" -> ToolName::SplTransfer  
+"jupiter_swap" -> ToolName::JupiterSwap
+"jupiter_earn" -> ToolName::GetJupiterEarn
+// ... all tool names
+
+// ❌ REPLACE THESE MATCHING PATTERNS:
+match tool_name.as_str() { -> match tool_name.parse::<ToolName>() {
+if tool_name == "jupiter_swap" -> if let Ok(ToolName::JupiterSwap) = tool_name.parse()
+tool_name.contains("jupiter") -> tool_name.parse::<ToolName>()?.is_jupiter_tool()
+```
+
 **Next Steps**:
-- Modify 300 benchmark to require explicit swap and lend steps
-- Or constrain tool availability to force two-step approach
-- Ensure 300 benchmark follows same pattern as 200 but with dynamic execution
+1. Create `crates/reev-types/src/tool_registry.rs` with Rig-based tool registry
+2. Update `ToolName` enum with strum integration and correct names
+3. **MASSIVE SEARCH-REPLACE**: Convert all hardcoded string tool names to enum usage
+4. Update all `match tool_name.as_str()` patterns to use enum parsing
+5. Remove all `vec!["tool1", "tool2", ...]` patterns and use `ToolName::all_tools()`
+6. Update agent tool availability checks to use enum validation
+7. Update orchestrator logic to use enum-based matching
+8. Fix test assertions to use enum instead of string comparison
+9. Update any YAML references to use correct tool names
+10. Run `cargo clippy --fix --allow-dirty` to catch remaining string usage
+11. Comprehensive testing to ensure no runtime tool name mismatches
+12. Update documentation to reflect type-safe tool management
+
+**CRITICAL**: This is not just an enum fix - it's a **complete architectural refactor** from string-based to type-safe tool management throughout the entire codebase.
 
 ## Issue #35 - Jupiter Static Benchmarks Broken - NEW 🔴
 **Status**: CRITICAL
@@ -59,246 +239,16 @@ Deterministic agent has hardcoded Jupiter instruction generation that produces i
 - Or migrate static Jupiter benchmarks to use dynamic flow with LLM agent
 - Ensure backward compatibility for existing static benchmarks
 
-
-## Issue #29 - USER_WALLET_PUBKEY Auto-Generation - RESOLVED ✅
-**Status**: COMPLETED
-**Description**: ContextResolver already provides auto-generation for USER_WALLET_PUBKEY placeholder
-**Resolution**:
-- Auto-generation already exists in `ContextResolver::resolve_placeholder()`
-- Called from `PingPongExecutor.execute_agent_step()` before agent execution
-- Uses same logic as benchmark mode (`Keypair::new()` and storage in SolanaEnv)
-- Works transparently for both API and CLI dynamic flows
-- No changes needed at API level (incorrectly attempted initially)
-**Evidence**:
-- `reev-orchestrator/src/context_resolver.rs:resolve_placeholder()` handles placeholder detection and generation
-- `reev-orchestrator/src/execution/ping_pong_executor.rs:execute_agent_step()` calls resolver for wallet pubkey
-- Auto-generation consistent with `reev-lib/src/solana_env/reset.rs` benchmark implementation
-- Documented in DYNAMIC_BENCHMARK_DESIGN.md under "USER_WALLET_PUBKEY Auto-Generation"
-**Status**: RESOLVED - Architecture was already correct, auto-generation works at orchestrator level
-
-## Issue #32 - Jupiter Tool Call Transfer - RESOLVED ✅
-**Status**: COMPLETED
-**Description**: Tool calls ARE being captured correctly for dynamic Jupiter benchmarks
-**Resolution**:
-- Tool calls captured in OTEL logs successfully from LLM agent
-- API flow visualization works perfectly for dynamic Jupiter benchmarks
-- Session database stores tool calls with proper metadata
-- Mermaid diagram generation shows actual tool execution sequence
-**Evidence**:
-- 300 benchmark: Successfully captured jupiter_swap tool with 795ms execution time
-- Flow diagram: "Prompt → Agent → jupiter_swap → [*]" with proper tool visualization
-- Database storage: "Storing tool call with consolidation logic session_id=... tool_name=jupiter_swap execution_time_ms=795 status=success"
-- Real Jupiter transaction data with 6 instructions captured
-**Status**: RESOLVED - Tool call capture and flow visualization working perfectly for dynamic flows
-
-## Issue #24 - Mode-Based Separation - COMPLETED ✅
-**Status**: IMPLEMENTED
-**Description**: Clean separation between benchmark and dynamic execution modes
-**Implementation**:
-- Created benchmark_mode.rs for static YML file management
-- Created dynamic_mode.rs for user request execution
-- Implemented mode router in lib.rs for top-level separation
-- Added feature flags (benchmark, production) for mode control
-- Same core execution interface used by both modes
-**Status**: COMPLETED - Clean architectural separation achieved
-
-## Issue #26 - YML Generation Simplification - COMPLETED ✅
-**Status**: IMPLEMENTED
-**Description**: Simple dynamic YML generation without over-engineering
-**Implementation**:
-- Basic intent analysis using keyword detection
-- Simple amount extraction with regex
-- Temporary file generation and cleanup
-- Integration with existing runner infrastructure
-- Updated to include flow_type field automatically
-**Status**: COMPLETED
-
-## Issue #27 - API Integration - COMPLETED ✅
-**Status**: IMPLEMENTED
-**Description**: Simple dynamic YML generation without over-engineering
-**Implementation**:
-- Basic intent analysis using keyword detection
-- Simple amount extraction with regex
-- Temporary file generation and cleanup
-- Integration with existing runner infrastructure
-
-## Issue #27 - API Integration - PENDING ⏳
-**Status**: BLOCKED
-**Description**: Update API endpoints to use new mode routing
-**Blocker**: reev-runner compilation errors preventing API server startup
-**Next Steps**:
-- Fix circular dependency between reev-orchestrator and reev-runner
-- Update API handlers to use route_execution function
-- Test dynamic flow execution via API
-
-## Issue #30 - Jupiter Tool Calls Not Captured in OTEL - LIKELY RESOLVED ✅
-**Status**: PROBABLY RESOLVED
-**Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization
-**Recent Changes**:
-- Fixed agent routing - dynamic flows now use LLM agent properly
-- LLM agent should generate proper OTEL-tracked tool calls
-- Previous issue was deterministic agent not generating tool calls for Jupiter operations
-**Evidence**:
-- Dynamic 300 benchmark now routes to glm-4.6-coding agent
-- LLM agent will use Jupiter tools with proper OTEL instrumentation
-- Agent logs should show successful Jupiter tool execution with proper tracing
-**Status**: LIKELY RESOLVED - Root cause was agent routing, not OTEL capture itself
-
-**Status**: RESOLVED
-**Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization
-**Problem**:
-- 200-jup-swap-then-lend-deposit completes with score 1.0 but shows 0 tool calls in flow diagram
-- Agent logs show successful Jupiter swap and lend instruction generation
-- Simple benchmarks (001) capture tool calls correctly via OTEL logging
-- Only affects Jupiter-related tool calls (jupiter_swap, jupiter_lend)
-- **Documentation Gap**: 300 benchmark flow diagram only shows swap step, missing lend operation
-**Evidence**:
-- 300 benchmark execution: Shows complete 2-step flow with jupiter_swap (841ms) but Mermaid diagram only displays swap
-- Expected: Should show both jupiter_swap → jupiter_lend → [*] for complete flow
-```mermaid
-stateDiagram
-    [*] --> PromptProcessing
-    PromptProcessing --> ContextResolution : "parse 50% sol, 1.5x usdc"
-    ContextResolution --> AccountBalance : "discover wallet state"
-    AccountBalance --> JupiterSwap : "swap 50% sol → usdc"
-    JupiterSwap --> JupiterLend : "deposit usdc for yield"
-    JupiterLend --> PositionValidation : "validate final positions"
-    PositionValidation --> [*]
-```
-- Current: Prompt → Agent → jupiter_swap → [*] (lend step missing from visualization)
-- reev-agent logs show successful tool execution: "Successfully generated 6 Jupiter swap instructions"
-- Flow diagram returns simple state: "Prompt --> Agent --> [*]" (no tool states)
-- Database query for session returns 0 tool calls for Jupiter benchmarks
-- 001-sol-transfer works: captures 1 tool call (deterministic_sol_transfer) correctly
-**Impact**:
-- Flow visualization broken for complex DeFi operations
-- No detailed mermaid diagrams for Jupiter strategies
-- Users can't see actual tool execution sequence for yield farming
-**Next Steps**:
-- Debug OTEL logging pipeline for Jupiter tool calls
-- Fix tool call capture in session_parser for Jupiter protocols
-- Ensure jupiter_swap and jupiter_lend are logged with proper metadata
-- Test with both benchmark (200) and dynamic (300) flows
-
-
-## Issue #31 - Surfpool Service Integration - RESOLVED ✅
-**Status**: COMPLETED
-**Description**: Dynamic benchmarks work perfectly without surfpool issues
-**Evidence**:
-- 300 benchmark executes successfully with glm-4.6-coding agent
-- No surfpool startup failures observed during testing
-- Jupiter swap operations complete with real transaction execution
-- Dynamic flow execution working end-to-end
-**Status**: RESOLVED - Surfpool integration working properly for dynamic flows
-
-**Status**: REPORTED
-**Description**: 300 benchmark fails due to surfpool service startup issues during execution
-**Problem**:
-- 300-jup-swap-then-lend-deposit-dyn fails with surfpool initialization errors
-- Error logs show surfpool service startup timeout or connection issues
-- 200 benchmark works (possibly using different surfpool configuration)
-- Simple benchmarks (001) don't require surfpool so work fine
-**Evidence**:
-- 300 benchmark error: "CLI execution failed: Starting surfpool service..." gets stuck
-- Error occurs during dependency manager initialization phase
-- 200 benchmark completes successfully (surfpool works for static benchmarks)
-- surfpool process checks pass: "No existing surfpool processes found on port 8899"
-**Impact**:
-- Dynamic flow execution (300-series) completely broken
-- Users cannot test yield optimization strategies
-- Multiplication benchmarks unavailable via API
-**Next Steps**:
-- Debug surfpool service startup process in runner dependency manager
-- Check surfpool configuration differences between static (200) and dynamic (300) modes
-- Ensure proper surfpool process lifecycle management
-- Test surfpool RPC connectivity during benchmark execution
-
 ## Issue #33 - Flow Type Field Missing - NEW 🐛
-**Status**: PROPOSED
-**Description**: No clear distinction between static and dynamic flow types in benchmark YAML files
+**Status**: NEW
+**Description**: SessionResponse lacks flow_type field needed for frontend flow selection
 **Problem**:
-- 300 benchmark is hardcoded as dynamic but uses deterministic agent incorrectly
-- Static vs dynamic routing is ambiguous and depends on benchmark ID patterns
-- Deterministic agent returns hardcoded responses defeating dynamic flow purpose
-- System tries to parse deterministic responses for dynamic benchmarks causing failures
-- No explicit configuration for flow execution mode
-**Evidence**:
-- 300-jup-swap-then-lend-deposit-dyn fails with "Agent returned no actions to execute"
-- Deterministic parser fails on dynamic responses: "Failed to parse response as valid JSON"
-- LLM agent glamour should be used for dynamic flows, not deterministic agent
-- Current routing logic depends on hardcoded benchmark handlers
-**Impact**:
-- Dynamic benchmarks cannot use actual LLM tool execution
-- 300-series benchmarks completely broken
-- Users cannot define custom static/dynamic behavior
-- Mixed agent routing causing inconsistent behavior
-**Proposed Solution**:
-Add `flow_type: "dynamic"` field to YAML with default `"static"` behavior
-- Static: Use deterministic agent with pre-defined instruction generation
-- Dynamic: Use LLM agent with Jupiter tools for real-time execution
-- Backward compatible: Existing benchmarks default to static behavior
-- Clean separation: No more hardcoded routing based on benchmark IDs
-**Next Steps**:
-- Add flow_type field to 300 benchmark YAML
-- Update agent router to check flow_type and route accordingly
-- Modify runner logic to handle flow_type from YML metadata
-- Remove hardcoded 300 handler from reev-agent
-- Test both static (200) and dynamic (300) flows work correctly
-
-## Issue #28 - Test Coverage - COMPLETED ✅
-**Status**: UPDATED
-**Description**: Updated tests to work with new ToolName enum
-**Implementation**:
-- Fixed integration_tests.rs to use ToolName enum
-- Updated orchestrator_tests.rs for proper async handling
-- Added conversion methods for backward compatibility
-- Fixed test assertions to use ToolName instead of strings
-- All tests pass with new architecture
-**Status**: COMPLETED - All tests updated and passing
-
-**Status**: UPDATED
-**Description**: Updated tests to work with new ToolName enum
-**Implementation**:
-- Fixed integration_tests.rs to use ToolName enum
-- Updated orchestrator_tests.rs for proper async handling
-- Added conversion methods for backward compatibility
-- Fixed test assertions to use ToolName instead of strings
-
-
-
-**Status**: IDENTIFIED
-**Description**: Tool calls captured in OTEL logs but not transferred to session JSON database for flow visualization
-**Problem**:
-- 200-jup-swap-then-lend-deposit completes with score 1.0 but shows 0 tool calls in flow diagram
-- Agent logs show successful Jupiter swap and lend instruction generation
-- Session database has empty events array for Jupiter benchmarks
-- Simple benchmarks (001) capture tool calls correctly via OTEL logging
-- Flow visualization returns "Prompt --> Agent --> [*]" (no tool states) for complex operations
+- Frontend cannot differentiate between benchmark and dynamic execution modes
+- Flow type information lost in API response serialization
+- Dynamic flows cannot be properly displayed without flow context
 **Root Cause**:
-- Session creation code properly reads OTEL logs with tool calls
-- Session storage/transfer logic fails to copy tool calls from OTEL events to session JSON
-- API mermaid generator reads from session JSON (empty events) → no tool calls displayed
-**Impact**:
-- Users cannot see actual tool execution sequence for Jupiter protocols
-- No detailed mermaid flow diagrams for yield farming, multiplication, or portfolio rebalancing
-- Flow visualization broken for all dynamic flows and complex DeFi operations
+SessionResponse struct missing flow_type field despite database storing it
 **Next Steps**:
-- Fix session storage to properly transfer tool calls from OTEL events to session JSON
-- Update API flow diagram generator to read from both session JSON and OTEL logs
-- Test with both static benchmarks (200) and dynamic flows (300) to ensure consistent tool call capture
-
-## Issue #34 - Flow Type Consolidation - RESOLVED ✅
-**Status**: COMPLETED
-**Description**: Consolidated flow_type logic to eliminate redundant tag checking throughout codebase
-**Resolution**:
-- Centralized flow_type determination in TestCase deserialization via `set_flow_type_from_tags()`
-- Added `set_flow_type_from_tags()` function to `reev-lib/src/benchmark.rs` that updates flow_type based on tags
-- Updated runner to call `set_flow_type_from_tags()` after loading TestCase from YAML
-- Removed redundant `determine_flow_type()` functions from agent and other scattered tag checking
-- Now flow_type is determined once at load time and used consistently throughout system
-**Evidence**:
-- 300 benchmark with "dynamic" tag correctly routes to glm-4.6-coding agent
-- 200/001 benchmarks without "dynamic" tag correctly use deterministic agent
-- Flow type logic centralized in single location (benchmark.rs) instead of scattered across files
-- Runner logs show: "Updated flow_type from tags" confirming centralized logic works
-**Status**: RESOLVED - Single source of truth for flow_type determination achieved
+- Add flow_type field to SessionResponse struct
+- Update serialization to include flow type
+- Test with both benchmark and dynamic execution modes
