@@ -17,7 +17,6 @@ impl ToolRegistry {
             // Discovery tools
             ToolName::GetAccountBalance.to_string(),
             ToolName::GetJupiterLendEarnTokens.to_string(),
-            ToolName::GetJupiterLendEarnPosition.to_string(),
             // Transaction tools
             ToolName::SolTransfer.to_string(),
             ToolName::SplTransfer.to_string(),
@@ -28,6 +27,8 @@ impl ToolRegistry {
             ToolName::JupiterLendEarnWithdraw.to_string(),
             ToolName::JupiterLendEarnMint.to_string(),
             ToolName::JupiterLendEarnRedeem.to_string(),
+            // Position tools
+            ToolName::GetJupiterLendEarnPosition.to_string(),
         ]
     }
 
@@ -148,7 +149,7 @@ mod tests {
             position_tools.iter().map(|s| s.as_str()).collect();
 
         // Verify we have expected number of tools
-        assert_eq!(all_discovery.len(), 3);
+        assert_eq!(all_discovery.len(), 2);
         assert_eq!(all_swap.len(), 4);
         assert_eq!(all_lending.len(), 4);
         assert_eq!(all_position.len(), 1);

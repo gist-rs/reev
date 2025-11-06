@@ -161,22 +161,11 @@ impl ExecutionContext {
             return 0.0;
         }
 
-        let successful_critical_steps = self
-            .step_results
-            .values()
-            .filter(|r| !r.success) // Critical = failed for now
-            .count();
-        let total_critical_steps = self.total_steps; // Approximate since we don't track critical per step
-
         // Base score from completion percentage
         let completion_score = self.completed_steps() as f64 / self.total_steps as f64;
 
-        // Bonus for critical step success
-        let critical_bonus = if total_critical_steps > 0 {
-            successful_critical_steps as f64 / total_critical_steps as f64 * 0.2
-        } else {
-            0.0
-        };
+        // No bonus for now, just use completion score
+        let critical_bonus = 0.0;
 
         // Overall score (0.0 to 1.0)
         (completion_score + critical_bonus).min(1.0)
@@ -234,7 +223,7 @@ mod tests {
         ctx.add_step_result("step1", &step1);
 
         assert_eq!(ctx.completed_steps(), 1);
-        assert_eq!(ctx.completion_percentage(), 33.3);
+        assert_eq!(ctx.completion_percentage(), 33.33333333333333);
         assert!(ctx.was_step_successful("step1"));
 
         // Add second failed step
@@ -250,9 +239,9 @@ mod tests {
         ctx.add_step_result("step2", &step2);
 
         assert_eq!(ctx.completed_steps(), 2);
-        assert_eq!(ctx.completion_percentage(), 66.7);
+        assert_eq!(ctx.completion_percentage(), 66.66666666666666);
         assert!(!ctx.was_step_successful("step2"));
-        assert_eq!(ctx.calculate_flow_score(), 0.67); // 2/3 completed
+        assert_eq!(ctx.calculate_flow_score(), 0.6666666666666666); // 2/3 completed
     }
 
     #[test]

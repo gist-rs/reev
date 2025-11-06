@@ -223,9 +223,9 @@ pub struct UserIntent {
 fn extract_amount(prompt: &str) -> String {
     use regex::Regex;
 
-    // Try to extract decimal amounts
-    let decimal_regex = Regex::new(r"\b\d+\.?\d*\s+(SOL|USDC|%)\b").ok();
-    if let Some(re) = decimal_regex {
+    // First try to match percentages (e.g., "50%")
+    let percent_regex = Regex::new(r"\d+\.?\d*%").ok();
+    if let Some(re) = percent_regex {
         if let Some(caps) = re.captures(prompt) {
             return caps
                 .get(0)
@@ -234,7 +234,18 @@ fn extract_amount(prompt: &str) -> String {
         }
     }
 
-    // Try to extract simple amounts
+    // Then try to match amounts with units (e.g., "1.5 SOL", "100 USDC")
+    let amount_regex = Regex::new(r"\b\d+\.?\d*\s+(SOL|USDC)\b").ok();
+    if let Some(re) = amount_regex {
+        if let Some(caps) = re.captures(prompt) {
+            return caps
+                .get(0)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+        }
+    }
+
+    // Finally try to match simple numbers
     let simple_regex = Regex::new(r"\b\d+\b").ok();
     if let Some(re) = simple_regex {
         if let Some(caps) = re.captures(prompt) {
@@ -339,7 +350,8 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        let context = WalletContext::new("test_wallet".to_string());
+        let mut context = WalletContext::new("test_wallet".to_string());
+        context.sol_balance = 1_000_000_000; // 1 SOL in lamports
 
         // Valid request
         assert!(validate_user_request("swap 1 SOL", &context).is_ok());

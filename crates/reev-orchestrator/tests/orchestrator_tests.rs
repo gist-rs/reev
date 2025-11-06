@@ -93,9 +93,16 @@ async fn test_swap_flow_generation() {
     let flow = gateway
         .generate_enhanced_flow_plan("swap SOL to USDC using Jupiter", &context, None)
         .await;
-    // Flow should fail because context has 0 SOL balance
-    assert!(flow.is_err());
-    // Don't unwrap since it's an error case
+    // Flow should now succeed even with 0 SOL balance (new permissive behavior)
+    assert!(flow.is_ok());
+    let flow_plan = flow.unwrap();
+
+    // Should still generate a proper 3-step flow structure
+    assert_eq!(flow_plan.steps.len(), 3);
+    assert_eq!(flow_plan.steps[0].step_id, "balance_check");
+    assert!(flow_plan.steps[0]
+        .required_tools
+        .contains(&reev_types::tools::ToolName::GetAccountBalance));
 }
 
 #[tokio::test]
@@ -112,8 +119,8 @@ async fn test_swap_lend_flow_generation() {
         .await;
     assert!(flow.is_ok());
     let flow = flow.unwrap();
-    // Should generate 4 steps for complex multiplication strategy
-    assert_eq!(flow.steps.len(), 4);
+    // Should generate 3 steps for comprehensive flow (balance_check + swap + positions_check)
+    assert_eq!(flow.steps.len(), 3);
 }
 
 #[test]

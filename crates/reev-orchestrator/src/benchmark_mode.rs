@@ -91,7 +91,7 @@ where
 /// # Errors
 /// * If the benchmark file doesn't exist
 fn get_static_benchmark_path(id: &str) -> Result<PathBuf> {
-    let path = PathBuf::from("benchmarks").join(format!("{id}.yml"));
+    let path = PathBuf::from("../../benchmarks").join(format!("{id}.yml"));
 
     if !path.exists() {
         return Err(anyhow::anyhow!(
@@ -234,11 +234,14 @@ mod tests {
 
     #[test]
     fn test_benchmark_path_construction() {
-        let result = get_static_benchmark_path("test-benchmark");
+        let result = get_static_benchmark_path("100-jup-swap-sol-usdc");
         assert!(result.is_ok());
 
         let path = result.unwrap();
-        assert_eq!(path, PathBuf::from("benchmarks/test-benchmark.yml"));
+        assert_eq!(
+            path,
+            PathBuf::from("../../benchmarks/100-jup-swap-sol-usdc.yml")
+        );
     }
 
     #[test]

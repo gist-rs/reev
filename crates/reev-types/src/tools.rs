@@ -194,7 +194,6 @@ impl ToolCategory {
         match self {
             ToolCategory::Discovery => vec![
                 ToolName::GetAccountBalance,
-                ToolName::GetJupiterLendEarnPosition,
                 ToolName::GetJupiterLendEarnTokens,
             ],
             ToolCategory::Swap => vec![
