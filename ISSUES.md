@@ -1,5 +1,31 @@
 # Issues
 
+## Issue #36 - 300 Benchmark Two-Step Flow Not Matching 200 Pattern - NEW 🔴
+**Status**: CRITICAL
+**Description**: 300-jup-swap-then-lend-deposit-dyn uses single jupiter_lend_earn_deposit tool instead of expected two-step jupiter_swap → jupiter_lend flow
+**Problem**:
+- Expected flow: Prompt → jupiter_swap → jupiter_lend → [*]
+- Actual flow: Prompt → jupiter_lend_earn_deposit → [*]
+- LLM agent chooses optimized single tool instead of required two-step process
+- 200 benchmark correctly implements explicit two-step flow with separate swap and lend steps
+- 300 benchmark should replicate 200's two-step pattern but with dynamic LLM execution
+**Evidence**:
+- 200 benchmark has explicit flow section with step 1 (swap) and step 2 (deposit)
+- 300 prompt: "use my 50% sol to multiply usdc 1.5x on jup" implies swap then deposit
+- Agent executes jupiter_lend_earn_deposit (combines swap+deposit in one tool)
+- User requirement: "use has some sol and need swap to usdc first then deposit"
+**Impact**:
+- 300 benchmark doesn't demonstrate multi-step orchestration capability
+- Flow visualization shows simplified single-tool execution
+- Doesn't match expected behavior pattern from 200 benchmark
+- Violates design principle: 200 = static flow, 300 = dynamic execution of same flow
+**Root Cause**:
+LLM agent chooses most efficient path (single tool) but benchmark expects specific two-step sequence to test orchestration
+**Next Steps**:
+- Modify 300 benchmark to require explicit swap and lend steps
+- Or constrain tool availability to force two-step approach
+- Ensure 300 benchmark follows same pattern as 200 but with dynamic execution
+
 ## Issue #35 - Jupiter Static Benchmarks Broken - NEW 🔴
 **Status**: CRITICAL
 **Description**: Static Jupiter benchmarks (200-series) fail with deterministic agent while dynamic benchmarks (300-series) work perfectly with LLM agents
