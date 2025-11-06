@@ -34,7 +34,7 @@ trap cleanup EXIT
 
 # Step 3: Execute 300 benchmark with dynamic mode
 echo "📊 Executing 300 benchmark (dynamic mode)..."
-EXECUTION_RESPONSE=$(curl -s -X POST "http://localhost:3000/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
+EXECUTION_RESPONSE=$(curl -s -X POST "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
   -H "Content-Type: application/json" \
   -d '{"agent":"glm-4.6-coding","mode":"dynamic"}')
 
@@ -54,7 +54,7 @@ echo "✅ Execution ID: $EXECUTION_ID"
 # Step 4: Wait for execution to complete
 echo "⏳ Waiting for execution to complete..."
 for i in {1..30}; do
-    STATUS_RESPONSE=$(curl -s "http://localhost:3000/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/status/$EXECUTION_ID")
+    STATUS_RESPONSE=$(curl -s "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/status/$EXECUTION_ID")
     STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
 
     echo "Attempt $i: Status = $STATUS"
@@ -78,7 +78,7 @@ done
 
 # Step 5: Check flow visualization
 echo "🎨 Checking flow visualization..."
-FLOW_RESPONSE=$(curl -s "http://localhost:3000/api/v1/flows/$EXECUTION_ID?format=json")
+FLOW_RESPONSE=$(curl -s "http://localhost:3001/api/v1/flows/$EXECUTION_ID?format=json")
 
 echo "Flow Response:"
 echo "$FLOW_RESPONSE" | jq .
