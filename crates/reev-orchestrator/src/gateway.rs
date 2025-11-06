@@ -82,7 +82,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Initial portfolio assessment and balance verification".to_string(),
         )
-        .with_tool(ToolName::AccountBalance)
+        .with_tool(ToolName::GetAccountBalance)
         .with_estimated_time(10)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 }))
     }
@@ -207,7 +207,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Jupiter lending position creation with detailed parameters".to_string(),
         )
-        .with_tool(ToolName::JupiterLend)
+        .with_tool(ToolName::JupiterLendEarnDeposit)
         .with_estimated_time(45)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
         .with_critical(true))
@@ -403,7 +403,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Emergency withdrawal from all lending positions".to_string(),
         )
-        .with_tool(ToolName::JupiterWithdraw)
+        .with_tool(ToolName::JupiterLendEarnWithdraw)
         .with_estimated_time(30)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 3 })
         .with_critical(true))
@@ -458,7 +458,7 @@ impl OrchestratorGateway {
             prompt_template,
             "Advanced multi-pool yield optimization".to_string(),
         )
-        .with_tool(ToolName::JupiterLend)
+        .with_tool(ToolName::JupiterLendEarnDeposit)
         .with_estimated_time(60)
         .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
         .with_critical(true))
@@ -848,7 +848,7 @@ pub fn create_account_balance_step_with_recovery(
         prompt_template,
         "Check current wallet balances and positions".to_string(),
     )
-    .with_tool(ToolName::AccountBalance)
+    .with_tool(ToolName::GetAccountBalance)
     .with_estimated_time(10)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -888,7 +888,7 @@ pub fn create_positions_check_step_with_recovery(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool(ToolName::JupiterPositions)
+    .with_tool(ToolName::GetJupiterEarnPosition)
     .with_estimated_time(15)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -1010,7 +1010,7 @@ pub fn create_account_balance_step(
         prompt_template,
         "Check current wallet balances and positions".to_string(),
     )
-    .with_tool(ToolName::AccountBalance)
+    .with_tool(ToolName::GetAccountBalance)
     .with_estimated_time(10)
     .with_critical(false)) // Not critical for flow success
 }
@@ -1043,7 +1043,7 @@ pub fn create_positions_check_step(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool(ToolName::JupiterPositions)
+    .with_tool(ToolName::GetJupiterEarnPosition)
     .with_estimated_time(15)
     .with_critical(false)) // Not critical for flow success
 }

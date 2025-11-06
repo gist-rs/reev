@@ -351,14 +351,14 @@ fn test_dynamic_step_creation() {
         "Test description".to_string(),
     )
     .with_critical(false)
-    .with_tool(ToolName::AccountBalance)
+    .with_tool(ToolName::GetAccountBalance)
     .with_estimated_time(60);
 
     assert_eq!(step.step_id, "test_step");
     assert_eq!(step.prompt_template, "Test prompt template");
     assert_eq!(step.description, "Test description");
     assert!(!step.critical);
-    assert!(step.required_tools.contains(&ToolName::AccountBalance));
+    assert!(step.required_tools.contains(&ToolName::GetAccountBalance));
     assert_eq!(step.estimated_time_seconds, 60);
 }
 
@@ -486,7 +486,7 @@ async fn test_300_benchmark_api_integration() -> anyhow::Result<()> {
         .any(|t| matches!(t, ToolName::JupiterSwap | ToolName::SolTransfer));
     let has_lend_step = all_tools
         .iter()
-        .any(|t| matches!(t, ToolName::JupiterLend | ToolName::JupiterLendEarnDeposit));
+        .any(|t| matches!(t, ToolName::JupiterLendEarnDeposit));
 
     assert!(
         has_swap_step,

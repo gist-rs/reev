@@ -52,8 +52,9 @@ impl ToolSelector {
         }
 
         // Check for Jupiter positions/earnings
-        if prompt_lower.contains("position") && self.tools.contains_key("jupiter_earn") {
-            relevant_tools.push("jupiter_earn".to_string());
+        if prompt_lower.contains("position") && self.tools.contains_key("get_jupiter_earn_position")
+        {
+            relevant_tools.push("get_jupiter_earn_position".to_string());
         }
 
         info!(

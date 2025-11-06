@@ -90,7 +90,7 @@ ground_truth:
   # Tool execution validation for single call
   tool_validation:
     - step: 1
-      tool_name: "jupiter_earn"
+      tool_name: "get_jupiter_earn_position"
       required: true
       expected_params: ["user_pubkey", "operation"]
       success_indicators:

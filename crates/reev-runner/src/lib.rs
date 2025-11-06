@@ -941,7 +941,7 @@ fn generate_ground_truth_from_steps(
     // Check if any step involves lend/earn
     let has_lend = steps.iter().any(|step| {
         step.required_tools
-            .contains(&reev_types::tools::ToolName::JupiterLend)
+            .contains(&reev_types::tools::ToolName::JupiterLendEarnDeposit)
             || step
                 .required_tools
                 .contains(&reev_types::tools::ToolName::JupiterEarn)

@@ -11,7 +11,7 @@
 - `lend_earn_tokens` serializes to wrong name - should be `get_jupiter_lend_earn_tokens`
 - `JupiterLend` tool is ambiguous/unused and doesn't exist in actual tools
 - `ExecuteTransaction` has no actual implementation (conceptual only)
-- `JupiterPositions` is redundant with `GetPositionInfo`
+- `JupiterPositions` is redundant with `GetJupiterEarnPosition`
 
 ### **NAMING CONSISTENCY ISSUE IN ENUM DEFINITION**
 The current enum has mixed naming patterns causing confusion:
@@ -22,7 +22,7 @@ pub enum ToolName {
     GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
     GetJupiterEarnPosition,      // serialize: "get_jupiter_earn_position" ✅ RENAMED
     GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ RENAMED
-    
+
     SolTransfer,                   // serialize: "sol_transfer" ✅
     JupiterSwap,                   // serialize: "jupiter_swap" ✅
     JupiterLendEarnWithdraw,       // serialize: "jupiter_lend_earn_withdraw" ✅ RENAMED
@@ -40,21 +40,21 @@ pub enum ToolName {
 
 **Root Cause of Confusion**:
 The current enum mixes two different naming philosophies:
-1. **Discovery tools**: Use "Get" prefix (GetAccountBalance, GetJupiterPositionInfo, GetJupiterLendEarnTokens)
+1. **Discovery tools**: Use "Get" prefix (GetAccountBalance, GetJupiterEarnPosition, GetJupiterLendEarnTokens)
 2. **Transaction/Action tools**: Use direct naming (SolTransfer, JupiterSwap, JupiterLendEarnDeposit)
 
 But `GetJupiterEarnPosition` breaks this pattern by having "Get" prefix while being action-based, and it duplicates `JupiterEarn` functionality.
 
 **Actual Tool Implementation Analysis**:
 - `GetAccountBalanceTool::NAME = "get_account_balance"` ✅
-- `PositionInfoTool::NAME = "get_jupiter_position_info"` ✅ 
+- `PositionInfoTool::NAME = "get_jupiter_position_info"` ✅
 - `LendEarnTokensTool::NAME = "get_jupiter_lend_earn_tokens"` ✅
 - `JupiterEarnTool::NAME = "jupiter_earn"` ✅ (positions + earnings, benchmark only)
 
 **The Real Issue**:
 `GetJupiterEarnPosition` doesn't exist as an actual tool! It should be either:
 - Remove entirely (use `JupiterEarn` for positions + earnings)
-- OR rename to match existing `PositionInfoTool` (`GetJupiterPositionInfo`)
+- OR rename to match existing `PositionInfoTool` (`GetJupiterEarnPosition`)
 - OR clarify if this is supposed to be a different tool entirely
 
 ### **CRITICAL ARCHITECTURAL PROBLEM: String-based Tool Names Everywhere**
@@ -119,15 +119,15 @@ Before any code updates, resolve the naming inconsistency:
 pub enum ToolName {
     // Discovery Tools - ALL with "Get" prefix
     GetAccountBalance,           // "get_account_balance"
-    GetJupiterPositionInfo,      // "get_jupiter_position_info" 
+    GetJupiterEarnPosition,      // "get_jupiter_position"
     GetJupiterLendEarnTokens,    // "get_jupiter_lend_earn_tokens"
-    
+
     // Transaction Tools - NO "Get" prefix (action-based)
     SolTransfer,                 // "sol_transfer"
     SplTransfer,                 // "spl_transfer"
     JupiterSwap,                 // "jupiter_swap"
     JupiterSwapFlow,             // "jupiter_swap_flow"
-    
+
     // Jupiter Earn Tools - NO "Get" prefix (action-based)
     JupiterEarn,                 // "jupiter_earn" (positions + earnings)
     JupiterLendEarnDeposit,     // "jupiter_lend_earn_deposit"
@@ -139,7 +139,7 @@ pub enum ToolName {
 
 **Clarification on Tool Distinctions**:
 - `GetAccountBalance` - General wallet balance discovery
-- `GetJupiterPositionInfo` - Jupiter-specific position discovery ONLY  
+- `GetJupiterEarnPosition` - Jupiter-specific position discovery ONLY
 - `JupiterEarn` - Jupiter-specific positions AND earnings (benchmark restricted)
 - These are NOT duplicates - serve different purposes with different data returned
 

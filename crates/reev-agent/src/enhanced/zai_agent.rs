@@ -110,7 +110,7 @@ impl ZAIAgent {
                 Some(tools) => tools.contains(&tool_name.to_string()),
                 None => {
                     // SECURITY: Restrict jupiter_earn tool in normal mode (only available for position/earnings benchmarks 114-*.yml)
-                    tool_name != "jupiter_earn"
+                    tool_name != "get_jupiter_earn_position"
                 }
             }
         };
@@ -200,7 +200,7 @@ impl ZAIAgent {
                     .await,
             );
         }
-        if is_tool_allowed("jupiter_earn") {
+        if is_tool_allowed("get_jupiter_earn_position") {
             request_builder = request_builder.tool(
                 unified_data
                     .tools
@@ -387,7 +387,7 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            "jupiter_earn" => {
+            "get_jupiter_earn_position" => {
                 let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools
@@ -437,7 +437,7 @@ impl ZAIAgent {
             "jupiter_lend_earn_withdraw" => "Jupiter lend withdraw completed successfully",
             "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
             "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
-            "jupiter_earn" => "Jupiter earn operation completed successfully",
+            "get_jupiter_earn_position" => "Jupiter earn operation completed successfully",
             "get_account_balance" => "Account balance retrieved successfully",
             "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
             "jupiter_swap_flow" => "Jupiter swap flow completed successfully",

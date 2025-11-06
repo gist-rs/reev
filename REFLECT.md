@@ -130,7 +130,7 @@ if !config_changed && is_existing_healthy {
 **Solution**: Modified both ZAIAgent and OpenAIAgent to properly respect `allowed_tools`:
 - Filter tools at request builder level based on `allowed_tools`
 - Only include tools that are explicitly allowed for the benchmark
-- For benchmark 114, restrict to just `["jupiter_earn"]` as required
+- For benchmark 114, restrict to just `["get_jupiter_earn_position"]` as required
 
 **Fix Applied**:
 - Modified ZAIAgent to check `allowed_tools` before adding tools to request builder

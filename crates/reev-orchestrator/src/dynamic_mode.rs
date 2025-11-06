@@ -165,17 +165,17 @@ pub fn analyze_simple_intent(prompt: &str) -> UserIntent {
         )
     } else if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
         (
-            reev_types::tools::ToolName::JupiterLend,
+            reev_types::tools::ToolName::JupiterLendEarnDeposit,
             extract_amount(prompt),
         )
     } else if prompt_lower.contains("withdraw") {
         (
-            reev_types::tools::ToolName::JupiterWithdraw,
+            reev_types::tools::ToolName::JupiterLendEarnWithdraw,
             extract_amount(prompt),
         )
     } else if prompt_lower.contains("position") || prompt_lower.contains("balance") {
         (
-            reev_types::tools::ToolName::JupiterPositions,
+            reev_types::tools::ToolName::GetJupiterEarnPosition,
             extract_amount(prompt),
         )
     } else {
@@ -324,7 +324,7 @@ mod tests {
         let intent = analyze_simple_intent("use 50% of SOL for lending");
         assert_eq!(
             intent.primary_tool,
-            reev_types::tools::ToolName::JupiterLend
+            reev_types::tools::ToolName::JupiterLendEarnDeposit
         );
         assert_eq!(intent.complexity, "complex");
     }

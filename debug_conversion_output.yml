@@ -20,6 +20,7 @@ prompt:
       "jupiter_lend_earn_redeem",
       "get_account_balance",
       "get_jupiter_lend_earn_tokens",
+      "get_jupiter_earn_position",
     ]
   user_prompt: |
     Please send 0.1 SOL to the recipient (RECIPIENT_WALLET_PUBKEY).

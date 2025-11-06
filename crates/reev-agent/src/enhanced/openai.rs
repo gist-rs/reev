@@ -196,7 +196,7 @@ impl OpenAIAgent {
             if is_tool_allowed("get_account_balance") {
                 builder = builder.tool(tools.balance_tool);
             }
-            if is_tool_allowed("jupiter_earn") {
+            if is_tool_allowed("get_jupiter_earn_position") {
                 builder = builder.tool(tools.jupiter_earn_tool);
             }
 

@@ -22,7 +22,7 @@ impl ToolRegistry {
             "jupiter_swap",
             "jupiter_swap_flow",
             // Jupiter earn tools
-            "jupiter_earn",
+            "get_jupiter_earn_position",
             "jupiter_lend_earn_deposit",
             "jupiter_lend_earn_withdraw",
             "jupiter_lend_earn_mint",

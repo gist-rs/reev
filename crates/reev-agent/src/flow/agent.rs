@@ -86,7 +86,7 @@ impl FlowAgent {
 
         // Only add position checking tools if allowed
         if include_position_tools {
-            all_tools.push("jupiter_earn".to_string());
+            all_tools.push("get_jupiter_earn_position".to_string());
         }
 
         Ok(all_tools)

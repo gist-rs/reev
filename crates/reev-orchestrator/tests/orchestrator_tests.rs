@@ -202,7 +202,7 @@ fn test_dynamic_step_creation() {
         "Test description".to_string(),
     )
     .with_critical(false)
-    .with_tool(ToolName::AccountBalance)
+    .with_tool(ToolName::GetAccountBalance)
     .with_estimated_time(60);
 
     assert_eq!(step.step_id, "test_step");
@@ -211,7 +211,7 @@ fn test_dynamic_step_creation() {
     assert!(!step.critical);
     assert!(step
         .required_tools
-        .contains(&reev_types::tools::ToolName::AccountBalance));
+        .contains(&reev_types::tools::ToolName::GetAccountBalance));
     assert_eq!(step.estimated_time_seconds, 60);
 }
 

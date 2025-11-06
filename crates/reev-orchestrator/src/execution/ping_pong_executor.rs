@@ -448,8 +448,8 @@ impl PingPongExecutor {
             tool_calls.push("jupiter_lend".to_string());
         }
 
-        if response.contains("jupiter_earn") {
-            tool_calls.push("jupiter_earn".to_string());
+        if response.contains("get_jupiter_earn_position") {
+            tool_calls.push("get_jupiter_earn_position".to_string());
         }
 
         if response.contains("get_account_balance") {

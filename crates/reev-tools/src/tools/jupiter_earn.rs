@@ -53,7 +53,7 @@ pub struct JupiterEarnTool {
 }
 
 impl Tool for JupiterEarnTool {
-    const NAME: &'static str = "jupiter_earn";
+    const NAME: &'static str = "get_jupiter_earn_position";
     type Error = JupiterEarnError;
     type Args = JupiterEarnArgs;
     type Output = String;
@@ -90,7 +90,7 @@ impl Tool for JupiterEarnTool {
         name = "jupiter_earn_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_earn",
+            tool_name = "get_jupiter_earn_position",
             user_pubkey = %args.user_pubkey,
             operation = ?args.operation,
             position_address = ?args.position_address
@@ -98,7 +98,7 @@ impl Tool for JupiterEarnTool {
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Use enhanced logging macro for consistent otel tracking
-        log_tool_call!("jupiter_earn", &args);
+        log_tool_call!("get_jupiter_earn_position", &args);
 
         info!("[JupiterEarn] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
@@ -179,7 +179,7 @@ impl Tool for JupiterEarnTool {
 
         // Create the final response
         let response = json!({
-            "tool": "jupiter_earn",
+            "tool": "get_jupiter_earn_position",
             "user_pubkey": user_pubkey,
             "position_filter": args.position_address,
             "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -189,7 +189,7 @@ impl Tool for JupiterEarnTool {
         let total_execution_time = start_time.elapsed().as_millis() as u64;
 
         // Log tool completion with enhanced otel
-        log_tool_completion!("jupiter_earn", total_execution_time, &response, true);
+        log_tool_completion!("get_jupiter_earn_position", total_execution_time, &response, true);
 
         info!(
             "[JupiterEarn] Tool execution completed - total_time: {}ms, operation: {:?}",

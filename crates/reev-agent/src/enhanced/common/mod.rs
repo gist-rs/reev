@@ -389,7 +389,7 @@ impl AgentHelper {
             "sol_transfer".to_string(),
             "spl_transfer".to_string(),
             "jupiter_swap".to_string(),
-            "jupiter_earn".to_string(),
+            "get_jupiter_earn_position".to_string(),
             "jupiter_lend_earn_deposit".to_string(),
             "jupiter_lend_earn_withdraw".to_string(),
             "jupiter_lend_earn_mint".to_string(),

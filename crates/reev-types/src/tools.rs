@@ -17,7 +17,7 @@ pub enum ToolName {
 
     /// Get Jupiter position info tool
     #[strum(serialize = "get_jupiter_position_info")]
-    GetPositionInfo,
+    GetJupiterEarnPosition,
 
     /// Get Jupiter lend earn tokens tool
     #[strum(serialize = "get_jupiter_lend_earn_tokens")]
@@ -40,7 +40,7 @@ pub enum ToolName {
     JupiterSwapFlow,
 
     /// Jupiter earn tool (restricted to benchmarks)
-    #[strum(serialize = "jupiter_earn")]
+    #[strum(serialize = "get_jupiter_earn_position")]
     JupiterEarn,
 
     /// Jupiter lend earn deposit tool
@@ -58,6 +58,10 @@ pub enum ToolName {
     /// Jupiter lend earn redeem tool
     #[strum(serialize = "jupiter_lend_earn_redeem")]
     JupiterLendEarnRedeem,
+
+    /// Generic transaction execution tool
+    #[strum(serialize = "execute_transaction")]
+    ExecuteTransaction,
 }
 
 impl ToolName {
@@ -66,7 +70,7 @@ impl ToolName {
         matches!(
             self,
             ToolName::GetAccountBalance
-                | ToolName::GetPositionInfo
+                | ToolName::GetJupiterEarnPosition
                 | ToolName::GetLendEarnTokens
                 | ToolName::SolTransfer
                 | ToolName::SplTransfer
@@ -84,7 +88,7 @@ impl ToolName {
     pub fn estimated_time_ms(&self) -> u64 {
         match self {
             ToolName::GetAccountBalance => 5000,
-            ToolName::GetPositionInfo => 8000,
+            ToolName::GetJupiterEarnPosition => 8000,
             ToolName::GetLendEarnTokens => 12000,
             ToolName::SolTransfer => 15000,
             ToolName::SplTransfer => 20000,
@@ -95,6 +99,7 @@ impl ToolName {
             ToolName::JupiterLendEarnWithdraw => 25000,
             ToolName::JupiterLendEarnMint => 30000,
             ToolName::JupiterLendEarnRedeem => 35000,
+            ToolName::ExecuteTransaction => 20000,
         }
     }
 
@@ -121,12 +126,13 @@ impl ToolName {
     pub fn category(&self) -> ToolCategory {
         match self {
             ToolName::GetAccountBalance
-            | ToolName::GetPositionInfo
+            | ToolName::GetJupiterEarnPosition
             | ToolName::GetLendEarnTokens => ToolCategory::Discovery,
             ToolName::SolTransfer
             | ToolName::SplTransfer
             | ToolName::JupiterSwap
-            | ToolName::JupiterSwapFlow => ToolCategory::Swap,
+            | ToolName::JupiterSwapFlow
+            | ToolName::ExecuteTransaction => ToolCategory::Swap,
             ToolName::JupiterLendEarnDeposit
             | ToolName::JupiterLendEarnWithdraw
             | ToolName::JupiterLendEarnMint
@@ -189,7 +195,7 @@ impl ToolCategory {
         match self {
             ToolCategory::Discovery => vec![
                 ToolName::GetAccountBalance,
-                ToolName::GetPositionInfo,
+                ToolName::GetJupiterEarnPosition,
                 ToolName::GetLendEarnTokens,
             ],
             ToolCategory::Swap => vec![
@@ -258,7 +264,7 @@ mod tests {
         assert!("spl_transfer".parse::<ToolName>().is_ok());
         assert!("jupiter_swap".parse::<ToolName>().is_ok());
         assert!("jupiter_swap_flow".parse::<ToolName>().is_ok());
-        assert!("jupiter_earn".parse::<ToolName>().is_ok());
+        assert!("get_jupiter_earn_position".parse::<ToolName>().is_ok());
         assert!("jupiter_lend_earn_deposit".parse::<ToolName>().is_ok());
         assert!("jupiter_lend_earn_withdraw".parse::<ToolName>().is_ok());
         assert!("jupiter_lend_earn_mint".parse::<ToolName>().is_ok());
