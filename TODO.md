@@ -2,6 +2,12 @@
 
 ---
 
+Rule base is not allow, change to llm base
+
+ if (prompt_lower.contains("swap") || prompt_lower.contains("exchange"))
+
+---
+
 check that reev-orchestrator did recommant allowed tool or not,
 1. change to all tool is allowed because current logic is to restrict.
 2. static yml like 001-sol-transfer.yml may add recommended tools.
