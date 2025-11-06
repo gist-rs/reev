@@ -122,6 +122,11 @@ impl ToolName {
         matches!(self, ToolName::JupiterEarn)
     }
 
+    /// Check if tool is a transfer tool
+    pub fn is_transfer_tool(&self) -> bool {
+        matches!(self, ToolName::SolTransfer | ToolName::SplTransfer)
+    }
+
     /// Get tool category for grouping and analytics
     pub fn category(&self) -> ToolCategory {
         match self {

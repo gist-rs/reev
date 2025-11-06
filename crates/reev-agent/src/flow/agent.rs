@@ -75,18 +75,18 @@ impl FlowAgent {
     /// Create tool list with conditional inclusion of position checking tools
     async fn create_tool_list(include_position_tools: bool) -> Result<Vec<String>> {
         let mut all_tools = vec![
-            "jupiter_swap".to_string(),
-            "jupiter_lend_earn_mint".to_string(),
-            "jupiter_lend_earn_redeem".to_string(),
-            "jupiter_lend_earn_deposit".to_string(),
-            "jupiter_lend_earn_withdraw".to_string(),
-            "sol_transfer".to_string(),
-            "spl_transfer".to_string(),
+            reev_types::ToolName::JupiterSwap.to_string(),
+            reev_types::ToolName::JupiterLendEarnMint.to_string(),
+            reev_types::ToolName::JupiterLendEarnRedeem.to_string(),
+            reev_types::ToolName::JupiterLendEarnDeposit.to_string(),
+            reev_types::ToolName::JupiterLendEarnWithdraw.to_string(),
+            reev_types::ToolName::SolTransfer.to_string(),
+            reev_types::ToolName::SplTransfer.to_string(),
         ];
 
         // Only add position checking tools if allowed
         if include_position_tools {
-            all_tools.push("get_jupiter_earn_position".to_string());
+            all_tools.push(reev_types::ToolName::GetJupiterLendEarnPosition.to_string());
         }
 
         Ok(all_tools)

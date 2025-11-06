@@ -417,15 +417,15 @@ async fn execute_flow_plan_with_ping_pong(
         let tool_name = if !step_result.tool_calls.is_empty() {
             step_result.tool_calls[0].clone()
         } else {
-            // Infer from step ID
+            // Infer from step ID - use type-safe enum approach
             if step_result.step_id.contains("swap") {
-                "jupiter_swap".to_string()
+                reev_types::ToolName::JupiterSwap.to_string()
             } else if step_result.step_id.contains("lend") {
-                "jupiter_lend".to_string()
+                reev_types::ToolName::JupiterLendEarnDeposit.to_string()
             } else if step_result.step_id.contains("balance") {
-                "account_balance".to_string()
+                reev_types::ToolName::GetAccountBalance.to_string()
             } else if step_result.step_id.contains("position") {
-                "jupiter_positions".to_string()
+                reev_types::ToolName::GetJupiterLendEarnPosition.to_string()
             } else {
                 format!("tool_{}", step_result.step_id)
             }

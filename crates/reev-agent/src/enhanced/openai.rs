@@ -146,8 +146,10 @@ impl OpenAIAgent {
                 allowed_tools
             );
             // Helper function to check if a tool is allowed
-            let is_tool_allowed =
-                |tool_name: &str| -> bool { allowed_tools.contains(&tool_name.to_string()) };
+            let is_tool_allowed = |tool_name: &str| -> bool {
+                allowed_tools.contains(&tool_name.to_string())
+                    && tool_name.parse::<reev_types::ToolName>().is_ok()
+            };
 
             let mut builder = client
                 .completion_model(&actual_model_name)
@@ -155,14 +157,14 @@ impl OpenAIAgent {
                 .into_agent_builder()
                 .preamble(&enhanced_prompt);
 
-            // Add each tool only if it's allowed
-            if is_tool_allowed("sol_transfer") {
+            // Add each tool only if it's allowed - use type-safe enum checks
+            if is_tool_allowed(&reev_types::ToolName::SolTransfer.to_string()) {
                 builder = builder.tool(tools.sol_tool);
             }
-            if is_tool_allowed("spl_transfer") {
+            if is_tool_allowed(&reev_types::ToolName::SplTransfer.to_string()) {
                 builder = builder.tool(tools.spl_tool);
             }
-            if is_tool_allowed("jupiter_swap") {
+            if is_tool_allowed(&reev_types::ToolName::JupiterSwap.to_string()) {
                 // Use flow-aware tool in flow mode for proper swap_details structure
                 if flow_mode {
                     if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
@@ -177,26 +179,26 @@ impl OpenAIAgent {
                     info!("[OpenAIAgent] Using JupiterSwapTool in normal mode");
                 }
             }
-            if is_tool_allowed("jupiter_lend_earn_deposit") {
+            if is_tool_allowed(&reev_types::ToolName::JupiterLendEarnDeposit.to_string()) {
                 builder = builder.tool(tools.jupiter_lend_earn_deposit_tool);
             }
-            if is_tool_allowed("jupiter_lend_earn_withdraw") {
+            if is_tool_allowed(&reev_types::ToolName::JupiterLendEarnWithdraw.to_string()) {
                 builder = builder.tool(tools.jupiter_lend_earn_withdraw_tool);
             }
-            if is_tool_allowed("jupiter_lend_earn_mint") {
+            if is_tool_allowed(&reev_types::ToolName::JupiterLendEarnMint.to_string()) {
                 builder = builder.tool(tools.jupiter_lend_earn_mint_tool);
             }
-            if is_tool_allowed("jupiter_lend_earn_redeem") {
+            if is_tool_allowed(&reev_types::ToolName::JupiterLendEarnRedeem.to_string()) {
                 builder = builder.tool(tools.jupiter_lend_earn_redeem_tool);
             }
-            if is_tool_allowed("get_jupiter_lend_earn_tokens") {
+            if is_tool_allowed(&reev_types::ToolName::GetJupiterLendEarnTokens.to_string()) {
                 builder = builder.tool(tools.lend_earn_tokens_tool);
             }
             // Re-enable balance tool for consistency with ZAI agent
-            if is_tool_allowed("get_account_balance") {
+            if is_tool_allowed(&reev_types::ToolName::GetAccountBalance.to_string()) {
                 builder = builder.tool(tools.balance_tool);
             }
-            if is_tool_allowed("get_jupiter_earn_position") {
+            if is_tool_allowed(&reev_types::ToolName::GetJupiterLendEarnPosition.to_string()) {
                 builder = builder.tool(tools.jupiter_earn_tool);
             }
 

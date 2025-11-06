@@ -2,6 +2,16 @@
 
 ---
 
+check that reev-orchestrator did recommant allowed tool or not,
+1. change to all tool is allowed because current logic is to restrict.
+2. static yml like 001-sol-transfer.yml may add recommended tools.
+3. always add exist tool so it's not lock up.
+4. for 300-jup-swap-then-lend-deposit-dyn.yml it should generate recommended tools by llm like #2 to go in the same flow.
+5. remember that dynamic is just llm gen static.
+6. use rig/rig-core/examples/calculator_chatbot.rs as example for add tool.
+
+---
+
 format!("{}/lend/v1/earn/positions", self.api_base_url)
 DRY
 

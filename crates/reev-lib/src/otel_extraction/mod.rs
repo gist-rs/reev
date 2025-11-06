@@ -196,26 +196,14 @@ pub fn parse_otel_trace_to_tools(trace: OtelTraceData) -> Vec<ToolCallInfo> {
 
 /// Check if a span represents a tool call
 fn is_tool_span(span: &OtelSpanData) -> bool {
-    // Check span name for common tool patterns
-    let tool_patterns = [
-        "sol_transfer",
-        "spl_transfer",
-        "jupiter_swap",
-        "jupiter_lend",
-        "get_account_balance",
-        "get_jupiter_lend_earn_tokens",
-        "get_jupiter_earn_position",
-        "jupiter_deposit",
-        "jupiter_withdraw",
-        "jupiter_mint",
-        "jupiter_redeem",
-    ];
+    // Use type-safe enum patterns instead of hardcoded strings
+    let tool_names = reev_types::ToolRegistry::all_tools();
 
     let span_name_lower = span.span_name.to_lowercase();
 
-    // Check if span name contains tool patterns
-    for pattern in &tool_patterns {
-        if span_name_lower.contains(pattern) {
+    // Check if span name contains any valid tool name
+    for tool_name in &tool_names {
+        if span_name_lower.contains(tool_name) {
             return true;
         }
     }
@@ -284,45 +272,45 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
         return Some(tool_name.clone());
     }
 
-    // Try to parse from span name
+    // Try to parse from span name using type-safe enum
     let span_name = &span.span_name;
 
-    // Common tool name patterns in rig (enhanced matching)
+    // Use enum-based pattern matching for tool name extraction
     if span_name.contains("sol_transfer") {
-        return Some("sol_transfer".to_string());
+        return Some(reev_types::ToolName::SolTransfer.to_string());
     }
     if span_name.contains("spl_transfer") {
-        return Some("spl_transfer".to_string());
+        return Some(reev_types::ToolName::SplTransfer.to_string());
     }
     if span_name.contains("jupiter_swap") {
-        return Some("jupiter_swap".to_string());
+        return Some(reev_types::ToolName::JupiterSwap.to_string());
     }
     if span_name.contains("jupiter_swap_flow") {
-        return Some("jupiter_swap_flow".to_string());
+        return Some(reev_types::ToolName::JupiterSwapFlow.to_string());
     }
     if span_name.contains("jupiter_lend") {
-        return Some("jupiter_lend".to_string());
+        return Some(reev_types::ToolName::JupiterLendEarnDeposit.to_string());
     }
     if span_name.contains("jupiter_deposit") {
-        return Some("jupiter_lend_earn_deposit".to_string());
+        return Some(reev_types::ToolName::JupiterLendEarnDeposit.to_string());
     }
     if span_name.contains("jupiter_withdraw") {
-        return Some("jupiter_lend_earn_withdraw".to_string());
+        return Some(reev_types::ToolName::JupiterLendEarnWithdraw.to_string());
     }
     if span_name.contains("jupiter_mint") {
-        return Some("jupiter_lend_earn_mint".to_string());
+        return Some(reev_types::ToolName::JupiterLendEarnMint.to_string());
     }
     if span_name.contains("jupiter_redeem") {
-        return Some("jupiter_lend_earn_redeem".to_string());
+        return Some(reev_types::ToolName::JupiterLendEarnRedeem.to_string());
     }
     if span_name.contains("get_account_balance") {
-        return Some("get_account_balance".to_string());
+        return Some(reev_types::ToolName::GetAccountBalance.to_string());
     }
     if span_name.contains("get_jupiter_lend_earn_tokens") {
-        return Some("get_jupiter_lend_earn_tokens".to_string());
+        return Some(reev_types::ToolName::GetJupiterLendEarnTokens.to_string());
     }
     if span_name.contains("get_jupiter_earn_position") {
-        return Some("get_jupiter_earn_position".to_string());
+        return Some(reev_types::ToolName::GetJupiterLendEarnPosition.to_string());
     }
 
     // Fallback to span name if no pattern matches

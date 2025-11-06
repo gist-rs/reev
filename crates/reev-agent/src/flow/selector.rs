@@ -24,37 +24,52 @@ impl ToolSelector {
 
         // Simple keyword-based selection
         if (prompt_lower.contains("swap") || prompt_lower.contains("exchange"))
-            && self.tools.contains_key("jupiter_swap")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::JupiterSwap.to_string())
         {
-            relevant_tools.push("jupiter_swap".to_string());
+            relevant_tools.push(reev_types::ToolName::JupiterSwap.to_string());
         }
 
         if (prompt_lower.contains("mint") || prompt_lower.contains("deposit"))
-            && self.tools.contains_key("jupiter_lend_earn_mint")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::JupiterLendEarnMint.to_string())
         {
-            relevant_tools.push("jupiter_lend_earn_mint".to_string());
+            relevant_tools.push(reev_types::ToolName::JupiterLendEarnMint.to_string());
         }
 
         if (prompt_lower.contains("redeem") || prompt_lower.contains("withdraw"))
-            && self.tools.contains_key("jupiter_lend_earn_redeem")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::JupiterLendEarnRedeem.to_string())
         {
-            relevant_tools.push("jupiter_lend_earn_redeem".to_string());
+            relevant_tools.push(reev_types::ToolName::JupiterLendEarnRedeem.to_string());
         }
 
-        if prompt_lower.contains("lend") && self.tools.contains_key("jupiter_lend_earn_deposit") {
-            relevant_tools.push("jupiter_lend_earn_deposit".to_string());
+        if prompt_lower.contains("lend")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::JupiterLendEarnDeposit.to_string())
+        {
+            relevant_tools.push(reev_types::ToolName::JupiterLendEarnDeposit.to_string());
         }
 
         if prompt_lower.contains("withdraw")
-            && self.tools.contains_key("jupiter_lend_earn_withdraw")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::JupiterLendEarnWithdraw.to_string())
         {
-            relevant_tools.push("jupiter_lend_earn_withdraw".to_string());
+            relevant_tools.push(reev_types::ToolName::JupiterLendEarnWithdraw.to_string());
         }
 
         // Check for Jupiter positions/earnings
-        if prompt_lower.contains("position") && self.tools.contains_key("get_jupiter_earn_position")
+        if prompt_lower.contains("position")
+            && self
+                .tools
+                .contains_key(&reev_types::ToolName::GetJupiterLendEarnPosition.to_string())
         {
-            relevant_tools.push("get_jupiter_earn_position".to_string());
+            relevant_tools.push(reev_types::ToolName::GetJupiterLendEarnPosition.to_string());
         }
 
         info!(
