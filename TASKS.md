@@ -1,161 +1,179 @@
 # Implementation Tasks
 
-## Issue #33: Flow Type Field Implementation - PENDING ⏳
+## Issue #35: Jupiter Static Benchmarks Broken - CRITICAL 🔴
 
 ### 🎯 **Objective**
-Add `flow_type` field to benchmark YAML files to clearly distinguish between static and dynamic flow execution modes, fixing 300-series benchmark routing issues.
+Fix static Jupiter benchmarks (200-series) that fail with deterministic agent while dynamic benchmarks (300-series) work perfectly with LLM agents.
 
 ### 📋 **Current Problems**
-1. 300 benchmark hardcoded as dynamic but uses deterministic agent incorrectly
-2. No explicit configuration for flow execution mode in YML
-3. Static vs dynamic routing depends on hardcoded benchmark ID patterns
-4. Deterministic agent returns hardcoded responses defeating dynamic flow purpose
-5. System tries to parse deterministic responses for dynamic benchmarks causing failures
+1. 200-jup-swap-then-lend-deposit fails with "Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1"
+2. Deterministic agent generates invalid Jupiter instructions
+3. Flow diagram shows 0 tool calls for failed static benchmarks
+4. Only affects Jupiter operations with deterministic agent (simple operations like 001 work fine)
 
-### 🏗️ **Proposed Solution**
-Add `flow_type: "dynamic"` field to YAML with default `"static"` behavior:
-- **Static**: Use deterministic agent with pre-defined instruction generation
-- **Dynamic**: Use LLM agent with Jupiter tools for real-time execution
-- **Backward compatible**: Existing benchmarks default to static behavior
-- **Clean separation**: No more hardcoded routing based on benchmark IDs
+### 🔍 **Root Cause Analysis**
+**Testing Results Summary**:
+- ✅ 001-sol-transfer: Score 100%, deterministic agent works fine
+- ❌ 200-jup-swap-then-lend-deposit: Score 0, transaction simulation error  
+- ✅ 300-jup-swap-then-lend-deposit-dyn: Score 100%, LLM agent works perfectly
 
-### 📝 **Implementation Steps**
-
-#### Step 1: Update 300 Benchmark YML
-```yaml
-id: 300-jup-swap-then-lend-deposit-dyn
-description: Dynamic multiplication strategy...
-flow_type: "dynamic"  # <-- ADD THIS FIELD
-tags: ["dynamic", "multiplication", "jupiter"]
-prompt: "use my 50% sol to multiply usdc 1.5x on jup"
+**Evidence from Logs**:
+```
+200 benchmark failure: "Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1"
+300 benchmark success: "jupiter_swap execution_time_ms=795 status=success" with 6 Jupiter instructions
 ```
 
-#### Step 2: Modify Agent Router (`crates/reev-agent/src/lib.rs`)
-```rust
-// In run_deterministic_agent function, add flow_type check
-let flow_type = benchmark.get("flow_type")
-    .and_then(|ft| ft.as_str())
-    .unwrap_or("static");
+**Problem**: Deterministic agent has hardcoded Jupiter instruction generation that produces invalid transactions for current Jupiter program state.
 
-match flow_type {
-    "dynamic" => {
-        // Skip deterministic agent, let LLM handle it directly
-        info!("[reev-agent] Dynamic flow detected, skipping deterministic agent");
-        anyhow::bail!("Use LLM agent for dynamic flows");
-    }
-    "static" | _ => {
-        // Use current deterministic routing logic
-        // ... existing handler calls ...
-    }
-}
+### 🏗️ **Proposed Solutions**
+
+#### Option 1: Fix Deterministic Agent Jupiter Instructions (Recommended)
+- Update deterministic agent to generate valid Jupiter instructions
+- Ensure compatibility with current Jupiter program interfaces
+- Maintain backward compatibility for existing static benchmarks
+
+#### Option 2: Migrate Static Jupiter Benchmarks to Dynamic Flow
+- Update 200-series benchmarks to use `flow_type: "dynamic"`
+- Route all Jupiter benchmarks to LLM agents with real Jupiter tools
+- Keep deterministic agent only for simple operations (like SOL transfers)
+
+#### Option 3: Hybrid Approach
+- Keep static benchmarks for simple operations (001-series)
+- Convert complex Jupiter benchmarks to dynamic flows
+- Clear documentation of which benchmarks use which execution mode
+
+### 📝 **Implementation Steps** (Option 1 - Fix Deterministic Agent)
+
+#### Step 1: Analyze Current Jupiter Instruction Generation
+```bash
+# Find deterministic agent Jupiter instruction code
+find crates -name "*.rs" -exec grep -l "jupiter\|JUP" {} \;
+# Focus on reev-agent deterministic handler
 ```
 
-#### Step 3: Update Runner Logic (`crates/reev-runner/src/lib.rs`)
-```rust
-// Modify evaluation loop to check flow_type
-let flow_type = benchmark.get("flow_type")
-    .and_then(|ft| ft.as_str())
-    .unwrap_or("static");
+#### Step 2: Compare Working vs Broken Jupiter Instructions
+```bash
+# Extract working Jupiter instructions from 300 benchmark logs
+grep -A 10 -B 5 "jupiter_swap" api_debug.log
 
-let agent_type = match flow_type {
-    "dynamic" => request.agent.clone(), // glamour, glm-4.6-coding, etc.
-    "static" | _ => "deterministic".to_string(), // default
-};
+# Compare with deterministic agent instruction generation
+# Check reev-agent/src/deterministic_agent.rs or similar
 ```
 
-#### Step 4: Remove Hardcoded 300 Handler
-Clean up the 300-specific code in `handle_flow_benchmarks()` since flow_type will handle routing properly.
-
-#### Step 5: Add Flow Type Validation
+#### Step 3: Update Deterministic Agent Jupiter Logic
 ```rust
-// Add validation in benchmark synchronization
-fn validate_flow_type(benchmark: &Value) -> Result<()> {
-    if let Some(flow_type) = benchmark.get("flow_type").and_then(|ft| ft.as_str()) {
-        match flow_type {
-            "static" | "dynamic" => Ok(()),
-            _ => anyhow::bail!("Invalid flow_type: {}", flow_type),
-        }
-    } else {
-        Ok(()) // default to static
-    }
-}
+// In deterministic agent Jupiter handler
+// Fix instruction generation to match current Jupiter program interface
+// Update account structures, program IDs, and instruction data
+// Ensure proper slippage handling and route selection
+```
+
+#### Step 4: Add Robust Error Handling
+```rust
+// Add transaction simulation before actual execution
+// Provide fallback routes for failed transactions
+// Improve error messages for debugging
+```
+
+#### Step 5: Test and Validate
+```bash
+# Test fixed 200 benchmark
+curl -X POST "http://localhost:3001/api/v1/benchmarks/200-jup-swap-then-lend-deposit/run" \
+  -H "Content-Type: application/json" \
+  -d '{"agent":"deterministic"}'
+
+# Verify tool calls captured in flow diagram
+curl -s "http://localhost:3001/api/v1/flows/{execution_id}"
 ```
 
 ### 🧪 **Testing Strategy**
 
-#### Test 1: Static Flow (200 Benchmark)
+#### Test 1: Static Jupiter Benchmark (200)
 ```bash
-# Should use deterministic agent as before
+# Should work with deterministic agent after fix
 curl -X POST "http://localhost:3001/api/v1/benchmarks/200-jup-swap-then-lend-deposit/run" \
   -H "Content-Type: application/json" \
-  -d '{"agent":"deterministic","mode":"static"}'
-# Expected: Success with deterministic instructions, tool calls captured
+  -d '{"agent":"deterministic"}'
+# Expected: Success with valid Jupiter transactions, tool calls captured
 ```
 
-#### Test 2: Dynamic Flow (300 Benchmark)  
+#### Test 2: Dynamic Jupiter Benchmark (300) - Regression Test
 ```bash
-# Should use LLM agent with Jupiter tools
+# Should continue working with LLM agent
 curl -X POST "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
   -H "Content-Type: application/json" \
-  -d '{"agent":"glamour","mode":"dynamic"}'
-# Expected: Success with LLM tool calls, real Jupiter execution
+  -d '{"agent":"glm-4.6-coding"}'
+# Expected: Still works exactly as before
 ```
 
-#### Test 3: Flow Type Validation
+#### Test 3: Simple Benchmark (001) - Regression Test
 ```bash
-# Invalid flow_type should fail validation
-# Missing flow_type should default to static
+# Should continue working with deterministic agent
+curl -X POST "http://localhost:3001/api/v1/benchmarks/001-sol-transfer/run" \
+  -H "Content-Type: application/json" \
+  -d '{"agent":"deterministic"}'
+# Expected: Still works exactly as before
 ```
 
 ### 📊 **Expected Results**
 
 #### Before Fix (Current State)
-- 300 benchmark: ❌ "Agent returned no actions to execute"
-- Tool calls: ❌ 0 tool calls captured
-- Flow visualization: ❌ "Prompt --> Agent --> [*]" (no tool states)
-- LLM usage: ❌ Deterministic agent used instead
+- 200 benchmark: ❌ Score 0, transaction simulation error, no tool calls
+- Static Jupiter flows: ❌ Completely broken
+- Deterministic agent: ❌ Cannot handle Jupiter operations
 
 #### After Fix (Expected State)
-- 300 benchmark: ✅ Dynamic flow with LLM agent execution
-- Tool calls: ✅ Jupiter swap/lend calls captured in OTEL
-- Flow visualization: ✅ Detailed mermaid with tool states
-- LLM usage: ✅ Glamour agent with actual Jupiter tools
-- 200 benchmark: ✅ Static flow unchanged, backward compatible
+- 200 benchmark: ✅ Score 80-100%, valid Jupiter transactions, tool calls captured
+- Static Jupiter flows: ✅ Working with deterministic agent
+- Dynamic Jupiter flows: ✅ Still working with LLM agents (unchanged)
+- Simple flows: ✅ Still working with deterministic agent (unchanged)
 
 ### 🔧 **Files to Modify**
-1. `benchmarks/300-jup-swap-then-lend-deposit-dyn.yml` - Add flow_type field
-2. `crates/reev-agent/src/lib.rs` - Update agent routing logic
-3. `crates/reev-runner/src/lib.rs` - Modify evaluation loop
-4. `crates/reev-api/src/services/benchmark_executor.rs` - Handle flow_type
-5. `crates/reev-lib/src/benchmark.rs` - Add flow_type validation
+1. `crates/reev-agent/src/deterministic_agent.rs` - Fix Jupiter instruction generation
+2. `crates/reev-agent/src/handlers/jupiter.rs` - Update Jupiter-specific handlers
+3. `benchmarks/200-jup-swap-then-lend-deposit.yml` - Possibly adjust expectations
+4. `tests/integration_tests.rs` - Add regression tests for Jupiter flows
 
 ### ⚠️ **Breaking Changes**
-None - backward compatible with existing benchmarks that lack flow_type field.
+- None expected - this is a bug fix for broken functionality
+- Should restore deterministic Jupiter benchmark capabilities
 
 ### 🎉 **Benefits**
-1. **Clear Intent**: Explicit flow configuration in YML
-2. **Clean Architecture**: No more hardcoded routing
-3. **Backward Compatible**: Existing benchmarks unchanged
-4. **Flexible**: Easy to add new flow types
-5. **Testable**: Clear separation for testing
+1. **Complete Coverage**: All benchmark series working correctly
+2. **Backward Compatibility**: Static benchmarks restored to working state  
+3. **Production Ready**: Full system ready for all use cases
+4. **Debugging**: Clear error messages and proper transaction simulation
 
 ---
 
-## Previous Issue #32: Jupiter Tool Call Capture - COMPLETED ✅
+## ✅ COMPLETED Tasks
 
-### **📊 Validation Results:**
-- ✅ Jupiter swap tool captured with 1164ms execution time
-- ✅ Enhanced OTEL logs containing full tool metadata
-- ✅ Session ID propagation working correctly
-- ✅ Tool calls captured in database for flow visualization
+### Dynamic Benchmark Architecture - COMPLETED
+- Mode-based routing (static vs dynamic) ✅
+- Flow type field implementation ✅ 
+- API integration with dynamic execution ✅
+- Tool name enum system ✅
+- Enhanced OTEL logging ✅
 
-### **✅ Final Status:**
-The dynamic benchmark system now has **complete Jupiter tool call integration** with enhanced OTEL logging and mermaid flow visualization! 
+### Jupiter Tool Call Capture - COMPLETED
+- Dynamic Jupiter tool calls captured perfectly ✅
+- Flow visualization working for dynamic flows ✅
+- Real Jupiter transaction execution ✅
+- Mermaid diagram generation ✅
 
-Both 200 and 300 benchmarks can now properly track:
-- Jupiter swap operations (real tool execution)
-- Jupiter lend operations (when depth limits allow)
-- Transaction details, timing, and success metrics
-- Complete flow sequences with proper state transitions
+### Test Coverage - COMPLETED
+- Updated tests for new architecture ✅
+- ToolName enum integration ✅
+- Async handling improvements ✅
 
-**All core tasks implemented and validated successfully.**
+---
+
+## 🚨 Critical Path to Production
+
+**Only One Blocker Remaining**: Fix deterministic agent Jupiter instruction generation
+
+**Time Estimate**: 2-4 hours for analysis and fix
+**Risk Level**: Medium (requires careful Jupiter program interface knowledge)
+**Priority**: CRITICAL (blocks static Jupiter benchmarks)
+
+**Next Action**: Analyze deterministic agent Jupiter code vs working LLM agent Jupiter instructions
