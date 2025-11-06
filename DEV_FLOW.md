@@ -17,6 +17,9 @@ This guide provides curl commands for testing and developing the API flow visual
 ./tests/scripts/debug_integration_test.sh
 ```
 
+**📌 Note on USER_WALLET_PUBKEY:**
+All examples use `USER_WALLET_PUBKEY` placeholder as intended. This represents a design gap (Issue #29) where API dynamic flow should auto-generate keys like benchmark mode, but currently doesn't. The documentation correctly maintains the placeholder to preserve the intended API design and encourage proper implementation.
+
 ## 🏗️ **Architecture Update**
 **Flow:** `Agent → Orchestrator (OTEL) → JSON + OTEL → DB → YML Parser → Mermaid`
 
@@ -47,13 +50,13 @@ curl -s http://localhost:3001/api/v1/benchmarks | jq length
 ```bash
 # All endpoints should return HTTP 200
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding"}'
 
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-bridge \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding", "shared_surfpool": true}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": true}'
 
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-recovery \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding"}'
 ```
 
 ## 🧪 **Flow Testing Scenarios**
@@ -91,7 +94,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id')
@@ -111,7 +114,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-bridge
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use 75% of my SOL to get maximum USDC yield on Jupiter",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": true
   }' | jq -r '.result.flow_id')
@@ -127,7 +130,7 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-recovery \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap all my SOL to USDC with maximum yield",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "recovery_config": {
       "base_retry_delay_ms": 1000,
@@ -178,19 +181,22 @@ sqlite3 db/reev_results.db "SELECT log_content FROM session_logs WHERE session_i
 
 ### **✅ IMPLEMENTATION COMPLETED: All Tasks from TASKS.md**
 ```bash
-# Test real tool execution with valid wallet:
+# Test dynamic flow execution (Issue #29 affects placeholder usage):
 curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.1 SOL to USDC", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}' | jq '.result'
+  -d '{"prompt": "swap 0.1 SOL to USDC", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding"}' | jq '.result'
 
-# Output: Real tool execution with flow visualization
-{
-  "flow_id": "dynamic-xxxxxxxx-yyyyyyyy",
-  "steps_generated": 2,
-  "execution_mode": "direct",
-  "tool_count": 2,
-  "state_count": 4
-}
+# ❌ Current Output: No tool calls captured (Issue #29)
+#   "execution_id": "direct-xxx",
+#   "result": {"flow_id": "dynamic-xxx", "steps_generated": 3},
+#   "tool_calls": []  # Empty - USER_WALLET_PUBKEY not auto-generated
+#
+# ✅ Expected Output (after Issue #29 fix):
+#   "flow_id": "dynamic-xxxxxxxx-yyyyyyyy",
+#   "steps_generated": 2,
+#   "execution_mode": "direct",
+#   "tool_count": 2,
+#   "state_count": 4
 ```
 
 **✅ All Implementation Tasks Completed:**
@@ -405,11 +411,25 @@ The complete dynamic benchmark system has been successfully implemented accordin
 
 ## 🚨 **Known Issues & Future Work**
 
-### **Issue #29**: USER_WALLET_PUBKEY Auto-Generation
-- **Status**: REPORTED
-- **Problem**: API dynamic flow doesn't auto-generate keys for USER_WALLET_PUBKEY placeholder
-- **Workaround**: Use real wallet address (e.g., `9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM`)
-- **Files**: All documentation updated with real wallet examples
+### **Issue #29**: USER_WALLET_PUBKEY Auto-Generation Missing
+- **Status**: REPORTED 🐛
+- **Problem**: API dynamic flow execution doesn't auto-generate keys for USER_WALLET_PUBKEY placeholder
+- **Current Behavior**: 
+  - Using `USER_WALLET_PUBKEY` in API requests fails silently (no tool calls captured)
+  - Real wallet addresses work but require manual configuration
+  - Inconsistent behavior vs benchmark mode (which has auto-generation)
+- **Why This Is Problematic**:
+  - Documentation examples don't work out-of-the-box
+  - Users following guides get "No tool calls found" errors
+  - Hardcoded wallet addresses are bad practice (security/maintainability)
+  - Confusing for AI/automation tools that parse docs
+- **Expected Design**: 
+  - `USER_WALLET_PUBKEY` should auto-generate unique keys like in benchmark mode
+  - Should use existing `Pubkey::new_unique()` pattern from `reev-lib/src/solana_env/reset.rs`
+  - Provides seamless experience without manual wallet setup
+- **Temporary Workaround**: Use real wallet address in examples (not recommended for production)
+- **Files Affected**: API handlers in `crates/reev-api/src/handlers/dynamic_flows/`
+- **Root Cause**: No auto-generation logic in API dynamic flow handlers (exists only in benchmark mode)
 
 ### **Next Enhancements** (See DYNAMIC_BENCHMARK_DESIGN.md#287-288)
 - **301-305 Series**: Advanced benchmark implementations
@@ -453,7 +473,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id')
