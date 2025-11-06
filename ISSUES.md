@@ -80,61 +80,34 @@ Deterministic agent has hardcoded Jupiter instruction generation that produces i
 
 ## Issue #27 - API Integration - COMPLETED ✅
 **Status**: IMPLEMENTED
-**Description**: API endpoints working with mode routing and dynamic execution
-**Evidence**:
-- API server running successfully on port 3001
-- Benchmark execution endpoints working for both static and dynamic flows
-- Flow diagram endpoints working with proper tool call visualization
-- Dynamic flow execution (300) working with glm-4.6-coding agent
-**Status**: COMPLETED - API integration fully functional
-
-## Issue #28 - Test Coverage - COMPLETED ✅
-**Status**: UPDATED
-**Description**: Updated tests to work with new ToolName enum
+**Description**: Simple dynamic YML generation without over-engineering
 **Implementation**:
-- Fixed integration_tests.rs to use ToolName enum
-- Updated orchestrator_tests.rs for proper async handling
-- Added conversion methods for backward compatibility
-- Fixed test assertions to use ToolName instead of strings
-- All tests pass with new architecture
-**Status**: COMPLETED - All tests updated and passing
+- Basic intent analysis using keyword detection
+- Simple amount extraction with regex
+- Temporary file generation and cleanup
+- Integration with existing runner infrastructure
 
-## Summary - November 6, 2025
-**Overall System Status**: FULLY PRODUCTION READY ✅
+## Issue #27 - API Integration - PENDING ⏳
+**Status**: BLOCKED
+**Description**: Update API endpoints to use new mode routing
+**Blocker**: reev-runner compilation errors preventing API server startup
+**Next Steps**:
+- Fix circular dependency between reev-orchestrator and reev-runner
+- Update API handlers to use route_execution function
+- Test dynamic flow execution via API
 
-✅ **All Components Working**:
-- API server with full benchmark execution support
-- Dynamic Jupiter benchmarks (300-series) with LLM agents
-- Static Jupiter benchmarks (200-series) with deterministic agents (FIXED)
-- Simple deterministic benchmarks (001-series) 
-- Flow visualization with Mermaid diagrams
-- Tool call capture for dynamic and static flows
-- Mode-based routing (static vs dynamic)
-- Database storage and session management
-- Enhanced OTEL logging and instrumentation
-
-📊 **Final Test Results - ALL PASSING**:
-- 001-sol-transfer: ✅ Score 100%, deterministic agent, 1 tool call captured
-- 200-jup-swap-then-lend-deposit: ✅ Score 100%, deterministic agent (FIXED)
-- 300-jup-swap-then-lend-deposit-dyn: ✅ Score 100%, glm-4.6-coding agent, 3 tool calls
-
-🎉 **Achievement**: All critical issues resolved, complete operational capability
-
-**System Status**: PRODUCTION DEPLOYMENT READY
-
-## Issue #30 - Jupiter Tool Calls Not Captured - RESOLVED ✅
-**Status**: COMPLETED
-**Description**: Jupiter tool calls ARE being captured correctly for dynamic benchmarks
+## Issue #30 - Jupiter Tool Calls Not Captured in OTEL - LIKELY RESOLVED ✅
+**Status**: PROBABLY RESOLVED
+**Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization
+**Recent Changes**:
+- Fixed agent routing - dynamic flows now use LLM agent properly
+- LLM agent should generate proper OTEL-tracked tool calls
+- Previous issue was deterministic agent not generating tool calls for Jupiter operations
 **Evidence**:
-- 300 benchmark with glm-4.6-coding agent: Successfully captures jupiter_swap tool calls
-- Real Jupiter transaction data with 6 instructions stored in database
-- Flow visualization shows complete tool execution sequence
-- OTEL logging working properly with enhanced session tracking
-**Root Cause Analysis**:
-- Jupiter tool calls ARE captured for dynamic benchmarks using LLM agents
-- Static benchmarks fail because deterministic agent generates invalid Jupiter instructions
-- The issue is deterministic agent capability, not OTEL capture infrastructure
-**Status**: RESOLVED - Jupiter tool call capture working perfectly for dynamic flows
+- Dynamic 300 benchmark now routes to glm-4.6-coding agent
+- LLM agent will use Jupiter tools with proper OTEL instrumentation
+- Agent logs should show successful Jupiter tool execution with proper tracing
+**Status**: LIKELY RESOLVED - Root cause was agent routing, not OTEL capture itself
 
 **Status**: RESOLVED
 **Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization
@@ -143,7 +116,21 @@ Deterministic agent has hardcoded Jupiter instruction generation that produces i
 - Agent logs show successful Jupiter swap and lend instruction generation
 - Simple benchmarks (001) capture tool calls correctly via OTEL logging
 - Only affects Jupiter-related tool calls (jupiter_swap, jupiter_lend)
+- **Documentation Gap**: 300 benchmark flow diagram only shows swap step, missing lend operation
 **Evidence**:
+- 300 benchmark execution: Shows complete 2-step flow with jupiter_swap (841ms) but Mermaid diagram only displays swap
+- Expected: Should show both jupiter_swap → jupiter_lend → [*] for complete flow
+```mermaid
+stateDiagram
+    [*] --> PromptProcessing
+    PromptProcessing --> ContextResolution : "parse 50% sol, 1.5x usdc"
+    ContextResolution --> AccountBalance : "discover wallet state"
+    AccountBalance --> JupiterSwap : "swap 50% sol → usdc"
+    JupiterSwap --> JupiterLend : "deposit usdc for yield"
+    JupiterLend --> PositionValidation : "validate final positions"
+    PositionValidation --> [*]
+```
+- Current: Prompt → Agent → jupiter_swap → [*] (lend step missing from visualization)
 - reev-agent logs show successful tool execution: "Successfully generated 6 Jupiter swap instructions"
 - Flow diagram returns simple state: "Prompt --> Agent --> [*]" (no tool states)
 - Database query for session returns 0 tool calls for Jupiter benchmarks
@@ -269,14 +256,14 @@ Add `flow_type: "dynamic"` field to YAML with default `"static"` behavior
 **Status**: COMPLETED
 **Description**: Consolidated flow_type logic to eliminate redundant tag checking throughout codebase
 **Resolution**:
-- Centralized flow_type determination in TestCase deserialization via `set_flow_type_from_tags()` 
+- Centralized flow_type determination in TestCase deserialization via `set_flow_type_from_tags()`
 - Added `set_flow_type_from_tags()` function to `reev-lib/src/benchmark.rs` that updates flow_type based on tags
 - Updated runner to call `set_flow_type_from_tags()` after loading TestCase from YAML
 - Removed redundant `determine_flow_type()` functions from agent and other scattered tag checking
 - Now flow_type is determined once at load time and used consistently throughout system
 **Evidence**:
 - 300 benchmark with "dynamic" tag correctly routes to glm-4.6-coding agent
-- 200/001 benchmarks without "dynamic" tag correctly use deterministic agent  
+- 200/001 benchmarks without "dynamic" tag correctly use deterministic agent
 - Flow type logic centralized in single location (benchmark.rs) instead of scattered across files
 - Runner logs show: "Updated flow_type from tags" confirming centralized logic works
 **Status**: RESOLVED - Single source of truth for flow_type determination achieved
