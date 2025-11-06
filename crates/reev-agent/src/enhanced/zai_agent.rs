@@ -127,7 +127,7 @@ impl ZAIAgent {
 
         // Use type-safe enum-based tool selection
         for tool_name_str in reev_types::ToolRegistry::all_tools() {
-            if is_tool_allowed(tool_name_str) {
+            if is_tool_allowed(&tool_name_str) {
                 let tool_enum = tool_name_str
                     .parse::<reev_types::ToolName>()
                     .unwrap_or(reev_types::ToolName::SolTransfer); // fallback
