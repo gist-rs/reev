@@ -65,7 +65,7 @@ pub struct JupiterSwapResponse {
     pub operation_type: String,
     pub status: String,
     pub completed: bool,
-    pub next_action: String,
+
     pub message: String,
 }
 
@@ -380,7 +380,6 @@ impl JupiterSwapTool {
             operation_type: "jupiter_swap".to_string(),
             status: "success".to_string(),
             completed: true,
-            next_action: "STOP".to_string(),
             message: format!("Successfully executed {instruction_count} jupiter_swap operation(s)"),
         };
 

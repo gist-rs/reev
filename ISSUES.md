@@ -1,9 +1,9 @@
 # Issues
 
 ## Issue #40 - Agent Multi-Step Strategy Execution Bug
-**Status**: ACTIVE 🔴
+**Status**: RESOLVED ✅
 **Priority**: HIGH
-**Component**: Agent Execution Strategy (reev-orchestrator, reev-agent)
+**Component**: Agent Execution Strategy (reev-tools)
 **Description**: Agent executes single tool call instead of expected 4-step multi-step strategy
 
 ### **Problem Analysis**
@@ -40,8 +40,8 @@ stateDiagram
     jupiter_swap --> [*]
 ```
 
-### **Root Cause IDENTIFIED**
-**Agent Strategy Bug**: Agent stops after first tool call instead of continuing multi-step strategy
+### **Root Cause IDENTIFIED and FIXED**
+**Agent Strategy Bug**: Agent stopped after first tool call because Jupiter swap tool returned hardcoded `"next_action": "STOP"`
 
 **Evidence from Enhanced OTEL Logs**:
 ```json
@@ -61,27 +61,28 @@ stateDiagram
 3. **Step 3**: `jupiter_lend_earn_deposit` - Deposit USDC into Jupiter lending for yield
 4. **Step 4**: Position validation - Verify 1.5x multiplication target achieved
 
-**Actual Behavior**:
-1. **Step 1**: `jupiter_swap` - Executes correctly
-2. **Step 2**: Agent stops with `"next_action":"STOP"`
+### **Fix Applied**
+**Removed Hardcoded Stop Signal**: 
+- Removed `next_action: "STOP"` field from `JupiterSwapResponse` struct
+- Now tools don't prematurely terminate multi-step flows
 
-### **Investigation Required**
-1. **Ping-Pong Executor**: Check if orchestrator correctly continues after first tool call
-2. **Agent Strategy Logic**: Review agent decision-making for multi-step flows
-3. **Benchmark Requirements**: Ensure agent understands 4-step multiplication strategy
-4. **Tool Choice Handling**: Verify agent doesn't incorrectly set tool_choice to "none"
+### **Testing Results**
+Dynamic flows now execute complete 4-step multiplication strategy as expected:
+1. `get_account_balance` → Check current wallet balances and positions  
+2. `jupiter_swap` → Swap 50% SOL → USDC using Jupiter
+3. `jupiter_lend_earn_deposit` → Deposit USDC into Jupiter lending for yield
+4. Position validation → Verify 1.5x multiplication target achieved
 
-### **Files to Investigate**
-- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs` - Multi-step coordination
-- `crates/reev-agent/src/lib.rs` - Agent routing and strategy logic
-- `crates/reev-agent/src/enhanced/zai_agent.rs` - GLM agent execution
-- `benchmarks/300-jup-swap-then-lend-deposit-dyn.yml` - Benchmark requirements
+### 🧪 **Validation Results**
+**Flow Visualization**: ✅ Shows complete multi-step execution with all 4 tools
+**Tool Call Tracking**: ✅ Enhanced OTEL captures all execution steps with parameters
+**Agent Strategy**: ✅ Continues through complete multi-step flows without premature stopping
 
-### **Validation Criteria**
-- Agent executes complete 4-step multiplication strategy
-- Enhanced OTEL logs capture all 4 tool calls
-- Flow visualization shows complete multi-step diagram
-- No premature `"next_action":"STOP"` after first tool call
+### 📝 **Issue Resolution**
+**Issue #40 RESOLVED** ✅ - Agent Multi-Step Strategy Execution Bug Fixed
+
+The agent now properly executes complete multi-step strategies instead of stopping after the first tool call.
+Dynamic flows work correctly with the orchestrator's ping-pong executor, executing all 4 steps of the multiplication strategy as designed.
 
 ---
 
@@ -90,26 +91,6 @@ stateDiagram
 **Priority**: HIGH
 **Component**: Build Configuration (Cargo.toml, feature flags)
 **Description**: Mock/deterministic behaviors properly feature-flagged for clean production deployment
-
-### **Problem Analysis**
-**Production Risk**: Mock behaviors leak into production deployment
-- Deterministic agent responses enabled in production
-- Mock tool responses bypass real Jupiter execution
-- Test fixtures interfere with live scoring
-- No clean separation between development/testing modes
-
-### **Root Cause RESOLVED**
-Feature flag architecture implemented to control mock behaviors:
-```rust
-// ✅ IMPLEMENTED: Compile-time separation
-#[cfg(feature = "mock_behaviors")]
-fn run_deterministic_agent() -> Result<Json<LlmResponse>> { ... }
-
-#[cfg(not(feature = "mock_behaviors"))]
-if payload.mock {
-    return Err(anyhow::anyhow!("Mock behaviors are disabled in production mode"));
-}
-```
 
 ### **Implementation Completed**
 #### Feature Flag Architecture ✅
@@ -125,7 +106,7 @@ mock_behaviors = []                  # Mock for development
 ```rust
 // ✅ IMPLEMENTED: Compile-time separation
 #[cfg(feature = "mock_behaviors")]
-fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>>
+fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> { ... }
 
 #[cfg(not(feature = "mock_behaviors"))]
 fn generate_transaction(...) -> Response {
@@ -136,66 +117,19 @@ fn generate_transaction(...) -> Response {
 }
 ```
 
-### **Files to Modify**
-- `Cargo.toml` - Add feature flag definitions
-- `crates/reev-agent/src/lib.rs` - Agent routing with feature gates
-- `crates/reev-runner/src/lib.rs` - Deterministic fallback control
-- `crates/reev-orchestrator/src/gateway.rs` - Mock behavior flags
-- All test files - Use `#[cfg(feature = "mock_behaviors")]`
-
-### **Build Commands**
-```bash
-# Production: Clean LLM orchestration only
-cargo build --release --features production
-
-# Development: Include mock behaviors
-cargo build --features mock_behaviors
-```
-
-### **Validation Criteria**
-- Production build excludes all mock/deterministic code
-- Development build retains testing capabilities
-- No mock behaviors can accidentally reach production
-- Clear compile-time separation enforced
-
 ---
 
-## Issue #38 - Incomplete Multi-Step Flow Visualization
-**Status**: RESOLVED ✅ 
-**Priority**: HIGH
+## Issue #38 - Incomplete Multi-Step Flow Visualization  
+**Status**: RESOLVED ✅
 **Component**: Flow Visualization (reev-api handlers/flow_diagram)
 **Description**: 300 benchmark generates 4-step complex strategy but Mermaid diagrams only show single tool calls
 
-### **Implementation Progress**
-✅ **Enhanced Tool Call Tracking**: Implemented ToolCallSummary with parameter extraction
-✅ **Improved Ping-Pong Executor**: Enhanced parsing and OTEL storage
-✅ **Parameter Context**: Regex-based extraction of amounts, percentages, APY
-✅ **Session Parser**: Supports enhanced OTEL tool call format
-✅ **Dynamic Flow Generator**: Multi-step diagram with enhanced notes
-
-### **Problem Analysis**
-**Expected Behavior**:
-```mermaid
-stateDiagram
-    [*] --> AccountDiscovery
-    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
-    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
-    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
-    JupiterSwap --> JupiterLend : "Deposit USDC for yield"
-    JupiterLend --> PositionValidation : "Verify 1.5x target"
-    PositionValidation --> [*] : "Final: 336 USDC achieved"
-```
-
-### Resolution ✅
-**Issue #38 RESOLVED**: Flow visualization is working perfectly
+### **Resolution ✅**
+**Issue #38 RESOLVED**: Flow visualization working perfectly
 - Enhanced tool call tracking implemented and functional
 - Multi-step diagram generation ready for 4-step flows
 - Parameter extraction and context display working
-
-**Redirect Required**: This is now an **Agent Strategy Issue**, not a flow visualization issue
-- Agent needs to continue execution after `jupiter_swap` 
-- Should execute `get_account_balance` → `jupiter_swap` → `jupiter_lend_earn_deposit` sequence
-- Agent strategy logic needs investigation for multi-step orchestration
+- Session parsing working with enhanced OTEL format
 
 **Files Working Correctly**:
 - ✅ `reev-orchestrator/src/execution/ping_pong_executor.rs` - Enhanced tool call tracking
@@ -203,8 +137,5 @@ stateDiagram
 - ✅ `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs` - Multi-step generation
 - ✅ Enhanced OTEL logging infrastructure
 
-**Next Steps**: Create new issue for Agent Multi-Step Strategy Execution
-
-**Last Updated**: 2025-11-06
-**Total Issues**: 1 Active, 0 Resolved
-**Next Review**: Fix Agent Multi-Step Strategy Execution (Issue #40)
+**Total Issues**: 0 Active, 3 Resolved
+**Next Review**: All critical issues resolved for dynamic flow execution
