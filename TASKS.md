@@ -461,6 +461,270 @@ async fn test_dynamic_mode_generates_yml() {
 
 ---
 
+## 📋 **Next Phase: Enhanced Scoring & Flow Information**
+
+### **🎯 Current Gap Analysis**
+
+Based on DYNAMIC_BENCHMARK_DESIGN.md review and code scan, several gaps identified:
+
+#### **❌ Missing Critical Information in Current Flow:**
+1. **No Pubkey Information**: Flow diagrams lack wallet/transaction pubkeys
+2. **No Amount Details**: Missing SOL/USDC amounts in flow visualization  
+3. **No Time Metrics**: No execution timing per step or total duration
+4. **No Step Scoring**: Missing individual step scores and total score
+5. **No Partial Progress**: No intermediate scoring during multi-step flows
+
+#### **❌ Scoring System Gaps:**
+1. **Real-time Scoring**: Only final scoring, no intermediate step scoring
+2. **Detailed Metrics**: Missing granular performance metrics per step
+3. **Progress Tracking**: No weighted progress based on step completion
+4. **Score Breakdown**: Missing attribution of score components (instruction vs execution)
+
+### **🏗️ Enhancement Plan: Scoring & Rich Flow Information**
+
+#### **Phase 1: Enhanced Tool Call Capture**
+```rust
+// File: crates/reev-types/src/execution.rs
+pub struct ToolCallSummary {
+    pub tool_name: String,
+    pub timestamp: DateTime<Utc>,
+    pub duration_ms: u64,
+    pub success: bool,
+    pub error: Option<String>,
+    pub params: Option<serde_json::Value>,
+    pub result_data: Option<serde_json::Value>,
+    pub tool_args: Option<String>,
+    
+    // NEW FIELDS for rich scoring
+    pub wallet_pubkey: Option<String>,           // User wallet pubkey
+    pub input_amount: Option<f64>,              // Input amount (SOL/USDC)
+    pub output_amount: Option<f64>,             // Output amount (SOL/USDC)
+    pub input_mint: Option<String>,             // Input token mint
+    pub output_mint: Option<String>,            // Output token mint
+    pub tx_signature: Option<String>,            // Transaction signature
+    pub step_score: Option<f64>,               // Individual step score (0-1)
+    pub step_weight: f64,                     // Step weight in total score
+}
+
+pub struct ExecutionResponse {
+    pub execution_id: String,
+    pub status: ExecutionStatus,
+    pub duration_ms: u64,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<String>,
+    pub logs: Vec<String>,
+    pub tool_calls: Vec<ToolCallSummary>,
+    
+    // NEW FIELDS for comprehensive scoring
+    pub total_score: Option<f64>,             // Overall execution score
+    pub scoring_breakdown: Option<ScoringBreakdown>, // Detailed score attribution
+    pub progress_weighted: Option<f64>,        // Weighted progress (0-1)
+    pub steps_completed: u32,                  // Number of completed steps
+    pub steps_total: u32,                      // Total number of steps
+}
+```
+
+#### **Phase 2: Enhanced Scoring Integration**
+```rust
+// File: crates/reev-orchestrator/src/execution/ping_pong_executor.rs
+impl PingPongExecutor {
+    pub async fn execute_step_with_scoring(
+        &mut self,
+        step: &DynamicStep,
+        context: &WalletContext,
+    ) -> Result<StepResult> {
+        // Execute tool call with enhanced capture
+        let tool_result = self.execute_tool_call_enhanced(step).await?;
+        
+        // Calculate individual step score
+        let step_score = self.calculate_step_score(step, &tool_result).await?;
+        
+        // Update weighted progress
+        let progress = self.calculate_weighted_progress(step_index, total_steps, step_score).await?;
+        
+        Ok(StepResult {
+            step_id: step.step_id.clone(),
+            success: tool_result.success,
+            tool_call: tool_result.tool_call,
+            step_score,
+            duration_ms: tool_result.duration_ms,
+            execution_data: tool_result.execution_data,
+        })
+    }
+    
+    async fn calculate_step_score(&self, step: &DynamicStep, result: &ToolResult) -> Result<f64> {
+        // Base score on tool success
+        let base_score = if result.success { 1.0 } else { 0.0 };
+        
+        // Apply step weight
+        let weighted_score = base_score * step.weight;
+        
+        // Bonus for partial success (e.g., correct amount but wrong recipient)
+        let partial_bonus = self.calculate_partial_success_bonus(step, result).await?;
+        
+        Ok((weighted_score + partial_bonus).min(1.0))
+    }
+}
+```
+
+#### **Phase 3: Enhanced Flow Visualization**
+```rust
+// File: crates/reev-api/src/handlers/flow_diagram/state_diagram_generator.rs
+impl StateDiagramGenerator {
+    pub fn generate_enhanced_diagram(session: &ParsedSession) -> Result<FlowDiagram> {
+        let mut diagram_lines = vec!["stateDiagram".to_string()];
+        
+        for (i, tool_call) in session.tool_calls.iter().enumerate() {
+            let step_name = format!("{}_{}", tool_call.tool_name, i + 1);
+            let next_name = if i < session.tool_calls.len() - 1 {
+                format!("{}_{}", session.tool_calls[i + 1].tool_name, i + 2)
+            } else {
+                "[*]".to_string()
+            };
+            
+            // Enhanced transition with scoring info
+            let transition = format!(
+                "{} --> {} : \"{} | {}s | Score: {:.1}%\"",
+                step_name,
+                next_name,
+                self.get_tool_summary(tool_call),
+                tool_call.duration_ms / 1000,
+                tool_call.step_score.unwrap_or(0.0) * 100.0
+            );
+            
+            diagram_lines.push(transition);
+            
+            // Rich note with key information
+            if let Some(tx_sig) = &tool_call.tx_signature {
+                let note = format!(
+                    "note right of {}: {}\\nWallet: {}\\nInput: {:.6} {}\\nOutput: {:.2} {}\\nSig: {}",
+                    step_name,
+                    tool_call.success.then(|| "✅ SUCCESS").unwrap_or("❌ FAILED"),
+                    tool_call.wallet_pubkey.as_deref().unwrap_or(&"Unknown".to_string()),
+                    tool_call.input_amount.unwrap_or(0.0),
+                    tool_call.input_mint.as_deref().unwrap_or(&"Unknown".to_string()),
+                    tool_call.output_amount.unwrap_or(0.0),
+                    tool_call.output_mint.as_deref().unwrap_or(&"Unknown".to_string()),
+                    &tx_sig[..8] // First 8 chars of signature
+                );
+                diagram_lines.push(note);
+            }
+        }
+        
+        // Total score summary
+        if let Some(total_score) = session.total_score {
+            diagram_lines.push(format!(
+                "note right of [*] : Final Score: {:.1}% | Duration: {}s",
+                total_score * 100.0,
+                session.execution_time_ms / 1000
+            ));
+        }
+        
+        Ok(FlowDiagram::new(
+            diagram_lines.join("\n"),
+            SessionParser::create_metadata(session)
+        ))
+    }
+}
+```
+
+#### **Phase 4: Enhanced Mermaid Diagram Format**
+```mermaid
+stateDiagram
+    [*] --> PromptProcessing
+    PromptProcessing --> AccountBalance : "parse request | 0.5s | Score: 100%"
+    
+    AccountBalance --> JupiterSwap : "0.5 SOL → USDC | 25s | Score: 100%"
+
+note right of AccountBalance: ✅ SUCCESS\\nWallet: 9WzDXwBbmkg8...\\nBalance: 2.5 SOL\\nSignature: 5Kj7Lm9...
+
+    JupiterSwap --> JupiterLend : "150 USDC → Yield | 30s | Score: 95%"
+
+note right of JupiterSwap: ✅ SUCCESS\\nInput: 0.5 SOL\\nOutput: 75.2 USDC\\nSignature: 3Mk8Jn2...
+
+    JupiterLend --> PositionValidation : "deposit validation | 10s | Score: 100%"
+
+note right of JupiterLend: ✅ SUCCESS\\nDeposited: 75.2 USDC\\nAPY: 5.8%\\nPosition: A7k9Lm3...
+
+    PositionValidation --> [*]
+
+note right of [*] : Final Score: 98.3% | Duration: 65.5s
+```
+
+#### **Phase 5: Real-time Scoring API**
+```rust
+// File: crates/reev-api/src/handlers/flows.rs
+pub async fn get_flow_with_scoring(
+    Path(flow_id): Path<String>,
+) -> impl IntoResponse {
+    let session = get_session_with_scoring(&flow_id).await?;
+    
+    Json(json!({
+        "flow_id": flow_id,
+        "metadata": {
+            "state_count": session.metadata.state_count,
+            "tool_count": session.metadata.tool_count,
+            "execution_time_ms": session.metadata.execution_time_ms,
+            "total_score": session.total_score,
+            "scoring_breakdown": session.scoring_breakdown,
+            "progress_weighted": session.progress_weighted,
+            "steps_completed": session.steps_completed,
+            "steps_total": session.steps_total
+        },
+        "tool_calls": session.tool_calls,
+        "real_time_scoring": {
+            "current_step": session.current_step,
+            "current_score": session.current_step_score,
+            "estimated_final_score": session.estimated_final_score
+        },
+        "diagram": session.enhanced_diagram
+    }))
+}
+```
+
+### **🎯 Implementation Priority**
+
+#### **Priority 1: Core Enhancement (Week 1)**
+1. **Enhanced ToolCallSummary** - Add scoring and metadata fields
+2. **Step-level scoring** - Implement individual step scoring in ping-pong executor
+3. **Progress tracking** - Add weighted progress calculation
+
+#### **Priority 2: Visualization Enhancement (Week 2)**  
+1. **Rich flow diagrams** - Add pubkey, amount, timing info to Mermaid
+2. **Real-time scoring** - Add scoring breakdown to API responses
+3. **Enhanced session parsing** - Extract rich data from OTEL logs
+
+#### **Priority 3: Advanced Features (Week 3)**
+1. **Partial success bonuses** - Implement nuanced scoring for partial matches
+2. **Predictive scoring** - Add estimated final score during execution
+3. **Performance analytics** - Add execution analytics and optimization suggestions
+
+### **📊 Success Criteria for Enhancement**
+
+#### **Functional Requirements:**
+- [ ] Each tool call shows wallet pubkey, amounts, mints, signatures
+- [ ] Individual step scores (0-100%) displayed in flow
+- [ ] Total score with breakdown (instruction vs execution weights)
+- [ ] Real-time progress tracking with weighted completion
+- [ ] Enhanced Mermaid diagrams with rich execution details
+
+#### **Technical Requirements:**
+- [ ] Backward compatibility with existing ToolCallSummary API
+- [ ] Performance impact < 5% on execution time
+- [ ] All scoring data persisted in database
+- [ ] Real-time scoring updates via WebSocket (future enhancement)
+
+### **🚨 Critical Notes**
+
+1. **Database Schema Updates**: Need to migrate ExecutionState tables for new scoring fields
+2. **OTEL Enhancement**: Must capture richer execution data at orchestrator level
+3. **API Compatibility**: Ensure existing integrations continue working
+4. **Performance**: Rich data capture should not impact execution performance
+
+**Goal: Transform basic flow execution into rich, scored, information-dense visualization system.**
+
+---
+
 ## 📋 **Implementation Summary**
 
 ### **🎯 Commit Details**
