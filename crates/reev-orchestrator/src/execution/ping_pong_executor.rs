@@ -20,6 +20,7 @@ use reev_flow::{
     log_step_complete, log_tool_call,
 };
 use reev_types::tools::ToolName;
+
 // Re-export constants from reev-lib
 use reev_lib::constants::{sol_mint, usdc_mint};
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
@@ -372,17 +373,41 @@ impl PingPongExecutor {
                     || response.to_lowercase().contains("bad request")
                     || response.to_lowercase().contains("not found");
 
-                // Parse tool calls from response (simplified for now)
-                let tool_calls = self
-                    .parse_tool_calls_from_response(&response)?
-                    .into_iter()
-                    .map(|v| v.to_string())
+                // Parse enhanced tool calls from response with parameters
+                let enhanced_tool_calls = self.parse_tool_calls_from_response(&response)?;
+
+                // Update duration_ms for each tool call based on actual execution time
+                let mut enhanced_tool_calls_with_duration = enhanced_tool_calls;
+                for tool_call in &mut enhanced_tool_calls_with_duration {
+                    tool_call.duration_ms = duration_ms;
+                }
+
+                // Convert to strings for StepResult compatibility
+                let tool_calls = enhanced_tool_calls_with_duration
+                    .iter()
+                    .map(|v| v.tool_name.clone())
                     .collect::<Vec<_>>();
 
-                // Log tool execution to OTEL if available
+                // Log enhanced tool execution to OTEL if available
                 if self.otel_session_id.is_some() {
-                    for tool_call in &tool_calls {
-                        log_tool_call!(tool_call, serde_json::json!({}));
+                    for tool_call in &enhanced_tool_calls_with_duration {
+                        log_tool_call!(
+                            &tool_call.tool_name,
+                            tool_call.params.clone().unwrap_or(serde_json::json!({}))
+                        );
+                    }
+                }
+
+                // Store enhanced tool calls in session for flow diagram generation
+                if let Some(session_id) = &self.otel_session_id {
+                    if let Err(e) = self
+                        .store_enhanced_tool_calls(session_id, &enhanced_tool_calls_with_duration)
+                        .await
+                    {
+                        warn!(
+                            "[PingPongExecutor] Failed to store enhanced tool calls: {}",
+                            e
+                        );
                     }
                 }
 
@@ -435,34 +460,152 @@ impl PingPongExecutor {
     }
 
     /// Parse tool calls from agent response (simplified implementation)
-    fn parse_tool_calls_from_response(&self, response: &str) -> Result<Vec<String>> {
-        // This is a simplified parser - in production, you'd want more robust parsing
+    fn parse_tool_calls_from_response(
+        &self,
+        response: &str,
+    ) -> Result<Vec<reev_types::ToolCallSummary>> {
+        // Enhanced parser to capture tool calls with parameters
         let mut tool_calls = Vec::new();
+        let current_time = chrono::Utc::now();
 
         // Look for tool call indicators in response using type-safe enum
         use reev_types::ToolName;
 
+        // Enhanced tool call detection with parameter extraction
         if response.contains(ToolName::JupiterSwap.to_string().as_str()) {
-            tool_calls.push(ToolName::JupiterSwap.to_string());
+            let params = self.extract_swap_parameters(response);
+            tool_calls.push(reev_types::ToolCallSummary {
+                tool_name: ToolName::JupiterSwap.to_string(),
+                timestamp: current_time,
+                duration_ms: 0, // Will be set by caller
+                success: true,
+                error: None,
+                params: Some(params),
+                result_data: None, // Will be populated after execution
+                tool_args: None,   // Will be populated with raw agent response
+            });
         }
 
         if response.contains(ToolName::JupiterLendEarnDeposit.to_string().as_str()) {
-            tool_calls.push(ToolName::JupiterLendEarnDeposit.to_string());
+            let params = self.extract_lend_parameters(response);
+            tool_calls.push(reev_types::ToolCallSummary {
+                tool_name: ToolName::JupiterLendEarnDeposit.to_string(),
+                timestamp: current_time,
+                duration_ms: 0,
+                success: true,
+                error: None,
+                params: Some(params),
+                result_data: None,
+                tool_args: None, // Will be populated with raw agent response
+            });
         }
 
         if response.contains(ToolName::GetJupiterLendEarnPosition.to_string().as_str()) {
-            tool_calls.push(ToolName::GetJupiterLendEarnPosition.to_string());
+            tool_calls.push(reev_types::ToolCallSummary {
+                tool_name: ToolName::GetJupiterLendEarnPosition.to_string(),
+                timestamp: current_time,
+                duration_ms: 0,
+                success: true,
+                error: None,
+                params: Some(serde_json::json!({})),
+                result_data: None,
+                tool_args: None, // Will be populated with raw agent response
+            });
         }
 
         if response.contains(ToolName::GetAccountBalance.to_string().as_str()) {
-            tool_calls.push(ToolName::GetAccountBalance.to_string());
+            tool_calls.push(reev_types::ToolCallSummary {
+                tool_name: ToolName::GetAccountBalance.to_string(),
+                timestamp: current_time,
+                duration_ms: 0,
+                success: true,
+                error: None,
+                params: Some(serde_json::json!({})),
+                result_data: None,
+                tool_args: None, // Will be populated with raw agent response
+            });
         }
 
         if response.contains(ToolName::GetJupiterLendEarnTokens.to_string().as_str()) {
-            tool_calls.push(ToolName::GetJupiterLendEarnTokens.to_string());
+            tool_calls.push(reev_types::ToolCallSummary {
+                tool_name: ToolName::GetJupiterLendEarnTokens.to_string(),
+                timestamp: current_time,
+                duration_ms: 0,
+                success: true,
+                error: None,
+                params: Some(serde_json::json!({})),
+                result_data: None,
+                tool_args: None, // Will be populated with raw agent response
+            });
         }
 
         Ok(tool_calls)
+    }
+
+    /// Extract Jupiter swap parameters from response text
+    fn extract_swap_parameters(&self, response: &str) -> serde_json::Value {
+        // Look for patterns like "2.0 SOL", "50% of SOL", etc.
+        let mut params = serde_json::json!({});
+
+        // Extract amount patterns
+        if let Some(amount_match) = regex::Regex::new(r"(\d+\.?\d*)\s*(SOL|USDC)")
+            .ok()
+            .and_then(|re| re.captures(response))
+        {
+            let amount = amount_match.get(1).unwrap().as_str();
+            let token = amount_match.get(2).unwrap().as_str();
+            params["amount"] = serde_json::Value::String(amount.to_string());
+            params["token"] = serde_json::Value::String(token.to_string());
+        }
+
+        // Extract percentage patterns
+        if let Some(percentage_match) = regex::Regex::new(r"(\d+\.?\d*)%\s*of\s*(SOL|USDC)")
+            .ok()
+            .and_then(|re| re.captures(response))
+        {
+            let percentage = percentage_match.get(1).unwrap().as_str();
+            let token = percentage_match.get(2).unwrap().as_str();
+            params["percentage"] = serde_json::Value::String(percentage.to_string());
+            params["of_token"] = serde_json::Value::String(token.to_string());
+        }
+
+        params
+    }
+
+    /// Extract Jupiter lend parameters from response text
+    fn extract_lend_parameters(&self, response: &str) -> serde_json::Value {
+        let mut params = serde_json::json!({});
+
+        // Extract APY patterns
+        if let Some(apy_match) = regex::Regex::new(r"(\d+\.?\d*)%\s*APY")
+            .ok()
+            .and_then(|re| re.captures(response))
+        {
+            let apy = apy_match.get(1).unwrap().as_str();
+            params["apy"] = serde_json::Value::String(apy.to_string());
+        }
+
+        // Extract yield target patterns
+        if let Some(yield_match) = regex::Regex::new(r"yield\s+target\s+(\d+\.?\d*)x")
+            .ok()
+            .and_then(|re| re.captures(response))
+        {
+            let yield_target = yield_match.get(1).unwrap().as_str();
+            params["yield_target"] = serde_json::Value::String(yield_target.to_string());
+        }
+
+        // Extract amount patterns for lend
+        if let Some(amount_match) = regex::Regex::new(r"deposit\s+(\d+\.?\d*)\s*(SOL|USDC)")
+            .ok()
+            .and_then(|re| re.captures(response))
+        {
+            let amount = amount_match.get(1).unwrap().as_str();
+            let token = amount_match.get(2).unwrap().as_str();
+            params["deposit_amount"] = serde_json::Value::String(amount.to_string());
+            params["deposit_token"] = serde_json::Value::String(token.to_string());
+        }
+
+        params
     }
 
     /// Create key_map for dynamic flow execution with actual wallet context
@@ -503,5 +646,56 @@ impl PingPongExecutor {
         );
 
         key_map
+    }
+
+    /// Store enhanced tool calls in session for flow diagram generation
+    async fn store_enhanced_tool_calls(
+        &self,
+        session_id: &str,
+        tool_calls: &[reev_types::ToolCallSummary],
+    ) -> Result<()> {
+        // Store using OTEL session infrastructure
+        if let Ok(logger) = reev_flow::get_enhanced_otel_logger() {
+            for tool_call in tool_calls {
+                let enhanced_tool_call = reev_flow::EnhancedToolCall {
+                    timestamp: tool_call.timestamp,
+                    session_id: session_id.to_string(),
+                    reev_runner_version: env!("CARGO_PKG_VERSION").to_string(),
+                    reev_agent_version: env!("CARGO_PKG_VERSION").to_string(),
+                    event_type: reev_flow::EventType::ToolInput,
+                    prompt: None,
+                    tool_input: Some(reev_flow::ToolInputInfo {
+                        tool_name: tool_call.tool_name.clone(),
+                        tool_args: tool_call.params.clone().unwrap_or(serde_json::json!({})),
+                    }),
+                    tool_output: Some(reev_flow::ToolOutputInfo {
+                        success: tool_call.success,
+                        results: tool_call
+                            .result_data
+                            .clone()
+                            .unwrap_or(serde_json::json!({})),
+                        error_message: tool_call.error.clone(),
+                    }),
+                    timing: reev_flow::TimingInfo {
+                        flow_timeuse_ms: 0, // Not applicable for individual tool calls
+                        step_timeuse_ms: tool_call.duration_ms,
+                    },
+                    metadata: serde_json::json!({
+                        "enhanced_tracking": true,
+                        "orchestrator_generated": true
+                    }),
+                };
+
+                logger.log_tool_call(enhanced_tool_call)?;
+            }
+        }
+
+        info!(
+            "[PingPongExecutor] Stored {} enhanced tool calls for session {}",
+            tool_calls.len(),
+            session_id
+        );
+
+        Ok(())
     }
 }

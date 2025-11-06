@@ -1,10 +1,10 @@
 # Issues
 
 ## Issue #39 - Production Mock Behavior Missing Feature Flag
-**Status**: ACTIVE ⚠️
+**Status**: RESOLVED ✅
 **Priority**: HIGH
 **Component**: Build Configuration (Cargo.toml, feature flags)
-**Description**: Mock/deterministic behaviors not properly feature-flagged for clean production deployment
+**Description**: Mock/deterministic behaviors properly feature-flagged for clean production deployment
 
 ### **Problem Analysis**
 **Production Risk**: Mock behaviors leak into production deployment
@@ -13,35 +13,41 @@
 - Test fixtures interfere with live scoring
 - No clean separation between development/testing modes
 
-### **Root Cause**
-Missing feature flag architecture to control mock behaviors:
+### **Root Cause RESOLVED**
+Feature flag architecture implemented to control mock behaviors:
 ```rust
-// ❌ CURRENT: No compile-time separation
-if cfg!(debug_assertions) {
-    enable_deterministic_fallbacks(); // Leaks to production
+// ✅ IMPLEMENTED: Compile-time separation
+#[cfg(feature = "mock_behaviors")]
+fn run_deterministic_agent() -> Result<Json<LlmResponse>> { ... }
+
+#[cfg(not(feature = "mock_behaviors"))]
+if payload.mock {
+    return Err(anyhow::anyhow!("Mock behaviors are disabled in production mode"));
 }
 ```
 
-### **Required Implementation**
-#### Feature Flag Architecture
+### **Implementation Completed**
+#### Feature Flag Architecture ✅
 ```toml
+# ✅ IMPLEMENTED in individual crates
 [features]
 default = ["production"]
 production = []                    # Clean LLM orchestration
-development = ["mock_behaviors"]     # Mock for testing
+mock_behaviors = []                  # Mock for development
 ```
 
-#### Code Separation
+#### Code Separation ✅
 ```rust
-// ✅ REQUIRED: Compile-time separation
-#[cfg(feature = "production")]
-fn get_agent_config() -> AgentConfig {
-    AgentConfig::llm_only() // No deterministic fallback
-}
-
+// ✅ IMPLEMENTED: Compile-time separation
 #[cfg(feature = "mock_behaviors")]
-fn get_agent_config() -> AgentConfig {
-    AgentConfig::with_deterministic_fallback() // Testing mode
+fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>>
+
+#[cfg(not(feature = "mock_behaviors"))]
+fn generate_transaction(...) -> Response {
+    if mock_enabled {
+        return Err(anyhow::anyhow!("Mock behaviors are disabled in production mode"));
+    }
+    // Production: Route to LLM-only execution
 }
 ```
 
@@ -70,10 +76,17 @@ cargo build --features mock_behaviors
 ---
 
 ## Issue #38 - Incomplete Multi-Step Flow Visualization
-**Status**: ACTIVE ⚠️
+**Status**: IN PROGRESS 🔄
 **Priority**: HIGH
 **Component**: Flow Visualization (reev-api handlers/flow_diagram)
 **Description**: 300 benchmark generates 4-step complex strategy but Mermaid diagrams only show single tool calls
+
+### **Implementation Progress**
+✅ **Enhanced Tool Call Tracking**: Implemented ToolCallSummary with parameter extraction
+✅ **Improved Ping-Pong Executor**: Enhanced parsing and OTEL storage
+✅ **Parameter Context**: Regex-based extraction of amounts, percentages, APY
+✅ **Session Parser**: Supports enhanced OTEL tool call format
+✅ **Dynamic Flow Generator**: Multi-step diagram with enhanced notes
 
 ### **Problem Analysis**
 **Expected Behavior**:
@@ -97,11 +110,11 @@ stateDiagram
     jupiter_swap --> [*]
 ```
 
-### **Root Cause**
+### **Root Cause PARTIALLY RESOLVED**
 - ✅ **Flow Generation**: 4-step plan created correctly in `gateway.rs:352-363`
 - ✅ **Tool Execution**: All 4 steps execute successfully (score: 1.0)
-- ❌ **Tool Call Tracking**: Only final tool captured in session logs
-- ❌ **Visualization**: Missing intermediate steps in Mermaid generation
+- 🔄 **Tool Call Tracking**: Enhanced ToolCallSummary captures all steps with parameters
+- 🔄 **Visualization**: Enhanced diagram generation supports AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
 
 ### **Fix Required**
 1. **Enhanced Tool Call Logging**: Capture all 4 execution steps in OpenTelemetry traces
@@ -109,10 +122,11 @@ stateDiagram
 3. **Parameter Context**: Display amounts, wallets, and calculations in diagram
 4. **Step Validation**: Show success/failure status for each step
 
-**Files to Modify**:
-- `reev-orchestrator/src/execution/ping_pong_executor.rs` - Step tracking
-- `reev-api/src/handlers/flow_diagram/session_parser.rs` - Multi-step parsing
-- `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs` - Enhanced visualization
+**Files Modified**:
+- ✅ `reev-orchestrator/src/execution/ping_pong_executor.rs` - Enhanced tool call tracking with ToolCallSummary
+- ✅ `reev-api/src/handlers/flow_diagram/session_parser.rs` - Enhanced OTEL parsing support
+- ✅ `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs` - Multi-step diagram generation
+- ✅ `reev/tests/scripts/test_flow_visualization.sh` - Validation script for 4-step flows
 
 ---
 

@@ -6,8 +6,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
 use reev_lib::constants::{sol, usdc, usdc_mint, EIGHT_PERCENT, FIVE_PERCENT, USDC_MINT_AMOUNT};
+
+#[cfg(feature = "mock_behaviors")]
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -555,6 +556,15 @@ async fn generate_transaction(
     // Allow mock to be set via query param or request body
     let mock_enabled = params.mock || payload.mock;
 
+    // In production mode, mock should never be enabled
+    #[cfg(not(feature = "mock_behaviors"))]
+    if mock_enabled {
+        let error_msg = "Mock behaviors are disabled in production mode".to_string();
+        error!("[reev-agent] Mock requested in production mode. Sending 400 response.");
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": error_msg }))).into_response();
+    }
+
+    #[cfg(feature = "mock_behaviors")]
     let result = if mock_enabled {
         info!("[reev-agent] Routing to Deterministic Agent (mock=true).");
         run_deterministic_agent(payload).await
@@ -562,6 +572,25 @@ async fn generate_transaction(
         info!("[reev-agent] Routing to AI Agent.");
         run_ai_agent(payload).await
     };
+
+    #[cfg(not(feature = "mock_behaviors"))]
+    let result = async {
+        info!("[reev-agent] Routing to AI Agent (production mode).");
+        // In production, route to run_agent which returns String, then convert to expected format
+        match crate::run_agent(&payload.model_name.clone(), payload).await {
+            Ok(response_text) => Ok(Json(LlmResponse {
+                result: Some(LlmResult {
+                    text: response_text,
+                }),
+                transactions: Some(vec![]),
+                summary: None,
+                signatures: Some(vec![]),
+                flows: None,
+            })),
+            Err(e) => Err(e),
+        }
+    }
+    .await;
 
     match result {
         Ok(json_response) => (StatusCode::OK, json_response).into_response(),
@@ -581,6 +610,7 @@ async fn generate_transaction(
 }
 
 /// Executes the AI agent logic using the dynamically selected model.
+#[cfg(feature = "mock_behaviors")]
 async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     let model_name = payload.model_name.clone();
 
@@ -694,6 +724,7 @@ async fn run_ai_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
 }
 
 /// Executes the deterministic, code-based agent logic to generate a ground truth instruction.
+#[cfg(feature = "mock_behaviors")]
 async fn run_deterministic_agent(payload: LlmRequest) -> Result<Json<LlmResponse>> {
     info!(
         "[reev-agent] Received request for benchmark id: \"{}\"",

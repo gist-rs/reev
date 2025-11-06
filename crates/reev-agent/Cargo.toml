@@ -15,6 +15,7 @@ default-run = "reev-agent"
 default = ["jupiter", "native"]
 jupiter = []
 native = []
+mock_behaviors = []
 
 [dependencies]
 axum = "0.8.4"

@@ -290,6 +290,19 @@ grep "mock.*false" crates/reev-orchestrator/src/execution/ping_pong_executor.rs
 # - Session log debugging
 ```
 
+### **Enhanced Flow Visualization Test**
+```bash
+# Issue #38 Validation: Multi-Step Flow Visualization
+./tests/scripts/test_flow_visualization.sh
+
+# Features:
+# - 300 benchmark execution with dynamic mode
+# - 4-step tool call validation
+# - Mermaid diagram completeness checking
+# - AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
+# - Parameter context extraction and display
+```
+
 ### **Manual Testing Commands**
 For quick manual testing during development:
 

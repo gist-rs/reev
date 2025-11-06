@@ -45,7 +45,8 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
         }
     }
 
-    // Check if mock is enabled and route to deterministic agent
+    // Check if mock is enabled and route to deterministic agent (only in development)
+    #[cfg(feature = "mock_behaviors")]
     if payload.mock {
         info!("[run_agent] Mock mode enabled, routing to deterministic agent");
         let response = crate::run_deterministic_agent(payload).await?;
@@ -61,6 +62,14 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
             response_text
         );
         return Ok(response_text);
+    }
+
+    // In production mode, mock should never be enabled
+    #[cfg(not(feature = "mock_behaviors"))]
+    if payload.mock {
+        return Err(anyhow::anyhow!(
+            "Mock behaviors are disabled in production mode"
+        ));
     }
 
     // Extract key_map from payload first (primary source)
@@ -109,9 +118,29 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
                 }
             }
         } else {
-            Err(anyhow::anyhow!(
-                "GLM model '{model_name}' requires ZAI_API_KEY environment variable"
-            ))
+            // In production, GLM models require the API key
+            #[cfg(not(feature = "mock_behaviors"))]
+            {
+                Err(anyhow::anyhow!(
+                    "GLM model '{model_name}' requires ZAI_API_KEY environment variable"
+                ))
+            }
+
+            // In development, fall back to deterministic agent if no API key
+            #[cfg(feature = "mock_behaviors")]
+            {
+                info!(
+                    "[run_agent] GLM model '{}' missing ZAI_API_KEY, routing to deterministic agent",
+                    model_name
+                );
+                let response = crate::run_deterministic_agent(payload).await?;
+                let response_text = response
+                    .result
+                    .as_ref()
+                    .map(|r| r.text.clone())
+                    .unwrap_or_else(String::new);
+                return Ok(response_text);
+            }
         }
     } else if model_name == "local" {
         // Real local model - route to OpenAI agent which supports local LLM servers
@@ -128,22 +157,33 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
         );
         OpenAIAgent::run(model_name, payload, key_map).await
     } else {
-        // Route to deterministic agent for unknown models
-        info!(
-            "[run_agent] Unknown model '{}' detected, routing to deterministic agent",
-            model_name
-        );
-        let response = crate::run_deterministic_agent(payload).await?;
-        // Extract the text field from LlmResponse
-        let response_text = response
-            .result
-            .as_ref()
-            .map(|r| r.text.clone())
-            .unwrap_or_else(String::new);
-        info!(
-            "[run_agent] Deterministic agent response: {}",
-            response_text
-        );
-        Ok(response_text)
+        // In production, reject unknown models
+        #[cfg(not(feature = "mock_behaviors"))]
+        {
+            return Err(anyhow::anyhow!(
+                "Unknown model '{model_name}' is not supported in production mode"
+            ));
+        }
+
+        // In development, route to deterministic agent for unknown models
+        #[cfg(feature = "mock_behaviors")]
+        {
+            info!(
+                "[run_agent] Unknown model '{}' detected, routing to deterministic agent",
+                model_name
+            );
+            let response = crate::run_deterministic_agent(payload).await?;
+            // Extract the text field from LlmResponse
+            let response_text = response
+                .result
+                .as_ref()
+                .map(|r| r.text.clone())
+                .unwrap_or_else(String::new);
+            info!(
+                "[run_agent] Deterministic agent response: {}",
+                response_text
+            );
+            Ok(response_text)
+        }
     }
 }
