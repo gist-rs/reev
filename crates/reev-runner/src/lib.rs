@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 
-use reev_flow::FlowLogger;
+use reev_flow::{FlowLogger, init_enhanced_otel_logging_with_session};
 use reev_lib::{
     agent::{Agent, AgentObservation},
     benchmark::{FlowStep, TestCase},
@@ -209,7 +209,22 @@ pub async fn run_benchmarks(
         // Session file created via SessionFileLogger
         // No database operations needed - API handles database storage
 
-        // Initialize enhanced OTEL logging instead of basic flow logging
+        // Initialize enhanced OTEL logging for tool call tracking
+        // This enables Jupiter tools to log their calls properly
+        match init_enhanced_otel_logging_with_session(session_id.clone()) {
+            Ok(logger_session_id) => {
+                info!(
+                    "✅ Enhanced OTEL logging initialized in runner: {}",
+                    logger_session_id
+                );
+            }
+            Err(e) => {
+                warn!("⚠️ Failed to initialize enhanced OTEL logging: {}", e);
+                // Continue without enhanced OTEL - not critical for runner
+            }
+        }
+
+        // Initialize flow logging for basic execution tracking
         // Database-only logging - runner should not access database
         let flow_logger = FlowLogger::new_with_session(
             session_id.clone(),

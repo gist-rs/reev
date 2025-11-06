@@ -4,7 +4,9 @@
 
 fix issue, re-test, re-check code, impl remain tasks, rm testd and done task, ALWAYS RUN SERVER IN BG
 
-expect working mermaid flow completed info with score for 001-sol-transfer.yml,200-jup-swap-then-lend-deposit.yml, 300-jup-swap-then-lend-deposit-dyn.yml, via surfpool not mock
+expect working mermaid flow completed info with score for 001-sol-transfer.yml,200-jup-swap-then-lend-deposit.yml, 300-jup-swap-then-lend-deposit-dyn.yml, via api glm-4.6-coding
+
+up tasks, issue md then commit and stop
 
 ---
 
