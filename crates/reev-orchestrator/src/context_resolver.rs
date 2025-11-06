@@ -62,7 +62,7 @@ pub struct ContextResolver {
     /// Solana environment for placeholder resolution
     solana_env: Option<Arc<tokio::sync::Mutex<SolanaEnv>>>,
     /// RPC client for real data queries
-    rpc_client: RpcClient,
+    _rpc_client: RpcClient,
     /// Cache for wallet context data
     wallet_cache: Mutex<LruCache<String, CacheEntry<WalletContext>>>,
     /// Cache for token price data
@@ -75,7 +75,7 @@ impl ContextResolver {
         let rpc_client = RpcClient::new(SURFPOOL_RPC_URL);
         Self {
             solana_env: None,
-            rpc_client,
+            _rpc_client: rpc_client,
             wallet_cache: Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())),
             price_cache: Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())),
         }
@@ -86,7 +86,7 @@ impl ContextResolver {
         let rpc_client = RpcClient::new(SURFPOOL_RPC_URL);
         Self {
             solana_env: Some(solana_env),
-            rpc_client,
+            _rpc_client: rpc_client,
             wallet_cache: Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())),
             price_cache: Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())),
         }

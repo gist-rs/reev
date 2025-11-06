@@ -342,20 +342,6 @@ pub async fn execute_recovery_flow(
         Err(e) => {
             error!(error = %e, "Failed to process recovery flow request");
 
-            Json(ExecutionResponse {
-                execution_id,
-                status: ExecutionStatus::Failed,
-                duration_ms: start_time.elapsed().as_millis() as u64,
-                result: None,
-                error: Some(format!("Failed to generate recovery flow plan: {e}")),
-                logs: vec![format!("Error: {}", e)],
-                tool_calls: vec![],
-            })
-            .into_response()
-        }
-        Err(e) => {
-            error!(error = %e, "Recovery task execution failed");
-
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({

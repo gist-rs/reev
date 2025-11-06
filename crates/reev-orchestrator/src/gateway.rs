@@ -37,7 +37,7 @@ pub struct UserIntent {
 /// Orchestrator Gateway for processing user prompts and generating flows
 pub struct OrchestratorGateway {
     /// Solana environment for placeholder resolution
-    solana_env: Arc<Mutex<SolanaEnv>>,
+    _solana_env: Arc<Mutex<SolanaEnv>>,
     /// Context resolver for wallet and price information
     context_resolver: Arc<ContextResolver>,
     /// YML generator for creating benchmark files
@@ -383,6 +383,7 @@ impl OrchestratorGateway {
     }
 
     /// Create emergency withdraw step for crisis situations
+    #[allow(dead_code)]
     fn create_emergency_withdraw_step(
         &self,
         context: &WalletContext,
@@ -409,6 +410,7 @@ impl OrchestratorGateway {
     }
 
     /// Create emergency swap to stable assets step
+    #[allow(dead_code)]
     fn create_emergency_swap_to_stable_step(
         &self,
         context: &WalletContext,
@@ -435,6 +437,7 @@ impl OrchestratorGateway {
     }
 
     /// Create multi-pool lending step for advanced strategies
+    #[allow(dead_code)]
     fn create_multi_pool_lend_step(
         &self,
         context: &WalletContext,
@@ -475,16 +478,16 @@ impl OrchestratorGateway {
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
         Ok(Self {
-            solana_env,
+            _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
             ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
-                30000,
+                300_000, // 5 minute timeout
                 context_resolver,
-            ))), // 30s timeout
+            ))),
         })
     }
 
@@ -502,7 +505,7 @@ impl OrchestratorGateway {
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
         Ok(Self {
-            solana_env,
+            _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),

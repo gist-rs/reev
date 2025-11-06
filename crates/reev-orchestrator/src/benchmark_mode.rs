@@ -251,7 +251,7 @@ mod tests {
     fn test_list_benchmarks() -> Result<()> {
         // Create temporary benchmarks directory
         let temp_dir = TempDir::new()?;
-        let benchmarks_dir = temp_dir.path();
+        let _benchmarks_dir = temp_dir.path();
 
         // This test would need to mock the benchmarks directory
         // For now, just test that the function doesn't panic

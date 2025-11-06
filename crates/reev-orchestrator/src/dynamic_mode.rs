@@ -145,7 +145,6 @@ async fn generate_dynamic_yml(
 }
 
 /// Simple intent analysis moved to gateway module
-
 /// Simple intent analysis for user requests
 ///
 /// This provides basic categorization without over-engineering.
@@ -269,7 +268,6 @@ pub struct DynamicExecutionPlan {
 }
 
 /// Use gateway's UserIntent instead
-
 /// Validate user request before execution
 ///
 /// # Arguments

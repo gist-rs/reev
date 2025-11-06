@@ -724,6 +724,7 @@ pub async fn run_recovery_flow(
     // Process user request and generate dynamic flow plan
     let flow_plan = gateway
         .generate_enhanced_flow_plan(prompt, &wallet_context, atomic_mode)
+        .await
         .context("Failed to generate recovery flow plan")?;
 
     info!(
@@ -877,7 +878,8 @@ fn generate_ground_truth_from_steps(
 
     // Check if any step involves swap
     let has_swap = steps.iter().any(|step| {
-        step.required_tools.contains(&"sol_tool".to_string())
+        step.required_tools
+            .contains(&reev_types::tools::ToolName::JupiterSwap)
             || step.description.to_lowercase().contains("swap")
     });
 
@@ -894,7 +896,10 @@ fn generate_ground_truth_from_steps(
     // Check if any step involves lend/earn
     let has_lend = steps.iter().any(|step| {
         step.required_tools
-            .contains(&"jupiter_earn_tool".to_string())
+            .contains(&reev_types::tools::ToolName::JupiterLend)
+            || step
+                .required_tools
+                .contains(&reev_types::tools::ToolName::JupiterEarn)
             || step.description.to_lowercase().contains("lend")
             || step.description.to_lowercase().contains("earn")
     });

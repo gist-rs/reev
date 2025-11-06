@@ -284,7 +284,7 @@ impl ZAIAgent {
     async fn execute_tool_call(
         tool_call: &rig::message::ToolCall,
         tools: &AgentTools,
-        allowed_tools: &Option<Vec<String>>,
+        _allowed_tools: &Option<Vec<String>>,
     ) -> Result<serde_json::Value> {
         match tool_call.function.name.as_str() {
             "sol_transfer" => {

@@ -788,9 +788,7 @@ impl StateDiagramGenerator {
                     let usdc_amount = amount as f64 / 1_000_000.0;
                     let daily_yield = usdc_amount * 0.085 / 365.0; // 8.5% APY
                     return format!(
-                        "Step 4: USDC Lending<br/>Deposit: {:.2} USDC<br/>Daily Yield: ${:.4}<br/>Protocol: Jupiter",
-                        usdc_amount,
-                        daily_yield
+                        "Step 4: USDC Lending<br/>Deposit: {usdc_amount:.2} USDC<br/>Daily Yield: ${daily_yield:.4}<br/>Protocol: Jupiter"
                     );
                 }
                 "Step 4: Jupiter Lending<br/>Deposit USDC for yield<br/>Create lending position"
