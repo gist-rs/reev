@@ -473,6 +473,45 @@ ground_truth: [...]            # Dynamic validation rules
 # Must be compatible with existing runner parsing
 ```
 
+#### **USER_WALLET_PUBKEY Auto-Generation (Issue #29)**
+
+**Context**: Dynamic flow execution receives wallet pubkeys from API requests that may be placeholders like `"USER_WALLET_PUBKEY"` instead of real addresses.
+
+**Solution**: `ContextResolver::resolve_placeholder()` automatically generates unique keypairs for placeholders:
+
+```rust
+// In ContextResolver::resolve_placeholder()
+if input == "USER_WALLET_PUBKEY" {
+    // Generate new keypair (same as static benchmarks)
+    let keypair = Keypair::new();
+    let pubkey = keypair.pubkey();
+    
+    // Store in SolanaEnv maps for consistent use
+    env.pubkey_map.insert("USER_WALLET_PUBKEY".to_string(), pubkey);
+    env.keypair_map.insert("USER_WALLET_PUBKEY".to_string(), keypair);
+    
+    return Ok(pubkey.to_string());
+}
+```
+
+**Integration Flow**:
+1. **API Request**: `{"wallet": "USER_WALLET_PUBKEY"}` 
+2. **Orchestrator**: `PingPongExecutor.execute_agent_step()` calls `ContextResolver.resolve_placeholder()`
+3. **Auto-Generation**: Detects placeholder, generates unique pubkey using `Keypair::new()`
+4. **Consistent Mapping**: Stores in `SolanaEnv.pubkey_map` for all subsequent steps
+5. **Agent Execution**: Uses resolved pubkey for all tool calls
+
+**Benefits**:
+- **Zero User Confusion**: Users can follow documentation with placeholder values
+- **Consistent Behavior**: Same auto-generation as benchmark mode (`reset.rs`)
+- **Production Ready**: Each execution gets unique, valid wallet addresses
+- **Seamless Integration**: Works transparently in ping-pong execution flow
+
+**Key Locations**:
+- **Resolver**: `reev-orchestrator/src/context_resolver.rs:resolve_placeholder()`
+- **Executor**: `reev-orchestrator/src/execution/ping_pong_executor.rs:create_key_map_with_wallet()`
+- **Benchmark Mode**: `reev-lib/src/solana_env/reset.rs` (reference implementation)
+
 #### **Benefits of This Architecture:**
 
 1. **Zero Infrastructure Changes**: All existing components (runner, agent, OTEL, DB, scoring, API) work unchanged
@@ -518,6 +557,7 @@ tokio::spawn(async move {
 3. **Build on Success**: 100/200 series provide proven foundation
 4. **Design for Scale**: Users can request anything, system generates appropriate YML
 5. **Maintain Compatibility**: Same file format, same runner, same database schema
+6. **Auto-Generate Placeholders**: USER_WALLET_PUBKEY automatically resolved without user intervention
 
 This architecture maximizes code reuse while minimizing development risk and complexity.
 

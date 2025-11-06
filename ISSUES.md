@@ -1,26 +1,20 @@
 # Issues
 
-## Issue #29 - USER_WALLET_PUBKEY Auto-Generation Missing - NEW 🐛
-**Status**: REPORTED  
-**Description**: API dynamic flow execution doesn't auto-generate keys for USER_WALLET_PUBKEY placeholder  
-**Problem**: 
-- Documentation and examples use USER_WALLET_PUBKEY as placeholder
-- Benchmark mode has auto-generation in reev-lib/src/solana_env/reset.rs
-- API dynamic flow expects real wallet address or fails silently with empty tool_calls
-- No validation or auto-generation in API handlers
-**Impact**: 
-- Users following docs get "No tool calls found" errors
-- Test scripts fail with placeholder values
-- Inconsistent behavior between benchmark and dynamic modes
+## Issue #29 - USER_WALLET_PUBKEY Auto-Generation - RESOLVED ✅
+**Status**: COMPLETED  
+**Description**: ContextResolver already provides auto-generation for USER_WALLET_PUBKEY placeholder  
+**Resolution**: 
+- Auto-generation already exists in `ContextResolver::resolve_placeholder()`
+- Called from `PingPongExecutor.execute_agent_step()` before agent execution
+- Uses same logic as benchmark mode (`Keypair::new()` and storage in SolanaEnv)
+- Works transparently for both API and CLI dynamic flows
+- No changes needed at API level (incorrectly attempted initially)
 **Evidence**:
-- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs:create_key_map_with_wallet()` maps USER_WALLET_PUBKEY to provided wallet
-- `crates/reev-lib/src/solana_env/reset.rs` has auto-generation but only used in benchmark mode
-- API handlers in `crates/reev-api/src/handlers/dynamic_flows/` don't call reset functionality
-**Next Steps**:
-- Add auto-generation in API dynamic flow handlers when USER_WALLET_PUBKEY detected
-- Use existing `Pubkey::new_unique()` pattern from examples
-- Add validation to detect placeholder vs real pubkeys
-- Update API documentation with clarification
+- `reev-orchestrator/src/context_resolver.rs:resolve_placeholder()` handles placeholder detection and generation
+- `reev-orchestrator/src/execution/ping_pong_executor.rs:execute_agent_step()` calls resolver for wallet pubkey
+- Auto-generation consistent with `reev-lib/src/solana_env/reset.rs` benchmark implementation
+- Documented in DYNAMIC_BENCHMARK_DESIGN.md under "USER_WALLET_PUBKEY Auto-Generation"
+**Status**: RESOLVED - Architecture was already correct, auto-generation works at orchestrator level
 
 ## Issue #23 - RESOLVED ✅
 **Status**: COMPLETED  
@@ -68,6 +62,52 @@
 - Fix circular dependency between reev-orchestrator and reev-runner
 - Update API handlers to use route_execution function
 - Test dynamic flow execution via API
+
+## Issue #30 - Jupiter Tool Calls Not Captured in OTEL - NEW 🐛
+**Status**: REPORTED  
+**Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization  
+**Problem**: 
+- 200-jup-swap-then-lend-deposit completes with score 1.0 but shows 0 tool calls in flow diagram
+- Agent logs show successful Jupiter swap and lend instruction generation
+- Simple benchmarks (001) capture tool calls correctly via OTEL logging
+- Only affects Jupiter-related tool calls (jupiter_swap, jupiter_lend)
+**Evidence**:
+- reev-agent logs show successful tool execution: "Successfully generated 6 Jupiter swap instructions"
+- Flow diagram returns simple state: "Prompt --> Agent --> [*]" (no tool states)
+- Database query for session returns 0 tool calls for Jupiter benchmarks
+- 001-sol-transfer works: captures 1 tool call (deterministic_sol_transfer) correctly
+**Impact**: 
+- Flow visualization broken for complex DeFi operations
+- No detailed mermaid diagrams for Jupiter strategies
+- Users can't see actual tool execution sequence for yield farming
+**Next Steps**:
+- Debug OTEL logging pipeline for Jupiter tool calls
+- Fix tool call capture in session_parser for Jupiter protocols
+- Ensure jupiter_swap and jupiter_lend are logged with proper metadata
+- Test with both benchmark (200) and dynamic (300) flows
+
+## Issue #31 - Surfpool Service Integration Failures - NEW 🐛
+**Status**: REPORTED  
+**Description**: 300 benchmark fails due to surfpool service startup issues during execution  
+**Problem**: 
+- 300-jup-swap-then-lend-deposit-dyn fails with surfpool initialization errors
+- Error logs show surfpool service startup timeout or connection issues
+- 200 benchmark works (possibly using different surfpool configuration)
+- Simple benchmarks (001) don't require surfpool so work fine
+**Evidence**:
+- 300 benchmark error: "CLI execution failed: Starting surfpool service..." gets stuck
+- Error occurs during dependency manager initialization phase
+- 200 benchmark completes successfully (surfpool works for static benchmarks)
+- surfpool process checks pass: "No existing surfpool processes found on port 8899"
+**Impact**: 
+- Dynamic flow execution (300-series) completely broken
+- Users cannot test yield optimization strategies
+- Multiplication benchmarks unavailable via API
+**Next Steps**:
+- Debug surfpool service startup process in runner dependency manager
+- Check surfpool configuration differences between static (200) and dynamic (300) modes
+- Ensure proper surfpool process lifecycle management
+- Test surfpool RPC connectivity during benchmark execution
 
 ## Issue #28 - Test Coverage - COMPLETED ✅
 **Status**: UPDATED  
