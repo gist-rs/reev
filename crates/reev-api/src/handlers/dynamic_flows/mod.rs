@@ -20,7 +20,9 @@ use tokio::task;
 
 use crate::types::ApiState;
 
-use reev_db::writer::DatabaseWriterTrait;
+
+mod consolidation;
+use consolidation::consolidate_otel_data;
 
 /// Execute a dynamic flow (direct mode - zero file I/O)
 #[instrument(skip_all, fields(
@@ -99,60 +101,9 @@ pub async fn execute_dynamic_flow(
             // Execute flow plan with ping-pong coordination and capture actual tool calls
             let real_tool_calls = execute_flow_plan_with_ping_pong(&flow_plan, &agent_type).await;
 
-            // Store session log with tool calls for API visualization
-            let session_log_content = json!({
-                "session_id": &flow_plan.flow_id,
-                "benchmark_id": "dynamic-flow",
-                "agent_type": &agent_type,
-                "tool_calls": &real_tool_calls,
-                "start_time": Utc::now().timestamp(),
-                "end_time": Utc::now().timestamp() + 60000,
-                "execution_mode": execution_mode,
-                "flow_plan": {
-                    "flow_id": flow_plan.flow_id,
-                    "user_prompt": flow_plan.user_prompt,
-                    "steps": flow_plan.steps.len()
-                }
-            })
-            .to_string();
-
-            // Store in database for flow visualization (using flow_id)
-            if let Err(e) = state
-                .db
-                .store_session_log(&flow_plan.flow_id, &session_log_content)
-                .await
-            {
-                error!("Failed to store dynamic flow session log: {}", e);
-            }
-
-            // Also store with execution_id for easier lookup by users
-            let execution_log_content = json!({
-                "session_id": &execution_id,
-                "benchmark_id": "dynamic-flow",
-                "agent_type": &agent_type,
-                "tool_calls": &real_tool_calls,
-                "start_time": Utc::now().timestamp(),
-                "end_time": Utc::now().timestamp() + 60000,
-                "execution_mode": execution_mode,
-                "flow_plan": {
-                    "flow_id": flow_plan.flow_id,
-                    "user_prompt": flow_plan.user_prompt,
-                    "steps": flow_plan.steps.len()
-                }
-            })
-            .to_string();
-
-            // Store with execution_id for direct lookup
-            if let Err(e) = state
-                .db
-                .store_session_log(&execution_id, &execution_log_content)
-                .await
-            {
-                error!("Failed to store execution session log: {}", e);
-            }
-
-            // Note: OTEL data is handled by agent execution directly
-            // No additional conversion needed for flow visualization
+            // Use enhanced OTEL consolidation for proper flow visualization
+            let consolidation_result =
+                consolidate_otel_data(&state, &flow_plan.flow_id, &execution_id).await;
 
             let mut result_data = json!({
                 "flow_id": flow_plan.flow_id,
@@ -166,28 +117,35 @@ pub async fn execute_dynamic_flow(
             }
 
             let logs = if request.shared_surfpool {
-                vec![
-                    format!(
-                        "Generated {} steps for bridge execution",
-                        flow_plan.steps.len()
-                    ),
-                    format!("Created temporary YML file: {}", yml_path),
-                    format!(
-                        "Stored session log for flow visualization: {}",
-                        flow_plan.flow_id
-                    ),
-                ]
+                let mut logs = vec![format!(
+                    "Generated {} steps for bridge execution",
+                    flow_plan.steps.len()
+                )];
+                if request.shared_surfpool {
+                    logs.push(format!("Created temporary YML file: {yml_path}"));
+                }
+                if let Some(tool_count) = consolidation_result {
+                    logs.push(format!(
+                        "✅ Consolidated {tool_count} tool calls via JSONL→YML pipeline"
+                    ));
+                } else {
+                    logs.push("⚠️ JSONL→YML consolidation failed - using fallback".to_string());
+                }
+                logs
             } else {
-                vec![
-                    format!(
-                        "Generated {} steps for direct execution",
-                        flow_plan.steps.len()
-                    ),
-                    format!(
-                        "Stored session log for flow visualization: {}",
-                        flow_plan.flow_id
-                    ),
-                ]
+                let mut logs = vec![format!(
+                    "Generated {} steps for direct execution",
+                    flow_plan.steps.len()
+                )];
+
+                if let Some(tool_count) = consolidation_result {
+                    logs.push(format!(
+                        "✅ Consolidated {tool_count} tool calls via JSONL→YML pipeline"
+                    ));
+                } else {
+                    logs.push("⚠️ JSONL→YML consolidation failed - using fallback".to_string());
+                }
+                logs
             };
 
             Json(ExecutionResponse {

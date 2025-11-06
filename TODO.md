@@ -1,12 +1,15 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
-[@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) ,[@DYNAMIC_BENCHMARK_DESIGN.md](file:///Users/katopz/git/gist/reev/DYNAMIC_BENCHMARK_DESIGN.md) ,[@HANDOVER.md](file:///Users/katopz/git/gist/reev/HANDOVER.md) ,
-ai is overclaim that llm is complete but messup rulesbase test only, ignore the rulesbase test because we want llm flow to work first
+---
 
-and rule-based is only for deterministic agent btw, ?mock=true grep for that and by the plan you will need feature flag for that to see DYNAMIC_BENCHMARK_DESIGN.md
+the static flow
+Agent → JSONL → YML → DB → YML Parser → Mermaid
 
-let's test llm base for 300-jup-swap-then-lend-deposit-dyn.yml via api [@DEV_FLOW.md](file:///Users/katopz/git/gist/reev/DEV_FLOW.md) , it should work with dynamic llm gen static flow/step and get mermaid diagram+score
+the ping pong dynamic flow
+Orchestrator → Agent(s) → JSONL(s) → Orchestrator → YML → DB → YML Parser → Mermaid
+
+scan code for consolidate JSONL(s) from agent, if not exist create issue for that
 
 ---
 
@@ -114,7 +117,7 @@ the problem is rig framework use otel, that's why de design like that, somehow y
 the problem is openai flow use rig framework and otel, that's why de design like that, it work now because we mod zai agent req/res so we can capture but for openai and other agent in the future, we will have to impl all this all over again and there's is no reason to use rig at that point if we keep doing that.
 
 but we control orchestrator so is fine for orchestrator part but
-1. Agent → Orchestrator → JSON → YML → DB → YML Parser → Mermaid // because yml has better comment and newline
+1. Agent → Orchestrator → JSONL → YML → DB → YML Parser → Mermaid // because yml has better comment and newline
 2. Did `Agent → Orchestrator → JSON` will work for openai agent flow? // if yes it's fine
 3. All other tool call is in rig+otel, what your plan for this? if you tend to use direct way? consolidate each flow/step as chuck later?
 
