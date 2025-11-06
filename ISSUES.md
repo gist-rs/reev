@@ -1,5 +1,27 @@
 # Issues
 
+## Issue #29 - USER_WALLET_PUBKEY Auto-Generation Missing - NEW 🐛
+**Status**: REPORTED  
+**Description**: API dynamic flow execution doesn't auto-generate keys for USER_WALLET_PUBKEY placeholder  
+**Problem**: 
+- Documentation and examples use USER_WALLET_PUBKEY as placeholder
+- Benchmark mode has auto-generation in reev-lib/src/solana_env/reset.rs
+- API dynamic flow expects real wallet address or fails silently with empty tool_calls
+- No validation or auto-generation in API handlers
+**Impact**: 
+- Users following docs get "No tool calls found" errors
+- Test scripts fail with placeholder values
+- Inconsistent behavior between benchmark and dynamic modes
+**Evidence**:
+- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs:create_key_map_with_wallet()` maps USER_WALLET_PUBKEY to provided wallet
+- `crates/reev-lib/src/solana_env/reset.rs` has auto-generation but only used in benchmark mode
+- API handlers in `crates/reev-api/src/handlers/dynamic_flows/` don't call reset functionality
+**Next Steps**:
+- Add auto-generation in API dynamic flow handlers when USER_WALLET_PUBKEY detected
+- Use existing `Pubkey::new_unique()` pattern from examples
+- Add validation to detect placeholder vs real pubkeys
+- Update API documentation with clarification
+
 ## Issue #23 - RESOLVED ✅
 **Status**: COMPLETED  
 **Description**: Implemented type-safe tool name system with strum to eliminate string-based tool errors  

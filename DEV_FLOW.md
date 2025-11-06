@@ -254,7 +254,7 @@ echo "🧪 Testing API Flow Visualization..."
 echo "📋 Test 1: Basic flow execution"
 RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.5 SOL", "wallet": "auto_test", "agent": "glm-4.6-coding", "shared_surfpool": false}')
+  -d '{"prompt": "swap 0.5 SOL", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": false}')
 
 FLOW_ID=$(echo $RESPONSE | jq -r '.result.flow_id')
 TOOL_COUNT=$(echo $RESPONSE | jq '.tool_calls | length')

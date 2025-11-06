@@ -7,7 +7,7 @@ echo "🧪 Testing API Flow Visualization..."
 echo "📋 Test 1: Basic flow execution"
 RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.5 SOL", "wallet": "auto_test", "agent": "GLM-4.6", "shared_surfpool": false}')
+  -d '{"prompt": "swap 0.01 SOL", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding", "shared_surfpool": false}')
 
 FLOW_ID=$(echo $RESPONSE | jq -r '.result.flow_id')
 TOOL_COUNT=$(echo $RESPONSE | jq '.tool_calls | length')
@@ -17,20 +17,22 @@ echo "✅ Tool Count: $TOOL_COUNT"
 
 # Test 2: Flow visualization
 echo "📋 Test 2: Flow visualization"
+sleep 3  # Wait for execution to complete
 FLOW_RESPONSE=$(curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID")
-VISUAL_TOOL_COUNT=$(echo $FLOW_RESPONSE | jq '.metadata.tool_count')
-DIAGRAM_STATES=$(echo $FLOW_RESPONSE | jq '.metadata.state_count')
+VISUAL_TOOL_COUNT=$(echo $FLOW_RESPONSE | jq '.metadata.tool_count // 0')
+DIAGRAM_STATES=$(echo $FLOW_RESPONSE | jq '.metadata.state_count // 0')
 
 echo "✅ Visualization Tool Count: $VISUAL_TOOL_COUNT"
 echo "✅ Diagram States: $DIAGRAM_STATES"
 
 # Test 3: Information quality
 echo "📋 Test 3: Information quality check"
-TOOL_DETAILS=$(echo $FLOW_RESPONSE | jq '.tool_calls[0]')
+TOOL_DETAILS=$(echo $FLOW_RESPONSE | jq '.tool_calls[0] // empty')
 
 # Check if tool_calls exist
-if [ "$TOOL_DETAILS" = "null" ] || [ "$TOOL_DETAILS" = "" ]; then
+if [ "$TOOL_DETAILS" = "null" ] || [ "$TOOL_DETAILS" = "" ] || [ "$TOOL_DETAILS" = "empty" ]; then
     echo "❌ No tool calls found in visualization - ISSUE CONFIRMED"
+    echo "🔍 Debug: Full response: $FLOW_RESPONSE"
     exit 1
 fi
 
@@ -57,9 +59,9 @@ fi
 # Test 4: Diagram meaningfulness
 echo "📋 Test 4: Diagram meaningfulness"
 DIAGRAM=$(echo $FLOW_RESPONSE | jq -r '.diagram')
-HAS_NULL_TRANSITIONS=$(echo "$DIAGRAM" | grep -c "Null" || echo "0")
+HAS_NULL_TRANSITIONS=$(echo "$DIAGRAM" | grep -c "Null" 2>/dev/null || echo "0")
 
-if [ "$HAS_NULL_TRANSITIONS" -gt 0 ]; then
+if [ "${HAS_NULL_TRANSITIONS:-0}" -gt 0 ]; then
     echo "❌ Diagram contains $HAS_NULL_TRANSITIONS useless ': Null' transitions"
     if [ "$RESULT" = "PASS" ]; then
         RESULT="PARTIAL"

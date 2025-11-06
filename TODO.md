@@ -1,5 +1,18 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 ALWAYS RUN SERVER IN BG
+
+
+let's add that to DYNAMIC_BENCHMARK_DESIGN.md
+sperate tasks to make it happen in TASKS.md
+focus on make it work step by step so less confuse and decouple between each task as possible.
+the main idea is
+
+1. keep the code as md design (scan code and before tasks)
+2. separate bench and user but same core logic, focus on bench first
+3. no more mock data or cheating, if it failed just let it failed and get bad score at that step
+4. the tool name currently use string and fuck up a lot, try enum string aka strum crate
+
+
 ---
 
 1. refine PLAN_DYNAMIC_FLOW.md
