@@ -43,6 +43,13 @@ fn is_default_flow_type(flow_type: &str) -> bool {
     flow_type == "static"
 }
 
+/// Set flow_type based on tags - centralized logic
+pub fn set_flow_type_from_tags(test_case: &mut TestCase) {
+    if test_case.tags.contains(&"dynamic".to_string()) {
+        test_case.flow_type = "dynamic".to_string();
+    }
+}
+
 /// Defines the initial state of a single on-chain account for a benchmark.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]

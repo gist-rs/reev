@@ -239,7 +239,7 @@ Add `flow_type: "dynamic"` field to YAML with default `"static"` behavior
 - Fixed test assertions to use ToolName instead of strings
 
 
-## Issue #32 - Tool Call Transfer to Session Database - NEW 🐛
+
 **Status**: IDENTIFIED
 **Description**: Tool calls captured in OTEL logs but not transferred to session JSON database for flow visualization
 **Problem**:
@@ -260,3 +260,19 @@ Add `flow_type: "dynamic"` field to YAML with default `"static"` behavior
 - Fix session storage to properly transfer tool calls from OTEL events to session JSON
 - Update API flow diagram generator to read from both session JSON and OTEL logs
 - Test with both static benchmarks (200) and dynamic flows (300) to ensure consistent tool call capture
+
+## Issue #34 - Flow Type Consolidation - RESOLVED ✅
+**Status**: COMPLETED
+**Description**: Consolidated flow_type logic to eliminate redundant tag checking throughout codebase
+**Resolution**:
+- Centralized flow_type determination in TestCase deserialization via `set_flow_type_from_tags()` 
+- Added `set_flow_type_from_tags()` function to `reev-lib/src/benchmark.rs` that updates flow_type based on tags
+- Updated runner to call `set_flow_type_from_tags()` after loading TestCase from YAML
+- Removed redundant `determine_flow_type()` functions from agent and other scattered tag checking
+- Now flow_type is determined once at load time and used consistently throughout system
+**Evidence**:
+- 300 benchmark with "dynamic" tag correctly routes to glm-4.6-coding agent
+- 200/001 benchmarks without "dynamic" tag correctly use deterministic agent  
+- Flow type logic centralized in single location (benchmark.rs) instead of scattered across files
+- Runner logs show: "Updated flow_type from tags" confirming centralized logic works
+**Status**: RESOLVED - Single source of truth for flow_type determination achieved

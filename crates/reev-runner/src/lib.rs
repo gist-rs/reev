@@ -156,8 +156,12 @@ pub async fn run_benchmarks(
         info!(path = %path.display(), "Running benchmark");
         info!("Loading benchmark configuration...");
         let f = fs::File::open(&path)?;
-        let test_case: TestCase = serde_yaml::from_reader(f)?;
+        let mut test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
+
+        // Update flow_type based on tags (centralized logic)
+        reev_lib::benchmark::set_flow_type_from_tags(&mut test_case);
+        info!(flow_type = %test_case.flow_type, "Updated flow_type from tags");
 
         // Determine the appropriate agent based on flow_type
         let effective_agent = determine_agent_from_flow_type(&test_case, agent_name);
