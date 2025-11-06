@@ -1,6 +1,12 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
-ALWAYS RUN SERVER IN BG
 
+---
+
+fix issue, re-test, re-check code, impl remain tasks, rm testd and done task, ALWAYS RUN SERVER IN BG
+
+expect working mermaid flow completed info with score for 001-sol-transfer.yml,200-jup-swap-then-lend-deposit.yml, 300-jup-swap-then-lend-deposit-dyn.yml, via surfpool not mock
+
+---
 
 let's add that to DYNAMIC_BENCHMARK_DESIGN.md
 sperate tasks to make it happen in TASKS.md
@@ -11,7 +17,6 @@ the main idea is
 2. separate bench and user but same core logic, focus on bench first
 3. no more mock data or cheating, if it failed just let it failed and get bad score at that step
 4. the tool name currently use string and fuck up a lot, try enum string aka strum crate
-
 
 ---
 

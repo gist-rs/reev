@@ -222,8 +222,8 @@ impl YmlGenerator {
                 serde_yaml::Value::String("USER_WALLET_PUBKEY".to_string()),
             );
             sol_assertion.insert(
-                serde_yaml::Value::String("expected_gte".to_string()),
-                serde_yaml::Value::Number(serde_yaml::Number::from(-100005000)), // Account for fees
+                serde_yaml::Value::String("expected_change_gte".to_string()),
+                serde_yaml::Value::Number(serde_yaml::Number::from(-100005000i64)), // Account for fees
             );
             sol_assertion.insert(
                 serde_yaml::Value::String("weight".to_string()),
@@ -231,6 +231,11 @@ impl YmlGenerator {
             );
             assertions.push(serde_yaml::Value::Mapping(sol_assertion));
         }
+
+        ground_truth.insert(
+            serde_yaml::Value::String("min_score".to_string()),
+            serde_yaml::Value::Number(serde_yaml::Number::from(0.6)),
+        );
 
         ground_truth.insert(
             serde_yaml::Value::String("final_state_assertions".to_string()),
