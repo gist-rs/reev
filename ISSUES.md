@@ -64,7 +64,7 @@
 - Test dynamic flow execution via API
 
 ## Issue #30 - Jupiter Tool Calls Not Captured in OTEL - NEW 🐛
-**Status**: REPORTED  
+**Status**: RESOLVED
 **Description**: Jupiter benchmarks (200, 300) execute successfully but tool calls aren't captured in database for flow visualization  
 **Problem**: 
 - 200-jup-swap-then-lend-deposit completes with score 1.0 but shows 0 tool calls in flow diagram
@@ -117,3 +117,26 @@
 - Updated orchestrator_tests.rs for proper async handling
 - Added conversion methods for backward compatibility
 - Fixed test assertions to use ToolName instead of strings
+
+
+## Issue #32 - Tool Call Transfer to Session Database - NEW 🐛
+**Status**: IDENTIFIED
+**Description**: Tool calls captured in OTEL logs but not transferred to session JSON database for flow visualization
+**Problem**:
+- 200-jup-swap-then-lend-deposit completes with score 1.0 but shows 0 tool calls in flow diagram
+- Agent logs show successful Jupiter swap and lend instruction generation  
+- Session database has empty events array for Jupiter benchmarks
+- Simple benchmarks (001) capture tool calls correctly via OTEL logging
+- Flow visualization returns "Prompt --> Agent --> [*]" (no tool states) for complex operations
+**Root Cause**:
+- Session creation code properly reads OTEL logs with tool calls
+- Session storage/transfer logic fails to copy tool calls from OTEL events to session JSON
+- API mermaid generator reads from session JSON (empty events) → no tool calls displayed
+**Impact**:
+- Users cannot see actual tool execution sequence for Jupiter protocols
+- No detailed mermaid flow diagrams for yield farming, multiplication, or portfolio rebalancing
+- Flow visualization broken for all dynamic flows and complex DeFi operations
+**Next Steps**:
+- Fix session storage to properly transfer tool calls from OTEL events to session JSON
+- Update API flow diagram generator to read from both session JSON and OTEL logs
+- Test with both static benchmarks (200) and dynamic flows (300) to ensure consistent tool call capture
