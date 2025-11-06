@@ -212,6 +212,28 @@ async fn handle_flow_benchmarks(
             });
             Ok(serde_json::to_string(&flow_response)?)
         }
+        "300-jup-swap-then-lend-deposit-dyn" => {
+            info!(
+                "[reev-agent] Matched '300-jup-swap-then-lend-deposit-dyn' id. Starting dynamic flow."
+            );
+
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            // Dynamic flow - agent will use Jupiter tools to execute the multiplication strategy
+            info!("[reev-agent] Dynamic flow: Agent will execute 50% SOL to USDC swap then lend for 1.5x multiplication");
+
+            // For dynamic benchmarks, return empty instructions and let LLM agent handle the execution
+            let flow_response = serde_json::json!({
+                "benchmark_id": "300-jup-swap-then-lend-deposit-dyn",
+                "agent_type": "dynamic",
+                "mode": "llm_execution",
+                "strategy": "use jupiter tools to multiply USDC position by 1.5x using 50% of SOL"
+            });
+            Ok(serde_json::to_string(&flow_response)?)
+        }
         // Handle other flow benchmarks (IDs starting with "200-")
         flow_id if flow_id.starts_with("200-") => {
             // Generic flow handler for other 200-series benchmarks
