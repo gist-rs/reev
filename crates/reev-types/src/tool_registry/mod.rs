@@ -15,7 +15,7 @@ impl ToolRegistry {
             // Discovery tools
             "get_account_balance",
             "get_jupiter_lend_earn_tokens",
-            "get_jupiter_position_info",
+            "get_jupiter_lend_earn_position",
             // Transaction tools
             "sol_transfer",
             "spl_transfer",

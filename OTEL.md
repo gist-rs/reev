@@ -11,7 +11,7 @@ This document reflects the **current completed implementation** of OpenTelemetry
 ### **Enhanced Logging System**
 - **13/13 Tools Enhanced** with `log_tool_call!` and `log_tool_completion!`
 - **100% Tool Coverage** across all categories:
-  - Discovery Tools (3): `get_account_balance`, `get_jupiter_lend_earn_tokens`, `get_jupiter_position_info`
+  - Discovery Tools (3): `get_account_balance`, `get_jupiter_lend_earn_tokens`, `get_jupiter_lend_earn_position`
   - Flow Tools (1): `jupiter_swap_flow`
   - Jupiter Tools (4): `jupiter_swap`, `jupiter_lend_earn_deposit`, `jupiter_lend_earn_withdraw`, `jupiter_lend_earn_mint`, `jupiter_lend_earn_redeem`
   - Core Tools (3): `sol_transfer`, `spl_transfer`
@@ -87,7 +87,7 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     // Discovery tools
     if span_name.contains("account_balance") { return Some("get_account_balance".to_string()); }
     if span_name.contains("lend_earn_tokens") { return Some("get_jupiter_lend_earn_tokens".to_string()); }
-    if span_name.contains("position_info") { return Some("get_jupiter_position_info".to_string()); }
+    if span_name.contains("position_info") { return Some("get_jupiter_lend_earn_position".to_string()); }
 
     // Flow tools
     if span_name.contains("jupiter_swap_flow") { return Some("jupiter_swap_flow".to_string()); }

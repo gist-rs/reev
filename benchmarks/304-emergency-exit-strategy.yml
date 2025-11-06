@@ -88,7 +88,7 @@ ground_truth:
       expected_params: ["input_token", "output_token", "amount"]
       weight: 0.2
 
-    - tool_name: "get_jupiter_position_info"
+    - tool_name: "get_jupiter_lend_earn_position"
       description: "Validate final position state after emergency exit"
       critical: false
       expected_params: ["user_pubkey"]

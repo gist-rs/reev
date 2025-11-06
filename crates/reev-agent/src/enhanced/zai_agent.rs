@@ -126,88 +126,94 @@ impl ZAIAgent {
         let mut request_builder =
             CompletionRequestBuilder::new(model.clone(), &unified_data.enhanced_user_request);
 
-        // Add each tool only if it's allowed
-        if is_tool_allowed("sol_transfer") {
-            request_builder =
-                request_builder.tool(unified_data.tools.sol_tool.definition(String::new()).await);
-        }
-        if is_tool_allowed("spl_transfer") {
-            request_builder =
-                request_builder.tool(unified_data.tools.spl_tool.definition(String::new()).await);
-        }
-        if is_tool_allowed("jupiter_swap") {
-            // Use flow-aware tool in flow mode for proper swap_details structure
-            let flow_mode = flow_mode_indicator.is_some();
-            if flow_mode {
-                if let Some(ref flow_tool) = unified_data.tools.jupiter_swap_flow_tool {
-                    request_builder =
-                        request_builder.tool(flow_tool.definition(String::new()).await);
-                    info!("[ZAIAgent] Using JupiterSwapFlowTool in flow mode");
-                } else {
-                    request_builder = request_builder.tool(
-                        unified_data
-                            .tools
-                            .jupiter_swap_tool
-                            .definition(String::new())
-                            .await,
-                    );
-                    info!("[ZAIAgent] Falling back to JupiterSwapTool (flow tool not available)");
+        // Add each tool only if it's allowed - use type-safe enum parsing
+        let tool_name_list: Vec<String> = reev_types::ToolRegistry::all_tools()
+            .into_iter()
+            .map(|tool| tool.to_string())
+            .collect();
+        let balance_tool_def = unified_data
+            .tools
+            .balance_tool
+            .definition(String::new())
+            .await;
+        // Add each tool only if it's allowed - use type-safe enum parsing
+        let tool_name_list: Vec<String> = reev_types::ToolRegistry::all_tools()
+            .into_iter()
+            .map(|tool| tool.to_string())
+            .collect();
+
+        let balance_tool_def = unified_data
+            .tools
+            .balance_tool
+            .definition(String::new())
+            .await;
+
+        for tool_name in tool_name_list {
+            if is_tool_allowed(&tool_name) {
+                match tool_name {
+                    "sol_transfer" => {
+                        request_builder = request_builder
+                            .tool(unified_data.tools.sol_tool.definition(String::new()).await);
+                    }
+                    "spl_transfer" => {
+                        request_builder = request_builder
+                            .tool(unified_data.tools.spl_tool.definition(String::new()).await);
+                    }
+                    "jupiter_swap" => {
+                        // Use flow-aware tool in flow mode for proper swap_details structure
+                        let flow_mode = flow_mode_indicator.is_some();
+                        if flow_mode {
+                            if let Some(ref flow_tool) =
+                                unified_data.tools.jupiter_swap_flow_tool
+                            {
+                                request_builder =
+                                    request_builder.tool(flow_tool.definition(String::new()).await);
+                                info!("[ZAIAgent] Using JupiterSwapFlowTool in flow mode");
+                            } else {
+                                request_builder = request_builder.tool(
+                                    unified_data
+                                        .tools
+                                        .jupiter_swap_tool
+                                        .definition(String::new())
+                                        .await,
+                                );
+                                info!("[ZAIAgent] Falling back to JupiterSwapTool (flow tool not available)");
+                            }
+                        } else {
+                            request_builder = request_builder.tool(
+                                unified_data
+                                    .tools
+                                    .jupiter_swap_tool
+                                    .definition(String::new())
+                                    .await,
+                            );
+                            info!("[ZAIAgent] Using JupiterSwapTool in normal mode");
+                        }
+                    }
+                    "jupiter_lend_earn_deposit" => {
+                        request_builder = request_builder.tool(
+                            unified_data
+                                .tools
+                                .jupiter_lend_earn_deposit_tool
+                                .definition(String::new())
+                                .await,
+                        );
+                    }
+                    "jupiter_lend_earn_withdraw" => {
+                        request_builder = request_builder.tool(
+                            unified_data
+                                .tools
+                                .jupiter_lend_earn_withdraw_tool
+                                .definition(String::new())
+                                .await,
+                        );
+                    }
+                    _ => {
+                        info!("[ZAIAgent] Invalid tool name: {}, skipping", tool_name);
+                        continue;
+                    }
                 }
-            } else {
-                request_builder = request_builder.tool(
-                    unified_data
-                        .tools
-                        .jupiter_swap_tool
-                        .definition(String::new())
-                        .await,
-                );
-                info!("[ZAIAgent] Using JupiterSwapTool in normal mode");
             }
-        }
-        if is_tool_allowed("jupiter_lend_earn_deposit") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_lend_earn_deposit_tool
-                    .definition(String::new())
-                    .await,
-            );
-        }
-        if is_tool_allowed("jupiter_lend_earn_withdraw") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_lend_earn_withdraw_tool
-                    .definition(String::new())
-                    .await,
-            );
-        }
-        if is_tool_allowed("jupiter_lend_earn_mint") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_lend_earn_mint_tool
-                    .definition(String::new())
-                    .await,
-            );
-        }
-        if is_tool_allowed("jupiter_lend_earn_redeem") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_lend_earn_redeem_tool
-                    .definition(String::new())
-                    .await,
-            );
-        }
-        if is_tool_allowed("get_jupiter_earn_position") {
-            request_builder = request_builder.tool(
-                unified_data
-                    .tools
-                    .jupiter_earn_tool
-                    .definition(String::new())
-                    .await,
-            );
         }
         let request_builder = request_builder;
 
@@ -286,52 +292,49 @@ impl ZAIAgent {
         tools: &AgentTools,
         _allowed_tools: &Option<Vec<String>>,
     ) -> Result<serde_json::Value> {
-        match tool_call.function.name.as_str() {
-            "sol_transfer" => {
-                let args: reev_tools::tools::native::NativeTransferArgs =
+        // Use type-safe enum parsing instead of hardcoded strings
+        match tool_call.function.name.parse::<reev_types::ToolName>() {
+            Ok(reev_types::ToolName::SolTransfer) => {
+                match tool_call.function.name.parse::<reev_types::ToolName>() {
+                    Ok(reev_types::ToolName::SolTransfer) => {
+                        let args: reev_tools::tools::native::NativeTransferArgs =
+                            serde_json::from_value(tool_call.function.arguments.clone())?;
+                        let result = tools
+                            .sol_tool
+                            .call(args)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("SOL transfer error: {e}"))?;
+                        serde_json::to_value(result)
+                            .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                    }
+            Ok(reev_types::ToolName::JupiterEarn) => {
+                let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools
-                    .sol_tool
+                    .jupiter_earn_tool
                     .call(args)
                     .await
-                    .map_err(|e| anyhow::anyhow!("SOL transfer error: {e}"))?;
+                    .map_err(|e| anyhow::anyhow!("Jupiter earn error: {e}"))?;
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            "spl_transfer" => {
-                let args: reev_tools::tools::native::NativeTransferArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .spl_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("SPL transfer error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+            Ok(reev_types::ToolName::ExecuteTransaction) => {
+                Err(anyhow::anyhow!("ExecuteTransaction is not implemented"))
             }
-            "jupiter_swap" => {
-                let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_swap_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "jupiter_swap_flow" => {
-                if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
-                    let args: reev_tools::tools::flow::jupiter_swap_flow::JupiterSwapFlowArgs =
+            Ok(reev_types::ToolName::SplTransfer) => {
+                Ok(reev_types::ToolName::SplTransfer) => {
+                    let args: reev_tools::tools::native::NativeTransferArgs =
                         serde_json::from_value(tool_call.function.arguments.clone())?;
-                    let result = flow_tool
+                    let result = tools
+                        .spl_tool
                         .call(args)
                         .await
-                        .map_err(|e| anyhow::anyhow!("Jupiter swap flow error: {e}"))?;
+                        .map_err(|e| anyhow::anyhow!("SPL transfer error: {e}"))?;
                     serde_json::to_value(result)
                         .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-                } else {
-                    // Fallback to regular jupiter_swap if flow tool not available
+                }
+            Ok(reev_types::ToolName::JupiterSwap) => {
+                Ok(reev_types::ToolName::JupiterSwap) => {
                     let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
                         serde_json::from_value(tool_call.function.arguments.clone())?;
                     let result = tools
@@ -342,106 +345,134 @@ impl ZAIAgent {
                     serde_json::to_value(result)
                         .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
                 }
-            }
-            "jupiter_lend_earn_deposit" => {
-                let args: reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_lend_earn_deposit_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter lend deposit error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "jupiter_lend_earn_withdraw" => {
-                let args: reev_tools::tools::jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_lend_earn_withdraw_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter lend withdraw error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "jupiter_lend_earn_mint" => {
-                let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnMintArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_lend_earn_mint_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter lend mint error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "jupiter_lend_earn_redeem" => {
-                let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_lend_earn_redeem_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Jupiter lend redeem error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "get_jupiter_earn_position" => {
-                let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_earn_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("jupiter_earn execution error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "get_account_balance" => {
-                let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .balance_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Account balance error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            "get_jupiter_lend_earn_tokens" => {
-                let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .lend_earn_tokens_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Lend earn tokens error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
-            _ => Err(anyhow::anyhow!(
-                "Unknown tool called: {}",
-                tool_call.function.name
-            )),
+            Ok(reev_types::ToolName::JupiterSwapFlow) => {
+                Ok(reev_types::ToolName::JupiterSwapFlow) => {
+                    if let Some(ref flow_tool) = tools.jupiter_swap_flow_tool {
+                        let args: reev_tools::tools::flow::jupiter_swap_flow::JupiterSwapFlowArgs =
+                            serde_json::from_value(tool_call.function.arguments.clone())?;
+                        let result = flow_tool
+                            .call(args)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Jupiter swap flow error: {e}"))?;
+                        serde_json::to_value(result)
+                            .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                    } else {
+                        // Fallback to regular jupiter_swap if flow tool not available
+                        let args: reev_tools::tools::jupiter_swap::JupiterSwapArgs =
+                            serde_json::from_value(tool_call.function.arguments.clone())?;
+                        let result = tools
+                            .jupiter_swap_tool
+                            .call(args)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Jupiter swap error: {e}"))?;
+                        serde_json::to_value(result)
+                            .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                    }
+                }
+            Ok(reev_types::ToolName::JupiterLendEarnDeposit) => {
+                Ok(reev_types::ToolName::JupiterLendEarnDeposit) => {
+                    let args: reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .jupiter_lend_earn_deposit_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter lend deposit error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::JupiterLendEarnWithdraw) => {
+                Ok(reev_types::ToolName::JupiterLendEarnWithdraw) => {
+                    let args: reev_tools::tools::jupiter_lend_earn_withdraw::JupiterLendEarnWithdrawArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .jupiter_lend_earn_withdraw_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter lend earn withdraw error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::JupiterLendEarnMint) => {
+                Ok(reev_types::ToolName::JupiterLendEarnMint) => {
+                    let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnMintArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .jupiter_lend_earn_mint_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter lend earn mint error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::JupiterLendEarnRedeem) => {
+                Ok(reev_types::ToolName::JupiterLendEarnRedeem) => {
+                    let args: reev_tools::tools::jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .jupiter_lend_earn_redeem_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Jupiter lend earn redeem error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::GetJupiterLendEarnPosition) => {
+                Ok(reev_types::ToolName::GetJupiterLendEarnPosition) => {
+                    let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .jupiter_earn_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("jupiter_earn execution error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::GetAccountBalance) => {
+                Ok(reev_types::ToolName::GetAccountBalance) => {
+                    let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .balance_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Account balance error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Ok(reev_types::ToolName::GetJupiterLendEarnTokens) => {
+                Ok(reev_types::ToolName::GetJupiterLendEarnTokens) => {
+                    let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
+                        serde_json::from_value(tool_call.function.arguments.clone())?;
+                    let result = tools
+                        .lend_earn_tokens_tool
+                        .call(args)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Lend earn tokens error: {e}"))?;
+                    serde_json::to_value(result)
+                        .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
+                }
+            Err(_) => Err(anyhow::anyhow!("Unknown tool: {}", tool_call.function.name)),
         }
     }
 
-    /// 📝 Get appropriate summary for tool type
-    fn get_tool_summary(tool_name: &str) -> &'static str {
-        match tool_name {
-            "sol_transfer" => "SOL transfer completed successfully",
-            "spl_transfer" => "SPL transfer completed successfully",
-            "jupiter_swap" => "Jupiter swap completed successfully",
-            "jupiter_lend_earn_deposit" => "Jupiter lend deposit completed successfully",
-            "jupiter_lend_earn_withdraw" => "Jupiter lend withdraw completed successfully",
-            "jupiter_lend_earn_mint" => "Jupiter lend mint completed successfully",
-            "jupiter_lend_earn_redeem" => "Jupiter lend redeem completed successfully",
-            "get_jupiter_earn_position" => "Jupiter earn operation completed successfully",
-            "get_account_balance" => "Account balance retrieved successfully",
-            "lend_earn_tokens" => "Lend earn tokens operation completed successfully",
-            "jupiter_swap_flow" => "Jupiter swap flow completed successfully",
-            _ => "Tool operation completed successfully",
+    /// 📝 Get appropriate summary for tool type - use type-safe matching
+    fn get_tool_summary(tool_enum: &reev_types::ToolName) -> &'static str {
+        match tool_enum {
+            reev_types::ToolName::SolTransfer => "SOL transfer completed successfully",
+            reev_types::ToolName::SplTransfer => "SPL transfer completed successfully",
+            reev_types::ToolName::JupiterSwap => "Jupiter swap completed successfully",
+            reev_types::ToolName::JupiterSwapFlow => "Jupiter swap flow completed successfully",
+            reev_types::ToolName::JupiterLendEarnDeposit => "Jupiter lend deposit completed successfully",
+            reev_types::ToolName::JupiterLendEarnWithdraw => "Jupiter lend withdraw completed successfully",
+            reev_types::ToolName::JupiterLendEarnMint => "Jupiter lend mint completed successfully",
+            reev_types::ToolName::JupiterLendEarnRedeem => "Jupiter lend redeem completed successfully",
+            reev_types::ToolName::GetJupiterLendEarnPosition => "Jupiter earn operation completed successfully",
+            reev_types::ToolName::GetAccountBalance => "Account balance retrieved successfully",
+            reev_types::ToolName::GetJupiterLendEarnTokens => "Lend earn tokens operation completed successfully",
+            reev_types::ToolName::JupiterEarn => "Jupiter earn operation completed successfully",
+            reev_types::ToolName::ExecuteTransaction => "Transaction execution completed successfully",
         }
     }
 }

@@ -888,7 +888,7 @@ pub fn create_positions_check_step_with_recovery(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool(ToolName::GetJupiterEarnPosition)
+    .with_tool(ToolName::GetJupiterLendEarnPosition)
     .with_estimated_time(15)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 })
     .with_critical(false)) // Not critical for flow success
@@ -1043,7 +1043,7 @@ pub fn create_positions_check_step(
         prompt_template,
         "Check final lending positions".to_string(),
     )
-    .with_tool(ToolName::GetJupiterEarnPosition)
+    .with_tool(ToolName::GetJupiterLendEarnPosition)
     .with_estimated_time(15)
     .with_critical(false)) // Not critical for flow success
 }

@@ -175,7 +175,7 @@ pub fn analyze_simple_intent(prompt: &str) -> UserIntent {
         )
     } else if prompt_lower.contains("position") || prompt_lower.contains("balance") {
         (
-            reev_types::tools::ToolName::GetJupiterEarnPosition,
+            reev_types::tools::ToolName::GetJupiterLendEarnPosition,
             extract_amount(prompt),
         )
     } else {

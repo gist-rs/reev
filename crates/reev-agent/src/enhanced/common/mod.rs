@@ -385,18 +385,11 @@ impl AgentHelper {
         let session_id = payload.session_id.clone();
 
         // Get available tool names for this benchmark - simplified without key_map
-        let tool_name_list = vec![
-            "sol_transfer".to_string(),
-            "spl_transfer".to_string(),
-            "jupiter_swap".to_string(),
-            "get_jupiter_earn_position".to_string(),
-            "jupiter_lend_earn_deposit".to_string(),
-            "jupiter_lend_earn_withdraw".to_string(),
-            "jupiter_lend_earn_mint".to_string(),
-            "jupiter_lend_earn_redeem".to_string(),
-            "account_balance".to_string(),
-            "lend_earn_tokens".to_string(),
-        ];
+        // Use type-safe tool registry instead of hardcoded strings
+        let tool_name_list: Vec<_> = reev_types::ToolRegistry::all_tools()
+            .into_iter()
+            .map(|tool| tool.to_string())
+            .collect();
 
         // Log comprehensive prompt information using enhanced OpenTelemetry
         reev_flow::log_prompt_event!(&tool_name_list, &payload.prompt, &enhanced_prompt);
