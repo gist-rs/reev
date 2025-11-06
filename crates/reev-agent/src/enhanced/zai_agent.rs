@@ -163,9 +163,7 @@ impl ZAIAgent {
                         // Use flow-aware tool in flow mode for proper swap_details structure
                         let flow_mode = flow_mode_indicator.is_some();
                         if flow_mode {
-                            if let Some(ref flow_tool) =
-                                unified_data.tools.jupiter_swap_flow_tool
-                            {
+                            if let Some(ref flow_tool) = unified_data.tools.jupiter_swap_flow_tool {
                                 request_builder =
                                     request_builder.tool(flow_tool.definition(String::new()).await);
                                 info!("[ZAIAgent] Using JupiterSwapFlowTool in flow mode");
@@ -464,15 +462,27 @@ impl ZAIAgent {
             reev_types::ToolName::SplTransfer => "SPL transfer completed successfully",
             reev_types::ToolName::JupiterSwap => "Jupiter swap completed successfully",
             reev_types::ToolName::JupiterSwapFlow => "Jupiter swap flow completed successfully",
-            reev_types::ToolName::JupiterLendEarnDeposit => "Jupiter lend deposit completed successfully",
-            reev_types::ToolName::JupiterLendEarnWithdraw => "Jupiter lend withdraw completed successfully",
+            reev_types::ToolName::JupiterLendEarnDeposit => {
+                "Jupiter lend deposit completed successfully"
+            }
+            reev_types::ToolName::JupiterLendEarnWithdraw => {
+                "Jupiter lend withdraw completed successfully"
+            }
             reev_types::ToolName::JupiterLendEarnMint => "Jupiter lend mint completed successfully",
-            reev_types::ToolName::JupiterLendEarnRedeem => "Jupiter lend redeem completed successfully",
-            reev_types::ToolName::GetJupiterLendEarnPosition => "Jupiter earn operation completed successfully",
+            reev_types::ToolName::JupiterLendEarnRedeem => {
+                "Jupiter lend redeem completed successfully"
+            }
+            reev_types::ToolName::GetJupiterLendEarnPosition => {
+                "Jupiter earn operation completed successfully"
+            }
             reev_types::ToolName::GetAccountBalance => "Account balance retrieved successfully",
-            reev_types::ToolName::GetJupiterLendEarnTokens => "Lend earn tokens operation completed successfully",
+            reev_types::ToolName::GetJupiterLendEarnTokens => {
+                "Lend earn tokens operation completed successfully"
+            }
             reev_types::ToolName::JupiterEarn => "Jupiter earn operation completed successfully",
-            reev_types::ToolName::ExecuteTransaction => "Transaction execution completed successfully",
+            reev_types::ToolName::ExecuteTransaction => {
+                "Transaction execution completed successfully"
+            }
         }
     }
 }
