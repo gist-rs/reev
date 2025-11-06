@@ -180,12 +180,105 @@ pub async fn run_benchmarks(
             .await
             .context("Failed to start reev-agent for benchmark")?;
 
-        // Check if this is a flow benchmark
+        // Check if this is a dynamic flow benchmark (flow_type: "dynamic")
+        if test_case.flow_type == "dynamic" {
+            info!(
+                benchmark_id = %test_case.id,
+                "Detected dynamic flow benchmark, routing to orchestrator"
+            );
+
+            // Use orchestrator for dynamic flows
+            let prompt = &test_case.prompt;
+            let wallet_pubkey = test_case
+                .initial_state
+                .first()
+                .and_then(|item| {
+                    if item.owner == "11111111111111111111111111111111" {
+                        Some("USER_WALLET_PUBKEY")
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("USER_WALLET_PUBKEY");
+
+            let dynamic_results = run_dynamic_flow(
+                prompt,
+                wallet_pubkey,
+                &effective_agent,
+                shared_surfpool,
+                execution_id.clone(),
+            )
+            .await
+            .context("Failed to execute dynamic flow")?;
+
+            results.extend(dynamic_results);
+
+            // Stop reev-agent after dynamic flow completion
+            info!("Stopping reev-agent after dynamic flow: {}", test_case.id);
+            if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    error = %e,
+                    "Failed to stop reev-agent gracefully after dynamic flow"
+                );
+            }
+
+            continue;
+        }
+
+        // Check if this is a step-based flow benchmark (has flow array)
+        // Check if this is a dynamic flow benchmark (flow_type: "dynamic")
+        if test_case.flow_type == "dynamic" {
+            info!(
+                benchmark_id = %test_case.id,
+                "Detected dynamic flow benchmark, routing to orchestrator"
+            );
+
+            // Use orchestrator for dynamic flows
+            let prompt = &test_case.prompt;
+            let wallet_pubkey = test_case
+                .initial_state
+                .first()
+                .and_then(|item| {
+                    if item.owner == "11111111111111111111111111111111111" {
+                        Some("USER_WALLET_PUBKEY")
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("USER_WALLET_PUBKEY");
+
+            let dynamic_results = run_dynamic_flow(
+                prompt,
+                wallet_pubkey,
+                &effective_agent,
+                shared_surfpool,
+                execution_id.clone(),
+            )
+            .await
+            .context("Failed to execute dynamic flow")?;
+
+            results.extend(dynamic_results);
+
+            // Stop reev-agent after dynamic flow completion
+            info!("Stopping reev-agent after dynamic flow: {}", test_case.id);
+            if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
+                warn!(
+                    benchmark_id = %test_case.id,
+                    error = %e,
+                    "Failed to stop reev-agent gracefully after dynamic flow"
+                );
+            }
+
+            continue;
+        }
+
+        // Check if this is a step-based flow benchmark (has flow array)
         if let Some(flow_steps) = &test_case.flow {
             info!(
                 benchmark_id = %test_case.id,
                 steps_count = %flow_steps.len(),
-                "Detected flow benchmark, executing step-by-step"
+                "Detected step-based flow benchmark, executing step-by-step"
             );
 
             // Use provided execution_id for flow benchmark to ensure consistency
@@ -676,69 +769,48 @@ pub async fn run_dynamic_flow(
         flow_plan.steps.len()
     );
 
-    // Initialize dependency management system
-    let mut dependency_guard = init_dependencies_with_config(DependencyConfig {
-        shared_instances: shared_surfpool,
-        agent_type: Some(agent_name.to_string()),
-        ..Default::default()
-    })
-    .await
-    .context("Failed to initialize dependencies")?;
-
-    // Create test case from flow plan (in-memory)
-    let test_case = create_test_case_from_flow_plan(&flow_plan)?;
-
-    // Determine the appropriate agent based on flow_type
-    let effective_agent = determine_agent_from_flow_type(&test_case, agent_name);
-
-    // Start reev-agent for this flow
-    info!(
-        "Starting reev-agent for dynamic flow: {} with agent: {} (flow_type: {})",
-        flow_plan.flow_id, effective_agent, test_case.flow_type
-    );
-    dependency_guard
-        .manager
-        .update_config_and_restart_agent(
-            Some(effective_agent.to_string()),
-            Some(flow_plan.flow_id.clone()),
-        )
+    // Execute the flow plan using ping-pong executor
+    let gateway = OrchestratorGateway::new()
         .await
-        .context("Failed to start reev-agent for dynamic flow")?;
+        .context("Failed to create orchestrator gateway for execution")?;
 
-    // Execute the dynamic flow
-    let session_id = execution_id
-        .as_ref()
-        .cloned()
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    let result = run_flow_benchmark(
-        &test_case,
-        test_case
-            .flow
-            .as_ref()
-            .expect("Flow steps should be present"),
-        &effective_agent,
-        &format!("dynamic://{}", flow_plan.flow_id),
-        &session_id,
-    )
-    .await?;
+    let step_results = gateway
+        .execute_flow_with_ping_pong(&flow_plan, agent_name)
+        .await
+        .context("Failed to execute dynamic flow with ping-pong")?;
 
     info!("Dynamic flow execution completed successfully");
 
-    // Stop reev-agent after flow completion
-    info!(
-        "Stopping reev-agent after dynamic flow: {}",
-        flow_plan.flow_id
-    );
-    if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
-        warn!(
-            flow_id = %flow_plan.flow_id,
-            error = %e,
-            "Failed to stop reev-agent gracefully after dynamic flow"
-        );
+    // Convert step results to TestResult format
+    let test_result = TestResult {
+        id: flow_plan.flow_id.clone(),
+        prompt: flow_plan.user_prompt.clone(),
+        final_status: if step_results.iter().all(|r| r.success) {
+            FinalStatus::Succeeded
+        } else {
+            FinalStatus::Failed
+        },
+        score: calculate_dynamic_flow_score(&step_results),
+        trace: ExecutionTrace {
+            prompt: flow_plan.user_prompt.clone(),
+            steps: vec![],
+        },
+    };
+
+    Ok(vec![test_result])
+}
+
+/// Calculate score for dynamic flow based on step success rates
+fn calculate_dynamic_flow_score(step_results: &[reev_types::flow::StepResult]) -> f64 {
+    if step_results.is_empty() {
+        return 0.0;
     }
 
-    Ok(vec![result])
+    let successful_steps = step_results.iter().filter(|r| r.success).count();
+    let total_steps = step_results.len();
+
+    // Score based on percentage of successful steps
+    (successful_steps as f64 / total_steps as f64) * 100.0
 }
 
 /// Execute a flow with Phase 3 recovery mechanisms
