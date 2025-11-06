@@ -220,7 +220,7 @@ async fn handle_flow_benchmarks(
             let user_pubkey_str = key_map
                 .get("USER_WALLET_PUBKEY")
                 .context("USER_WALLET_PUBKEY not found in key_map")?;
-            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+            let _user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
             // Dynamic flow - agent will use Jupiter tools to execute the multiplication strategy
             info!("[reev-agent] Dynamic flow: Agent will execute 50% SOL to USDC swap then lend for 1.5x multiplication");

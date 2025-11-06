@@ -77,6 +77,12 @@ impl YmlGenerator {
         ]);
         yml.insert(serde_yaml::Value::String("tags".to_string()), tags);
 
+        // Add flow_type field for dynamic flows
+        yml.insert(
+            serde_yaml::Value::String("flow_type".to_string()),
+            serde_yaml::Value::String("dynamic".to_string()),
+        );
+
         // Generate initial state from context
         let initial_state = self.generate_initial_state(&flow_plan.context);
         yml.insert(

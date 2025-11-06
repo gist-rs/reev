@@ -2,7 +2,44 @@
 
 ---
 
-fix issue, re-test, re-check code, impl remain tasks, rm testd and done task, ALWAYS RUN SERVER IN BG
+refer to 300-jup-swap-then-lend-deposit-dyn.yml
+tags: ["dynamic", "multiplication", "jupiter", "yield", "strategy"]
+flow_type: "dynamic")
+
+flow_type should detemine from tags is good enough // so if tags "dynamic" exist -> flow_type=dynamic
+
+also
+
+```
+        "300-jup-swap-then-lend-deposit-dyn" => {
+            info!(
+                "[reev-agent] Matched '300-jup-swap-then-lend-deposit-dyn' id. Starting dynamic flow."
+            );
+
+            let user_pubkey_str = key_map
+                .get("USER_WALLET_PUBKEY")
+                .context("USER_WALLET_PUBKEY not found in key_map")?;
+            let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+            let _user_pubkey = Pubkey::from_str(user_pubkey_str)?;
+
+            // Dynamic flow - agent will use Jupiter tools to execute the multiplication strategy
+            info!("[reev-agent] Dynamic flow: Agent will execute 50% SOL to USDC swap then lend for 1.5x multiplication");
+
+            // For dynamic benchmarks, return empty instructions and let LLM agent handle the execution
+            let flow_response = serde_json::json!({
+                "benchmark_id": "300-jup-swap-then-lend-deposit-dyn",
+                "agent_type": "dynamic",
+                "mode": "llm_execution",
+                "strategy": "use jupiter tools to multiply USDC position by 1.5x using 50% of SOL"
+            });
+            Ok(serde_json::to_string(&flow_response)?)
+        }
+```
+is redandant about "dynamic" and should determine from flow_type=dynamic
+
+---
+
+fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
 expect working mermaid flow completed info with score for 001-sol-transfer.yml,200-jup-swap-then-lend-deposit.yml, 300-jup-swap-then-lend-deposit-dyn.yml, via api glm-4.6-coding
 

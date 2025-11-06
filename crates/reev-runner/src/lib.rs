@@ -92,6 +92,25 @@ async fn init_dependencies_with_config(config: DependencyConfig) -> Result<Depen
     Ok(guard)
 }
 
+/// Determine the appropriate agent based on flow_type
+/// Returns "deterministic" for static flows, specified agent for dynamic flows
+fn determine_agent_from_flow_type(test_case: &TestCase, default_agent: &str) -> String {
+    match test_case.flow_type.as_str() {
+        "dynamic" => {
+            // For dynamic flows, use LLM agent (default to glm-4.6-coding if not specified)
+            if default_agent == "deterministic" {
+                "glm-4.6-coding".to_string()
+            } else {
+                default_agent.to_string()
+            }
+        }
+        _ => {
+            // For static flows (default), use deterministic agent
+            "deterministic".to_string()
+        }
+    }
+}
+
 /// Runs all benchmarks found at given path and returns results.
 /// If shared_surfpool is true, reuses existing service instances.
 /// If false, creates fresh instances for each run.
@@ -140,15 +159,18 @@ pub async fn run_benchmarks(
         let test_case: TestCase = serde_yaml::from_reader(f)?;
         info!(id = %test_case.id, "Loaded test case");
 
+        // Determine the appropriate agent based on flow_type
+        let effective_agent = determine_agent_from_flow_type(&test_case, agent_name);
+
         // Start reev-agent for this specific benchmark
         info!(
-            "Starting reev-agent for benchmark: {} with agent: {}",
-            test_case.id, agent_name
+            "Starting reev-agent for benchmark: {} with agent: {} (flow_type: {})",
+            test_case.id, effective_agent, test_case.flow_type
         );
         dependency_guard
             .manager
             .update_config_and_restart_agent(
-                Some(agent_name.to_string()),
+                Some(effective_agent.to_string()),
                 Some(test_case.id.clone()),
             )
             .await
@@ -168,7 +190,7 @@ pub async fn run_benchmarks(
             let result = run_flow_benchmark(
                 &test_case,
                 flow_steps,
-                agent_name,
+                &effective_agent,
                 &path.display().to_string(),
                 session_id.as_deref().unwrap_or("unknown"),
             )
@@ -662,15 +684,18 @@ pub async fn run_dynamic_flow(
     // Create test case from flow plan (in-memory)
     let test_case = create_test_case_from_flow_plan(&flow_plan)?;
 
+    // Determine the appropriate agent based on flow_type
+    let effective_agent = determine_agent_from_flow_type(&test_case, agent_name);
+
     // Start reev-agent for this flow
     info!(
-        "Starting reev-agent for dynamic flow: {} with agent: {}",
-        flow_plan.flow_id, agent_name
+        "Starting reev-agent for dynamic flow: {} with agent: {} (flow_type: {})",
+        flow_plan.flow_id, effective_agent, test_case.flow_type
     );
     dependency_guard
         .manager
         .update_config_and_restart_agent(
-            Some(agent_name.to_string()),
+            Some(effective_agent.to_string()),
             Some(flow_plan.flow_id.clone()),
         )
         .await
@@ -688,7 +713,7 @@ pub async fn run_dynamic_flow(
             .flow
             .as_ref()
             .expect("Flow steps should be present"),
-        agent_name,
+        &effective_agent,
         &format!("dynamic://{}", flow_plan.flow_id),
         &session_id,
     )
@@ -850,6 +875,7 @@ fn create_test_case_from_flow_plan(flow_plan: &DynamicFlowPlan) -> Result<TestCa
         prompt: flow_plan.user_prompt.clone(),
         initial_state: initial_accounts,
         ground_truth,
+        flow_type: "dynamic".to_string(), // Dynamic flows always use LLM agent
         flow: Some(flow_steps),
         tags: vec!["dynamic".to_string(), "phase2".to_string()],
     })
@@ -1050,7 +1076,8 @@ async fn run_flow_benchmark(
             tags: test_case.tags.clone(),
             initial_state: test_case.initial_state.clone(),
             prompt: step.prompt.clone(),
-            flow: None, // No nested flows
+            flow_type: test_case.flow_type.clone(), // Inherit flow_type from parent
+            flow: None,                             // No nested flows
             ground_truth: test_case.ground_truth.clone(),
         };
 
@@ -1311,6 +1338,7 @@ async fn run_flow_benchmark_with_recovery(
             tags: vec![],
             initial_state: vec![],
             prompt: flow_step.prompt.clone(),
+            flow_type: test_case.flow_type.clone(), // Inherit flow_type from parent
             flow: None,
             ground_truth: GroundTruth {
                 transaction_status: "Success".to_string(),

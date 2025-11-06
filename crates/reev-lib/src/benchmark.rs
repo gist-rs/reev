@@ -20,11 +20,27 @@ pub struct TestCase {
     pub initial_state: Vec<InitialStateItem>,
     /// The natural language prompt given to the agent.
     pub prompt: String,
+    /// Flow type: "static" for deterministic agent, "dynamic" for LLM agent.
+    #[serde(
+        default = "default_flow_type",
+        skip_serializing_if = "is_default_flow_type"
+    )]
+    pub flow_type: String,
     /// Optional flow definition for multi-step benchmarks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flow: Option<Vec<FlowStep>>,
     /// The ground truth assertions and expected outcomes for this benchmark.
     pub ground_truth: GroundTruth,
+}
+
+/// Default flow type (static for backward compatibility)
+fn default_flow_type() -> String {
+    "static".to_string()
+}
+
+/// Check if flow_type is the default value
+fn is_default_flow_type(flow_type: &str) -> bool {
+    flow_type == "static"
 }
 
 /// Defines the initial state of a single on-chain account for a benchmark.

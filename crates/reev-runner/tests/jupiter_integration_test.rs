@@ -42,6 +42,7 @@ async fn test_jupiter_swap_insufficient_balance() -> Result<()> {
         description: "Test insufficient balance scenario".to_string(),
         tags: vec!["jupiter".to_string(), "swap".to_string()],
         prompt: "Swap 1 SOL for USDC using Jupiter".to_string(),
+        flow_type: "static".to_string(),
         initial_state: vec![reev_lib::benchmark::InitialStateItem {
             pubkey: "USER_WALLET_PUBKEY".to_string(),
             owner: "11111111111111111111111111111111".to_string(),
@@ -128,6 +129,7 @@ async fn test_jupiter_malformed_instruction() -> Result<()> {
         description: "Test malformed instruction scenario".to_string(),
         tags: vec!["jupiter".to_string(), "error".to_string()],
         prompt: "Swap SOL for USDC using Jupiter".to_string(),
+        flow_type: "static".to_string(),
         initial_state: vec![reev_lib::benchmark::InitialStateItem {
             pubkey: "USER_WALLET_PUBKEY".to_string(),
             owner: "11111111111111111111111111111111".to_string(),
@@ -206,10 +208,11 @@ async fn test_jupiter_valid_instruction_execution() -> Result<()> {
     let token_program = Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")?;
 
     let test_case = TestCase {
-        id: "jupiter-valid-test".to_string(),
-        description: "Test valid instruction scenario".to_string(),
-        tags: vec!["jupiter".to_string(), "valid".to_string()],
-        prompt: "Swap 0.1 SOL for USDC using Jupiter".to_string(),
+        id: "jupiter-swap-test".to_string(),
+        description: "Test Jupiter swap execution".to_string(),
+        tags: vec!["jupiter".to_string(), "swap".to_string()],
+        prompt: "Swap 1 SOL for USDC using Jupiter".to_string(),
+        flow_type: "static".to_string(),
         initial_state: vec![
             reev_lib::benchmark::InitialStateItem {
                 pubkey: "USER_WALLET_PUBKEY".to_string(),
@@ -316,6 +319,7 @@ async fn test_jupiter_multiple_operations() -> Result<()> {
         id: "jupiter-multi-test".to_string(),
         description: "Test multiple Jupiter operations".to_string(),
         tags: vec!["jupiter".to_string(), "multi".to_string()],
+        flow_type: "static".to_string(),
         prompt: "Swap SOL for USDC and deposit to lending".to_string(),
         initial_state: vec![
             reev_lib::benchmark::InitialStateItem {
