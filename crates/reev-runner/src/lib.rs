@@ -944,7 +944,7 @@ fn generate_ground_truth_from_steps(
             .contains(&reev_types::tools::ToolName::JupiterLendEarnDeposit)
             || step
                 .required_tools
-                .contains(&reev_types::tools::ToolName::JupiterEarn)
+                .contains(&reev_types::tools::ToolName::GetJupiterLendEarnPosition)
             || step.description.to_lowercase().contains("lend")
             || step.description.to_lowercase().contains("earn")
     });

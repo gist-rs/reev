@@ -211,7 +211,8 @@ impl YmlGenerator {
 
         // Check if any step involves lend/earn
         let has_lend = steps.iter().any(|step| {
-            step.required_tools.contains(&ToolName::JupiterEarn)
+            step.required_tools
+                .contains(&ToolName::GetJupiterLendEarnPosition)
                 || step.description.to_lowercase().contains("lend")
                 || step.description.to_lowercase().contains("deposit")
         });

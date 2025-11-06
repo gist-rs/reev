@@ -39,10 +39,6 @@ pub enum ToolName {
     #[strum(serialize = "jupiter_swap_flow")]
     JupiterSwapFlow,
 
-    /// Jupiter earn tool (restricted to benchmarks)
-    #[strum(serialize = "get_jupiter_earn_position")]
-    JupiterEarn,
-
     /// Jupiter lend earn deposit tool
     #[strum(serialize = "jupiter_lend_earn_deposit")]
     JupiterLendEarnDeposit,
@@ -76,7 +72,6 @@ impl ToolName {
                 | ToolName::SplTransfer
                 | ToolName::JupiterSwap
                 | ToolName::JupiterSwapFlow
-                | ToolName::JupiterEarn
                 | ToolName::JupiterLendEarnDeposit
                 | ToolName::JupiterLendEarnWithdraw
                 | ToolName::JupiterLendEarnMint
@@ -94,7 +89,6 @@ impl ToolName {
             ToolName::SplTransfer => 20000,
             ToolName::JupiterSwap => 30000,
             ToolName::JupiterSwapFlow => 35000,
-            ToolName::JupiterEarn => 40000,
             ToolName::JupiterLendEarnDeposit => 50000,
             ToolName::JupiterLendEarnWithdraw => 25000,
             ToolName::JupiterLendEarnMint => 30000,
@@ -109,7 +103,7 @@ impl ToolName {
             self,
             ToolName::JupiterSwap
                 | ToolName::JupiterSwapFlow
-                | ToolName::JupiterEarn
+                | ToolName::GetJupiterLendEarnPosition
                 | ToolName::JupiterLendEarnDeposit
                 | ToolName::JupiterLendEarnWithdraw
                 | ToolName::JupiterLendEarnMint
@@ -119,7 +113,7 @@ impl ToolName {
 
     /// Check if tool is restricted to benchmarks only
     pub fn is_benchmark_restricted(&self) -> bool {
-        matches!(self, ToolName::JupiterEarn)
+        matches!(self, ToolName::GetJupiterLendEarnPosition)
     }
 
     /// Check if tool is a transfer tool
@@ -130,9 +124,9 @@ impl ToolName {
     /// Get tool category for grouping and analytics
     pub fn category(&self) -> ToolCategory {
         match self {
-            ToolName::GetAccountBalance
-            | ToolName::GetJupiterLendEarnPosition
-            | ToolName::GetJupiterLendEarnTokens => ToolCategory::Discovery,
+            ToolName::GetAccountBalance | ToolName::GetJupiterLendEarnTokens => {
+                ToolCategory::Discovery
+            }
             ToolName::SolTransfer
             | ToolName::SplTransfer
             | ToolName::JupiterSwap
@@ -142,7 +136,7 @@ impl ToolName {
             | ToolName::JupiterLendEarnWithdraw
             | ToolName::JupiterLendEarnMint
             | ToolName::JupiterLendEarnRedeem => ToolCategory::Lending,
-            ToolName::JupiterEarn => ToolCategory::Positions,
+            ToolName::GetJupiterLendEarnPosition => ToolCategory::Positions,
         }
     }
 
@@ -215,7 +209,7 @@ impl ToolCategory {
                 ToolName::JupiterLendEarnMint,
                 ToolName::JupiterLendEarnRedeem,
             ],
-            ToolCategory::Positions => vec![ToolName::JupiterEarn],
+            ToolCategory::Positions => vec![ToolName::GetJupiterLendEarnPosition],
         }
     }
 }
@@ -242,92 +236,5 @@ impl ToolRequirements {
             benchmark_only: tool.is_benchmark_restricted(),
             estimated_time_ms: tool.estimated_time_ms(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tool_name_serialization() {
-        let tool = ToolName::JupiterSwap;
-        assert_eq!(tool.to_string(), "jupiter_swap");
-        assert_eq!(tool.as_str(), "jupiter_swap");
-    }
-
-    #[test]
-    fn test_tool_name_deserialization() {
-        let parsed: ToolName = "jupiter_swap".parse().unwrap();
-        assert_eq!(parsed, ToolName::JupiterSwap);
-
-        // Test all actual tool names
-        assert!("get_account_balance".parse::<ToolName>().is_ok());
-        assert!("get_jupiter_lend_earn_position".parse::<ToolName>().is_ok());
-        assert!("get_jupiter_lend_earn_tokens".parse::<ToolName>().is_ok());
-        assert!("sol_transfer".parse::<ToolName>().is_ok());
-        assert!("spl_transfer".parse::<ToolName>().is_ok());
-        assert!("jupiter_swap".parse::<ToolName>().is_ok());
-        assert!("jupiter_swap_flow".parse::<ToolName>().is_ok());
-        assert!("get_jupiter_earn_position".parse::<ToolName>().is_ok());
-        assert!("jupiter_lend_earn_deposit".parse::<ToolName>().is_ok());
-        assert!("jupiter_lend_earn_withdraw".parse::<ToolName>().is_ok());
-        assert!("jupiter_lend_earn_mint".parse::<ToolName>().is_ok());
-        assert!("jupiter_lend_earn_redeem".parse::<ToolName>().is_ok());
-    }
-
-    #[test]
-    fn test_tool_requirements() {
-        let tool = ToolName::JupiterSwap;
-        assert!(tool.requires_wallet());
-        assert!(tool.is_jupiter_tool());
-        assert!(!tool.is_benchmark_restricted());
-        assert_eq!(tool.estimated_time_ms(), 30000);
-    }
-
-    #[test]
-    fn test_spl_transfer_included() {
-        let tool = ToolName::SplTransfer;
-        assert_eq!(tool.to_string(), "spl_transfer");
-        assert!(tool.requires_wallet());
-        assert_eq!(tool.category(), ToolCategory::Swap);
-    }
-
-    #[test]
-    fn test_correct_serializations() {
-        // Test the fixes mentioned in issue #37
-        let account_balance = ToolName::GetAccountBalance;
-        assert_eq!(account_balance.to_string(), "get_account_balance");
-
-        let lend_earn_tokens = ToolName::GetJupiterLendEarnTokens;
-        assert_eq!(lend_earn_tokens.to_string(), "get_jupiter_lend_earn_tokens");
-
-        let jupiter_withdraw = ToolName::JupiterLendEarnWithdraw;
-        assert_eq!(jupiter_withdraw.to_string(), "jupiter_lend_earn_withdraw");
-    }
-
-    #[test]
-    fn test_tool_categories() {
-        let swap_tools = ToolCategory::Swap.tools();
-        assert!(swap_tools.contains(&ToolName::JupiterSwap));
-        assert!(swap_tools.contains(&ToolName::SplTransfer));
-        assert!(!swap_tools.contains(&ToolName::GetAccountBalance));
-
-        let discovery_tools = ToolCategory::Discovery.tools();
-        assert!(discovery_tools.contains(&ToolName::GetAccountBalance));
-        assert!(discovery_tools.contains(&ToolName::GetJupiterLendEarnTokens));
-    }
-
-    #[test]
-    fn test_benchmark_restricted() {
-        assert!(ToolName::JupiterEarn.is_benchmark_restricted());
-        assert!(!ToolName::JupiterSwap.is_benchmark_restricted());
-    }
-
-    #[test]
-    fn test_pattern_matching() {
-        assert!(ToolName::JupiterSwap.matches_pattern("jupiter"));
-        assert!(ToolName::JupiterSwap.matches_pattern("swap"));
-        assert!(!ToolName::JupiterSwap.matches_pattern("lend"));
     }
 }

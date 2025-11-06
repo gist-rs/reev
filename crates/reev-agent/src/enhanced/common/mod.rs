@@ -11,9 +11,10 @@ use tracing::{debug, error, info, warn};
 use crate::{context::integration::ContextIntegration, prompt::SYSTEM_PREAMBLE, LlmRequest};
 
 use reev_tools::tools::{
-    AccountBalanceTool, JupiterEarnTool, JupiterLendEarnDepositTool, JupiterLendEarnMintTool,
-    JupiterLendEarnRedeemTool, JupiterLendEarnWithdrawTool, JupiterSwapFlowTool, JupiterSwapTool,
-    LendEarnTokensTool, SolTransferTool, SplTransferTool,
+    jupiter_lend_earn::GetJupiterLendEarnPositionTool, AccountBalanceTool,
+    JupiterLendEarnDepositTool, JupiterLendEarnMintTool, JupiterLendEarnRedeemTool,
+    JupiterLendEarnWithdrawTool, JupiterSwapFlowTool, JupiterSwapTool, LendEarnTokensTool,
+    SolTransferTool, SplTransferTool,
 };
 
 // Import enhanced OpenTelemetry macros
@@ -167,7 +168,7 @@ pub struct AgentTools {
     pub jupiter_lend_earn_withdraw_tool: JupiterLendEarnWithdrawTool,
     pub jupiter_lend_earn_mint_tool: JupiterLendEarnMintTool,
     pub jupiter_lend_earn_redeem_tool: JupiterLendEarnRedeemTool,
-    pub jupiter_earn_tool: JupiterEarnTool,
+    pub get_jupiter_lend_earn_tool: GetJupiterLendEarnPositionTool,
     pub balance_tool: AccountBalanceTool,
     pub lend_earn_tokens_tool: LendEarnTokensTool,
 }
@@ -205,7 +206,7 @@ impl AgentTools {
             jupiter_lend_earn_redeem_tool: JupiterLendEarnRedeemTool {
                 key_map: key_map.clone(),
             },
-            jupiter_earn_tool: JupiterEarnTool {
+            get_jupiter_lend_earn_tool: GetJupiterLendEarnPositionTool {
                 key_map: key_map.clone(),
             },
             balance_tool: AccountBalanceTool {

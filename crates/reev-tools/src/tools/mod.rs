@@ -1,6 +1,6 @@
 pub mod discovery;
 pub mod flow;
-pub mod jupiter_earn;
+pub mod jupiter_lend_earn;
 pub mod jupiter_lend_earn_deposit;
 pub mod jupiter_lend_earn_mint_redeem;
 pub mod jupiter_lend_earn_withdraw;
@@ -9,7 +9,7 @@ pub mod native;
 
 pub use discovery::*;
 pub use flow::*;
-pub use jupiter_earn::JupiterEarnTool;
+pub use jupiter_lend_earn::GetJupiterLendEarnPositionTool;
 pub use jupiter_lend_earn_deposit::JupiterLendEarnDepositTool;
 pub use jupiter_lend_earn_mint_redeem::JupiterLendEarnMintTool;
 pub use jupiter_lend_earn_mint_redeem::JupiterLendEarnRedeemTool;

@@ -98,7 +98,7 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     if span_name.contains("jupiter_lend_earn_withdraw") { return Some("jupiter_lend_earn_withdraw".to_string()); }
     if span_name.contains("jupiter_lend_earn_mint") { return Some("jupiter_lend_earn_mint".to_string()); }
     if span_name.contains("jupiter_lend_earn_redeem") { return Some("jupiter_lend_earn_redeem".to_string()); }
-    if span_name.contains("get_jupiter_earn_position") { return Some("get_jupiter_earn_position".to_string()); }
+    if span_name.contains("get_jupiter_lend_earn_position") { return Some("get_jupiter_lend_earn_position".to_string()); }
 
     // Core tools
     if span_name.contains("sol_transfer") { return Some("sol_transfer".to_string()); }

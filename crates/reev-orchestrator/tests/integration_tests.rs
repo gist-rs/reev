@@ -91,7 +91,7 @@ async fn test_simple_lend_flow() -> Result<()> {
     assert!(flow_plan.steps[0].prompt_template.contains("USDC"));
     assert!(flow_plan.steps[0]
         .required_tools
-        .contains(&reev_types::tools::ToolName::JupiterEarn));
+        .contains(&reev_types::tools::ToolName::GetJupiterLendEarnPosition));
 
     // Clean up
     std::fs::remove_file(yml_path)?;

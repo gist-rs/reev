@@ -228,7 +228,7 @@ impl ZAIAgent {
                         request_builder = request_builder.tool(
                             unified_data
                                 .tools
-                                .jupiter_earn_tool
+                                .get_jupiter_lend_earn_tool
                                 .definition(String::new())
                                 .await,
                         );
@@ -242,11 +242,6 @@ impl ZAIAgent {
                     reev_types::ToolName::ExecuteTransaction => {
                         // ExecuteTransaction not implemented for ZAI agent
                         info!("[ZAIAgent] ExecuteTransaction tool not supported in ZAI mode");
-                        continue;
-                    }
-                    reev_types::ToolName::JupiterEarn => {
-                        // JupiterEarn is same as GetJupiterLendEarnPosition - handled above
-                        info!("[ZAIAgent] JupiterEarn handled by GetJupiterLendEarnPosition");
                         continue;
                     }
                 }
@@ -345,11 +340,11 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            Ok(reev_types::ToolName::JupiterEarn) => {
-                let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
+            Ok(reev_types::ToolName::GetJupiterLendEarnPosition) => {
+                let args: reev_tools::tools::jupiter_lend_earn::GetJupiterLendEarnPositionArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools
-                    .jupiter_earn_tool
+                    .get_jupiter_lend_earn_tool
                     .call(args)
                     .await
                     .map_err(|e| anyhow::anyhow!("Jupiter earn error: {e}"))?;
@@ -448,17 +443,6 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            Ok(reev_types::ToolName::GetJupiterLendEarnPosition) => {
-                let args: reev_tools::tools::jupiter_earn::JupiterEarnArgs =
-                    serde_json::from_value(tool_call.function.arguments.clone())?;
-                let result = tools
-                    .jupiter_earn_tool
-                    .call(args)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("jupiter_earn execution error: {e}"))?;
-                serde_json::to_value(result)
-                    .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
-            }
             Ok(reev_types::ToolName::GetAccountBalance) => {
                 let args: reev_tools::tools::discovery::balance_tool::AccountBalanceArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
@@ -503,13 +487,12 @@ impl ZAIAgent {
                 "Jupiter lend redeem completed successfully"
             }
             reev_types::ToolName::GetJupiterLendEarnPosition => {
-                "Jupiter earn operation completed successfully"
+                "Jupiter lend earn operation completed successfully"
             }
             reev_types::ToolName::GetAccountBalance => "Account balance retrieved successfully",
             reev_types::ToolName::GetJupiterLendEarnTokens => {
                 "Lend earn tokens operation completed successfully"
             }
-            reev_types::ToolName::JupiterEarn => "Jupiter earn operation completed successfully",
             reev_types::ToolName::ExecuteTransaction => {
                 "Transaction execution completed successfully"
             }

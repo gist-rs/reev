@@ -874,7 +874,7 @@ pub fn create_lend_step_with_recovery(
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool(ToolName::JupiterEarn)
+    .with_tool(ToolName::GetJupiterLendEarnPosition)
     .with_estimated_time(45)
     .with_recovery(reev_types::flow::RecoveryStrategy::Retry { attempts: 2 }))
     // Note: Lending step uses default critical behavior (true) for consistency
@@ -1033,7 +1033,7 @@ pub fn create_lend_step(_context: &WalletContext) -> Result<reev_types::flow::Dy
         prompt_template,
         "Deposit USDC into Jupiter lending".to_string(),
     )
-    .with_tool(ToolName::JupiterEarn)
+    .with_tool(ToolName::GetJupiterLendEarnPosition)
     .with_estimated_time(45))
 }
 

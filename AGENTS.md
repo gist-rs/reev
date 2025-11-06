@@ -22,3 +22,4 @@
 ## DONT
 - DONT Add a test on each file, place it in tests folder.
 - DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo ...`.
+k

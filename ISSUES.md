@@ -13,7 +13,7 @@
 ✅ `ExecuteTransaction` added back with proper implementation
 ✅ `JupiterPositions` renamed to `GetJupiterLendEarnPosition` (distinct tool)
 
-**RESOLVED KEY ISSUE**: `jupiter_earn` tool renamed to `get_jupiter_earn_position` to eliminate duplication confusion and provide clearer naming convention.
+**RESOLVED KEY ISSUE**: `jupiter_earn` tool renamed to `get_jupiter_lend_earn_position` to eliminate duplication confusion and provide clearer naming convention.
 - `JupiterPositions` is redundant with `GetJupiterLendEarnPosition`
 
 ### **NAMING CONSISTENCY ISSUE IN ENUM DEFINITION - RESOLVED**
@@ -25,7 +25,7 @@ The enum now has consistent naming patterns:
 pub enum ToolName {
     // Discovery Tools - ALL with "Get" prefix
     GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
-    GetJupiterLendEarnPosition,      // serialize: "get_jupiter_earn_position" ✅ RENAMED
+    GetJupiterLendEarnPosition,      // serialize: "get_jupiter_lend_earn_position" ✅ RENAMED
     GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ FIXED
 
     // Transaction Tools - NO "Get" prefix (action-based)
@@ -58,14 +58,14 @@ The enum now follows consistent naming:
 
 **Actual Tool Implementation Changes Made**:
 - `GetAccountBalanceTool::NAME = "get_account_balance"` ✅
-- `PositionInfoTool` renamed to `GetJupiterLendEarnPosition` with `NAME = "get_jupiter_earn_position"` ✅
+- `PositionInfoTool` renamed to `GetJupiterLendEarnPosition` with `NAME = "get_jupiter_lend_earn_position"` ✅
 - `LendEarnTokensTool::NAME = "get_jupiter_lend_earn_tokens"` ✅
-- `JupiterEarnTool::NAME = "get_jupiter_earn_position"` ✅ (UNIFIED - positions + earnings, benchmark only)
+- `GetJupiterLendEarnPositionTool::NAME = "get_jupiter_lend_earn_position"` ✅ (UNIFIED - positions + earnings, benchmark only)
 
 **Key Resolution**:
-- `JupiterEarn` and `GetJupiterLendEarnPosition` now use SAME NAME "get_jupiter_earn_position"
+- `GetJupiterLendEarnPosition` and `GetJupiterLendEarnPosition` now use SAME NAME "get_jupiter_lend_earn_position"
 - This eliminates duplication while providing both discovery and action variants in enum
-- Clear distinction: GetJupiterLendEarnPosition (discovery) vs JupiterEarn (action) but same underlying tool
+- Clear distinction: GetJupiterLendEarnPosition (discovery) vs GetJupiterLendEarnPosition (action) but same underlying tool
 
 ### **CRITICAL ARCHITECTURAL PROBLEM: String-based Tool Names Everywhere**
 
@@ -106,7 +106,7 @@ impl Tool for SolTransferTool {
     // ...
 }
 
-impl Tool for JupiterEarnTool {
+impl Tool for GetJupiterLendEarnPositionTool {
     const NAME: &'static str = "jupiter_earn";   // ✅ SINGLE SOURCE OF TRUTH
     // ...
 }
@@ -129,7 +129,7 @@ Naming inconsistency has been FIXED:
 pub enum ToolName {
     // Discovery Tools - ALL with "Get" prefix
     GetAccountBalance,           // "get_account_balance" ✅
-    GetJupiterLendEarnPosition,      // "get_jupiter_earn_position" ✅ RENAMED
+    GetJupiterLendEarnPosition,      // "get_jupiter_lend_earn_position" ✅ RENAMED
     GetJupiterLendEarnTokens,    // "get_jupiter_lend_earn_tokens" ✅
 
     // Transaction Tools - NO "Get" prefix (action-based)
@@ -149,9 +149,9 @@ pub enum ToolName {
 
 **Resolved Tool Distinctions**:
 - `GetAccountBalance` - General wallet balance discovery
-- `GetJupiterLendEarnPosition` - Jupiter-specific position discovery (unified with JupiterEarn)
-- `JupiterEarn` - Jupiter-specific positions AND earnings (same underlying tool, benchmark restricted)
-- **KEY FIX**: Both enum variants now use same serialization "get_jupiter_earn_position" for consistency
+- `GetJupiterLendEarnPosition` - Jupiter-specific position discovery (unified with GetJupiterLendEarnPosition)
+- `GetJupiterLendEarnPosition` - Jupiter-specific positions AND earnings (same underlying tool, benchmark restricted)
+- **KEY FIX**: Both enum variants now use same serialization "get_jupiter_lend_earn_position" for consistency
 
 ### 2. ✅ COMPLETED - Tool Registry Created
 `crates/reev-types/src/tool_registry.rs` IMPLEMENTED:
@@ -165,7 +165,7 @@ impl ToolRegistry {
     pub fn all_tools() -> Vec<&'static str> {
         vec![
             "get_account_balance",
-            "get_jupiter_earn_position",    // ✅ UNIFIED NAME
+            "get_jupiter_lend_earn_position",    // ✅ UNIFIED NAME
             "get_jupiter_lend_earn_tokens",
             "sol_transfer",
             "spl_transfer",
@@ -195,7 +195,7 @@ use strum::{Display, EnumString, IntoStaticStr, VariantNames};
 pub enum ToolName {
     // Discovery & Information Tools (Jupiter-focused)
     GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
-    GetJupiterLendEarnPosition,      // serialize: "get_jupiter_earn_position" ✅ RENAMED
+    GetJupiterLendEarnPosition,      // serialize: "get_jupiter_lend_earn_position" ✅ RENAMED
     GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ RENAMED
 
     // Transaction Tools (Jupiter operations)
@@ -279,7 +279,7 @@ match tool_name.parse::<ToolName>() {
 "sol_transfer" -> ToolName::SolTransfer
 "spl_transfer" -> ToolName::SplTransfer
 "jupiter_swap" -> ToolName::JupiterSwap
-"jupiter_earn" -> ToolName::GetJupiterEarn
+"jupiter_earn" -> ToolName::GetJupiterLendEarnPosition
 // ... all tool names
 
 // ❌ REPLACE THESE MATCHING PATTERNS:
@@ -292,7 +292,7 @@ tool_name.contains("jupiter") -> tool_name.parse::<ToolName>()?.is_jupiter_tool(
 1. ✅ Created `crates/reev-types/src/tool_registry.rs` with working tool registry
 2. ✅ Updated `ToolName` enum with strum integration and correct names
 3. ✅ **MASSIVE SEARCH-REPLACE COMPLETED**: Fixed hardcoded string tool names in YML files
-4. ✅ Updated actual tool implementations (JupiterEarn, tool_names.rs) with correct names
+4. ✅ Updated actual tool implementations (GetJupiterLendEarnPosition, tool_names.rs) with correct names
 5. ✅ Fixed benchmark YML files (300-305 series, 114) with correct tool names
 6. ✅ Created comprehensive test coverage for tool validation and category separation
 
@@ -300,7 +300,7 @@ tool_name.contains("jupiter") -> tool_name.parse::<ToolName>()?.is_jupiter_tool(
 ✅ **MAJOR ARCHITECTURAL REFACTOR**: Eliminated 200+ hardcoded string tool names throughout entire codebase
 ✅ **Type-Safe Tool Management**: Replaced all string-based patterns with enum parsing using ToolName
 ✅ **Agent Files Updated**: Enhanced openai.rs, zai_agent.rs, flow/agent.rs, flow/selector.rs with enum usage
-✅ **API Files Updated**: Fixed dynamic_flows/mod.rs and otel_extraction/mod.rs with type-safe patterns  
+✅ **API Files Updated**: Fixed dynamic_flows/mod.rs and otel_extraction/mod.rs with type-safe patterns
 ✅ **Enhanced Tool Registry**: Added is_transfer_tool() helper method for better categorization
 ✅ **Eliminated String Matching**: Replaced all `match tool_name.as_str()` patterns with enum parsing
 ✅ **Compilation Success**: Full project compiles without errors after extensive refactor
@@ -315,7 +315,7 @@ tool_name.contains("jupiter") -> tool_name.parse::<ToolName>()?.is_jupiter_tool(
 - ✅ Working tool registry with validation
 - ✅ Fixed YML files throughout codebase
 - ✅ Updated actual tool implementations to match enum names
-- ✅ Unified naming between GetJupiterLendEarnPosition and JupiterEarn
+- ✅ Unified naming between GetJupiterLendEarnPosition and GetJupiterLendEarnPosition
 
 **CRITICAL**: This is not just an enum fix - it's a **complete architectural refactor** from string-based to type-safe tool management throughout the entire codebase.
 

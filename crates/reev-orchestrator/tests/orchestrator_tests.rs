@@ -173,7 +173,7 @@ fn test_tools_config_generation() {
         DynamicStep::new("1".to_string(), "test".to_string(), "test".to_string())
             .with_tool(ToolName::SolTransfer),
         DynamicStep::new("2".to_string(), "test".to_string(), "test".to_string())
-            .with_tool(ToolName::JupiterEarn),
+            .with_tool(ToolName::GetJupiterLendEarnPosition),
     ];
 
     let tools = generator.generate_tools_config(&steps);

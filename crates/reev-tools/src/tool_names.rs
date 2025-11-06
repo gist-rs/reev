@@ -13,7 +13,7 @@ pub const SPL_TRANSFER: &str = "spl_transfer";
 pub const JUPITER_SWAP: &str = "jupiter_swap";
 
 /// Jupiter earn tool name
-pub const JUPITER_EARN: &str = "get_jupiter_earn_position";
+pub const JUPITER_EARN: &str = "get_jupiter_lend_earn_position";
 
 /// Jupiter lend earn deposit tool name
 pub const JUPITER_LEND_EARN_DEPOSIT: &str = "jupiter_lend_earn_deposit";

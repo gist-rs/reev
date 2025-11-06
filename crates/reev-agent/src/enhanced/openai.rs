@@ -199,7 +199,7 @@ impl OpenAIAgent {
                 builder = builder.tool(tools.balance_tool);
             }
             if is_tool_allowed(&reev_types::ToolName::GetJupiterLendEarnPosition.to_string()) {
-                builder = builder.tool(tools.jupiter_earn_tool);
+                builder = builder.tool(tools.get_jupiter_lend_earn_tool);
             }
 
             builder.build()

@@ -17,16 +17,16 @@ use reev_flow::{log_tool_call, log_tool_completion};
 
 /// The arguments for Jupiter earn tool, which will be provided by the AI model.
 #[derive(Deserialize, Debug, Serialize)]
-pub struct JupiterEarnArgs {
+pub struct GetJupiterLendEarnPositionArgs {
     pub user_pubkey: String,
     pub position_address: Option<String>,
-    pub operation: JupiterEarnOperation,
+    pub operation: GetJupiterLendEarnPositionOperation,
 }
 
 /// Jupiter earn operations
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum JupiterEarnOperation {
+pub enum GetJupiterLendEarnPositionOperation {
     Positions,
     Earnings,
     Both,
@@ -34,7 +34,7 @@ pub enum JupiterEarnOperation {
 
 /// A custom error type for the Jupiter earn tool.
 #[derive(Debug, Error)]
-pub enum JupiterEarnError {
+pub enum GetJupiterLendEarnPositionError {
     #[error("Protocol error: {0}")]
     ProtocolError(#[from] anyhow::Error),
     #[error("Invalid operation: {0}")]
@@ -48,14 +48,14 @@ pub enum JupiterEarnError {
 /// A `rig` tool for accessing Jupiter's earn functionality.
 /// This tool provides a unified interface for positions and earnings data.
 #[derive(Deserialize, Serialize)]
-pub struct JupiterEarnTool {
+pub struct GetJupiterLendEarnPositionTool {
     pub key_map: HashMap<String, String>,
 }
 
-impl Tool for JupiterEarnTool {
-    const NAME: &'static str = "get_jupiter_earn_position";
-    type Error = JupiterEarnError;
-    type Args = JupiterEarnArgs;
+impl Tool for GetJupiterLendEarnPositionTool {
+    const NAME: &'static str = "get_jupiter_lend_earn_position";
+    type Error = GetJupiterLendEarnPositionError;
+    type Args = GetJupiterLendEarnPositionArgs;
     type Output = String;
 
     /// Defines the tool's schema and description for the AI model.
@@ -90,7 +90,7 @@ impl Tool for JupiterEarnTool {
         name = "jupiter_earn_tool_call",
         skip(self),
         fields(
-            tool_name = "get_jupiter_earn_position",
+            tool_name = "get_jupiter_lend_earn_position",
             user_pubkey = %args.user_pubkey,
             operation = ?args.operation,
             position_address = ?args.position_address
@@ -98,13 +98,13 @@ impl Tool for JupiterEarnTool {
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Use enhanced logging macro for consistent otel tracking
-        log_tool_call!("get_jupiter_earn_position", &args);
+        log_tool_call!("get_jupiter_lend_earn_position", &args);
 
-        info!("[JupiterEarn] Starting tool execution with OpenTelemetry tracing");
+        info!("[GetJupiterLendEarnPosition] Starting tool execution with OpenTelemetry tracing");
         let start_time = Instant::now();
         // Validate user pubkey
         if args.user_pubkey.is_empty() {
-            return Err(JupiterEarnError::InvalidUserPubkey(
+            return Err(GetJupiterLendEarnPositionError::InvalidUserPubkey(
                 "User pubkey cannot be empty".to_string(),
             ));
         }
@@ -118,14 +118,14 @@ impl Tool for JupiterEarnTool {
 
         // Execute the requested operation
         let result = match args.operation {
-            JupiterEarnOperation::Positions => {
+            GetJupiterLendEarnPositionOperation::Positions => {
                 info!(
-                    "[JupiterEarn] Calling get_positions_summary for user: {}",
+                    "[GetJupiterLendEarnPosition] Calling get_positions_summary for user: {}",
                     user_pubkey
                 );
                 let positions = get_positions_summary(user_pubkey.clone()).await?;
                 info!(
-                    "[JupiterEarn] Positions result: {}",
+                    "[GetJupiterLendEarnPosition] Positions result: {}",
                     serde_json::to_string_pretty(&positions).unwrap_or_default()
                 );
                 json!({
@@ -133,16 +133,16 @@ impl Tool for JupiterEarnTool {
                     "data": positions
                 })
             }
-            JupiterEarnOperation::Earnings => {
+            GetJupiterLendEarnPositionOperation::Earnings => {
                 info!(
-                    "[JupiterEarn] Calling get_earnings_summary for user: {}, position: {:?}",
+                    "[GetJupiterLendEarnPosition] Calling get_earnings_summary for user: {}, position: {:?}",
                     user_pubkey, args.position_address
                 );
                 let earnings =
                     get_earnings_summary(user_pubkey.clone(), args.position_address.clone())
                         .await?;
                 info!(
-                    "[JupiterEarn] Earnings result: {}",
+                    "[GetJupiterLendEarnPosition] Earnings result: {}",
                     serde_json::to_string_pretty(&earnings).unwrap_or_default()
                 );
                 json!({
@@ -150,21 +150,21 @@ impl Tool for JupiterEarnTool {
                     "data": earnings
                 })
             }
-            JupiterEarnOperation::Both => {
+            GetJupiterLendEarnPositionOperation::Both => {
                 info!(
-                    "[JupiterEarn] Calling both operations for user: {}",
+                    "[GetJupiterLendEarnPosition] Calling both operations for user: {}",
                     user_pubkey
                 );
                 let positions = get_positions_summary(user_pubkey.clone()).await?;
                 info!(
-                    "[JupiterEarn] Both - Positions result: {}",
+                    "[GetJupiterLendEarnPosition] Both - Positions result: {}",
                     serde_json::to_string_pretty(&positions).unwrap_or_default()
                 );
                 let earnings =
                     get_earnings_summary(user_pubkey.clone(), args.position_address.clone())
                         .await?;
                 info!(
-                    "[JupiterEarn] Both - Earnings result: {}",
+                    "[GetJupiterLendEarnPosition] Both - Earnings result: {}",
                     serde_json::to_string_pretty(&earnings).unwrap_or_default()
                 );
                 json!({
@@ -179,7 +179,7 @@ impl Tool for JupiterEarnTool {
 
         // Create the final response
         let response = json!({
-            "tool": "get_jupiter_earn_position",
+            "tool": "get_jupiter_lend_earn_position",
             "user_pubkey": user_pubkey,
             "position_filter": args.position_address,
             "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -189,15 +189,20 @@ impl Tool for JupiterEarnTool {
         let total_execution_time = start_time.elapsed().as_millis() as u64;
 
         // Log tool completion with enhanced otel
-        log_tool_completion!("get_jupiter_earn_position", total_execution_time, &response, true);
+        log_tool_completion!(
+            "get_jupiter_lend_earn_position",
+            total_execution_time,
+            &response,
+            true
+        );
 
         info!(
-            "[JupiterEarn] Tool execution completed - total_time: {}ms, operation: {:?}",
+            "[GetJupiterLendEarnPosition] Tool execution completed - total_time: {}ms, operation: {:?}",
             total_execution_time, args.operation
         );
 
         info!(
-            "[JupiterEarn] Final response: {}",
+            "[GetJupiterLendEarnPosition] Final response: {}",
             serde_json::to_string_pretty(&response).unwrap_or_default()
         );
         Ok(response.to_string())
