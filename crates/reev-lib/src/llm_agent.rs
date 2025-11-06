@@ -594,7 +594,9 @@ impl LlmAgent {
         // This prevents other benchmarks from accessing real Jupiter mainnet API
         if id.starts_with("114-jup-positions-and-earnings") {
             info!("[LlmAgent] Jupiter positions & earnings benchmark detected - allowing jupiter_earn tool");
-            return Some(vec!["get_jupiter_earn_position".to_string()]);
+            return Some(vec![
+                reev_types::ToolName::GetJupiterLendEarnPosition.to_string()
+            ]);
         }
 
         // For normal operation, return None so OpenAIAgent uses "Normal mode: add all discovery tools"

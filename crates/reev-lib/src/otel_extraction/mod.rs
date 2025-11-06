@@ -275,46 +275,73 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     // Try to parse from span name using type-safe enum
     let span_name = &span.span_name;
 
-    // Use enum-based pattern matching for tool name extraction
-    if span_name.contains("sol_transfer") {
-        return Some(reev_types::ToolName::SolTransfer.to_string());
+    // Type-safe tool name extraction using enum patterns
+    match span_name {
+        s if s.contains(reev_types::ToolName::SolTransfer.to_string().as_str()) => {
+            Some(reev_types::ToolName::SolTransfer.to_string())
+        }
+        s if s.contains(reev_types::ToolName::SplTransfer.to_string().as_str()) => {
+            Some(reev_types::ToolName::SplTransfer.to_string())
+        }
+        s if s.contains(reev_types::ToolName::JupiterSwapFlow.to_string().as_str()) => {
+            Some(reev_types::ToolName::JupiterSwapFlow.to_string())
+        }
+        s if s.contains(reev_types::ToolName::JupiterSwap.to_string().as_str()) => {
+            Some(reev_types::ToolName::JupiterSwap.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::JupiterLendEarnDeposit
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::JupiterLendEarnDeposit.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::JupiterLendEarnWithdraw
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::JupiterLendEarnWithdraw.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::JupiterLendEarnMint
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::JupiterLendEarnMint.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::JupiterLendEarnRedeem
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::JupiterLendEarnRedeem.to_string())
+        }
+        s if s.contains(reev_types::ToolName::GetAccountBalance.to_string().as_str()) => {
+            Some(reev_types::ToolName::GetAccountBalance.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::GetJupiterLendEarnTokens
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::GetJupiterLendEarnTokens.to_string())
+        }
+        s if s.contains(
+            reev_types::ToolName::GetJupiterLendEarnPosition
+                .to_string()
+                .as_str(),
+        ) =>
+        {
+            Some(reev_types::ToolName::GetJupiterLendEarnPosition.to_string())
+        }
+        _ => Some(span_name.clone()), // Fallback to original span name
     }
-    if span_name.contains("spl_transfer") {
-        return Some(reev_types::ToolName::SplTransfer.to_string());
-    }
-    if span_name.contains("jupiter_swap") {
-        return Some(reev_types::ToolName::JupiterSwap.to_string());
-    }
-    if span_name.contains("jupiter_swap_flow") {
-        return Some(reev_types::ToolName::JupiterSwapFlow.to_string());
-    }
-    if span_name.contains("jupiter_lend") {
-        return Some(reev_types::ToolName::JupiterLendEarnDeposit.to_string());
-    }
-    if span_name.contains("jupiter_deposit") {
-        return Some(reev_types::ToolName::JupiterLendEarnDeposit.to_string());
-    }
-    if span_name.contains("jupiter_withdraw") {
-        return Some(reev_types::ToolName::JupiterLendEarnWithdraw.to_string());
-    }
-    if span_name.contains("jupiter_mint") {
-        return Some(reev_types::ToolName::JupiterLendEarnMint.to_string());
-    }
-    if span_name.contains("jupiter_redeem") {
-        return Some(reev_types::ToolName::JupiterLendEarnRedeem.to_string());
-    }
-    if span_name.contains("get_account_balance") {
-        return Some(reev_types::ToolName::GetAccountBalance.to_string());
-    }
-    if span_name.contains("get_jupiter_lend_earn_tokens") {
-        return Some(reev_types::ToolName::GetJupiterLendEarnTokens.to_string());
-    }
-    if span_name.contains("get_jupiter_earn_position") {
-        return Some(reev_types::ToolName::GetJupiterLendEarnPosition.to_string());
-    }
-
-    // Fallback to span name if no pattern matches
-    Some(span_name.clone())
 }
 
 /// Extract tool arguments from span attributes

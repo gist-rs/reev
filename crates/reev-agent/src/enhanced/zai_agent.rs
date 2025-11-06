@@ -110,7 +110,10 @@ impl ZAIAgent {
                 Some(tools) => tools.contains(&tool_name.to_string()),
                 None => {
                     // SECURITY: Restrict jupiter_earn tool in normal mode (only available for position/earnings benchmarks 114-*.yml)
-                    tool_name != "get_jupiter_earn_position"
+                    tool_name
+                        != reev_types::ToolName::GetJupiterLendEarnPosition
+                            .to_string()
+                            .as_str()
                 }
             }
         };

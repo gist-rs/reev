@@ -105,10 +105,10 @@ impl PingPongExecutor {
         if self.otel_session_id.is_some() {
             log_prompt_event!(
                 [
-                    "jupiter_swap".to_string(),
-                    "jupiter_lend".to_string(),
-                    "account_balance".to_string(),
-                    "jupiter_positions".to_string()
+                    reev_types::ToolName::JupiterSwap.to_string(),
+                    reev_types::ToolName::JupiterLendEarnDeposit.to_string(),
+                    reev_types::ToolName::GetAccountBalance.to_string(),
+                    reev_types::ToolName::GetJupiterLendEarnPosition.to_string()
                 ],
                 format!(
                     "Orchestrator executing {} steps with {}",
@@ -439,29 +439,27 @@ impl PingPongExecutor {
         // This is a simplified parser - in production, you'd want more robust parsing
         let mut tool_calls = Vec::new();
 
-        // Look for tool call indicators in the response using correct tool names
-        if response.contains("jupiter_swap") {
-            tool_calls.push("jupiter_swap".to_string());
+        // Look for tool call indicators in response using type-safe enum
+        use reev_types::ToolName;
+
+        if response.contains(ToolName::JupiterSwap.to_string().as_str()) {
+            tool_calls.push(ToolName::JupiterSwap.to_string());
         }
 
-        if response.contains("jupiter_lend") {
-            tool_calls.push("jupiter_lend".to_string());
+        if response.contains(ToolName::JupiterLendEarnDeposit.to_string().as_str()) {
+            tool_calls.push(ToolName::JupiterLendEarnDeposit.to_string());
         }
 
-        if response.contains("get_jupiter_earn_position") {
-            tool_calls.push("get_jupiter_earn_position".to_string());
+        if response.contains(ToolName::GetJupiterLendEarnPosition.to_string().as_str()) {
+            tool_calls.push(ToolName::GetJupiterLendEarnPosition.to_string());
         }
 
-        if response.contains("get_account_balance") {
-            tool_calls.push("get_account_balance".to_string());
+        if response.contains(ToolName::GetAccountBalance.to_string().as_str()) {
+            tool_calls.push(ToolName::GetAccountBalance.to_string());
         }
 
-        if response.contains("jupiter_positions") {
-            tool_calls.push("jupiter_positions".to_string());
-        }
-
-        if response.contains("lend_earn_tokens") {
-            tool_calls.push("lend_earn_tokens".to_string());
+        if response.contains(ToolName::GetJupiterLendEarnTokens.to_string().as_str()) {
+            tool_calls.push(ToolName::GetJupiterLendEarnTokens.to_string());
         }
 
         Ok(tool_calls)

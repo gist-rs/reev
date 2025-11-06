@@ -663,13 +663,19 @@ impl OrchestratorGateway {
         };
 
         let required_tools = match intent_type.as_str() {
-            "lend" => vec!["account_balance".to_string(), "jupiter_lend".to_string()],
-            "complex" => vec![
-                "account_balance".to_string(),
-                "jupiter_swap".to_string(),
-                "jupiter_lend".to_string(),
+            "lend" => vec![
+                reev_types::ToolName::GetAccountBalance.to_string(),
+                reev_types::ToolName::JupiterLendEarnDeposit.to_string(),
             ],
-            _ => vec!["account_balance".to_string(), "jupiter_swap".to_string()],
+            "complex" => vec![
+                reev_types::ToolName::GetAccountBalance.to_string(),
+                reev_types::ToolName::JupiterSwap.to_string(),
+                reev_types::ToolName::JupiterLendEarnDeposit.to_string(),
+            ],
+            _ => vec![
+                reev_types::ToolName::GetAccountBalance.to_string(),
+                reev_types::ToolName::JupiterSwap.to_string(),
+            ],
         };
 
         Ok(UserIntent {

@@ -1,9 +1,10 @@
 //! StateDiagram Generator
 //!
 //! This module generates Mermaid stateDiagram visualizations from parsed session data.
-//! It follows the exact format specification required for the flow visualization.
+//! It follows the exact format specification required for flow visualization.
 
 use crate::handlers::flow_diagram::{session_parser::ParsedToolCall, FlowDiagram, ParsedSession};
+use reev_types::ToolName;
 
 /// StateDiagram generator for creating Mermaid stateDiagram visualizations
 pub struct StateDiagramGenerator;
@@ -50,7 +51,13 @@ impl StateDiagramGenerator {
             let _tool_details = Self::extract_tool_details(tool_call);
 
             // For transfer operations, show amount in transition
-            let transition_label = if tool_call.tool_name.contains("transfer") {
+            let transition_label = if tool_call
+                .tool_name
+                .contains(ToolName::SolTransfer.to_string().as_str())
+                || tool_call
+                    .tool_name
+                    .contains(ToolName::SplTransfer.to_string().as_str())
+            {
                 Self::extract_amount_from_params(tool_call)
                     .unwrap_or_else(|| Self::summarize_params(&tool_call.params))
             } else {
@@ -719,7 +726,7 @@ impl StateDiagramGenerator {
     /// Generate enhanced step notes for 300-series flows
     fn generate_enhanced_step_note(tool_call: &ParsedToolCall, step_index: usize) -> String {
         match tool_call.tool_name.as_str() {
-            "account_balance" => {
+            name if name == ToolName::GetAccountBalance.to_string() => {
                 if let Some(result_data) = &tool_call.result_data {
                     if let (Some(sol_balance), Some(usdc_balance), Some(total_value)) = (
                         result_data.get("sol_balance").and_then(|v| v.as_f64()),
@@ -736,7 +743,7 @@ impl StateDiagramGenerator {
                 }
                 "Step 1: Portfolio Assessment<br/>Check wallet balances<br/>Calculate available capital".to_string()
             }
-            "jupiter_swap" => {
+            name if name == ToolName::JupiterSwap.to_string() => {
                 if let Some(result_data) = &tool_call.result_data {
                     if let (Some(input_amount), Some(output_amount), Some(signature)) = (
                         result_data.get("input_amount").and_then(|v| v.as_f64()),
@@ -766,7 +773,7 @@ impl StateDiagramGenerator {
                 }
                 "Step 3: Jupiter DEX Swap<br/>Convert SOL to USDC<br/>Execute with slippage tolerance".to_string()
             }
-            "jupiter_lend_earn_deposit" => {
+            name if name == ToolName::JupiterLendEarnDeposit.to_string() => {
                 if let Some(result_data) = &tool_call.result_data {
                     if let (Some(deposit_amount), Some(apy), Some(position_value)) = (
                         result_data.get("deposit_amount").and_then(|v| v.as_f64()),
@@ -794,7 +801,7 @@ impl StateDiagramGenerator {
                 "Step 4: Jupiter Lending<br/>Deposit USDC for yield<br/>Create lending position"
                     .to_string()
             }
-            "check_positions" => {
+            name if name.contains("check_positions") => {
                 "Step 5: Position Verification<br/>Validate final state<br/>Check yield generation"
                     .to_string()
             }
@@ -821,7 +828,13 @@ impl StateDiagramGenerator {
             }
         }
         // Fallback: determine based on tool type and avoid hardcoding
-        if tool_call.tool_name.contains("transfer") {
+        if tool_call
+            .tool_name
+            .contains(ToolName::SolTransfer.to_string().as_str())
+            || tool_call
+                .tool_name
+                .contains(ToolName::SplTransfer.to_string().as_str())
+        {
             Some("1 ix".to_string()) // Default to singular for transfers
         } else {
             Some("operation".to_string()) // Generic fallback for other tools
