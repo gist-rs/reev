@@ -33,6 +33,7 @@ reqwest = { workspace = true, features = ["json"] }
 rig-core = { workspace = true }
 reev-flow = { path = "../reev-flow" }
 reev-types = { path = "../reev-types" }
+reev-constants = { path = "../reev-constants" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }

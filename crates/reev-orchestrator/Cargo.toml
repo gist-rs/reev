@@ -28,6 +28,7 @@ reev-protocols = { path = "../reev-protocols" }
 reev-agent = { path = "../reev-agent" }
 reev-flow = { path = "../reev-flow" }
 reev-lib = { path = "../reev-lib" }
+reev-constants = { path = "../reev-constants" }
 
 # Solana dependencies
 solana-client = { workspace = true }

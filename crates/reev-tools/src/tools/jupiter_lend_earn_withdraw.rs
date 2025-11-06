@@ -86,7 +86,7 @@ impl Tool for JupiterLendEarnWithdrawTool {
         name = "jupiter_lend_earn_withdraw_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_lend_earn_withdraw",
+            tool_name = reev_constants::JUPITER_LEND_EARN_WITHDRAW,
             user_pubkey = %args.user_pubkey,
             asset_mint = %args.asset_mint,
             amount = args.amount

@@ -109,9 +109,15 @@ async fn test_enhanced_otel_prompt_logging() {
     let session_id = logger.session_id().to_string();
 
     // Test prompt event by creating and logging directly
-    let tool_names = vec!["sol_transfer".to_string(), "jupiter_swap".to_string()];
+    let tool_names = vec![
+        reev_constants::SOL_TRANSFER.to_string(),
+        reev_constants::JUPITER_SWAP.to_string(),
+    ];
     let user_prompt = "Send 1 SOL to test address".to_string();
-    let final_prompt = "Send 1 SOL to test address using sol_transfer tool".to_string();
+    let final_prompt = format!(
+        "Send 1 SOL to test address using {} tool",
+        reev_constants::SOL_TRANSFER
+    );
 
     // Create and log prompt event directly
     let prompt_info = PromptInfo {

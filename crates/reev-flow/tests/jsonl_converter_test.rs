@@ -21,10 +21,16 @@ fn test_jsonl_to_yml_conversion() -> Result<(), Box<dyn std::error::Error>> {
             reev_agent_version: "0.1.0".to_string(),
             event_type: EventType::Prompt,
             prompt: Some(PromptInfo {
-                tool_name_list: vec!["sol_transfer".to_string(), "jupiter_swap".to_string()],
+                tool_name_list: vec![
+                    reev_constants::SOL_TRANSFER.to_string(),
+                    reev_constants::JUPITER_SWAP.to_string(),
+                ],
                 user_prompt: "Transfer SOL to user".to_string(),
-                final_prompt: "Available tools: sol_transfer, jupiter_swap. Transfer SOL to user"
-                    .to_string(),
+                final_prompt: format!(
+                    "Available tools: {}, {}. Transfer SOL to user",
+                    reev_constants::SOL_TRANSFER,
+                    reev_constants::JUPITER_SWAP
+                ),
             }),
             tool_input: None,
             tool_output: None,
@@ -42,7 +48,7 @@ fn test_jsonl_to_yml_conversion() -> Result<(), Box<dyn std::error::Error>> {
             event_type: EventType::ToolInput,
             prompt: None,
             tool_input: Some(ToolInputInfo {
-                tool_name: "sol_transfer".to_string(),
+                tool_name: reev_constants::SOL_TRANSFER.to_string(),
                 tool_args: serde_json::json!({"user_pubkey": "abc123", "amount": 1000}),
             }),
             tool_output: None,
@@ -62,7 +68,10 @@ fn test_jsonl_to_yml_conversion() -> Result<(), Box<dyn std::error::Error>> {
             tool_input: None,
             tool_output: Some(ToolOutputInfo {
                 success: true,
-                results: serde_json::json!({"transaction": "tx123", "tool_name": "sol_transfer"}),
+                results: serde_json::json!({
+                    "transaction": "tx123",
+                    "tool_name": reev_constants::SOL_TRANSFER
+                }),
                 error_message: None,
             }),
             timing: TimingInfo {
@@ -87,7 +96,10 @@ fn test_jsonl_to_yml_conversion() -> Result<(), Box<dyn std::error::Error>> {
     // Verify conversion
     assert_eq!(session_data.session_id, "test_session");
     assert_eq!(session_data.tool_calls.len(), 1);
-    assert_eq!(session_data.tool_calls[0].tool_name, "sol_transfer");
+    assert_eq!(
+        session_data.tool_calls[0].tool_name,
+        reev_constants::SOL_TRANSFER
+    );
     assert_eq!(session_data.summary.total_tool_calls, 1);
     assert_eq!(session_data.summary.successful_tool_calls, 1);
 

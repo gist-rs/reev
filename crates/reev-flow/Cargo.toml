@@ -22,6 +22,7 @@ uuid = { workspace = true, features = ["v4"] }
 ascii_tree = "0.1.1"
 async-trait = { workspace = true }
 reev-types = { path = "../reev-types" }
+reev-constants = { path = "../reev-constants" }
 
 [features]
 default = ["database"]

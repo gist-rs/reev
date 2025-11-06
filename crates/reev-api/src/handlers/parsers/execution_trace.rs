@@ -187,7 +187,7 @@ impl ExecutionTraceParser {
                             depth: i as u32 + 1,
                             content: EventContent {
                                 data: serde_json::json!({
-                                    "tool_name": "execute_transaction",
+                                    "tool_name": reev_constants::EXECUTE_TRANSACTION,
                                     "tool_args": format!("Step {} action", i + 1),
                                     "action_details": action_details,
                                     "data": data_value
@@ -205,7 +205,7 @@ impl ExecutionTraceParser {
                             depth: i as u32 + 1,
                             content: EventContent {
                                 data: serde_json::json!({
-                                    "tool_name": "execute_transaction",
+                                    "tool_name": reev_constants::EXECUTE_TRANSACTION,
                                     "result_status": "success",
                                     "result_data": action
                                 }),

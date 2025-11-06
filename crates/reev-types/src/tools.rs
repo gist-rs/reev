@@ -15,7 +15,7 @@ pub enum ToolName {
     #[strum(serialize = "get_account_balance")]
     GetAccountBalance,
 
-    /// Get Jupiter position info tool
+    /// Get Jupiter lend earn position info tool
     #[strum(serialize = "get_jupiter_lend_earn_position")]
     GetJupiterLendEarnPosition,
 

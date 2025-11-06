@@ -36,6 +36,9 @@ reev-flow = { path = "../reev-flow", features = ["database"] }
 # Shared types
 reev-types = { path = "../reev-types" }
 
+# Constants
+reev-constants = { path = "../reev-constants" }
+
 
 
 [features]

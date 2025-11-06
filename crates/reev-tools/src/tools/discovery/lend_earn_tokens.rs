@@ -183,7 +183,7 @@ impl Tool for LendEarnTokensTool {
         name = "lend_earn_tokens_tool_call",
         skip(self),
         fields(
-            tool_name = "lend_earn_tokens",
+            tool_name = reev_constants::GET_JUPITER_LEND_EARN_TOKENS,
             symbol = ?args.symbol,
             mint_address = ?args.mint_address
         )

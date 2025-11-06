@@ -33,6 +33,7 @@ reev-tools = { path = "../reev-tools" }
 reev-agent = { path = "../reev-agent" }
 
 reev-types = { path = "../reev-types" }
+reev-constants = { path = "../reev-constants" }
 axum = { version = "0.8.4", features = ["macros"] }
 tokio = { workspace = true, features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }

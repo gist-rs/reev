@@ -117,7 +117,7 @@ impl Tool for JupiterLendEarnMintTool {
         name = "jupiter_lend_earn_mint_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_lend_earn_mint",
+            tool_name = reev_constants::JUPITER_LEND_EARN_MINT,
             asset = %args.asset,
             signer = %args.signer,
             shares = args.shares
@@ -247,11 +247,12 @@ impl Tool for JupiterLendEarnRedeemTool {
     }
 
     /// Executes the tool's logic: queries actual balance before redeeming.
+    /// Executes the tool's logic: validates arguments and calls the Jupiter API.
     #[instrument(
         name = "jupiter_lend_earn_redeem_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_lend_earn_redeem",
+            tool_name = reev_constants::JUPITER_LEND_EARN_REDEEM,
             asset = %args.asset,
             signer = %args.signer,
             shares = args.shares

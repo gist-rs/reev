@@ -252,8 +252,10 @@ impl AlternativeFlowStrategy {
             ],
         };
 
-        self.alternative_flows
-            .insert("jupiter_swap".to_string(), jupiter_swap_alternative);
+        self.alternative_flows.insert(
+            reev_constants::JUPITER_SWAP.to_string(),
+            jupiter_swap_alternative,
+        );
         self.alternative_flows
             .insert("liquidity".to_string(), liquidity_alternative);
         self.alternative_flows

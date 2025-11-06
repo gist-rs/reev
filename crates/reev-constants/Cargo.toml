@@ -1,0 +1,18 @@
+[package]
+name = "reev-constants"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "reev_constants"
+path = "src/lib.rs"
+
+[dependencies]
+# No dependencies - this crate is intentionally minimal to avoid circular dependencies

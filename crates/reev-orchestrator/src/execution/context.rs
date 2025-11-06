@@ -226,7 +226,7 @@ mod tests {
             step_id: "step1".to_string(),
             success: true,
             duration_ms: 1000,
-            tool_calls: vec!["jupiter_swap".to_string()],
+            tool_calls: vec![reev_constants::JUPITER_SWAP.to_string()],
             output: Some(r#"{"transactions": [{"signature": "abc123"}]}"#.to_string()),
             error_message: None,
             recovery_attempts: 0,

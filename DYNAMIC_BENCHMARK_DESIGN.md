@@ -16,18 +16,18 @@
 
 #### Tool Call Sequence:
 ```
-1. account_balance() - Discover current SOL and USDC holdings
+1. get_account_balance() - Discover current SOL and USDC holdings
 2. jupiter_swap() - Swap 50% SOL to USDC
-3. jupiter_lend() - Deposit new USDC into Jupiter lending for yield
-4. jupiter_positions() - Validate final lending positions
+3. jupiter_lend_earn_deposit() - Deposit new USDC into Jupiter lending for yield
+4. get_jupiter_lend_earn_position() - Validate final lending positions
 ```
 
 #### Parameter Calculations:
 ```
 Initial: 4 SOL, 20 USDC
-Step 1: account_balance returns {sol: 4.0, usdc: 20.0}
+Step 1: get_account_balance returns {sol: 4.0, usdc: 20.0}
 Step 2: jupiter_swap(2.0 SOL → USDC) expects ~60 USDC (assuming $30/SOL)
-Step 3: jupiter_lend(~60 USDC) for yield generation
+Step 3: jupiter_lend_earn_deposit(~60 USDC) for yield generation
 Final: ~0 USDC in wallet + ~60 USDC in lending + 2 SOL remaining
 ```
 
@@ -45,10 +45,10 @@ Final: ~0 USDC in wallet + ~60 USDC in lending + 2 SOL remaining
 expected_otel_tracking:
   - type: "tool_call_logging"
     description: "OpenTelemetry tracks all tool execution"
-    required_tools: ["account_balance", "jupiter_swap", "jupiter_lend", "jupiter_positions"]
+    required_tools: ["get_account_balance", "jupiter_swap", "jupiter_lend_earn_deposit", "get_jupiter_lend_earn_position"]
     weight: 0.5
 
-  - tool_name: "account_balance"
+  - tool_name: "get_account_balance"
     description: "Wallet discovery via OTEL traces"
     critical: false
     weight: 0.1
@@ -56,16 +56,14 @@ expected_otel_tracking:
   - tool_name: "jupiter_swap"
     description: "50% SOL to USDC conversion tracked via OTEL"
     critical: true
-    expected_params: ["input_amount", "output_token", "slippage_tolerance"]
     weight: 0.4
 
-  - tool_name: "jupiter_lend"
+  - tool_name: "jupiter_lend_earn_deposit"
     description: "USDC yield generation tracked via OTEL"
     critical: true
-    expected_params: ["mint", "deposit_amount", "auto_compound"]
     weight: 0.4
 
-  - tool_name: "jupiter_positions"
+  - tool_name: "get_jupiter_lend_earn_position"
     description: "Final position validation tracked via OTEL"
     critical: false
     weight: 0.1
@@ -128,7 +126,7 @@ async fn test_300_end_to_end_orchestration() {
         .process_user_request("use my 50% sol to multiply usdc 1.5x on jup", "test_wallet")
         .await?;
 
-    assert_eq!(flow_plan.steps.len(), 4); // account_balance → swap → lend → positions
+    assert_eq!(flow_plan.steps.len(), 4); // get_account_balance → swap → lend_earn_deposit → get_jupiter_lend_earn_position
 }
 ```
 
@@ -141,10 +139,10 @@ async fn test_300_otel_tracking() {
     let otel_data = get_otel_traces(execution_id).await;
 
     // Verify tool call spans
-    assert!(otel_data.has_tool_call("account_balance"));
+    assert!(otel_data.has_tool_call("get_account_balance"));
     assert!(otel_data.has_tool_call("jupiter_swap"));
-    assert!(otel_data.has_tool_call("jupiter_lend"));
-    assert!(otel_data.has_tool_call("jupiter_positions"));
+    assert!(otel_data.has_tool_call("jupiter_lend_earn_deposit"));
+    assert!(otel_data.has_tool_call("get_jupiter_lend_earn_position"));
 
     // Verify parameter passing
     let swap_span = otel_data.get_tool_span("jupiter_swap");
@@ -202,10 +200,10 @@ curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
     "prompt_processed": "use my 50% sol to multiply usdc 1.5x on jup"
   },
   "tool_calls": [
-    {"tool": "account_balance", "success": true},
+    {"tool": "get_account_balance", "success": true},
     {"tool": "jupiter_swap", "success": true, "params": {"amount": "2000000000"}},
-    {"tool": "jupiter_lend", "success": true, "params": {"amount": "60000000"}},
-    {"tool": "jupiter_positions", "success": true}
+    {"tool": "jupiter_lend_earn_deposit", "success": true, "params": {"amount": "60000000"}},
+    {"tool": "get_jupiter_lend_earn_position", "success": true}
   ]
 }
 ```
@@ -744,15 +742,15 @@ impl PingPongExecutor {
 ```yaml
 # Simple (301) - Direct instructions
 +"Use my 50% SOL to maximize my USDC returns through Jupiter lending."
-→ Tools: [account_balance] → [jupiter_swap] → [jupiter_lend]
+→ Tools: [get_account_balance] → [jupiter_swap] → [jupiter_lend_earn_deposit]
 
 # Complex (302) - Portfolio analysis required
 +"I want to rebalance my portfolio based on current market conditions."
-→ Tools: [account_balance, jupiter_positions] → Analysis → [jupiter_swap] → [jupiter_lend]
+→ Tools: [get_account_balance, get_jupiter_lend_earn_position] → Analysis → [jupiter_swap] → [jupiter_lend_earn_deposit]
 
 # Emergency (304) - Crisis response
 +"I need an emergency exit strategy for all my positions due to market stress."
-→ Tools: [account_balance, jupiter_positions] → [jupiter_withdraw] → [jupiter_swap] → Stable assets
+→ Tools: [get_account_balance, get_jupiter_lend_earn_position] → [jupiter_lend_earn_withdraw] → [jupiter_swap] → Stable assets
 ```
 
 ### **3. Capital Allocation Patterns**

@@ -88,7 +88,7 @@ impl Tool for JupiterSwapFlowTool {
         name = "jupiter_swap_flow_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_swap_flow",
+            tool_name = reev_constants::JUPITER_SWAP_FLOW,
             input_mint = %args.input_mint,
             output_mint = %args.output_mint,
             amount = args.amount,

@@ -3760,6 +3760,7 @@ dependencies = [
  "dotenvy",
  "project-root",
  "reev-agent",
+ "reev-constants",
  "reev-db",
  "reev-flow",
  "reev-lib",
@@ -3778,6 +3779,10 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
 ]
+
+[[package]]
+name = "reev-constants"
+version = "0.1.0"
 
 [[package]]
 name = "reev-context"
@@ -3804,6 +3809,7 @@ dependencies = [
  "chrono",
  "clap",
  "md5",
+ "reev-constants",
  "reev-flow",
  "reev-types",
  "serde",
@@ -3825,6 +3831,7 @@ dependencies = [
  "ascii_tree",
  "async-trait",
  "chrono",
+ "reev-constants",
  "reev-types",
  "serde",
  "serde_json",
@@ -3847,6 +3854,7 @@ dependencies = [
  "chrono",
  "jup-sdk",
  "rand 0.8.5",
+ "reev-constants",
  "reev-db",
  "reev-flow",
  "reev-types",
@@ -3879,6 +3887,7 @@ dependencies = [
  "lru",
  "opentelemetry",
  "reev-agent",
+ "reev-constants",
  "reev-flow",
  "reev-lib",
  "reev-protocols",
@@ -3973,6 +3982,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "reev-constants",
  "reev-flow",
  "reev-lib",
  "reev-protocols",

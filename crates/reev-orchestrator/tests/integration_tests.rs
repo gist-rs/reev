@@ -600,11 +600,14 @@ async fn test_300_benchmark_direct_mode() -> anyhow::Result<()> {
         .map(|tool| tool.to_string())
         .collect();
 
-    let has_swap = all_tools.contains(&"jupiter_swap".to_string());
-    let has_lend = all_tools.contains(&"jupiter_lend".to_string());
+    let has_swap = all_tools.contains(&reev_constants::JUPITER_SWAP.to_string());
+    let has_lend = all_tools.contains(&reev_constants::JUPITER_LEND_EARN_DEPOSIT.to_string());
 
     assert!(has_swap, "Should have jupiter_swap for 50% SOL conversion");
-    assert!(has_lend, "Should have jupiter_lend for 1.5x multiplication");
+    assert!(
+        has_lend,
+        "Should have jupiter_lend_earn_deposit for 1.5x multiplication"
+    );
 
     println!("  ✅ Step sequence: swap → lend (multiplication strategy)");
 

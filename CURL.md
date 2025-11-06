@@ -71,7 +71,7 @@ Dynamic flows capture rich execution data from OpenTelemetry traces:
 {
   "tool_calls": [
     {
-      "tool_name": "account_balance",
+      "tool_name": "get_account_balance",
       "duration_ms": 11596,
       "params": {"wallet_pubkey": "USER_WALLET_PUBKEY"},
       "result_data": {"sol": 4.0, "usdc": 20.0},
@@ -368,7 +368,7 @@ curl http://localhost:3001/api/v1/executions/{execution_id}/trace
 # ├── wallet: USER_WALLET_PUBKEY
 # ├── steps_generated: 4
 # └── tool_calls: 2
-#     ├── account_balance (✅ success, 11596ms)
+#     ├── get_account_balance (✅ success, 11596ms)
 #     └── jupiter_swap (✅ success, 13839ms)
 ```
 
@@ -553,7 +553,7 @@ tail -f api_server_*.log | grep -E "(Tool|KeyMap|ERROR)"
 curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "account_balance",
+    "prompt": "get_account_balance",
     "wallet": "USER_WALLET_PUBKEY",
     "agent": "glm-4.6-coding"
   }'

@@ -20,7 +20,7 @@ async fn test_sol_transfer_diagram_format() {
 
     // Add sol_transfer tool call with real parameters
     let tool_call = ParsedToolCall {
-        tool_name: "sol_transfer".to_string(),
+        tool_name: reev_constants::SOL_TRANSFER.to_string(),
         start_time: 0,
         params: json!({
             "amount": 100000000, // 0.1 SOL in lamports
@@ -109,7 +109,7 @@ async fn test_sol_transfer_diagram_format() {
 async fn test_extract_sol_transfer_details() {
     // Test the specific extraction logic for SOL transfer
     let tool_call = ParsedToolCall {
-        tool_name: "sol_transfer".to_string(),
+        tool_name: reev_constants::SOL_TRANSFER.to_string(),
         start_time: 0,
         params: json!({
             "amount": 100000000,
@@ -132,7 +132,7 @@ async fn test_extract_sol_transfer_details() {
     // The issue is likely in extract_tool_details function - it should look for user_pubkey/recipient_pubkey
     // instead of just 'from' and 'to' fields for sol_transfer tool
 
-    assert_eq!(tool_call.tool_name, "sol_transfer");
+    assert_eq!(tool_call.tool_name, reev_constants::SOL_TRANSFER);
     assert!(
         tool_call.params.get("user_pubkey").is_some(),
         "Should have user_pubkey"

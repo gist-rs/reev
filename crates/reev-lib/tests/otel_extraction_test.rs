@@ -14,7 +14,7 @@ use std::time::SystemTime;
 #[test]
 fn test_otel_span_data_creation() {
     let span_data = OtelSpanData {
-        span_name: "sol_transfer".to_string(),
+        span_name: reev_constants::SOL_TRANSFER.to_string(),
         span_kind: "client".to_string(),
         start_time: SystemTime::now(),
         end_time: Some(SystemTime::now() + std::time::Duration::from_millis(100)),
@@ -24,7 +24,7 @@ fn test_otel_span_data_creation() {
         error_message: None,
     };
 
-    assert_eq!(span_data.span_name, "sol_transfer");
+    assert_eq!(span_data.span_name, reev_constants::SOL_TRANSFER);
     assert_eq!(span_data.status, "success");
     assert_eq!(span_data.duration_ms, Some(100));
 }
@@ -32,7 +32,7 @@ fn test_otel_span_data_creation() {
 #[test]
 fn test_tool_span_detection() {
     let _tool_span = OtelSpanData {
-        span_name: "sol_transfer".to_string(),
+        span_name: reev_constants::SOL_TRANSFER.to_string(),
         span_kind: "client".to_string(),
         start_time: SystemTime::now(),
         end_time: None,
@@ -63,7 +63,7 @@ fn test_tool_span_detection() {
 #[test]
 fn test_session_tool_data_creation() {
     let session_tool = SessionToolData {
-        tool_name: "sol_transfer".to_string(),
+        tool_name: reev_constants::SOL_TRANSFER.to_string(),
         start_time: SystemTime::now(),
         end_time: SystemTime::now() + std::time::Duration::from_millis(100),
         params: serde_json::json!({"pubkey": "test123"}),
@@ -71,7 +71,7 @@ fn test_session_tool_data_creation() {
         status: "success".to_string(),
     };
 
-    assert_eq!(session_tool.tool_name, "sol_transfer");
+    assert_eq!(session_tool.tool_name, reev_constants::SOL_TRANSFER);
     assert_eq!(session_tool.status, "success");
 }
 
@@ -79,7 +79,7 @@ fn test_session_tool_data_creation() {
 fn test_tool_call_info_to_session_format() {
     let tool_calls = vec![
         ToolCallInfo {
-            tool_name: "sol_transfer".to_string(),
+            tool_name: reev_constants::SOL_TRANSFER.to_string(),
             tool_args: serde_json::json!({"pubkey": "test123"}).to_string(),
             execution_time_ms: 100,
             result_status: ToolResultStatus::Success,
@@ -89,7 +89,7 @@ fn test_tool_call_info_to_session_format() {
             depth: 1,
         },
         ToolCallInfo {
-            tool_name: "jupiter_swap".to_string(),
+            tool_name: reev_constants::JUPITER_SWAP.to_string(),
             tool_args: serde_json::json!({"amount": "0.1"}).to_string(),
             execution_time_ms: 200,
             result_status: ToolResultStatus::Error,
@@ -102,9 +102,9 @@ fn test_tool_call_info_to_session_format() {
 
     let session_tools = convert_to_session_format(tool_calls);
     assert_eq!(session_tools.len(), 2);
-    assert_eq!(session_tools[0].tool_name, "sol_transfer");
+    assert_eq!(session_tools[0].tool_name, reev_constants::SOL_TRANSFER);
     assert_eq!(session_tools[0].status, "success");
-    assert_eq!(session_tools[1].tool_name, "jupiter_swap");
+    assert_eq!(session_tools[1].tool_name, reev_constants::JUPITER_SWAP);
     assert_eq!(session_tools[1].status, "error");
 }
 
@@ -122,7 +122,7 @@ fn test_parse_otel_trace_to_tools() {
         trace_id: "test_trace_123".to_string(),
         spans: vec![
             OtelSpanData {
-                span_name: "sol_transfer".to_string(),
+                span_name: reev_constants::SOL_TRANSFER.to_string(),
                 span_kind: "client".to_string(),
                 start_time: SystemTime::now(),
                 end_time: Some(SystemTime::now() + std::time::Duration::from_millis(100)),
@@ -148,7 +148,7 @@ fn test_parse_otel_trace_to_tools() {
     let tool_calls = parse_otel_trace_to_tools(trace_data);
     // Should only extract the sol_transfer span, not the http_request span
     assert_eq!(tool_calls.len(), 1);
-    assert_eq!(tool_calls[0].tool_name, "sol_transfer");
+    assert_eq!(tool_calls[0].tool_name, reev_constants::SOL_TRANSFER);
     // Use match instead of assert_eq for ToolResultStatus
     match tool_calls[0].result_status {
         ToolResultStatus::Success => {

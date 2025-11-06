@@ -191,18 +191,19 @@ impl FlowLogRenderer for FlowLog {
                     .unwrap_or("unknown");
 
                 // Check if this is an execute_transaction result
-                let event_label =
-                    if tool_name == "execute_transaction" && result_status == "success" {
-                        format!(
-                            "📋 Event {} ({}): Tool Result (Depth: {}) - Transaction Executed ✅",
-                            event_num, event_duration, event.depth
-                        )
-                    } else {
-                        format!(
-                            "📋 Event {} ({}): Tool Result (Depth: {}) - {} - {}",
-                            event_num, event_duration, event.depth, tool_name, result_status
-                        )
-                    };
+                let event_label = if tool_name == reev_constants::EXECUTE_TRANSACTION
+                    && result_status == "success"
+                {
+                    format!(
+                        "📋 Event {} ({}): Tool Result (Depth: {}) - Transaction Executed ✅",
+                        event_num, event_duration, event.depth
+                    )
+                } else {
+                    format!(
+                        "📋 Event {} ({}): Tool Result (Depth: {}) - {} - {}",
+                        event_num, event_duration, event.depth, tool_name, result_status
+                    )
+                };
 
                 event_label
             }
@@ -289,7 +290,7 @@ impl FlowLogRenderer for FlowLog {
                     children.push(Tree::Leaf(vec![format!("❌ Error: {}", error)]));
                 } else if let Some(result) = event.content.data.get("result_data") {
                     // Special handling for execute_transaction results
-                    if tool_name == "execute_transaction" {
+                    if tool_name == reev_constants::EXECUTE_TRANSACTION {
                         let (action_details, data_value) = parse_action_details(result);
                         for detail in action_details {
                             children.push(Tree::Leaf(vec![detail]));

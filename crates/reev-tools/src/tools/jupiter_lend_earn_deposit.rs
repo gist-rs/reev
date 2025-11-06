@@ -94,7 +94,7 @@ impl Tool for JupiterLendEarnDepositTool {
         name = "jupiter_lend_earn_deposit_tool_call",
         skip(self),
         fields(
-            tool_name = "jupiter_lend_earn_deposit",
+            tool_name = reev_constants::JUPITER_LEND_EARN_DEPOSIT,
             user_pubkey = %args.user_pubkey,
             asset_mint = %args.asset_mint,
             amount = args.amount

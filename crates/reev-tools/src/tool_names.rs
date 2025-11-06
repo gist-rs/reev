@@ -2,27 +2,23 @@
 //!
 //! This module provides a centralized location for tool names
 //! that can be imported by other crates to avoid hardcoding.
+//! These are re-exported from reev-constants to maintain backward compatibility.
 
-/// Native SOL transfer tool name
-pub const SOL_TRANSFER: &str = "sol_transfer";
+// Re-export all constants from reev-constants
+pub use reev_constants::*;
 
-/// SPL token transfer tool name
-pub const SPL_TRANSFER: &str = "spl_transfer";
+// Legacy re-exports for backward compatibility
+pub use reev_constants::ACCOUNT_BALANCE;
+pub use reev_constants::JUPITER_EARN;
+pub use reev_constants::JUPITER_LEND;
+pub use reev_constants::JUPITER_POSITIONS;
+pub use reev_constants::JUPITER_WITHDRAW;
+pub use reev_constants::LEND_EARN_TOKENS;
 
-/// Jupiter swap tool name
-pub const JUPITER_SWAP: &str = "jupiter_swap";
-
-/// Jupiter earn tool name
-pub const JUPITER_EARN: &str = "get_jupiter_lend_earn_position";
-
-/// Jupiter lend earn deposit tool name
-pub const JUPITER_LEND_EARN_DEPOSIT: &str = "jupiter_lend_earn_deposit";
-
-/// Jupiter lend earn mint/redeem tool name
-pub const JUPITER_LEND_EARN_MINT_REDEEM: &str = "jupiter_lend_earn_mint_redeem";
-
-/// Jupiter lend earn withdraw tool name
-pub const JUPITER_LEND_EARN_WITHDRAW: &str = "jupiter_lend_earn_withdraw";
+// Re-export utility functions
+pub use reev_constants::all_tool_names;
+pub use reev_constants::is_valid_tool_name;
+pub use reev_constants::normalize_tool_name;
 
 /// Map program IDs to tool names for fallback parsing
 pub fn tool_name_from_program_id(program_id: &str) -> String {

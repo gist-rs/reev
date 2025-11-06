@@ -14,7 +14,7 @@ async fn test_sol_transfer_consolidation() -> Result<(), Box<dyn std::error::Err
     let db = DatabaseWriter::new(config).await?;
 
     let session_id = "test-session-123";
-    let tool_name = "sol_transfer";
+    let tool_name = reev_constants::SOL_TRANSFER;
     let start_time = 1761359959;
 
     // Create first tool call entry (initial call with input params, empty output)
@@ -170,7 +170,7 @@ async fn test_no_consolidation_different_tools() -> Result<(), Box<dyn std::erro
     // Two different tool calls should not be consolidated
     let sol_call = ToolCallData {
         session_id: session_id.to_string(),
-        tool_name: "sol_transfer".to_string(),
+        tool_name: reev_constants::SOL_TRANSFER.to_string(),
         start_time: 1761359959,
         execution_time_ms: 100,
         input_params: json!({"amount": 100}),
@@ -181,7 +181,7 @@ async fn test_no_consolidation_different_tools() -> Result<(), Box<dyn std::erro
 
     let swap_call = ToolCallData {
         session_id: session_id.to_string(),
-        tool_name: "jupiter_swap".to_string(),
+        tool_name: reev_constants::JUPITER_SWAP.to_string(),
         start_time: 1761359959,
         execution_time_ms: 200,
         input_params: json!({"input_mint": "So11111111111111111111111111111111111111112"}),
@@ -202,8 +202,8 @@ async fn test_no_consolidation_different_tools() -> Result<(), Box<dyn std::erro
 
     // Verify both calls are present
     let tool_names: Vec<&str> = tool_calls.iter().map(|t| t.tool_name.as_str()).collect();
-    assert!(tool_names.contains(&"sol_transfer"));
-    assert!(tool_names.contains(&"jupiter_swap"));
+    assert!(tool_names.contains(&reev_constants::SOL_TRANSFER));
+    assert!(tool_names.contains(&reev_constants::JUPITER_SWAP));
 
     println!("✅ Different tools no consolidation test passed");
     Ok(())

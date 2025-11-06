@@ -1,5 +1,119 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+[@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md) , let grep and fix remain string hard code for tool name, you can get the list from here
+```
+pub enum ToolName {
+    /// Account balance checking tool
+    #[strum(serialize = "get_account_balance")]
+    GetAccountBalance,
+
+    /// Get Jupiter position info tool
+    #[strum(serialize = "get_jupiter_lend_earn_position")]
+    GetJupiterLendEarnPosition,
+
+    /// Get Jupiter lend earn tokens tool
+    #[strum(serialize = "get_jupiter_lend_earn_tokens")]
+    GetJupiterLendEarnTokens,
+
+    /// SOL transfer tool
+    #[strum(serialize = "sol_transfer")]
+    SolTransfer,
+
+    /// SPL transfer tool
+    #[strum(serialize = "spl_transfer")]
+    SplTransfer,
+
+    /// Jupiter swap tool for token exchanges
+    #[strum(serialize = "jupiter_swap")]
+    JupiterSwap,
+
+    /// Jupiter swap flow tool
+    #[strum(serialize = "jupiter_swap_flow")]
+    JupiterSwapFlow,
+
+    /// Jupiter lend earn deposit tool
+    #[strum(serialize = "jupiter_lend_earn_deposit")]
+    JupiterLendEarnDeposit,
+
+    /// Jupiter lend earn withdraw tool
+    #[strum(serialize = "jupiter_lend_earn_withdraw")]
+    JupiterLendEarnWithdraw,
+
+    /// Jupiter lend earn mint tool
+    #[strum(serialize = "jupiter_lend_earn_mint")]
+    JupiterLendEarnMint,
+
+    /// Jupiter lend earn redeem tool
+    #[strum(serialize = "jupiter_lend_earn_redeem")]
+    JupiterLendEarnRedeem,
+
+    /// Generic transaction execution tool
+    #[strum(serialize = "execute_transaction")]
+    ExecuteTransaction,
+}
+```
+it may use old name too, so grep for it too
+here's old string
+```
+pub enum ToolName {
+    /// Account balance checking tool
+    #[strum(serialize = "account_balance")]
+    AccountBalance,
+
+    /// Jupiter swap tool for token exchanges
+    #[strum(serialize = "jupiter_swap")]
+    JupiterSwap,
+
+    /// Jupiter lend/deposit tool
+    #[strum(serialize = "jupiter_lend")]
+    JupiterLend,
+
+    /// Jupiter withdraw tool
+    #[strum(serialize = "jupiter_withdraw")]
+    JupiterWithdraw,
+
+    /// Jupiter positions checking tool
+    #[strum(serialize = "jupiter_positions")]
+    JupiterPositions,
+
+    /// Jupiter earn tool (restricted to benchmarks)
+    #[strum(serialize = "jupiter_earn")]
+    JupiterEarn,
+
+    /// Generic transaction execution tool
+    #[strum(serialize = "execute_transaction")]
+    ExecuteTransaction,
+
+    /// SOL transfer tool
+    #[strum(serialize = "sol_transfer")]
+    SolTransfer,
+
+    /// Jupiter swap flow tool
+    #[strum(serialize = "jupiter_swap_flow")]
+    JupiterSwapFlow,
+
+    /// Lend earn tokens tool
+    #[strum(serialize = "lend_earn_tokens")]
+    LendEarnTokens,
+
+    /// Position info tool
+    #[strum(serialize = "get_position_info")]
+    GetPositionInfo,
+
+    /// Jupiter lend earn deposit tool
+    #[strum(serialize = "jupiter_lend_earn_deposit")]
+    JupiterLendEarnDeposit,
+
+    /// Jupiter lend earn mint tool
+    #[strum(serialize = "jupiter_lend_earn_mint")]
+    JupiterLendEarnMint,
+
+    /// Jupiter lend earn redeem tool
+    #[strum(serialize = "jupiter_lend_earn_redeem")]
+    JupiterLendEarnRedeem,
+}
+```
+
 ---
 
 Rule base is not allow, change to llm base
@@ -25,25 +139,6 @@ DRY
 
 remove completed issuses md and add this enum refactor to new issue md
 
----
-
-  let tool_name_list = vec![
-      "sol_transfer".to_string(),
-      "spl_transfer".to_string(),
-      "jupiter_swap".to_string(),
-      "get_jupiter_lend_earn_position".to_string(),
-      "jupiter_lend_earn_deposit".to_string(),
-      "jupiter_lend_earn_withdraw".to_string(),
-      "jupiter_lend_earn_mint".to_string(),
-      "jupiter_lend_earn_redeem".to_string(),
-      "account_balance".to_string(),
-      "lend_earn_tokens".to_string(),
-  ];
-
-still see code use string for tool name everywhere, i think rig have a way to list all tool? and we must use enum aka strum for this not un typed string
-grep rig/rig-core for how to get the tool name list from tool or maybe just use strum, move to shared type crate if need.
-
-create issue for this first
 ---
 
 expect
