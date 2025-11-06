@@ -132,11 +132,42 @@ async fn handle_jupiter_lending_benchmarks(
     }
 }
 
+/// Determine flow type from benchmark tags
+fn determine_flow_type(benchmark_id: &str) -> Result<String> {
+    let file_path = format!("benchmarks/{benchmark_id}.yml");
+    let yaml_content = std::fs::read_to_string(&file_path)
+        .with_context(|| format!("Failed to read benchmark file: {file_path}"))?;
+
+    let benchmark: serde_yaml::Value = serde_yaml::from_str(&yaml_content)
+        .with_context(|| format!("Failed to parse benchmark YAML: {benchmark_id}"))?;
+
+    // Check if "dynamic" tag exists in tags array
+    if let Some(tags) = benchmark.get("tags").and_then(|t| t.as_sequence()) {
+        for tag in tags {
+            if let Some(tag_str) = tag.as_str() {
+                if tag_str == "dynamic" {
+                    return Ok("dynamic".to_string());
+                }
+            }
+        }
+    }
+
+    // Default to deterministic for non-dynamic benchmarks
+    Ok("deterministic".to_string())
+}
+
 /// Handle flow benchmarks (200 series and multi-step flows)
 async fn handle_flow_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
 ) -> Result<String> {
+    // Determine flow type from tags instead of hardcoded logic
+    let flow_type = determine_flow_type(benchmark_id)?;
+
+    info!(
+        "[reev-agent] Benchmark '{}' has flow_type: '{}'",
+        benchmark_id, flow_type
+    );
     match benchmark_id {
         "200-jup-swap-then-lend-deposit" => {
             info!(
@@ -212,9 +243,11 @@ async fn handle_flow_benchmarks(
             });
             Ok(serde_json::to_string(&flow_response)?)
         }
-        "300-jup-swap-then-lend-deposit-dyn" => {
+        // Handle dynamic flow benchmarks (determined by tags containing "dynamic")
+        benchmark_id if flow_type == "dynamic" => {
             info!(
-                "[reev-agent] Matched '300-jup-swap-then-lend-deposit-dyn' id. Starting dynamic flow."
+                "[reev-agent] Starting dynamic flow for benchmark: {}",
+                benchmark_id
             );
 
             let user_pubkey_str = key_map
@@ -222,28 +255,43 @@ async fn handle_flow_benchmarks(
                 .context("USER_WALLET_PUBKEY not found in key_map")?;
             let _user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-            // Dynamic flow - agent will use Jupiter tools to execute the multiplication strategy
-            info!("[reev-agent] Dynamic flow: Agent will execute 50% SOL to USDC swap then lend for 1.5x multiplication");
+            // Load benchmark to get specific strategy from prompt
+            let file_path = format!("benchmarks/{benchmark_id}.yml");
+            let yaml_content = std::fs::read_to_string(&file_path)
+                .with_context(|| format!("Failed to read benchmark file: {file_path}"))?;
+            let benchmark: serde_yaml::Value = serde_yaml::from_str(&yaml_content)
+                .with_context(|| format!("Failed to parse benchmark YAML: {benchmark_id}"))?;
+
+            let strategy = benchmark
+                .get("prompt")
+                .and_then(|p| p.as_str())
+                .unwrap_or("execute dynamic strategy using Jupiter tools");
+
+            // Dynamic flow - agent will use tools to execute the strategy
+            info!(
+                "[reev-agent] Dynamic flow: Agent will execute strategy: {}",
+                strategy
+            );
 
             // For dynamic benchmarks, return empty instructions and let LLM agent handle the execution
             let flow_response = serde_json::json!({
-                "benchmark_id": "300-jup-swap-then-lend-deposit-dyn",
+                "benchmark_id": benchmark_id,
                 "agent_type": "dynamic",
                 "mode": "llm_execution",
-                "strategy": "use jupiter tools to multiply USDC position by 1.5x using 50% of SOL"
+                "strategy": strategy
             });
             Ok(serde_json::to_string(&flow_response)?)
         }
-        // Handle other flow benchmarks (IDs starting with "200-")
-        flow_id if flow_id.starts_with("200-") => {
-            // Generic flow handler for other 200-series benchmarks
+        // Handle other deterministic flow benchmarks (flow_type != "dynamic")
+        _flow_id if flow_type == "deterministic" => {
+            // Generic flow handler for deterministic benchmarks
             let flow_response = serde_json::json!({
                 "benchmark_id": benchmark_id,
                 "agent_type": "deterministic",
                 "steps": [
                     {
                         "step_id": "1",
-                        "description": format!("Handling flow benchmark: {}", benchmark_id),
+                        "description": format!("Handling deterministic flow benchmark: {}", benchmark_id),
                         "instructions": [],
                         "estimated_time_seconds": 15
                     }
