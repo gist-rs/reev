@@ -1,5 +1,6 @@
 id: 300-jup-swap-then-lend-deposit-dyn
 description: Dynamic multiplication strategy - Agent uses 50% of SOL to multiply USDC position by 1.5x using Jupiter swap and lending strategies with dynamic orchestration.
+flow_type: "dynamic"
 tags: ["dynamic", "multiplication", "jupiter", "yield", "strategy"]
 
 initial_state:

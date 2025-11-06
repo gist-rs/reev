@@ -14,7 +14,7 @@ use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Handle simple transfer benchmarks (001-004 series)
 async fn handle_simple_transfer_benchmarks(
@@ -141,7 +141,19 @@ fn determine_flow_type(benchmark_id: &str) -> Result<String> {
     let benchmark: serde_yaml::Value = serde_yaml::from_str(&yaml_content)
         .with_context(|| format!("Failed to parse benchmark YAML: {benchmark_id}"))?;
 
-    // Check if "dynamic" tag exists in tags array
+    // Check for explicit flow_type field first
+    if let Some(flow_type) = benchmark.get("flow_type").and_then(|ft| ft.as_str()) {
+        match flow_type {
+            "dynamic" => return Ok("dynamic".to_string()),
+            "static" => return Ok("deterministic".to_string()),
+            _ => warn!(
+                "[reev-agent] Unknown flow_type '{}', defaulting to deterministic",
+                flow_type
+            ),
+        }
+    }
+
+    // Fallback: Check if "dynamic" tag exists in tags array
     if let Some(tags) = benchmark.get("tags").and_then(|t| t.as_sequence()) {
         for tag in tags {
             if let Some(tag_str) = tag.as_str() {
@@ -161,13 +173,19 @@ async fn handle_flow_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
 ) -> Result<String> {
-    // Determine flow type from tags instead of hardcoded logic
+    // Determine flow type from flow_type field or tags
     let flow_type = determine_flow_type(benchmark_id)?;
 
     info!(
         "[reev-agent] Benchmark '{}' has flow_type: '{}'",
         benchmark_id, flow_type
     );
+
+    // Dynamic flows should be handled by LLM agent, not deterministic
+    if flow_type == "dynamic" {
+        info!("[reev-agent] Dynamic flow detected, skipping deterministic agent - use LLM agent");
+        anyhow::bail!("Dynamic flow requires LLM agent processing");
+    }
     match benchmark_id {
         "200-jup-swap-then-lend-deposit" => {
             info!(

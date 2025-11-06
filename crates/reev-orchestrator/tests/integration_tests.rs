@@ -98,25 +98,34 @@ async fn test_simple_lend_flow() -> Result<()> {
         .process_user_request(user_prompt, wallet_pubkey)
         .await?;
 
-    // Verify 3-step comprehensive flow
-    assert_eq!(flow_plan.steps.len(), 3);
+    // Verify 3-step simple lend flow
+    // Verify 4-step complex flow (swap + lend)
+    assert_eq!(flow_plan.steps.len(), 4);
+    assert_eq!(flow_plan.steps[0].step_id, "balance_check");
+    assert_eq!(flow_plan.steps[1].step_id, "complex_swap");
+    assert_eq!(flow_plan.steps[2].step_id, "complex_lend");
+    assert_eq!(flow_plan.steps[3].step_id, "positions_check");
 
     // Step 1: Balance check
-    assert_eq!(flow_plan.steps[0].step_id, "balance_check");
     assert!(flow_plan.steps[0]
         .required_tools
         .contains(&reev_types::tools::ToolName::GetAccountBalance));
 
-    // Step 2: Lend execution
-    assert_eq!(flow_plan.steps[1].step_id, "lend_lend");
-    assert!(flow_plan.steps[1].prompt_template.contains("USDC"));
+    // Step 2: Swap execution
+    assert!(flow_plan.steps[1].prompt_template.contains("swap"));
     assert!(flow_plan.steps[1]
+        .required_tools
+        .contains(&reev_types::tools::ToolName::JupiterSwap));
+
+    // Step 3: Lend execution
+    assert!(flow_plan.steps[2].prompt_template.contains("USDC"));
+    assert!(flow_plan.steps[2]
         .required_tools
         .contains(&reev_types::tools::ToolName::JupiterLendEarnDeposit));
 
-    // Step 3: Positions check
-    assert_eq!(flow_plan.steps[2].step_id, "positions_check");
-    assert!(flow_plan.steps[2]
+    // Step 4: Positions check
+    assert_eq!(flow_plan.steps[3].step_id, "positions_check");
+    assert!(flow_plan.steps[3]
         .required_tools
         .contains(&reev_types::tools::ToolName::GetJupiterLendEarnPosition));
 
@@ -146,11 +155,12 @@ async fn test_complex_swap_lend_flow() -> Result<()> {
         .process_user_request(user_prompt, wallet_pubkey)
         .await?;
 
-    // Verify 3-step comprehensive flow
-    assert_eq!(flow_plan.steps.len(), 3);
+    // Verify 4-step complex flow (swap + lend)
+    assert_eq!(flow_plan.steps.len(), 4);
     assert_eq!(flow_plan.steps[0].step_id, "balance_check");
-    assert_eq!(flow_plan.steps[1].step_id, "lend_lend");
-    assert_eq!(flow_plan.steps[2].step_id, "positions_check");
+    assert_eq!(flow_plan.steps[1].step_id, "complex_swap");
+    assert_eq!(flow_plan.steps[2].step_id, "complex_lend");
+    assert_eq!(flow_plan.steps[3].step_id, "positions_check");
 
     // Step 1: Balance check
     assert!(flow_plan.steps[0]

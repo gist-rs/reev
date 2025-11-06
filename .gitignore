@@ -8,3 +8,4 @@ logs
 node_modules
 sqlite::memory:*
 *.log
+cli_sessions.json

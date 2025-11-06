@@ -9,6 +9,7 @@ use crate::generators::YmlGenerator;
 use crate::recovery::engine::RecoveryMetrics;
 use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
+
 use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
 use reev_types::tools::ToolName;
@@ -31,7 +32,7 @@ pub struct UserIntent {
     /// Required tools to execute this intent
     pub required_tools: Vec<String>,
     /// Confidence in intent analysis
-    pub confidence: f64,
+    pub confidence: f32,
 }
 
 /// Orchestrator Gateway for processing user prompts and generating flows
@@ -581,13 +582,46 @@ impl OrchestratorGateway {
     pub async fn analyze_user_intent(
         &self,
         prompt: &str,
+        context: &WalletContext,
+    ) -> Result<UserIntent> {
+        // For now, use rule-based analysis - ZAI agent integration will be added later
+        debug!("[orchestrator] Using rule-based intent analysis (LLM integration to be added)");
+        self.analyze_user_intent_rule_based(prompt, context).await
+    }
+
+    /// Fallback rule-based intent analysis
+    async fn analyze_user_intent_rule_based(
+        &self,
+        prompt: &str,
         _context: &WalletContext,
     ) -> Result<UserIntent> {
-        // TODO: Replace with actual LLM call
-        // For now, simple rule-based analysis for user requests
+        debug!("[orchestrator] Using rule-based intent analysis");
+
         let prompt_lower = prompt.to_lowercase();
 
-        let (intent_type, primary_goal, parameters) = if prompt_lower.contains("lend")
+        let (intent_type, primary_goal, parameters) = if prompt_lower.contains("multiply")
+            || prompt_lower.contains("then")
+            || (prompt_lower.contains("lend") && prompt_lower.contains("swap"))
+        {
+            (
+                "complex".to_string(),
+                "Multi-step DeFi strategy execution".to_string(),
+                {
+                    let mut params = std::collections::HashMap::new();
+                    params.insert("strategy".to_string(), "swap_then_lend".to_string());
+
+                    // Extract percentage if mentioned
+                    if let Some(pct_match) = regex::Regex::new(r"(\d+)%").unwrap().captures(prompt)
+                    {
+                        if let Some(pct) = pct_match.get(1) {
+                            params.insert("percentage".to_string(), pct.as_str().to_string());
+                        }
+                    }
+
+                    params
+                },
+            )
+        } else if prompt_lower.contains("lend")
             || prompt_lower.contains("deposit")
             || prompt_lower.contains("yield")
         {
@@ -597,16 +631,13 @@ impl OrchestratorGateway {
                 {
                     let mut params = std::collections::HashMap::new();
                     // Extract USDC amount if mentioned
-                    if let Some(usdc_match) =
-                        regex::Regex::new(r"(\d+)\s*usdc").unwrap().captures(prompt)
+                    if let Some(usdc_match) = regex::Regex::new(r"(\d+(?:\.\d+)?)\s*usdc")
+                        .unwrap()
+                        .captures(prompt)
                     {
                         if let Some(usdc) = usdc_match.get(1) {
                             params.insert("usdc_amount".to_string(), usdc.as_str().to_string());
-                        } else {
-                            params.insert("usdc_amount".to_string(), "100.0".to_string());
                         }
-                    } else {
-                        params.insert("usdc_amount".to_string(), "100.0".to_string());
                     }
                     params
                 },
@@ -620,45 +651,22 @@ impl OrchestratorGateway {
                 "Swap tokens between different assets".to_string(),
                 {
                     let mut params = std::collections::HashMap::new();
-                    // Extract SOL amount if mentioned
                     if let Some(sol_match) = regex::Regex::new(r"(\d+(?:\.\d+)?)\s*sol")
                         .unwrap()
                         .captures(prompt)
                     {
                         if let Some(sol) = sol_match.get(1) {
                             params.insert("sol_amount".to_string(), sol.as_str().to_string());
-                        } else {
-                            params.insert("sol_amount".to_string(), "1.0".to_string());
                         }
-                    } else {
-                        params.insert("sol_amount".to_string(), "1.0".to_string());
                     }
                     params
                 },
             )
-        } else if prompt_lower.contains("multiply")
-            || prompt_lower.contains("then")
-            || (prompt_lower.contains("lend") && prompt_lower.contains("swap"))
-        {
-            (
-                "complex".to_string(),
-                "Multi-step DeFi strategy execution".to_string(),
-                {
-                    let mut params = std::collections::HashMap::new();
-                    params.insert("strategy".to_string(), "swap_then_lend".to_string());
-                    params
-                },
-            )
         } else {
-            // Default to simple swap
             (
-                "swap".to_string(),
-                "Execute simple token swap".to_string(),
-                {
-                    let mut params = std::collections::HashMap::new();
-                    params.insert("sol_amount".to_string(), "1.0".to_string());
-                    params
-                },
+                "check_positions".to_string(),
+                "Check current positions and balances".to_string(),
+                std::collections::HashMap::new(),
             )
         };
 
@@ -672,6 +680,10 @@ impl OrchestratorGateway {
                 reev_types::ToolName::JupiterSwap.to_string(),
                 reev_types::ToolName::JupiterLendEarnDeposit.to_string(),
             ],
+            "check_positions" => vec![
+                reev_types::ToolName::GetAccountBalance.to_string(),
+                reev_types::ToolName::GetJupiterLendEarnPosition.to_string(),
+            ],
             _ => vec![
                 reev_types::ToolName::GetAccountBalance.to_string(),
                 reev_types::ToolName::JupiterSwap.to_string(),
@@ -683,7 +695,7 @@ impl OrchestratorGateway {
             parameters,
             primary_goal,
             required_tools,
-            confidence: 0.9,
+            confidence: 0.7, // Lower confidence for rule-based
         })
     }
 
