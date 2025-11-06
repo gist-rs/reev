@@ -1,126 +1,15 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
+fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
-[@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md) , let grep and fix remain string hard code for tool name, you can get the list from here
-```
-pub enum ToolName {
-    /// Account balance checking tool
-    #[strum(serialize = "get_account_balance")]
-    GetAccountBalance,
+[@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) ,[@DYNAMIC_BENCHMARK_DESIGN.md](file:///Users/katopz/git/gist/reev/DYNAMIC_BENCHMARK_DESIGN.md) ,[@HANDOVER.md](file:///Users/katopz/git/gist/reev/HANDOVER.md) ,
+ai is overclaim that llm is complete but messup rulesbase test only, ignore the rulesbase test because we want llm flow to work first
 
-    /// Get Jupiter position info tool
-    #[strum(serialize = "get_jupiter_lend_earn_position")]
-    GetJupiterLendEarnPosition,
+and rule-based is only for deterministic agent btw, ?mock=true grep for that and by the plan you will need feature flag for that to see DYNAMIC_BENCHMARK_DESIGN.md
 
-    /// Get Jupiter lend earn tokens tool
-    #[strum(serialize = "get_jupiter_lend_earn_tokens")]
-    GetJupiterLendEarnTokens,
-
-    /// SOL transfer tool
-    #[strum(serialize = "sol_transfer")]
-    SolTransfer,
-
-    /// SPL transfer tool
-    #[strum(serialize = "spl_transfer")]
-    SplTransfer,
-
-    /// Jupiter swap tool for token exchanges
-    #[strum(serialize = "jupiter_swap")]
-    JupiterSwap,
-
-    /// Jupiter swap flow tool
-    #[strum(serialize = "jupiter_swap_flow")]
-    JupiterSwapFlow,
-
-    /// Jupiter lend earn deposit tool
-    #[strum(serialize = "jupiter_lend_earn_deposit")]
-    JupiterLendEarnDeposit,
-
-    /// Jupiter lend earn withdraw tool
-    #[strum(serialize = "jupiter_lend_earn_withdraw")]
-    JupiterLendEarnWithdraw,
-
-    /// Jupiter lend earn mint tool
-    #[strum(serialize = "jupiter_lend_earn_mint")]
-    JupiterLendEarnMint,
-
-    /// Jupiter lend earn redeem tool
-    #[strum(serialize = "jupiter_lend_earn_redeem")]
-    JupiterLendEarnRedeem,
-
-    /// Generic transaction execution tool
-    #[strum(serialize = "execute_transaction")]
-    ExecuteTransaction,
-}
-```
-it may use old name too, so grep for it too
-here's old string
-```
-pub enum ToolName {
-    /// Account balance checking tool
-    #[strum(serialize = "account_balance")]
-    AccountBalance,
-
-    /// Jupiter swap tool for token exchanges
-    #[strum(serialize = "jupiter_swap")]
-    JupiterSwap,
-
-    /// Jupiter lend/deposit tool
-    #[strum(serialize = "jupiter_lend")]
-    JupiterLend,
-
-    /// Jupiter withdraw tool
-    #[strum(serialize = "jupiter_withdraw")]
-    JupiterWithdraw,
-
-    /// Jupiter positions checking tool
-    #[strum(serialize = "jupiter_positions")]
-    JupiterPositions,
-
-    /// Jupiter earn tool (restricted to benchmarks)
-    #[strum(serialize = "jupiter_earn")]
-    JupiterEarn,
-
-    /// Generic transaction execution tool
-    #[strum(serialize = "execute_transaction")]
-    ExecuteTransaction,
-
-    /// SOL transfer tool
-    #[strum(serialize = "sol_transfer")]
-    SolTransfer,
-
-    /// Jupiter swap flow tool
-    #[strum(serialize = "jupiter_swap_flow")]
-    JupiterSwapFlow,
-
-    /// Lend earn tokens tool
-    #[strum(serialize = "lend_earn_tokens")]
-    LendEarnTokens,
-
-    /// Position info tool
-    #[strum(serialize = "get_position_info")]
-    GetPositionInfo,
-
-    /// Jupiter lend earn deposit tool
-    #[strum(serialize = "jupiter_lend_earn_deposit")]
-    JupiterLendEarnDeposit,
-
-    /// Jupiter lend earn mint tool
-    #[strum(serialize = "jupiter_lend_earn_mint")]
-    JupiterLendEarnMint,
-
-    /// Jupiter lend earn redeem tool
-    #[strum(serialize = "jupiter_lend_earn_redeem")]
-    JupiterLendEarnRedeem,
-}
-```
+let's test llm base for 300-jup-swap-then-lend-deposit-dyn.yml via api [@DEV_FLOW.md](file:///Users/katopz/git/gist/reev/DEV_FLOW.md) , it should work with dynamic llm gen static flow/step and get mermaid diagram+score
 
 ---
 
-Rule base is not allow, change to llm base
-
- if (prompt_lower.contains("swap") || prompt_lower.contains("exchange"))
-
----
 
 check that reev-orchestrator did allowed tool by llm or not, we must use llm at gateway not rules based
 
@@ -192,8 +81,6 @@ also
 is redandant about "dynamic" and should determine from flow_type=dynamic
 
 ---
-
-fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
 expect working mermaid flow completed info with 300-jup-swap-then-lend-deposit-dyn.yml, via api glm-4.6-coding
 

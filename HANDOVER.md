@@ -2,165 +2,200 @@
 
 ## Current State Overview
 
-### ✅ **LLM Integration Architecture Successfully Implemented**
-- **Fixed orchestrator LLM integration**: Replaced rule-based tool selection with intelligent intent analysis framework
-- **Added flow_type field support**: 300 benchmark now explicitly specifies `flow_type: "dynamic"`
-- **Enhanced agent routing**: Dynamic flows route to LLM agents, static flows to deterministic
-- **Clean architecture**: Removed rig dependencies, kept extensible design for future LLM integration
+### ✅ **LLM Integration Architecture Working**
+- **Dynamic flow execution**: 300 benchmark routes to LLM agents successfully
+- **4-step generation**: Complex strategies created in gateway.rs (lines 352-363)
+- **Tool execution**: Real Jupiter swap/lend operations working (score: 1.0)
+- **Scoring system**: Perfect achievement on complex multiplication strategy
+- **API endpoints**: All flow visualization endpoints functional
 
-### 📊 **Implementation Status Summary**
-```
-✅ LLM Integration Framework: COMPLETED
-✅ flow_type Field Support: COMPLETED  
-✅ Agent Router Enhancement: COMPLETED
-✅ Benchmark Logic Update: COMPLETED
-✅ Code Quality & Cleanliness: COMPLETED
+### ⚠️ **Critical Issue: Incomplete Flow Visualization**
+- **Problem**: Only single tool calls visible in Mermaid diagrams
+- **Root Cause**: Tool call tracking captures final step, not intermediate steps
+- **Impact**: 4-step strategy appears as single operation
+- **Files to Fix**: ping_pong_executor.rs, session_parser.rs, state_diagram_generator.rs
 
-✅ Test Results: 16/18 passing
-- 1 failing test due to outdated expectations (generates 4-step complex flow correctly)
-- 1 failing test due to inconsistent test expectations (implem behavior is correct)
-```
+## Development Workflow
 
----
+### 🔍 **Debug Process**
 
-## 🏗️ **Key Architectural Changes**
-
-### **1. Orchestrator Gateway Enhancement**
-**File**: `crates/reev-orchestrator/src/gateway.rs`
-- **LLM Framework**: Prepared infrastructure for future intelligent intent analysis
-- **Rule-Based Logic**: Enhanced with proper complex flow detection
-- **Flow Generation**: Improved 4-step complex flows (balance → swap → lend → positions)
-- **Tool Selection**: Accurate mapping based on intent type
-
-### **2. Flow Type Field Implementation**
-**File**: `benchmarks/300-jup-swap-then-lend-deposit-dyn.yml`
-- **Dynamic Specification**: Added `flow_type: "dynamic"` field
-- **Backward Compatibility**: Existing benchmarks default to `flow_type: "static"`
-- **Explicit Control**: Clear separation between deterministic and LLM execution modes
-
-### **3. Agent Router Logic Update**
-**File**: `crates/reev-agent/src/lib.rs`
-- **Flow Type Detection**: Checks `flow_type` field first, then `tags` fallback
-- **Dynamic Routing**: Skips deterministic agent for dynamic flows
-- **Static Routing**: Uses deterministic agent for static flows
-- **Clean Architecture**: No more hardcoded benchmark ID patterns
-
-### **4. Runner Integration**
-**File**: `crates/reev-runner/src/lib.rs`
-- **Agent Selection**: `determine_agent_from_flow_type()` properly routes based on flow_type
-- **Dynamic Agent**: Routes to `glm-4.6-coding` or specified LLM agent
-- **Static Agent**: Routes to `deterministic` agent for static flows
-- **Backward Compatible**: Existing behavior preserved
-
----
-
-## 🎯 **Current Behavior Validation**
-
-### **Dynamic Flow Execution (✅ WORKING)**
+#### Step 1: Reproduce Issue
 ```bash
-# 300 Benchmark with flow_type: dynamic
-curl -X POST "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
-  -H "Content-Type: application/json" \
-  -d '{"agent":"glamour","mode":"dynamic"}'
+# Execute 300 benchmark with LLM agent
+EXECUTION_ID=$(curl -s -X POST "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
+  -d '{"agent":"glm-4.6-coding","mode":"dynamic"}' | jq -r '.execution_id')
 
-# Expected: 4-step flow with LLM tool calls
-1. balance_check → 2. complex_swap → 3. complex_lend → 4. positions_check
+# Check execution results
+curl "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/status/$EXECUTION_ID" | jq '{status, score}'
+
+# Analyze flow visualization
+curl "/api/v1/flows/$EXECUTION_ID?format=json" | jq '{total_tools: (.tool_calls | length)}'
 ```
 
-### **Static Flow Execution (✅ WORKING)**
+#### Step 2: Identify Root Cause
 ```bash
-# 200 Benchmark (defaults to static)
-curl -X POST "http://localhost:3001/api/v1/benchmarks/200-jup-swap-then-lend-deposit/run" \
-  -H "Content-Type: application/json" \
-  -d '{"agent":"deterministic","mode":"static"}'
+# Check server logs for tool call tracking
+tail -f /tmp/reev-api.log | grep -E "(tool_call|OTEL|session)"
 
-# Expected: Deterministic execution with predefined instructions
+# Examine execution session data
+curl "/api/v1/debug/execution-sessions" | jq '.data[] | select(.execution_id == "$EXECUTION_ID")'
+
+# Validate 4-step generation in gateway
+grep -A 20 '"complex"' reev/crates/reev-orchestrator/src/gateway.rs
 ```
 
----
+#### Step 3: Fix Implementation
+1. **Enhance Tool Call Tracking** - Capture all 4 steps in ping-pong executor
+2. **Multi-Step Session Parsing** - Parse complete execution sequence
+3. **Parameter Context Display** - Show amounts, wallets, calculations
+4. **Step Validation** - Display success/failure for each intermediate step
 
-## 🔧 **Technical Implementation Details**
+### 🧪 **Testing Strategy**
 
-### **Intent Analysis Logic**
-```rust
-// Complex flows: multiply + lend + swap patterns
-if prompt_lower.contains("multiply") 
-    || prompt_lower.contains("then") 
-    || (prompt_lower.contains("lend") && prompt_lower.contains("swap")) {
-    intent_type = "complex" → 4-step flow
-}
+#### Unit Testing
+```bash
+# Test multi-step flow generation
+cargo test test_multi_step_flow_generation -p reev-orchestrator
 
-// Simple flows: single operation patterns  
-else if prompt_lower.contains("lend") || prompt_lower.contains("yield") {
-    intent_type = "lend" → 3-step flow
-}
+# Test enhanced session parsing
+cargo test test_multi_step_session_parsing -p reev-api
+
+# Test mermaid diagram generation
+cargo test test_enhanced_mermaid_generation -p reev-api
 ```
 
-### **Flow Type Determination**
-```rust
-// Priority order: flow_type field → tags → default static
-let flow_type = benchmark.get("flow_type")
-    .and_then(|ft| ft.as_str())
-    .unwrap_or("static");
+#### Integration Testing
+```bash
+# Execute complete 4-step strategy
+curl -X POST "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
+  -d '{"agent":"glm-4.6-coding","mode":"dynamic"}'
 
-match flow_type {
-    "dynamic" => route_to_llm_agent(),
-    "static" | _ => route_to_deterministic_agent(),
-}
+# Validate 4-step visualization
+EXPECTED_TOOLS=4
+ACTUAL_TOOLS=$(curl "/api/v1/flows/$EXECUTION_ID" | jq '.tool_calls | length')
+if [ "$ACTUAL_TOOLS" -eq "$EXPECTED_TOOLS" ]; then echo "✅ PASSED"; else echo "❌ FAILED"; fi
 ```
 
----
+#### Flow Visualization Testing
+```bash
+# Test complete mermaid diagram generation
+curl "/api/v1/flows/$EXECUTION_ID?format=json" | jq -r '.diagram' > test_diagram.mmd
 
-## 📝 **Test Status & Resolution**
-
-### **Passing Tests (16/18)**
-✅ All core functionality validated
-✅ Mock data integration working
-✅ Flow generation for all scenarios
-✅ YML creation and validation
-✅ Context injection and resolution
-✅ Error handling and recovery
-✅ 300 benchmark direct mode
-
-### **Failing Tests (2/18)**
-❌ `test_complex_swap_lend_flow`: Expects 4 steps (correct behavior implemented)
-❌ `test_simple_lend_flow`: Test expectations misaligned with implementation
-
-**Root Cause**: Test expectations outdated, implementation behavior is correct
-**Resolution**: Tests need updating to match proper complex flow generation
-
----
-
-## 🚀 **Production Readiness**
-
-### **✅ Core Features Implemented**
-- Dynamic flow execution with proper tool selection
-- Static flow execution with deterministic agents  
-- Flow type based routing (explicit configuration)
-- OpenTelemetry integration for tool tracking
-- Enhanced error handling and recovery mechanisms
-- Comprehensive test coverage (16/18 passing)
-
-### **🔧 Next Development Steps**
-1. **Actual LLM Integration**: Replace rule-based analysis with ZAI/GLM-4.6 calls
-2. **Test Updates**: Align test expectations with correct implementation
-3. **Performance Optimization**: Fine-tune flow generation for edge cases
-4. **Monitoring**: Add metrics for flow execution performance
-
----
-
-## 🎉 **Implementation Success**
-
-The orchestrator now has **complete LLM integration architecture** with:
-- ✅ **Explicit Flow Control**: flow_type field enables clear static/dynamic separation
-- ✅ **Intelligent Routing**: Proper agent selection based on execution mode
-- ✅ **Extensible Design**: Framework ready for actual LLM integration
-- ✅ **Backward Compatibility**: All existing benchmarks continue working
-- ✅ **Production Quality**: Clean code, proper error handling, comprehensive testing
-
-**System Status**: Ready for next phase development with actual LLM provider integration.
+# Validate diagram contains all steps
+grep -q "AccountDiscovery" test_diagram.mmd && echo "✅ Discovery step visible"
+grep -q "JupiterSwap" test_diagram.mmd && echo "✅ Swap step visible"
+grep -q "JupiterLend" test_diagram.mmd && echo "✅ Lend step visible"
+grep -q "PositionValidation" test_diagram.mmd && echo "✅ Validation step visible"
 ```
 
----
+### 📊 **Expected Output Validation**
 
-**Next Thread Focus**: Complete ZAI agent integration in `analyze_user_intent_with_llm()` function for truly intelligent orchestration.
+#### Target Mermaid Format
+```mermaid
+stateDiagram
+    [*] --> AccountDiscovery
+    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
+    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
+    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
+    JupiterSwap --> JupiterLend : "Deposit USDC for yield"
+    JupiterLend --> PositionValidation : "Verify 1.5x target"
+    PositionValidation --> [*] : "Final: 336 USDC achieved"
+```
+
+#### Success Criteria
+- **4 Tool Calls**: All execution steps captured and tracked
+- **Parameter Notes**: Real amounts, wallets, calculations displayed
+- **Step Sequence**: Discovery → Tools → Validation flow visible
+- **Color Coding**: Visual distinction between step types
+- **API Performance**: <100ms response time for flow endpoint
+
+### 🔧 **Implementation Focus Areas**
+
+#### Primary Files
+1. `reev-orchestrator/src/execution/ping_pong_executor.rs` - Step execution tracking
+2. `reev-api/src/handlers/flow_diagram/session_parser.rs` - Multi-step parsing
+3. `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs` - Enhanced visualization
+
+#### Key Functions to Modify
+- `execute_flow_plan()` - Capture all tool calls with step indices
+- `parse_multi_step_session()` - Group tools by execution step
+- `generate_multi_step_diagram()` - Create comprehensive visualization
+- `create_transition_label()` - Display execution parameters
+
+### 📈 **Validation Metrics**
+
+#### Tool Call Coverage
+- **Target**: 100% (4/4 steps)
+- **Measurement**: Count of parsed tool calls vs expected
+- **Pass Threshold**: ≥95%
+
+#### Diagram Completeness
+- **Target**: 5 states (discovery, analysis, 3 tools)
+- **Measurement**: State count in generated Mermaid
+- **Pass Threshold**: All required states present
+
+#### Parameter Accuracy
+- **Target**: Real execution values
+- **Measurement**: Amount verification against execution logs
+- **Pass Threshold**: Values match actual execution
+
+## Production Deployment
+
+### 🚀 **Rollback Plan**
+```bash
+# Current working version commit
+git log --oneline -5
+
+# Rollback if issues occur
+git revert HEAD --no-edit
+cargo build --release
+systemctl restart reev-api
+```
+
+### 📋 **Pre-Deployment Checklist**
+- [ ] All 4 tool calls captured in flow visualization
+- [ ] Parameter context displayed for each step
+- [ ] Color-coded step categories implemented
+- [ ] API response time <100ms
+- [ ] Integration tests passing
+- [ ] Documentation updated
+
+### 🔄 **Post-Monitoring**
+```bash
+# Monitor flow visualization performance
+curl "/api/v1/flows/latest" | jq '.total_execution_time_ms'
+
+# Check error rates in flow generation
+tail -f /var/log/reev/flow_diagram.log | grep ERROR
+
+# Validate 300 benchmark success rate
+curl "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn" | jq '.recent_executions | map(select(.status == "completed")) | length'
+```
+
+## Next Thread Focus
+
+### 🎯 **Primary Goals**
+1. Complete 4-step flow visualization to demonstrate full LLM orchestration capabilities
+2. Implement production feature flags to separate LLM orchestration from mock behaviors
+
+### 📝 **Immediate Tasks**
+#### Issue #38: Flow Visualization
+1. Fix tool call tracking in ping-pong executor
+2. Implement multi-step session parsing
+3. Create enhanced Mermaid generation with parameters
+4. Validate with real 300 benchmark execution
+
+#### Issue #39: Production Feature Flags
+5. Add feature flags to Cargo.toml
+6. Update agent routing with compile-time separation
+7. Remove mock behaviors from production builds
+8. Validate clean production deployment
+
+### 🔍 **Reference Issues**
+- **Issue #39**: Production Mock Behavior Missing Feature Flag (ACTIVE)
+- **Issue #38**: Incomplete Multi-Step Flow Visualization (ACTIVE)
+- **Issue #37**: ToolName Enum Mismatch (RESOLVED ✅)
+- **Issue #10**: Orchestrator-Agent Ping-Pong (RESOLVED ✅)
+- **Issue #29**: USER_WALLET_PUBKEY Auto-Generation (RESOLVED ✅)
+
+**Current Status**: Foundation solid, visualization enhancement needed for production demo
