@@ -421,7 +421,7 @@ async fn execute_flow_plan_with_ping_pong(
             if step_result.step_id.contains("swap") {
                 "jupiter_swap".to_string()
             } else if step_result.step_id.contains("lend") {
-                "jupiter_lend_earn_deposit".to_string()
+                "jupiter_lend".to_string()
             } else if step_result.step_id.contains("balance") {
                 "account_balance".to_string()
             } else if step_result.step_id.contains("position") {

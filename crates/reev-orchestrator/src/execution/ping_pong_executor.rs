@@ -444,8 +444,8 @@ impl PingPongExecutor {
             tool_calls.push("jupiter_swap".to_string());
         }
 
-        if response.contains("jupiter_lend_earn_deposit") {
-            tool_calls.push("jupiter_lend_earn_deposit".to_string());
+        if response.contains("jupiter_lend") {
+            tool_calls.push("jupiter_lend".to_string());
         }
 
         if response.contains("jupiter_earn") {

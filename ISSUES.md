@@ -4,11 +4,13 @@
 **Status**: CRITICAL
 **Description**: 300-jup-swap-then-lend-deposit-dyn uses single jupiter_lend_earn_deposit tool instead of expected two-step jupiter_swap → jupiter_lend flow
 **Problem**:
-- Expected flow: Prompt → jupiter_swap → jupiter_lend → [*]
-- Actual flow: Prompt → jupiter_lend_earn_deposit → [*]
+- **Expected**: Prompt → jupiter_swap → jupiter_lend → [*]
+- **Actual**: Prompt → jupiter_lend_earn_deposit → [*]
 - LLM agent chooses optimized single tool instead of required two-step process
 - 200 benchmark correctly implements explicit two-step flow with separate swap and lend steps
 - 300 benchmark should replicate 200's two-step pattern but with dynamic LLM execution
+
+**Issue Still Present**: Despite code changes, logs show error message "Jupiter lend deposit error: Invalid amount" indicating `jupiter_lend_earn_deposit` is still being called instead of `jupiter_lend`.
 **Evidence**:
 - 200 benchmark has explicit flow section with step 1 (swap) and step 2 (deposit)
 - 300 prompt: "use my 50% sol to multiply usdc 1.5x on jup" implies swap then deposit

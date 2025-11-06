@@ -240,8 +240,7 @@ impl ContextIntegration {
 
         enhanced.push_str("=== JUPITER LENDING TOOL SELECTION ===\n");
         enhanced.push_str("CRITICAL: Use EXACTLY ONE tool based on user's specific words:\n");
-        enhanced
-            .push_str("- If user says 'deposit' or 'lend' → ONLY use jupiter_lend_earn_deposit\n");
+        enhanced.push_str("- If user says 'deposit' or 'lend' → ONLY use jupiter_lend\n");
         enhanced.push_str("- If user says 'mint' or 'minting' → ONLY use jupiter_lend_earn_mint\n");
         enhanced.push_str(
             "- If user says 'withdraw' or 'withdrawing' → ONLY use jupiter_lend_earn_withdraw (COMPLETE operation - returns all instructions)\n",

@@ -2,6 +2,39 @@
 
 ---
 
+  let tool_name_list = vec![
+      "sol_transfer".to_string(),
+      "spl_transfer".to_string(),
+      "jupiter_swap".to_string(),
+      "jupiter_earn".to_string(),
+      "jupiter_lend_earn_deposit".to_string(),
+      "jupiter_lend_earn_withdraw".to_string(),
+      "jupiter_lend_earn_mint".to_string(),
+      "jupiter_lend_earn_redeem".to_string(),
+      "account_balance".to_string(),
+      "lend_earn_tokens".to_string(),
+  ];
+
+still see code use string for tool name everywhere, i think rig have a way to list all tool? and we must use enum aka strum for this not un typed string
+grep rig/rig-core for how to get the tool name list from tool or maybe just use strum, move to shared type crate if need.
+
+create issue for this first
+---
+
+expect
+Prompt → jupiter_swap → jupiter_lend → [*]
+
+actual
+Prompt → jupiter_lend_earn_deposit → [*]
+
+the condition is use has some sol and need swap to usdc first then deposit
+it should work like benchmarks/200-jup-swap-then-lend-deposit.yml
+
+200 = static yml -> flow
+300 = dynamic - llm -> static yml -> flow
+
+---
+
 refer to 300-jup-swap-then-lend-deposit-dyn.yml
 tags: ["dynamic", "multiplication", "jupiter", "yield", "strategy"]
 flow_type: "dynamic")
@@ -41,7 +74,7 @@ is redandant about "dynamic" and should determine from flow_type=dynamic
 
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
-expect working mermaid flow completed info with score for 001-sol-transfer.yml,200-jup-swap-then-lend-deposit.yml, 300-jup-swap-then-lend-deposit-dyn.yml, via api glm-4.6-coding
+expect working mermaid flow completed info with 300-jup-swap-then-lend-deposit-dyn.yml, via api glm-4.6-coding
 
 up tasks, issue md then commit and stop
 
