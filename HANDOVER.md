@@ -5,17 +5,64 @@
    cargo build --features mock_behaviors
    ```
 
+#### 🔴 Issue #40 ACTIVE: Agent Multi-Step Strategy Execution Bug
+**Critical Bug Identified**: Agent stops after first tool call instead of completing 4-step strategy
+
+**Expected 4-step Flow**:
+```mermaid
+stateDiagram
+    [*] --> AccountDiscovery
+    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
+    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
+    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
+    JupiterSwap --> JupiterLend : "Deposit USDC for yield"  
+    JupiterLend --> PositionValidation : "Verify 1.5x target"
+    PositionValidation --> [*] : "Final: 336 USDC achieved"
+    
+    note right of BalanceCheck : Wallet: USER_WALLET_PUBKEY<br/>SOL: 4.0 → 2.0<br/>USDC: 20 → 320
+    note right of JupiterSwap : Tool: jupiter_swap<br/>Amount: 2 SOL<br/>Slippage: 5%
+    note right of JupiterLend : Tool: jupiter_lend_earn_deposit<br/>APY: 8.5%<br/>Yield target: 1.3x
+    note right of PositionValidation : Target: 30 USDC (1.5x)<br/>Achieved: 336 USDC<br/>Score: 1.0
+    
+    classDef discovery fill:#e3f2fd
+    classDef tools fill:#c8e6c9  
+    classDef validation fill:#fff3e0
+    class AccountDiscovery,ContextAnalysis discovery
+    class BalanceCheck,JupiterSwap,JupiterLend tools
+    class PositionValidation validation
+```
+
+**Actual Single-Step Execution**:
+```mermaid
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : |
+    Agent --> jupiter_swap : 2.000 SOL → USDC
+    jupiter_swap --> [*]
+```
+
+**Root Cause**: Agent strategy bug - stops after first tool call with `"next_action":"STOP"`
+
+**Evidence from Enhanced OTEL Logs**:
+```json
+{
+  "event_type": "ToolOutput", 
+  "tool_output": {
+    "success": true,
+    "next_action": "STOP",  // ❌ Agent stops here instead of continuing
+    "message": "Successfully executed 6 jupiter_swap operation(s)"
+  }
+}
+```
+
 #### ✅ Issue #38 RESOLVED: Flow Visualization Working Correctly
-**Investigation Completed**: Flow visualization components are working perfectly
+**Investigation Completed**: All flow visualization components working perfectly
 - **Enhanced OTEL Logging**: ✅ Capturing tool calls with full parameters and timing
 - **Session Parsing**: ✅ Successfully parsing enhanced OTEL YAML format  
 - **Diagram Generation**: ✅ Multi-step diagram generation supports 4-step flows
 - **Parameter Context**: ✅ Extracting amounts, percentages, APY rates for display
+- **Real-time Visualization**: ✅ Working via `/api/v1/flows/{session_id}`
 
-**Agent Execution Issue Identified**: NOT a flow visualization problem
-- **Expected**: 4-step flow: `get_account_balance` → `jupiter_swap` → `jupiter_lend_earn_deposit` → position validation
-- **Actual**: Single step: Only `jupiter_swap` executed, agent stops with `"next_action":"STOP"`
-- **Root Cause**: Agent strategy behavior, requires new issue for multi-step orchestration
 
 **Technical Evidence**:
 ```json
@@ -90,23 +137,30 @@
 - **Color Coding**: ✅ Visual distinction between step types implemented
 - **API Performance**: ✅ Enhanced generation with parameter extraction working
 
-### 📊 **Current Status**
+### 📊 **Current Issues**
 
-#### ✅ Issue #38 RESOLVED: Flow Visualization Working
-**Flow Visualization Components**: All working correctly
-- **Enhanced OTEL Logging**: ✅ Captures tool calls with full parameters and timing
-- **Session Parsing**: ✅ Successfully parses enhanced OTEL YAML format  
-- **Diagram Generation**: ✅ Multi-step diagram generation supports 4-step flows
-- **Parameter Context**: ✅ Extracts and displays amounts, percentages, APY rates
+#### Primary: Issue #38 Status 🔄 IN PROGRESS
+**Root Cause**: Session data flow from ping-pong executor to API needs validation
+- **Enhanced Tracking**: ✅ ToolCallSummary properly created and stored in OTEL
+- **Session Parsing**: ✅ Enhanced OTEL YAML format supported
+- **Diagram Generation**: ✅ Multi-step generator with enhanced notes implemented
+- **Integration**: 🔄 Need to verify end-to-end data flow in production
 
-#### 🔄 New Issue Identified: Agent Multi-Step Strategy
-**Root Cause**: Agent execution behavior, NOT flow visualization
-- **Expected 4-step strategy**: `get_account_balance` → `jupiter_swap` → `jupiter_lend_earn_deposit` → validation
-- **Actual execution**: Single `jupiter_swap` then agent stops with `"next_action":"STOP"`
-- **Evidence**: Enhanced OTEL logs show successful capture of single tool call
-- **Impact**: Agent not implementing expected multi-step multiplication strategy
+#### Investigation Points
+```bash
+# Execute 300 benchmark with enhanced tracking
+EXECUTION_ID=$(curl -s -X POST "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
+  -d '{"agent":"glm-4.6-coding","mode":"dynamic"}' | jq -r '.execution_id')
 
-**Next Action Required**: Create new issue for Agent Strategy Implementation
+# Check tool call count in flow response
+TOOL_CALLS=$(curl "/api/v1/flows/$EXECUTION_ID" | jq '.tool_calls | length')
+
+# Verify diagram contains all steps
+DIAGRAM_STEPS=$(curl "/api/v1/flows/$EXECUTION_ID" | jq -r '.diagram' | \
+  grep -E "(AccountDiscovery|JupiterSwap|JupiterLend|PositionValidation)" | wc -l)
+
+echo "Tool calls: $TOOL_CALLS, Diagram steps: $DIAGRAM_STEPS"
+```
 
 ### 🛠️ **Implementation Files Modified**
 
@@ -130,10 +184,16 @@
 3. **Production Ready**: Enhanced flow visualization deployed and functional
 
 #### 📝 **Next Thread Actions**
-1. **Create New Issue**: "Agent Multi-Step Strategy Execution" for 4-step flow behavior
-2. **Agent Investigation**: Debug why agent stops after `jupiter_swap` instead of continuing strategy
-3. **Strategy Logic**: Review ping-pong executor and agent orchestration for multi-step support
-4. **Integration Testing**: Test 4-step agent execution once strategy issue is resolved
+1. **Fix Agent Strategy Logic**: Debug ping-pong executor continuation after first tool call
+2. **Review Agent Decision-Making**: Check why agent sets `"next_action":"STOP"` prematurely
+3. **Implement 4-Step Strategy**: Ensure agent executes complete multiplication sequence
+4. **Multi-Step Testing**: Validate agent executes AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
+5. **Benchmark Compliance**: Verify 300-jup-swap-then-lend-deposit-dyn.yml requirements are met
+
+**Critical Files to Debug**:
+- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs` - Multi-step coordination
+- `crates/reev-agent/src/enhanced/zai_agent.rs` - Agent strategy logic
+- `crates/reev-agent/src/lib.rs` - Agent routing and flow handling
 
 #### 🔍 **Reference Implementation**
 - **Enhanced Tool Call Structure**: `ToolCallSummary` in `reev-types/src/execution.rs`
@@ -167,6 +227,6 @@
 - Parameter extraction and notes working
 - Test validation infrastructure ready
 
-**Current Status**: Issue #38 ✅ RESOLVED - Flow visualization working perfectly
-**Priority**: Create new Agent Strategy issue for multi-step execution behavior
-**Resolution**: Enhanced flow visualization ready for production when agent strategy is fixed
+**Current Status**: Issue #40 🔴 ACTIVE - Agent strategy bug blocking multi-step flows
+**Priority**: HIGH - Critical bug in agent decision-making logic
+**Resolution**: Enhanced flow visualization ready, waiting for agent strategy fix

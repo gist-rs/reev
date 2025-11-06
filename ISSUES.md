@@ -1,5 +1,90 @@
 # Issues
 
+## Issue #40 - Agent Multi-Step Strategy Execution Bug
+**Status**: ACTIVE 🔴
+**Priority**: HIGH
+**Component**: Agent Execution Strategy (reev-orchestrator, reev-agent)
+**Description**: Agent executes single tool call instead of expected 4-step multi-step strategy
+
+### **Problem Analysis**
+**Expected 4-step Flow**:
+```mermaid
+stateDiagram
+    [*] --> AccountDiscovery
+    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
+    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
+    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
+    JupiterSwap --> JupiterLend : "Deposit USDC for yield"  
+    JupiterLend --> PositionValidation : "Verify 1.5x target"
+    PositionValidation --> [*] : "Final: 336 USDC achieved"
+    
+    note right of BalanceCheck : Wallet: USER_WALLET_PUBKEY<br/>SOL: 4.0 → 2.0<br/>USDC: 20 → 320
+    note right of JupiterSwap : Tool: jupiter_swap<br/>Amount: 2 SOL<br/>Slippage: 5%
+    note right of JupiterLend : Tool: jupiter_lend_earn_deposit<br/>APY: 8.5%<br/>Yield target: 1.3x
+    note right of PositionValidation : Target: 30 USDC (1.5x)<br/>Achieved: 336 USDC<br/>Score: 1.0
+    
+    classDef discovery fill:#e3f2fd
+    classDef tools fill:#c8e6c9  
+    classDef validation fill:#fff3e0
+    class AccountDiscovery,ContextAnalysis discovery
+    class BalanceCheck,JupiterSwap,JupiterLend tools
+    class PositionValidation validation
+```
+
+**Actual Single-Step Execution**:
+```mermaid
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : |
+    Agent --> jupiter_swap : 2.000 SOL → USDC
+    jupiter_swap --> [*]
+```
+
+### **Root Cause IDENTIFIED**
+**Agent Strategy Bug**: Agent stops after first tool call instead of continuing multi-step strategy
+
+**Evidence from Enhanced OTEL Logs**:
+```json
+{
+  "event_type": "ToolOutput", 
+  "tool_output": {
+    "success": true,
+    "next_action": "STOP",  // ❌ Agent stops here instead of continuing
+    "message": "Successfully executed 6 jupiter_swap operation(s)"
+  }
+}
+```
+
+**Expected Behavior**:
+1. **Step 1**: `get_account_balance` - Check current wallet balances and positions
+2. **Step 2**: `jupiter_swap` - Swap 2 SOL → USDC using Jupiter
+3. **Step 3**: `jupiter_lend_earn_deposit` - Deposit USDC into Jupiter lending for yield
+4. **Step 4**: Position validation - Verify 1.5x multiplication target achieved
+
+**Actual Behavior**:
+1. **Step 1**: `jupiter_swap` - Executes correctly
+2. **Step 2**: Agent stops with `"next_action":"STOP"`
+
+### **Investigation Required**
+1. **Ping-Pong Executor**: Check if orchestrator correctly continues after first tool call
+2. **Agent Strategy Logic**: Review agent decision-making for multi-step flows
+3. **Benchmark Requirements**: Ensure agent understands 4-step multiplication strategy
+4. **Tool Choice Handling**: Verify agent doesn't incorrectly set tool_choice to "none"
+
+### **Files to Investigate**
+- `crates/reev-orchestrator/src/execution/ping_pong_executor.rs` - Multi-step coordination
+- `crates/reev-agent/src/lib.rs` - Agent routing and strategy logic
+- `crates/reev-agent/src/enhanced/zai_agent.rs` - GLM agent execution
+- `benchmarks/300-jup-swap-then-lend-deposit-dyn.yml` - Benchmark requirements
+
+### **Validation Criteria**
+- Agent executes complete 4-step multiplication strategy
+- Enhanced OTEL logs capture all 4 tool calls
+- Flow visualization shows complete multi-step diagram
+- No premature `"next_action":"STOP"` after first tool call
+
+---
+
 ## Issue #39 - Production Mock Behavior Missing Feature Flag
 **Status**: RESOLVED ✅
 **Priority**: HIGH
@@ -78,42 +163,27 @@ cargo build --features mock_behaviors
 ## Issue #38 - Incomplete Multi-Step Flow Visualization
 **Status**: RESOLVED ✅ 
 **Priority**: HIGH
-**Component**: Agent Execution Behavior (NOT Flow Visualization)
-**Description**: Agent executes single tool call instead of expected 4-step multi-step strategy
+**Component**: Flow Visualization (reev-api handlers/flow_diagram)
+**Description**: 300 benchmark generates 4-step complex strategy but Mermaid diagrams only show single tool calls
 
-### Investigation Results ✅ COMPLETED
-After extensive investigation of Issue #38, the findings are:
+### **Implementation Progress**
+✅ **Enhanced Tool Call Tracking**: Implemented ToolCallSummary with parameter extraction
+✅ **Improved Ping-Pong Executor**: Enhanced parsing and OTEL storage
+✅ **Parameter Context**: Regex-based extraction of amounts, percentages, APY
+✅ **Session Parser**: Supports enhanced OTEL tool call format
+✅ **Dynamic Flow Generator**: Multi-step diagram with enhanced notes
 
-#### ✅ Flow Visualization WORKING CORRECTLY
-- **Enhanced OTEL Logging**: ✅ Capturing tool calls with full parameters and timing
-- **Session Parsing**: ✅ Successfully parsing enhanced OTEL YAML format  
-- **Diagram Generation**: ✅ Multi-step diagram generation supports AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
-- **Parameter Context**: ✅ Extracting amounts, percentages, APY rates for display
-
-#### ❌ Agent Execution Issue IDENTIFIED
-**Root Cause**: Agent execution behavior, NOT flow visualization
-- **Expected**: 4-step flow: `get_account_balance` → `jupiter_swap` → `jupiter_lend_earn_deposit` → position validation
-- **Actual**: Single step: Only `jupiter_swap` executed, agent stops with `"next_action":"STOP"`
-- **Evidence**: Enhanced OTEL logs show successful capture of single `jupiter_swap` execution
-
-#### 📊 Technical Validation
-```json
-// Enhanced OTEL capture working correctly
-{
-  "event_type": "ToolInput",
-  "tool_input": {
-    "tool_name": "jupiter_swap",
-    "tool_args": {"amount": 2000000000, "input_mint": "So111111111...", "output_mint": "EPjFWdd5..."}
-  }
-}
-{
-  "event_type": "ToolOutput", 
-  "tool_output": {
-    "success": true,
-    "next_action": "STOP",  // ❌ Agent stops here instead of continuing
-    "message": "Successfully executed 6 jupiter_swap operation(s)"
-  }
-}
+### **Problem Analysis**
+**Expected Behavior**:
+```mermaid
+stateDiagram
+    [*] --> AccountDiscovery
+    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
+    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
+    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
+    JupiterSwap --> JupiterLend : "Deposit USDC for yield"
+    JupiterLend --> PositionValidation : "Verify 1.5x target"
+    PositionValidation --> [*] : "Final: 336 USDC achieved"
 ```
 
 ### Resolution ✅
@@ -135,47 +205,6 @@ After extensive investigation of Issue #38, the findings are:
 
 **Next Steps**: Create new issue for Agent Multi-Step Strategy Execution
 
----
-
-## Issue #37 - ToolName Enum Mismatch - FIXED ✅
-**Status**: RESOLVED ✅
-**Progress**: Comprehensive string-to-constants refactor completed
-**Description**: ToolName enum inconsistencies resolved, all hardcoded strings eliminated
-
-### **Resolution Summary**
-✅ Added missing `spl_transfer` and `ExecuteTransaction` tools
-✅ Fixed serialization names (`account_balance` → `get_account_balance`)
-✅ Created `reev-constants` crate for centralized tool management
-✅ Replaced all hardcoded strings with type-safe constants
-✅ Updated all tests and documentation
-
----
-
-## Issue #29 - USER_WALLET_PUBKEY Auto-Generation - IMPLEMENTED ✅
-**Status**: RESOLVED ✅
-**Component**: ContextResolver (reev-orchestrator)
-**Description**: Placeholders automatically resolved to unique keypairs during execution
-
-### **Implementation Summary**
-✅ `ContextResolver::resolve_placeholder()` generates unique keypairs
-✅ Consistent mapping in `SolanaEnv` for execution lifetime
-✅ Zero user confusion - documentation placeholders work automatically
-
----
-
-## Issue #10 - Orchestrator-Agent Ping-Pong - RESOLVED ✅
-**Status**: RESOLVED ✅
-**Component**: PingPongExecutor (reev-orchestrator)
-**Description**: Sequential step execution with validation and recovery implemented
-
-### **Implementation Summary**
-✅ Multi-step flow coordination working
-✅ Progress tracking and partial scoring implemented
-✅ Enhanced OpenTelemetry logging with parameters
-✅ Recovery mechanisms for critical failures
-
----
-
 **Last Updated**: 2025-11-06
-**Total Issues**: 0 Active, 4 Resolved
-**Next Review**: Create new Agent Strategy Issue for multi-step execution
+**Total Issues**: 1 Active, 0 Resolved
+**Next Review**: Fix Agent Multi-Step Strategy Execution (Issue #40)

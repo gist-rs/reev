@@ -1,5 +1,164 @@
 # Implementation Tasks
 
+## Issue #40 - Agent Multi-Step Strategy Execution Bug 🔴 ACTIVE
+
+### 🎯 **Objective** CRITICAL BUG
+Fix agent execution to complete 4-step multiplication strategy instead of stopping after first tool call.
+
+### 🐛 **Problem Identified**
+**Expected 4-step Flow**:
+```mermaid
+stateDiagram
+    [*] --> AccountDiscovery
+    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
+    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
+    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
+    JupiterSwap --> JupiterLend : "Deposit USDC for yield"  
+    JupiterLend --> PositionValidation : "Verify 1.5x target"
+    PositionValidation --> [*] : "Final: 336 USDC achieved"
+    
+    note right of BalanceCheck : Wallet: USER_WALLET_PUBKEY<br/>SOL: 4.0 → 2.0<br/>USDC: 20 → 320
+    note right of JupiterSwap : Tool: jupiter_swap<br/>Amount: 2 SOL<br/>Slippage: 5%
+    note right of JupiterLend : Tool: jupiter_lend_earn_deposit<br/>APY: 8.5%<br/>Yield target: 1.3x
+    note right of PositionValidation : Target: 30 USDC (1.5x)<br/>Achieved: 336 USDC<br/>Score: 1.0
+    
+    classDef discovery fill:#e3f2fd
+    classDef tools fill:#c8e6c9  
+    classDef validation fill:#fff3e0
+    class AccountDiscovery,ContextAnalysis discovery
+    class BalanceCheck,JupiterSwap,JupiterLend tools
+    class PositionValidation validation
+```
+
+**Actual Single-Step Execution**:
+```mermaid
+stateDiagram
+    [*] --> Prompt
+    Prompt --> Agent : |
+    Agent --> jupiter_swap : 2.000 SOL → USDC
+    jupiter_swap --> [*]
+```
+
+### 🔍 **Root Cause**
+Agent strategy bug: Stops after first tool call with `"next_action":"STOP"`
+
+**Evidence from Enhanced OTEL Logs**:
+```json
+{
+  "event_type": "ToolOutput", 
+  "tool_output": {
+    "success": true,
+    "next_action": "STOP",  // ❌ Agent stops here instead of continuing
+    "message": "Successfully executed 6 jupiter_swap operation(s)"
+  }
+}
+```
+
+### 🏗️ **Required Implementation**
+
+#### Step 1: Fix Agent Strategy Logic ✅ CRITICAL
+**Files**: `crates/reev-orchestrator/src/execution/ping_pong_executor.rs`, `crates/reev-agent/src/enhanced/zai_agent.rs`
+```rust
+// 🔧 REQUIRED: Fix agent continuation logic
+async fn execute_multi_step_strategy(&self, prompt: &str) -> Result<ExecutionResult> {
+    let mut steps_completed = Vec::new();
+    
+    // Step 1: Account discovery
+    let balance_result = self.execute_tool("get_account_balance").await?;
+    steps_completed.push(balance_result);
+    
+    // Step 2: SOL → USDC swap  
+    let swap_result = self.execute_tool("jupiter_swap").await?;
+    steps_completed.push(swap_result);
+    
+    // Step 3: USDC lending for yield
+    let lend_result = self.execute_tool("jupiter_lend_earn_deposit").await?;
+    steps_completed.push(lend_result);
+    
+    // Step 4: Position validation
+    let validation_result = self.validate_position(&steps_completed).await?;
+    steps_completed.push(validation_result);
+    
+    Ok(ExecutionResult {
+        steps: steps_completed,
+        next_action: "COMPLETED", // ✅ Continue until all steps done
+    })
+}
+```
+
+#### Step 2: Fix Tool Choice Handling ✅ CRITICAL
+**File**: `crates/reev-agent/src/enhanced/zai_agent.rs`
+```rust
+// 🔧 REQUIRED: Prevent premature tool_choice="none"
+let tool_choice = match self.strategy_phase {
+    StrategyPhase::Discovery => Some("auto"),
+    StrategyPhase::Execution => Some("required"), // Force tool usage
+    StrategyPhase::Validation => Some("required"), // Force tool usage
+    StrategyPhase::Completed => Some("none"), // Only stop when done
+};
+```
+
+#### Step 3: Benchmark Requirements Compliance ✅ CRITICAL
+**File**: `benchmarks/300-jup-swap-then-lend-deposit-dyn.yml`
+```yaml
+# ✅ ENSURE: Agent understands 4-step requirements
+ground_truth:
+  expected_tool_calls:
+    - tool_name: "get_account_balance"
+      critical: false
+    - tool_name: "jupiter_swap"  
+      critical: true
+    - tool_name: "jupiter_lend_earn_deposit"
+      critical: true
+```
+
+### 🧪 **Testing Strategy**
+
+#### Step 1: Multi-Step Execution Test ✅ REQUIRED
+```bash
+# Test complete 4-step flow
+EXECUTION_ID=$(curl -s -X POST "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
+  -d '{"agent":"glm-4.6-coding","mode":"dynamic"}' | jq -r '.execution_id')
+
+# Validate 4 tool calls captured
+curl "/api/v1/flows/$EXECUTION_ID" | jq '
+{
+  total_tools: .tool_calls | length,
+  expected: 4,
+  has_account_discovery: .tool_calls | map(.tool_name) | contains("get_account_balance"),
+  has_jupiter_swap: .tool_calls | map(.tool_name) | contains("jupiter_swap"),
+  has_jupiter_lend: .tool_calls | map(.tool_name) | contains("jupiter_lend_earn_deposit")
+}'
+```
+
+#### Step 2: Agent Strategy Debug Test ✅ REQUIRED
+```bash
+# Debug agent decision-making
+RUST_LOG=debug cargo run -p reev-runner -- \
+  benchmarks/300-jup-swap-then-lend-deposit-dyn.yml \
+  --agent glm-4.6-coding
+```
+
+### ✅ **Success Criteria**
+1. **4 Tool Calls Executed**: Agent completes all strategy steps
+2. **No Premature STOP**: `"next_action":"STOP"` only after final validation
+3. **Correct Tool Sequence**: AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
+4. **Enhanced Flow**: Full 4-step diagram with parameter context
+5. **Benchmark Compliance**: Meets all 300 benchmark requirements
+
+### 📈 **Priority Metrics**
+- **Tool Call Completion Rate**: 100% (4/4 steps executed)
+- **Strategy Adherence**: Agent follows multi-step multiplication logic
+- **Enhanced Flow Visualization**: Complete 4-step Mermaid diagram
+- **Parameter Context**: Amounts, APY, targets displayed correctly
+
+**Status**: Issue #40 🔴 ACTIVE - Critical agent strategy bug
+**Priority**: HIGH - Blocking 4-step flow demonstration
+**Estimated Completion**: Agent strategy fix + validation testing
+
+
+---
+
 ## Issue #39 - Production Feature Flag Implementation ✅ RESOLVED
 
 ### 🎯 **Objective** ✅ COMPLETED
@@ -73,234 +232,5 @@ let result = {
 4. **Testing Separation**: Mocks only compile in development builds
 
 ---
-
-## Issue #38 - Complete Multi-Step Flow Visualization ✅ RESOLVED
-
-### 🎯 **Objective** ✅ COMPLETED
-Fix 4-step flow visualization to show complete strategy execution with parameter context and validation states.
-
-### 🏗️ **Implementation Progress** ✅ COMPLETED
-✅ **Enhanced Tool Call Tracking**: Implemented ToolCallSummary with parameter extraction
-✅ **Improved Ping-Pong Executor**: Enhanced parsing and OTEL storage  
-✅ **Parameter Context**: Regex-based extraction of amounts, percentages, APY
-✅ **Session Parser**: Supports enhanced OTEL tool call format
-✅ **Dynamic Flow Generator**: Multi-step diagram with enhanced notes
-✅ **Flow Visualization**: Working correctly - captures what actually executes
-
-### 📋 **Current State**
-✅ **Flow Visualization**: All components working correctly - Enhanced OTEL → Session Parsing → Diagram Generation
-✅ **Multi-Step Support**: Ready for 4-step flows: AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
-✅ **Parameter Context**: Extracting and displaying amounts, wallets, calculations in diagrams
-❌ **Agent Execution**: Single tool call executed instead of expected 4-step strategy
-
-### 🏗️ **Required Implementation**
-
-#### Step 1: Enhanced Tool Call Tracking ✅ COMPLETED
-**File**: `reev-orchestrator/src/execution/ping_pong_executor.rs`
-```rust
-// ✅ IMPLEMENTED: Enhanced tool call tracking with ToolCallSummary
-fn parse_tool_calls_from_response(&self, response: &str) -> Result<Vec<reev_types::ToolCallSummary>> {
-    let mut tool_calls = Vec::new();
-    let current_time = chrono::Utc::now();
-
-    // Enhanced tool call detection with parameter extraction
-    if response.contains(ToolName::JupiterSwap.to_string().as_str()) {
-        let params = self.extract_swap_parameters(response);
-        tool_calls.push(reev_types::ToolCallSummary {
-            tool_name: ToolName::JupiterSwap.to_string(),
-            timestamp: current_time,
-            duration_ms: 0,
-            success: true,
-            error: None,
-            params: Some(params),
-            result_data: None,
-            tool_args: None,
-        });
-    }
-    // ... similar for other tools with parameter extraction
-}
-
-// ✅ IMPLEMENTED: Store enhanced tool calls in OTEL session
-async fn store_enhanced_tool_calls(&self, session_id: &str, tool_calls: &[reev_types::ToolCallSummary]) -> Result<()> {
-    if let Ok(logger) = reev_flow::get_enhanced_otel_logger() {
-        for tool_call in tool_calls {
-            let enhanced_tool_call = reev_flow::EnhancedToolCall {
-                tool_input: Some(reev_flow::ToolInputInfo {
-                    tool_name: tool_call.tool_name.clone(),
-                    tool_args: tool_call.params.clone().unwrap_or(serde_json::json!({})),
-                }),
-                // ... other fields
-            };
-            logger.log_tool_call(enhanced_tool_call)?;
-        }
-    }
-    Ok(())
-}
-```
-
-#### Step 2: Multi-Step Session Parsing ✅ COMPLETED
-**File**: `reev-api/src/handlers/flow_diagram/session_parser.rs`
-```rust
-// ✅ IMPLEMENTED: Enhanced OTEL YAML tool call parsing
-fn parse_enhanced_otel_yml_tool(tool: &JsonValue) -> Result<ParsedToolCall, FlowDiagramError> {
-    let tool_name = tool.get("tool_name")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| FlowDiagramError::InvalidLogFormat("Missing tool_name".to_string()))?;
-
-    // Parse parameters from enhanced OTEL format
-    let params = tool.get("tool_input")
-        .and_then(|input| input.get("tool_args"))
-        .cloned()
-        .unwrap_or(JsonValue::Null);
-
-    // Parse result data from enhanced OTEL format  
-    let result_data = tool.get("tool_output")
-        .and_then(|output| output.get("results"))
-        .cloned();
-
-    Ok(ParsedToolCall {
-        tool_name: tool_name.to_string(),
-        params,
-        result_data,
-        // ... other fields
-    })
-}
-```
-
-#### Step 3: Enhanced State Diagram Generation
-**File**: `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs`
-```rust
-// Generate comprehensive multi-step flow diagram
-impl StateDiagramGenerator {
-    pub fn generate_multi_step_diagram(session: &ParsedSession) -> FlowDiagram {
-        let mut diagram_lines = Vec::new();
-        diagram_lines.push("stateDiagram".to_string());
-        
-        // ✅ IMPLEMENTED: Enhanced multi-step diagram generation
-        let diagram_lines = StateDiagramGenerator::generate_dynamic_flow_diagram(session, session_id);
-        
-        FlowDiagram {
-            diagram: diagram_lines.diagram,
-            metadata: diagram_lines.metadata,
-            tool_calls: diagram_lines.tool_calls,
-        }
-
-// ✅ IMPLEMENTED: Enhanced transition labels with parameter extraction
-fn create_transition_label(tool_call: &ParsedToolCall) -> String {
-    match tool_call.tool_name.as_str() {
-        "get_account_balance" => "Current: 4 SOL, 20 USDC".to_string(),
-        "jupiter_swap" => {
-            if let Some(amount) = tool_call.params.get("amount") {
-                format!("Swap {} SOL → USDC", amount)
-            } else {
-                "Swap SOL → USDC".to_string()
-            }
-        },
-        "jupiter_lend_earn_deposit" => {
-            if let Some(amount) = tool_call.params.get("deposit_amount") {
-                format!("Deposit {} USDC for yield", amount)
-            } else {
-                "Deposit USDC for yield".to_string()
-            }
-        },
-        _ => "Execute operation".to_string(),
-    }
-}
-```
-
-### 📊 **Expected Output**
-
-#### Target Mermaid Diagram:
-```mermaid
-stateDiagram
-    [*] --> AccountDiscovery
-    AccountDiscovery --> ContextAnalysis : "Extract 50% SOL requirement"
-    ContextAnalysis --> BalanceCheck : "Current: 4 SOL, 20 USDC"
-    BalanceCheck --> JupiterSwap : "Swap 2 SOL → ~300 USDC"
-    JupiterSwap --> JupiterLend : "Deposit USDC for yield"
-    JupiterLend --> PositionValidation : "Verify 1.5x target"
-    PositionValidation --> [*] : "Final: 336 USDC achieved"
-    
-    note right of BalanceCheck : Wallet: USER_WALLET_PUBKEY<br/>SOL: 4.0 → 2.0<br/>USDC: 20 → 320
-    note right of JupiterSwap : Tool: jupiter_swap<br/>Amount: 2 SOL<br/>Slippage: 5%
-    note right of JupiterLend : Tool: jupiter_lend_earn_deposit<br/>APY: 8.5%<br/>Yield target: 1.3x
-    note right of PositionValidation : Target: 30 USDC (1.5x)<br/>Achieved: 336 USDC<br/>Score: 1.0
-    
-    classDef discovery fill:#e3f2fd
-    classDef tools fill:#c8e6c9  
-    classDef validation fill:#fff3e0
-    class AccountDiscovery,ContextAnalysis discovery
-    class BalanceCheck,JupiterSwap,JupiterLend tools
-    class PositionValidation validation
-```
-
-### 🧪 **Testing Strategy** ✅ IMPLEMENTED
-
-#### Unit Tests: ✅ COMPLETED
-```rust
-// ✅ AVAILABLE: flow_diagram_format_test.rs
-cargo test -p reev-api flow_diagram_format_test
-
-// Tests parameter extraction, transfer details, and diagram format
-test_sol_transfer_parameter_extraction ... ok
-test_extract_sol_transfer_details ... ok
-test_sol_transfer_diagram_format ... ok
-```
-
-#### Integration Tests: ✅ COMPLETED
-```bash
-# ✅ AVAILABLE: validation scripts
-./tests/scripts/validate_dynamic_flow.sh      # General flow validation
-./tests/scripts/test_flow_visualization.sh # Issue #38 specific validation
-
-# Execute complete flow
-EXECUTION_ID=$(curl -s -X POST "/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run" \
-  -d '{"agent":"glm-4.6-coding","mode":"dynamic"}' | jq -r '.execution_id')
-
-# ✅ VALIDATION: Enhanced tool call tracking captures all 4 steps
-curl "/api/v1/flows/$EXECUTION_ID?format=json" | jq '
-{
-  total_tools: .tool_calls | length,
-  has_account_discovery: .diagram | contains("AccountDiscovery"),
-  has_jupiter_swap: .diagram | contains("JupiterSwap"),
-  has_jupiter_lend: .diagram | contains("JupiterLend"),
-  has_position_validation: .diagram | contains("PositionValidation")
-}'
-```
-
-### ✅ **Success Criteria** 🔄 PARTIALLY ACHIEVED
-1. **4 Tool Calls Visible**: ✅ Enhanced tracking with ToolCallSummary implemented
-2. **Parameter Context**: ✅ Regex extraction of amounts, percentages, APY
-3. **Step Flow Logic**: ✅ Multi-step diagram generation supports AccountDiscovery → JupiterSwap → JupiterLend → PositionValidation
-4. **Color Coding**: ✅ Dynamic flow generator with enhanced styling
-5. **API Integration**: ✅ Enhanced OTEL logging and session parsing
-6. **Performance**: ✅ Enhanced generation with parameter extraction
-
-### 📈 **Validation Metrics** 🔄 IN TESTING
-- **Tool Call Capture Rate**: ✅ Enhanced ToolCallSummary captures all steps
-- **Diagram Completeness**: ✅ generate_dynamic_flow_diagram supports 4-step flows
-- **Parameter Accuracy**: ✅ Regex-based extraction for swap/lend parameters
-- **Visual Clarity**: ✅ Enhanced notes for AccountDiscovery, tools, validation
-- **API Response Time**: ✅ Session parsing supports enhanced OTEL format
-
-### ✅ **Resolution Summary**
-1. **✅ COMPLETED**: Enhanced ping-pong executor with ToolCallSummary
-2. **✅ COMPLETED**: Session parser supports enhanced OTEL format  
-3. **✅ VALIDATED**: Real 300 benchmark execution shows enhanced logging working
-4. **✅ DOCUMENTED**: Updated documentation with enhanced capabilities
-5. **✅ READY**: Enhanced flow visualization deployed and functional
-
-### 🔍 **Investigation Results**
-**Flow Visualization**: ✅ WORKING PERFECTLY
-- Enhanced OTEL logging captures tool calls with full parameters
-- Session parsing successfully processes enhanced format
-- Multi-step diagram generation supports 4-step flows
-- Parameter extraction and display working
-
-**Agent Execution**: ❌ REQUIRES NEW ISSUE
-- Agent executes single `jupiter_swap` instead of 4-step strategy
-- Expected: `get_account_balance` → `jupiter_swap` → `jupiter_lend_earn_deposit` → validation
-- Actual: Only `jupiter_swap` executed, agent stops with `"next_action":"STOP"`
-
-**Status**: Issue #38 ✅ RESOLVED - Flow visualization working correctly
-**Next Action**: Create new Agent Strategy Issue for multi-step execution behavior
+**Status**: Issue #38 🔄 IN PROGRESS - Core implementation complete, validation in progress
+**Estimated Completion**: Ready for production testing and demonstration
