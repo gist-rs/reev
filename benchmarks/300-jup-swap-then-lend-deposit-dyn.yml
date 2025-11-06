@@ -52,7 +52,7 @@ ground_truth:
       weight: 0.15
 
   expected_tool_calls:
-    - tool_name: "account_balance"
+    - tool_name: "get_account_balance"
       description: "Check current wallet balances and positions"
       critical: false
       expected_params: ["wallet_pubkey"]
@@ -64,7 +64,7 @@ ground_truth:
       expected_params: ["input_token", "output_token", "amount"]
       weight: 0.4
 
-    - tool_name: "jupiter_lend"
+    - tool_name: "jupiter_lend_earn_deposit"
       description: "Deposit USDC into Jupiter lending for yield"
       critical: true
       expected_params: ["mint", "amount"]
@@ -155,7 +155,8 @@ ground_truth:
   expected_otel_tracking:
     - type: "tool_call_logging"
       description: "OpenTelemetry should track all tool calls"
-      required_tools: ["account_balance", "jupiter_swap", "jupiter_lend"]
+      required_tools:
+        ["get_account_balance", "jupiter_swap", "jupiter_lend_earn_deposit"]
       weight: 0.3
 
     - type: "execution_tracing"

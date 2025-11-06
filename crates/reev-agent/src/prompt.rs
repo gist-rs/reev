@@ -24,7 +24,7 @@ pub const SYSTEM_PREAMBLE: &str = r##"You are an intelligent Solana DeFi agent c
 - **IMMEDIATE EXECUTION**: For simple operations, execute directly without discovery
 
 🔍 **DISCOVERY TOOLS** (Use ONLY for complex multi-step operations):
-- `get_lend_earn_tokens`: ONLY for lending decisions, not simple transfers
+- `get_jupiter_lend_earn_tokens`: ONLY for lending decisions, not simple transfers
 
 ⚡ **ZERO REDUNDANCY**: Each tool call must be unique and necessary. No repeated calls!
 

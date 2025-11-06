@@ -76,19 +76,19 @@ ground_truth:
       weight: 0.15
 
   expected_tool_calls:
-    - tool_name: "account_balance"
+    - tool_name: "get_account_balance"
       description: "Check current wallet balances and total available capital"
       critical: false
       expected_params: ["wallet_pubkey"]
       weight: 0.1
 
-    - tool_name: "jupiter_pools"
+    - tool_name: "get_jupiter_lend_earn_tokens"
       description: "Analyze all available Jupiter lending pools for yield optimization"
       critical: true
       expected_params: []
       weight: 0.15
 
-    - tool_name: "jupiter_lend_rates"
+    - tool_name: "get_jupiter_lend_earn_tokens"
       description: "Compare current APY rates across all lending pools"
       critical: true
       expected_params: []
@@ -100,7 +100,7 @@ ground_truth:
       expected_params: ["input_token", "output_token", "amount"]
       weight: 0.2
 
-    - tool_name: "jupiter_lend"
+    - tool_name: "jupiter_lend_earn_deposit"
       description: "Deposit capital into optimized multi-pool yield strategy"
       critical: true
       expected_params: ["mint", "amount", "auto_compound"]
@@ -221,11 +221,11 @@ ground_truth:
       description: "OpenTelemetry should track all yield farming optimization tool calls"
       required_tools:
         [
-          "account_balance",
-          "jupiter_pools",
-          "jupiter_lend_rates",
+          "get_account_balance",
+          "get_jupiter_lend_earn_tokens",
+          "get_jupiter_lend_earn_tokens",
           "jupiter_swap",
-          "jupiter_lend",
+          "jupiter_lend_earn_deposit",
         ]
       weight: 0.3
 

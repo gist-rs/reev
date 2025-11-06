@@ -2,6 +2,15 @@
 
 ---
 
+format!("{}/lend/v1/earn/positions", self.api_base_url)
+DRY
+
+--
+
+remove completed issuses md and add this enum refactor to new issue md
+
+---
+
   let tool_name_list = vec![
       "sol_transfer".to_string(),
       "spl_transfer".to_string(),

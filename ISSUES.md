@@ -1,7 +1,8 @@
 # Issues
 
-## Issue #37 - ToolName Enum Mismatch and Missing Tools - NEW 🔴
-**Status**: CRITICAL
+## Issue #37 - ToolName Enum Mismatch and Missing Tools - IN PROGRESS 🟡
+**Status**: PROGRESS
+**Progress**: Fixed enum definitions, YML files, and created tool registry. Still need to update Rust codebase.
 **Description**: ToolName enum has multiple serious issues: missing tools, wrong serialization names, and redundant tools, PLUS entire codebase uses untyped strings instead of type-safe enum
 **Problems**:
 - `spl_transfer` tool is missing from enum but actively used throughout codebase
@@ -11,6 +12,50 @@
 - `JupiterLend` tool is ambiguous/unused and doesn't exist in actual tools
 - `ExecuteTransaction` has no actual implementation (conceptual only)
 - `JupiterPositions` is redundant with `GetPositionInfo`
+
+### **NAMING CONSISTENCY ISSUE IN ENUM DEFINITION**
+The current enum has mixed naming patterns causing confusion:
+```rust
+// ❌ MIXED NAMING PATTERNS - INCONSISTENT
+#[derive(Debug, Clone, Display, EnumString, IntoStaticStr, VariantNames)]
+pub enum ToolName {
+    GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
+    GetJupiterEarnPosition,      // serialize: "get_jupiter_earn_position" ✅ RENAMED
+    GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ RENAMED
+    
+    SolTransfer,                   // serialize: "sol_transfer" ✅
+    JupiterSwap,                   // serialize: "jupiter_swap" ✅
+    JupiterLendEarnWithdraw,       // serialize: "jupiter_lend_earn_withdraw" ✅ RENAMED
+}
+
+// ❌ PROBLEM: Mixed patterns between "GetXxx" and "Xxxx" variants
+// Some have "Get" prefix, others don't - inconsistent naming
+```
+
+**Naming Analysis**:
+- `GetAccountBalance` vs `SolTransfer` - inconsistent prefix usage
+- `GetJupiterEarnPosition` vs `JupiterSwap` - mixed patterns
+- `JupiterLendEarnWithdraw` follows different pattern than `GetXxx` tools
+- Need consistent naming convention across ALL tools
+
+**Root Cause of Confusion**:
+The current enum mixes two different naming philosophies:
+1. **Discovery tools**: Use "Get" prefix (GetAccountBalance, GetJupiterPositionInfo, GetJupiterLendEarnTokens)
+2. **Transaction/Action tools**: Use direct naming (SolTransfer, JupiterSwap, JupiterLendEarnDeposit)
+
+But `GetJupiterEarnPosition` breaks this pattern by having "Get" prefix while being action-based, and it duplicates `JupiterEarn` functionality.
+
+**Actual Tool Implementation Analysis**:
+- `GetAccountBalanceTool::NAME = "get_account_balance"` ✅
+- `PositionInfoTool::NAME = "get_jupiter_position_info"` ✅ 
+- `LendEarnTokensTool::NAME = "get_jupiter_lend_earn_tokens"` ✅
+- `JupiterEarnTool::NAME = "jupiter_earn"` ✅ (positions + earnings, benchmark only)
+
+**The Real Issue**:
+`GetJupiterEarnPosition` doesn't exist as an actual tool! It should be either:
+- Remove entirely (use `JupiterEarn` for positions + earnings)
+- OR rename to match existing `PositionInfoTool` (`GetJupiterPositionInfo`)
+- OR clarify if this is supposed to be a different tool entirely
 
 ### **CRITICAL ARCHITECTURAL PROBLEM: String-based Tool Names Everywhere**
 
@@ -65,7 +110,40 @@ impl Tool for JupiterEarnTool {
 **Required Changes**:
 ### Required Changes:
 
-### 1. Move ToolName to Shared Type Crate
+### 1. FIX ENUM NAMING CONSISTENCY FIRST
+Before any code updates, resolve the naming inconsistency:
+
+```rust
+// ✅ OPTION 1 - Use "Get" prefix for ALL discovery tools
+#[derive(Debug, Clone, Display, EnumString, IntoStaticStr)]
+pub enum ToolName {
+    // Discovery Tools - ALL with "Get" prefix
+    GetAccountBalance,           // "get_account_balance"
+    GetJupiterPositionInfo,      // "get_jupiter_position_info" 
+    GetJupiterLendEarnTokens,    // "get_jupiter_lend_earn_tokens"
+    
+    // Transaction Tools - NO "Get" prefix (action-based)
+    SolTransfer,                 // "sol_transfer"
+    SplTransfer,                 // "spl_transfer"
+    JupiterSwap,                 // "jupiter_swap"
+    JupiterSwapFlow,             // "jupiter_swap_flow"
+    
+    // Jupiter Earn Tools - NO "Get" prefix (action-based)
+    JupiterEarn,                 // "jupiter_earn" (positions + earnings)
+    JupiterLendEarnDeposit,     // "jupiter_lend_earn_deposit"
+    JupiterLendEarnWithdraw,     // "jupiter_lend_earn_withdraw"
+    JupiterLendEarnMint,         // "jupiter_lend_earn_mint"
+    JupiterLendEarnRedeem,       // "jupiter_lend_earn_redeem"
+}
+```
+
+**Clarification on Tool Distinctions**:
+- `GetAccountBalance` - General wallet balance discovery
+- `GetJupiterPositionInfo` - Jupiter-specific position discovery ONLY  
+- `JupiterEarn` - Jupiter-specific positions AND earnings (benchmark restricted)
+- These are NOT duplicates - serve different purposes with different data returned
+
+### 2. Move ToolName to Shared Type Crate
 Create `crates/reev-types/src/tool_registry.rs` with:
 
 ```rust
@@ -77,18 +155,18 @@ impl ToolRegistry {
     pub fn all_tools() -> Vec<&'static str> {
         vec![
             SolTransferTool::NAME,      // "sol_transfer"
-            SplTransferTool::NAME,      // "spl_transfer" 
+            SplTransferTool::NAME,      // "spl_transfer"
             JupiterSwapTool::NAME,      // "jupiter_swap"
             JupiterEarnTool::NAME,       // "jupiter_earn"
             // ... use actual Tool::NAME constants
         ]
     }
-    
+
     /// Get tool category using enum
     pub fn category(tool_name: &str) -> Option<ToolCategory> {
         ToolName::from_str_safe(tool_name)?.category().into()
     }
-    
+
     /// Validate tool name against Rig constants
     pub fn is_valid_tool(tool_name: &str) -> bool {
         Self::all_tools().contains(&tool_name)
@@ -105,10 +183,9 @@ use strum::{Display, EnumString, IntoStaticStr, VariantNames};
 pub enum ToolName {
     // Discovery & Information Tools (Jupiter-focused)
     GetAccountBalance,           // serialize: "get_account_balance" ✅ FIXED
-    GetJupiterPositionInfo,       // serialize: "get_jupiter_position_info" ✅
-    GetJupiterEarn,               // serialize: "get_jupiter_earn" ✅ RENAMED
+    GetJupiterEarnPosition,      // serialize: "get_jupiter_earn_position" ✅ RENAMED
     GetJupiterLendEarnTokens,    // serialize: "get_jupiter_lend_earn_tokens" ✅ RENAMED
-    
+
     // Transaction Tools (Jupiter operations)
     SolTransfer,                   // serialize: "sol_transfer" ✅
     SplTransfer,                   // serialize: "spl_transfer" ✅ ADDED
@@ -125,7 +202,7 @@ impl ToolName {
     pub fn validate_against_rig_tools(&self) -> bool {
         ToolRegistry::all_tools().contains(&self.as_str())
     }
-    
+
     /// ✅ GET ALL TOOLS without string literals
     pub fn all_tools() -> Vec<Self> {
         Self::VARIANTS.iter().map(|&variant| variant).collect()
@@ -188,7 +265,7 @@ match tool_name.parse::<ToolName>() {
 ```rust
 // ❌ FIND AND REPLACE THESE PATTERNS:
 "sol_transfer" -> ToolName::SolTransfer
-"spl_transfer" -> ToolName::SplTransfer  
+"spl_transfer" -> ToolName::SplTransfer
 "jupiter_swap" -> ToolName::JupiterSwap
 "jupiter_earn" -> ToolName::GetJupiterEarn
 // ... all tool names

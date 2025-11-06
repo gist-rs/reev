@@ -11,7 +11,7 @@ This document reflects the **current completed implementation** of OpenTelemetry
 ### **Enhanced Logging System**
 - **13/13 Tools Enhanced** with `log_tool_call!` and `log_tool_completion!`
 - **100% Tool Coverage** across all categories:
-  - Discovery Tools (3): `get_account_balance`, `get_lend_earn_tokens`, `get_position_info`
+  - Discovery Tools (3): `get_account_balance`, `get_jupiter_lend_earn_tokens`, `get_jupiter_position_info`
   - Flow Tools (1): `jupiter_swap_flow`
   - Jupiter Tools (4): `jupiter_swap`, `jupiter_lend_earn_deposit`, `jupiter_lend_earn_withdraw`, `jupiter_lend_earn_mint`, `jupiter_lend_earn_redeem`
   - Core Tools (3): `sol_transfer`, `spl_transfer`
@@ -45,9 +45,9 @@ use std::time::Instant;
 async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
     let start_time = Instant::now();
     log_tool_call!(Self::NAME, &args);
-    
+
     // Tool execution logic...
-    
+
     match result {
         Ok(output) => {
             let execution_time = start_time.elapsed().as_millis() as u64;
@@ -83,15 +83,15 @@ impl From<OtelSpanData> for SessionToolData {
 // ✅ Tool name detection patterns (fully implemented)
 fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     let span_name = &span.name;
-    
+
     // Discovery tools
     if span_name.contains("account_balance") { return Some("get_account_balance".to_string()); }
-    if span_name.contains("lend_earn_tokens") { return Some("get_lend_earn_tokens".to_string()); }
-    if span_name.contains("position_info") { return Some("get_position_info".to_string()); }
-    
+    if span_name.contains("lend_earn_tokens") { return Some("get_jupiter_lend_earn_tokens".to_string()); }
+    if span_name.contains("position_info") { return Some("get_jupiter_position_info".to_string()); }
+
     // Flow tools
     if span_name.contains("jupiter_swap_flow") { return Some("jupiter_swap_flow".to_string()); }
-    
+
     // Jupiter tools
     if span_name.contains("jupiter_swap") { return Some("jupiter_swap".to_string()); }
     if span_name.contains("jupiter_lend_earn_deposit") { return Some("jupiter_lend_earn_deposit".to_string()); }
@@ -99,11 +99,11 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     if span_name.contains("jupiter_lend_earn_mint") { return Some("jupiter_lend_earn_mint".to_string()); }
     if span_name.contains("jupiter_lend_earn_redeem") { return Some("jupiter_lend_earn_redeem".to_string()); }
     if span_name.contains("jupiter_earn") { return Some("jupiter_earn".to_string()); }
-    
+
     // Core tools
     if span_name.contains("sol_transfer") { return Some("sol_transfer".to_string()); }
     if span_name.contains("spl_transfer") { return Some("spl_transfer".to_string()); }
-    
+
     None
 }
 ```
@@ -219,7 +219,7 @@ jq '.tool_output.execution_time_ms' logs/sessions/enhanced_otel_*.jsonl
    ```rust
    use std::time::Instant;
    use reev_flow::{log_tool_call, log_tool_completion};
-   
+
    #[derive(Serialize)]  // Required!
    pub struct YourToolArgs { /* fields */ }
    ```
@@ -229,9 +229,9 @@ jq '.tool_output.execution_time_ms' logs/sessions/enhanced_otel_*.jsonl
    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
        let start_time = Instant::now();
        log_tool_call!(Self::NAME, &args);
-       
+
        // Execute logic...
-       
+
        match result {
            Ok(output) => {
                let execution_time = start_time.elapsed().as_millis() as u64;

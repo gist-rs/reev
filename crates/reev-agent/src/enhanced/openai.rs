@@ -189,7 +189,7 @@ impl OpenAIAgent {
             if is_tool_allowed("jupiter_lend_earn_redeem") {
                 builder = builder.tool(tools.jupiter_lend_earn_redeem_tool);
             }
-            if is_tool_allowed("get_lend_earn_tokens") {
+            if is_tool_allowed("get_jupiter_lend_earn_tokens") {
                 builder = builder.tool(tools.lend_earn_tokens_tool);
             }
             // Re-enable balance tool for consistency with ZAI agent

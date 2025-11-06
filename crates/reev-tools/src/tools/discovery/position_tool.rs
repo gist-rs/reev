@@ -85,7 +85,7 @@ pub struct PositionInfoTool {
 }
 
 impl Tool for PositionInfoTool {
-    const NAME: &'static str = "get_position_info";
+    const NAME: &'static str = "get_jupiter_position_info";
     type Error = PositionInfoError;
     type Args = PositionInfoArgs;
     type Output = String;
@@ -125,7 +125,7 @@ impl Tool for PositionInfoTool {
         name = "position_info_tool_call",
         skip(self),
         fields(
-            tool_name = "get_position_info",
+            tool_name = "get_jupiter_position_info",
             user_pubkey = %args.user_pubkey,
             protocol = ?args.protocol,
             position_address = ?args.position_address,

@@ -9,3 +9,4 @@ serde_json = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 chrono = { workspace = true, features = ["serde"] }
 strum = { version = "0.25", features = ["derive"] }
+strum_macros = "0.25"

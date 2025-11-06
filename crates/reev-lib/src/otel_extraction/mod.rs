@@ -203,7 +203,7 @@ fn is_tool_span(span: &OtelSpanData) -> bool {
         "jupiter_swap",
         "jupiter_lend",
         "get_account_balance",
-        "get_lend_earn_tokens",
+        "get_jupiter_lend_earn_tokens",
         "jupiter_earn",
         "jupiter_deposit",
         "jupiter_withdraw",
@@ -318,8 +318,8 @@ fn extract_tool_name_from_span(span: &OtelSpanData) -> Option<String> {
     if span_name.contains("get_account_balance") {
         return Some("get_account_balance".to_string());
     }
-    if span_name.contains("get_lend_earn_tokens") {
-        return Some("get_lend_earn_tokens".to_string());
+    if span_name.contains("get_jupiter_lend_earn_tokens") {
+        return Some("get_jupiter_lend_earn_tokens".to_string());
     }
     if span_name.contains("jupiter_earn") {
         return Some("jupiter_earn".to_string());

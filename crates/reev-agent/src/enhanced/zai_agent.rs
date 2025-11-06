@@ -409,7 +409,7 @@ impl ZAIAgent {
                 serde_json::to_value(result)
                     .map_err(|e| anyhow::anyhow!("JSON serialization error: {e}"))
             }
-            "get_lend_earn_tokens" => {
+            "get_jupiter_lend_earn_tokens" => {
                 let args: reev_tools::tools::discovery::lend_earn_tokens::LendEarnTokensArgs =
                     serde_json::from_value(tool_call.function.arguments.clone())?;
                 let result = tools

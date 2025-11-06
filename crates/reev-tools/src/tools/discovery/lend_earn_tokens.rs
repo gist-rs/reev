@@ -148,7 +148,7 @@ pub struct LendEarnTokensTool {
 }
 
 impl Tool for LendEarnTokensTool {
-    const NAME: &'static str = "get_lend_earn_tokens";
+    const NAME: &'static str = "get_jupiter_lend_earn_tokens";
     type Error = LendEarnTokensError;
     type Args = LendEarnTokensArgs;
     type Output = String;
