@@ -3,13 +3,29 @@
 ## 🎯 **Purpose**
 This guide provides curl commands for testing and developing the API flow visualization functionality, focusing on dynamic flows with OTEL integration at orchestrator level.
 
+## 📁 **Test Organization**
+**All test scripts are organized in `tests/scripts/` following project rules:**
+- `validate_dynamic_flow.sh` - Clean validation of dynamic flow implementation
+- `debug_integration_test.sh` - Debugging utility for integration tests
+
+**Usage:**
+```bash
+# Main validation
+./tests/scripts/validate_dynamic_flow.sh
+
+# Debug integration issues
+./tests/scripts/debug_integration_test.sh
+```
+
 ## 🏗️ **Architecture Update**
 **Flow:** `Agent → Orchestrator (OTEL) → JSON + OTEL → DB → YML Parser → Mermaid`
 
-- OTEL initialization moved from agent level to orchestrator level
-- Unified tracing across all agents (ZAI, OpenAI, future agents)
-- Single OTEL session per flow execution
-- Step-by-step ping-pong coordination with OTEL capture
+- ✅ **COMPLETED**: OTEL initialization moved from agent level to orchestrator level
+- ✅ **COMPLETED**: Unified tracing across all agents (ZAI, OpenAI, future agents)
+- ✅ **COMPLETED**: Single OTEL session per flow execution
+- ✅ **COMPLETED**: Step-by-step ping-pong coordination with OTEL capture
+- ✅ **COMPLETED**: Real tool execution with flow visualization
+- ✅ **COMPLETED**: Type-safe tool system with strum enums
 
 ## 🚀 **Quick Start**
 
@@ -31,13 +47,13 @@ curl -s http://localhost:3001/api/v1/benchmarks | jq length
 ```bash
 # All endpoints should return HTTP 200
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding"}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}'
 
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-bridge \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": true}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding", "shared_surfpool": true}'
 
 curl -s -w "Status: %{http_code}\n" -o /dev/null -X POST http://localhost:3001/api/v1/benchmarks/execute-recovery \
-  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding"}'
+  -H "Content-Type: application/json" -d '{"prompt": "test", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}'
 ```
 
 ## 🧪 **Flow Testing Scenarios**
@@ -75,7 +91,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "USER_WALLET_PUBKEY",
+    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
   }' | jq -r '.result.flow_id')
@@ -95,7 +111,7 @@ FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-bridge
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use 75% of my SOL to get maximum USDC yield on Jupiter",
-    "wallet": "USER_WALLET_PUBKEY",
+    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
     "shared_surfpool": true
   }' | jq -r '.result.flow_id')
@@ -111,7 +127,7 @@ curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-recovery \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "swap all my SOL to USDC with maximum yield",
-    "wallet": "USER_WALLET_PUBKEY",
+    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
     "recovery_config": {
       "base_retry_delay_ms": 1000,
@@ -242,49 +258,34 @@ grep "mock.*false" crates/reev-orchestrator/src/execution/ping_pong_executor.rs
 ### **✅ Phase 3: Enhanced Visualization - COMPLETED**
 **Achieved:** Rich flow diagrams with real tool execution data and proper state transitions.
 
-## 🧪 **Test Script for Validation**
+## 🧪 **Test Scripts for Validation**
 
+### **Primary Validation Script**
 ```bash
-#!/bin/bash
-# test_flow_validation.sh
+# Main validation script - clean and focused
+./tests/scripts/validate_dynamic_flow.sh
 
-echo "🧪 Testing API Flow Visualization..."
-
-# Test 1: Basic functionality
-echo "📋 Test 1: Basic flow execution"
-RESPONSE=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "swap 0.5 SOL", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": false}')
-
-FLOW_ID=$(echo $RESPONSE | jq -r '.result.flow_id')
-TOOL_COUNT=$(echo $RESPONSE | jq '.tool_calls | length')
-
-echo "✅ Flow ID: $FLOW_ID"
-echo "✅ Tool Count: $TOOL_COUNT"
-
-# Test 2: Flow visualization
-echo "📋 Test 2: Flow visualization"
-FLOW_RESPONSE=$(curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID")
-VISUAL_TOOL_COUNT=$(echo $FLOW_RESPONSE | jq '.metadata.tool_count')
-DIAGRAM_STATES=$(echo $FLOW_RESPONSE | jq '.metadata.state_count')
-
-echo "✅ Visualization Tool Count: $VISUAL_TOOL_COUNT"
-echo "✅ Diagram States: $DIAGRAM_STATES"
-
-# Test 3: Information quality
-echo "📋 Test 3: Information quality check"
-TOOL_DETAILS=$(echo $FLOW_RESPONSE | jq '.tool_calls[0]')
-HAS_AMOUNT=$(echo $TOOL_DETAILS | jq 'has("input_amount")')
-HAS_SIGNATURE=$(echo $TOOL_DETAILS | jq 'has("tx_signature")')
-
-if [ "$HAS_AMOUNT" = "true" ] && [ "$HAS_SIGNATURE" = "true" ]; then
-    echo "✅ Tool calls contain real execution data"
-else
-    echo "❌ Tool calls are mock/synthetic - ISSUE CONFIRMED"
-fi
-
-echo "🎉 Test completed!"
+# Features:
+# - Server health check
+# - Dynamic flow execution testing
+# - Implementation file validation
+# - Tool system verification
+# - Code quality checks
 ```
+
+### **Debugging Utility**
+```bash
+# Debug integration test database state
+./tests/scripts/debug_integration_test.sh
+
+# Features:
+# - Database inspection
+# - Execution state analysis
+# - Session log debugging
+```
+
+### **Manual Testing Commands**
+For quick manual testing during development:
 
 ## 📝 **Implementation Summary**
 
@@ -316,38 +317,125 @@ echo "🎉 Test completed!"
 5. **✅ IMPLEMENTED**: Store dual data (JSON for immediate use + OTEL for rich traces)
 6. **✅ IMPLEMENTED**: Visualize execution flow with unified agent tracing
 
-### **✅ VALIDATED Working Flow:**
+### **✅ VALIDATED Working Flow Examples:**
+
+#### **Dynamic Flow (Production Ready)**
 ```bash
 # Real tool execution with flow visualization
 curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{"prompt": "swap 0.1 SOL to USDC", "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "agent": "glm-4.6-coding"}'
 
-# ✅ Response: {"flow_id":"dynamic-...","tool_count":2,"state_count":4}
+# ✅ Response: {"execution_id":"direct-...","result":{"flow_id":"dynamic-...","steps_generated":3}}
 # Real flow diagram: stateDiagram with account_balance → jupiter_swap transitions
 ```
 
-## 🎉 **IMPLEMENTATION STATUS: PRODUCTION READY**
+#### **Benchmark 300 (Static Mode)**
+```bash
+# Static benchmark with predefined flow
+curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
+  -H "Content-Type: application/json" \
+  -d '{"agent": "glm-4.6-coding"}'
+
+# ✅ Response: {"execution_id":"...","status":"Completed","duration_ms":...}
+# Uses predefined YAML from benchmarks/300-jup-swap-then-lend-deposit-dyn.yml
+```
+
+#### **Expected Tool Call Sequence** (From DYNAMIC_BENCHMARK_DESIGN.md#17-18)
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Orchestrator
+    participant Jupiter
+    participant DB
+
+    Agent->>Orchestrator: Execute Step 1
+    Orchestrator->>Jupiter: account_balance
+    Jupiter-->>Orchestrator: Balance Result
+    Orchestrator->>DB: Log OTEL Event
+    Orchestrator-->>Agent: Step Result
+    
+    Agent->>Orchestrator: Execute Step 2
+    Orchestrator->>Jupiter: jupiter_swap
+    Jupiter-->>Orchestrator: Swap Result
+    Orchestrator->>DB: Log OTEL Event
+    Orchestrator-->>Agent: Step Result
+```
+
+## 🎉 **IMPLEMENTATION STATUS: PRODUCTION READY** ✅
 
 The complete dynamic benchmark system has been successfully implemented according to TASKS.md specifications. All phases are complete, all success criteria met, and the system is validated and ready for production use.
 
-**Commit Hash:** `1adb7156` - feat: implement complete dynamic benchmark system from TASKS.md
+**✅ Latest Commit:** `69ff9e7a` - feat: implement complete dynamic benchmark system from TASKS.md
+**✅ Cleanup Commit:** `1bf123a5` - refactor: organize test scripts and remove redundant files
+
+## 🏗️ **Architecture Implementation Status**
+
+### **✅ Critical Design Principles Implemented**
+
+#### **Top-Level Mode Separation Only** (DYNAMIC_BENCHMARK_DESIGN.md#331-332)
+- ✅ **IMPLEMENTED**: `ExecutionMode` enum with `Benchmark` and `Dynamic` variants
+- ✅ **IMPLEMENTED**: `route_execution()` function for clean mode routing
+- ✅ **IMPLEMENTED**: Same core logic beneath both modes
+
+#### **What's IDENTICAL Across Modes** (DYNAMIC_BENCHMARK_DESIGN.md#344-345)
+- ✅ **IMPLEMENTED**: Same runner (`PingPongExecutor`) for both modes
+- ✅ **IMPLEMENTED**: Same tool execution interface
+- ✅ **IMPLEMENTED**: Same OTEL integration at orchestrator level
+- ✅ **IMPLEMENTED**: Same session storage and flow visualization
+
+#### **What's DIFFERENT (Top-Level Only)** (DYNAMIC_BENCHMARK_DESIGN.md#353-354)
+- ✅ **IMPLEMENTED**: `BenchmarkMode` uses static YML files
+- ✅ **IMPLEMENTED**: `DynamicMode` generates flow plans from user prompts
+- ✅ **IMPLEMENTED**: Same execution pipeline after initial routing
+
+#### **Core Design Principle** (DYNAMIC_BENCHMARK_DESIGN.md#387-388)
+- ✅ **VALIDATED**: Same Runner, Different YML Source
+- ✅ **VALIDATED**: Dynamic YML generation on-the-fly
+- ✅ **VALIDATED**: Temporary file management with cleanup
+
+### **✅ Ping-Pong Mechanism Status** (DYNAMIC_BENCHMARK_DESIGN.md#524-525)
+
+#### **Enhanced Implementation** (Issue #10 RESOLVED)
+- ✅ **IMPLEMENTED**: Sequential step execution with verification
+- ✅ **IMPLEMENTED**: `execute_flow_plan()` in `PingPongExecutor`
+- ✅ **IMPLEMENTED**: Progress validation and recovery coordination
+- ✅ **IMPLEMENTED**: Execution context sharing between steps
+- ✅ **IMPLEMENTED**: Scoring integration with step results
+
+## 🚨 **Known Issues & Future Work**
+
+### **Issue #29**: USER_WALLET_PUBKEY Auto-Generation
+- **Status**: REPORTED
+- **Problem**: API dynamic flow doesn't auto-generate keys for USER_WALLET_PUBKEY placeholder
+- **Workaround**: Use real wallet address (e.g., `9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM`)
+- **Files**: All documentation updated with real wallet examples
+
+### **Next Enhancements** (See DYNAMIC_BENCHMARK_DESIGN.md#287-288)
+- **301-305 Series**: Advanced benchmark implementations
+  - **301**: Yield Optimization - Intelligent yield seeking
+  - **302**: Portfolio Rebalancing - Strategic asset allocation
+  - **303**: Risk-Adjusted Growth - Conservative capital management
+  - **304**: Emergency Exit Strategy - Crisis management & recovery
+  - **305**: Yield Farming Optimization - Advanced multi-pool strategy
+- **Enhanced Scoring**: Rich flow information and metrics (TASKS.md#484-486)
+- **Yield Optimization**: Intelligent strategy selection
 ---
 
-### **✅ Execute 300 Benchmark:**
+### **✅ Execute 300 Benchmark (Static Mode):**
 ```bash
-FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
+EXECUTION_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
   -H "Content-Type: application/json" \
   -d '{
     "agent": "glm-4.6-coding"
   }' | jq -r '.execution_id')
 
-echo "FLOW_ID=$FLOW_ID"
+echo "EXECUTION_ID=$EXECUTION_ID"
 ```
 
 ### **✅ Get Mermaid Diagram:**
 ```bash
-curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID" | jq -r '.diagram'
+curl -s "http://localhost:3001/api/v1/flows/$EXECUTION_ID" | jq -r '.diagram'
 ```
 
 ### **✅ Check Execution Status:**
@@ -357,28 +445,26 @@ curl -s "http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-
 
 ---
 
-###  **dynamic flow execution**
+### **🚀 Dynamic Flow Execution (Recommended):**
 
 ```bash
-# This uses static benchmark runner (no enhanced context)
-curl -s -X POST http://localhost:3001/api/v1/benchmarks/300-jup-swap-then-lend-deposit-dyn/run \
-  -H "Content-Type: application/json" \
-  -d '{"agent": "glm-4.6-coding"}'
-
-# ❌ This uses static YAML, not enhanced context
-
-# ✅ Use this instead - DYNAMIC FLOW with enhanced context
+# ✅ Use DYNAMIC FLOW with enhanced context (production ready)
 FLOW_ID=$(curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
-    "wallet": "USER_WALLET_PUBKEY",
+    "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
     "agent": "glm-4.6-coding",
     "shared_surfpool": false
-  }' | jq -r '.execution_id')
+  }' | jq -r '.result.flow_id')
 
 echo "FLOW_ID=$FLOW_ID"
 
 # Get enhanced flow diagram with real context
 curl -s "http://localhost:3001/api/v1/flows/$FLOW_ID" | jq -r '.diagram'
 ```
+
+**🎯 Key Differences:**
+- **Static 300**: Uses predefined YAML, predictable execution
+- **Dynamic**: Natural language processing, real-time flow generation
+- **Both**: Use same underlying execution engine and OTEL tracking
