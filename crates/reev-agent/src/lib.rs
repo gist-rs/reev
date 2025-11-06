@@ -179,8 +179,8 @@ async fn handle_flow_benchmarks(
                 .context("USER_WALLET_PUBKEY not found in key_map")?;
             let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-            // Step 1: Swap 0.1 SOL to USDC using Jupiter
-            info!("[reev-agent] Step 1: Swapping 0.1 SOL to USDC");
+            // Step 1: Swap 2.0 SOL to USDC using Jupiter
+            info!("[reev-agent] Step 1: Swapping 2.0 SOL to USDC");
             let input_mint = native_mint::ID;
             let output_mint = usdc_mint();
             let swap_amount = sol::HALF * 4; // 2.0 SOL (matching benchmark prompt)
@@ -203,10 +203,10 @@ async fn handle_flow_benchmarks(
             // Step 2: Deposit received USDC into Jupiter lending
             info!("[reev-agent] Step 2: Depositing USDC into Jupiter lending");
 
-            // For lending, we use the USDC mint and deposit the expected amount from the swap
-            // Note: In a real scenario, we'd calculate the exact amount received from the swap
-            // For deterministic purposes, we estimate ~2.0 SOL worth of USDC (accounting for slippage)
-            let deposit_amount = usdc::FORTY; // 40 USDC (expected from 2.0 SOL swap)
+            // For lending, we use USDC mint and deposit a conservative amount from swap
+            // Note: In a real scenario, we'd calculate the exact amount received from swap
+            // For deterministic purposes, we use a conservative amount that should be available after 2.0 SOL swap
+            let deposit_amount = usdc::TEN; // 10 USDC (conservative amount after 2.0 SOL swap with slippage)
             let usdc_mint = usdc_mint();
 
             let lend_instructions =
@@ -218,6 +218,7 @@ async fn handle_flow_benchmarks(
             );
 
             // Combine all instructions for the complete flow
+            // Combine all instructions for complete flow
             let mut all_instructions = Vec::new();
             all_instructions.extend(swap_instructions);
             all_instructions.extend(lend_instructions);
@@ -229,7 +230,7 @@ async fn handle_flow_benchmarks(
                 "steps": [
                     {
                         "step_id": "1",
-                        "description": "Swap 0.1 SOL to USDC using Jupiter",
+                        "description": "Swap 2.0 SOL to USDC using Jupiter",
                         "instructions": all_instructions,
                         "estimated_time_seconds": 10
                     },
