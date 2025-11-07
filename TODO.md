@@ -3,6 +3,24 @@ fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN S
 
 ---
 
+refer to
+```
+Found it! The runner calls `gateway.execute_flow_with_ping_pong()` but this doesn't go through our API consolidation system. The runner stores results in its own CLI sessions database (`db/cli_sessions.json`), not in the API database.
+
+The issue is that there are two different execution paths:
+
+1. **API Path**: `POST /api/v1/benchmarks/execute-direct` → `run_dynamic_flow()` → CLI sessions database
+2. **Runner Path**: `reev-runner benchmarks/300-dyn.yml` → `run_dynamic_flow()` → CLI sessions database
+
+Only the API path should use our consolidation system. The runner path should not bypass it.
+
+But since the user asked for 300 benchmark specifically, let me test the API path with `mode: dynamic` to see if that routes correctly:
+```
+
+---
+
+---
+
 the static flow
 Agent → JSONL → YML → DB → YML Parser → Mermaid
 

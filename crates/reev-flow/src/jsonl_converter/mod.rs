@@ -345,15 +345,19 @@ impl JsonlToYmlConverter {
 
         // Tool calls
         yml.push_str("tool_calls:\n");
-        for (i, tool_call) in session_data.tool_calls.iter().enumerate() {
-            yml.push_str(&format!("  - # Tool Call {}\n", i + 1));
+        for (index, tool_call) in session_data.tool_calls.iter().enumerate() {
+            yml.push_str(&format!("  - # Tool Call {}\n", index + 1));
             yml.push_str(&format!("    tool_name: {}\n", tool_call.tool_name));
             yml.push_str(&format!("    start_time: {}\n", tool_call.start_time));
             yml.push_str(&format!("    end_time: {}\n", tool_call.end_time));
             yml.push_str(&format!("    duration_ms: {}\n", tool_call.duration_ms));
             yml.push_str(&format!("    success: {}\n", tool_call.success));
             if let Some(ref error) = tool_call.error_message {
-                yml.push_str(&format!("    error_message: \"{error}\"\n"));
+                // Use safe quote replacement to avoid YAML syntax errors
+                let safe_error = error
+                    .replace('"', "'")
+                    .replace(['\n', '\r', '\t'], " ");
+                yml.push_str(&format!("    error_message: \"{safe_error}\"\n"));
             }
 
             // Format input as indented YAML

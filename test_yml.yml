@@ -1,0 +1,3 @@
+tool_calls:
+  - tool_name: get_account_balance
+    error_message: "Tool failed: Object {\"error\": String(\"RPC client error: AccountNotFound: pubkey=4SYU2LyMT7PwYb6zbLWogzAGGeMrp3SrWQoXfstgit9f: error sending request for url (http://127.0.0.1:8899/)\")}"
