@@ -23,57 +23,14 @@ Orchestrator → Agent(s) → JSONL(s) → Orchestrator → YML → DB → YML P
 **Evidence**:
 1. `execute_flow_plan_with_ping_pong()` creates manual `ToolCallSummary` objects instead of using enhanced OTEL system
 2. `store_session_log()` stores raw JSON directly to database, skipping `JsonlToYmlConverter::convert_file()` process
-3. Session parser expects YML format from consolidation, but gets raw JSON from dynamic flows
-4. Result: Flow diagrams show only basic structure with 0 tool calls
+3. Result: Flow diagrams show only basic structure with 0 tool calls
 
-### **Expected Behavior**
-Dynamic flows should follow same consolidation pipeline as static flows:
-1. **Agent execution** → Enhanced OTEL logger writes JSONL entries
-2. **JSONL consolidation** → `JsonlToYmlConverter::parse_jsonl_file()` aggregates tool calls
-3. **YML storage** → Consolidated session data stored in database
-4. **Flow parsing** → Session parser reads YML and generates proper Mermaid diagram
 
-### **Fix Required**
-**Replace Direct JSON Storage with Enhanced OTEL Consolidation**:
-
-**Current (Broken) Code in `execute_flow_plan_with_ping_pong()`**:
-```rust
-// Store session log with tool calls for API visualization
-let session_log_content = json!({
-    "session_id": &flow_plan.flow_id,
-    "tool_calls": &real_tool_calls,  // ❌ Direct JSON storage
-    // ...
-}).to_string();
-
-state.db.store_session_log(&flow_plan.flow_id, &session_log_content).await;
-```
-
-**Required Fix**:
-```rust
-// Use enhanced OTEL system for proper consolidation
-use reev_flow::{get_enhanced_otel_logger, JsonlToYmlConverter};
-
-if let Ok(logger) = get_enhanced_otel_logger() {
-    // Write summary to trigger JSONL file completion
-    logger.write_summary()?;
-    
-    // Convert JSONL to YML and store in database
-    let jsonl_path = format!("logs/sessions/enhanced_otel_{}.jsonl", flow_plan.flow_id);
-    let temp_yml_path = format!("logs/sessions/temp_{}.yml", flow_plan.flow_id);
-    
-    let session_data = JsonlToYmlConverter::convert_file(
-        &PathBuf::from(&jsonl_path), 
-        &PathBuf::from(&temp_yml_path)
-    )?;
-    
-    // Store consolidated YML in database
-    let yml_content = std::fs::read_to_string(&temp_yml_path)?;
-    state.db.store_session_log(&flow_plan.flow_id, &yml_content).await?;
-    
-    // Clean up temp file
-    std::fs::remove_file(&temp_yml_path)?;
-}
-```
+### **Resolution Steps**
+1. ✅ Issue #38 RESOLVED: Flow visualization working correctly with enhanced features
+2. ✅ Issue #39 RESOLVED: Production mock behavior feature-flagged
+3. ✅ Issue #40 RESOLVED: Agent multi-step strategy execution bug
+4. ✅ Issue #41 RESOLVED: Dynamic flow JSONL consolidation implemented
 
 ### **Validation Steps**
 1. **Execute dynamic flow** with tool calls:
@@ -243,5 +200,51 @@ fn generate_transaction(...) -> Response {
 - ✅ `reev-api/src/handlers/flow_diagram/state_diagram_generator.rs` - Multi-step generation
 - ✅ Enhanced OTEL logging infrastructure
 
-**Total Issues**: 1 Active, 3 Resolved
-**Next Review**: Fix JSONL consolidation for dynamic flow visualization
+## Issue #42 - Dynamic Flow Mermaid Shows High-Level Steps Not Tool Call Sequence  
+**Status**: ACTIVE
+**Priority**: HIGH
+**Component**: Flow Visualization (reev-api handlers/flow_diagram/session_parser)
+**Description**: Dynamic flow mermaid diagrams display orchestration steps instead of 4-step tool call sequence despite successful consolidation
+
+### **Problem Analysis**
+**Issue #41 RESOLVED**: JSONL→YML consolidation working perfectly - logs show:
+```
+✅ JSONL→YML conversion successful: 4 tool calls
+✅ Read YML content (3751 bytes)  
+✅ Stored consolidated session log in database: direct-{execution_id}
+```
+
+**New Issue Identified**: Session parser for dynamic flows returns `tool_count: 0` despite successful consolidation, showing only high-level orchestration:
+
+```
+stateDiagram
+    [*] --> DynamicFlow
+    DynamicFlow --> Orchestrator : Direct Mode (Zero File I/O)
+    Orchestrator --> ContextResolution : |
+    ContextResolution --> FlowPlanning : Generate dynamic flow plan
+    FlowPlanning --> AgentExecution : Execute with selected agent
+    AgentExecution --> [*]
+```
+
+**Expected vs Actual**:
+```
+Expected: get_account_balance --> jupiter_swap --> jupiter_lend_earn_deposit --> position_validation
+Actual:   DynamicFlow --> Orchestrator --> ContextResolution --> FlowPlanning --> AgentExecution
+```
+
+### **Root Cause**
+Session parser not correctly extracting individual tool calls from dynamic flow YML content, instead showing only high-level orchestration categories. Despite successful consolidation capturing 4 tool calls, the mermaid generator displays generic flow steps.
+
+### **Validation Steps**
+1. Execute dynamic flow via API to trigger consolidation
+2. Verify consolidation logs show successful tool call capture
+3. Check database stores YML content correctly  
+4. Test flow diagram API returns correct `tool_count` and detailed steps
+5. Validate mermaid output shows 4-step tool sequence instead of generic flow
+
+### **Success Criteria**
+- **Tool Call Extraction**: Dynamic flows show individual tool steps (get_account_balance, jupiter_swap, etc.)
+- **Mermaid Steps**: 4-step sequence with parameter context and notes
+- **API Consistency**: `tool_count` matches actual tool calls executed
+- **Visualization Quality**: Parameter context (amounts, APY, wallets) displayed in diagram
+
