@@ -9,7 +9,7 @@
 - `mod.rs` is for index only, keep `main.rs` and `lib.rs` minimal, less or no logic, use `types.rs` for keep struct and impl that not depends on (can decouple from logic when other use it).
 - prefer `match` more than `if`.
 - use early `return` condition instead of `else`.
-- when user say `handover` you must summarize current state, current debug method for current issue, to `HANDOVER.md` for next thread so we can follow up easily, refer to `ISSUES.md` number/title if has.
+- when user say `handover` you must summarize current state, current debug method for current issue, to `ISSUES.md` for next thread so we can follow up easily, also remove ole done ISSUES.
 - use macos cli commad not linux .e.g `timeout` is not exist use `sleep`.
 - search for related code, tests, examples to get an idea and current context before impl.
 - if user say `regression` try dig to git history to get more idea.
