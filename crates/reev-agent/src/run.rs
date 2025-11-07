@@ -146,6 +146,10 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
         // Real local model - route to OpenAI agent which supports local LLM servers
         info!("[run_agent] Using real local model via OpenAI agent");
         OpenAIAgent::run(model_name, payload, key_map).await
+    } else if model_name == "reev" {
+        // Reev model - route to OpenAI agent for general-purpose dynamic flow execution
+        info!("[run_agent] Using reev model via OpenAI agent");
+        OpenAIAgent::run(model_name, payload, key_map).await
     } else if model_name.starts_with("gpt-")
         || model_name.starts_with("claude-")
         || model_name.starts_with("o1-")

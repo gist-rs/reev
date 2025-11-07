@@ -233,12 +233,20 @@ impl PingPongExecutor {
         let _start_time = std::time::Instant::now();
 
         // Create context for this step
-        let step_context = self.create_step_context(step, previous_results).await?;
+        let step_context = self
+            .create_step_context(step, previous_results, wallet_pubkey)
+            .await?;
 
         // Execute with timeout
         let step_result = tokio::time::timeout(
             std::time::Duration::from_millis(self.step_timeout_ms),
-            self.execute_agent_step(step, agent_type, &step_context, wallet_pubkey),
+            self.execute_agent_step(
+                step,
+                agent_type,
+                &step_context,
+                wallet_pubkey,
+                previous_results,
+            ),
         )
         .await
         .map_err(|_| {
@@ -252,37 +260,50 @@ impl PingPongExecutor {
         step_result
     }
 
-    /// Create context for current step execution
+    /// Create context for current step execution with proper YAML format
     async fn create_step_context(
         &self,
-        step: &DynamicStep,
+        _step: &DynamicStep,
         previous_results: &[StepResult],
+        wallet_pubkey: &str,
     ) -> Result<String> {
-        let mut context = format!(
-            "Executing step: {}\nDescription: {}\n\n",
-            step.step_id, step.description
-        );
+        // Create key_map for this step
+        let key_map = self.create_key_map_with_wallet(wallet_pubkey);
+        let key_map_yaml = serde_yaml::to_string(&key_map).unwrap_or_default();
+
+        // Build initial state (empty for now since we don't have previous state tracking)
+        let initial_yaml = serde_yaml::to_string(&serde_json::json!({
+            "sol_balance": "0.000000",
+            "usdc_balance": "0.00",
+            "total_portfolio_value": "$0.00"
+        }))
+        .unwrap_or_default();
+
+        // Build current state with previous results
+        let mut current_state = serde_json::json!({
+            "sol_balance": "0.000000",
+            "usdc_balance": "0.00",
+            "total_portfolio_value": "$0.00"
+        });
 
         if !previous_results.is_empty() {
-            context.push_str("Previous step results:\n");
+            // Add previous results to current state
             for (i, result) in previous_results.iter().enumerate() {
-                context.push_str(&format!(
-                    "  Step {}: {} - {}\n",
-                    i + 1,
-                    result.step_id,
-                    if result.success { "SUCCESS" } else { "FAILED" }
-                ));
-                if let Some(data) = &result.output {
-                    context.push_str(&format!("    Data: {data}\n"));
-                }
+                current_state[&format!("step_{}_result", i + 1)] = serde_json::json!({
+                    "step_id": result.step_id,
+                    "success": result.success,
+                    "output": result.output
+                });
             }
-            context.push('\n');
         }
 
-        context.push_str(&format!(
-            "Current task: {}\nPlease execute this step and report results.",
-            step.prompt_template
-        ));
+        let current_yaml = serde_yaml::to_string(&current_state).unwrap_or_default();
+        let step_number = previous_results.len() + 1;
+
+        // Create proper multi-step flow YAML context format
+        let context = format!(
+            "---\n\n🔄 MULTI-STEP FLOW CONTEXT\n\n# STEP 0 - INITIAL STATE (BEFORE FLOW START)\n{initial_yaml}\n\n# STEP {step_number} - CURRENT STATE (AFTER PREVIOUS STEPS)\n{current_yaml}\n\n🔑 RESOLVED ADDRESSES FOR OPERATIONS:\n{key_map_yaml}\n\n💡 IMPORTANT: Use amounts from CURRENT STATE (STEP {step_number}) for operations\n🔑 CRITICAL: ALWAYS use resolved addresses from '🔑 RESOLVED ADDRESSES FOR OPERATIONS' section above - NEVER use placeholder names\n---"
+        );
 
         Ok(context)
     }
@@ -294,12 +315,13 @@ impl PingPongExecutor {
         agent_type: &str,
         context: &str,
         wallet_pubkey: &str,
+        _previous_results: &[StepResult],
     ) -> Result<StepResult> {
         let start_time = std::time::Instant::now();
 
         // Create prompt for agent execution
         let prompt = format!(
-            "{}\n\nContext: {}\n\nExecute this specific step and return results.",
+            "{}\n\nContext:\n{}\n\nExecute this specific step and return results.",
             step.prompt_template, context
         );
 
