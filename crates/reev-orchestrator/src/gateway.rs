@@ -10,19 +10,20 @@ use crate::recovery::engine::RecoveryMetrics;
 use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
 
+use reev_db::DatabaseConfig;
 use reev_lib::solana_env::environment::SolanaEnv;
 use reev_types::flow::{AtomicMode, DynamicFlowPlan, ExecutionResult, StepResult, WalletContext};
 use reev_types::tools::ToolName;
 
-use reev_db::config::DatabaseConfig;
 use reev_db::writer::DatabaseWriter;
 use regex::Regex;
 use std::path::PathBuf;
 use std::sync::Arc;
+
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Simple user intent analysis for dynamic YML generation
 #[derive(Debug, Clone)]
@@ -486,6 +487,73 @@ impl OrchestratorGateway {
         let db_config = DatabaseConfig::local("reev_orchestrator.db");
         let database = Arc::new(DatabaseWriter::new(db_config).await?);
 
+        info!("[Orchestrator] Using SEPARATE database: reev_orchestrator.db");
+        warn!("[Orchestrator] API uses: db/reev_results.db - CONSOLIDATION WILL BE ISOLATED");
+        Ok(Self {
+            _solana_env: solana_env,
+            context_resolver: context_resolver.clone(),
+            yml_generator: Arc::new(YmlGenerator::new()),
+            generated_files: Arc::new(RwLock::new(Vec::new())),
+            recovery_engine: Arc::new(RwLock::new(recovery_engine)),
+            recovery_config,
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
+                30000,
+                context_resolver,
+                database,
+            ))),
+        })
+    }
+
+    /// Create a new orchestrator gateway with shared database
+    pub async fn with_database(database: Arc<DatabaseWriter>) -> Result<Self> {
+        let recovery_config = RecoveryConfig::default();
+        let recovery_engine = RecoveryEngine::new(recovery_config.clone());
+
+        // Create Solana environment (uses hardcoded surfpool URL)
+        let solana_env =
+            Arc::new(Mutex::new(SolanaEnv::new().map_err(|e| {
+                anyhow::anyhow!("Failed to create SolanaEnv: {e}")
+            })?));
+
+        // Create context resolver with Solana environment
+        let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
+
+        info!(
+            "[Orchestrator] Using SHARED database from API: {:?}",
+            database.config()
+        );
+        Ok(Self {
+            _solana_env: solana_env,
+            context_resolver: context_resolver.clone(),
+            yml_generator: Arc::new(YmlGenerator::new()),
+            generated_files: Arc::new(RwLock::new(Vec::new())),
+            recovery_engine: Arc::new(RwLock::new(recovery_engine)),
+            recovery_config,
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
+                30000,
+                context_resolver,
+                database,
+            ))),
+        })
+    }
+
+    /// Create a new orchestrator gateway with custom recovery configuration and shared database
+    pub async fn with_recovery_config_with_database(
+        recovery_config: RecoveryConfig,
+        database: Arc<DatabaseWriter>,
+    ) -> Result<Self> {
+        let recovery_engine = RecoveryEngine::new(recovery_config.clone());
+
+        // Create Solana environment (uses hardcoded surfpool URL)
+        let solana_env =
+            Arc::new(Mutex::new(SolanaEnv::new().map_err(|e| {
+                anyhow::anyhow!("Failed to create SolanaEnv: {e}")
+            })?));
+
+        // Create context resolver with Solana environment
+        let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
+
+        info!("[Orchestrator] Using SHARED database from API with recovery config");
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
@@ -518,6 +586,9 @@ impl OrchestratorGateway {
         let db_config = DatabaseConfig::local("reev_orchestrator.db");
         let database = Arc::new(DatabaseWriter::new(db_config).await?);
 
+        warn!("[Orchestrator] Using SEPARATE database: reev_orchestrator.db");
+        warn!("[Orchestrator] API uses: db/reev_results.db - CONSOLIDATION WILL BE ISOLATED");
+
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
@@ -526,10 +597,10 @@ impl OrchestratorGateway {
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
             ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
-                30000,
+                300_000, // 5 minute timeout
                 context_resolver,
                 database,
-            ))), // 30s timeout
+            ))),
         })
     }
 

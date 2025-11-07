@@ -4,6 +4,7 @@
 
 use reev_orchestrator::OrchestratorGateway;
 use reev_types::execution::ToolCallSummary;
+use std::sync::Arc;
 use tracing::{error, info};
 
 use super::extract_transaction_details::extract_transaction_details;
@@ -12,6 +13,7 @@ use super::extract_transaction_details::extract_transaction_details;
 pub async fn execute_flow_plan_with_ping_pong(
     flow_plan: &reev_types::flow::DynamicFlowPlan,
     agent_type: &str,
+    database: Option<Arc<reev_db::writer::DatabaseWriter>>,
 ) -> Vec<ToolCallSummary> {
     let mut tool_calls = Vec::new();
     let execution_start_time = chrono::Utc::now();
@@ -26,14 +28,31 @@ pub async fn execute_flow_plan_with_ping_pong(
         flow_plan.steps.len()
     );
 
-    // Use orchestrator gateway for ping-pong execution
-    let gateway = match OrchestratorGateway::new().await {
-        Ok(gateway) => gateway,
-        Err(e) => {
-            error!("Failed to create gateway for ping-pong execution: {}", e);
-            // Return empty tool calls on gateway creation failure
-            return vec![];
-        }
+    // Use orchestrator gateway for ping-pong execution with shared database if available
+    let gateway = match database {
+        Some(db) => match OrchestratorGateway::with_database(db).await {
+            Ok(gateway) => {
+                info!("Using shared database for ping-pong execution");
+                gateway
+            }
+            Err(e) => {
+                error!("Failed to create gateway with shared database: {}, falling back to separate DB", e);
+                match OrchestratorGateway::new().await {
+                    Ok(gateway) => gateway,
+                    Err(e) => {
+                        error!("Failed to create gateway fallback: {}", e);
+                        return vec![];
+                    }
+                }
+            }
+        },
+        None => match OrchestratorGateway::new().await {
+            Ok(gateway) => gateway,
+            Err(e) => {
+                error!("Failed to create gateway for ping-pong execution: {}", e);
+                return vec![];
+            }
+        },
     };
     let step_results = match gateway
         .execute_flow_with_ping_pong(flow_plan, agent_type)

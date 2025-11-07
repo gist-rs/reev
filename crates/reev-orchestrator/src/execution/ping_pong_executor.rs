@@ -26,9 +26,10 @@ use reev_db::writer::DatabaseWriterTrait;
 use reev_lib::constants::{sol_mint, usdc_mint};
 use reev_types::execution::ToolCallSummary;
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
+use std::sync::Arc;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -964,6 +965,12 @@ impl PingPongExecutor {
         info!(
             "[PingPongExecutor] Storing session {} to database (step {})",
             session_id, step_index
+        );
+
+        // Debug: Log which database we're actually using
+        info!(
+            "[PingPongExecutor] Database path being used: {:?}",
+            self.database.config()
         );
 
         // Begin transaction for this step

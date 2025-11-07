@@ -1,6 +1,6 @@
 //! Dynamic Flow Execution Handler
 //!
-//! This module provides the main handler for executing dynamic flows through REST API.
+//! This module provides main handler for executing dynamic flows through REST API.
 
 use anyhow;
 use axum::{
@@ -8,17 +8,13 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use chrono::Utc;
-use reev_db::writer::DatabaseWriterTrait;
 use reev_orchestrator::OrchestratorGateway;
 use reev_types::{ExecutionResponse, ExecutionStatus};
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::task;
 use tracing::{error, info, instrument};
-
-use super::execute_flow_plan_with_ping_pong::execute_flow_plan_with_ping_pong;
-use crate::types::ApiState;
 
 /// Execute a dynamic flow (direct mode - zero file I/O)
 #[instrument(skip_all, fields(
@@ -28,7 +24,7 @@ use crate::types::ApiState;
     execution_mode = "direct"
 ))]
 pub async fn execute_dynamic_flow(
-    State(state): State<ApiState>,
+    State(state): State<crate::types::ApiState>,
     Json(request): Json<crate::types::DynamicFlowRequest>,
 ) -> impl IntoResponse {
     let start_time = Instant::now();
@@ -60,18 +56,32 @@ pub async fn execute_dynamic_flow(
     let agent_type = request.agent.clone();
     let _atomic_mode = request.atomic_mode;
 
+    // Clone the database config for use in blocking task
+    let db_config = state.db.config().clone();
+
     // Execute flow plan in blocking task
-    let flow_result = task::spawn_blocking(move || {
+    // Create and spawn the task with proper error handling
+    let flow_result = tokio::task::spawn_blocking(move || {
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
             error!("Failed to create tokio runtime: {}", e);
             anyhow::anyhow!("Runtime creation failed: {e}")
         })?;
 
         rt.block_on(async {
-            let gateway = OrchestratorGateway::new().await.map_err(|e| {
-                error!("Failed to create gateway: {}", e);
-                anyhow::anyhow!("Gateway creation failed: {e}")
-            })?;
+            // Create new DatabaseWriter using same configuration as pooled database
+            let database_writer = reev_db::writer::DatabaseWriter::new(db_config)
+                .await
+                .map_err(|e| {
+                    error!("Failed to create database writer: {}", e);
+                    anyhow::anyhow!("Database writer creation failed: {e}")
+                })?;
+
+            let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
+                .await
+                .map_err(|e| {
+                    error!("Failed to create gateway: {}", e);
+                    anyhow::anyhow!("Gateway creation failed: {e}")
+                })?;
             gateway.process_user_request(&prompt, &wallet).await
         })
     })
@@ -86,6 +96,10 @@ pub async fn execute_dynamic_flow(
                 "direct"
             };
 
+            // Clone flow_plan and database config for use in blocking task
+            let flow_plan_clone = flow_plan.clone();
+            let db_config_for_execution = state.db.config().clone();
+
             info!(
                 flow_id = %flow_plan.flow_id,
                 steps = flow_plan.steps.len(),
@@ -94,96 +108,132 @@ pub async fn execute_dynamic_flow(
                 "Dynamic flow execution completed successfully"
             );
 
-            // Execute flow plan with ping-pong coordination and capture actual tool calls
-            let real_tool_calls = execute_flow_plan_with_ping_pong(&flow_plan, &agent_type).await;
+            // Execute flow plan with ping-pong coordination and database consolidation
+            let execution_result = task::spawn_blocking(move || {
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    error!("Failed to create tokio runtime: {}", e);
+                    anyhow::anyhow!("Runtime creation failed: {e}")
+                })?;
 
-            // Store session log with tool calls for API visualization
-            let session_log_content = json!({
-                "session_id": &flow_plan.flow_id,
-                "benchmark_id": "dynamic-flow",
-                "agent_type": &agent_type,
-                "tool_calls": &real_tool_calls,
-                "start_time": Utc::now().timestamp(),
-                "end_time": Utc::now().timestamp() + 60000,
-                "execution_mode": execution_mode,
-                "flow_plan": {
-                    "flow_id": flow_plan.flow_id,
-                    "user_prompt": flow_plan.user_prompt,
-                    "steps": flow_plan.steps.len()
-                }
+                rt.block_on(async {
+                    // Create new DatabaseWriter using same configuration as pooled database
+                    let database_writer =
+                        reev_db::writer::DatabaseWriter::new(db_config_for_execution)
+                            .await
+                            .map_err(|e| {
+                                error!("Failed to create database writer: {}", e);
+                                anyhow::anyhow!("Database writer creation failed: {e}")
+                            })?;
+
+                    let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to create gateway: {}", e);
+                            anyhow::anyhow!("Gateway creation failed: {e}")
+                        })?;
+                    gateway
+                        .execute_dynamic_flow_with_consolidation(&flow_plan, &agent_type)
+                        .await
+                })
             })
-            .to_string();
+            .await;
 
-            // Store in database for flow visualization (using flow_id)
-            if let Err(e) = state
-                .db
-                .store_session_log(&flow_plan.flow_id, &session_log_content)
-                .await
-            {
-                error!("Failed to store dynamic flow session log: {}", e);
-            }
+            let real_tool_calls = match &execution_result {
+                Ok(Ok(result)) => {
+                    info!(
+                        execution_id = %result.execution_id,
+                        consolidated_session = ?result.consolidated_session_id,
+                        "Dynamic flow execution with consolidation completed"
+                    );
 
-            // Also store with execution_id for easier lookup by users
-            let execution_log_content = json!({
-                "session_id": &execution_id,
-                "benchmark_id": "dynamic-flow",
-                "agent_type": &agent_type,
-                "tool_calls": &real_tool_calls,
-                "start_time": Utc::now().timestamp(),
-                "end_time": Utc::now().timestamp() + 60000,
-                "execution_mode": execution_mode,
-                "flow_plan": {
-                    "flow_id": flow_plan.flow_id,
-                    "user_prompt": flow_plan.user_prompt,
-                    "steps": flow_plan.steps.len()
+                    // Convert step results to tool calls for API response
+                    result
+                        .step_results
+                        .iter()
+                        .enumerate()
+                        .map(|(index, step_result)| {
+                            let tool_name = if !step_result.tool_calls.is_empty() {
+                                step_result.tool_calls[0].clone()
+                            } else {
+                                // Infer from step ID
+                                if step_result.step_id.contains("swap") {
+                                    reev_types::ToolName::JupiterSwap.to_string()
+                                } else if step_result.step_id.contains("lend") {
+                                    reev_types::ToolName::JupiterLendEarnDeposit.to_string()
+                                } else if step_result.step_id.contains("balance") {
+                                    reev_types::ToolName::GetAccountBalance.to_string()
+                                } else if step_result.step_id.contains("position") {
+                                    reev_types::ToolName::GetJupiterLendEarnPosition.to_string()
+                                } else {
+                                    format!("tool_{}", step_result.step_id)
+                                }
+                            };
+
+                            reev_types::execution::ToolCallSummary {
+                                tool_name,
+                                timestamp: chrono::Utc::now()
+                                    + chrono::Duration::milliseconds(index as i64 * 2000),
+                                duration_ms: step_result.execution_time_ms,
+                                success: step_result.success,
+                                error: step_result.error_message.clone(),
+                                params: None,
+                                result_data: Some(step_result.output.clone()),
+                                tool_args: None,
+                            }
+                        })
+                        .collect()
                 }
-            })
-            .to_string();
-
-            // Store with execution_id for direct lookup
-            if let Err(e) = state
-                .db
-                .store_session_log(&execution_id, &execution_log_content)
-                .await
-            {
-                error!("Failed to store execution session log: {}", e);
-            }
-
-            // Note: OTEL data is handled by agent execution directly
-            // No additional conversion needed for flow visualization
+                Ok(Err(ref e)) => {
+                    error!("Dynamic flow execution with consolidation failed: {}", e);
+                    Vec::new()
+                }
+                Err(ref e) => {
+                    error!("Failed to spawn consolidation task: {}", e);
+                    Vec::new()
+                }
+            };
 
             let mut result_data = json!({
-                "flow_id": flow_plan.flow_id,
-                "steps_generated": flow_plan.steps.len(),
+                "flow_id": flow_plan_clone.flow_id,
+                "steps_generated": flow_plan_clone.steps.len(),
                 "execution_mode": execution_mode,
-                "prompt_processed": request.prompt
+                "prompt_processed": request.prompt,
+                "consolidation_enabled": true
             });
 
             if request.shared_surfpool {
                 result_data["yml_file"] = json!(yml_path);
             }
 
+            // Include consolidation info if available from execution result
+            if let Ok(Ok(ref exec_result)) = execution_result {
+                if let Some(ref consolidated_id) = exec_result.consolidated_session_id {
+                    result_data["consolidated_session_id"] = json!(consolidated_id);
+                    result_data["execution_id"] = json!(&exec_result.execution_id);
+                }
+            }
+
             let logs = if request.shared_surfpool {
                 vec![
                     format!(
                         "Generated {} steps for bridge execution",
-                        flow_plan.steps.len()
+                        flow_plan_clone.steps.len()
                     ),
                     format!("Created temporary YML file: {}", yml_path),
                     format!(
-                        "Stored session log for flow visualization: {}",
-                        flow_plan.flow_id
+                        "Executed with database consolidation: {}",
+                        flow_plan_clone.flow_id
                     ),
                 ]
             } else {
                 vec![
                     format!(
-                        "Generated {} steps for direct execution",
-                        flow_plan.steps.len()
+                        "Generated {} steps for direct execution with consolidation",
+                        flow_plan_clone.steps.len()
                     ),
                     format!(
-                        "Stored session log for flow visualization: {}",
-                        flow_plan.flow_id
+                        "Database consolidation completed: {}",
+                        flow_plan_clone.flow_id
                     ),
                 ]
             };

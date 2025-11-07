@@ -8,6 +8,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use reev_orchestrator::{OrchestratorGateway, RecoveryConfig};
 use reev_types::{ExecutionResponse, ExecutionStatus};
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::task;
 use tracing::{error, info, instrument};
@@ -58,13 +59,38 @@ pub async fn execute_recovery_flow(
         })
         .unwrap_or_default();
 
-    // Create new gateway instance for each request
-    let gateway = match OrchestratorGateway::with_recovery_config(recovery_config).await {
-        Ok(gateway) => gateway,
-        Err(e) => {
+    // Clone database config for use in blocking task
+    let db_config = _state.db.config().clone();
+
+    // Create gateway directly using blocking task for database writer creation
+    let gateway = tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async {
+            let database_writer = reev_db::writer::DatabaseWriter::new(db_config).await?;
+            OrchestratorGateway::with_recovery_config_with_database(
+                recovery_config,
+                Arc::new(database_writer),
+            )
+            .await
+        })
+    })
+    .await;
+
+    let gateway = match gateway {
+        Ok(Ok(gateway)) => gateway,
+        Ok(Err(e)) => {
             error!("Failed to create gateway: {}", e);
             return Json(json!({
                 "error": format!("Gateway creation failed: {}", e),
+                "execution_id": execution_id,
+                "execution_mode": "recovery"
+            }))
+            .into_response();
+        }
+        Err(e) => {
+            error!("Failed to spawn blocking task: {}", e);
+            return Json(json!({
+                "error": format!("Task spawn failed: {}", e),
                 "execution_id": execution_id,
                 "execution_mode": "recovery"
             }))
