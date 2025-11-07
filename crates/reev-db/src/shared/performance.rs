@@ -294,6 +294,29 @@ pub struct SessionLog {
     pub status: String,
 }
 
+/// Consolidated session log for ping-pong results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsolidatedSessionLog {
+    /// Consolidated session identifier
+    pub consolidated_session_id: String,
+    /// Execution identifier
+    pub execution_id: String,
+    /// Consolidated content (ping-pong format)
+    pub consolidated_content: String,
+    /// Original session IDs that were consolidated
+    pub original_session_ids: String,
+    /// Average score across all sessions
+    pub avg_score: Option<f64>,
+    /// Total number of tools executed
+    pub total_tools: Option<i64>,
+    /// Success rate as percentage
+    pub success_rate: Option<f64>,
+    /// Execution duration in milliseconds
+    pub execution_duration_ms: Option<i64>,
+    /// When this consolidation was created
+    pub timestamp: String,
+}
+
 /// Utility functions for performance operations
 pub struct PerformanceUtils;
 

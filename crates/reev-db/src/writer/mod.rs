@@ -89,6 +89,12 @@ pub trait DatabaseWriterTrait: Send + Sync {
         consolidated_id: &str,
     ) -> crate::error::Result<Option<String>>;
 
+    /// Get consolidated sessions by execution ID
+    async fn get_consolidated_sessions_by_execution(
+        &self,
+        execution_id: &str,
+    ) -> crate::error::Result<Vec<crate::shared::performance::ConsolidatedSessionLog>>;
+
     /// Begin transaction for step storage
     async fn begin_transaction(&self, execution_id: &str) -> crate::error::Result<()>;
 
@@ -323,6 +329,78 @@ impl DatabaseWriterTrait for crate::writer::DatabaseWriter {
         } else {
             Ok(None)
         }
+    }
+
+    /// Get consolidated sessions by execution ID
+    async fn get_consolidated_sessions_by_execution(
+        &self,
+        execution_id: &str,
+    ) -> crate::error::Result<Vec<crate::shared::performance::ConsolidatedSessionLog>> {
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT
+                consolidated_session_id,
+                execution_id,
+                consolidated_content,
+                original_session_ids,
+                avg_score,
+                total_tools,
+                success_rate,
+                execution_duration_ms,
+                created_at
+            FROM consolidated_sessions
+            WHERE execution_id = ?
+            ORDER BY created_at DESC",
+                [execution_id],
+            )
+            .await
+            .map_err(|e| {
+                crate::error::DatabaseError::query(
+                    format!("Failed to query consolidated sessions by execution: {execution_id}"),
+                    e,
+                )
+            })?;
+
+        let mut sessions = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let session = crate::shared::performance::ConsolidatedSessionLog {
+                consolidated_session_id: row.get(0).map_err(|e| {
+                    crate::error::DatabaseError::generic_with_source(
+                        "Failed to parse consolidated_session_id",
+                        e,
+                    )
+                })?,
+                execution_id: row.get(1).map_err(|e| {
+                    crate::error::DatabaseError::generic_with_source(
+                        "Failed to parse execution_id",
+                        e,
+                    )
+                })?,
+                consolidated_content: row.get(2).map_err(|e| {
+                    crate::error::DatabaseError::generic_with_source(
+                        "Failed to parse consolidated_content",
+                        e,
+                    )
+                })?,
+                original_session_ids: row.get(3).map_err(|e| {
+                    crate::error::DatabaseError::generic_with_source(
+                        "Failed to parse original_session_ids",
+                        e,
+                    )
+                })?,
+                avg_score: row.get(4).ok(),
+                total_tools: row.get(5).ok(),
+                success_rate: row.get(6).ok(),
+                execution_duration_ms: row.get(7).ok(),
+                timestamp: row.get(8).map_err(|e| {
+                    crate::error::DatabaseError::generic_with_source("Failed to parse timestamp", e)
+                })?,
+            };
+            sessions.push(session);
+        }
+
+        Ok(sessions)
     }
 
     /// Begin transaction for step storage

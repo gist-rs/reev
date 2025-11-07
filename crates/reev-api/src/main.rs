@@ -152,6 +152,19 @@ async fn main() -> Result<()> {
         // Debug endpoints
         .route("/api/v1/debug/benchmarks", get(debug_benchmarks))
         .route("/api/v1/agents/test", post(test_agent_connection))
+        // Consolidation session endpoints
+        .route(
+            "/api/v1/sessions/consolidated/{session_id}",
+            get(get_consolidated_session),
+        )
+        .route(
+            "/api/v1/executions/{execution_id}/consolidated",
+            get(get_execution_consolidated_session),
+        )
+        .route(
+            "/api/v1/consolidation/{execution_id}/status",
+            get(get_consolidation_status),
+        )
         // Flow logs endpoints
         .route("/api/v1/flow-logs/{benchmark_id}", get(get_flow_log))
         .route("/api/v1/flows/{session_id}", get(get_flow))

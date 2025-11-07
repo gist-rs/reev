@@ -694,6 +694,19 @@ impl DatabaseWriterTrait for PooledDatabaseWriter {
         writer.get_consolidated_session(consolidated_id).await
     }
 
+    /// Get consolidated sessions by execution ID
+    async fn get_consolidated_sessions_by_execution(
+        &self,
+        execution_id: &str,
+    ) -> crate::error::Result<Vec<crate::shared::performance::ConsolidatedSessionLog>> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer
+            .get_consolidated_sessions_by_execution(execution_id)
+            .await
+    }
+
     /// Begin transaction for step storage
     async fn begin_transaction(&self, execution_id: &str) -> crate::error::Result<()> {
         let conn = self.get_connection().await?;
