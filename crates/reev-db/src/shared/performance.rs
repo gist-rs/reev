@@ -233,6 +233,67 @@ pub enum OutlierType {
     HighResourceUsage,
 }
 
+/// Consolidation metadata for ping-pong sessions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsolidationMetadata {
+    /// Average score across all sessions
+    pub avg_score: Option<f64>,
+    /// Total number of tool calls across all sessions
+    pub total_tools: Option<i32>,
+    /// Success rate as percentage (0.0 - 100.0)
+    pub success_rate: Option<f64>,
+    /// Total execution duration in milliseconds
+    pub execution_duration_ms: Option<i64>,
+}
+
+impl ConsolidationMetadata {
+    /// Create new consolidation metadata
+    pub fn new() -> Self {
+        Self {
+            avg_score: None,
+            total_tools: None,
+            success_rate: None,
+            execution_duration_ms: None,
+        }
+    }
+
+    /// Create consolidation metadata with values
+    pub fn with_values(
+        avg_score: Option<f64>,
+        total_tools: Option<i32>,
+        success_rate: Option<f64>,
+        execution_duration_ms: Option<i64>,
+    ) -> Self {
+        Self {
+            avg_score,
+            total_tools,
+            success_rate,
+            execution_duration_ms,
+        }
+    }
+}
+
+impl Default for ConsolidationMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Session log for consolidation operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionLog {
+    /// Session identifier
+    pub session_id: String,
+    /// Execution identifier
+    pub execution_id: String,
+    /// Session content
+    pub content: String,
+    /// Session timestamp
+    pub timestamp: String,
+    /// Session status
+    pub status: String,
+}
+
 /// Utility functions for performance operations
 pub struct PerformanceUtils;
 

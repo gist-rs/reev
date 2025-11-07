@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS execution_states (
     metadata TEXT
 );
 
+CREATE TABLE IF NOT EXISTS consolidated_sessions (
+    id INTEGER PRIMARY KEY,
+    execution_id TEXT NOT NULL,
+    consolidated_session_id TEXT UNIQUE NOT NULL,
+    consolidated_content TEXT NOT NULL,
+    original_session_ids TEXT NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    avg_score REAL,
+    total_tools INTEGER,
+    success_rate REAL,
+    execution_duration_ms INTEGER,
+    FOREIGN KEY (execution_id) REFERENCES execution_states(execution_id)
+);
+
 -- schema_version table removed - unused (no migration system implemented)
 
 -- Indexes
@@ -105,6 +119,11 @@ CREATE INDEX IF NOT EXISTS idx_execution_states_agent ON execution_states(agent)
 CREATE INDEX IF NOT EXISTS idx_execution_states_status ON execution_states(status);
 CREATE INDEX IF NOT EXISTS idx_execution_states_created_at ON execution_states(created_at);
 CREATE INDEX IF NOT EXISTS idx_execution_states_updated_at ON execution_states(updated_at);
+
+-- Indexes for consolidated_sessions table
+CREATE INDEX IF NOT EXISTS idx_consolidated_sessions_execution_id ON consolidated_sessions(execution_id);
+CREATE INDEX IF NOT EXISTS idx_consolidated_sessions_consolidated_id ON consolidated_sessions(consolidated_session_id);
+CREATE INDEX IF NOT EXISTS idx_consolidated_sessions_created_at ON consolidated_sessions(created_at);
 
 -- Initial data (skip auto-insertion for compatibility)
 -- Note: schema_version table removed - unused (no migration system implemented)

@@ -640,6 +640,83 @@ impl DatabaseWriterTrait for PooledDatabaseWriter {
 
         writer.store_tool_call_consolidated(&tool_call_data).await
     }
+
+    /// Store individual step session (for dynamic mode)
+    async fn store_step_session(
+        &self,
+        execution_id: &str,
+        step_index: usize,
+        session_content: &str,
+    ) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer
+            .store_step_session(execution_id, step_index, session_content)
+            .await
+    }
+
+    /// Get all sessions for consolidation (supports ping-pong)
+    async fn get_sessions_for_consolidation(
+        &self,
+        execution_id: &str,
+    ) -> crate::error::Result<Vec<crate::shared::performance::SessionLog>> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer.get_sessions_for_consolidation(execution_id).await
+    }
+
+    /// Store consolidated session (ping-pong result)
+    async fn store_consolidated_session(
+        &self,
+        consolidated_id: &str,
+        execution_id: &str,
+        content: &str,
+        metadata: &crate::shared::performance::ConsolidationMetadata,
+    ) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer
+            .store_consolidated_session(consolidated_id, execution_id, content, metadata)
+            .await
+    }
+
+    /// Get consolidated session (for Mermaid generation)
+    async fn get_consolidated_session(
+        &self,
+        consolidated_id: &str,
+    ) -> crate::error::Result<Option<String>> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer.get_consolidated_session(consolidated_id).await
+    }
+
+    /// Begin transaction for step storage
+    async fn begin_transaction(&self, execution_id: &str) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer.begin_transaction(execution_id).await
+    }
+
+    /// Commit transaction
+    async fn commit_transaction(&self, execution_id: &str) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer.commit_transaction(execution_id).await
+    }
+
+    /// Rollback transaction on failure
+    async fn rollback_transaction(&self, execution_id: &str) -> crate::error::Result<()> {
+        let conn = self.get_connection().await?;
+        let writer =
+            crate::DatabaseWriter::from_connection(conn.connection().clone(), self.config.clone());
+        writer.rollback_transaction(execution_id).await
+    }
 }
 
 // Implement Clone for PooledDatabaseWriter

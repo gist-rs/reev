@@ -1,94 +1,70 @@
-# Issues
+## Issue #51: ✅ COMPLETED - Phase 1 - Database Schema & Methods for Consolidation
 
-## Issue #51: Phase 1 - Database Schema & Methods for Consolidation
+### Status: COMPLETED ✅
+
+### What was implemented:
+1. **✅ Added reev-db dependency**
+   - Added `reev-db = { path = "../reev-db" }` to `reev/crates/reev-orchestrator/Cargo.toml`
+
+2. **✅ Created consolidated_sessions table**
+   - Added table to `reev/crates/reev-db/.schema/current_schema.sql`
+   - Includes all required fields: execution_id, consolidated_session_id, consolidated_content, original_session_ids, avg_score, total_tools, success_rate, execution_duration_ms
+   - Added proper indexes for performance
+
+3. **✅ Extended DatabaseWriterTrait**
+   - Added 7 new methods: store_step_session, get_sessions_for_consolidation, store_consolidated_session, get_consolidated_session, begin_transaction, commit_transaction, rollback_transaction
+   - Added ConsolidationMetadata and SessionLog types in shared/performance.rs
+
+4. **✅ Implemented trait methods**
+   - Implemented all methods in both DatabaseWriter and PooledDatabaseWriter
+   - Added comprehensive error handling using existing DatabaseError patterns
+   - Created complete test suite in `reev/crates/reev-db/tests/consolidation_test.rs`
+
+### Test Results:
+- All 3 tests passing: consolidation database methods, metadata serialization, session log structure
+- Transaction operations working correctly (begin/commit/rollback)
+- Can store and retrieve step sessions for consolidation
+- Can store and retrieve consolidated sessions with metadata
+
+### Ready for Phase 2:
+- Database foundation is complete
+- All consolidation methods implemented and tested
+- Ready for PingPongExecutor database integration
+
+## Issue #50: Phase 2 - PingPongExecutor Database Integration
 
 ### Description
-Implement database infrastructure for session consolidation in PingPongExecutor.
+Integrate database storage into PingPongExecutor to replace file-based storage for dynamic mode consolidation.
 
 ### Tasks
-1. **Add reev-db dependency**
-   - Add `reev-db = { path = "../reev-db" }` to `reev/crates/reev-orchestrator/Cargo.toml`
+1. **Add database field to PingPongExecutor struct**
+   - Add `database: Box<dyn DatabaseWriterTrait>` field
+   - Update constructor to accept DatabaseWriterTrait
 
-2. **Create consolidated_sessions table**
-```sql
-CREATE TABLE consolidated_sessions (
-    id INTEGER PRIMARY KEY,
-    execution_id TEXT NOT NULL,
-    consolidated_session_id TEXT UNIQUE NOT NULL,
-    consolidated_content TEXT NOT NULL,
-    original_session_ids TEXT NOT NULL, -- JSON array of step session_ids
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    avg_score REAL,
-    total_tools INTEGER,
-    success_rate REAL,
-    execution_duration_ms INTEGER,
-    FOREIGN KEY (execution_id) REFERENCES execution_sessions(execution_id)
-);
-```
+2. **Implement session storage methods**
+   - `store_session_to_database(&self, session_id: &str, yml_content: &str) -> Result<()>`
+   - `consolidate_database_sessions(&self, execution_id: &str) -> Result<String>`
 
-3. **Extend DatabaseWriterTrait**
-```rust
-// Add these methods to DatabaseWriterTrait
-pub trait DatabaseWriterTrait: Send + Sync {
-    // ... existing methods ...
-    
-    /// Store individual step session (for dynamic mode)
-    async fn store_step_session(
-        &self,
-        execution_id: &str,
-        step_index: usize,
-        session_content: &str,
-    ) -> crate::error::Result<()>;
-    
-    /// Get all sessions for consolidation (supports ping-pong)
-    async fn get_sessions_for_consolidation(
-        &self,
-        execution_id: &str,
-    ) -> crate::error::Result<Vec<SessionLog>>;
-    
-    /// Store consolidated session (ping-pong result)
-    async fn store_consolidated_session(
-        &self,
-        consolidated_id: &str,
-        execution_id: &str,
-        content: &str,
-        metadata: &ConsolidationMetadata,
-    ) -> crate::error::Result<()>;
-    
-    /// Get consolidated session (for Mermaid generation)
-    async fn get_consolidated_session(
-        &self,
-        consolidated_id: &str,
-    ) -> crate::error::Result<Option<String>>;
-    
-    /// Begin transaction for step storage
-    async fn begin_transaction(&self, execution_id: &str) -> crate::error::Result<()>;
-    
-    /// Commit transaction
-    async fn commit_transaction(&self, execution_id: &str) -> crate::error::Result<()>;
-    
-    /// Rollback transaction on failure
-    async fn rollback_transaction(&self, execution_id: &str) -> crate::error::Result<()>;
-}
-```
+3. **Add async consolidation with oneshot channel**
+   - Use `futures::channel::oneshot` for 60s timeout
+   - Return consolidated session ID
+   - Include failed steps with error details
 
-4. **Implement trait methods**
-   - Add implementations in `reev/crates/reev-db/src/writer/mod.rs`
-   - Create database migration script for new table
-   - Add error handling for transaction operations
+4. **Update flow execution**
+   - Replace JSONL file writing with database storage
+   - Store each step immediately with transaction support
+   - Trigger consolidation after flow completion
 
 ### Success Criteria
-- All new DatabaseWriterTrait methods implemented and tested
-- consolidated_sessions table created with proper constraints
-- Transaction support working for step storage
-- Can store and retrieve consolidated sessions
+- PingPongExecutor stores sessions to database instead of files
+- Automatic consolidation with 60s timeout
+- Failed consolidations get score 0, don't break execution
+- Consolidated content includes all steps with success/error flags
 
 ### Dependencies
-- None (foundational phase)
+- Requires Phase 1 completion (✅ DONE)
 
 ### Notes
-- This is foundational work for PingPongExecutor database integration
-- Uses existing DatabaseWriter architecture in reev-db
-- Follows existing error handling patterns in the codebase
-
-## Issue #50
+- This enables the transition from file-based to database-based dynamic flows
+- Maintains backward compatibility with existing deterministic flows
+- Uses established ping-pong mechanism for lifecycle management
