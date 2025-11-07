@@ -14,6 +14,7 @@ use tracing::info;
 /// This agent acts as an oracle by calling the centralized Jupiter lend_mint handler,
 /// which fetches the actual mint instructions from the Jupiter API and prepares
 /// them for execution in the simulated environment.
+#[allow(dead_code)]
 pub async fn handle_jupiter_mint(
     asset: &Pubkey,
     shares: u64,

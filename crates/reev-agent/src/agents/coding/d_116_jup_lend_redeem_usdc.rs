@@ -14,6 +14,7 @@ use tracing::info;
 /// This agent acts as an oracle by calling the centralized Jupiter lend_redeem handler,
 /// which fetches the actual redeem instructions from the Jupiter API and prepares
 /// them for execution in the simulated environment.
+#[allow(dead_code)]
 pub async fn handle_jupiter_redeem(
     asset: &Pubkey,
     shares: u64,

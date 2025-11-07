@@ -12,6 +12,7 @@ use reev_flow::{log_tool_call, log_tool_completion};
 /// This is a multi-step flow benchmark that demonstrates fetching Jupiter positions
 /// and then getting earnings data. For the deterministic agent, we return mock
 /// responses that simulate the real API calls.
+#[allow(dead_code)]
 pub(crate) async fn handle_jup_positions_and_earnings(
     key_map: &HashMap<String, String>,
 ) -> Result<serde_json::Value> {

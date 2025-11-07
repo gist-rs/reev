@@ -5,6 +5,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
+#[allow(dead_code)]
 pub(crate) async fn handle_spl_transfer_fail(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {

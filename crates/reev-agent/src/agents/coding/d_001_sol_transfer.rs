@@ -8,6 +8,7 @@ use tracing::{error, info};
 // Import enhanced OTEL logging macros
 use reev_flow::{log_tool_call, log_tool_completion};
 
+#[allow(dead_code)]
 pub(crate) async fn handle_sol_transfer(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {

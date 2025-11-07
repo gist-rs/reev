@@ -10,6 +10,7 @@ use tracing::info;
 ///
 /// This agent calls the centralized Jupiter lend withdraw handler, which fetches
 /// instructions from the Jupiter API and prepares the `surfpool` environment.
+#[allow(dead_code)]
 pub(crate) async fn handle_jup_lend_withdraw_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {

@@ -11,6 +11,7 @@ use tracing::info;
 /// This agent acts as an oracle by calling the centralized Jupiter lend deposit handler.
 /// This handler calls the public Jupiter API to get the deposit instructions
 /// and pre-loads all required accounts into the local `surfpool` fork.
+#[allow(dead_code)]
 pub(crate) async fn handle_jup_lend_deposit_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {

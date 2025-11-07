@@ -21,6 +21,7 @@ use reev_flow::{log_tool_call, log_tool_completion};
 ///
 /// The agent returns the complete `Vec<RawInstruction>` required for the swap,
 /// acknowledging that modern DeFi transactions often require multiple instructions.
+#[allow(dead_code)]
 pub(crate) async fn handle_jup_swap_sol_usdc(
     key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
