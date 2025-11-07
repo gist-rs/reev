@@ -18,6 +18,7 @@ use std::{collections::HashMap, str::FromStr};
 use tracing::{error, info, warn};
 
 /// Handle simple transfer benchmarks (001-004 series)
+#[allow(dead_code)]
 async fn handle_simple_transfer_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
@@ -48,6 +49,7 @@ async fn handle_simple_transfer_benchmarks(
 }
 
 /// Handle Jupiter swap benchmarks (100 series)
+#[allow(dead_code)]
 async fn handle_jupiter_swap_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
@@ -63,6 +65,7 @@ async fn handle_jupiter_swap_benchmarks(
 }
 
 /// Handle Jupiter lending benchmarks (110-116 series)
+#[allow(dead_code)]
 async fn handle_jupiter_lending_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
@@ -134,6 +137,7 @@ async fn handle_jupiter_lending_benchmarks(
 }
 
 /// Determine flow type from benchmark tags
+#[allow(dead_code)]
 fn determine_flow_type(benchmark_id: &str) -> Result<String> {
     let file_path = format!("benchmarks/{benchmark_id}.yml");
     let yaml_content = std::fs::read_to_string(&file_path)
@@ -170,6 +174,7 @@ fn determine_flow_type(benchmark_id: &str) -> Result<String> {
 }
 
 /// Handle flow benchmarks (200 series and multi-step flows)
+#[allow(dead_code)]
 async fn handle_flow_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
@@ -324,6 +329,7 @@ async fn handle_flow_benchmarks(
 }
 
 /// Handle flow step benchmarks (multi-step flows)
+#[allow(dead_code)]
 async fn handle_flow_step_benchmarks(
     benchmark_id: &str,
     key_map: &HashMap<String, String>,
@@ -481,6 +487,7 @@ struct MultiStepFlowContext {
 #[derive(Debug, Deserialize)]
 struct EnhancedContext {
     #[serde(rename = "🔑 RESOLVED_ADDRESSES_FOR_OPERATIONS")]
+    #[allow(dead_code)]
     resolved_addresses: HashMap<String, String>,
     #[allow(dead_code)]
     account_states: HashMap<String, serde_json::Value>,
@@ -495,6 +502,7 @@ struct EnhancedContext {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct AgentContext {
+    #[allow(dead_code)]
     key_map: HashMap<String, String>,
 }
 
@@ -506,6 +514,7 @@ struct MockParams {
 }
 
 /// Helper function to extract key_map from multi-step flow context content
+#[allow(dead_code)]
 fn extract_key_map_from_multi_step_flow(yaml_str: &str) -> HashMap<String, String> {
     let mut key_map = HashMap::new();
 
