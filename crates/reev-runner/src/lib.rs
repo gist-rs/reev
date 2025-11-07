@@ -743,8 +743,8 @@ pub async fn run_dynamic_flow(
     prompt: &str,
     wallet: &str,
     agent_name: &str,
-    shared_surfpool: bool,
-    execution_id: Option<String>,
+    _shared_surfpool: bool,
+    _execution_id: Option<String>,
 ) -> Result<Vec<TestResult>> {
     info!("--- Phase 2: Direct Dynamic Flow Execution ---");
     info!(
@@ -1445,11 +1445,10 @@ async fn run_flow_benchmark_with_recovery(
                 step_results.push(reev_types::flow::StepResult {
                     step_id: flow_step.step.to_string(),
                     success: true,
-                    duration_ms: 1000,
+                    execution_time_ms: 1000,
                     tool_calls: step_actions.iter().map(|a| format!("{a:?}")).collect(),
-                    output: None,
+                    output: serde_json::Value::Null,
                     error_message: None,
-                    recovery_attempts: 0,
                 });
 
                 successful_steps += 1;
@@ -1461,11 +1460,10 @@ async fn run_flow_benchmark_with_recovery(
                 step_results.push(reev_types::flow::StepResult {
                     step_id: flow_step.step.to_string(),
                     success: false,
-                    duration_ms: 1000,
+                    execution_time_ms: 1000,
                     tool_calls: vec![],
-                    output: None,
+                    output: serde_json::Value::Null,
                     error_message: Some(error_message),
-                    recovery_attempts: 0,
                 });
 
                 failed_steps += 1;
@@ -1530,7 +1528,6 @@ async fn run_flow_benchmark_with_recovery(
         "non_critical_failures": flow_result.metrics.non_critical_failures,
         "total_duration_ms": flow_result.metrics.total_duration_ms,
         "total_tool_calls": flow_result.metrics.total_tool_calls,
-        "recovery_attempts": flow_result.step_results.iter().map(|r| r.recovery_attempts).sum::<usize>(),
         "error_message": flow_result.error_message,
     });
 

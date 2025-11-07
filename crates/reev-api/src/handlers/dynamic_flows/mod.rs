@@ -411,7 +411,7 @@ async fn execute_flow_plan_with_ping_pong(
     // Execute agent based on type
     // Convert step results to tool call summaries
     for (index, step_result) in step_results.iter().enumerate() {
-        let duration_ms = step_result.duration_ms;
+        let duration_ms = step_result.execution_time_ms;
 
         // Extract tool name from step or tool calls
         let tool_name = if !step_result.tool_calls.is_empty() {
@@ -432,39 +432,33 @@ async fn execute_flow_plan_with_ping_pong(
         };
 
         // Extract execution data from step output
-        if let Some(output) = &step_result.output {
-            let (params, result_data, tool_args) =
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(output) {
-                    extract_transaction_details(&parsed)
-                } else {
-                    (json!({}), json!({}), None)
-                };
+        let output = &step_result.output;
+        // Use output directly since it's already a serde_json::Value
+        let (params, result_data, tool_args) = extract_transaction_details(output);
 
-            let tool_call_summary = reev_types::execution::ToolCallSummary {
-                tool_name: tool_name.to_string(),
-                timestamp: execution_start_time
-                    + chrono::Duration::milliseconds(index as i64 * 2000),
-                duration_ms,
-                success: step_result.success,
-                error: step_result.error_message.clone(),
-                params: Some(params),
-                result_data: Some(result_data),
-                tool_args,
-            };
+        let tool_call_summary = reev_types::execution::ToolCallSummary {
+            tool_name: tool_name.to_string(),
+            timestamp: execution_start_time + chrono::Duration::milliseconds(index as i64 * 2000),
+            duration_ms,
+            success: step_result.success,
+            error: step_result.error_message.clone(),
+            params: Some(params),
+            result_data: Some(result_data),
+            tool_args,
+        };
 
-            tool_calls.push(tool_call_summary);
+        tool_calls.push(tool_call_summary);
 
-            info!(
-                "[PingPongExecution] Added tool call: {} ({}ms) - {}",
-                tool_name,
-                duration_ms,
-                if step_result.success {
-                    "SUCCESS"
-                } else {
-                    "FAILED"
-                }
-            );
-        }
+        info!(
+            "[PingPongExecution] Added tool call: {} ({}ms) - {}",
+            tool_name,
+            duration_ms,
+            if step_result.success {
+                "SUCCESS"
+            } else {
+                "FAILED"
+            }
+        );
     }
 
     // Log completion summary
