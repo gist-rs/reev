@@ -1,6 +1,6 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
-
+follow handover, ALWAYS RUN SERVER IN BG, think harder, make it work step by step via log
 ---
 
 refer to

@@ -380,6 +380,36 @@ impl OrchestratorGateway {
                     )
                     .with_step(create_positions_check_step_with_recovery(context)?))
             }
+            "complex" => {
+                // Multi-step strategies for multiplication
+                let sol_amount = context.sol_balance_sol() * 0.5;
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(
+                        self.create_enhanced_swap_step_with_details(
+                            context, sol_amount, "complex",
+                        )?,
+                    )
+                    .with_step(self.create_enhanced_lend_step_with_details(
+                        context,
+                        sol_amount * 150.0,
+                        8.5,
+                        "complex",
+                    )?)
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
+            _ => {
+                // Default to simple flow
+                let sol_amount = context.sol_balance_sol() * 1.0;
+                Ok(flow
+                    .with_step(create_account_balance_step_with_recovery(context)?)
+                    .with_step(
+                        self.create_enhanced_swap_step_with_details(
+                            context, sol_amount, "default",
+                        )?,
+                    )
+                    .with_step(create_positions_check_step_with_recovery(context)?))
+            }
         }
     }
 

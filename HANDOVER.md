@@ -50,6 +50,107 @@ stateDiagram
     class PositionValidation validation
 ```
 
+---
+
+## 🚨 **CURRENT ISSUE: Issue #42 ACTIVE**
+**Status**: ACTIVE
+**Priority**: HIGH  
+**Component**: Dynamic Flow Execution (reev-orchestrator → reev-api → reev-db → reev-flow)
+**Description**: Dynamic flow generates 4-step plan but only executes 2 steps due to missing complex intent case
+
+### **Current State Analysis**
+**✅ Issue #41 RESOLVED**: JSONL→YML consolidation working perfectly
+- Consolidation logs: `"✅ Consolidated 2 tool calls via JSONL→YML pipeline"`
+- Database storage: Uses flow_id correctly  
+- YML content: Successfully generated and stored (2200+ bytes)
+
+**✅ Issue #42 RESOLVED**: Flow visualization working correctly
+- API Response: `tool_count: 2` (actual tool calls captured)
+- Mermaid Diagram: Shows `get_account_balance → jupiter_swap_flow` sequence
+- Parameter Context: Full tool parameters and error messages displayed
+
+**🔴 NEW ISSUE IDENTIFIED**: Complex Intent Case Missing
+**Root Cause**: `generate_simple_dynamic_flow()` in `gateway.rs` missing "complex" intent case for 4-step multiplication strategies
+
+**Evidence**:
+```bash
+# Expected: 4 steps generated, 4 steps executed
+Execution logs: "✅ Flow execution completed: 2 step results"  # Only 2 steps executed
+Flow plan: "steps_generated": 4  # Plan has 4 steps
+Intent analysis: "complex"  # Intent correctly classified as complex
+```
+
+**Problem**: The "complex" case is unreachable in `generate_simple_dynamic_flow()` due to unmatched patterns, causing system to fall back to default 2-step behavior.
+
+### **Current Debug Method**
+The fix requires adding the unreachable "complex" case to `generate_simple_dynamic_flow()` to create proper 4-step multiplication flows:
+1. Account balance check
+2. Enhanced swap step (50% SOL → USDC)  
+3. Enhanced lend step (USDC → Jupiter lending)
+4. Positions check and validation
+
+### **Technical Implementation Required**
+Add "complex" => { ... } case after line 383 in `reev/crates/reev-orchestrator/src/gateway.rs`:
+```rust
+"complex" => {
+    // Multi-step strategies for multiplication
+    let sol_amount = context.sol_balance_sol() * 0.5;
+    Ok(flow
+        .with_step(create_account_balance_step_with_recovery(context)?)
+        .with_step(
+            self.create_enhanced_swap_step_with_details(
+                context, sol_amount, "complex",
+            )?,
+        )
+        .with_step(self.create_enhanced_lend_step_with_details(
+            context,
+            sol_amount * 150.0,
+            8.5,
+            "complex",
+        )?)
+        .with_step(create_positions_check_step_with_recovery(context)?))
+}
+```
+
+### **Expected Resolution**
+Once the "complex" case is added, the system should execute all 4 steps:
+1. **Step 1**: `get_account_balance` - Check wallet balances and positions
+2. **Step 2**: `jupiter_swap_flow` - Swap 50% SOL → USDC  
+3. **Step 3**: `jupiter_lend_earn_deposit` - Deposit USDC into Jupiter lending
+4. **Step 4**: `get_jupiter_lend_earn_position` - Check final lending positions
+
+### **Validation Steps**
+1. **Execute Dynamic Flow**: Test 4-step execution
+   ```bash
+   curl -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+     -H "Content-Type: application/json" \
+     -d '{"prompt":"use my 50% sol to multiply usdc 1.5x on jup","wallet":"3RYebr2rvjgymWwHJ3zRgse2ZNXeekpiNadXDLcTYwuS","agent":"glm-4.6-coding","shared_surfpool":false}'
+   ```
+
+2. **Verify 4-Step Execution**: Check flow diagram shows tool_count: 4
+   ```bash
+   curl "http://localhost:3001/api/v1/flows/{flow_id}" | jq '.metadata.tool_count'
+   # Expected: 4, Current: 2
+   ```
+
+3. **Verify Complete Mermaid Sequence**: Check diagram shows all 4 tools
+   ```bash
+   curl "http://localhost:3001/api/v1/flows/{flow_id}?format=html" | grep -E "(get_account_balance|jupiter_swap_flow|jupiter_lend_earn_deposit|get_jupiter_lend_earn_position)"
+   # Expected: All 4 tools present in sequence
+   ```
+
+### **Success Criteria**
+- **Step Count**: Flow execution logs show "4 step results" instead of 2
+- **Tool Count**: Flow diagram API returns `tool_count: 4` instead of 2
+- **Complete Sequence**: Mermaid diagram shows all 4 tools with parameter context
+- **Consistent Behavior**: Same prompt "use my 50% sol to multiply usdc 1.5x" produces full 4-step strategy in both simple and complex modes
+
+**Next Steps**: 
+1. Fix "complex" case in `generate_simple_dynamic_flow()` function
+2. Test 4-step execution with actual SOL balance 
+3. Validate complete multiplication strategy flow
+4. Update handover with final resolution
+
 ### **Fix Applied**
 **Removed Hardcoded Stop Signal**:
 - Removed `next_action: "STOP"` field from `JupiterSwapResponse` struct
