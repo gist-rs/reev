@@ -70,9 +70,8 @@ pub async fn consolidate_otel_data(
     }
 
     // Fallback: try orchestrator session format (used by ping-pong executor initialization)
-    let orchestrator_glob_pattern = format!(
-        "logs/sessions/enhanced_otel_orchestrator-flow-{flow_id}-*.jsonl"
-    );
+    let orchestrator_glob_pattern =
+        format!("logs/sessions/enhanced_otel_orchestrator-flow-{flow_id}-*.jsonl");
 
     info!(
         "[Consolidation] Looking for orchestrator files with pattern: {}",
@@ -125,9 +124,8 @@ pub async fn consolidate_otel_data(
     }
 
     // Try execution_id as fallback
-    let fallback_jsonl_path = PathBuf::from(format!(
-        "logs/sessions/enhanced_otel_{execution_id}.jsonl"
-    ));
+    let fallback_jsonl_path =
+        PathBuf::from(format!("logs/sessions/enhanced_otel_{execution_id}.jsonl"));
 
     if fallback_jsonl_path.exists() {
         info!(
@@ -150,6 +148,7 @@ pub async fn consolidate_otel_data(
     None
 }
 
+#[cfg(test)]
 /// Validate consolidation pipeline integrity
 ///
 /// This function checks that the consolidation pipeline is working

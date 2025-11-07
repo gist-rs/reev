@@ -3758,6 +3758,7 @@ dependencies = [
  "axum",
  "chrono",
  "dotenvy",
+ "glob",
  "project-root",
  "reev-agent",
  "reev-constants",
