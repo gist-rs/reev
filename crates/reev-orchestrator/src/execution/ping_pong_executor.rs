@@ -22,7 +22,9 @@ use reev_flow::{
 use reev_types::tools::ToolName;
 
 // Re-export constants from reev-lib
+use reev_db::writer::DatabaseWriterTrait;
 use reev_lib::constants::{sol_mint, usdc_mint};
+use reev_types::execution::ToolCallSummary;
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
 
 use std::collections::HashMap;
@@ -38,16 +40,261 @@ pub struct PingPongExecutor {
     otel_session_id: Option<String>,
     /// Context resolver for placeholder resolution
     context_resolver: Arc<ContextResolver>,
+    /// Database writer for session storage and consolidation
+    database: Arc<reev_db::writer::DatabaseWriter>,
 }
 
 impl PingPongExecutor {
     /// Create new ping-pong executor
-    pub fn new(step_timeout_ms: u64, context_resolver: Arc<ContextResolver>) -> Self {
+    pub fn new(
+        step_timeout_ms: u64,
+        context_resolver: Arc<ContextResolver>,
+        database: Arc<reev_db::writer::DatabaseWriter>,
+    ) -> Self {
         Self {
             step_timeout_ms,
             otel_session_id: None,
             context_resolver,
+            database,
         }
+    }
+
+    /// Execute flow plan with ping-pong coordination and database integration
+    #[instrument(skip(self, flow_plan, agent_type), fields(
+        flow_id = %flow_plan.flow_id,
+        total_steps = %flow_plan.steps.len()
+    ))]
+    pub async fn execute_flow_plan_with_ping_pong(
+        &mut self,
+        flow_plan: &DynamicFlowPlan,
+        agent_type: &str,
+    ) -> Result<reev_types::flow::ExecutionResult> {
+        let flow_start_time = std::time::Instant::now();
+        let execution_id = format!(
+            "exec_{}_{}",
+            flow_plan.flow_id,
+            chrono::Utc::now().timestamp_millis()
+        );
+
+        info!(
+            "[PingPongExecutor] Starting ping-pong execution: {} steps with execution_id {}",
+            flow_plan.steps.len(),
+            execution_id
+        );
+
+        // Initialize OTEL session for this flow execution
+        let otel_session_id = format!(
+            "orchestrator-flow-{}-{}",
+            flow_plan.flow_id,
+            chrono::Utc::now().timestamp_millis()
+        );
+
+        // Try to initialize OTEL logging, but handle case where it's already initialized
+        match init_enhanced_otel_logging_with_session(otel_session_id.clone()) {
+            Ok(session_id) => {
+                self.otel_session_id = Some(session_id);
+                info!(
+                    "[PingPongExecutor] ✅ OTEL logging initialized with session: {}",
+                    self.otel_session_id.as_ref().unwrap()
+                );
+            }
+            Err(e) => {
+                // Logger already initialized - try to get existing logger
+                match get_enhanced_otel_logger() {
+                    Ok(logger) => {
+                        self.otel_session_id = Some(logger.session_id().to_string());
+                        warn!(
+                            "[PingPongExecutor] ⚠️ Using existing OTEL session: {}",
+                            self.otel_session_id.as_ref().unwrap()
+                        );
+                    }
+                    Err(_) => {
+                        // No logger available and can't initialize - continue without OTEL
+                        warn!("[PingPongExecutor] ⚠️ No OTEL logging available: {}", e);
+                    }
+                }
+            }
+        }
+
+        // Log flow start to OTEL if available
+        if self.otel_session_id.is_some() {
+            log_prompt_event!(
+                [
+                    reev_types::tools::ToolName::JupiterSwap.to_string(),
+                    reev_types::tools::ToolName::JupiterLendEarnDeposit.to_string(),
+                    reev_types::tools::ToolName::GetAccountBalance.to_string(),
+                    reev_types::tools::ToolName::GetJupiterLendEarnPosition.to_string()
+                ],
+                format!(
+                    "Orchestrator executing {} steps with {} (ping-pong mode)",
+                    flow_plan.steps.len(),
+                    agent_type
+                ),
+                flow_plan.user_prompt.clone()
+            );
+        }
+
+        let mut step_results = Vec::new();
+        let mut completed_steps = 0;
+
+        for (step_index, step) in flow_plan.steps.iter().enumerate() {
+            info!(
+                "[PingPongExecutor] Executing step {}/{}: {}",
+                step_index + 1,
+                flow_plan.steps.len(),
+                step.step_id
+            );
+
+            // Execute current step with agent
+            match self
+                .execute_single_step(step, agent_type, &step_results, &flow_plan.context.owner)
+                .await
+            {
+                Ok(step_result) => {
+                    completed_steps += 1;
+                    info!(
+                        "[PingPongExecutor] ✅ Step {} completed successfully",
+                        step.step_id
+                    );
+
+                    // Store result for next steps
+                    step_results.push(step_result.clone());
+
+                    // Store session to database with YML format
+                    let session_id = format!("{execution_id}_step_{step_index}");
+                    let yml_content = serde_yaml::to_string(&step_result)
+                        .map_err(|e| anyhow::anyhow!("Failed to serialize step result: {e}"))?;
+
+                    if let Err(e) = self
+                        .store_session_to_database(
+                            &execution_id,
+                            step_index,
+                            &session_id,
+                            &yml_content,
+                        )
+                        .await
+                    {
+                        error!(
+                            "[PingPongExecutor] Failed to store session to database: {}",
+                            e
+                        );
+                        // Continue execution even if database storage fails
+                    }
+
+                    // Check if flow should continue based on step success and criticality
+                    let last_result = step_results.last().unwrap();
+                    if last_result.success && step.critical {
+                        info!(
+                            "[PingPongExecutor] ✅ Critical step {} succeeded, continuing flow",
+                            step.step_id
+                        );
+                    } else if !last_result.success && step.critical {
+                        warn!(
+                            "[PingPongExecutor] ❌ Critical step {} failed, but continuing flow for database consolidation",
+                            step.step_id
+                        );
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "[PingPongExecutor] ❌ Step {} failed with error: {}",
+                        step.step_id, e
+                    );
+
+                    // Create failed step result for database storage
+                    let failed_result = reev_types::flow::StepResult {
+                        step_id: step.step_id.clone(),
+                        success: false,
+                        error_message: Some(format!("Step execution failed: {e}")),
+                        tool_calls: vec![],
+                        output: serde_json::json!({
+                            "error": format!("Step execution failed: {}", e),
+                            "step_index": step_index
+                        }),
+                        execution_time_ms: 0,
+                    };
+
+                    step_results.push(failed_result.clone());
+
+                    // Store failed session to database
+                    let session_id = format!("{execution_id}_step_{step_index}");
+                    let yml_content = serde_yaml::to_string(&failed_result).map_err(|e| {
+                        anyhow::anyhow!("Failed to serialize failed step result: {e}")
+                    })?;
+
+                    if let Err(e) = self
+                        .store_session_to_database(
+                            &execution_id,
+                            step_index,
+                            &session_id,
+                            &yml_content,
+                        )
+                        .await
+                    {
+                        error!(
+                            "[PingPongExecutor] Failed to store failed session to database: {}",
+                            e
+                        );
+                    }
+
+                    if step.critical {
+                        error!(
+                            "[PingPongExecutor] ❌ Critical step {} failed, but continuing for database consolidation",
+                            step.step_id
+                        );
+                    }
+                }
+            }
+        }
+
+        let total_execution_time = flow_start_time.elapsed().as_millis() as u64;
+
+        // Trigger consolidation after flow completion
+        let consolidated_session_id = match self.consolidate_database_sessions(&execution_id).await
+        {
+            Ok(consolidated_id) => {
+                info!(
+                    "[PingPongExecutor] ✅ Consolidation completed: {}",
+                    consolidated_id
+                );
+                Some(consolidated_id)
+            }
+            Err(e) => {
+                error!("[PingPongExecutor] ❌ Consolidation failed: {}", e);
+                None
+            }
+        };
+
+        // Create execution result
+        let execution_result = reev_types::flow::ExecutionResult {
+            execution_id: execution_id.clone(),
+            flow_id: flow_plan.flow_id.clone(),
+            success: completed_steps == flow_plan.steps.len(),
+            completed_steps,
+            total_steps: flow_plan.steps.len(),
+            step_results,
+            consolidated_session_id,
+            execution_time_ms: total_execution_time,
+            error_message: if completed_steps < flow_plan.steps.len() {
+                Some(format!(
+                    "Flow incomplete: {}/{} steps completed",
+                    completed_steps,
+                    flow_plan.steps.len()
+                ))
+            } else {
+                None
+            },
+        };
+
+        info!(
+            "[PingPongExecutor] Flow execution completed: {}/{} steps in {}ms with consolidation {:?}",
+            execution_result.completed_steps,
+            execution_result.total_steps,
+            total_execution_time,
+            execution_result.consolidated_session_id
+        );
+
+        Ok(execution_result)
     }
 
     /// Execute flow plan with step-by-step ping-pong coordination
@@ -168,11 +415,13 @@ impl PingPongExecutor {
                     let failed_result = StepResult {
                         step_id: step.step_id.clone(),
                         success: false,
-                        duration_ms: self.step_timeout_ms,
-                        tool_calls: vec![],
-                        output: None,
                         error_message: Some(step_error.to_string()),
-                        recovery_attempts: 0,
+                        tool_calls: vec![],
+                        output: serde_json::json!({
+                            "error": step_error.to_string(),
+                            "timeout": true
+                        }),
+                        execution_time_ms: self.step_timeout_ms,
                     };
 
                     step_results.push(failed_result);
@@ -272,8 +521,8 @@ impl PingPongExecutor {
                     result.step_id,
                     if result.success { "SUCCESS" } else { "FAILED" }
                 ));
-                if let Some(data) = &result.output {
-                    context.push_str(&format!("    Data: {data}\n"));
+                if !result.output.is_null() {
+                    context.push_str(&format!("    Data: {}\n", result.output));
                 }
             }
             context.push('\n');
@@ -414,15 +663,17 @@ impl PingPongExecutor {
                 Ok(StepResult {
                     step_id: step.step_id.clone(),
                     success: !has_error,
-                    duration_ms,
-                    tool_calls,
-                    output: Some(response),
                     error_message: if has_error {
                         Some("Agent execution failed".to_string())
                     } else {
                         None
                     },
-                    recovery_attempts: 0,
+                    tool_calls,
+                    output: serde_json::json!({
+                        "response": response,
+                        "duration_ms": duration_ms
+                    }),
+                    execution_time_ms: duration_ms,
                 })
             }
             Err(error) => {
@@ -449,11 +700,13 @@ impl PingPongExecutor {
                 Ok(StepResult {
                     step_id: step.step_id.clone(),
                     success: false,
-                    duration_ms,
-                    tool_calls: vec![],
-                    output: None,
                     error_message: Some(error.to_string()),
-                    recovery_attempts: 0,
+                    tool_calls: vec![],
+                    output: serde_json::json!({
+                        "error": error.to_string(),
+                        "duration_ms": duration_ms
+                    }),
+                    execution_time_ms: duration_ms,
                 })
             }
         }
@@ -474,7 +727,7 @@ impl PingPongExecutor {
         // Enhanced tool call detection with parameter extraction
         if response.contains(ToolName::JupiterSwap.to_string().as_str()) {
             let params = self.extract_swap_parameters(response);
-            tool_calls.push(reev_types::ToolCallSummary {
+            tool_calls.push(ToolCallSummary {
                 tool_name: ToolName::JupiterSwap.to_string(),
                 timestamp: current_time,
                 duration_ms: 0, // Will be set by caller
@@ -488,7 +741,7 @@ impl PingPongExecutor {
 
         if response.contains(ToolName::JupiterLendEarnDeposit.to_string().as_str()) {
             let params = self.extract_lend_parameters(response);
-            tool_calls.push(reev_types::ToolCallSummary {
+            tool_calls.push(ToolCallSummary {
                 tool_name: ToolName::JupiterLendEarnDeposit.to_string(),
                 timestamp: current_time,
                 duration_ms: 0,
@@ -501,7 +754,7 @@ impl PingPongExecutor {
         }
 
         if response.contains(ToolName::GetJupiterLendEarnPosition.to_string().as_str()) {
-            tool_calls.push(reev_types::ToolCallSummary {
+            tool_calls.push(ToolCallSummary {
                 tool_name: ToolName::GetJupiterLendEarnPosition.to_string(),
                 timestamp: current_time,
                 duration_ms: 0,
@@ -514,7 +767,7 @@ impl PingPongExecutor {
         }
 
         if response.contains(ToolName::GetAccountBalance.to_string().as_str()) {
-            tool_calls.push(reev_types::ToolCallSummary {
+            tool_calls.push(ToolCallSummary {
                 tool_name: ToolName::GetAccountBalance.to_string(),
                 timestamp: current_time,
                 duration_ms: 0,
@@ -527,7 +780,7 @@ impl PingPongExecutor {
         }
 
         if response.contains(ToolName::GetJupiterLendEarnTokens.to_string().as_str()) {
-            tool_calls.push(reev_types::ToolCallSummary {
+            tool_calls.push(ToolCallSummary {
                 tool_name: ToolName::GetJupiterLendEarnTokens.to_string(),
                 timestamp: current_time,
                 duration_ms: 0,
@@ -652,7 +905,7 @@ impl PingPongExecutor {
     async fn store_enhanced_tool_calls(
         &self,
         session_id: &str,
-        tool_calls: &[reev_types::ToolCallSummary],
+        tool_calls: &[ToolCallSummary],
     ) -> Result<()> {
         // Store using OTEL session infrastructure
         if let Ok(logger) = reev_flow::get_enhanced_otel_logger() {
@@ -697,5 +950,252 @@ impl PingPongExecutor {
         );
 
         Ok(())
+    }
+
+    /// Store session to database (YML format for dynamic mode)
+    #[instrument(skip(self, session_id, yml_content), fields(session_id = %session_id))]
+    pub async fn store_session_to_database(
+        &self,
+        execution_id: &str,
+        step_index: usize,
+        session_id: &str,
+        yml_content: &str,
+    ) -> Result<()> {
+        info!(
+            "[PingPongExecutor] Storing session {} to database (step {})",
+            session_id, step_index
+        );
+
+        // Begin transaction for this step
+        self.database
+            .begin_transaction(execution_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to begin transaction: {e}"))?;
+
+        // Store the session
+        if let Err(e) = self
+            .database
+            .store_step_session(execution_id, step_index, yml_content)
+            .await
+        {
+            // Rollback on failure
+            let _ = self.database.rollback_transaction(execution_id).await;
+            return Err(anyhow::anyhow!("Failed to store session {session_id}: {e}"));
+        }
+
+        // Commit transaction
+        self.database
+            .commit_transaction(execution_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to commit transaction: {e}"))?;
+
+        info!(
+            "[PingPongExecutor] ✅ Session {} stored to database successfully",
+            session_id
+        );
+
+        Ok(())
+    }
+
+    /// Consolidate database sessions with 60s timeout
+    #[instrument(skip(self, execution_id), fields(execution_id = %execution_id))]
+    pub async fn consolidate_database_sessions(&self, execution_id: &str) -> Result<String> {
+        info!(
+            "[PingPongExecutor] Starting consolidation for execution {}",
+            execution_id
+        );
+
+        // Get all sessions for this execution
+        let sessions = self
+            .database
+            .get_sessions_for_consolidation(execution_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get sessions for consolidation: {e}"))?;
+
+        info!(
+            "[PingPongExecutor] Found {} sessions to consolidate",
+            sessions.len()
+        );
+
+        if sessions.is_empty() {
+            return Err(anyhow::anyhow!("No sessions found for consolidation"));
+        }
+
+        // Use oneshot channel for timeout
+        let (tx, rx) = futures::channel::oneshot::channel::<Result<String>>();
+
+        // Spawn consolidation task
+        let database_clone = self.database.clone();
+        let exec_id_clone = execution_id.to_string();
+        let session_count = sessions.len();
+        tokio::spawn(async move {
+            let consolidation_result =
+                Self::perform_consolidation(&database_clone, &exec_id_clone, sessions).await;
+
+            let _ = tx.send(consolidation_result);
+        });
+
+        info!(
+            "[PingPongExecutor] Spawned consolidation task for {} sessions",
+            session_count
+        );
+
+        // Wait for completion with 60s timeout
+        match tokio::time::timeout(std::time::Duration::from_secs(60), rx).await {
+            Ok(Ok(Ok(consolidated_id))) => {
+                info!(
+                    "[PingPongExecutor] ✅ Consolidation completed: {}",
+                    consolidated_id
+                );
+                Ok(consolidated_id)
+            }
+            Ok(Ok(Err(e))) => {
+                error!("[PingPongExecutor] ❌ Consolidation failed: {}", e);
+                // Return error ID with score 0
+                Err(anyhow::anyhow!("Consolidation failed: {e}"))
+            }
+            Ok(Err(_)) => {
+                error!("[PingPongExecutor] ❌ Consolidation channel closed unexpectedly");
+                Err(anyhow::anyhow!("Consolidation channel closed"))
+            }
+            Err(_) => {
+                error!("[PingPongExecutor] ❌ Consolidation timed out after 60s");
+                Err(anyhow::anyhow!("Consolidation timed out after 60 seconds"))
+            }
+        }
+    }
+
+    /// Perform the actual consolidation work
+    pub async fn perform_consolidation(
+        database: &Arc<reev_db::writer::DatabaseWriter>,
+        execution_id: &str,
+        sessions: Vec<reev_db::shared::performance::SessionLog>,
+    ) -> Result<String> {
+        let consolidated_id = format!(
+            "{}_consolidated_{}",
+            execution_id,
+            chrono::Utc::now().timestamp_millis()
+        );
+
+        // Build consolidated content with success/error flags
+        let mut consolidated_content = String::new();
+        let mut total_tools = 0;
+        let mut successful_steps = 0;
+        let mut failed_steps = 0;
+
+        consolidated_content.push_str(&format!("# Consolidated Session: {consolidated_id}\n"));
+        consolidated_content.push_str(&format!("Execution ID: {execution_id}\n"));
+        consolidated_content.push_str(&format!("Total Sessions: {}\n", sessions.len()));
+        consolidated_content.push_str(&format!(
+            "Consolidated At: {}\n\n",
+            chrono::Utc::now().to_rfc3339()
+        ));
+
+        for (index, session) in sessions.iter().enumerate() {
+            consolidated_content.push_str(&format!(
+                "--- Session {} ({}): {} ---\n",
+                index + 1,
+                session.status,
+                session.session_id
+            ));
+
+            // Parse session content to determine success/failure
+            let session_success = Self::analyze_session_success(&session.content);
+            if session_success {
+                successful_steps += 1;
+                consolidated_content.push_str("Status: ✅ SUCCESS\n");
+            } else {
+                failed_steps += 1;
+                consolidated_content.push_str("Status: ❌ FAILED\n");
+            }
+
+            // Extract tool count from session
+            let tool_count = Self::extract_tool_count(&session.content);
+            total_tools += tool_count;
+
+            consolidated_content.push_str(&format!("Tool Calls: {tool_count}\n"));
+            consolidated_content.push_str(&format!("Timestamp: {}\n\n", session.timestamp));
+            consolidated_content.push_str(&session.content);
+            consolidated_content.push_str("\n\n");
+        }
+
+        // Calculate metadata
+        let total_steps = successful_steps + failed_steps;
+        let success_rate = if total_steps > 0 {
+            (successful_steps as f64 / total_steps as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let avg_score = if success_rate >= 100.0 {
+            Some(1.0)
+        } else if success_rate >= 75.0 {
+            Some(0.75)
+        } else if success_rate >= 50.0 {
+            Some(0.5)
+        } else if success_rate > 0.0 {
+            Some(0.25)
+        } else {
+            Some(0.0)
+        };
+
+        // Create consolidation metadata
+        let metadata = reev_db::shared::performance::ConsolidationMetadata {
+            avg_score,
+            total_tools: Some(total_tools as i32),
+            success_rate: Some(success_rate),
+            execution_duration_ms: None, // Could be calculated from timestamps if needed
+        };
+
+        // Store consolidated session
+        database
+            .store_consolidated_session(
+                &consolidated_id,
+                execution_id,
+                &consolidated_content,
+                &metadata,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to store consolidated session: {e}"))?;
+
+        info!(
+            "Consolidation completed: {} sessions -> {} (success rate: {:.1}%)",
+            sessions.len(),
+            consolidated_id,
+            success_rate
+        );
+
+        Ok(consolidated_id)
+    }
+
+    /// Analyze session content to determine if it was successful
+    pub fn analyze_session_success(content: &str) -> bool {
+        // Look for success indicators in the YML content
+        content.contains("status: success")
+            || content.contains("success: true")
+            || content.contains("\"success\":true")
+            || (!content.contains("error") && !content.contains("failed"))
+    }
+
+    /// Extract tool call count from session content
+    pub fn extract_tool_count(content: &str) -> usize {
+        // Count tool calls by looking for common patterns
+        let tool_count =
+            content.matches("tool_name:").count() + content.matches("\"tool_name\":").count();
+
+        if tool_count == 0 {
+            // Fallback: count common tool names
+            [
+                "jupiter_swap",
+                "jupiter_lend_earn_deposit",
+                "get_account_balance",
+                "get_jupiter_lend_earn_position",
+            ]
+            .iter()
+            .map(|tool| content.matches(tool).count())
+            .sum()
+        } else {
+            tool_count
+        }
     }
 }

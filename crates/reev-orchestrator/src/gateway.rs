@@ -11,9 +11,13 @@ use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
 
 use reev_lib::solana_env::environment::SolanaEnv;
-use reev_types::flow::{AtomicMode, DynamicFlowPlan, StepResult, WalletContext};
+use reev_types::flow::{AtomicMode, DynamicFlowPlan, ExecutionResult, StepResult, WalletContext};
 use reev_types::tools::ToolName;
+
+use reev_db::config::DatabaseConfig;
+use reev_db::writer::DatabaseWriter;
 use regex::Regex;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
@@ -478,6 +482,10 @@ impl OrchestratorGateway {
         // Create context resolver with Solana environment
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
+        // Create database writer for ping-pong execution
+        let db_config = DatabaseConfig::local("reev_orchestrator.db");
+        let database = Arc::new(DatabaseWriter::new(db_config).await?);
+
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
@@ -488,6 +496,7 @@ impl OrchestratorGateway {
             ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
                 300_000, // 5 minute timeout
                 context_resolver,
+                database,
             ))),
         })
     }
@@ -505,6 +514,10 @@ impl OrchestratorGateway {
         // Create context resolver with Solana environment
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
+        // Create database writer for ping-pong execution
+        let db_config = DatabaseConfig::local("reev_orchestrator.db");
+        let database = Arc::new(DatabaseWriter::new(db_config).await?);
+
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
@@ -515,6 +528,7 @@ impl OrchestratorGateway {
             ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
                 30000,
                 context_resolver,
+                database,
             ))), // 30s timeout
         })
     }
@@ -803,6 +817,69 @@ impl OrchestratorGateway {
 
         let mut executor = self.ping_pong_executor.write().await;
         executor.execute_flow_plan(flow_plan, agent_type).await
+    }
+
+    /// Determine if a flow should use database-based execution
+    ///
+    /// Checks if the flow has `flow_type: "dynamic"` to route to PingPongExecutor
+    /// instead of file-based execution.
+    ///
+    /// # Arguments
+    /// * `yml_path` - Path to the YML file to check
+    ///
+    /// # Returns
+    /// * `bool` - true if should use database flow, false for file-based
+    #[instrument(skip_all)]
+    pub async fn should_use_database_flow(&self, yml_path: &PathBuf) -> Result<bool> {
+        let content = tokio::fs::read_to_string(yml_path)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to read YML file: {e}"))?;
+
+        // Parse YAML to check for flow_type field
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
+            .map_err(|e| anyhow::anyhow!("Failed to parse YAML: {e}"))?;
+
+        // Check if flow_type is "dynamic"
+        if let Some(flow_type) = yaml.get("flow_type").and_then(|v| v.as_str()) {
+            let use_database = flow_type == "dynamic";
+            debug!(
+                "[Gateway] Flow type: {}, using database: {}",
+                flow_type, use_database
+            );
+            return Ok(use_database);
+        }
+
+        // Default to file-based for backward compatibility
+        debug!("[Gateway] No flow_type specified, using file-based execution");
+        Ok(false)
+    }
+
+    /// Execute dynamic flow with consolidation
+    ///
+    /// This method routes dynamic flows to PingPongExecutor for database-based
+    /// execution with automatic consolidation.
+    ///
+    /// # Arguments
+    /// * `flow_plan` - Dynamic flow plan to execute
+    /// * `agent_type` - Type of agent to use for execution
+    ///
+    /// # Returns
+    /// * `Result<ExecutionResult>` - Execution result with consolidation info
+    #[instrument(skip(self))]
+    pub async fn execute_dynamic_flow_with_consolidation(
+        &self,
+        flow_plan: &DynamicFlowPlan,
+        agent_type: &str,
+    ) -> Result<ExecutionResult> {
+        info!(
+            "[Gateway] Starting dynamic flow with consolidation: {} steps",
+            flow_plan.steps.len()
+        );
+
+        let mut executor = self.ping_pong_executor.write().await;
+        executor
+            .execute_flow_plan_with_ping_pong(flow_plan, agent_type)
+            .await
     }
 }
 

@@ -59,6 +59,7 @@ tracing-opentelemetry.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"
+serial_test = { workspace = true }
 
 [features]
 default = ["dynamic_flows", "benchmark", "production"]

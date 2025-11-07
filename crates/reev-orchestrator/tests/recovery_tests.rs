@@ -15,7 +15,7 @@ use reev_orchestrator::{
     recovery::{RecoveryConfig, RecoveryEngine, RecoveryOutcome, RecoveryStrategyEngine},
 };
 use reev_types::flow::{
-    AtomicMode, DynamicFlowPlan, DynamicStep, RecoveryStrategy, StepResult, WalletContext,
+    AtomicMode, DynamicFlowPlan, DynamicStep, RecoveryStrategy, WalletContext,
 };
 
 fn create_test_wallet_context() -> WalletContext {
@@ -113,14 +113,13 @@ fn test_atomic_mode_string_conversion() {
 #[test]
 fn test_recovery_outcome_determination() {
     let step = create_test_step("test", true);
-    let failed_result = StepResult {
+    let failed_result = reev_types::flow::StepResult {
         step_id: "test".to_string(),
         success: false,
-        duration_ms: 1000,
+        execution_time_ms: 1000,
         tool_calls: vec![],
-        output: None,
+        output: serde_json::Value::Null,
         error_message: Some("Test error".to_string()),
-        recovery_attempts: 0,
     };
 
     // Create RecoveryResult from StepResult for testing

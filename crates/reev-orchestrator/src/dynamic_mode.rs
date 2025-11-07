@@ -7,8 +7,10 @@
 use crate::gateway::OrchestratorGateway;
 use crate::Result;
 use crate::{benchmark_mode::ExecutionMetadata, benchmark_mode::ExecutionMode};
-use reev_types::execution::ExecutionResponse;
-use reev_types::flow::WalletContext;
+use chrono::Utc;
+use reev_types::execution::{ExecutionResponse, ExecutionStatus};
+use reev_types::flow::{DynamicFlowPlan, WalletContext};
+use reev_types::ToolCallSummary;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use tracing::{debug, info, instrument};
@@ -94,7 +96,71 @@ where
     validate_user_request(prompt, context)?;
 
     let plan = prepare_user_request(prompt, context, agent).await?;
-    executor(plan.yml_path, plan.agent).await
+
+    // Check if should use database flow (PingPongExecutor)
+    let gateway = OrchestratorGateway::new().await?;
+    if gateway.should_use_database_flow(&plan.yml_path).await? {
+        info!("[DynamicMode] Using database flow execution");
+
+        // Parse the YML to create DynamicFlowPlan
+        let yml_content = tokio::fs::read_to_string(&plan.yml_path).await?;
+        let flow_plan: DynamicFlowPlan = serde_yaml::from_str(&yml_content)?;
+
+        // Execute with PingPongExecutor (database + consolidation)
+        let execution_result = gateway
+            .execute_dynamic_flow_with_consolidation(
+                &flow_plan,
+                &plan.agent.unwrap_or_else(|| "glm-4.6-coding".to_string()),
+            )
+            .await?;
+
+        // Convert ExecutionResult to ExecutionResponse
+        let status = if execution_result.success {
+            ExecutionStatus::Completed
+        } else {
+            ExecutionStatus::Failed
+        };
+
+        // Convert step results to tool call summaries
+        let tool_calls: Vec<ToolCallSummary> = execution_result
+            .step_results
+            .iter()
+            .filter_map(|step| {
+                if !step.tool_calls.is_empty() {
+                    Some(ToolCallSummary {
+                        tool_name: step.tool_calls.first()?.clone(),
+                        timestamp: Utc::now(),
+                        duration_ms: step.execution_time_ms,
+                        success: step.success,
+                        error: step.error_message.clone(),
+                        params: None,
+                        result_data: Some(step.output.clone()),
+                        tool_args: None,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(ExecutionResponse {
+            execution_id: execution_result.execution_id,
+            status,
+            duration_ms: execution_result.execution_time_ms,
+            result: Some(serde_json::json!({
+                "completed_steps": execution_result.completed_steps,
+                "total_steps": execution_result.total_steps,
+                "consolidated_session_id": execution_result.consolidated_session_id,
+            })),
+            error: execution_result.error_message,
+            logs: vec![], // Could be populated if needed
+            tool_calls,
+        })
+    } else {
+        // Use traditional file-based execution
+        info!("[DynamicMode] Using file-based execution");
+        executor(plan.yml_path, plan.agent).await
+    }
 }
 
 /// Generate a temporary YML file from user prompt
@@ -321,6 +387,122 @@ pub fn validate_user_request(prompt: &str, context: &WalletContext) -> Result<()
 mod tests {
     use super::*;
     use reev_types::flow::WalletContext;
+    use serial_test::serial;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+    use tokio::fs;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_should_use_database_flow() {
+        let gateway = OrchestratorGateway::new().await.unwrap();
+
+        // Test 1: Dynamic flow should use database
+        let dynamic_yml = r#"
+flow_id: "test_dynamic"
+flow_type: "dynamic"
+user_prompt: "Test dynamic flow"
+description: "Test dynamic flow"
+steps:
+  - step_id: "step1"
+    agent: "test_agent"
+    prompt_template: "Test prompt"
+    description: "Test step description"
+    required_tools: []
+    estimated_time_seconds: 30
+    critical: true
+"#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(dynamic_yml.as_bytes()).unwrap();
+        let dynamic_path = temp_file.path().to_path_buf();
+
+        let should_use_db = gateway
+            .should_use_database_flow(&dynamic_path)
+            .await
+            .unwrap();
+        assert!(should_use_db, "Dynamic flow should use database");
+
+        // Test 2: Static flow should use file-based
+        let static_yml = r#"
+flow_id: "test_static"
+user_prompt: "Test static flow"
+description: "Test static flow"
+steps:
+  - step_id: "step1"
+    agent: "test_agent"
+    prompt_template: "Test prompt"
+    description: "Test step description"
+    required_tools: []
+    estimated_time_seconds: 30
+    critical: true
+"#;
+
+        let mut temp_file2 = NamedTempFile::new().unwrap();
+        temp_file2.write_all(static_yml.as_bytes()).unwrap();
+        let static_path = temp_file2.path().to_path_buf();
+
+        let should_use_db = gateway
+            .should_use_database_flow(&static_path)
+            .await
+            .unwrap();
+        assert!(!should_use_db, "Static flow should use file-based");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_dynamic_flow_with_database_routing() {
+        // This test verifies that the database routing logic works
+        // Full end-to-end test would require actual agent execution
+        let gateway = OrchestratorGateway::new().await.unwrap();
+
+        let dynamic_yml = r#"
+flow_id: "test_dynamic_flow"
+flow_type: "dynamic"
+user_prompt: "Test dynamic flow for database routing"
+description: "Test dynamic flow for database routing"
+atomic_mode: "Strict"
+steps:
+  - step_id: "balance_check"
+    agent: "glm-4.6-coding"
+    prompt_template: "Get account balance"
+    description: "Check account balance"
+    required_tools: ["GetAccountBalance"]
+    estimated_time_seconds: 10
+    critical: true
+initial_state:
+  - name: "wallet_address"
+    value: "test_wallet_address"
+context:
+  owner: "test_wallet"
+  sol_balance: 1000000000
+  token_balances: {}
+  token_prices: {}
+  total_value_usd: 100.0
+metadata:
+  created_at: "2024-01-01T00:00:00Z"
+  category: "test"
+  complexity_score: 1
+  tags: ["test"]
+  version: "1.0"
+"#;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(dynamic_yml.as_bytes()).unwrap();
+        let yml_path = temp_file.path().to_path_buf();
+
+        // Verify the routing decision
+        let should_use_db = gateway.should_use_database_flow(&yml_path).await.unwrap();
+        assert!(should_use_db, "Should route to database");
+
+        // Verify the YML can be parsed as DynamicFlowPlan
+        let yml_content = fs::read_to_string(&yml_path).await.unwrap();
+        let flow_plan: DynamicFlowPlan = serde_yaml::from_str(&yml_content).unwrap();
+
+        assert_eq!(flow_plan.flow_id, "test_dynamic_flow");
+        assert_eq!(flow_plan.steps.len(), 1);
+        assert_eq!(flow_plan.steps[0].step_id, "balance_check");
+    }
 
     #[test]
     fn test_simple_intent_analysis() {
