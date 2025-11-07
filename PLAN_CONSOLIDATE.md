@@ -25,7 +25,9 @@ API → reev-runner → reev-orchestrator → PingPongExecutor → DB → Orches
 
 ## 🏗️ **Implementation Plan**
 
-### **Phase 1: Integrate PingPongExecutor into Dynamic Mode**
+### **Phase 1: Add reev-db Dependency & Integrate PingPongExecutor into Dynamic Mode**
+
+**Step 0**: Add `reev-db = { path = "../reev-db" }` to `reev/crates/reev-orchestrator/Cargo.toml`
 
 **Current Issue**: Dynamic mode uses file-based approach, bypasses PingPongExecutor
 
@@ -134,6 +136,34 @@ fn should_use_database_flow(yml_path: &PathBuf) -> bool {
 **Current Issue**: PingPongExecutor only writes JSONL files, doesn't store to database
 
 **Solution**: 
+
+**Step 1**: Add database field to PingPongExecutor struct
+```rust
+pub struct PingPongExecutor {
+    step_timeout_ms: u64,
+    otel_session_id: Option<String>,
+    context_resolver: Arc<ContextResolver>,
+    /// Database writer for session storage and consolidation
+    database: Arc<dyn DatabaseWriterTrait>,  // ← NEW FIELD
+}
+
+impl PingPongExecutor {
+    /// Create new ping-pong executor with database support
+    pub fn new(
+        step_timeout_ms: u64, 
+        context_resolver: Arc<ContextResolver>,
+        database: Arc<dyn DatabaseWriterTrait>  // ← NEW PARAM
+    ) -> Self {
+        Self {
+            step_timeout_ms,
+            otel_session_id: None,
+            context_resolver,
+            database,  // ← NEW FIELD INIT
+        }
+    }
+```
+
+**Step 2**: Implement database integration
 ```rust
 // In PingPongExecutor::execute_flow_plan_with_ping_pong()
 async fn execute_flow_plan_with_ping_pong(
