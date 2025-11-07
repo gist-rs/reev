@@ -136,6 +136,12 @@ impl DynamicStep {
         self.estimated_time_seconds = seconds;
         self
     }
+
+    /// Add required tools and return self for chaining
+    pub fn with_required_tools(mut self, tools: Vec<ToolName>) -> Self {
+        self.required_tools = tools;
+        self
+    }
 }
 
 /// Recovery strategy for failed steps
@@ -311,16 +317,37 @@ pub struct StepResult {
     pub step_id: String,
     /// Whether step succeeded
     pub success: bool,
-    /// Execution duration in milliseconds
-    pub duration_ms: u64,
+    /// Error message if step failed
+    pub error_message: Option<String>,
     /// Tool calls made during step
     pub tool_calls: Vec<String>,
     /// Step output
-    pub output: Option<String>,
-    /// Error message if step failed
+    pub output: serde_json::Value,
+    /// Execution duration in milliseconds
+    pub execution_time_ms: u64,
+}
+
+/// Complete execution result with consolidation support
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionResult {
+    /// Unique execution identifier
+    pub execution_id: String,
+    /// Flow identifier
+    pub flow_id: String,
+    /// Overall execution success
+    pub success: bool,
+    /// Number of completed steps
+    pub completed_steps: usize,
+    /// Total number of steps
+    pub total_steps: usize,
+    /// Individual step results
+    pub step_results: Vec<StepResult>,
+    /// Consolidated session ID from ping-pong consolidation
+    pub consolidated_session_id: Option<String>,
+    /// Total execution time in milliseconds
+    pub execution_time_ms: u64,
+    /// Error message if execution failed
     pub error_message: Option<String>,
-    /// Recovery attempts made
-    pub recovery_attempts: usize,
 }
 
 /// Flow execution metrics for evaluation

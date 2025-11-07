@@ -5,7 +5,7 @@ edition = "2021"
 
 [dev-dependencies]
 tempfile = "3.0"
-serial_test = "3.1.1"
+serial_test = { workspace = true }
 
 [lib]
 name = "reev_api"

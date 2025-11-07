@@ -53,8 +53,10 @@ impl ExecutionContext {
         self.current_step_index += 1;
 
         // Extract useful data from step result for future steps
-        if let Some(output) = &result.output {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(output) {
+        if !result.output.is_null() {
+            if let Ok(parsed) =
+                serde_json::from_str::<serde_json::Value>(&result.output.to_string())
+            {
                 // Store transaction signatures, balances, etc.
                 if let Some(transactions) = parsed.get("transactions").and_then(|t| t.as_array()) {
                     for tx in transactions {
@@ -76,7 +78,7 @@ impl ExecutionContext {
             "[ExecutionContext] Added step result for {}: {} ({} ms)",
             step_id,
             if result.success { "SUCCESS" } else { "FAILED" },
-            result.duration_ms
+            result.execution_time_ms
         );
     }
 
@@ -204,21 +206,20 @@ impl StepResultExt for StepResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reev_types::flow::StepResult;
+    
 
     #[test]
     fn test_execution_context_tracking() {
         let mut ctx = ExecutionContext::with_total_steps(3);
 
         // Add first successful step
-        let step1 = StepResult {
+        let step1 = reev_types::flow::StepResult {
             step_id: "step1".to_string(),
             success: true,
-            duration_ms: 1000,
+            execution_time_ms: 1000,
             tool_calls: vec![reev_constants::JUPITER_SWAP.to_string()],
-            output: Some(r#"{"transactions": [{"signature": "abc123"}]}"#.to_string()),
+            output: serde_json::json!({"transactions": [{"signature": "abc123"}]}),
             error_message: None,
-            recovery_attempts: 0,
         };
         ctx.add_step_result("step1", &step1);
 
@@ -227,14 +228,13 @@ mod tests {
         assert!(ctx.was_step_successful("step1"));
 
         // Add second failed step
-        let step2 = StepResult {
+        let step2 = reev_types::flow::StepResult {
             step_id: "step2".to_string(),
             success: false,
-            duration_ms: 500,
+            execution_time_ms: 500,
             tool_calls: vec![],
-            output: None,
+            output: serde_json::Value::Null,
             error_message: Some("Failed".to_string()),
-            recovery_attempts: 0,
         };
         ctx.add_step_result("step2", &step2);
 

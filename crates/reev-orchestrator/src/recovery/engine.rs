@@ -351,11 +351,10 @@ impl RecoveryEngine {
                     let final_step_result = StepResult {
                         step_id: step.step_id.clone(),
                         success: recovery_result.success,
-                        duration_ms: recovery_result.recovery_time_ms,
+                        execution_time_ms: recovery_result.recovery_time_ms,
                         tool_calls: vec![],
-                        output: None,
+                        output: serde_json::Value::Null,
                         error_message: recovery_result.error_message.clone(),
-                        recovery_attempts: recovery_result.attempts_made,
                     };
 
                     // Update failure counters based on criticality and outcome
@@ -511,10 +510,9 @@ pub fn create_test_step_result(
     StepResult {
         step_id,
         success,
-        duration_ms: 1000,
+        execution_time_ms: 1000,
         tool_calls: vec![],
-        output: None,
+        output: serde_json::Value::Null,
         error_message,
-        recovery_attempts: 0,
     }
 }
