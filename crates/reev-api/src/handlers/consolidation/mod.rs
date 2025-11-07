@@ -20,8 +20,6 @@ use crate::types::ApiState;
 pub struct ConsolidationStatusQuery {
     /// Include detailed metadata in response
     pub include_metadata: Option<bool>,
-    /// Include individual session data
-    pub include_sessions: Option<bool>,
 }
 
 /// Consolidation session response

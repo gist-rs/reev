@@ -20,8 +20,8 @@ pub use benchmarks::*;
 pub use consolidation::*;
 pub use dynamic_flows::*;
 pub use execution_logs::*;
-pub use flow_logs::*;
-pub use flows::*;
+pub use flow_logs::get_flow_log;
+pub use flows::get_flow;
 pub use health::*;
 // pub use parsers::*;  // Parser is only used internally by execution_logs
 pub use transaction_logs::*;

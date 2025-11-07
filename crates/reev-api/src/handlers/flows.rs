@@ -20,6 +20,7 @@ use reev_db::writer::DatabaseWriterTrait;
 
 /// Query parameters for flow generation
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields reserved for future API enhancements
 pub struct FlowQuery {
     /// Response format: json or html
     pub format: Option<String>,
@@ -124,7 +125,7 @@ async fn generate_state_diagram_from_db(
 ) -> Result<crate::handlers::flow_diagram::FlowDiagram, FlowDiagramError> {
     // First check if this is a consolidated session
     info!("Checking for consolidated session: {}", session_id);
-    match state.db.get_consolidated_session(&session_id).await {
+    match state.db.get_consolidated_session(session_id).await {
         Ok(Some(consolidated_content)) => {
             info!("Found consolidated session, generating ping-pong diagram");
 
@@ -135,8 +136,7 @@ async fn generate_state_diagram_from_db(
                     Err(e) => {
                         warn!("Failed to parse consolidated content as JSON: {}", e);
                         return Err(FlowDiagramError::InvalidLogFormat(format!(
-                            "Consolidated content parsing failed: {}",
-                            e
+                            "Consolidated content parsing failed: {e}"
                         )));
                     }
                 };
@@ -178,8 +178,7 @@ async fn generate_state_diagram_from_db(
                 Err(e) => {
                     warn!("Failed to parse consolidated session content: {}", e);
                     Err(FlowDiagramError::InvalidLogFormat(format!(
-                        "Consolidated session parsing failed: {}",
-                        e
+                        "Consolidated session parsing failed: {e}"
                     )))
                 }
             }
@@ -259,8 +258,7 @@ async fn generate_state_diagram_from_db(
                         session_id, e
                     );
                     Err(FlowDiagramError::SessionNotFound(format!(
-                        "Database session log not found: {}",
-                        session_id
+                        "Database session log not found: {session_id}"
                     )))
                 }
             }
@@ -271,8 +269,7 @@ async fn generate_state_diagram_from_db(
                 session_id, e
             );
             Err(FlowDiagramError::SessionNotFound(format!(
-                "Failed to retrieve session: {}",
-                session_id
+                "Failed to retrieve session: {session_id}"
             )))
         }
     }
@@ -363,31 +360,4 @@ fn generate_fallback_html(session_id: &str, data: &serde_json::Value) -> String 
         "Session data available but cannot generate Mermaid diagram",
         serde_json::to_string_pretty(data).unwrap_or_default()
     )
-}
-
-/// Format sessions for fallback display
-fn format_sessions_for_fallback(sessions: &[serde_json::Value]) -> String {
-    if sessions.is_empty() {
-        return "No sessions found".to_string();
-    }
-
-    sessions
-        .iter()
-        .enumerate()
-        .map(|(i, session)| {
-            format!(
-                "{}: {} ({})",
-                i + 1,
-                session
-                    .get("session_id")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("unknown"),
-                session
-                    .get("timestamp")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("unknown time")
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
