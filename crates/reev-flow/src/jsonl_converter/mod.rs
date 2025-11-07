@@ -136,6 +136,15 @@ impl JsonlToYmlConverter {
                 continue;
             }
 
+            // Skip summary lines that don't match EnhancedToolCall format
+            // Summary lines have fields like "failed_tools", "logged_at", etc. but no "timestamp"
+            if line.contains("\"failed_tools\":")
+                || line.contains("\"successful_tools\":")
+                || line.contains("\"total_events\":")
+            {
+                continue;
+            }
+
             let event: EnhancedToolCall = serde_json::from_str(&line).map_err(|e| {
                 JsonlConverterError::InvalidFormat(format!("Failed to parse line: {e}"))
             })?;
