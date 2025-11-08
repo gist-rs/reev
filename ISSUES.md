@@ -112,35 +112,37 @@ stateDiagram
 ✅ jsonl → yml → db → consolidation → API retrieval
 ```
 
-## Issue #57: 🔄 HANDOVER - Current State Summary
+## Issue #58: 🔍 BUG - Enhanced Flow Diagram Not Showing Detailed Information
 
-### Status: 🔄 HANDOVER
+### Status: 🔍 DEBUGGING
 
 ### Description:
-Current state of consolidation implementation and final completion status for next thread continuation.
+Flow diagram generation only shows basic three-state diagram instead of detailed step-by-step execution information with errors, pubkeys, amounts, timing, and scoring.
 
-### Current State Summary:
-**CONSOLIDATION PIPELINE: 100% COMPLETE & PRODUCTION-READY** ✅
+### Current State:
+**CONSOLIDATION PIPELINE: WORKING, FLOW DIAGRAM BUG** ⚠️
 
-1. **✅ Core Implementation Complete**:
-   - Database schema & methods (Issue #47)
-   - PingPongExecutor integration (Issue #50)
-   - Dynamic mode routing (Issue #51)
-   - API integration & endpoints (Issue #52)
-   - Database sharing fixed (Issue #54)
+1. **✅ Working Components**:
+   - API execution and consolidation working
+   - Rich consolidated data available (step IDs, errors, pubkeys, timing)
+   - Database storage and retrieval functional
 
-2. **✅ Step-by-Step Flow Working (4/4)**:
-   - jsonl → yml: Dynamic flow generation ✅
-   - yml → db: Session storage with IDs `exec_dynamic-*_step_*` ✅
-   - db consolidation: 60s pipeline, consolidated IDs generated ✅
-   - db → API retrieval: Full access working ✅
-   - ✅ Enhanced Mermaid generation functional ✅
+2. **❌ Bug Identified**:
+   - Flow diagram generation only shows basic template
+   - Detailed tool call information not being extracted properly
+   - Enhanced diagram with step details not displaying
 
-3. **✅ All Issues Resolved**:
-   - JSON content generation working ✅
-   - Content storage successful ✅
-   - API retrieval works ✅
-   - ✅ JSON escaping fixed with proper content transformation ✅
+3. **📋 Rich Data Available But Not Displayed**:
+   - Step IDs: `balance_check`, `complex_swap`, `complex_lend`, `positions_check`
+   - Error messages: Clear RPC and Jupiter errors
+   - Pubkeys: `FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF`
+   - Timing: 4477ms, 22406ms, 10172ms, 8374ms
+   - Tool calls: `get_jupiter_lend_earn_position`
+
+4. **🐛 Root Cause**:
+   - Consolidated session parsing logic has issues
+   - Tool calls extraction from YAML content not working correctly
+   - Enhanced diagram generation condition not matching properly
 
 ### Architecture Verification:
 - **✅ Database Integration**: API & Orchestrator using shared `db/reev_results.db`
@@ -179,13 +181,36 @@ curl -s "http://localhost:3001/api/v1/sessions/consolidated/exec_dynamic-*-conso
 curl -s "http://localhost:3001/api/v1/flows/exec_dynamic-*-consolidated_*"
 ```
 
-### Risk Assessment: VERY LOW**
-- All consolidation functionality working ✅
-- No known issues or limitations ✅
-- Full end-to-end pipeline tested ✅
-- Ready for production deployment ✅
+### Risk Assessment: LOW**
+- Core consolidation functionality working ✅
+- Single flow diagram bug identified 🐛
+- Rich data available, display issue only ⚠️
+- Need to fix parsing logic for tool calls extraction
 
+### Expected Enhanced Output:
+```mermaid
+stateDiagram
+    [*] --> DynamicFlow
+    DynamicFlow --> Orchestrator : Dynamic Flow
+    Orchestrator --> ContextResolution : use my 50% sol to multiply usdc 1.5x on jup
+    ContextResolution --> FlowPlanning : Generate dynamic flow plan
+    FlowPlanning --> GetAccountBalance : Step 0: balance_check ✅ SUCCESS | 4477ms | 🔑 FLVjUf...EXF
+    GetAccountBalance --> JupiterSwap : Step 1: complex_swap ❌ FAILED | Error: Invalid parameters | 22406ms
+    JupiterSwap --> JupiterLendDeposit : Step 2: complex_lend ❌ FAILED | Error: Invalid amount | 10172ms  
+    JupiterLendDeposit --> GetJupiterPosition : Step 3: positions_check ❌ FAILED | Error: Agent execution failed | 8374ms
+    GetJupiterPosition --> [*]
 
-✅ Enhanced Mermaid generation functional with proper content transformation ✅
-✅ JSON escaping completely resolved ✅
+    note right of GetAccountBalance : 🔧 Tool: get_account_balance\\n📋 Step ID: balance_check\\n⏱️ Duration: 4477ms\\n❌ Status: FAILED\\n🚫 Error: Account balance error: RPC client error\\n🔑 Pubkey: FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF
+```
+
+### Actual Current Output:
+```mermaid  
+stateDiagram
+    [*] --> DynamicFlow
+    DynamicFlow --> Orchestrator : Dynamic Flow
+    Orchestrator --> ContextResolution : Resolve wallet and price context
+    ContextResolution --> FlowPlanning : Generate dynamic flow plan
+    FlowPlanning --> AgentExecution : Execute with selected agent
+    AgentExecution --> [*]
+```
 ```
