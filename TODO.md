@@ -1,6 +1,19 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
+i exepect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml work with api dynamic flow ping png via glm-4.6-coding
+
+```
+curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "use my 50% sol to multiply usdc 1.5x on jup",
+    "wallet": "USER_WALLET_PUBKEY",
+    "agent": "glm-4.6-coding",
+    "shared_surfpool": false,
+    "benchmark_id": "300-jup-swap-then-lend-deposit-dyn"
+  }' | jq '.result.tool_calls'
+```
 
  , check that the code align with the plan or not, check result step by step, jsonl then yml then db then read db to mermaid diagram, dont skip, think harder, expect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml working with yml or just prompt via glm-4.6-coding and see mermaid statediagram as a plan
 
@@ -138,7 +151,7 @@ Agent → OTEL Traces → enhanced_otel.jsonl → JsonlToYmlConverter → OTEL Y
 ---
 
 ---
-i exepect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml work with dynamic flow ping png
+i exepect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml work with dynamic flow ping png via glm-4.6-coding
 ---
 
 RUST_LOG=info cargo run -p reev-runner -- benchmarks/001-sol-transfer.yml --agent glm-4.6-coding

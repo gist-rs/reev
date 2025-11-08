@@ -211,6 +211,42 @@ pub async fn execute_dynamic_flow(
                     result_data["consolidated_session_id"] = json!(consolidated_id);
                     result_data["execution_id"] = json!(&exec_result.execution_id);
                 }
+
+                // Add tool_calls to result_data for enhanced flow diagram generation
+                // Convert step_results to tool_calls format for API response
+                let tool_calls: Vec<serde_json::Value> = exec_result.step_results
+                    .iter()
+                    .enumerate()
+                    .map(|(index, step_result)| {
+                        json!({
+                            "tool_name": if !step_result.tool_calls.is_empty() {
+                                step_result.tool_calls[0].clone()
+                            } else {
+                                // Infer from step ID
+                                if step_result.step_id.contains("swap") {
+                                    reev_types::ToolName::JupiterSwap.to_string()
+                                } else if step_result.step_id.contains("lend") {
+                                    reev_types::ToolName::JupiterLendEarnDeposit.to_string()
+                                } else if step_result.step_id.contains("balance") {
+                                    reev_types::ToolName::GetAccountBalance.to_string()
+                                } else if step_result.step_id.contains("position") {
+                                    reev_types::ToolName::GetJupiterLendEarnPosition.to_string()
+                                } else {
+                                    format!("tool_{}", step_result.step_id)
+                                }
+                            },
+                            "timestamp": chrono::Utc::now() + chrono::Duration::milliseconds(index as i64 * 2000),
+                            "duration_ms": step_result.execution_time_ms,
+                            "success": step_result.success,
+                            "error": step_result.error_message.clone(),
+                            "params": None::<serde_json::Value>,
+                            "result_data": Some(step_result.output.clone()),
+                            "tool_args": None::<serde_json::Value>
+                        })
+                    })
+                    .collect();
+
+                result_data["tool_calls"] = json!(tool_calls);
             }
 
             let logs = if request.shared_surfpool {
