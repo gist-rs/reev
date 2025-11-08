@@ -108,8 +108,38 @@ stateDiagram
     AgentExecution --> [*]
 ```
 
-# Step-by-step flow verified:
-✅ jsonl → yml → db → consolidation → API retrieval
+
+### Risk Assessment: LOW**
+- Core consolidation functionality working ✅
+- Single flow diagram bug identified 🐛
+- Rich data available, display issue only ⚠️
+- Need to fix parsing logic for tool calls extraction
+
+### Expected Enhanced Output:
+```mermaid
+stateDiagram
+    [*] --> DynamicFlow
+    DynamicFlow --> Orchestrator : Dynamic Flow
+    Orchestrator --> ContextResolution : use my 50% sol to multiply usdc 1.5x on jup
+    ContextResolution --> FlowPlanning : Generate dynamic flow plan
+    FlowPlanning --> GetAccountBalance : Step 0: balance_check ✅ SUCCESS | 4477ms | 🔑 FLVjUf...EXF
+    GetAccountBalance --> JupiterSwap : Step 1: complex_swap ❌ FAILED | Error: Invalid parameters | 22406ms
+    JupiterSwap --> JupiterLendDeposit : Step 2: complex_lend ❌ FAILED | Error: Invalid amount | 10172ms  
+    JupiterLendDeposit --> GetJupiterPosition : Step 3: positions_check ❌ FAILED | Error: Agent execution failed | 8374ms
+    GetJupiterPosition --> [*]
+
+    note right of GetAccountBalance : 🔧 Tool: get_account_balance\\n📋 Step ID: balance_check\\n⏱️ Duration: 4477ms\\n❌ Status: FAILED\\n🚫 Error: Account balance error: RPC client error\\n🔑 Pubkey: FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF
+```
+
+### Actual Current Output:
+```mermaid  
+stateDiagram
+    [*] --> DynamicFlow
+    DynamicFlow --> Orchestrator : Dynamic Flow
+    Orchestrator --> ContextResolution : Resolve wallet and price context
+    ContextResolution --> FlowPlanning : Generate dynamic flow plan
+    FlowPlanning --> AgentExecution : Execute with selected agent
+    AgentExecution --> [*]
 ```
 
 ## Issue #58: 🔍 BUG - Enhanced Flow Diagram Not Showing Detailed Information
@@ -162,26 +192,40 @@ Flow diagram generation only shows basic three-state diagram instead of detailed
 - **Core Pipeline**: ✅ Fully functional
 - **Database Operations**: ✅ Storage, retrieval, consolidation working
 - **API Layer**: ✅ Endpoints, responses, error handling complete
-- **Visualization**: ✅ Enhanced Mermaid generation with proper JSON parsing ✅
+- **Visualization**: ❌ Enhanced Mermaid generation NOT working due to parsing issue
 
 ### Final Status:
-**🎉 CONSOLIDATION IMPLEMENTATION: PRODUCTION READY**
+**🔍 CONSOLIDATION IMPLEMENTATION: PENDING BUG FIX** ⚠️
 
-### Evidence of Completion:
+### Evidence of Current Issue:
 ```bash
-# Successful dynamic flow execution with consolidation:
+# Dynamic flow execution with consolidation: WORKING ✅
 curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
   -H "Content-Type: application/json" \
   -d '{"prompt": "use my 50% sol to multiply usdc 1.5x on jup", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": false, "benchmark_id": "300-jup-swap-then-lend-deposit-dyn"}'
+# Result: consolidated_session_id present, tool_calls array populated ✅
 
-# Consolidated session retrieval working:
+# Consolidated session retrieval: WORKING ✅
 curl -s "http://localhost:3001/api/v1/sessions/consolidated/exec_dynamic-*-consolidated_*"
+# Result: Content with steps and tool calls available ✅
 
-# Enhanced Mermaid generation working:
+# Enhanced Mermaid generation: NOT WORKING ❌
 curl -s "http://localhost:3001/api/v1/flows/exec_dynamic-*-consolidated_*"
+# Result: Basic template instead of enhanced diagram with tool call details
 ```
 
-### Risk Assessment: LOW**
+### 🔍 Current Issue - BUG IDENTIFIED:
+- **Enhanced Diagram Detection**: ✅ Logic implemented correctly
+- **Tool Calls in API Response**: ✅ Available in execute-direct endpoint  
+- **Consolidated Content Storage**: ✅ Tool calls stored properly
+- **Flow Diagram Parsing**: ❌ `transform_consolidated_content()` function expects different structure
+- **Root Cause**: Consolidated content format doesn't match parsing expectations in flows.rs
+
+### Risk Assessment: MEDIUM** ⚠️
+- Dynamic flow execution: 100% working ✅
+- Database consolidation: 100% working ✅
+- API tool_calls response: 100% working ✅
+- Enhanced visualization: ❌ Broken due to parsing mismatch
 - Core consolidation functionality working ✅
 - Single flow diagram bug identified 🐛
 - Rich data available, display issue only ⚠️
