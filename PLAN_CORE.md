@@ -35,39 +35,11 @@ CREATE TABLE prompts (
     FOREIGN KEY (request_id) REFERENCES requests(request_id)
 );
 
--- Token pricing cache
-CREATE TABLE token_prices (
-    token_mint TEXT PRIMARY KEY,
-    symbol TEXT NOT NULL,
-    price_usd REAL NOT NULL,
-    decimals INTEGER NOT NULL,
-    updated_at INTEGER DEFAULT CURRENT_TIMESTAMP
-);
 
--- Wallet state snapshots (entry/exit/step transitions)
-CREATE TABLE wallet_states (
-    state_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    request_id TEXT NOT NULL,
-    wallet_pubkey TEXT NOT NULL,
-    snapshot_type TEXT NOT NULL,            -- entry/exit/step_transition
-    sol_amount REAL NOT NULL,
-    sol_usd_value REAL NOT NULL,
-    usdc_amount REAL NOT NULL,
-    usdc_usd_value REAL NOT NULL,
-    other_tokens TEXT,                      -- YML format for other token balances
-    total_usd_value REAL NOT NULL,
-    timestamp INTEGER DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (request_id) REFERENCES requests(request_id)
-);
 
--- Tool definitions and descriptions
-CREATE TABLE tool_definitions (
-    tool_name TEXT PRIMARY KEY,
-    description TEXT NOT NULL,
-    parameters TEXT NOT NULL,               -- YML format of parameter definitions
-    category TEXT NOT NULL,                 -- swap/lend/bridge/info
-    enabled BOOLEAN DEFAULT TRUE
-);
+
+
+
 
 -- Tool execution tracking (ONE ROW PER TOOL CALL)
 CREATE TABLE tool_executions (
@@ -84,6 +56,8 @@ CREATE TABLE tool_executions (
     execution_result TEXT,                  -- YML format
     verification_status TEXT,               -- verified/unverified/failed
     verification_details TEXT,             -- YML format with verification data
+    wallet_context TEXT,                    -- YML format - wallet state before execution
+    updated_wallet_context TEXT,            -- YML format - wallet state after execution
     execution_time_ms INTEGER,
     error_message TEXT,
     created_at INTEGER DEFAULT CURRENT_TIMESTAMP,
@@ -92,18 +66,7 @@ CREATE TABLE tool_executions (
     FOREIGN KEY (refined_prompt_id) REFERENCES prompts(prompt_id)
 );
 
--- Context building and tracking
-CREATE TABLE execution_contexts (
-    context_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    request_id TEXT NOT NULL,
-    step_number INTEGER NOT NULL,
-    previous_execution_id INTEGER,          -- Reference to previous tool execution
-    context_type TEXT NOT NULL,             -- tool_input/step_output/next_step
-    context_data TEXT NOT NULL,             -- YML format
-    created_at INTEGER DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (request_id) REFERENCES requests(request_id),
-    FOREIGN KEY (previous_execution_id) REFERENCES tool_executions(execution_id)
-);
+
 
 -- Error tracking for debugging
 CREATE TABLE execution_errors (
@@ -123,11 +86,11 @@ CREATE TABLE execution_errors (
 
 -- Indexes for performance
 CREATE INDEX idx_requests_created_at ON requests(created_at);
-CREATE INDEX idx_wallet_states_request_id ON wallet_states(request_id);
+
 CREATE INDEX idx_tool_executions_request_id ON tool_executions(request_id);
 CREATE INDEX idx_tool_executions_status ON tool_executions(execution_status);
 CREATE INDEX idx_prompts_request_id ON prompts(request_id);
-CREATE INDEX idx_execution_contexts_request_id ON execution_contexts(request_id);
+
 CREATE INDEX idx_execution_errors_request_id ON execution_errors(request_id);
 ```
 
@@ -182,9 +145,9 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
 // Output: wallet_state record with token pricing
 
 async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Result<WalletState> {
-    // Get current token prices
-    let sol_price = fetch_token_price("So11111111111111111111111111111111111111112").await?;
-    let usdc_price = 1.0; // USDC is stablecoin
+    // Get current token prices (fresh data, no caching)
+        let sol_price = fetch_token_price("So11111111111111111111111111111111111111112").await?;
+        let usdc_price = 1.0; // USDC is stablecoin
     
     // Get wallet balances
     let sol_balance = get_token_balance(wallet_pubkey, SOL_MINT).await?;
@@ -194,17 +157,9 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
     let usdc_usd_value = usdc_balance * usdc_price;
     let total_usd_value = sol_usd_value + usdc_usd_value;
     
-    // Store entry state
-    db.execute("INSERT INTO wallet_states 
-                (request_id, wallet_pubkey, snapshot_type, sol_amount, sol_usd_value, 
-                 usdc_amount, usdc_usd_value, total_usd_value)
-                VALUES (?, ?, 'entry', ?, ?, ?, ?, ?)",
-               [request_id, wallet_pubkey, sol_balance, sol_usd_value, 
-                usdc_balance, usdc_usd_value, total_usd_value])?;
+    // No separate wallet_states table - context stored in tool_executions
     
-    // Store token prices for context
-    store_token_prices(&[(SOL_MINT, "SOL", sol_price, 9), 
-                         (USDC_MINT, "USDC", usdc_price, 6)]).await?;
+    // No token price caching - fetch fresh data each time
     
     Ok(WalletState {
         sol_amount: sol_balance,
@@ -222,7 +177,8 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
 // Output: tool_context (YML format)
 
 async fn get_tool_context() -> Result<String> {
-    let tools = db.query("SELECT tool_name, description, parameters FROM tool_definitions WHERE enabled = TRUE")?;
+    // Tool definitions loaded from code, not database
+    let tools = get_tool_definitions_from_code(); // Load from Rust code
     
     let mut tool_context = String::new();
     tool_context.push_str("available_tools:\n");
@@ -377,14 +333,15 @@ async fn prepare_tool_execution(
 
 ### **Step 10: Tool Parameter Recording**
 ```rust
-// Input: request_id, step_number, tool_name, tool_params
+// Input: request_id, step_number, tool_name, tool_params, wallet_context
 // Output: execution_id
 
 async fn record_tool_execution_request(
     request_id: &str,
     step_number: usize,
     tool_name: &str,
-    tool_params: &str
+    tool_params: &str,
+    wallet_context: &str
 ) -> Result<i64> {
     // Get refined prompt ID
     let refined_prompt_id = db.query_one("SELECT prompt_id FROM prompts 
@@ -392,11 +349,12 @@ async fn record_tool_execution_request(
                                          AND prompt_type = 'tool_execution'",
                                         [request_id, step_number + 3])?.prompt_id;
     
-    // Create tool execution record
+    // Create tool execution record with wallet context
     db.execute("INSERT INTO tool_executions 
-                (request_id, step_number, tool_name, tool_params, refined_prompt_id, execution_status)
-                VALUES (?, ?, ?, ?, ?, 'pending')",
-               [request_id, step_number, tool_name, tool_params, refined_prompt_id])?;
+                (request_id, step_number, tool_name, tool_params, refined_prompt_id, 
+                 execution_status, wallet_context)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?)",
+               [request_id, step_number, tool_name, tool_params, refined_prompt_id, wallet_context])?;
     
     let execution_id = db.last_insert_rowid();
     Ok(execution_id)
@@ -451,10 +409,10 @@ async fn record_jupiter_transaction(
     let tx_details_yml = serde_yaml::to_string(&tx_details)?;
     
     // Update execution record with transaction details
-    db.execute("UPDATE tool_executions 
-                SET execution_result = ? 
-                WHERE execution_id = ?",
-               [tx_details_yml, execution_id])?;
+        db.execute("UPDATE tool_executions 
+                    SET execution_result = ? 
+                    WHERE execution_id = ?",
+                   [tx_details_yml, execution_id])?;
     
     Ok(())
 }
@@ -508,14 +466,17 @@ async fn collect_execution_results(
     let result_yml = serde_yaml::to_string(&execution_result)?;
     let verification_status = if verification_result.verified { "verified" } else { "unverified" };
     
-    // Update execution record
+    // Update execution record with updated wallet context
+    let updated_wallet_context = build_wallet_context_yml(&current_wallet_state.wallet_pubkey).await?;
+    
     db.execute("UPDATE tool_executions 
                 SET execution_status = ?, verification_status = ?, 
-                    execution_result = ?, verification_details = ?, execution_time_ms = ?
+                    execution_result = ?, verification_details = ?, execution_time_ms = ?,
+                    updated_wallet_context = ?
                 WHERE execution_id = ?",
                ["completed", verification_status, result_yml, 
                 serde_yaml::to_string(&verification_result)?, 
-                surfpool_status.execution_time_ms, execution_id])?;
+                surfpool_status.execution_time_ms, updated_wallet_context, execution_id])?;
     
     Ok(execution_result)
 }
@@ -554,11 +515,7 @@ async fn build_next_context(
         generate_context_comment(previous_wallet_state, &updated_wallet_state, current_tool_result)
     );
     
-    // Store context for audit
-    db.execute("INSERT INTO execution_contexts 
-                (request_id, step_number, context_type, context_data)
-                VALUES (?, ?, 'step_output', ?)",
-               [request_id, previous_wallet_state.step_number + 1, next_context])?;
+    // No separate execution_contexts table - context stored in tool_executions
     
     Ok(next_context) // YML format
 }
@@ -754,9 +711,9 @@ async fn record_exit_wallet_state(
     request_id: &str,
     wallet_pubkey: &str
 ) -> Result<WalletState> {
-    // Get current token prices (might have changed)
-    let sol_price = fetch_token_price(SOL_MINT).await?;
-    let usdc_price = 1.0;
+    // Get current token prices (fresh data)
+        let sol_price = fetch_token_price(SOL_MINT).await?;
+        let usdc_price = 1.0;
     
     // Get final wallet balances
     let sol_balance = get_token_balance(wallet_pubkey, SOL_MINT).await?;
@@ -766,13 +723,7 @@ async fn record_exit_wallet_state(
     let usdc_usd_value = usdc_balance * usdc_price;
     let total_usd_value = sol_usd_value + usdc_usd_value;
     
-    // Store exit state
-    db.execute("INSERT INTO wallet_states 
-                (request_id, wallet_pubkey, snapshot_type, sol_amount, sol_usd_value, 
-                 usdc_amount, usdc_usd_value, total_usd_value)
-                VALUES (?, ?, 'exit', ?, ?, ?, ?, ?)",
-               [request_id, wallet_pubkey, sol_balance, sol_usd_value, 
-                usdc_balance, usdc_usd_value, total_usd_value])?;
+    // No separate wallet_states table - exit state in tool_executions
     
     // Update request status
     db.execute("UPDATE requests SET status = 'completed' WHERE request_id = ?", [request_id])?;
@@ -804,37 +755,35 @@ reev-core/
 │   ├── database/
 │   │   ├── mod.rs
 │   │   ├── connection.rs        # Database connection management
-│   │   ├── operations.rs        # All database operations
-│   │   └── schema.rs            # Database schema definitions
+│   │   └── operations.rs        # All database operations
 │   ├── wallet/
 │   │   ├── mod.rs
 │   │   ├── state.rs             # Wallet state management
 │   │   ├── context.rs           # Token context building
 │   │   └── resolver.rs          # Wallet address resolution
-│   ├── tools/
-│   │   ├── mod.rs
-│   │   ├── definitions.rs       # Tool definitions
-│   │   ├── executor.rs          # Tool execution logic
-│   │   ├── jupiter.rs           # Jupiter API integration
-│   │   └── surfpool.rs          # SurfPool integration
-│   ├── prompts/
-│   │   ├── mod.rs
-│   │   ├── templates/           # YML prompt templates
-│   │   │   ├── refine_user_prompt.yml
-│   │   │   ├── tool_execution.yml
-│   │   │   └── context_building.yml
-│   │   ├── loader.rs            # Prompt template loader
-│   │   └── processor.rs         # LLM prompt processing
-│   ├── verification/
-│   │   ├── mod.rs
-│   │   ├── onchain.rs          # On-chain verification
-│   │   ├── transaction.rs       # Transaction verification
-│   │   └── state.rs             # State verification
-│   └── utils/
-│       ├── mod.rs
-│       ├── uuidv7.rs            # UUIDv7 generation
-│       ├── yml.rs               # YML processing utilities
-│       └── error.rs             # Error handling types
+│   │   ├── tools/
+│   │   │   ├── mod.rs
+│   │   │   ├── executor.rs          # Tool execution logic
+│   │   │   ├── jupiter.rs           # Jupiter API integration
+│   │   │   └── surfpool.rs          # SurfPool integration
+│   │   ├── prompts/
+│   │   │   ├── mod.rs
+│   │   │   ├── templates/           # YML prompt templates
+│   │   │   │   ├── refine_user_prompt.yml
+│   │   │   │   ├── tool_execution.yml
+│   │   │   │   └── context_building.yml
+│   │   │   ├── loader.rs            # Prompt template loader
+│   │   │   └── processor.rs         # LLM prompt processing
+│   │   ├── verification/
+│   │   │   ├── mod.rs
+│   │   │   ├── onchain.rs          # On-chain verification
+│   │   │   ├── transaction.rs       # Transaction verification
+│   │   │   └── state.rs             # State verification
+│   │   └── utils/
+│   │       ├── mod.rs
+│   │       ├── uuidv7.rs            # UUIDv7 generation
+│   │       ├── yml.rs               # YML processing utilities
+│   │       └── error.rs             # Error handling types
 ├── tests/
 │   ├── integration/
 │   ├── unit/
@@ -904,17 +853,45 @@ output_format:
 7. **Flow Visualization**: Easy to build flow diagrams from stored data
 8. **Scoring Ready**: Complete execution data for performance scoring
 
+## 🚀 **Optimized Schema Benefits**
+
+**Removed Unnecessary Tables:**
+- ❌ `token_prices` - Fresh data fetched on-demand, no caching complexity
+- ❌ `wallet_states` - Context stored directly in `tool_executions` for scalability
+- ❌ `tool_definitions` - Tool definitions managed in code, not database
+- ❌ `execution_contexts` - Context data stored with tool execution records
+
+**Enhanced tool_executions Table:**
+- ✅ `wallet_context` - Wallet state before execution (YML)
+- ✅ `updated_wallet_context` - Wallet state after execution (YML)
+- ✅ Self-contained state tracking - No joins needed for context
+- ✅ Scalable design - Context travels with execution data
+
+**Performance & Simplicity:**
+- ✅ Fewer tables = faster queries and simpler schema
+- ✅ Fresh token prices = always current market data
+- ✅ Code-based tools = easier versioning and deployment
+- ✅ Context bundling = reduced JOIN complexity
+- ✅ YML throughout = consistent data format across all fields
+
 ## 🚀 **Next Steps for Implementation**
 
-1. **Create reev-core crate** with basic project structure
-2. **Implement database schema** and connection management
+1. **Create reev-core crate** with streamlined project structure
+2. **Implement optimized database schema** (4 tables vs 8 original)
 3. **Build core orchestrator** with request handling
-4. **Implement wallet state management** and token context
+4. **Implement wallet state management** with on-demand token pricing
 5. **Add tool execution framework** with Jupiter/SurfPool integration
 6. **Create prompt template system** with YML files
 7. **Add verification layer** for on-chain verification
 8. **Build comprehensive testing** with integration tests
 9. **Create debugging interface** for state inspection
 10. **Add flow visualization** and scoring capabilities
+
+**Implementation Priority:**
+- **Week 1**: Core schema and database operations (optimized)
+- **Week 2**: Request handling and wallet context management
+- **Week 3**: Tool execution with context bundling
+- **Week 4**: Prompt system and LLM integration
+- **Week 5**: Verification layer and error recovery
 
 This architecture provides a solid foundation for reliable, verifiable, and debuggable automated DeFi operations.
