@@ -139,15 +139,17 @@ async fn initialize_request(user_prompt: &str, user_wallet_pubkey: &str) -> Resu
 
 async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> Result<String> {
     let resolved_wallet = if user_wallet_pubkey.contains("USER_WALLET_PUBKEY") {
-        generate_filled_test_wallet().await? // Generate wallet with pre-filled SOL
+        // Generate test wallet with pre-filled balances using SurfPool cheat codes
+        let generated_wallet = generate_filled_test_wallet().await?;
+        generated_wallet.pubkey
     } else {
         user_wallet_pubkey.to_string() // Use provided wallet
     };
-
+    
     // Update request with resolved wallet
     db.execute("UPDATE requests SET resolved_wallet_pubkey = ? WHERE request_id = ?",
                [resolved_wallet, request_id])?;
-
+    
     Ok(resolved_wallet)
 }
 ```
@@ -182,6 +184,70 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
                 VALUES (?, ?, ?, 'initializing')", [request_id, wallet_pubkey, wallet_pubkey])?;
     
     Ok(WalletState { sol_amount: *sol_balance, usdc_amount: *usdc_balance, sol_usd_value, usdc_usd_value, total_usd_value })
+}
+
+// Detailed implementation for generate_filled_test_wallet
+async fn generate_filled_test_wallet() -> Result<GeneratedWallet> {
+    // Create new keypair for test wallet
+    let keypair = Keypair::new();
+    let pubkey = keypair.pubkey();
+    
+    // Initialize SurfPool client for testnet setup
+    let surfpool_client = SurfpoolClient::new("http://localhost:8899").await?;
+    
+    // Set initial SOL balance (1 SOL = 1,000,000,000 lamports)
+    surfpool_client
+        .set_account(&pubkey.to_string(), 1_000_000_000)
+        .await
+        .context("Failed to set SOL balance in SurfPool")?;
+    
+    // Set initial USDC balance (100 USDC = 100,000,000 raw units with 6 decimals)
+    surfpool_client
+        .set_token_account(
+            &pubkey.to_string(),
+            &USDC_MINT.to_string(),
+            TokenAccountUpdate {
+                amount: 100_000_000, // 100 USDC
+                owner: Some(&SPL_TOKEN_PROGRAM_ID.to_string()),
+            }
+        )
+        .await
+        .context("Failed to set USDC balance in SurfPool")?;
+    
+    // Wait for account setup to complete
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    
+    // Verify balances were set correctly
+    let sol_balance = surfpool_client
+        .get_balance(&pubkey.to_string())
+        .await?;
+    let usdc_balance = surfpool_client
+        .get_token_balance(&pubkey.to_string(), &USDC_MINT.to_string())
+        .await?;
+    
+    info!("Generated test wallet: {} with SOL: {}, USDC: {}", 
+           pubkey, sol_balance, usdc_balance);
+    
+    Ok(GeneratedWallet {
+        keypair,
+        pubkey: pubkey.to_string(),
+        sol_balance,
+        usdc_balance,
+    })
+}
+
+// Helper struct for generated wallet
+struct GeneratedWallet {
+    keypair: Keypair,
+    pubkey: String,
+    sol_balance: u64,
+    usdc_balance: u64,
+}
+
+// Token account update helper
+struct TokenAccountUpdate<'a> {
+    amount: u64,
+    owner: Option<&'a str>,
 }
 ```
 
@@ -466,7 +532,7 @@ async fn process_with_surfpool(jupiter_tx_hash: &str) -> Result<String> {
 
     let surfpool_tx_hash = surfpool_response.transaction_hash;
 
-    // Update execution record
+    // Update execution recordc
     db.execute("UPDATE tool_executions
                 SET surfpool_tx_hash = ?
                 WHERE jupiter_tx_hash = ?",
@@ -963,20 +1029,78 @@ impl CachedApiService {
         }
     }
     
-    // Initialize: Call real APIs once to build cache
+    // Initialize: Call real APIs once to build cache with actual data
     async fn initialize_cache(&self) -> Result<()> {
-        let cache_scenarios = vec![
-            ("jupiter_swap_1_sol_usdc", self.mock_jupiter_swap()),
-            ("jupiter_lend_100_usdc", self.mock_jupiter_lend()),
-            ("get_balance_test_wallet", self.mock_balance()),
-        ];
+        info!("Building API cache with real Jupiter responses...");
         
-        for (key, mock_call) in cache_scenarios {
-            let result = mock_call.await?;
-            self.cache_response(key, &result).await?;
-        }
+        // Step 1: Generate test wallet with SurfPool
+        let test_wallet = generate_filled_test_wallet().await?;
+        info!("Generated test wallet: {}", test_wallet.pubkey);
         
+        // Step 2: Call real Jupiter swap with 1 SOL to USDC
+        let swap_params = JupiterSwapParams {
+            input_token: SOL_MINT.to_string(),
+            output_token: USDC_MINT.to_string(),
+            amount: 1_000_000_000, // 1 SOL
+            slippage_bps: 100,
+cache_sjupiter_swap_1_sol_usdc", &real_swap_response).await?;
+        info!("Cached Jupiter swap response: 1 SOL → {} USDC", 
+               real_swap_response.output_amount);
+        
+        // Step 3: Call real Jupiter lend with available USDC
+        let lend_params = JupiterLendParams {
+            input_token: USDC_MINT.to_string(),
+            mint_address: JUP_USDC_MINT.to_string(),
+            amount: real_swap_response.output_amount,
+        };
+        
+        let real_lend_response = self.real_api_client
+            .lend(&lend_params)
+            .await
+            .context("Failed to call real Jupiter lend for cache")?;
+        
+        self.cache_response("jupiter_lend_swap_result", &real_lend_response).await?;
+        info!("Cached Jupiter lend response: {} USDC → jUSDC", 
+               real_lend_response.deposited_amount);
+        
+        // Step 4: Cache balance queries for test wallet
+        let balance_response = self.real_api_client
+            .get_balances(&test_wallet.pubkey)
+            .await
+            .context("Failed to get wallet balances for cache")?;
+        
+        self.cache_response("balances_test_wallet", &balance_response).await?;
+        info!("Cached wallet balances: SOL={}, USDC={}", 
+               balance_response.sol_amount, balance_response.usdc_amount);
+        
+        // Step 5: Cache current prices
+        let price_response = self.real_api_client
+            .get_token_prices(&[SOL_MINT, USDC_MINT])
+            .await
+            .context("Failed to get token prices for cache")?;
+        
+        self.cache_response("current_prices", &price_response).await?;
+        info!("Cached token prices: SOL=${}, USDC=${}", 
+               price_response.get(&SOL_MINT).unwrap_or(&161.0),
+               price_response.get(&USDC_MINT).unwrap_or(&1.0));
+        
+        info!("API cache initialized with real Jupiter data");
         Ok(())
+    }
+    
+    // Helper: Get cached balances or call real API
+    async fn get_cached_or_real_balances(&self, pubkey: &str) -> Result<WalletBalances> {
+        let cache_key = format!("balances_{}", pubkey);
+        self.get_or_cache(&cache_key, async {
+            self.real_api_client.get_balances(pubkey).await
+        }).await
+    }
+    
+    // Helper: Get cached prices or call real API
+    async fn get_cached_or_real_prices(&self, mints: &[&str]) -> Result<TokenPrices> {
+        self.get_or_cache("current_prices", async {
+            self.real_api_client.get_token_prices(mints).await
+        }).await
     }
 }
 ```
