@@ -30,6 +30,8 @@ pub fn parse_step_as_tool_call(step: &JsonValue, step_index: usize) -> Option<Pa
                         params,
                         result_data: data.get("result").cloned(),
                         tool_args: None,
+                        extra_data: None,
+                        success: true,
                     });
                 }
             }
@@ -87,6 +89,8 @@ pub fn parse_step_as_tool_call(step: &JsonValue, step_index: usize) -> Option<Pa
                         params: JsonValue::Object(params),
                         result_data: data.get("result").cloned(),
                         tool_args: None,
+                        extra_data: None,
+                        success: true,
                     });
                 }
             }

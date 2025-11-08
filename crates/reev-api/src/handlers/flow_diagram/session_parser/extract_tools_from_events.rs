@@ -55,6 +55,8 @@ pub fn extract_tools_from_events(events: &[JsonValue], tool_calls: &mut Vec<Pars
                                     .and_then(|d| d.get("result"))
                                     .cloned(),
                                 tool_args: None,
+                                extra_data: None,
+                                success: true,
                             });
                         }
                     }

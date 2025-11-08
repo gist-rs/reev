@@ -21,6 +21,7 @@ pub mod token_utils;
 // Re-export all functions for external access
 pub use generate_diagram::generate_diagram;
 pub use generate_dynamic_flow_diagram::generate_dynamic_flow_diagram;
+pub use generate_enhanced_step_note::generate_enhanced_step_note;
 pub use generate_html::generate_html;
 pub use generate_simple_diagram::generate_simple_diagram;
 
@@ -29,7 +30,6 @@ pub use amount_utils::{extract_amount_from_tool_args, lamports_to_sol};
 pub use extract_amount_from_params::extract_amount_from_params;
 pub use extract_tool_details::extract_tool_details;
 pub use extract_transfer_details::extract_transfer_details;
-pub use generate_enhanced_step_note::generate_enhanced_step_note;
 pub use string_utils::sanitize_tool_name;
 pub use summarize_params::summarize_params;
 pub use summarize_result_data::summarize_result_data;

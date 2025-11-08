@@ -1,7 +1,6 @@
 ## DO
 - DO add test to tests folder.
 - Create/refine issues in `ISSUES.md` before fix anything and updated when fixed, keep only last 10 issues.
-- When remove old isses do reflect critical one in `REFLECT.md`.
 - Try to keep all md under 320-512 lines, keep only important and use short word, less noise, keep revise for compact.
 - Follow modular architecture, Keep coding files under 320-512 lines, sparate to smalelr files if need, askfor separation if number of lines exceed limits.
 - Always run `cargo clippy --fix --allow-dirty` and fix after done edit for Rust files, for frontend just run diagnostic.
@@ -22,4 +21,3 @@
 ## DONT
 - DONT Add a test on each file, place it in tests folder.
 - DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo ...`.
-k

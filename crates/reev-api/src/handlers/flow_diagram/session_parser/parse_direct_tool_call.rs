@@ -63,5 +63,7 @@ pub fn parse_direct_tool_call(
         params,
         result_data,
         tool_args,
+        extra_data: None,
+        success: true,
     })
 }

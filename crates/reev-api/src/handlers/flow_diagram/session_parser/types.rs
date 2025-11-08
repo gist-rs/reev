@@ -37,4 +37,8 @@ pub struct ParsedToolCall {
     pub result_data: Option<JsonValue>,
     /// Raw tool arguments from agent execution
     pub tool_args: Option<String>,
+    /// Extra data for tool execution details
+    pub extra_data: Option<JsonValue>,
+    /// Whether the tool call was successful
+    pub success: bool,
 }

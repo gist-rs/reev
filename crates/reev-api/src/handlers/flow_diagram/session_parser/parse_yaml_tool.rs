@@ -68,5 +68,7 @@ pub fn parse_yaml_tool(tool: &YamlValue) -> Result<ParsedToolCall, FlowDiagramEr
         params,
         result_data,
         tool_args,
+        extra_data: None,
+        success: true,
     })
 }

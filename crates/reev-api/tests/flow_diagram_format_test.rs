@@ -36,6 +36,8 @@ async fn test_sol_transfer_diagram_format() {
             "instruction_count": 1
         })),
         tool_args: Some("{\"amount\":100000000,\"mint_address\":null,\"operation\":\"sol\",\"recipient_pubkey\":\"RECIPIENT_WALLET_PUBKEY\",\"user_pubkey\":\"6Mkfyk5CktTDvW1KrFkphXYUi55Foh1LxbRYT7UAxvx5\"}".to_string()),
+        extra_data: None,
+        success: true,
     };
 
     session.tool_calls.push(tool_call);
@@ -120,6 +122,8 @@ async fn test_extract_sol_transfer_details() {
         duration_ms: 1000,
         result_data: None,
         tool_args: None,
+        extra_data: None,
+        success: true,
     };
 
     // Test that we can extract the transfer details properly

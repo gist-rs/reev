@@ -84,8 +84,8 @@ pub fn generate_dynamic_flow_diagram(session: &ParsedSession, session_id: &str) 
                 "    {tool_previous} --> {tool_state} : {transition_label}"
             ));
 
-            // Add detailed notes for enhanced 300-series flows
-            if session_id.starts_with("enhanced-300") {
+            // Add detailed notes for enhanced 300-series flows and consolidated sessions
+            if session_id.starts_with("enhanced-300") || session_id.contains("consolidated") {
                 let detailed_note = generate_enhanced_step_note(tool_call, index);
                 diagram_lines.push(format!("    note right of {tool_state} : {detailed_note}"));
             }
@@ -124,7 +124,8 @@ pub fn generate_dynamic_flow_diagram(session: &ParsedSession, session_id: &str) 
 
     for tool_call in &session.tool_calls {
         let tool_state = sanitize_tool_name(&tool_call.tool_name);
-        let class = if session_id.starts_with("enhanced-300") {
+        let class = if session_id.starts_with("enhanced-300") || session_id.contains("consolidated")
+        {
             "enhanced"
         } else {
             "tools"
@@ -145,6 +146,8 @@ pub fn generate_dynamic_flow_diagram(session: &ParsedSession, session_id: &str) 
         "recovery"
     } else if session_id.starts_with("enhanced-300") {
         "enhanced-300"
+    } else if session_id.contains("consolidated") {
+        "consolidated"
     } else {
         "unknown"
     };
