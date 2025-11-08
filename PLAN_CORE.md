@@ -51,8 +51,8 @@ CREATE TABLE tool_executions (
     llm_response TEXT NOT NULL,             -- Raw LLM response
     refined_prompt_id INTEGER,              -- Reference to prompt used
     execution_status TEXT NOT NULL,         -- pending/executing/verified/failed
-    jupiter_tx_hash TEXT,                   -- Transaction hash from Jupiter API
-    surfpool_tx_hash TEXT,                  -- Transaction hash from SurfPool
+    jupiter_tx_hash TEXT,                   -- Transaction hash from Jupiter protocol
+    surfpool_tx_hash TEXT,                  -- Transaction hash from SurfPool executor
     execution_result TEXT,                  -- YML format
     verification_status TEXT,               -- verified/unverified/failed
     verification_details TEXT,             -- YML format with verification data
@@ -378,10 +378,10 @@ async fn execute_tool_with_context(
     // Enrich parameters with token context
     let enriched_params = enrich_parameters_with_token_context(params, token_context)?;
     
-    // Execute tool via Jupiter API
-    let jupiter_response = call_jupiter_api(tool_name, &enriched_params).await?;
+    // Execute tool via Jupiter protocol
+        let jupiter_response = call_jupiter_protocol(tool_name, &enriched_params).await?;
     
-    let tx_hash = jupiter_response.transaction_hash;
+        let tx_hash = jupiter_response.transaction_hash;
     
     // Update execution record
     db.execute("UPDATE tool_executions 
@@ -424,8 +424,8 @@ async fn record_jupiter_transaction(
 // Output: surfpool_tx_hash
 
 async fn process_with_surfpool(jupiter_tx_hash: &str) -> Result<String> {
-    // Submit Jupiter transaction to SurfPool
-    let surfpool_response = call_surfpool_api(jupiter_tx_hash).await?;
+    // Submit Jupiter transaction to SurfPool executor
+        let surfpool_response = execute_with_surfpool(jupiter_tx_hash).await?;
     
     let surfpool_tx_hash = surfpool_response.transaction_hash;
     
@@ -448,8 +448,8 @@ async fn collect_execution_results(
     execution_id: i64,
     surfpool_tx_hash: &str
 ) -> Result<ExecutionResult> {
-    // Get transaction status from SurfPool
-    let surfpool_status = get_surfpool_transaction_status(surfpool_tx_hash).await?;
+    // Get transaction status from SurfPool executor
+        let surfpool_status = get_surfpool_execution_status(surfpool_tx_hash).await?;
     
     // Verify transaction on-chain
     let verification_result = verify_transaction_on_chain(surfpool_tx_hash).await?;
@@ -761,29 +761,35 @@ reev-core/
 │   │   ├── state.rs             # Wallet state management
 │   │   ├── context.rs           # Token context building
 │   │   └── resolver.rs          # Wallet address resolution
-│   │   ├── tools/
-│   │   │   ├── mod.rs
-│   │   │   ├── executor.rs          # Tool execution logic
-│   │   │   ├── jupiter.rs           # Jupiter API integration
-│   │   │   └── surfpool.rs          # SurfPool integration
-│   │   ├── prompts/
-│   │   │   ├── mod.rs
-│   │   │   ├── templates/           # YML prompt templates
-│   │   │   │   ├── refine_user_prompt.yml
-│   │   │   │   ├── tool_execution.yml
-│   │   │   │   └── context_building.yml
-│   │   │   ├── loader.rs            # Prompt template loader
-│   │   │   └── processor.rs         # LLM prompt processing
-│   │   ├── verification/
-│   │   │   ├── mod.rs
-│   │   │   ├── onchain.rs          # On-chain verification
-│   │   │   ├── transaction.rs       # Transaction verification
-│   │   │   └── state.rs             # State verification
-│   │   └── utils/
-│   │       ├── mod.rs
-│   │       ├── uuidv7.rs            # UUIDv7 generation
-│   │       ├── yml.rs               # YML processing utilities
-│   │       └── error.rs             # Error handling types
+│   ├── tools/
+│   │   ├── mod.rs
+│   │   ├── executor.rs          # Tool execution logic
+│   │   ├── jupiter.rs           # Jupiter protocol integration
+│   │   ├── discovery.rs         # Discovery tools (balance, positions)
+│   │   ├── core.rs              # Core tools (SOL/SPL transfer)
+│   │   └── defi.rs             # DeFi tools (swap, lend, earn)
+│   ├── prompts/
+│   │   ├── mod.rs
+│   │   ├── templates/           # YML prompt templates
+│   │   │   ├── refine_user_prompt.yml
+│   │   │   ├── tool_execution.yml
+│   │   │   └── context_building.yml
+│   │   ├── loader.rs            # Prompt template loader
+│   │   └── processor.rs         # LLM prompt processing
+│   ├── verification/
+│   │   ├── mod.rs
+│   │   ├── onchain.rs          # On-chain verification
+│   │   ├── transaction.rs       # Transaction verification
+│   │   └── state.rs             # State verification
+│   ├── executor/
+│   │   ├── mod.rs
+│   │   ├── surfpool.rs          # SurfPool integration (executor, not tool)
+│   │   └── manager.rs          # Transaction execution manager
+│   └── utils/
+│       ├── mod.rs
+│       ├── uuidv7.rs            # UUIDv7 generation
+│       ├── yml.rs               # YML processing utilities
+│       └── error.rs             # Error handling types
 ├── tests/
 │   ├── integration/
 │   ├── unit/
@@ -873,6 +879,37 @@ output_format:
 - ✅ Code-based tools = easier versioning and deployment
 - ✅ Context bundling = reduced JOIN complexity
 - ✅ YML throughout = consistent data format across all fields
+
+## 🏗️ **Corrected Component Understanding**
+
+Based on existing `ARCHITECTURE.md` and `SURFPOOL.md`:
+
+### **Proper Layer Separation:**
+- **reev-tools**: Tool implementations (13 tools with full OTEL coverage)
+- **reev-protocols**: Protocol abstractions (Jupiter, etc.)
+- **surfpool**: Mainnet fork executor (NOT a tool)
+
+### **Corrected Tool Categories:**
+- **Discovery Tools**: `get_account_balance`, `get_jupiter_lend_earn_position`
+- **Core Tools**: `sol_transfer`, `spl_transfer`  
+- **DeFi Tools**: `jupiter_swap`, `jupiter_lend_earn_deposit`, `jupiter_earn`
+
+### **SurfPool Role:**
+- **NOT a tool** - It's a Solana testnet executor
+- **Mainnet fork** with on-demand account fetching
+- **Cheat codes** for state manipulation (`surfnet_setTokenAccount`)
+- **Transaction execution** environment, not a protocol tool
+
+### **Jupiter Role:**
+- **Protocol integration** for DeFi operations
+- **Swap/lend/earn** operations through Jupiter SDK
+- **Real mainnet** protocol calls, not mock/testing
+
+### **Execution Flow:**
+1. Tools generate transactions (e.g., `jupiter_swap`)
+2. Jupiter protocol returns transaction data
+3. SurfPool executes transaction on forked mainnet
+4. Verification happens on real forked state
 
 ## 🚀 **Next Steps for Implementation**
 
