@@ -328,8 +328,8 @@ async fn refine_user_prompt_with_llm(
     );
 
     // Store refinement prompt for audit
-    db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content, template_used)
-                VALUES (?, 1, 'refinement', ?, 'prompts/refine_user_prompt.yml')",
+    db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
+                VALUES (?, 1, 'refinement', ?)",
                [request_id, full_prompt])?;
 
     // Call LLM
@@ -882,9 +882,9 @@ async fn record_exit_wallet_state(
 ```yaml
 task: "refine user prompt to match available tools"
 context:
-  user_wallet_state: !include "../current_wallet_state.yml"
-  available_tools: !include "../tool_definitions.yml"
-  current_prices: !include "../token_prices.yml"
+  user_wallet_state: "<wallet context YML>"
+  available_tools: "<tool definitions YML>"
+  current_prices: "<current token prices YML>"
 
 requirements:
   - generate sequence of executable tool calls
@@ -904,7 +904,7 @@ output_format:
 ```yaml
 task: "execute specific tool with given parameters"
 context:
-  current_wallet_state: !include "../current_wallet_state.yml"
+  current_wallet_state: "<wallet context YML>"
   task_description: "<from refined prompt>"
   expected_tool: "<tool_name>"
   tool_parameters: "<tool parameters>"
