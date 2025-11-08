@@ -738,42 +738,7 @@ async fn record_exit_wallet_state(
 }
 ```
 
-## 🏗️ **Reev Core Project Structure**
 
-```
-reev-core/
-├── Cargo.toml
-├── src/
-│   ├── lib.rs                    # Core library entry point
-│   ├── main.rs                   # CLI interface (optional)
-│   ├── core/
-│   │   ├── mod.rs
-│   │   ├── orchestrator.rs       # Main orchestration logic
-│   │   ├── manager.rs            # Step execution manager
-│   │   └── types.rs              # Core type definitions
-│   ├── prompts/
-│   │   ├── mod.rs
-│   │   ├── templates/           # YML prompt templates
-│   │   │   ├── refine_user_prompt.yml
-│   │   │   ├── tool_execution.yml
-│   │   │   └── context_building.yml
-│   │   ├── loader.rs            # Prompt template loader
-│   │   └── processor.rs         # LLM prompt processing
-│   └── executor/
-│       ├── mod.rs
-│       ├── surfpool.rs          # SurfPool integration
-│       └── manager.rs          # Transaction execution manager
-│       ├── uuidv7.rs            # UUIDv7 generation // no neeed just import and use uuid crate feature v7
-│       ├── yml.rs               # YML processing utilities // we have yml crate, grep for that
-│       └── error.rs             # Error handling types // error should appear in each modules? why here?
-├── tests/
-│   ├── integration/
-│   ├── unit/
-│   └── fixtures/
-└── examples/
-    ├── simple_swap.rs
-    └── lending_flow.rs
-```
 
 ## 📝 **YML Prompt Templates**
 
