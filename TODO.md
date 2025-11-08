@@ -1,6 +1,56 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
+---
+we already proof all that and suddenly failed after add pingpong tho. i want to focus on
+
+1. user_prompt "use my 50% sol to multiply usdc 1.5x on jup"
+2. system detect USER_WALLET_PUBKEY and replace with generated pubkey filled with some SOL.
+3. system provide user's wallet info including token info with price into token_context and record wallet state to db use wallet address as index and request_id for ref as enter state.
+4. system get all tools with description aka tool_context.
+5. system prepare refined_instruct that said "refine user prompt to match tools description:{tool_context}"
+6. system send that token_context+refined_instruct+user_prompt to glm-4.6-coding
+7. llm agent refine that to series of prompt that match tool desc e.g. [ "swap 1 SOL to USDC", "lend {SWAPPED_USDC} to jupiter" ]
+8. manager pick that token_context, prompt_series and call llm with tool calling info one by one
+9. manager process result from llm which must be tool calling only, record tool_name, tool_params to reev.db each row index by request_id uuidv7 (uuidv7 has time sortable id)
+11. manager call tool as llm filled params with token_context.
+12. manager get tool results as tx from jupiter api.
+13. manager record tx to reev.db each row index by request_id.
+14. manager use executor to call surfpool to process that tx.
+15. manager collect results (both failure and succeed) from executor to reev.db in new table with same request_id for ref.
+16. manager build new context for next tool e.g. current_context="
+original_wallet_info:
+  - SOL
+    - addresss:
+    - amount: 1
+    - price_usd: 161
+  - USDC
+    - pubkey; EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+    - amount: 10
+    - price_usd: 1
+# after swap (we can add prev tool call name here)
+current_wallet_info:
+  - SOL
+    - addresss:
+    - amount: 0
+  - USDC
+    - pubkey; EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+    - amount: 171 # swap +161 USDC from 1 SOL
+"
+(refine this to yml format and add missing info)
+// for prompt "lend {USDC_AMOUNT} to jupiter" and let llm reasoning about that fill that itself, expect USDC_AMOUNT = 161 because original we have 10 so comment is the key here to let llm understand
+17. Now we repeat #9 until all steps process or failed
+18. manager call wallet info and record wallet state to db use wallet address as index and request_id for ref as exit state.
+
+can you help refine
+- we may create reev-core and start over from that
+- feel free to copy old fn or use exiting lib but we have to copy code to new core so we don't make compile error for old one and get confuse by that.
+- all prompt must be in yml so we can parse later.
+- no json allow in db, must be structed and typed only.
+- log is confusing and overwhelm ai-coding(you) lately , keep all state (inclduing prompt) write to db for each step as plan and do add more what i missing, in the end we shouldable to see all each state in db ready for debug, create flow and scoring later
+- no migration need, we start from the ground up
+---
+
 i exepect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml work with api dynamic flow ping png via glm-4.6-coding
 
 ```
