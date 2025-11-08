@@ -144,10 +144,7 @@ struct GeneratedWallet {
 }
 
 // Token account update helper
-struct TokenAccountUpdate<'a> {
-    amount: u64,
-    owner: Option<&'a str>,
-}
+// TokenAccountUpdate removed - not needed since we use setup_wallet
 
 // Cached API service for development
 struct CachedApiService {
@@ -205,9 +202,18 @@ async fn initialize_request(user_prompt: &str, user_wallet_pubkey: &str) -> Resu
 
 async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> Result<String> {
     let resolved_wallet = if user_wallet_pubkey.contains("USER_WALLET_PUBKEY") {
-        // Generate test wallet with pre-filled balances using SurfPool cheat codes
-        let generated_wallet = generate_filled_test_wallet().await?;
-        generated_wallet.pubkey
+        // Generate test wallet with pre-filled balances using existing setup_wallet
+        let keypair = Keypair::new();
+        let pubkey = keypair.pubkey().to_string();
+        
+        // Initialize clients
+        let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+        let rpc_client = RpcClient::new("http://localhost:8899");
+        
+        // Setup wallet with SOL and USDC using existing function
+        setup_wallet(&rpc_client, &surfpool_client, &keypair, &USDC_MINT, 100_000_000).await?;
+        
+        pubkey
     } else {
         user_wallet_pubkey.to_string() // Use provided wallet
     };
@@ -219,71 +225,7 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
     Ok(resolved_wallet)
 }
 ```
-```rust
-// Detailed implementation for generate_filled_test_wallet
-async fn generate_filled_test_wallet() -> Result<GeneratedWallet> {
-    // Create new keypair for test wallet
-    let keypair = Keypair::new();
-    let pubkey = keypair.pubkey();
-
-    // Initialize SurfPool client for testnet setup
-    let surfpool_client = SurfpoolClient::new("http://localhost:8899").await?;
-
-    // Set initial SOL balance (1 SOL = 1,000,000,000 lamports)
-    surfpool_client
-        .set_account(&pubkey.to_string(), 1_000_000_000)
-        .await
-        .context("Failed to set SOL balance in SurfPool")?;
-
-    // Set initial USDC balance (100 USDC = 100,000,000 raw units with 6 decimals)
-    surfpool_client
-        .set_token_account(
-            &pubkey.to_string(),
-            &USDC_MINT.to_string(),
-            TokenAccountUpdate {
-                amount: 100_000_000, // 100 USDC
-                owner: Some(&SPL_TOKEN_PROGRAM_ID.to_string()),
-            }
-        )
-        .await
-        .context("Failed to set USDC balance in SurfPool")?;
-
-    // Wait for account setup to complete
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-    // Verify balances were set correctly
-    let sol_balance = surfpool_client
-        .get_balance(&pubkey.to_string())
-        .await?;
-    let usdc_balance = surfpool_client
-        .get_token_balance(&pubkey.to_string(), &USDC_MINT.to_string())
-        .await?;
-
-    info!("Generated test wallet: {} with SOL: {}, USDC: {}",
-           pubkey, sol_balance, usdc_balance);
-
-    Ok(GeneratedWallet {
-        keypair,
-        pubkey: pubkey.to_string(),
-        sol_balance,
-        usdc_balance,
-    })
-}
-
-// Helper struct for generated wallet
-struct GeneratedWallet {
-    keypair: Keypair,
-    pubkey: String,
-    sol_balance: u64,
-    usdc_balance: u64,
-}
-
-// Token account update helper
-struct TokenAccountUpdate<'a> {
-    amount: u64,
-    owner: Option<&'a str>,
-}
-```
+// Removed duplicate generate_filled_test_wallet - now using existing setup_wallet function
 
 ### **Step 3: Entry Wallet State Recording**
 ```rust
@@ -1105,9 +1047,13 @@ impl CachedApiService {
     async fn initialize_cache(&self) -> Result<()> {
         info!("Building API cache with real Jupiter data...");
 
-        // Step 1: Generate test wallet with SurfPool
-        let test_wallet = generate_filled_test_wallet().await?;
-        info!("Generated test wallet: {}", test_wallet.pubkey);
+        // Step 1: Generate test wallet with existing setup_wallet
+        let keypair = Keypair::new();
+        let pubkey = keypair.pubkey();
+        let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+        let rpc_client = RpcClient::new("http://localhost:8899");
+        setup_wallet(&rpc_client, &surfpool_client, &keypair, &USDC_MINT, 100_000_000).await?;
+        info!("Generated test wallet: {}", pubkey);
 
 
 
