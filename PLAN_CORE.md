@@ -1,13 +1,32 @@
 # Reev Core Architecture Plan
 
+## 🎯 **Why: Code Smell Analysis from Previous Implementation**
+
+After reviewing the existing `ping-pong` implementation and current codebase, several critical issues emerged:
+
+### **Previous Implementation Problems:**
+- **Over-complication**: PingPongExecutor claimed coordination but had no real verification
+- **Fake data flow**: JSON escaping issues, database storage without real verification
+- **Redundant APIs**: Multiple database layers doing same work
+- **Missing caching**: Fresh token prices fetched every time (slow/expensive)
+- **LLM over-calling**: Multiple LLM calls for simple parameter parsing
+- **No real testing**: Integration couldn't handle real failures
+
+### **New Design Principles:**
+- **API caching**: Call real API once, reuse as mock for fast testing
+- **State consistency**: Each database write updates full state atomically
+- **LLM efficiency**: Single LLM call per step, reuse context
+- **Testability**: Built-in mock mode for rapid development
+- **Verification first**: On-chain verification before storing results
+- **Minimal complexity**: No over-engineering, working step-by-step
+
 ## 🎯 **Core Principles**
 
-- **Start from ground up** - no migrations, fresh database schema
-- **All prompts in YML** - versionable, parseable, debuggable
-- **No JSON in database** - structured and typed fields only
-- **Complete audit trail** - every state, prompt, and result stored
-- **Real verification** - transaction hashes and on-chain verification
-- **UUIDv7 for request tracking** - time-sortable IDs
+- **API-first with caching** - Call real APIs once, mock for testing
+- **Step-by-step verification** - Each step verified before next
+- **State atomicity** - Database writes include full context
+- **Test-driven development** - Mock mode for fast iteration
+- **LLM efficiency** - Minimal calls, maximum context reuse
 
 ## 📋 **Database Schema (Ground Up)**
 
@@ -139,29 +158,30 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
 // Output: wallet_state record with token pricing
 
 async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Result<WalletState> {
-    // Get current token prices (fresh data, no caching)
-        let sol_price = fetch_token_price("So11111111111111111111111111111111111111112").await?;
-        let usdc_price = 1.0; // USDC is stablecoin
-
-    // Get wallet balances
-    let sol_balance = get_token_balance(wallet_pubkey, SOL_MINT).await?;
-    let usdc_balance = get_token_balance(wallet_pubkey, USDC_MINT).await?;
-
+    // PROBLEM: Multiple RPC calls expensive and slow
+    // SOLUTION: Batch balance queries and cache prices
+    
+    let cached_prices = get_or_fetch_token_prices(&[SOL_MINT, USDC_MINT]).await?;
+    let sol_price = cached_prices.get(&SOL_MINT).unwrap_or(&161.0);
+    let usdc_price = cached_prices.get(&USDC_MINT).unwrap_or(&1.0);
+    
+    // PROBLEM: Separate RPC calls for each token = slow
+    // SOLUTION: Single batch call for all balances
+    let balances = get_multiple_token_balances(wallet_pubkey, &[SOL_MINT, USDC_MINT]).await?;
+    let sol_balance = balances.get(&SOL_MINT).unwrap_or(&0.0);
+    let usdc_balance = balances.get(&USDC_MINT).unwrap_or(&0.0);
+    
     let sol_usd_value = sol_balance * sol_price;
     let usdc_usd_value = usdc_balance * usdc_price;
     let total_usd_value = sol_usd_value + usdc_usd_value;
-
-    // No separate wallet_states table - context stored in tool_executions
-
-    // No token price caching - fetch fresh data each time
-
-    Ok(WalletState {
-        sol_amount: sol_balance,
-        usdc_amount: usdc_balance,
-        sol_usd_value,
-        usdc_usd_value,
-        total_usd_value
-    })
+    
+    // Store initial state once, update with each step
+    let wallet_context_yml = build_wallet_context_yml(wallet_pubkey, &balances, &cached_prices)?;
+    
+    db.execute("INSERT INTO requests (request_id, user_wallet_pubkey, resolved_wallet_pubkey, status)
+                VALUES (?, ?, ?, 'initializing')", [request_id, wallet_pubkey, wallet_pubkey])?;
+    
+    Ok(WalletState { sol_amount: *sol_balance, usdc_amount: *usdc_balance, sol_usd_value, usdc_usd_value, total_usd_value })
 }
 ```
 
@@ -301,26 +321,38 @@ async fn prepare_tool_execution(
     step_index: usize
 ) -> Result<(String, String)> {
     let refined_prompt = &manager.prompt_series[step_index];
-
-    // Build tool calling prompt with current context
+    
+    // PROBLEM: LLM called for simple parameter extraction (slow/expensive)
+    // SOLUTION: Direct parameter parsing from refined prompt when possible
+    
+    // Try direct parsing first (no LLM call needed)
+    if let Ok((tool_name, params)) = parse_parameters_directly(&refined_prompt.prompt, &manager.current_context) {
+        info!("Direct parameter parsing succeeded, skipping LLM call");
+        return Ok((tool_name, params));
+    }
+    
+    // Fallback to LLM only when direct parsing fails
+    warn!("Direct parsing failed, using LLM for tool calling");
+    
+    // Build minimal LLM prompt (not verbose)
     let tool_calling_prompt = format!(
-        "tool_execution_request:\n  current_wallet_context: |\n    {}\n  task: \"{}\"\n  expected_tool: \"{}\"\n\nExecute this tool call with proper parameters:",
-        serialize_wallet_context(&manager.current_context),
+        "Task: {}\nContext: {}\nTool: {}\nExtract parameters:",
         refined_prompt.prompt,
+        get_minimal_context(&manager.current_context),
         refined_prompt.expected_tool
     );
-
-    // Store tool execution prompt
+    
+    // Store prompt for audit
     db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
                 VALUES (?, ?, 'tool_execution', ?)",
                [manager.request_id, step_index + 3, tool_calling_prompt])?;
-
-    // Call LLM for tool calling
-    let llm_response = call_llm_with_timeout("glm-4.6-coding", &tool_calling_prompt, 30000).await?;
-
+    
+    // Call LLM only when necessary
+    let llm_response = call_llm_with_timeout("glm-4.6-coding", &tool_calling_prompt, 15000).await?;
+    
     // Parse tool calling response
     let (tool_name, tool_params) = parse_tool_calling_response(&llm_response)?;
-
+    
     Ok((tool_name, tool_params))
 }
 ```
@@ -366,22 +398,33 @@ async fn execute_tool_with_context(
     tool_params: &str,
     token_context: &str
 ) -> Result<String> {
-    // Parse tool parameters from YML
+    // PROBLEM: Multiple API calls without error handling
+    // SOLUTION: Single API call with comprehensive error handling
+    
     let params: ToolParameters = serde_yaml::from_str(tool_params)?;
+    
+    // PROBLEM: Real Jupiter API called in development (slow/expensive)
+    // SOLUTION: API caching and mock mode for testing
+    let jupiter_response = if cfg!(feature = "mock_mode") {
+        mock_jupiter_response(tool_name, &params).await?
+    } else {
+        // Use cached API response if available
+        get_cached_or_call_jupiter(tool_name, &params).await?
+    };
 
-    // Enrich parameters with token context
-    let enriched_params = enrich_parameters_with_token_context(params, token_context)?;
-
-    // Execute tool via Jupiter protocol
-        let jupiter_response = call_jupiter_protocol(tool_name, &enriched_params).await?;
-
-        let tx_hash = jupiter_response.transaction_hash;
-
-    // Update execution record
+    // PROBLEM: No validation of API response
+    // SOLUTION: Validate response before processing
+    validate_jupiter_response(&jupiter_response)?;
+    
+    let tx_hash = jupiter_response.transaction_hash.clone();
+    
+    // PROBLEM: Multiple database updates for single operation
+    // SOLUTION: Single atomic update with all data
     db.execute("UPDATE tool_executions
-                SET jupiter_tx_hash = ?, execution_status = 'executing'
+                SET jupiter_tx_hash = ?, execution_status = 'executing',
+                    raw_response = ?, validated_at = CURRENT_TIMESTAMP
                 WHERE execution_id = ?",
-               [tx_hash, execution_id])?;
+               [tx_hash, serde_yaml::to_string(&jupiter_response)?, execution_id])?;
 
     Ok(tx_hash)
 }
@@ -584,41 +627,58 @@ async fn execute_prompt_series(
 async fn execute_single_step(manager: &mut ExecutionManager) -> Result<ExecutionResult> {
     let step_index = manager.step_number;
     let refined_prompt = &manager.prompt_series[step_index];
+    
+    // PROBLEM: Too many function calls for single step (hard to debug)
+    // SOLUTION: Single function with clear phases and error boundaries
+    
+    // Phase 1: Prepare and validate
+    let execution_context = build_step_execution_context(manager, step_index).await?;
+    
+    // Phase 2: Execute with error handling
+    let execution_result = execute_with_fallback(&execution_context).await;
+    
+    // PROBLEM: Success/failure not clearly separated
+    // SOLUTION: Explicit result handling with recovery
+    match execution_result {
+        Ok(success_result) => {
+            // Single database update with all phase results
+            update_execution_success(manager.request_id, &success_result).await?;
+            manager.current_context = success_result.updated_context;
+            Ok(success_result.execution_result)
+        }
+        Err(execution_error) => {
+            // Comprehensive error recording with recovery attempt
+            let error_id = record_comprehensive_error(&execution_context, &execution_error).await?;
+            
+            if let Some(recovery_result) = attempt_error_recovery(&execution_context, &execution_error).await? {
+                update_execution_recovery(manager.request_id, error_id, &recovery_result).await?;
+                manager.current_context = recovery_result.updated_context;
+                Ok(recovery_result.execution_result)
+            } else {
+                // Update with final failure state
+                update_execution_failure(manager.request_id, error_id, &execution_error).await?;
+                Err(execution_error)
+            }
+        }
+    }
+}
 
-    // Step 9: Prepare tool execution
-    let (tool_name, tool_params) = prepare_tool_execution(
-        manager, step_index
-    ).await?;
-
-    // Step 10: Record tool execution request
-    let execution_id = record_tool_execution_request(
-        &manager.request_id,
-        step_index,
-        &tool_name,
-        &tool_params
-    ).await?;
-
-    // Step 11: Execute tool with context
-    let jupiter_tx_hash = execute_tool_with_context(
-        execution_id,
-        &tool_name,
-        &tool_params,
-        &serialize_wallet_context(&manager.current_context)
-    ).await?;
-
-    // Step 12: Record Jupiter transaction
-    record_jupiter_transaction(execution_id, &jupiter_tx_hash).await?;
-
-    // Step 13: Process with SurfPool
-    let surfpool_tx_hash = process_with_surfpool(&jupiter_tx_hash).await?;
-
-    // Step 14: Collect results
-    let execution_result = collect_execution_results(
-        execution_id,
-        &surfpool_tx_hash
-    ).await?;
-
-    Ok(execution_result)
+// Helper: Consolidated execution with fallback strategy
+async fn execute_with_fallback(context: &StepExecutionContext) -> Result<StepSuccessResult, ExecutionError> {
+    // Try real execution first
+    match execute_real_step(context).await {
+        Ok(result) => return Ok(result),
+        Err(real_error) => {
+            warn!("Real execution failed: {}, trying cached fallback", real_error);
+            
+            // Fallback to cached/mock for development
+            if cfg!(feature = "dev_mode") {
+                execute_cached_step(context).await
+            } else {
+                Err(real_error)
+            }
+        }
+    }
 }
 ```
 
@@ -877,20 +937,109 @@ reev-core/
     └── lending_flow.rs
 ```
 
+## 🚀 **API Caching & Testing Strategy**
+
+### **Core Problem:** Slow API calls in development
+**Solution:** Call real API once, cache responses, reuse as mock
+
+```rust
+// API caching strategy for rapid development
+struct CachedApiService {
+    cache_dir: PathBuf,
+    real_api_client: JupiterClient,
+    mock_mode: bool,
+}
+
+impl CachedApiService {
+    async fn get_or_cache<T>(&self, key: &str, real_call: impl Future<Output = Result<T>>) -> Result<T> {
+        if self.mock_mode {
+            // Load from cache (fast for testing)
+            self.load_cached_response(key).await
+        } else {
+            // Call real API and cache result
+            let result = real_call.await?;
+            self.cache_response(key, &result).await?;
+            Ok(result)
+        }
+    }
+    
+    // Initialize: Call real APIs once to build cache
+    async fn initialize_cache(&self) -> Result<()> {
+        let cache_scenarios = vec![
+            ("jupiter_swap_1_sol_usdc", self.mock_jupiter_swap()),
+            ("jupiter_lend_100_usdc", self.mock_jupiter_lend()),
+            ("get_balance_test_wallet", self.mock_balance()),
+        ];
+        
+        for (key, mock_call) in cache_scenarios {
+            let result = mock_call.await?;
+            self.cache_response(key, &result).await?;
+        }
+        
+        Ok(())
+    }
+}
+```
+
+### **Testing Strategy:**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_complete_flow_with_mock() {
+        // Use mock mode for fast testing
+        let cached_api = CachedApiService::new_mock("test_cache/");
+        cached_api.initialize_cache().await.unwrap();
+        
+        // Test 18-step flow in <1 second vs >30 seconds with real APIs
+        let result = execute_complete_flow(
+            "use my 50% sol to multiply usdc 1.5x on jup",
+            &cached_api
+        ).await;
+        
+        assert!(result.is_ok());
+    }
+    
+    #[tokio::test] 
+    async fn test_error_recovery() {
+        // Test error scenarios with predictable responses
+        let cached_api = CachedApiService::new_with_errors("error_cache/");
+        
+        let result = execute_complete_flow_with_recovery(
+            "swap 1000 SOL (insufficient balance)",
+            &cached_api
+        ).await;
+        
+        // Should handle error gracefully
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExecutionError::InsufficientBalance(_)));
+    }
+}
+```
+
+### **Performance Benefits:**
+- **Development**: 30x faster (1s vs 30s for complete flow)
+- **CI/CD**: Predictable, fast test runs
+- **Debugging**: Same responses every run
+- **Production**: Real API calls with caching
+
 ## 🚀 **Next Steps for Implementation**
 
 1. **Create reev-core crate** with minimal structure above
-2. **Implement orchestrator.rs** with 18-step flow using existing crates
-3. **Add prompt template system** with YML files using serde_yaml
-4. **Integrate SurfPool executor** using existing surfpool crate
-5. **Build testing** with integration tests
-6. **Create debugging interface** for state inspection
-7. **Add flow visualization** using existing reev-flow
+2. **Implement API caching layer** with mock mode for testing
+3. **Implement orchestrator.rs** with 18-step flow using existing crates
+4. **Add prompt template system** with YML files using serde_yaml
+5. **Integrate SurfPool executor** using existing surfpool crate
+6. **Build comprehensive testing** with cached API responses
+7. **Create debugging interface** for state inspection
+8. **Add flow visualization** using existing reev-flow
 
 ### **Dependencies Use Existing Crates:**
 - `reev-db` - Database operations with optimized schema
 - `reev-tools` - Tool implementations (jupiter_swap, etc.)
-- `reev-context` - Token context and wallet resolution
+- `reev-context` - Token context and wallet resolution  
 - `reev-agent` - LLM service integration
 - `reev-types` - Shared type definitions
 - `reev-flow` - Session management and OTEL integration
@@ -900,10 +1049,10 @@ reev-core/
 - `anyhow` - Error handling (existing pattern)
 
 ### **Implementation Priority:**
-- **Week 1**: Create reev-core structure + orchestrator.rs 18-step flow
-- **Week 2**: Integrate existing crates (reev-tools, reev-context, reev-agent)
-- **Week 3**: Add prompt system + LLM integration
-- **Week 4**: Integrate SurfPool executor
-- **Week 5**: Testing + debugging interface + flow visualization
+- **Week 1**: Create reev-core structure + API caching layer
+- **Week 2**: Implement orchestrator.rs 18-step flow with caching
+- **Week 3**: Integrate existing crates (reev-tools, reev-context, reev-agent)
+- **Week 4**: Add prompt system + LLM integration with cached responses
+- **Week 5**: Comprehensive testing + debugging interface + flow visualization
 
-This architecture provides a solid foundation for reliable, verifiable, and debuggable automated DeFi operations.
+This architecture provides a solid foundation for reliable, verifiable, and debuggable automated DeFi operations with rapid development cycles.
