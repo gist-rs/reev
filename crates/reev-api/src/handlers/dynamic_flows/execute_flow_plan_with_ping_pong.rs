@@ -10,6 +10,7 @@ use tracing::{error, info};
 use super::extract_transaction_details::extract_transaction_details;
 
 /// Execute a flow plan using ping-pong coordination
+#[allow(dead_code)]
 pub async fn execute_flow_plan_with_ping_pong(
     flow_plan: &reev_types::flow::DynamicFlowPlan,
     agent_type: &str,

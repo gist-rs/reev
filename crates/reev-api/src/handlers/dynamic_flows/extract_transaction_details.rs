@@ -5,6 +5,7 @@
 use serde_json::json;
 
 /// Extract transaction details from a transaction JSON value
+#[allow(dead_code)]
 pub fn extract_transaction_details(
     tx: &serde_json::Value,
 ) -> (serde_json::Value, serde_json::Value, Option<String>) {
