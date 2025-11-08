@@ -107,6 +107,7 @@ CREATE INDEX idx_prompts_request_id ON prompts(request_id);
 CREATE INDEX idx_execution_errors_request_id ON execution_errors(request_id);
 ```
 
+```rust
 // Token Mint Constants
 const SOL_MINT: &str = "So11111111111111111111111111111111111112";
 const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -172,6 +173,7 @@ struct ExecutionResult {
     execution_time_ms: u64,
     updated_context: WalletState,
 }
+```
 
 ## 🔄 **18-Step Core Flow (Pseudo-Code)**
 
@@ -296,18 +298,18 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
     let cached_prices = get_cached_token_prices(&[SOL_MINT.to_string(), USDC_MINT.to_string()]).await?;
     let sol_price = cached_prices.get(&SOL_MINT.to_string()).unwrap_or(&161.0);
     let usdc_price = cached_prices.get(&USDC_MINT.to_string()).unwrap_or(&1.0);
-    
+
     // PROBLEM: Separate RPC calls for each token = slow
     // SOLUTION: Use Solana RPC with batch account queries
     let mints = &[SOL_MINT, USDC_MINT];
     let token_accounts = get_token_accounts_for_mints(wallet_pubkey, mints).await?;
-    
+
     let sol_balance = token_accounts
         .iter()
         .find(|acc| acc.mint == SOL_MINT)
         .map(|acc| acc.amount)
         .unwrap_or(0.0);
-        
+
     let usdc_balance = token_accounts
         .iter()
         .find(|acc| acc.mint == USDC_MINT)
@@ -1124,7 +1126,7 @@ impl CachedApiService {
         let token_infos = vec![sol_token_info, usdc_token_info];
         self.cache_response("token_infos", &token_infos).await?;
         info!("Cached token infos for {} tokens", token_infos.len());
-        
+
         info!("API cache initialized with real Jupiter token data");
         Ok(())
     }
@@ -1134,7 +1136,7 @@ impl CachedApiService {
         self.get_or_cache("token_prices", async {
             use jupiter_sdk::api::tokens;
             let mut prices = TokenPrices::new();
-                
+
             for mint in mints {
                 let search_params = TokenSearchParams {
                     query: if mint.ends_with("11111111111111111111111111111111111112") {
@@ -1147,7 +1149,7 @@ impl CachedApiService {
                                 continue;
                             }
                         }
-                            
+
                         // Fallback to search API
                         let search_params = TokenSearchParams {
                             query: format!("mint:{}", mint),
@@ -1160,23 +1162,23 @@ impl CachedApiService {
                     }
                 };
             }
-                
+
             Ok(prices)
         }).await
     }
-        
+
     // Helper: Get cached token info by mint
     async fn get_cached_token_info(&self, mint: &str) -> Result<TokenInfo> {
         self.get_or_cache("token_infos", async {
             use jupiter_sdk::api::tokens;
-                
+
             // Try cache first
             if let Ok(cached_infos) = self.load_cached_response("token_infos") {
                 if let Some(token_info) = cached_infos.iter().find(|t| t.id == mint) {
                     return Ok(token_info.clone());
                 }
             }
-                
+
             // Fallback to search API
             let search_params = TokenSearchParams {
                 query: format!("mint:{}", mint),
@@ -1185,7 +1187,7 @@ impl CachedApiService {
             let found_token = token_info.into_iter()
                 .find(|t| t.id == mint)
                 .ok_or_else(|| anyhow::anyhow!("Token {} not found", mint))?;
-                
+
             Ok(found_token)
         }).await
     }
