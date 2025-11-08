@@ -107,6 +107,72 @@ CREATE INDEX idx_prompts_request_id ON prompts(request_id);
 CREATE INDEX idx_execution_errors_request_id ON execution_errors(request_id);
 ```
 
+// Token Mint Constants
+const SOL_MINT: &str = "So11111111111111111111111111111111111112";
+const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+// Type Definitions for Jupiter SDK Integration
+use reev_protocols::jupiter::jup_sdk::{
+    api::tokens::{TokenSearchParams, search_tokens},
+    models::{TokenInfo, SwapParams, DepositParams, WithdrawParams}
+};
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::Keypair
+};
+use std::collections::HashMap;
+
+// Token price cache
+type TokenPrices = HashMap<String, f64>;
+
+// Wallet state for context building
+struct WalletState {
+    sol_amount: f64,
+    usdc_amount: f64,
+    sol_usd_value: f64,
+    usdc_usd_value: f64,
+    total_usd_value: f64,
+}
+
+// Generated test wallet with balances
+struct GeneratedWallet {
+    keypair: Keypair,
+    pubkey: String,
+    sol_balance: u64,
+    usdc_balance: u64,
+}
+
+// Token account update helper
+struct TokenAccountUpdate<'a> {
+    amount: u64,
+    owner: Option<&'a str>,
+}
+
+// Cached API service for development
+struct CachedApiService {
+    cache_dir: PathBuf,
+    real_jupiter_client: JupiterClient,
+    mock_mode: bool,
+}
+
+// Refined prompt from LLM
+struct RefinedPrompt {
+    step: usize,
+    prompt: String,
+    reasoning: String,
+    expected_tool: String,
+    expected_outcome: String,
+}
+
+// Execution result from tool
+struct ExecutionResult {
+    execution_id: String,
+    tool_name: String,
+    success: bool,
+    execution_time_ms: u64,
+    updated_context: WalletState,
+}
+
 ## 🔄 **18-Step Core Flow (Pseudo-Code)**
 
 ### **Step 1: User Prompt Input & Request Initialization**
@@ -145,62 +211,30 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
     } else {
         user_wallet_pubkey.to_string() // Use provided wallet
     };
-    
+
     // Update request with resolved wallet
     db.execute("UPDATE requests SET resolved_wallet_pubkey = ? WHERE request_id = ?",
                [resolved_wallet, request_id])?;
-    
+
     Ok(resolved_wallet)
 }
 ```
-
-### **Step 3: Entry Wallet State Recording**
 ```rust
-// Input: resolved_wallet_pubkey, request_id
-// Output: wallet_state record with token pricing
-
-async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Result<WalletState> {
-    // PROBLEM: Multiple RPC calls expensive and slow
-    // SOLUTION: Batch balance queries and cache prices
-    
-    let cached_prices = get_or_fetch_token_prices(&[SOL_MINT, USDC_MINT]).await?;
-    let sol_price = cached_prices.get(&SOL_MINT).unwrap_or(&161.0);
-    let usdc_price = cached_prices.get(&USDC_MINT).unwrap_or(&1.0);
-    
-    // PROBLEM: Separate RPC calls for each token = slow
-    // SOLUTION: Single batch call for all balances
-    let balances = get_multiple_token_balances(wallet_pubkey, &[SOL_MINT, USDC_MINT]).await?;
-    let sol_balance = balances.get(&SOL_MINT).unwrap_or(&0.0);
-    let usdc_balance = balances.get(&USDC_MINT).unwrap_or(&0.0);
-    
-    let sol_usd_value = sol_balance * sol_price;
-    let usdc_usd_value = usdc_balance * usdc_price;
-    let total_usd_value = sol_usd_value + usdc_usd_value;
-    
-    // Store initial state once, update with each step
-    let wallet_context_yml = build_wallet_context_yml(wallet_pubkey, &balances, &cached_prices)?;
-    
-    db.execute("INSERT INTO requests (request_id, user_wallet_pubkey, resolved_wallet_pubkey, status)
-                VALUES (?, ?, ?, 'initializing')", [request_id, wallet_pubkey, wallet_pubkey])?;
-    
-    Ok(WalletState { sol_amount: *sol_balance, usdc_amount: *usdc_balance, sol_usd_value, usdc_usd_value, total_usd_value })
-}
-
 // Detailed implementation for generate_filled_test_wallet
 async fn generate_filled_test_wallet() -> Result<GeneratedWallet> {
     // Create new keypair for test wallet
     let keypair = Keypair::new();
     let pubkey = keypair.pubkey();
-    
+
     // Initialize SurfPool client for testnet setup
     let surfpool_client = SurfpoolClient::new("http://localhost:8899").await?;
-    
+
     // Set initial SOL balance (1 SOL = 1,000,000,000 lamports)
     surfpool_client
         .set_account(&pubkey.to_string(), 1_000_000_000)
         .await
         .context("Failed to set SOL balance in SurfPool")?;
-    
+
     // Set initial USDC balance (100 USDC = 100,000,000 raw units with 6 decimals)
     surfpool_client
         .set_token_account(
@@ -213,10 +247,10 @@ async fn generate_filled_test_wallet() -> Result<GeneratedWallet> {
         )
         .await
         .context("Failed to set USDC balance in SurfPool")?;
-    
+
     // Wait for account setup to complete
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-    
+
     // Verify balances were set correctly
     let sol_balance = surfpool_client
         .get_balance(&pubkey.to_string())
@@ -224,10 +258,10 @@ async fn generate_filled_test_wallet() -> Result<GeneratedWallet> {
     let usdc_balance = surfpool_client
         .get_token_balance(&pubkey.to_string(), &USDC_MINT.to_string())
         .await?;
-    
-    info!("Generated test wallet: {} with SOL: {}, USDC: {}", 
+
+    info!("Generated test wallet: {} with SOL: {}, USDC: {}",
            pubkey, sol_balance, usdc_balance);
-    
+
     Ok(GeneratedWallet {
         keypair,
         pubkey: pubkey.to_string(),
@@ -250,6 +284,48 @@ struct TokenAccountUpdate<'a> {
     owner: Option<&'a str>,
 }
 ```
+
+### **Step 3: Entry Wallet State Recording**
+```rust
+// Input: resolved_wallet_pubkey, request_id
+// Output: wallet_state record with token pricing
+
+async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Result<WalletState> {
+    // PROBLEM: Multiple RPC calls expensive and slow
+    // SOLUTION: Use Jupiter token API for prices and cache results
+    let cached_prices = get_cached_token_prices(&[SOL_MINT.to_string(), USDC_MINT.to_string()]).await?;
+    let sol_price = cached_prices.get(&SOL_MINT.to_string()).unwrap_or(&161.0);
+    let usdc_price = cached_prices.get(&USDC_MINT.to_string()).unwrap_or(&1.0);
+    
+    // PROBLEM: Separate RPC calls for each token = slow
+    // SOLUTION: Use Solana RPC with batch account queries
+    let mints = &[SOL_MINT, USDC_MINT];
+    let token_accounts = get_token_accounts_for_mints(wallet_pubkey, mints).await?;
+    
+    let sol_balance = token_accounts
+        .iter()
+        .find(|acc| acc.mint == SOL_MINT)
+        .map(|acc| acc.amount)
+        .unwrap_or(0.0);
+        
+    let usdc_balance = token_accounts
+        .iter()
+        .find(|acc| acc.mint == USDC_MINT)
+        .map(|acc| acc.amount as f64 / 1_000_000.0) // Convert raw units to USDC
+        .unwrap_or(0.0);
+
+    let sol_usd_value = sol_balance * sol_price;
+    let usdc_usd_value = usdc_balance * usdc_price;
+    let total_usd_value = sol_usd_value + usdc_usd_value;
+
+    // Store initial state once, update with each step
+    let wallet_context_yml = build_wallet_context_yml(wallet_pubkey, &balances, &cached_prices)?;
+
+    db.execute("INSERT INTO requests (request_id, user_wallet_pubkey, resolved_wallet_pubkey, status)
+                VALUES (?, ?, ?, 'initializing')", [request_id, wallet_pubkey, wallet_pubkey])?;
+
+    Ok(WalletState { sol_amount: *sol_balance, usdc_amount: *usdc_balance, sol_usd_value, usdc_usd_value, total_usd_value })
+}
 
 ### **Step 4: Tool Context Collection**
 ```rust
@@ -387,19 +463,19 @@ async fn prepare_tool_execution(
     step_index: usize
 ) -> Result<(String, String)> {
     let refined_prompt = &manager.prompt_series[step_index];
-    
+
     // PROBLEM: LLM called for simple parameter extraction (slow/expensive)
     // SOLUTION: Direct parameter parsing from refined prompt when possible
-    
+
     // Try direct parsing first (no LLM call needed)
     if let Ok((tool_name, params)) = parse_parameters_directly(&refined_prompt.prompt, &manager.current_context) {
         info!("Direct parameter parsing succeeded, skipping LLM call");
         return Ok((tool_name, params));
     }
-    
+
     // Fallback to LLM only when direct parsing fails
     warn!("Direct parsing failed, using LLM for tool calling");
-    
+
     // Build minimal LLM prompt (not verbose)
     let tool_calling_prompt = format!(
         "Task: {}\nContext: {}\nTool: {}\nExtract parameters:",
@@ -407,18 +483,18 @@ async fn prepare_tool_execution(
         get_minimal_context(&manager.current_context),
         refined_prompt.expected_tool
     );
-    
+
     // Store prompt for audit
     db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
                 VALUES (?, ?, 'tool_execution', ?)",
                [manager.request_id, step_index + 3, tool_calling_prompt])?;
-    
+
     // Call LLM only when necessary
     let llm_response = call_llm_with_timeout("glm-4.6-coding", &tool_calling_prompt, 15000).await?;
-    
+
     // Parse tool calling response
     let (tool_name, tool_params) = parse_tool_calling_response(&llm_response)?;
-    
+
     Ok((tool_name, tool_params))
 }
 ```
@@ -466,9 +542,9 @@ async fn execute_tool_with_context(
 ) -> Result<String> {
     // PROBLEM: Multiple API calls without error handling
     // SOLUTION: Single API call with comprehensive error handling
-    
+
     let params: ToolParameters = serde_yaml::from_str(tool_params)?;
-    
+
     // PROBLEM: Real Jupiter API called in development (slow/expensive)
     // SOLUTION: API caching and mock mode for testing
     let jupiter_response = if cfg!(feature = "mock_mode") {
@@ -481,9 +557,9 @@ async fn execute_tool_with_context(
     // PROBLEM: No validation of API response
     // SOLUTION: Validate response before processing
     validate_jupiter_response(&jupiter_response)?;
-    
+
     let tx_hash = jupiter_response.transaction_hash.clone();
-    
+
     // PROBLEM: Multiple database updates for single operation
     // SOLUTION: Single atomic update with all data
     db.execute("UPDATE tool_executions
@@ -693,16 +769,16 @@ async fn execute_prompt_series(
 async fn execute_single_step(manager: &mut ExecutionManager) -> Result<ExecutionResult> {
     let step_index = manager.step_number;
     let refined_prompt = &manager.prompt_series[step_index];
-    
+
     // PROBLEM: Too many function calls for single step (hard to debug)
     // SOLUTION: Single function with clear phases and error boundaries
-    
+
     // Phase 1: Prepare and validate
     let execution_context = build_step_execution_context(manager, step_index).await?;
-    
+
     // Phase 2: Execute with error handling
     let execution_result = execute_with_fallback(&execution_context).await;
-    
+
     // PROBLEM: Success/failure not clearly separated
     // SOLUTION: Explicit result handling with recovery
     match execution_result {
@@ -715,7 +791,7 @@ async fn execute_single_step(manager: &mut ExecutionManager) -> Result<Execution
         Err(execution_error) => {
             // Comprehensive error recording with recovery attempt
             let error_id = record_comprehensive_error(&execution_context, &execution_error).await?;
-            
+
             if let Some(recovery_result) = attempt_error_recovery(&execution_context, &execution_error).await? {
                 update_execution_recovery(manager.request_id, error_id, &recovery_result).await?;
                 manager.current_context = recovery_result.updated_context;
@@ -736,7 +812,7 @@ async fn execute_with_fallback(context: &StepExecutionContext) -> Result<StepSuc
         Ok(result) => return Ok(result),
         Err(real_error) => {
             warn!("Real execution failed: {}, trying cached fallback", real_error);
-            
+
             // Fallback to cached/mock for development
             if cfg!(feature = "dev_mode") {
                 execute_cached_step(context).await
@@ -1028,78 +1104,89 @@ impl CachedApiService {
             Ok(result)
         }
     }
-    
+
     // Initialize: Call real APIs once to build cache with actual data
     async fn initialize_cache(&self) -> Result<()> {
-        info!("Building API cache with real Jupiter responses...");
-        
+        info!("Building API cache with real Jupiter data...");
+
         // Step 1: Generate test wallet with SurfPool
         let test_wallet = generate_filled_test_wallet().await?;
         info!("Generated test wallet: {}", test_wallet.pubkey);
+
+
+
+        self.cache_response("token_prices", &prices).await?;
+        info!("Cached token prices: SOL=${}, USDC=${}",
+               sol_token_info.usd_price.unwrap_or(161.0),
+               usdc_token_info.usd_price.unwrap_or(1.0));
+
+        // Step 3: Cache token info for balance queries
+        let token_infos = vec![sol_token_info, usdc_token_info];
+        self.cache_response("token_infos", &token_infos).await?;
+        info!("Cached token infos for {} tokens", token_infos.len());
         
-        // Step 2: Call real Jupiter swap with 1 SOL to USDC
-        let swap_params = JupiterSwapParams {
-            input_token: SOL_MINT.to_string(),
-            output_token: USDC_MINT.to_string(),
-            amount: 1_000_000_000, // 1 SOL
-            slippage_bps: 100,
-cache_sjupiter_swap_1_sol_usdc", &real_swap_response).await?;
-        info!("Cached Jupiter swap response: 1 SOL → {} USDC", 
-               real_swap_response.output_amount);
-        
-        // Step 3: Call real Jupiter lend with available USDC
-        let lend_params = JupiterLendParams {
-            input_token: USDC_MINT.to_string(),
-            mint_address: JUP_USDC_MINT.to_string(),
-            amount: real_swap_response.output_amount,
-        };
-        
-        let real_lend_response = self.real_api_client
-            .lend(&lend_params)
-            .await
-            .context("Failed to call real Jupiter lend for cache")?;
-        
-        self.cache_response("jupiter_lend_swap_result", &real_lend_response).await?;
-        info!("Cached Jupiter lend response: {} USDC → jUSDC", 
-               real_lend_response.deposited_amount);
-        
-        // Step 4: Cache balance queries for test wallet
-        let balance_response = self.real_api_client
-            .get_balances(&test_wallet.pubkey)
-            .await
-            .context("Failed to get wallet balances for cache")?;
-        
-        self.cache_response("balances_test_wallet", &balance_response).await?;
-        info!("Cached wallet balances: SOL={}, USDC={}", 
-               balance_response.sol_amount, balance_response.usdc_amount);
-        
-        // Step 5: Cache current prices
-        let price_response = self.real_api_client
-            .get_token_prices(&[SOL_MINT, USDC_MINT])
-            .await
-            .context("Failed to get token prices for cache")?;
-        
-        self.cache_response("current_prices", &price_response).await?;
-        info!("Cached token prices: SOL=${}, USDC=${}", 
-               price_response.get(&SOL_MINT).unwrap_or(&161.0),
-               price_response.get(&USDC_MINT).unwrap_or(&1.0));
-        
-        info!("API cache initialized with real Jupiter data");
+        info!("API cache initialized with real Jupiter token data");
         Ok(())
     }
-    
-    // Helper: Get cached balances or call real API
-    async fn get_cached_or_real_balances(&self, pubkey: &str) -> Result<WalletBalances> {
-        let cache_key = format!("balances_{}", pubkey);
-        self.get_or_cache(&cache_key, async {
-            self.real_api_client.get_balances(pubkey).await
+
+    // Helper: Get cached token prices or call real Jupiter API
+    async fn get_cached_or_real_prices(&self, mints: &[String]) -> Result<TokenPrices> {
+        self.get_or_cache("token_prices", async {
+            use jupiter_sdk::api::tokens;
+            let mut prices = TokenPrices::new();
+                
+            for mint in mints {
+                let search_params = TokenSearchParams {
+                    query: if mint.ends_with("11111111111111111111111111111111111112") {
+                        "SOL".to_string()
+                    } else {
+                        // Try to find token by mint from cached info
+                        if let Ok(cached_infos) = self.load_cached_response("token_infos") {
+                            if let Some(token_info) = cached_infos.iter().find(|t| t.id == *mint) {
+                                prices.insert(mint.clone(), token_info.usd_price.unwrap_or(1.0));
+                                continue;
+                            }
+                        }
+                            
+                        // Fallback to search API
+                        let search_params = TokenSearchParams {
+                            query: format!("mint:{}", mint),
+                        };
+                        let token_info = tokens::search_tokens(&search_params).await?;
+                        let found_token = token_info.into_iter()
+                            .find(|t| t.id == *mint)
+                            .ok_or_else(|| anyhow::anyhow!("Token {} not found", mint))?;
+                        prices.insert(mint.clone(), found_token.usd_price.unwrap_or(1.0));
+                    }
+                };
+            }
+                
+            Ok(prices)
         }).await
     }
-    
-    // Helper: Get cached prices or call real API
-    async fn get_cached_or_real_prices(&self, mints: &[&str]) -> Result<TokenPrices> {
-        self.get_or_cache("current_prices", async {
-            self.real_api_client.get_token_prices(mints).await
+        
+    // Helper: Get cached token info by mint
+    async fn get_cached_token_info(&self, mint: &str) -> Result<TokenInfo> {
+        self.get_or_cache("token_infos", async {
+            use jupiter_sdk::api::tokens;
+                
+            // Try cache first
+            if let Ok(cached_infos) = self.load_cached_response("token_infos") {
+                if let Some(token_info) = cached_infos.iter().find(|t| t.id == mint) {
+                    return Ok(token_info.clone());
+                }
+            }
+                
+            // Fallback to search API
+            let search_params = TokenSearchParams {
+                query: format!("mint:{}", mint),
+            };
+            let token_info = tokens::search_tokens(&search_params).await?;
+            let found_token = token_info.into_iter()
+                .find(|t| t.id == mint)
+                .ok_or_else(|| anyhow::anyhow!("Token {} not found", mint))?;
+                
+            Ok(found_token)
         }).await
     }
 }
@@ -1110,32 +1197,32 @@ cache_sjupiter_swap_1_sol_usdc", &real_swap_response).await?;
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_complete_flow_with_mock() {
         // Use mock mode for fast testing
         let cached_api = CachedApiService::new_mock("test_cache/");
         cached_api.initialize_cache().await.unwrap();
-        
+
         // Test 18-step flow in <1 second vs >30 seconds with real APIs
         let result = execute_complete_flow(
             "use my 50% sol to multiply usdc 1.5x on jup",
             &cached_api
         ).await;
-        
+
         assert!(result.is_ok());
     }
-    
-    #[tokio::test] 
+
+    #[tokio::test]
     async fn test_error_recovery() {
         // Test error scenarios with predictable responses
         let cached_api = CachedApiService::new_with_errors("error_cache/");
-        
+
         let result = execute_complete_flow_with_recovery(
             "swap 1000 SOL (insufficient balance)",
             &cached_api
         ).await;
-        
+
         // Should handle error gracefully
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ExecutionError::InsufficientBalance(_)));
@@ -1163,7 +1250,7 @@ mod tests {
 ### **Dependencies Use Existing Crates:**
 - `reev-db` - Database operations with optimized schema
 - `reev-tools` - Tool implementations (jupiter_swap, etc.)
-- `reev-context` - Token context and wallet resolution  
+- `reev-context` - Token context and wallet resolution
 - `reev-agent` - LLM service integration
 - `reev-types` - Shared type definitions
 - `reev-flow` - Session management and OTEL integration
