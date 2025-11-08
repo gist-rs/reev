@@ -163,7 +163,7 @@ struct RefinedPrompt {
 // Execution result from tool
 struct ExecutionResult {
     execution_id: String,
-    tool_name: String,
+    tool_name: reev_types::tools::ToolName,
     success: bool,
     execution_time_ms: u64,
     updated_context: WalletState,
@@ -619,7 +619,7 @@ async fn build_next_context(
     let next_context = format!(
         "wallet_context_update:\n  step_number: {}\n  tool_executed: \"{}\"\n  execution_success: {}\n  \n  previous_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  current_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  changes:\n    sol_delta: {}\n    usdc_delta: {}\n    value_delta: {}\n  \n  next_task: \"{}\"\n  comment: \"{}\"",
         previous_wallet_state.step_number + 1,
-        current_tool_result.tool_name,
+        current_tool_result.tool_name.as_str(),
         current_tool_result.success,
         previous_wallet_state.sol_amount,
         previous_wallet_state.usdc_amount,
@@ -645,8 +645,10 @@ fn generate_context_comment(
     current: &WalletState,
     tool_result: &ExecutionResult
 ) -> String {
-    match tool_result.tool_name.as_str() {
-        "jupiter_swap" => {
+    use reev_types::tools::ToolName;
+    
+    match tool_result.tool_name {
+        ToolName::JupiterSwap => {
             if tool_result.success {
                 format!("Successfully swapped {:.6} SOL for {:.2} USDC. Total USDC available: {:.2}",
                        previous.sol_amount - current.sol_amount,
@@ -656,15 +658,15 @@ fn generate_context_comment(
                 "Swap failed, wallet state unchanged".to_string()
             }
         }
-        "jupiter_lend" => {
+        ToolName::JupiterLendEarnDeposit => {
             if tool_result.success {
                 format!("Successfully lent {:.2} USDC to Jupiter lending protocol at current APY",
-                       tool_result.parameters.usdc_amount)
+                       tool_result.parameters.get("usdc_amount").unwrap_or(&serde_json::Value::Null))
             } else {
                 "Lending failed, check available USDC balance".to_string()
             }
         }
-        _ => format!("Executed {} with result: {}", tool_result.tool_name, tool_result.success)
+        _ => format!("Executed {} with result: {}", tool_result.tool_name.as_str(), tool_result.success)
     }
 }
 ```
