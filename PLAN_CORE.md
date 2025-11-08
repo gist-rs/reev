@@ -617,7 +617,7 @@ async fn build_next_context(
 
     // Build detailed context with before/after comparison
     let next_context = format!(
-        "wallet_context_update:\n  step_number: {}\n  tool_executed: \"{}\"\n  execution_success: {}\n  \n  previous_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  current_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  changes:\n    sol_delta: {}\n    usdc_delta: {}\n    value_delta: {}\n  \n  next_task: \"{}\"\n  comment: \"{}\"",
+        "wallet_context_update:\n  step_number: {}\n  tool_executed: \"{}\"\n  execution_success: {}\n  \n  previous_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  current_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  changes:\n    sol_delta: {}\n    usdc_delta: {}\n    value_delta: {}\n  \n  next_task: \"{}\"\n  execution_summary: \"{}\"",
         previous_wallet_state.step_number + 1,
         current_tool_result.tool_name.as_str(),
         current_tool_result.success,
@@ -631,7 +631,7 @@ async fn build_next_context(
         updated_wallet_state.usdc_amount - previous_wallet_state.usdc_amount,
         updated_wallet_state.total_usd_value - previous_wallet_state.total_usd_value,
         next_prompt,
-        generate_context_comment(previous_wallet_state, &updated_wallet_state, current_tool_result)
+        generate_execution_summary(previous_wallet_state, &updated_wallet_state, current_tool_result)
     );
 
     // No separate execution_contexts table - context stored in tool_executions
@@ -639,8 +639,8 @@ async fn build_next_context(
     Ok(next_context) // YML format
 }
 
-// Helper function to generate meaningful comments for LLM understanding
-fn generate_context_comment(
+// Helper function to generate execution summaries for LLM understanding
+fn generate_execution_summary(
     previous: &WalletState,
     current: &WalletState,
     tool_result: &ExecutionResult
@@ -650,18 +650,32 @@ fn generate_context_comment(
     match tool_result.tool_name {
         ToolName::JupiterSwap => {
             if tool_result.success {
-                format!("Successfully swapped {:.6} SOL for {:.2} USDC. Total USDC available: {:.2}",
-                       previous.sol_amount - current.sol_amount,
-                       current.usdc_amount - previous.usdc_amount,
-                       current.usdc_amount)
+                let sol_swapped = previous.sol_amount - current.sol_amount;
+                let usdc_gained = current.usdc_amount - previous.usdc_amount;
+                let usdc_previous = previous.usdc_amount;
+                let usdc_total = current.usdc_amount;
+                
+                format!("Successfully swapped {:.6} SOL for {:.2} USDC. Previously had {:.2} USDC, now have {:.2} USDC total. Newly acquired USDC available: {:.2}",
+                       sol_swapped,
+                       usdc_gained,
+                       usdc_previous,
+                       usdc_total,
+                       usdc_gained)
             } else {
                 "Swap failed, wallet state unchanged".to_string()
             }
         }
         ToolName::JupiterLendEarnDeposit => {
             if tool_result.success {
-                format!("Successfully lent {:.2} USDC to Jupiter lending protocol at current APY",
-                       tool_result.parameters.get("usdc_amount").unwrap_or(&serde_json::Value::Null))
+                let usdc_lent = match tool_result.parameters.get("usdc_amount") {
+                    Some(serde_json::Value::Number(n)) => n.as_f64().unwrap_or(0.0),
+                    _ => 0.0
+                };
+                let usdc_remaining = current.usdc_amount;
+                
+                format!("Successfully lent {:.2} USDC to Jupiter lending protocol at current APY. USDC remaining in wallet: {:.2}",
+                       usdc_lent,
+                       usdc_remaining)
             } else {
                 "Lending failed, check available USDC balance".to_string()
             }
