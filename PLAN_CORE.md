@@ -161,8 +161,6 @@ struct RefinedPrompt {
     step: usize,
     prompt: String,
     reasoning: String,
-    expected_tool: String,
-    expected_outcome: String,
 }
 
 // Execution result from tool
@@ -418,11 +416,9 @@ async fn parse_refined_prompt_series(llm_response: &str) -> Result<Vec<RefinedPr
     //   - step: 1
     //     prompt: "swap 0.5 SOL to USDC using jupiter_swap"
     //     reasoning: "50% of 1 SOL = 0.5 SOL × $161.50 = $80.75 USDC"
-    //     expected_tool: "jupiter_swap"
     //   - step: 2
     //     prompt: "lend 90.75 USDC to jupiter using jupiter_lend"
     //     reasoning: "Current 10 USDC + swapped 80.75 = 90.75 USDC to lend"
-    //     expected_tool: "jupiter_lend"
 
     let parsed_response: PromptSeriesResponse = serde_yaml::from_str(llm_response)?;
     Ok(parsed_response.refined_prompt_series)
@@ -960,8 +956,6 @@ output_format:
     - step: <integer>
       prompt: "<exact prompt for LLM>"
       reasoning: "<detailed reasoning>"
-      expected_tool: "<tool_name>"
-      expected_outcome: "<expected result>"
 ```
 
 ### `prompts/templates/tool_execution.yml`
