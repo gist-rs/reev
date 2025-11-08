@@ -205,14 +205,14 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
         // Generate test wallet with pre-filled balances using existing setup_wallet
         let keypair = Keypair::new();
         let pubkey = keypair.pubkey().to_string();
-        
+
         // Initialize clients
         let surfpool_client = SurfpoolClient::new("http://localhost:8899");
         let rpc_client = RpcClient::new("http://localhost:8899");
-        
+
         // Setup wallet with SOL and USDC using existing function
         setup_wallet(&rpc_client, &surfpool_client, &keypair, &USDC_MINT, 100_000_000).await?;
-        
+
         pubkey
     } else {
         user_wallet_pubkey.to_string() // Use provided wallet
@@ -935,12 +935,6 @@ output_format:
 8. **Scoring Ready**: Complete execution data for performance scoring
 
 ## 🚀 **Optimized Schema Benefits**
-
-**Removed Unnecessary Tables:**
-- ❌ `token_prices` - Fresh data fetched on-demand, no caching complexity
-- ❌ `wallet_states` - Context stored directly in `tool_executions` for scalability
-- ❌ `tool_definitions` - Tool definitions managed in code, not database
-- ❌ `execution_contexts` - Context data stored with tool execution records
 
 **Enhanced tool_executions Table:**
 - ✅ `wallet_context` - Wallet state before execution (YML)
