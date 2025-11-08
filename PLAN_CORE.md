@@ -750,24 +750,7 @@ reev-core/
 │   │   ├── mod.rs
 │   │   ├── orchestrator.rs       # Main orchestration logic
 │   │   ├── manager.rs            # Step execution manager
-│   │   ├── request.rs            # Request handling
 │   │   └── types.rs              # Core type definitions
-│   ├── database/
-│   │   ├── mod.rs
-│   │   ├── connection.rs        # Database connection management
-│   │   └── operations.rs        # All database operations
-│   ├── wallet/
-│   │   ├── mod.rs
-│   │   ├── state.rs             # Wallet state management
-│   │   ├── context.rs           # Token context building
-│   │   └── resolver.rs          # Wallet address resolution
-│   ├── tools/
-│   │   ├── mod.rs
-│   │   ├── executor.rs          # Tool execution logic
-│   │   ├── jupiter.rs           # Jupiter protocol integration
-│   │   ├── discovery.rs         # Discovery tools (balance, positions)
-│   │   ├── core.rs              # Core tools (SOL/SPL transfer)
-│   │   └── defi.rs             # DeFi tools (swap, lend, earn)
 │   ├── prompts/
 │   │   ├── mod.rs
 │   │   ├── templates/           # YML prompt templates
@@ -776,20 +759,13 @@ reev-core/
 │   │   │   └── context_building.yml
 │   │   ├── loader.rs            # Prompt template loader
 │   │   └── processor.rs         # LLM prompt processing
-│   ├── verification/
-│   │   ├── mod.rs
-│   │   ├── onchain.rs          # On-chain verification
-│   │   ├── transaction.rs       # Transaction verification
-│   │   └── state.rs             # State verification
-│   ├── executor/
-│   │   ├── mod.rs
-│   │   ├── surfpool.rs          # SurfPool integration (executor, not tool)
-│   │   └── manager.rs          # Transaction execution manager
-│   └── utils/
+│   └── executor/
 │       ├── mod.rs
-│       ├── uuidv7.rs            # UUIDv7 generation
-│       ├── yml.rs               # YML processing utilities
-│       └── error.rs             # Error handling types
+│       ├── surfpool.rs          # SurfPool integration
+│       └── manager.rs          # Transaction execution manager
+│       ├── uuidv7.rs            # UUIDv7 generation // no neeed just import and use uuid crate feature v7
+│       ├── yml.rs               # YML processing utilities // we have yml crate, grep for that
+│       └── error.rs             # Error handling types // error should appear in each modules? why here?
 ├── tests/
 │   ├── integration/
 │   ├── unit/
@@ -880,19 +856,27 @@ output_format:
 - ✅ Context bundling = reduced JOIN complexity
 - ✅ YML throughout = consistent data format across all fields
 
-## 🏗️ **Corrected Component Understanding**
+## 🏗️ **Simplified Component Understanding**
 
-Based on existing `ARCHITECTURE.md` and `SURFPOOL.md`:
+Based on existing crate structure and requirements:
 
-### **Proper Layer Separation:**
+### **Use Existing Crates:**
+- **reev-db**: Database operations (SQLite with optimized schema)
 - **reev-tools**: Tool implementations (13 tools with full OTEL coverage)
-- **reev-protocols**: Protocol abstractions (Jupiter, etc.)
+- **reev-context**: Context resolution and token information
+- **reev-types**: Shared type definitions
+- **reev-agent**: LLM service integration
 - **surfpool**: Mainnet fork executor (NOT a tool)
+- **uuid**: UUIDv7 generation (existing crate, no custom implementation needed)
+- **serde_yaml**: YML processing (already used throughout project)
+- **anyhow**: Error handling (existing pattern in project)
 
-### **Corrected Tool Categories:**
-- **Discovery Tools**: `get_account_balance`, `get_jupiter_lend_earn_position`
-- **Core Tools**: `sol_transfer`, `spl_transfer`  
-- **DeFi Tools**: `jupiter_swap`, `jupiter_lend_earn_deposit`, `jupiter_earn`
+### **Reev-Core Focus Areas:**
+- **Core orchestration**: 18-step flow implementation
+- **Prompt management**: YML template system
+- **Step execution**: Tool coordination using reev-tools
+- **SurfPool integration**: Transaction execution on forked mainnet
+- **Database operations**: Using reev-db with optimized schema
 
 ### **SurfPool Role:**
 - **NOT a tool** - It's a Solana testnet executor
@@ -900,35 +884,67 @@ Based on existing `ARCHITECTURE.md` and `SURFPOOL.md`:
 - **Cheat codes** for state manipulation (`surfnet_setTokenAccount`)
 - **Transaction execution** environment, not a protocol tool
 
-### **Jupiter Role:**
-- **Protocol integration** for DeFi operations
-- **Swap/lend/earn** operations through Jupiter SDK
-- **Real mainnet** protocol calls, not mock/testing
-
 ### **Execution Flow:**
-1. Tools generate transactions (e.g., `jupiter_swap`)
-2. Jupiter protocol returns transaction data
-3. SurfPool executes transaction on forked mainnet
-4. Verification happens on real forked state
+1. Reev-core orchestrates 18-step flow
+2. Uses reev-tools for tool calls (jupiter_swap, etc.)
+3. Jupiter protocol returns transaction data
+4. SurfPool executes transaction on forked mainnet
+5. Results stored in reev-db with optimized schema
+
+## 🏗️ **Minimal reev-core Structure**
+
+```
+reev-core/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs                    # Core library entry point
+│   ├── main.rs                   # CLI interface (optional)
+│   ├── orchestrator.rs           # 18-step flow implementation
+│   ├── prompts/
+│   │   ├── mod.rs
+│   │   └── templates/           # YML prompt templates
+│   │       ├── refine_user_prompt.yml
+│   │       ├── tool_execution.yml
+│   │       └── context_building.yml
+│   └── executor/
+│       ├── mod.rs
+│       ├── surfpool.rs          # SurfPool integration
+│       └── manager.rs          # Transaction execution manager
+├── tests/
+│   ├── integration/
+│   └── unit/
+└── examples/
+    ├── simple_swap.rs
+    └── lending_flow.rs
+```
 
 ## 🚀 **Next Steps for Implementation**
 
-1. **Create reev-core crate** with streamlined project structure
-2. **Implement optimized database schema** (4 tables vs 8 original)
-3. **Build core orchestrator** with request handling
-4. **Implement wallet state management** with on-demand token pricing
-5. **Add tool execution framework** with Jupiter/SurfPool integration
-6. **Create prompt template system** with YML files
-7. **Add verification layer** for on-chain verification
-8. **Build comprehensive testing** with integration tests
-9. **Create debugging interface** for state inspection
-10. **Add flow visualization** and scoring capabilities
+1. **Create reev-core crate** with minimal structure above
+2. **Implement orchestrator.rs** with 18-step flow using existing crates
+3. **Add prompt template system** with YML files using serde_yaml
+4. **Integrate SurfPool executor** using existing surfpool crate
+5. **Build testing** with integration tests
+6. **Create debugging interface** for state inspection
+7. **Add flow visualization** using existing reev-flow
 
-**Implementation Priority:**
-- **Week 1**: Core schema and database operations (optimized)
-- **Week 2**: Request handling and wallet context management
-- **Week 3**: Tool execution with context bundling
-- **Week 4**: Prompt system and LLM integration
-- **Week 5**: Verification layer and error recovery
+### **Dependencies Use Existing Crates:**
+- `reev-db` - Database operations with optimized schema
+- `reev-tools` - Tool implementations (jupiter_swap, etc.)
+- `reev-context` - Token context and wallet resolution  
+- `reev-agent` - LLM service integration
+- `reev-types` - Shared type definitions
+- `reev-flow` - Session management and OTEL integration
+- `surfpool` - Mainnet fork executor
+- `serde_yaml` - Already used throughout project
+- `uuid` - For UUIDv7 generation (existing dependency)
+- `anyhow` - Error handling (existing pattern)
+
+### **Implementation Priority:**
+- **Week 1**: Create reev-core structure + orchestrator.rs 18-step flow
+- **Week 2**: Integrate existing crates (reev-tools, reev-context, reev-agent)
+- **Week 3**: Add prompt system + LLM integration
+- **Week 4**: Integrate SurfPool executor
+- **Week 5**: Testing + debugging interface + flow visualization
 
 This architecture provides a solid foundation for reliable, verifiable, and debuggable automated DeFi operations.
