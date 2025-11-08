@@ -64,7 +64,7 @@ CREATE TABLE tool_executions (
     llm_response TEXT NOT NULL,             -- Raw LLM response
     refined_prompt_id INTEGER,              -- Reference to prompt used
     execution_status TEXT NOT NULL,         -- pending/executing/verified/failed
-    jupiter_tx_hash TEXT,                   -- Transaction hash from Jupiter protocol
+    jupiter_unsigned_tx_hash TEXT,        -- Unsigned transaction hash from Jupiter protocol
     surfpool_tx_hash TEXT,                  -- Transaction hash from SurfPool executor
     execution_result TEXT,                  -- YML format
     verification_status TEXT,               -- verified/unverified/failed
@@ -532,7 +532,7 @@ async fn record_tool_execution_request(
 ### **Step 11: Tool Execution with Token Context**
 ```rust
 // Input: tool_name, tool_params, token_context
-// Output: jupiter_tx_hash
+// Output: jupiter_unsigned_tx_hash
 
 async fn execute_tool_with_context(
     execution_id: i64,
@@ -563,7 +563,7 @@ async fn execute_tool_with_context(
     // PROBLEM: Multiple database updates for single operation
     // SOLUTION: Single atomic update with all data
     db.execute("UPDATE tool_executions
-                SET jupiter_tx_hash = ?, execution_status = 'executing',
+                SET jupiter_unsigned_tx_hash = ?, execution_status = 'executing',
                     raw_response = ?, validated_at = CURRENT_TIMESTAMP
                 WHERE execution_id = ?",
                [tx_hash, serde_yaml::to_string(&jupiter_response)?, execution_id])?;
@@ -574,15 +574,15 @@ async fn execute_tool_with_context(
 
 ### **Step 12: Jupiter Transaction Recording**
 ```rust
-// Input: execution_id, jupiter_tx_hash
+// Input: execution_id, jupiter_unsigned_tx_hash
 // Output: tx_details stored
 
 async fn record_jupiter_transaction(
     execution_id: i64,
-    jupiter_tx_hash: &str
+    jupiter_unsigned_tx_hash: &str
 ) -> Result<()> {
     // Get transaction details from Jupiter
-    let tx_details = get_jupiter_transaction_details(jupiter_tx_hash).await?;
+    let tx_details = get_jupiter_transaction_details(jupiter_unsigned_tx_hash).await?;
 
     // Store transaction details in YML format
     let tx_details_yml = serde_yaml::to_string(&tx_details)?;
@@ -599,20 +599,20 @@ async fn record_jupiter_transaction(
 
 ### **Step 13: SurfPool Transaction Processing**
 ```rust
-// Input: jupiter_tx_hash
+// Input: jupiter_unsigned_tx_hash
 // Output: surfpool_tx_hash
 
-async fn process_with_surfpool(jupiter_tx_hash: &str) -> Result<String> {
+async fn process_with_surfpool(jupiter_unsigned_tx_hash: &str) -> Result<String> {
     // Submit Jupiter transaction to SurfPool executor
-        let surfpool_response = execute_with_surfpool(jupiter_tx_hash).await?;
+        let surfpool_response = execute_with_surfpool(jupiter_unsigned_tx_hash).await?;
 
     let surfpool_tx_hash = surfpool_response.transaction_hash;
 
     // Update execution recordc
     db.execute("UPDATE tool_executions
                 SET surfpool_tx_hash = ?
-                WHERE jupiter_tx_hash = ?",
-               [surfpool_tx_hash, jupiter_tx_hash])?;
+                WHERE jupiter_unsigned_tx_hash = ?",
+               [surfpool_tx_hash, jupiter_unsigned_tx_hash])?;
 
     Ok(surfpool_tx_hash)
 }
