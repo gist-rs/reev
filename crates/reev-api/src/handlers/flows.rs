@@ -12,6 +12,69 @@ use axum::{
 use chrono::Utc;
 use serde::Deserialize;
 use serde_json::json;
+
+/// Transform consolidated content to match SessionParser expected format
+fn transform_consolidated_content(
+    consolidated_data: &serde_json::Value,
+    session_id: &str,
+) -> String {
+    let empty_steps = vec![];
+    let steps = consolidated_data
+        .get("steps")
+        .and_then(|s| s.as_array())
+        .unwrap_or(&empty_steps);
+
+    let empty_metadata = serde_json::json!({});
+    let metadata = consolidated_data.get("metadata").unwrap_or(&empty_metadata);
+
+    // Extract tool calls from steps for the parser
+    let mut tool_calls = Vec::new();
+
+    for (index, step) in steps.iter().enumerate() {
+        if let (Some(step_content), Some(success)) = (
+            step.get("content").and_then(|c| c.as_str()),
+            step.get("success").and_then(|s| s.as_bool()),
+        ) {
+            // Parse step content to extract tool calls
+            if let Ok(parsed_step) = serde_yaml::from_str::<serde_json::Value>(step_content) {
+                if let Some(tools) = parsed_step.get("tool_calls").and_then(|t| t.as_array()) {
+                    for tool in tools {
+                        tool_calls.push(json!({
+                            "tool": tool.get("tool").unwrap_or(&serde_json::json!("unknown")),
+                            "input": tool.get("input").unwrap_or(&serde_json::json!({})),
+                            "output": tool.get("output").unwrap_or(&serde_json::json!({})),
+                            "success": success,
+                            "step_index": index,
+                            "timestamp": step.get("timestamp").unwrap_or(&serde_json::json!(null))
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    // Create session content in format expected by SessionParser
+    let session_data = json!({
+        "session_id": session_id,
+        "benchmark_id": consolidated_data.get("execution_id").unwrap_or(&serde_json::json!("consolidated")),
+        "start_time": 0,
+        "end_time": 1,
+        "tool_calls": tool_calls,
+        "is_dynamic_flow": true,
+        "flow_type": "consolidated",
+        "is_consolidated": true,
+        "consolidated_metadata": {
+            "total_sessions": consolidated_data.get("total_sessions"),
+            "successful_steps": metadata.get("successful_steps"),
+            "failed_steps": metadata.get("failed_steps"),
+            "success_rate": metadata.get("success_rate"),
+            "avg_score": metadata.get("avg_score"),
+            "total_tools": metadata.get("total_tools")
+        }
+    });
+
+    session_data.to_string()
+}
 use tracing::{error, info, warn};
 
 use crate::handlers::flow_diagram::{FlowDiagramError, SessionParser, StateDiagramGenerator};
@@ -141,19 +204,20 @@ async fn generate_state_diagram_from_db(
                     }
                 };
 
-            // Create parsed session from consolidated content
-            let session_data = json!({
-                "session_id": session_id,
-                "log_content": consolidated_content,
-                "start_time": 0,
-                "end_time": 1,
-                "is_dynamic_flow": true,
-                "flow_type": "consolidated",
-                "is_consolidated": true
-            });
+            // Parse consolidated content directly
+            let consolidated_data: serde_json::Value = serde_json::from_str(&consolidated_content)
+                .map_err(|e| {
+                    FlowDiagramError::InvalidLogFormat(format!(
+                        "Failed to parse consolidated JSON: {e}"
+                    ))
+                })?;
 
-            // Parse the consolidated session content
-            match SessionParser::parse_session_content(&session_data.to_string()) {
+            // Transform consolidated content to match SessionParser expected format
+            let transformed_content =
+                transform_consolidated_content(&consolidated_data, session_id);
+
+            // Parse the transformed session content
+            match SessionParser::parse_session_content(&transformed_content) {
                 Ok(parsed_session) => {
                     // Generate diagram for consolidated session with special handling
                     let flow_diagram = if parsed_session.tool_calls.is_empty() {

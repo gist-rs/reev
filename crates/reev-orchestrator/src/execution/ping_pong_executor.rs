@@ -26,6 +26,7 @@ use reev_db::writer::DatabaseWriterTrait;
 use reev_lib::constants::{sol_mint, usdc_mint};
 use reev_types::execution::ToolCallSummary;
 use reev_types::flow::{DynamicFlowPlan, DynamicStep, StepResult};
+
 use std::sync::Arc;
 
 use std::collections::HashMap;
@@ -1084,46 +1085,37 @@ impl PingPongExecutor {
             chrono::Utc::now().timestamp_millis()
         );
 
-        // Build consolidated content with success/error flags
-        let mut consolidated_content = String::new();
+        // Build consolidated content as JSON with success/error flags
         let mut total_tools = 0;
         let mut successful_steps = 0;
         let mut failed_steps = 0;
-
-        consolidated_content.push_str(&format!("# Consolidated Session: {consolidated_id}\n"));
-        consolidated_content.push_str(&format!("Execution ID: {execution_id}\n"));
-        consolidated_content.push_str(&format!("Total Sessions: {}\n", sessions.len()));
-        consolidated_content.push_str(&format!(
-            "Consolidated At: {}\n\n",
-            chrono::Utc::now().to_rfc3339()
-        ));
+        let mut session_steps = Vec::new();
 
         for (index, session) in sessions.iter().enumerate() {
-            consolidated_content.push_str(&format!(
-                "--- Session {} ({}): {} ---\n",
-                index + 1,
-                session.status,
-                session.session_id
-            ));
-
             // Parse session content to determine success/failure
             let session_success = Self::analyze_session_success(&session.content);
             if session_success {
                 successful_steps += 1;
-                consolidated_content.push_str("Status: ✅ SUCCESS\n");
             } else {
                 failed_steps += 1;
-                consolidated_content.push_str("Status: ❌ FAILED\n");
             }
 
             // Extract tool count from session
             let tool_count = Self::extract_tool_count(&session.content);
             total_tools += tool_count;
 
-            consolidated_content.push_str(&format!("Tool Calls: {tool_count}\n"));
-            consolidated_content.push_str(&format!("Timestamp: {}\n\n", session.timestamp));
-            consolidated_content.push_str(&session.content);
-            consolidated_content.push_str("\n\n");
+            // Create session step JSON object
+            let session_step = serde_json::json!({
+                "step_index": index,
+                "session_id": session.session_id,
+                "status": session.status,
+                "success": session_success,
+                "tool_count": tool_count,
+                "timestamp": session.timestamp,
+                "content": session.content
+            });
+
+            session_steps.push(session_step);
         }
 
         // Calculate metadata
@@ -1146,6 +1138,39 @@ impl PingPongExecutor {
             Some(0.0)
         };
 
+        // Create consolidated JSON structure
+        let consolidated_content = serde_json::json!({
+            "consolidated_session_id": consolidated_id,
+            "execution_id": execution_id,
+            "total_sessions": sessions.len(),
+            "consolidated_at": chrono::Utc::now().to_rfc3339(),
+            "steps": session_steps,
+            "metadata": {
+                "successful_steps": successful_steps,
+                "failed_steps": failed_steps,
+                "total_steps": total_steps,
+                "success_rate": success_rate,
+                "avg_score": avg_score,
+                "total_tools": total_tools
+            }
+        });
+
+        // Debug log to see what content is being generated
+        info!(
+            "[PingPongExecutor] DEBUG: Generated consolidated JSON: {}",
+            consolidated_content
+        );
+
+        let content_string = consolidated_content.to_string();
+        info!(
+            "[PingPongExecutor] DEBUG: Content string length: {}",
+            content_string.len()
+        );
+        info!(
+            "[PingPongExecutor] DEBUG: Content string preview: {}",
+            &content_string[..content_string.len().min(100)]
+        );
+
         // Create consolidation metadata
         let metadata = reev_db::shared::performance::ConsolidationMetadata {
             avg_score,
@@ -1154,14 +1179,19 @@ impl PingPongExecutor {
             execution_duration_ms: None, // Could be calculated from timestamps if needed
         };
 
-        // Store consolidated session
+        // Store consolidated session as JSON string
+        let content_string = consolidated_content.to_string();
+        info!(
+            "[PingPongExecutor] DEBUG: Content string length: {}",
+            content_string.len()
+        );
+        info!(
+            "[PingPongExecutor] DEBUG: Content string preview: {}",
+            &content_string[..content_string.len().min(100)]
+        );
+
         database
-            .store_consolidated_session(
-                &consolidated_id,
-                execution_id,
-                &consolidated_content,
-                &metadata,
-            )
+            .store_consolidated_session(&consolidated_id, execution_id, &content_string, &metadata)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to store consolidated session: {e}"))?;
 

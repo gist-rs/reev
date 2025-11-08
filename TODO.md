@@ -1,6 +1,9 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
+
+ , check that the code align with the plan or not, check result step by step, jsonl then yml then db then read db to mermaid diagram, dont skip, think harder, expect benchmarks/300-jup-swap-then-lend-deposit-dyn.yml working with yml or just prompt via glm-4.6-coding and see mermaid statediagram as a plan
+
 [@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) ,[@DYNAMIC_BENCHMARK_DESIGN.md](file:///Users/katopz/git/gist/reev/DYNAMIC_BENCHMARK_DESIGN.md) ,[@HANDOVER.md](file:///Users/katopz/git/gist/reev/HANDOVER.md) ,
 ai is overclaim that llm is complete but messup rulesbase test only, ignore the rulesbase test because we want llm flow to work first
 
