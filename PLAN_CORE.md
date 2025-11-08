@@ -35,12 +35,6 @@ CREATE TABLE prompts (
     FOREIGN KEY (request_id) REFERENCES requests(request_id)
 );
 
-
-
-
-
-
-
 -- Tool execution tracking (ONE ROW PER TOOL CALL)
 CREATE TABLE tool_executions (
     execution_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,17 +98,17 @@ CREATE INDEX idx_execution_errors_request_id ON execution_errors(request_id);
 async fn initialize_request(user_prompt: &str, user_wallet_pubkey: &str) -> Result<String> {
     let request_id = generate_uuidv7(); // Time-sortable UUID
     let status = "running";
-    
+
     // Store initial request
-    db.execute("INSERT INTO requests (request_id, user_prompt, user_wallet_pubkey, status) 
-                VALUES (?, ?, ?, ?)", 
+    db.execute("INSERT INTO requests (request_id, user_prompt, user_wallet_pubkey, status)
+                VALUES (?, ?, ?, ?)",
                [request_id, user_prompt, user_wallet_pubkey, status])?;
-    
+
     // Store user prompt in prompts table for audit
-    db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content) 
+    db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
                 VALUES (?, 0, 'user_input', ?)",
                [request_id, user_prompt])?;
-    
+
     Ok(request_id)
 }
 ```
@@ -130,11 +124,11 @@ async fn resolve_wallet_address(request_id: &str, user_wallet_pubkey: &str) -> R
     } else {
         user_wallet_pubkey.to_string() // Use provided wallet
     };
-    
+
     // Update request with resolved wallet
     db.execute("UPDATE requests SET resolved_wallet_pubkey = ? WHERE request_id = ?",
                [resolved_wallet, request_id])?;
-    
+
     Ok(resolved_wallet)
 }
 ```
@@ -148,19 +142,19 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
     // Get current token prices (fresh data, no caching)
         let sol_price = fetch_token_price("So11111111111111111111111111111111111111112").await?;
         let usdc_price = 1.0; // USDC is stablecoin
-    
+
     // Get wallet balances
     let sol_balance = get_token_balance(wallet_pubkey, SOL_MINT).await?;
     let usdc_balance = get_token_balance(wallet_pubkey, USDC_MINT).await?;
-    
+
     let sol_usd_value = sol_balance * sol_price;
     let usdc_usd_value = usdc_balance * usdc_price;
     let total_usd_value = sol_usd_value + usdc_usd_value;
-    
+
     // No separate wallet_states table - context stored in tool_executions
-    
+
     // No token price caching - fetch fresh data each time
-    
+
     Ok(WalletState {
         sol_amount: sol_balance,
         usdc_amount: usdc_balance,
@@ -179,16 +173,16 @@ async fn record_entry_wallet_state(request_id: &str, wallet_pubkey: &str) -> Res
 async fn get_tool_context() -> Result<String> {
     // Tool definitions loaded from code, not database
     let tools = get_tool_definitions_from_code(); // Load from Rust code
-    
+
     let mut tool_context = String::new();
     tool_context.push_str("available_tools:\n");
-    
+
     for tool in tools {
         tool_context.push_str(&format!("  {}:\n", tool.tool_name));
         tool_context.push_str(&format!("    description: \"{}\"\n", tool.description));
         tool_context.push_str(&format!("    parameters: {}\n", tool.parameters));
     }
-    
+
     Ok(tool_context) // YML format
 }
 ```
@@ -201,13 +195,13 @@ async fn get_tool_context() -> Result<String> {
 async fn prepare_refinement_instructions(tool_context: &str) -> Result<String> {
     // Load refinement prompt template from YML file
     let template = load_yml_file("prompts/refine_user_prompt.yml")?;
-    
+
     // Prepare complete refinement instructions
     let refined_instruct = format!(
         "refinement_instructions:\n  task: \"refine user prompt to match tools description\"\n  tool_context: |\n    {}\n  requirements:\n    - generate sequence of executable tool calls\n    - use current wallet amounts and prices\n    - target goal must be achievable with available tools\n    - each call must match tool description exactly\n",
         tool_context
     );
-    
+
     Ok(refined_instruct) // YML format
 }
 ```
@@ -228,23 +222,23 @@ async fn refine_user_prompt_with_llm(
         "prompt_refinement_request:\n  user_prompt: \"{}\"\n  token_context: |\n    {}\n  {}\n\nGenerate refined prompt series:",
         user_prompt, token_context, refined_instruct
     );
-    
+
     // Store refinement prompt for audit
     db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content, template_used)
                 VALUES (?, 1, 'refinement', ?, 'prompts/refine_user_prompt.yml')",
                [request_id, full_prompt])?;
-    
+
     // Call LLM
     let llm_response = call_llm_with_timeout("glm-4.6-coding", &full_prompt, 30000).await?;
-    
+
     // Store LLM response
     db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
                 VALUES (?, 2, 'refinement_response', ?)",
                [request_id, llm_response])?;
-    
+
     // Parse LLM response into structured prompts
     let refined_prompts = parse_refined_prompt_series(&llm_response)?;
-    
+
     Ok(refined_prompts)
 }
 ```
@@ -265,7 +259,7 @@ async fn parse_refined_prompt_series(llm_response: &str) -> Result<Vec<RefinedPr
     //     prompt: "lend 90.75 USDC to jupiter using jupiter_lend"
     //     reasoning: "Current 10 USDC + swapped 80.75 = 90.75 USDC to lend"
     //     expected_tool: "jupiter_lend"
-    
+
     let parsed_response: PromptSeriesResponse = serde_yaml::from_str(llm_response)?;
     Ok(parsed_response.refined_prompt_series)
 }
@@ -307,7 +301,7 @@ async fn prepare_tool_execution(
     step_index: usize
 ) -> Result<(String, String)> {
     let refined_prompt = &manager.prompt_series[step_index];
-    
+
     // Build tool calling prompt with current context
     let tool_calling_prompt = format!(
         "tool_execution_request:\n  current_wallet_context: |\n    {}\n  task: \"{}\"\n  expected_tool: \"{}\"\n\nExecute this tool call with proper parameters:",
@@ -315,18 +309,18 @@ async fn prepare_tool_execution(
         refined_prompt.prompt,
         refined_prompt.expected_tool
     );
-    
+
     // Store tool execution prompt
     db.execute("INSERT INTO prompts (request_id, step_number, prompt_type, prompt_content)
                 VALUES (?, ?, 'tool_execution', ?)",
                [manager.request_id, step_index + 3, tool_calling_prompt])?;
-    
+
     // Call LLM for tool calling
     let llm_response = call_llm_with_timeout("glm-4.6-coding", &tool_calling_prompt, 30000).await?;
-    
+
     // Parse tool calling response
     let (tool_name, tool_params) = parse_tool_calling_response(&llm_response)?;
-    
+
     Ok((tool_name, tool_params))
 }
 ```
@@ -344,18 +338,18 @@ async fn record_tool_execution_request(
     wallet_context: &str
 ) -> Result<i64> {
     // Get refined prompt ID
-    let refined_prompt_id = db.query_one("SELECT prompt_id FROM prompts 
-                                         WHERE request_id = ? AND step_number = ? 
+    let refined_prompt_id = db.query_one("SELECT prompt_id FROM prompts
+                                         WHERE request_id = ? AND step_number = ?
                                          AND prompt_type = 'tool_execution'",
                                         [request_id, step_number + 3])?.prompt_id;
-    
+
     // Create tool execution record with wallet context
-    db.execute("INSERT INTO tool_executions 
-                (request_id, step_number, tool_name, tool_params, refined_prompt_id, 
+    db.execute("INSERT INTO tool_executions
+                (request_id, step_number, tool_name, tool_params, refined_prompt_id,
                  execution_status, wallet_context)
                 VALUES (?, ?, ?, ?, ?, 'pending', ?)",
                [request_id, step_number, tool_name, tool_params, refined_prompt_id, wallet_context])?;
-    
+
     let execution_id = db.last_insert_rowid();
     Ok(execution_id)
 }
@@ -374,21 +368,21 @@ async fn execute_tool_with_context(
 ) -> Result<String> {
     // Parse tool parameters from YML
     let params: ToolParameters = serde_yaml::from_str(tool_params)?;
-    
+
     // Enrich parameters with token context
     let enriched_params = enrich_parameters_with_token_context(params, token_context)?;
-    
+
     // Execute tool via Jupiter protocol
         let jupiter_response = call_jupiter_protocol(tool_name, &enriched_params).await?;
-    
+
         let tx_hash = jupiter_response.transaction_hash;
-    
+
     // Update execution record
-    db.execute("UPDATE tool_executions 
+    db.execute("UPDATE tool_executions
                 SET jupiter_tx_hash = ?, execution_status = 'executing'
                 WHERE execution_id = ?",
                [tx_hash, execution_id])?;
-    
+
     Ok(tx_hash)
 }
 ```
@@ -404,16 +398,16 @@ async fn record_jupiter_transaction(
 ) -> Result<()> {
     // Get transaction details from Jupiter
     let tx_details = get_jupiter_transaction_details(jupiter_tx_hash).await?;
-    
+
     // Store transaction details in YML format
     let tx_details_yml = serde_yaml::to_string(&tx_details)?;
-    
+
     // Update execution record with transaction details
-        db.execute("UPDATE tool_executions 
-                    SET execution_result = ? 
+        db.execute("UPDATE tool_executions
+                    SET execution_result = ?
                     WHERE execution_id = ?",
                    [tx_details_yml, execution_id])?;
-    
+
     Ok(())
 }
 ```
@@ -426,15 +420,15 @@ async fn record_jupiter_transaction(
 async fn process_with_surfpool(jupiter_tx_hash: &str) -> Result<String> {
     // Submit Jupiter transaction to SurfPool executor
         let surfpool_response = execute_with_surfpool(jupiter_tx_hash).await?;
-    
+
     let surfpool_tx_hash = surfpool_response.transaction_hash;
-    
+
     // Update execution record
-    db.execute("UPDATE tool_executions 
-                SET surfpool_tx_hash = ? 
+    db.execute("UPDATE tool_executions
+                SET surfpool_tx_hash = ?
                 WHERE jupiter_tx_hash = ?",
                [surfpool_tx_hash, jupiter_tx_hash])?;
-    
+
     Ok(surfpool_tx_hash)
 }
 ```
@@ -450,10 +444,10 @@ async fn collect_execution_results(
 ) -> Result<ExecutionResult> {
     // Get transaction status from SurfPool executor
         let surfpool_status = get_surfpool_execution_status(surfpool_tx_hash).await?;
-    
+
     // Verify transaction on-chain
     let verification_result = verify_transaction_on_chain(surfpool_tx_hash).await?;
-    
+
     // Build execution result
     let execution_result = ExecutionResult {
         success: surfpool_status.success && verification_result.verified,
@@ -461,23 +455,23 @@ async fn collect_execution_results(
         verification_details: verification_result,
         execution_time_ms: surfpool_status.execution_time_ms,
     };
-    
+
     // Store execution results in YML format
     let result_yml = serde_yaml::to_string(&execution_result)?;
     let verification_status = if verification_result.verified { "verified" } else { "unverified" };
-    
+
     // Update execution record with updated wallet context
     let updated_wallet_context = build_wallet_context_yml(&current_wallet_state.wallet_pubkey).await?;
-    
-    db.execute("UPDATE tool_executions 
-                SET execution_status = ?, verification_status = ?, 
+
+    db.execute("UPDATE tool_executions
+                SET execution_status = ?, verification_status = ?,
                     execution_result = ?, verification_details = ?, execution_time_ms = ?,
                     updated_wallet_context = ?
                 WHERE execution_id = ?",
-               ["completed", verification_status, result_yml, 
-                serde_yaml::to_string(&verification_result)?, 
+               ["completed", verification_status, result_yml,
+                serde_yaml::to_string(&verification_result)?,
                 surfpool_status.execution_time_ms, updated_wallet_context, execution_id])?;
-    
+
     Ok(execution_result)
 }
 ```
@@ -495,7 +489,7 @@ async fn build_next_context(
 ) -> Result<String> {
     // Get updated wallet state after tool execution
     let updated_wallet_state = get_current_wallet_state(&current_wallet_state.wallet_pubkey).await?;
-    
+
     // Build detailed context with before/after comparison
     let next_context = format!(
         "wallet_context_update:\n  step_number: {}\n  tool_executed: \"{}\"\n  execution_success: {}\n  \n  previous_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  current_wallet_state:\n    sol_amount: {}\n    usdc_amount: {}\n    total_usd_value: {}\n  \n  changes:\n    sol_delta: {}\n    usdc_delta: {}\n    value_delta: {}\n  \n  next_task: \"{}\"\n  comment: \"{}\"",
@@ -514,9 +508,9 @@ async fn build_next_context(
         next_prompt,
         generate_context_comment(previous_wallet_state, &updated_wallet_state, current_tool_result)
     );
-    
+
     // No separate execution_contexts table - context stored in tool_executions
-    
+
     Ok(next_context) // YML format
 }
 
@@ -559,13 +553,13 @@ async fn execute_prompt_series(
     mut manager: ExecutionManager
 ) -> Result<Vec<ExecutionResult>> {
     let mut all_results = Vec::new();
-    
+
     while manager.step_number < manager.prompt_series.len() {
         match execute_single_step(&mut manager).await {
             Ok(result) => {
                 all_results.push(result);
                 manager.step_number += 1;
-                
+
                 // Update manager's context for next step
                 let next_context = build_next_context(
                     &manager.request_id,
@@ -573,7 +567,7 @@ async fn execute_prompt_series(
                     &result,
                     &manager.prompt_series[manager.step_number].prompt
                 ).await?;
-                
+
                 manager.current_context = parse_wallet_context(&next_context)?;
             }
             Err(e) => {
@@ -583,19 +577,19 @@ async fn execute_prompt_series(
             }
         }
     }
-    
+
     Ok(all_results)
 }
 
 async fn execute_single_step(manager: &mut ExecutionManager) -> Result<ExecutionResult> {
     let step_index = manager.step_number;
     let refined_prompt = &manager.prompt_series[step_index];
-    
+
     // Step 9: Prepare tool execution
     let (tool_name, tool_params) = prepare_tool_execution(
         manager, step_index
     ).await?;
-    
+
     // Step 10: Record tool execution request
     let execution_id = record_tool_execution_request(
         &manager.request_id,
@@ -603,7 +597,7 @@ async fn execute_single_step(manager: &mut ExecutionManager) -> Result<Execution
         &tool_name,
         &tool_params
     ).await?;
-    
+
     // Step 11: Execute tool with context
     let jupiter_tx_hash = execute_tool_with_context(
         execution_id,
@@ -611,19 +605,19 @@ async fn execute_single_step(manager: &mut ExecutionManager) -> Result<Execution
         &tool_params,
         &serialize_wallet_context(&manager.current_context)
     ).await?;
-    
+
     // Step 12: Record Jupiter transaction
     record_jupiter_transaction(execution_id, &jupiter_tx_hash).await?;
-    
+
     // Step 13: Process with SurfPool
     let surfpool_tx_hash = process_with_surfpool(&jupiter_tx_hash).await?;
-    
+
     // Step 14: Collect results
     let execution_result = collect_execution_results(
         execution_id,
         &surfpool_tx_hash
     ).await?;
-    
+
     Ok(execution_result)
 }
 ```
@@ -640,7 +634,7 @@ async fn record_execution_error(
 ) -> Result<()> {
     // Determine error type and code
     let (error_type, error_code, recovery_possible) = classify_error(&error);
-    
+
     // Store error details in YML format
     let error_details = yaml!({
         "step_number": step_number,
@@ -648,27 +642,27 @@ async fn record_execution_error(
         "root_cause": format!("{:?}", error.root_cause()),
         "context": "tool_execution_phase"
     });
-    
+
     // Record error
-    db.execute("INSERT INTO execution_errors 
-                (request_id, step_number, error_type, error_code, 
+    db.execute("INSERT INTO execution_errors
+                (request_id, step_number, error_type, error_code,
                  error_message, error_details, recovery_attempted)
                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                [request_id, step_number, error_type, error_code,
                 error.to_string(), serde_yaml::to_string(&error_details)?,
                 recovery_possible])?;
-    
+
     // Attempt recovery if possible
     if recovery_possible {
         attempt_error_recovery(request_id, step_number, &error).await?;
     }
-    
+
     Ok(())
 }
 
 fn classify_error(error: &anyhow::Error) -> (String, String, bool) {
     let error_str = error.to_string().to_lowercase();
-    
+
     if error_str.contains("insufficient") && error_str.contains("balance") {
         ("insufficient_balance", "BALANCE_ERROR", true).to_strings()
     } else if error_str.contains("timeout") {
@@ -688,7 +682,7 @@ async fn attempt_error_recovery(
     error: &anyhow::Error
 ) -> Result<()> {
     let error_str = error.to_string().to_lowercase();
-    
+
     // Recovery strategies based on error type
     if error_str.contains("insufficient") && error_str.contains("balance") {
         // Try with reduced amount
@@ -697,7 +691,7 @@ async fn attempt_error_recovery(
         // Retry with longer timeout
         attempt_retry_with_longer_timeout(request_id, step_number).await?;
     }
-    
+
     Ok(())
 }
 ```
@@ -714,20 +708,20 @@ async fn record_exit_wallet_state(
     // Get current token prices (fresh data)
         let sol_price = fetch_token_price(SOL_MINT).await?;
         let usdc_price = 1.0;
-    
+
     // Get final wallet balances
     let sol_balance = get_token_balance(wallet_pubkey, SOL_MINT).await?;
     let usdc_balance = get_token_balance(wallet_pubkey, USDC_MINT).await?;
-    
+
     let sol_usd_value = sol_balance * sol_price;
     let usdc_usd_value = usdc_balance * usdc_price;
     let total_usd_value = sol_usd_value + usdc_usd_value;
-    
+
     // No separate wallet_states table - exit state in tool_executions
-    
+
     // Update request status
     db.execute("UPDATE requests SET status = 'completed' WHERE request_id = ?", [request_id])?;
-    
+
     Ok(WalletState {
         sol_amount: sol_balance,
         usdc_amount: usdc_balance,
@@ -896,7 +890,7 @@ reev-core/
 ### **Dependencies Use Existing Crates:**
 - `reev-db` - Database operations with optimized schema
 - `reev-tools` - Tool implementations (jupiter_swap, etc.)
-- `reev-context` - Token context and wallet resolution  
+- `reev-context` - Token context and wallet resolution
 - `reev-agent` - LLM service integration
 - `reev-types` - Shared type definitions
 - `reev-flow` - Session management and OTEL integration
