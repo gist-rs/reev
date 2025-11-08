@@ -13,7 +13,7 @@ After reviewing the existing `ping-pong` implementation and current codebase, se
 - **No real testing**: Integration couldn't handle real failures
 
 ### **New Design Principles:**
-- **API caching**: Call real API once, reuse as mock for fast testing
+- **Mock data generation**: Generate test data from real APIs for fast development
 - **State consistency**: Each database write updates full state atomically
 - **LLM efficiency**: Single LLM call per step, reuse context
 - **Testability**: Built-in mock mode for rapid development
@@ -22,7 +22,7 @@ After reviewing the existing `ping-pong` implementation and current codebase, se
 
 ## 🎯 **Core Principles**
 
-- **API-first with caching** - Call real APIs once, mock for testing
+- **Test data generation** - Generate mock data from real APIs for development
 - **Step-by-step verification** - Each step verified before next
 - **State atomicity** - Database writes include full context
 - **Test-driven development** - Mock mode for fast iteration
@@ -486,9 +486,9 @@ async fn execute_tool_with_context(
     let params: ToolParameters = serde_yaml::from_str(tool_params)?;
 
     // PROBLEM: Real Jupiter API called in development (slow/expensive)
-    // SOLUTION: API caching and mock mode for testing
-    let jupiter_response = if cfg!(feature = "mock_mode") {
-        mock_jupiter_response(tool_name, &params).await?
+    // SOLUTION: Use pre-generated mock data for testing
+    let jupiter_response = if cfg!(test) {
+        load_mock_jupiter_response(tool_name, &params).await?
     } else {
         // Use cached API response if available
         get_cached_or_call_jupiter(tool_name, &params).await?
@@ -646,7 +646,7 @@ fn generate_context_comment(
     tool_result: &ExecutionResult
 ) -> String {
     use reev_types::tools::ToolName;
-    
+
     match tool_result.tool_name {
         ToolName::JupiterSwap => {
             if tool_result.success {
@@ -1013,175 +1013,139 @@ reev-core/
     └── lending_flow.rs
 ```
 
-## 🚀 **API Caching & Testing Strategy**
+## 🚀 **Test Reliability Strategy**
 
-### **Core Problem:** Slow API calls in development
-**Solution:** Call real API once, cache responses, reuse as mock
+### **Core Problem:** External APIs make tests unreliable and non-reproducible
+**Solution:** Test against deterministic snapshots, not live external services
 
+### **Test Reliability Challenges:**
+- **API Rate Limits**: Tests fail when Jupiter/Solana APIs limit calls
+- **Network Issues**: Unreliable network causes flaky test runs
+- **Price Volatility**: Real SOL/USDC prices change, affecting test assertions
+- **State Changes**: Live blockchain state evolves, breaking deterministic tests
+- **Race Conditions**: Multiple test runs interfere with each other
+- **CI/CD Unreliability**: External dependency breaks automated testing
+
+### **Snapshot-Based Testing Strategy**:
+
+1. **Capture Real API Responses** (Development time only):
+```bash
+# Generate deterministic test snapshots from real APIs
+cargo test --features capture-snapshots generate_jupiter_snapshots
+
+# Creates tests/snapshots/jupiter_api_responses.json
+# Contains real, time-stamped Jupiter API responses
+```
+
+2. **Snapshot Structure** (tests/snapshots/jupiter_api_responses.json):
+- Try call api to get the sample of the response.
+
+3. **Deterministic Test Loading**:
 ```rust
-// API caching strategy for rapid development
-struct CachedApiService {
-    cache_dir: PathBuf,
-    real_api_client: JupiterClient,
-    mock_mode: bool,
-}
+#[cfg(test)]
+mod test_snapshots {
+    use serde_json::Value;
+    use std::fs;
 
-impl CachedApiService {
-    async fn get_or_cache<T>(&self, key: &str, real_call: impl Future<Output = Result<T>>) -> Result<T> {
-        if self.mock_mode {
-            // Load from cache (fast for testing)
-            self.load_cached_response(key).await
-        } else {
-            // Call real API and cache result
-            let result = real_call.await?;
-            self.cache_response(key, &result).await?;
-            Ok(result)
-        }
+    /// Load deterministic API response snapshot for testing
+    pub async fn load_api_snapshot(scenario: &str) -> Result<Value> {
+        let snapshot_data = fs::read_to_string("tests/snapshots/jupiter_api_responses.json")?;
+        let snapshots: Value = serde_json::from_str(&snapshot_data)?;
+
+        snapshots
+            .get("scenarios")
+            .and_then(|scenarios| scenarios.get(scenario))
+            .cloned()
+            .ok_or_else(|| anyhow!("Snapshot not found for scenario: {scenario}"))
     }
 
-    // Initialize: Call real APIs once to build cache with actual data
-    async fn initialize_cache(&self) -> Result<()> {
-        info!("Building API cache with real Jupiter data...");
+    /// Get deterministic token prices from snapshot metadata
+    pub fn get_snapshot_prices() -> (f64, f64) {
+        let snapshot_data = fs::read_to_string("tests/snapshots/jupiter_api_responses.json").unwrap();
+        let snapshots: Value = serde_json::from_str(&snapshot_data).unwrap();
 
-        // Step 1: Generate test wallet with existing setup_wallet
-        let keypair = Keypair::new();
-        let pubkey = keypair.pubkey();
-        let surfpool_client = SurfpoolClient::new("http://localhost:8899");
-        let rpc_client = RpcClient::new("http://localhost:8899");
-        setup_wallet(&rpc_client, &surfpool_client, &keypair, &USDC_MINT, 100_000_000).await?;
-        info!("Generated test wallet: {}", pubkey);
+        let metadata = snapshots.get("metadata").unwrap();
+        let sol_price = metadata.get("sol_price_usd").unwrap().as_f64().unwrap();
+        let usdc_price = metadata.get("usdc_price_usd").unwrap().as_f64().unwrap();
 
-
-
-        self.cache_response("token_prices", &prices).await?;
-        info!("Cached token prices: SOL=${}, USDC=${}",
-               sol_token_info.usd_price.unwrap_or(161.0),
-               usdc_token_info.usd_price.unwrap_or(1.0));
-
-        // Step 3: Cache token info for balance queries
-        let token_infos = vec![sol_token_info, usdc_token_info];
-        self.cache_response("token_infos", &token_infos).await?;
-        info!("Cached token infos for {} tokens", token_infos.len());
-
-        info!("API cache initialized with real Jupiter token data");
-        Ok(())
-    }
-
-    // Helper: Get cached token prices or call real Jupiter API
-    async fn get_cached_or_real_prices(&self, mints: &[String]) -> Result<TokenPrices> {
-        self.get_or_cache("token_prices", async {
-            use jupiter_sdk::api::tokens;
-            let mut prices = TokenPrices::new();
-
-            for mint in mints {
-                let search_params = TokenSearchParams {
-                    query: if mint.ends_with("11111111111111111111111111111111111112") {
-                        "SOL".to_string()
-                    } else {
-                        // Try to find token by mint from cached info
-                        if let Ok(cached_infos) = self.load_cached_response("token_infos") {
-                            if let Some(token_info) = cached_infos.iter().find(|t| t.id == *mint) {
-                                prices.insert(mint.clone(), token_info.usd_price.unwrap_or(1.0));
-                                continue;
-                            }
-                        }
-
-                        // Fallback to search API
-                        let search_params = TokenSearchParams {
-                            query: format!("mint:{}", mint),
-                        };
-                        let token_info = tokens::search_tokens(&search_params).await?;
-                        let found_token = token_info.into_iter()
-                            .find(|t| t.id == *mint)
-                            .ok_or_else(|| anyhow::anyhow!("Token {} not found", mint))?;
-                        prices.insert(mint.clone(), found_token.usd_price.unwrap_or(1.0));
-                    }
-                };
-            }
-
-            Ok(prices)
-        }).await
-    }
-
-    // Helper: Get cached token info by mint
-    async fn get_cached_token_info(&self, mint: &str) -> Result<TokenInfo> {
-        self.get_or_cache("token_infos", async {
-            use jupiter_sdk::api::tokens;
-
-            // Try cache first
-            if let Ok(cached_infos) = self.load_cached_response("token_infos") {
-                if let Some(token_info) = cached_infos.iter().find(|t| t.id == mint) {
-                    return Ok(token_info.clone());
-                }
-            }
-
-            // Fallback to search API
-            let search_params = TokenSearchParams {
-                query: format!("mint:{}", mint),
-            };
-            let token_info = tokens::search_tokens(&search_params).await?;
-            let found_token = token_info.into_iter()
-                .find(|t| t.id == mint)
-                .ok_or_else(|| anyhow::anyhow!("Token {} not found", mint))?;
-
-            Ok(found_token)
-        }).await
+        (sol_price, usdc_price)
     }
 }
 ```
 
-### **Testing Strategy:**
+4. **Reliable Test Implementation**:
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_snapshots::{load_api_snapshot, get_snapshot_prices};
 
     #[tokio::test]
-    async fn test_complete_flow_with_mock() {
-        // Use mock mode for fast testing
-        let cached_api = CachedApiService::new_mock("test_cache/");
-        cached_api.initialize_cache().await.unwrap();
+    async fn test_jupiter_swap_deterministic() -> Result<()> {
+        // Load deterministic snapshot response
+        let snapshot_response = load_api_snapshot("jupiter_swap_small").await?;
 
-        // Test 18-step flow in <1 second vs >30 seconds with real APIs
-        let result = execute_complete_flow(
-            "use my 50% sol to multiply usdc 1.5x on jup",
-            &cached_api
-        ).await;
+        // Get deterministic prices for assertions
+        let (sol_price, usdc_price) = get_snapshot_prices();
+
+        // Test with deterministic data - same result every time
+        let result = execute_jupiter_swap(&snapshot_response).await?;
 
         assert!(result.is_ok());
+        let swap_result = result.unwrap();
+
+        // Deterministic assertions based on snapshot
+        assert_eq!(swap_result.output_amount, 987650432);
+        assert_eq!(swap_result.input_amount, 1000000000);
+        assert!((swap_result.quote - 0.987650432).abs() < 0.000001);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_error_recovery() {
-        // Test error scenarios with predictable responses
-        let cached_api = CachedApiService::new_with_errors("error_cache/");
+    async fn test_portfolio_rebalancing_deterministic() -> Result<()> {
+        // All tests use same deterministic prices from snapshot metadata
+        let (sol_price, usdc_price) = get_snapshot_prices();
 
-        let result = execute_complete_flow_with_recovery(
-            "swap 1000 SOL (insufficient balance)",
-            &cached_api
-        ).await;
+        // Test portfolio logic with known price points
+        let portfolio = calculate_portfolio(1.5, 245.67, sol_price, usdc_price);
 
-        // Should handle error gracefully
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExecutionError::InsufficientBalance(_)));
+        assert!((portfolio.total_usd_value - 486.34).abs() < 0.01);
+        Ok(())
     }
 }
 ```
 
-### **Performance Benefits:**
-- **Development**: 30x faster (1s vs 30s for complete flow)
-- **CI/CD**: Predictable, fast test runs
-- **Debugging**: Same responses every run
-- **Production**: Real API calls with caching
+### **Snapshot Management**:
+```bash
+# Update snapshots when API responses change
+cargo test --features capture-snapshots update_jupiter_snapshots
+
+# Verify snapshots are up-to-date
+cargo test --features verify-snapshots check_snapshot_freshness
+
+# Run tests against snapshots (no external API calls)
+cargo test  # Uses snapshots by default
+```
+
+### **Key Benefits**:
+- **🔒 Test Reliability**: No external API dependencies during test runs
+- **📦 Reproducible**: Same results on every machine, every time
+- **⚡ Fast Performance**: Tests run locally without network latency
+- **🧪 CI/CD Ready**: Deterministic tests work in any environment
+- **🎯 Real Data**: Snapshots generated from actual Jupiter API responses
+- **🔍 Debuggable**: Inspect snapshots to understand expected behavior
+- **📊 Time-Travel Testing**: Test against historical API states
+- **Production**: Always uses real APIs, never snapshots
 
 ## 🚀 **Next Steps for Implementation**
 
 1. **Create reev-core crate** with minimal structure above
-2. **Implement API caching layer** with mock mode for testing
+2. **Capture API snapshots** from real Jupiter APIs for deterministic testing
 3. **Implement orchestrator.rs** with 18-step flow using existing crates
 4. **Add prompt template system** with YML files using serde_yaml
 5. **Integrate SurfPool executor** using existing surfpool crate
-6. **Build comprehensive testing** with cached API responses
+6. **Build comprehensive deterministic testing** with API snapshots
 7. **Create debugging interface** for state inspection
 8. **Add flow visualization** using existing reev-flow
 
@@ -1198,10 +1162,10 @@ mod tests {
 - `anyhow` - Error handling (existing pattern)
 
 ### **Implementation Priority:**
-- **Week 1**: Create reev-core structure + API caching layer
-- **Week 2**: Implement orchestrator.rs 18-step flow with caching
+- **Week 1**: Create reev-core structure + capture API snapshots
+- **Week 2**: Implement orchestrator.rs 18-step flow with deterministic testing
 - **Week 3**: Integrate existing crates (reev-tools, reev-context, reev-agent)
-- **Week 4**: Add prompt system + LLM integration with cached responses
-- **Week 5**: Comprehensive testing + debugging interface + flow visualization
+- **Week 4**: Add prompt system + LLM integration with snapshot-based testing
+- **Week 5**: Comprehensive deterministic testing + debugging interface + flow visualization
 
 This architecture provides a solid foundation for reliable, verifiable, and debuggable automated DeFi operations with rapid development cycles.
