@@ -1,0 +1,41 @@
+{
+  "prices": {
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": 1.0,
+    "So11111111111111111111111111111111111111112": 150.0
+  },
+  "wallet_states": {
+    "test_wallet_2": {
+      "sol_amount": 5000000000,
+      "usdc_amount": 0,
+      "sol_usd_value": 750.0,
+      "usdc_usd_value": 0.0,
+      "total_usd_value": 750.0
+    },
+    "test_wallet_1": {
+      "sol_amount": 2000000000,
+      "usdc_amount": 100000000,
+      "sol_usd_value": 300.0,
+      "usdc_usd_value": 100.0,
+      "total_usd_value": 400.0
+    }
+  },
+  "jupiter_responses": {
+    "sol_to_usdc_swap": {
+      "inputAmount": 1000000000,
+      "inputMint": "So11111111111111111111111111111111111111112",
+      "outputAmount": 150000000,
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "priceImpactPct": 0.1,
+      "slippageBps": 100
+    }
+  },
+  "tool_responses": {
+    "jupiter_swap": {
+      "input_amount": "1000000000",
+      "output_amount": "150000000",
+      "signature": "mock_signature_abc123",
+      "success": true
+    }
+  },
+  "created_at": "2025-11-08T16:26:08.871823Z"
+}

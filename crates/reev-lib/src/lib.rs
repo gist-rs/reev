@@ -1,21 +1,77 @@
-pub mod actions;
-pub mod agent;
-pub mod balance_validation;
-pub mod benchmark;
-pub mod constants;
-pub mod db;
-pub mod env;
-pub mod flow;
-pub mod instruction_score;
-pub mod llm_agent; // Temporarily restored for runner compatibility
-pub mod mock;
-pub mod otel_extraction;
-pub mod parsing;
+//! Reev Core Library - Simplified Architecture
+//!
+//! This library implements the new reev-core architecture with:
+//! - 18-step deterministic flow processing
+//! - Snapshot-based testing for reliability
+//! - Modular design with clear separation of concerns
+//! - Mock-based testing for CI/CD reliability
 
-pub mod results;
-pub mod score;
-pub mod server_utils;
-pub mod session_logger;
-pub mod solana_env;
-pub mod test_scenarios;
-pub mod trace;
+pub mod core;
+pub mod prompts;
+pub mod test_snapshots;
+pub mod types;
+
+// Re-export main types for convenience
+pub use core::*;
+pub use test_snapshots::*;
+pub use types::*;
+
+// Legacy modules that are kept for compatibility (to be removed later)
+pub mod constants;
+pub mod env;
+
+// Remove obsolete modules - they cause errors and are not needed in new architecture
+// - agent.rs (obsolete)
+// - balance_validation.rs (obsolete)
+// - benchmark.rs (obsolete)
+// - db.rs (obsolete)
+// - flow.rs (obsolete)
+// - instruction_score.rs (obsolete)
+// - llm_agent.rs (obsolete)
+// - mock.rs (obsolete)
+// - otel_extraction.rs (obsolete)
+// - parsing.rs (obsolete)
+// - results.rs (obsolete)
+// - score.rs (obsolete)
+// - server_utils.rs (obsolete)
+// - session_logger.rs (obsolete)
+// - solana_env.rs (obsolete)
+// - test_scenarios.rs (obsolete)
+// - trace.rs (obsolete)
+
+// Legacy modules kept for compatibility (to be refactored later)
+pub mod actions;
+pub mod benchmark;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_core_types_creation() {
+        // Test that core types can be created without errors
+        let wallet_state = WalletState::new();
+        assert_eq!(wallet_state.sol_amount, 0);
+        assert_eq!(wallet_state.usdc_amount, 0);
+
+        let api_service = CachedApiService::new("./cache".to_string(), true, false);
+        assert!(!api_service.mock_mode);
+        assert!(api_service.real_jupiter_client);
+
+        let refined_prompt = RefinedPrompt::new(1, "test".to_string(), "reasoning".to_string());
+        assert_eq!(refined_prompt.step, 1);
+        assert_eq!(refined_prompt.prompt, "test");
+
+        let execution_result = ExecutionResult::new("test_id".to_string(), "test_tool".to_string());
+        assert_eq!(execution_result.execution_id, "test_id");
+        assert_eq!(execution_result.tool_name, "test_tool");
+        assert!(!execution_result.success);
+    }
+
+    #[test]
+    fn test_constants() {
+        assert!(!SOL_MINT.is_empty());
+        assert!(!USDC_MINT.is_empty());
+        assert_ne!(SOL_MINT, USDC_MINT);
+    }
+}

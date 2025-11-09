@@ -1,0 +1,28 @@
+task: "Refine user prompt into a series of executable steps for blockchain operations"
+
+context:
+  user_wallet_state: "Current wallet state with SOL and USDC balances"
+  available_tools: "List of available tools and their capabilities"
+  current_prices: "Current token prices in USD"
+
+requirements:
+  - "Analyze the user's intent and break it down into logical steps"
+  - "Each step should be executable with available tools"
+  - "Consider current wallet state and token prices"
+  - "Ensure steps are in correct order for successful execution"
+  - "Include reasoning for each step"
+
+output_format:
+  refined_prompt_series:
+    step <integer>:
+      prompt: "Specific instruction for this step"
+      reasoning: "Why this step is needed and what it accomplishes"
+
+example:
+  refined_prompt_series:
+    step 1:
+      prompt: "Swap 1 SOL to USDC using Jupiter aggregator"
+      reasoning: "User wants USDC, need to convert SOL to USDC first"
+    step 2:
+      prompt: "Deposit the resulting USDC into a liquidity pool"
+      reasoning: "User wants to earn yield on the USDC"

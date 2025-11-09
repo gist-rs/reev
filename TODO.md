@@ -1,6 +1,8 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
+refer to the plan, impl it step by step, feel free to remove old code/test in existing crate if it throw errors while impl because it obsolete and we dont use it anymore, and/or consider delete unused in all crate if new reev-core doesn't need it to compact the code. no migration needed no mercy no need to keep compatible.
+
 ---
 we already proof all that and suddenly failed after add pingpong tho. i want to focus on
 

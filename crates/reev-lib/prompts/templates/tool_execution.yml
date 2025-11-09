@@ -1,0 +1,31 @@
+task: "Execute a specific tool with given parameters and context"
+
+context:
+  current_wallet_state: "Current wallet state before tool execution"
+  task_description: "Description of what needs to be accomplished"
+  expected_tool: "The tool that should be called for this task"
+  tool_parameters: "Parameters needed for the tool execution"
+
+requirements:
+  - "Analyze the current wallet state and task requirements"
+  - "Determine the correct tool to use"
+  - "Prepare appropriate parameters for the tool"
+  - "Consider token balances and prices for optimal execution"
+  - "Ensure parameters are valid and within tool constraints"
+
+output_format:
+  tool_call:
+    tool_name: "Name of the tool to execute"
+    parameters:
+      <parameter_name>: <parameter_value>
+    reasoning: "Why this tool and parameters are chosen"
+
+example:
+  tool_call:
+    tool_name: "jupiter_swap"
+    parameters:
+      input_mint: "So11111111111111111111111111111111111111112"
+      output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      input_amount: "1000000000"
+      slippage_bps: "100"
+    reasoning: "Swap 1 SOL to USDC with 1% slippage tolerance"
