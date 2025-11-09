@@ -20,35 +20,19 @@ pub struct CoreFlow {
     /// Jupiter API client
     jupiter_client: Box<dyn JupiterClient>,
     /// SurfPool client for transaction processing
-    surfpool_client: Option<SurfpoolClient>,
+    surfpool_client: SurfpoolClient,
 }
 
 impl CoreFlow {
-    /// Create a new core flow instance
+    /// Create a new core flow instance with SurfPool integration
     pub fn new(
         llm_client: Box<dyn LLMClient>,
         tool_executor: Box<dyn ToolExecutor>,
         wallet_manager: Box<dyn WalletManager>,
         jupiter_client: Box<dyn JupiterClient>,
+        surfpool_url: String,
     ) -> Self {
-        Self {
-            llm_client,
-            tool_executor,
-            wallet_manager,
-            jupiter_client,
-            surfpool_client: None,
-        }
-    }
-
-    /// Create a new core flow instance with SurfPool integration
-    pub fn new_with_surfpool(
-        llm_client: Box<dyn LLMClient>,
-        tool_executor: Box<dyn ToolExecutor>,
-        wallet_manager: Box<dyn WalletManager>,
-        jupiter_client: Box<dyn JupiterClient>,
-        surfpool_url: Option<String>,
-    ) -> Self {
-        let surfpool_client = surfpool_url.map(|url| SurfpoolClient::new(&url));
+        let surfpool_client = SurfpoolClient::new(&surfpool_url);
 
         Self {
             llm_client,
@@ -517,18 +501,9 @@ impl CoreFlow {
             Some(tx) => {
                 info!("Processing transaction {} with SurfPool", tx.signature);
 
-                match &self.surfpool_client {
-                    Some(surfpool) => {
-                        // Real SurfPool processing
-                        self.process_transaction_with_surfpool(surfpool, tx, context)
-                            .await
-                    }
-                    None => {
-                        warn!("SurfPool client not configured, falling back to mock success");
-                        // Fallback to mock for backward compatibility
-                        true
-                    }
-                }
+                // Always use real SurfPool processing
+                self.process_transaction_with_surfpool(&self.surfpool_client, tx, context)
+                    .await
             }
             None => {
                 warn!("No Jupiter transaction to process");

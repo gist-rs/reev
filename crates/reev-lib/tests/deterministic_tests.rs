@@ -20,8 +20,14 @@ async fn test_jupiter_swap_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance (without SurfPool for backward compatibility)
-    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
+    // Create core flow instance with SurfPool
+    let mut core_flow = CoreFlow::new(
+        llm_client,
+        tool_executor,
+        wallet_manager,
+        jupiter_client,
+        "http://127.0.0.1:8899".to_string(), // Mock SurfPool URL for testing
+    );
 
     // Execute test scenario
     let user_prompt = "Swap 1 SOL to USDC using Jupiter".to_string();
@@ -93,8 +99,14 @@ async fn test_portfolio_rebalancing_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance (without SurfPool for backward compatibility)
-    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
+    // Create core flow instance with SurfPool
+    let mut core_flow = CoreFlow::new(
+        llm_client,
+        tool_executor,
+        wallet_manager,
+        jupiter_client,
+        "http://127.0.0.1:8899".to_string(), // Mock SurfPool URL for testing
+    );
 
     // Execute portfolio rebalancing scenario
     let user_prompt = "Rebalance portfolio to maintain 70% SOL and 30% USDC allocation".to_string();
@@ -184,8 +196,14 @@ async fn test_error_handling_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot));
 
-    // Create core flow instance (without SurfPool for backward compatibility)
-    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
+    // Create core flow instance with SurfPool
+    let mut core_flow = CoreFlow::new(
+        llm_client,
+        tool_executor,
+        wallet_manager,
+        jupiter_client,
+        "http://127.0.0.1:8899".to_string(), // Mock SurfPool URL for testing
+    );
 
     // Execute scenario that should fail due to insufficient funds
     let user_prompt = "Swap 10 SOL to USDC".to_string();
@@ -217,8 +235,14 @@ async fn test_multiple_step_execution_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance (without SurfPool for backward compatibility)
-    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
+    // Create core flow instance with SurfPool
+    let mut core_flow = CoreFlow::new(
+        llm_client,
+        tool_executor,
+        wallet_manager,
+        jupiter_client,
+        "http://127.0.0.1:8899".to_string(), // Mock SurfPool URL for testing
+    );
 
     // Execute complex multi-step scenario
     let user_prompt =
@@ -284,12 +308,13 @@ async fn test_surfpool_integration() {
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
     // Create core flow instance WITH SurfPool integration
-    let mut core_flow = CoreFlow::new_with_surfpool(
+    let surfpool_url = "http://127.0.0.1:8899".to_string(); // SurfPool URL
+    let mut core_flow = CoreFlow::new(
         llm_client,
         tool_executor,
         wallet_manager,
         jupiter_client,
-        Some("http://127.0.0.1:8899".to_string()), // SurfPool URL
+        surfpool_url,
     );
 
     // Execute test scenario that will trigger step13 with real SurfPool
@@ -431,59 +456,5 @@ async fn test_snapshot_serialization() {
     println!("✓ Snapshot serialization test passed");
 }
 
-#[tokio::test]
-async fn test_core_flow_fallback_without_surfpool() {
-    // Setup snapshot manager
-    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
-    let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
-    let snapshot_clone = snapshot.clone();
-
-    // Create mock clients with snapshot data
-    let llm_client = Box::new(MockLLMClient::new());
-    let tool_executor = Box::new(MockToolExecutor::new(snapshot_clone.clone()));
-    let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
-    let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
-
-    // Create core flow instance WITHOUT SurfPool (backward compatibility)
-    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
-
-    // Execute test scenario
-    let user_prompt = "Swap 1 SOL to USDC using Jupiter without SurfPool".to_string();
-    let wallet_address = "test_wallet_1".to_string();
-
-    let result = core_flow.execute_flow(user_prompt, wallet_address).await;
-
-    // Assert successful execution (should still work with fallback)
-    assert!(
-        result.is_ok(),
-        "Non-SurfPool flow should succeed with fallback"
-    );
-
-    let context = result.unwrap();
-
-    // Verify both entry and exit states are recorded
-    assert!(
-        context.entry_wallet_state.is_some(),
-        "Entry wallet state should be recorded"
-    );
-    assert!(
-        context.exit_wallet_state.is_some(),
-        "Exit wallet state should be recorded"
-    );
-
-    // Should still have tool execution success
-    let successful_executions = context
-        .execution_results
-        .iter()
-        .filter(|r| r.success)
-        .count();
-
-    assert!(
-        successful_executions >= 1,
-        "Should have at least one successful execution without SurfPool"
-    );
-
-    println!("✓ Non-SurfPool fallback test passed");
-    println!("  Total executions: {}", context.execution_results.len());
-    println!("  Successful executions: {}", successful_executions);
-}
+// No fallback test needed - all CoreFlow instances now require real SurfPool
+// The old fallback created false confidence by returning success without real processing
