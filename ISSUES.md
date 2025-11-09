@@ -1,260 +1,62 @@
-## Issue #47: ✅ COMPLETED - Consolidation Pipeline Phases 1-4
+## Issue #61
 
-### Status: COMPLETED ✅
+**Title:** step13_process_with_surfpool uses mock implementation instead of real SurfPool integration
 
-### Summary:
-Complete implementation of database consolidation pipeline for dynamic flows, including schema foundation, PingPongExecutor integration, dynamic mode routing, and API layer support.
+**Type:** Bug/Integration Gap
 
-### What was implemented:
-1. **✅ Database Schema & Methods** (Phase 1)
-   - Added consolidated_sessions table with proper indexing
-   - Extended DatabaseWriterTrait with 7 consolidation methods
-   - Comprehensive test suite with transaction support
+**Priority:** High
 
-2. **✅ PingPongExecutor Integration** (Phase 2)
-   - Database field and session storage methods
-   - 60s async consolidation with oneshot channel
-   - Per-step transactions with rollback support
+**Description:**
+The 18-step core flow in `reev-lib` has `step13_process_with_surfpool` implemented as a mock that always returns `true` success, while the agent layer has a complete real SurfPool implementation already working.
 
-3. **✅ Dynamic Mode Refactoring** (Phase 3)
-   - `flow_type: "dynamic"` detection and routing
-   - Database-based execution via PingPongExecutor
-   - Backward compatibility maintained for static flows
-
-4. **✅ API Integration** (Phase 4)
-   - Consolidated session retrieval endpoints
-   - Enhanced flow diagram handler with ping-pong format
-   - Real-time consolidation status monitoring
-
-### Test Results:
-- ✅ All library tests passing (17/17)
-- ✅ End-to-end consolidation pipeline functional
-- ✅ Database sharing fixed between API and Orchestrator
-- ✅ Ready for production deployment
-
-## Issue #48: ✅ COMPLETED - Consolidated Content Format Fixed
-
-### Status: ✅ RESOLVED
-
-### Root Cause Identified:
-PingPongExecutor was storing JSON content as string but getting double-escaped in database storage/retrieval cycle.
-
-### What Was Fixed:
-1. **✅ JSON Generation Working**: Consolidated content generated correctly with proper structure
-2. **✅ Content Storage**: Sessions stored to database successfully
-3. **✅ Pipeline Functional**: End-to-end consolidation working (3/4 steps functional)
-4. **❌ Content Escaping**: Database retrieval adding extra escape layer to JSON
-
-### Resolution:
-- **Core Consolidation Pipeline**: Fully functional ✅
-- **Data Storage**: Working correctly ✅
-- **API Integration**: Sessions accessible ✅
-- **Mermaid Generation**: Basic diagrams working, detailed format needs escape fix
-
-### Final Status:
-**CONSOLIDATION IMPLEMENTATION: 90% COMPLETE**
-
-### Remaining Work:
-- Fix JSON escaping in database storage/retrieval for full Mermaid detail
-- Core pipeline production-ready with current visualization limitations
-
-### Evidence:
-```bash
-# Generated consolidated JSON successfully:
-consolidated_session_id: exec_dynamic-1762571841-*-consolidated_1762571872357
-
-# API response shows consolidation working:
-{"consolidated_session_id":"exec_dynamic-*-consolidated_*", "consolidation_enabled":true}
-
-## Issue #48: ✅ COMPLETED - Consolidated Content Format Fixed
-
-### Status: ✅ RESOLVED
-
-### Root Cause Identified:
-PingPongExecutor was storing JSON content as string but getting double-escaped in database storage/retrieval cycle when embedded in another JSON object for flow diagram generation.
-
-### What Was Fixed:
-1. **✅ JSON Generation Working**: Consolidated content generated correctly with proper structure
-2. **✅ Content Storage**: Sessions stored to database successfully
-3. **✅ Pipeline Functional**: End-to-end consolidation working (4/4 steps functional)
-4. **✅ API Integration**: Sessions accessible ✅
-5. **✅ Content Escaping**: Fixed by directly parsing consolidated content instead of wrapping as string
-
-### Resolution:
-- **Core Consolidation Pipeline**: Fully functional ✅
-- **Data Storage**: Working correctly ✅
-- **API Integration**: Sessions accessible ✅
-- **Mermaid Generation**: Enhanced diagrams working with proper consolidated content transformation ✅
-- **JSON Escaping**: Resolved with `transform_consolidated_content()` function ✅
-
-### Final Status:
-**CONSOLIDATION IMPLEMENTATION: 100% COMPLETE** ✅
-
-### Evidence:
-```bash
-# Generated consolidated JSON successfully:
-consolidated_session_id: exec_dynamic-1762573454-4e3ce036_1762573454980_consolidated_1762573511127
-
-# API response shows consolidation working:
-{"consolidated_session_id":"exec_dynamic-*-consolidated_*", "consolidation_enabled":true}
-
-# Enhanced Mermaid diagram generation working:
-stateDiagram
-    [*] --> DynamicFlow
-    DynamicFlow --> Orchestrator : Dynamic Flow
-    Orchestrator --> ContextResolution : Resolve wallet and price context
-    ContextResolution --> FlowPlanning : Generate dynamic flow plan
-    FlowPlanning --> AgentExecution : Execute with selected agent
-    AgentExecution --> [*]
+**Current Implementation (Mock):**
+```rust
+// reev/crates/reev-lib/src/core/mod.rs:487-507
+async fn step13_process_with_surfpool(
+    &mut self,
+    context: &mut RequestContext,
+    jupiter_tx: &Option<JupiterTransaction>,
+) -> Result<bool> {
+    debug!("Step 13: Processing with SurfPool");
+    let success = match jupiter_tx {
+        Some(tx) => {
+            info!("Processing transaction {} with SurfPool", tx.signature);
+            true // Mock success ❌
+        }
+        None => false,
+    };
+    Ok(success)
+}
 ```
 
+**Available Real Implementation:**
+- `SurfpoolClient` in `reev/protocols/jupiter/jup-sdk/src/surfpool.rs` ✅
+- Full RPC cheat codes: `surfnet_setTokenAccount`, `surfnet_setAccount`, `surfnet_timeTravel` ✅
+- Account preloading from mainnet ✅
+- Transaction execution pipeline ✅
+- E2E test validation in `reev/crates/reev-runner/tests/surfpool_rpc_test.rs` ✅
 
-### Risk Assessment: LOW**
-- Core consolidation functionality working ✅
-- Single flow diagram bug identified 🐛
-- Rich data available, display issue only ⚠️
-- Need to fix parsing logic for tool calls extraction
+**Root Cause:**
+The core flow layer was implemented with mocks for rapid development, but the real SurfPool integration exists in the agent layer and is not connected to the 18-step flow.
 
-### Expected Enhanced Output:
-```mermaid
-stateDiagram
-    [*] --> DynamicFlow
-    DynamicFlow --> Orchestrator : Dynamic Flow
-    Orchestrator --> ContextResolution : use my 50% sol to multiply usdc 1.5x on jup
-    ContextResolution --> FlowPlanning : Generate dynamic flow plan
-    FlowPlanning --> GetAccountBalance : Step 0: balance_check ✅ SUCCESS | 4477ms | 🔑 FLVjUf...EXF
-    GetAccountBalance --> JupiterSwap : Step 1: complex_swap ❌ FAILED | Error: Invalid parameters | 22406ms
-    JupiterSwap --> JupiterLendDeposit : Step 2: complex_lend ❌ FAILED | Error: Invalid amount | 10172ms  
-    JupiterLendDeposit --> GetJupiterPosition : Step 3: positions_check ❌ FAILED | Error: Agent execution failed | 8374ms
-    GetJupiterPosition --> [*]
+**Impact:**
+- Core flow validation is incomplete - transactions aren't actually processed
+- E2e tests don't verify real on-chain behavior
+- Integration testing gap between core flow and agent layer
+- False confidence in test results
 
-    note right of GetAccountBalance : 🔧 Tool: get_account_balance\\n📋 Step ID: balance_check\\n⏱️ Duration: 4477ms\\n❌ Status: FAILED\\n🚫 Error: Account balance error: RPC client error\\n🔑 Pubkey: FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF
-```
+**Required Fix:**
+1. Integrate `SurfpoolClient` into `step13_process_with_surfpool` 
+2. Replace mock success with real transaction processing
+3. Add proper error handling for SurfPool failures
+4. Update tests to validate real transaction outcomes
+5. Ensure connection between core flow and existing SurfPool infrastructure
 
-### Actual Current Output:
-```mermaid  
-stateDiagram
-    [*] --> DynamicFlow
-    DynamicFlow --> Orchestrator : Dynamic Flow
-    Orchestrator --> ContextResolution : Resolve wallet and price context
-    ContextResolution --> FlowPlanning : Generate dynamic flow plan
-    FlowPlanning --> AgentExecution : Execute with selected agent
-    AgentExecution --> [*]
-```
+**Acceptance Criteria:**
+- `step13_process_with_surfpool` uses real SurfPool client
+- Transactions are actually executed against SurfPool validator
+- Test failures properly detected and reported
+- Integration with existing SurfPool cheat codes
+- Backward compatibility with existing mock tests
 
-## Issue #58: 🔍 BUG - Enhanced Flow Diagram Not Showing Detailed Information
-
-### Status: 🔍 DEBUGGING
-
-### Description:
-Flow diagram generation only shows basic three-state diagram instead of detailed step-by-step execution information with errors, pubkeys, amounts, timing, and scoring.
-
-### Current State:
-**CONSOLIDATION PIPELINE: WORKING, FLOW DIAGRAM BUG** ⚠️
-
-1. **✅ Working Components**:
-   - API execution and consolidation working
-   - Rich consolidated data available (step IDs, errors, pubkeys, timing)
-   - Database storage and retrieval functional
-
-2. **❌ Bug Identified**:
-   - Flow diagram generation only shows basic template
-   - Detailed tool call information not being extracted properly
-   - Enhanced diagram with step details not displaying
-
-3. **📋 Rich Data Available But Not Displayed**:
-   - Step IDs: `balance_check`, `complex_swap`, `complex_lend`, `positions_check`
-   - Error messages: Clear RPC and Jupiter errors
-   - Pubkeys: `FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF`
-   - Timing: 4477ms, 22406ms, 10172ms, 8374ms
-   - Tool calls: `get_jupiter_lend_earn_position`
-
-4. **🐛 Root Cause**:
-   - Consolidated session parsing logic has issues
-   - Tool calls extraction from YAML content not working correctly
-   - Enhanced diagram generation condition not matching properly
-
-### Architecture Verification:
-- **✅ Database Integration**: API & Orchestrator using shared `db/reev_results.db`
-- **✅ Consolidation Pipeline**: 60s timeout with proper metadata generation
-- **✅ PingPong Coordination**: Step-by-step execution with success/error flags
-- **✅ API Endpoints**: Consolidated session retrieval and status monitoring
-- **✅ Error Handling**: Failed consolidations score 0, no pipeline breaks
-- **✅ Visualization**: Enhanced Mermaid diagrams with proper consolidated content ✅
-
-### Key Files Modified:
-- `reev/crates/reev-orchestrator/src/execution/ping_pong_executor.rs` (Lines 1084-1180)
-- `reev/crates/reev-db/.schema/current_schema.sql` (consolidated_sessions table)
-- `reev/crates/reev-api/src/handlers/consolidation/mod.rs` (API endpoints)
-- `reev/crates/reev-api/src/handlers/flows.rs` (Added `transform_consolidated_content()` function)
-
-### Production Readiness:
-- **Core Pipeline**: ✅ Fully functional
-- **Database Operations**: ✅ Storage, retrieval, consolidation working
-- **API Layer**: ✅ Endpoints, responses, error handling complete
-- **Visualization**: ❌ Enhanced Mermaid generation NOT working due to parsing issue
-
-### Final Status:
-**🔍 CONSOLIDATION IMPLEMENTATION: PENDING BUG FIX** ⚠️
-
-### Evidence of Current Issue:
-```bash
-# Dynamic flow execution with consolidation: WORKING ✅
-curl -s -X POST http://localhost:3001/api/v1/benchmarks/execute-direct \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "use my 50% sol to multiply usdc 1.5x on jup", "wallet": "USER_WALLET_PUBKEY", "agent": "glm-4.6-coding", "shared_surfpool": false, "benchmark_id": "300-jup-swap-then-lend-deposit-dyn"}'
-# Result: consolidated_session_id present, tool_calls array populated ✅
-
-# Consolidated session retrieval: WORKING ✅
-curl -s "http://localhost:3001/api/v1/sessions/consolidated/exec_dynamic-*-consolidated_*"
-# Result: Content with steps and tool calls available ✅
-
-# Enhanced Mermaid generation: NOT WORKING ❌
-curl -s "http://localhost:3001/api/v1/flows/exec_dynamic-*-consolidated_*"
-# Result: Basic template instead of enhanced diagram with tool call details
-```
-
-### 🔍 Current Issue - BUG IDENTIFIED:
-- **Enhanced Diagram Detection**: ✅ Logic implemented correctly
-- **Tool Calls in API Response**: ✅ Available in execute-direct endpoint  
-- **Consolidated Content Storage**: ✅ Tool calls stored properly
-- **Flow Diagram Parsing**: ❌ `transform_consolidated_content()` function expects different structure
-- **Root Cause**: Consolidated content format doesn't match parsing expectations in flows.rs
-
-### Risk Assessment: MEDIUM** ⚠️
-- Dynamic flow execution: 100% working ✅
-- Database consolidation: 100% working ✅
-- API tool_calls response: 100% working ✅
-- Enhanced visualization: ❌ Broken due to parsing mismatch
-- Core consolidation functionality working ✅
-- Single flow diagram bug identified 🐛
-- Rich data available, display issue only ⚠️
-- Need to fix parsing logic for tool calls extraction
-
-### Expected Enhanced Output:
-```mermaid
-stateDiagram
-    [*] --> DynamicFlow
-    DynamicFlow --> Orchestrator : Dynamic Flow
-    Orchestrator --> ContextResolution : use my 50% sol to multiply usdc 1.5x on jup
-    ContextResolution --> FlowPlanning : Generate dynamic flow plan
-    FlowPlanning --> GetAccountBalance : Step 0: balance_check ✅ SUCCESS | 4477ms | 🔑 FLVjUf...EXF
-    GetAccountBalance --> JupiterSwap : Step 1: complex_swap ❌ FAILED | Error: Invalid parameters | 22406ms
-    JupiterSwap --> JupiterLendDeposit : Step 2: complex_lend ❌ FAILED | Error: Invalid amount | 10172ms  
-    JupiterLendDeposit --> GetJupiterPosition : Step 3: positions_check ❌ FAILED | Error: Agent execution failed | 8374ms
-    GetJupiterPosition --> [*]
-
-    note right of GetAccountBalance : 🔧 Tool: get_account_balance\\n📋 Step ID: balance_check\\n⏱️ Duration: 4477ms\\n❌ Status: FAILED\\n🚫 Error: Account balance error: RPC client error\\n🔑 Pubkey: FLVjUfykpfdS3Qy977t2r4e8AMdu74seRZTnwejxuEXF
-```
-
-### Actual Current Output:
-```mermaid  
-stateDiagram
-    [*] --> DynamicFlow
-    DynamicFlow --> Orchestrator : Dynamic Flow
-    Orchestrator --> ContextResolution : Resolve wallet and price context
-    ContextResolution --> FlowPlanning : Generate dynamic flow plan
-    FlowPlanning --> AgentExecution : Execute with selected agent
-    AgentExecution --> [*]
-```
-```
+## Issue #60
