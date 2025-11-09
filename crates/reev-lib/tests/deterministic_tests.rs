@@ -10,7 +10,7 @@ use reev_lib::types::*;
 #[tokio::test]
 async fn test_jupiter_swap_deterministic() {
     // Setup snapshot manager
-    let mut snapshot_manager = SnapshotManager::new("./test_cache".to_string());
+    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
     let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
     let snapshot_clone = snapshot.clone();
 
@@ -83,7 +83,7 @@ async fn test_jupiter_swap_deterministic() {
 #[tokio::test]
 async fn test_portfolio_rebalancing_deterministic() {
     // Setup snapshot manager
-    let mut snapshot_manager = SnapshotManager::new("./test_cache".to_string());
+    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
     let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
     let snapshot_clone = snapshot.clone();
 
@@ -207,7 +207,7 @@ async fn test_error_handling_deterministic() {
 #[tokio::test]
 async fn test_multiple_step_execution_deterministic() {
     // Setup snapshot manager
-    let mut snapshot_manager = SnapshotManager::new("./test_cache".to_string());
+    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
     let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
     let snapshot_clone = snapshot.clone();
 
@@ -273,7 +273,7 @@ async fn test_multiple_step_execution_deterministic() {
 #[tokio::test]
 async fn test_surfpool_integration() {
     // Setup snapshot manager
-    let mut snapshot_manager = SnapshotManager::new("./test_cache".to_string());
+    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
     let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
     let snapshot_clone = snapshot.clone();
 
@@ -429,4 +429,61 @@ async fn test_snapshot_serialization() {
     );
 
     println!("✓ Snapshot serialization test passed");
+}
+
+#[tokio::test]
+async fn test_core_flow_fallback_without_surfpool() {
+    // Setup snapshot manager
+    let mut snapshot_manager = SnapshotManager::new("./tests/snapshots".to_string());
+    let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
+    let snapshot_clone = snapshot.clone();
+
+    // Create mock clients with snapshot data
+    let llm_client = Box::new(MockLLMClient::new());
+    let tool_executor = Box::new(MockToolExecutor::new(snapshot_clone.clone()));
+    let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
+    let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
+
+    // Create core flow instance WITHOUT SurfPool (backward compatibility)
+    let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
+
+    // Execute test scenario
+    let user_prompt = "Swap 1 SOL to USDC using Jupiter without SurfPool".to_string();
+    let wallet_address = "test_wallet_1".to_string();
+
+    let result = core_flow.execute_flow(user_prompt, wallet_address).await;
+
+    // Assert successful execution (should still work with fallback)
+    assert!(
+        result.is_ok(),
+        "Non-SurfPool flow should succeed with fallback"
+    );
+
+    let context = result.unwrap();
+
+    // Verify both entry and exit states are recorded
+    assert!(
+        context.entry_wallet_state.is_some(),
+        "Entry wallet state should be recorded"
+    );
+    assert!(
+        context.exit_wallet_state.is_some(),
+        "Exit wallet state should be recorded"
+    );
+
+    // Should still have tool execution success
+    let successful_executions = context
+        .execution_results
+        .iter()
+        .filter(|r| r.success)
+        .count();
+
+    assert!(
+        successful_executions >= 1,
+        "Should have at least one successful execution without SurfPool"
+    );
+
+    println!("✓ Non-SurfPool fallback test passed");
+    println!("  Total executions: {}", context.execution_results.len());
+    println!("  Successful executions: {}", successful_executions);
 }
