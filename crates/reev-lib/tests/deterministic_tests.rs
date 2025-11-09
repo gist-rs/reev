@@ -20,7 +20,7 @@ async fn test_jupiter_swap_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance
+    // Create core flow instance (without SurfPool for backward compatibility)
     let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
 
     // Execute test scenario
@@ -93,7 +93,7 @@ async fn test_portfolio_rebalancing_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance
+    // Create core flow instance (without SurfPool for backward compatibility)
     let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
 
     // Execute portfolio rebalancing scenario
@@ -184,7 +184,7 @@ async fn test_error_handling_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot));
 
-    // Create core flow instance
+    // Create core flow instance (without SurfPool for backward compatibility)
     let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
 
     // Execute scenario that should fail due to insufficient funds
@@ -196,7 +196,7 @@ async fn test_error_handling_deterministic() {
     // This might fail or succeed depending on mock implementation
     // The important part is that error handling works correctly
     if result.is_ok() {
-        let context = result.unwrap();
+        let _context = result.unwrap();
 
         // If successful, verify error handling was still triggered
     } else {
@@ -217,7 +217,7 @@ async fn test_multiple_step_execution_deterministic() {
     let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
     let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
 
-    // Create core flow instance
+    // Create core flow instance (without SurfPool for backward compatibility)
     let mut core_flow = CoreFlow::new(llm_client, tool_executor, wallet_manager, jupiter_client);
 
     // Execute complex multi-step scenario
@@ -268,6 +268,60 @@ async fn test_multiple_step_execution_deterministic() {
     println!("  Total steps completed: {}", context.current_step);
     println!("  Execution results: {}", context.execution_results.len());
     println!("  Refined prompts: {}", context.prompt_series.len());
+}
+
+#[tokio::test]
+async fn test_surfpool_integration() {
+    // Setup snapshot manager
+    let mut snapshot_manager = SnapshotManager::new("./test_cache".to_string());
+    let snapshot = snapshot_manager.load_or_create_snapshot().await.unwrap();
+    let snapshot_clone = snapshot.clone();
+
+    // Create mock clients with snapshot data
+    let llm_client = Box::new(MockLLMClient::new());
+    let tool_executor = Box::new(MockToolExecutor::new(snapshot_clone.clone()));
+    let wallet_manager = Box::new(MockWalletManager::new(snapshot_clone.clone()));
+    let jupiter_client = Box::new(MockJupiterClient::new(snapshot_clone));
+
+    // Create core flow instance WITH SurfPool integration
+    let mut core_flow = CoreFlow::new_with_surfpool(
+        llm_client,
+        tool_executor,
+        wallet_manager,
+        jupiter_client,
+        Some("http://127.0.0.1:8899".to_string()), // SurfPool URL
+    );
+
+    // Execute test scenario that will trigger step13 with real SurfPool
+    let user_prompt =
+        "Swap 1 SOL to USDC using Jupiter with real transaction processing".to_string();
+    let wallet_address = "test_wallet_1".to_string();
+
+    let result = core_flow.execute_flow(user_prompt, wallet_address).await;
+
+    // Assert successful execution (may fall back to mock if SurfPool not available)
+    assert!(
+        result.is_ok(),
+        "Flow execution should succeed with SurfPool fallback"
+    );
+
+    let context = result.unwrap();
+
+    // Verify that step13 was reached and processed
+    assert!(
+        context.current_step >= 13,
+        "Should have reached step 13 (SurfPool processing)"
+    );
+
+    // Verify execution results
+    assert!(
+        !context.execution_results.is_empty(),
+        "Should have execution results"
+    );
+
+    println!("✓ SurfPool integration test passed");
+    println!("  Final step reached: {}", context.current_step);
+    println!("  Execution results: {}", context.execution_results.len());
 }
 
 #[test]

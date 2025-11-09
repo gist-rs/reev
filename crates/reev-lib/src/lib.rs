@@ -70,8 +70,20 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert!(!SOL_MINT.is_empty());
-        assert!(!USDC_MINT.is_empty());
-        assert_ne!(SOL_MINT, USDC_MINT);
+        // Verify constants are valid Solana addresses (44 characters)
+        assert_eq!(SOL_MINT.len(), 44, "SOL_MINT should be 44 characters");
+        assert_eq!(USDC_MINT.len(), 44, "USDC_MINT should be 44 characters");
+        assert_ne!(
+            SOL_MINT, USDC_MINT,
+            "SOL_MINT and USDC_MINT should be different"
+        );
+
+        // Verify they're valid base58 format (don't panic)
+        bs58::decode(SOL_MINT)
+            .into_vec()
+            .expect("SOL_MINT should be valid base58");
+        bs58::decode(USDC_MINT)
+            .into_vec()
+            .expect("USDC_MINT should be valid base58");
     }
 }
