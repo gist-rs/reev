@@ -20,28 +20,30 @@ pub use types::*;
 pub mod constants;
 pub mod env;
 
-// Remove obsolete modules - they cause errors and are not needed in new architecture
-// - agent.rs (obsolete)
-// - balance_validation.rs (obsolete)
-// - benchmark.rs (obsolete)
-// - db.rs (obsolete)
-// - flow.rs (obsolete)
-// - instruction_score.rs (obsolete)
-// - llm_agent.rs (obsolete)
-// - mock.rs (obsolete)
-// - otel_extraction.rs (obsolete)
-// - parsing.rs (obsolete)
-// - results.rs (obsolete)
-// - score.rs (obsolete)
-// - server_utils.rs (obsolete)
-// - session_logger.rs (obsolete)
-// - solana_env.rs (obsolete)
-// - test_scenarios.rs (obsolete)
-// - trace.rs (obsolete)
+// Modules needed for compatibility
+pub mod actions;
+pub mod agent;
+pub mod benchmark;
 
 // Legacy modules kept for compatibility (to be refactored later)
-pub mod actions;
-pub mod benchmark;
+pub mod balance_validation;
+pub mod db;
+pub mod flow;
+pub mod instruction_score;
+pub mod llm_agent;
+pub mod mock;
+pub mod otel_extraction;
+pub mod parsing;
+pub mod results;
+pub mod score;
+pub mod server_utils;
+pub mod session_logger;
+pub mod solana_env;
+pub mod test_scenarios;
+pub mod trace;
+
+// Remove obsolete modules - they cause errors and are not needed in new architecture
+// (all modules now re-enabled for compatibility)
 
 #[cfg(test)]
 mod tests {

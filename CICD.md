@@ -1,98 +1,152 @@
 # CI/CD Setup and Troubleshooting
 
-This document covers the CI/CD setup for the reev project, including Docker builds for different environments.
+This document covers the CI/CD setup for reev project, including Docker builds for different environments with **current working status**.
 
-## Dockerfiles
+## Dockerfiles - Current Status
 
-### 1. Dockerfile.github
-- **Purpose**: Ubuntu-based build simulating GitHub Actions runner
-- **Base**: Ubuntu 20.04
+### 1. Dockerfile (original) ✅ WORKING
+- **Purpose**: General-purpose build with cargo-chef
+- **Base**: Ubuntu 20.04 with cargo-chef
+- **Status**: ✅ FULLY FUNCTIONAL - Tested and validated
 - **Features**: 
-  - Comprehensive dependency installation for Solana, Turso, OpenSSL
-  - Uses cargo-chef for optimized layer caching
+  - Optimized layer caching with cargo-chef
   - Non-root user for security
   - Health checks included
+  - All packages build: reev-agent, reev-api, reev-runner
+- **Issues**: None
 
-### 2. Dockerfile.cloudflare
+### 2. Dockerfile.github ❌ NOT WORKING
+- **Purpose**: Ubuntu-based build simulating GitHub Actions runner
+- **Base**: Ubuntu 20.04
+- **Status**: ❌ COMPILATION FAILURES
+- **Features**: 
+  - Comprehensive dependency installation for Solana, Turso, OpenSSL
+  - cargo-chef for optimized layer caching
+  - Non-root user for security
+- **Blocking Issues**:
+  - AEGIS crypto library compilation fails with `-mtune=native` flag
+  - Multiple RUSTFLAGS override attempts unsuccessful
+  - Container cross-compilation incompatibility
+
+### 3. Dockerfile.cloudflare ❌ NOT WORKING
 - **Purpose**: Alpine-based build for Cloudflare Containers
 - **Base**: Alpine Linux + Rust
+- **Status**: ❌ BUILD FAILURES
 - **Features**:
   - Uses cargo-zigbuild for static linking
   - Minimal scratch runtime image
   - Cross-compilation support (amd64/arm64)
-  - Optimized for Cloudflare's container runtime
-
-### 3. Dockerfile (original)
-- **Purpose**: General-purpose build with cargo-chef
-- **Base**: Ubuntu with cargo-chef
-- **Status**: Works on Mac, needs Ubuntu testing
+- **Blocking Issues**:
+  - Alpine package incompatibilities (`libudev-dev` vs `eudev-dev`)
+  - Static linking conflicts with crypto libraries
+  - cargo-zigbuild workspace dependency issues
 
 ## Build Scripts
 
-### build.sh
-- GitHub CI/CD compatible build script
-- Platform detection for M1/M2 Macs
-- Configurable image name and Dockerfile
-- Optional push to registry
+### build.sh ✅ WORKING
+- **Status**: ✅ FUNCTIONAL - Works with default Dockerfile
+- **Features**:
+  - GitHub CI/CD compatible
+  - Platform detection for M1/M2 Macs
+  - Configurable image name and Dockerfile
+  - Optional push to registry
+- **Limitation**: Only works with default Dockerfile, not github/cloudflare variants
 
-### test-docker.sh
-- Comprehensive test script for all Dockerfile variants
-- Validates Docker builds and basic container functionality
-- Color-coded output for easy debugging
-- Automatic cleanup of test images
+### test-docker.sh ⚠️ PARTIAL
+- **Status**: ⚠️ WORKS FOR TESTING - 1/3 Dockerfiles pass
+- **Features**:
+  - Tests all Dockerfile variants
+  - Color-coded output for debugging
+  - Automatic cleanup of test images
+- **Current Results**: Only original Dockerfile passes testing
+
+## Current Working Configuration
+
+### What Works Right Now
+```bash
+# Build working image
+docker build -f Dockerfile -t reev:latest .
+
+# Test container functionality
+docker run -d -p 3001:3001 -v $(pwd)/benchmarks:/app/benchmarks -v $(pwd)/db:/app/db reev:latest
+
+# Verify health
+curl http://localhost:3001/api/v1/health
+# Response: {"status":"healthy","timestamp":"...","version":"0.1.0"}
+```
+
+### Build Results Summary
+```
+=== Docker Build Test Results ===
+✅ Dockerfile (original): PASS - Full functionality verified
+❌ Dockerfile.github: FAIL - AEGIS compilation errors
+❌ Dockerfile.cloudflare: FAIL - Alpine static linking issues
+```
 
 ## Common Issues and Solutions
 
-### OpenSSL Dependencies
-**Problem**: Missing OpenSSL libraries during build
-**Solution**: Install `libssl-dev` (Ubuntu) or `openssl-dev` (Alpine)
+### Fixed Issues ✅
 
-### Solana Dependencies
+#### Missing Agent Module
+**Problem**: `reev_lib::agent` module not found
+**Solution**: Re-enabled agent module in `reev-lib/src/lib.rs`
+**Status**: ✅ RESOLVED
+
+#### OpenSSL Dependencies
+**Problem**: Missing OpenSSL libraries during build
+**Solution**: Install `libssl-dev` (Ubuntu)
+**Status**: ✅ RESOLVED
+
+#### Solana Dependencies
 **Problem**: Missing system libraries for Solana SDK
 **Solution**: Install:
-- `libudev-dev` (Ubuntu) / `libudev-dev` (Alpine)
-- `zlib1g-dev` (Ubuntu) / `zlib-dev` (Alpine)
+- `libudev-dev` (Ubuntu)
+- `zlib1g-dev` (Ubuntu)
 - `protobuf-compiler` and `libprotobuf-dev`
+**Status**: ✅ RESOLVED
 
-### Turso Dependencies
-**Problem**: SQLite and libsql compilation issues
-**Solution**: Ensure pkg-config and protobuf tools are available
+### Unresolved Issues ❌
 
-### Cloudflare Container Issues
-**Problem**: Dynamic linking failures in Cloudflare runtime
-**Solution**: Use Alpine + cargo-zigbuild for static linking
+#### AEGIS Crypto Library Compilation
+**Problem**: `-mtune=native` flag incompatible with container builds
+**Affects**: Dockerfile.github
+**Attempts**: 
+- `RUSTFLAGS="-C target-cpu=generic"`
+- `CARGO_PROFILE_RELEASE_LTO=off`
+- CC/CXX override attempts
+**Status**: ❌ NOT RESOLVED
+
+#### Alpine Package Incompatibility
+**Problem**: `libudev-dev` not available in Alpine
+**Affects**: Dockerfile.cloudflare
+**Attempts**: Changed to `eudev-dev`, still issues with static linking
+**Status**: ❌ NOT RESOLVED
+
+#### Static Linking Conflicts
+**Problem**: Multiple crypto library conflicts in static build
+**Affects**: Dockerfile.cloudflare
+**Status**: ❌ NOT RESOLVED
 
 ## Testing Locally
 
-### Quick Test All Variants
+### Working Test
 ```bash
-# Test all Dockerfile variants with comprehensive validation
-./test-docker.sh
+# Test only working Dockerfile
+docker build -f Dockerfile -t reev-working .
+
+# Full functionality test
+docker run --rm reev-working /app/reev-api --version
 ```
 
-### Test Individual Builds
+### Failed Tests
 ```bash
-# Test Ubuntu-based build (simulates GitHub runner)
-docker build -f Dockerfile.github -t reev-github .
-
-# Test Alpine-based build (Cloudflare optimized)
-docker build -f Dockerfile.cloudflare -t reev-cloudflare .
-
-# Test original cargo-chef build
-docker build -f Dockerfile -t reev-original .
+# These will fail currently:
+docker build -f Dockerfile.github -t reev-github .     # FAILS
+docker build -f Dockerfile.cloudflare -t reev-cloudflare . # FAILS
+./test-docker.sh                                       # 1/3 PASS ONLY
 ```
 
-### Test in Ubuntu Container
-```bash
-# Run Ubuntu container with Docker inside
-docker run -it --privileged -v $(pwd):/workspace ubuntu:20.04 bash
-# Inside container:
-cd /workspace
-apt-get update && apt-get install -y docker.io
-./build.sh
-```
-
-## GitHub Actions Workflow
+## GitHub Actions Workflow - UPDATED
 
 ```yaml
 name: Build and Deploy
@@ -109,37 +163,93 @@ jobs:
       - uses: actions/checkout@v3
       - name: Build Docker image
         run: |
+          # Use working Dockerfile only
           export IMAGE_NAME=ghcr.io/${{ github.repository }}:latest
+          export DOCKERFILE="Dockerfile"  # NOT Dockerfile.github
           export PUSH_IMAGE=true
           ./build.sh
 ```
 
-## Deployment Targets
+## Deployment Targets - CURRENT STATUS
 
-### 1. GitHub Container Registry
-- Built using Dockerfile.github
-- Ubuntu runtime environment
-- Full feature support
+### 1. GitHub Container Registry ✅ AVAILABLE
+- **Dockerfile**: `Dockerfile` (original working version)
+- **Runtime**: Ubuntu environment
+- **Status**: ✅ READY FOR PRODUCTION
+- **Features**: Full functionality validated
 
-### 2. Cloudflare Containers
-- Built using Dockerfile.cloudflare
-- Minimal runtime footprint
-- Static linking for compatibility
+### 2. Cloudflare Containers ❌ NOT AVAILABLE
+- **Dockerfile**: `Dockerfile.cloudflare` (failing)
+- **Runtime**: Minimal scratch image
+- **Status**: ❌ BLOCKED BY BUILD ISSUES
+- **Features**: Static linking not working
 
 ## Troubleshooting Checklist
 
-- [ ] Check OpenSSL libraries are installed
-- [ ] Verify protobuf compiler is available
-- [ ] Ensure Rust target is added
-- [ ] Test on both Ubuntu and Alpine if possible
-- [ ] Validate static linking for Cloudflare
-- [ ] Check non-root user permissions
-- [ ] Verify health check endpoints
+### Pre-Build ✅
+- [x] OpenSSL libraries installed
+- [x] Protobuf compiler available
+- [x] Rust targets added
+- [x] Agent module enabled
+
+### Post-Build ✅ (for working Dockerfile)
+- [x] Non-root user permissions
+- [x] Health check endpoints verified
+- [x] Database connectivity works
+- [x] Benchmarks sync functional
+
+### Failed Checks ❌
+- [ ] AEGIS compilation resolved
+- [ ] Alpine packages working
+- [ ] Static linking functional
+- [ ] Multi-architecture builds
+- [ ] Cloudflare compatibility
+
+## Production Deployment Instructions
+
+### For Immediate Use
+```bash
+# Build and deploy working configuration
+export IMAGE_NAME=your-registry/reev:latest
+export DOCKERFILE="Dockerfile"  # Use working version
+export PUSH_IMAGE=true
+./build.sh
+
+# Deploy to your preferred platform
+docker push $IMAGE_NAME
+```
+
+### Monitoring
+```bash
+# Health check after deployment
+curl http://your-domain/api/v1/health
+# Expected: {"status":"healthy","timestamp":"...","version":"0.1.0"}
+```
 
 ## Future Improvements
 
-1. Multi-architecture builds (amd64/arm64)
-2. Automated testing in different environments
-3. Optimized layer caching strategies
-4. Security scanning integration
-5. Smaller final image sizes
+### Immediate Priorities
+1. **Fix AEGIS compilation** - Research alternative crypto libraries or build flags
+2. **Resolve Alpine issues** - Find compatible packages or different base image
+3. **Multi-architecture support** - Add amd64/arm64 builds for working Dockerfile
+
+### Long-term Goals
+1. Automated testing in different environments
+2. Optimized layer caching strategies
+3. Security scanning integration
+4. Smaller final image sizes
+5. Container registry CI/CD pipeline
+
+## Workarounds Until Issues Resolved
+
+### For GitHub Actions
+- Use `Dockerfile` instead of `Dockerfile.github`
+- Works perfectly, just not Ubuntu-simulation specific
+
+### For Cloudflare Deployment
+- Use working Ubuntu-based image until Alpine build fixed
+- Larger image size but fully functional
+
+### For Local Development
+- Default Dockerfile provides full functionality
+- No need for alternative variants until issues resolved

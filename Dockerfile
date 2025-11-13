@@ -62,6 +62,7 @@ COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies using the recipe
 RUN PKG_CONFIG_ALLOW_CROSS=1 \
     PROTOC=/usr/bin/protoc \
+    RUSTFLAGS="-C target-cpu=generic" \
     cargo chef cook --release --recipe-path recipe.json
 
 # Copy the actual source code
@@ -72,6 +73,7 @@ COPY protocols/ ./protocols/
 # Build the actual application binaries
 RUN PKG_CONFIG_ALLOW_CROSS=1 \
     PROTOC=/usr/bin/protoc \
+    RUSTFLAGS="-C target-cpu=generic" \
     cargo build --release \
     --package reev-agent \
     --package reev-api \

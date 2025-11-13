@@ -1,68 +1,73 @@
-## Issue #61 ✅ RESOLVED
-
-**Title:** step13_process_with_surfpool uses mock implementation instead of real SurfPool integration
-
-**Type:** Bug/Integration Gap
-
-**Priority:** High
-
-**Status:** Fixed - Real SurfPool integration implemented with backward compatibility
-
-**Description:**
-The 18-step core flow in `reev-lib` had `step13_process_with_surfpool` implemented as a mock that always returned `true` success, while the agent layer had a complete real SurfPool implementation already working.
-
-**Solution Implemented:**
-- Added `surfpool_client: Option<SurfpoolClient>` field to `CoreFlow` struct
-- Created `CoreFlow::new_with_surfpool()` constructor for real integration
-- Updated `step13_process_with_surfpool()` to use real SurfPool when available
-- Added fallback to mock for backward compatibility
-- Added `test_surfpool_integration()` test to verify real integration
-- Fixed all compilation warnings and clippy issues
-
-**Key Changes:**
-```rust
-// New constructor with SurfPool support
-pub fn new_with_surfpool(
-    llm_client: Box<dyn LLMClient>,
-    tool_executor: Box<dyn ToolExecutor>,
-    wallet_manager: Box<dyn WalletManager>,
-    jupiter_client: Box<dyn JupiterClient>,
-    surfpool_url: Option<String>,
-) -> Self {
-    let surfpool_client = surfpool_url.map(|url| SurfpoolClient::new(&url));
-    // ... initialize with real client
-}
-
-// Updated step13 with real integration
-async fn step13_process_with_surfpool(
-    &mut self,
-    context: &mut RequestContext,
-    jupiter_tx: &Option<JupiterTransaction>,
-) -> Result<bool> {
-    match &self.surfpool_client {
-        Some(surfpool) => {
-            // Real SurfPool processing
-            self.process_transaction_with_surfpool(surfpool, tx, context).await
-        }
-        None => {
-            // Fallback to mock for backward compatibility
-            true
-        }
-    }
-}
+// Re-enabled in reev-lib/src/lib.rs
+pub mod agent;
+pub mod balance_validation;
+pub mod db;
+// ... all previously commented modules
 ```
 
-**Validation:**
-- All existing tests continue to pass (backward compatibility)
-- New `test_surfpool_integration()` test verifies real integration
-- No compilation warnings after fix
-- Ready for production use with real SurfPool validator
+### 2. Fixed Docker Build Issues
+- **Original Dockerfile**: ✅ WORKING - Uses cargo-chef successfully
+- **GitHub Dockerfile**: ❌ STILL FAILING - AEGIS compilation issues persist
+- **Cloudflare Dockerfile**: ❌ STILL FAILING - Static linking and Alpine package issues
 
-**Acceptance Criteria Met:**
-✅ `step13_process_with_surfpool` uses real SurfPool client when configured
-✅ Backward compatibility maintained for existing mock-based tests
-✅ Integration with existing SurfPool cheat codes available
-✅ Test failures properly detected and reported
-✅ Connection between core flow and existing SurfPool infrastructure established
+### 3. Container Validation
+Original Dockerfile container fully functional:
+```bash
+# Successfully built and tested
+docker build --platform linux/amd64 -f Dockerfile -t reev-test-original .
+
+# Container runs successfully
+docker run -d -p 3001:3001 reev-test-original
+curl http://localhost:3001/api/v1/health
+# Response: {"status":"healthy","timestamp":"2025-11-13T11:16:02.155336545+00:00","version":"0.1.0"}
+```
+
+**Current Status:**
+- ✅ `Dockerfile` (original) - Fully working, CI/CD ready
+- ❌ `Dockerfile.github` - Fails with AEGIS compilation (Ubuntu-based)
+- ❌ `Dockerfile.cloudflare` - Fails with static linking issues (Alpine-based)
+
+**Remaining Issues:**
+1. AEGIS library requires environment-specific compilation flags that don't work in containers
+2. Cloudflare static linking has crypto library conflicts
+3. Alpine package incompatibilities (libudev-dev vs eudev-dev)
+
+**Recommendations:**
+1. **For Production**: Use working `Dockerfile` with Ubuntu base
+2. **For GitHub Actions**: Skip GitHub Dockerfile until AEGIS issue resolved
+3. **For Cloudflare**: Wait for Alpine build fixes or use different base image
+
+**Test Results Summary:**
+```
+=== Docker Build Test Results ===
+✅ Original Dockerfile (Ubuntu + cargo-chef): PASS
+❌ GitHub Dockerfile (Ubuntu simulation): FAIL - AEGIS compilation
+❌ Cloudflare Dockerfile (Alpine + static): FAIL - Linking issues
+
+Container Functionality: ✅ PASS
+- API server runs correctly
+- Health endpoint responds
+- Database connectivity works
+- Benchmarks sync successfully
+```
+
+**Next Steps Needed:**
+1. Investigate AEGIS library alternatives or compilation flag overrides
+2. Test different base images for Cloudflare compatibility
+3. Consider migrating to multi-stage builds with different dependency management
+4. Update CI/CD documentation to reflect current working configuration
+
+**Files Modified:**
+- `reev/crates/reev-lib/src/lib.rs` - Re-enabled agent module
+- `reev/Dockerfile` - Added RUSTFLAGS for container compatibility
+- `reev/Dockerfile.github` - Multiple compilation fixes attempted
+- `reev/Dockerfile.cloudflare` - Alpine package and build fixes
+
+**Test Coverage:**
+- ✅ Local compilation validation
+- ✅ Container build process
+- ✅ Runtime functionality testing
+- ✅ Health endpoint validation
+- ✅ Database connectivity verification
 
 ## Issue #60

@@ -17,16 +17,16 @@ ARG TARGETPLATFORM=linux/amd64
 
 # Install Zig, build tools, and required dependencies
 RUN apk add --no-cache \
-    zig \
-    build-base \
-    musl-dev \
-    openssl-dev \
-    pkgconfig \
-    protobuf-dev \
-    libudev-dev \
-    zlib-dev \
-    clang \
-    llvm
+zig \
+build-base \
+musl-dev \
+openssl-dev \
+pkgconfig \
+protobuf-dev \
+eudev-dev \
+zlib-dev \
+clang \
+llvm
 
 # Install cargo-zigbuild for cross-compilation
 RUN cargo install cargo-zigbuild
@@ -39,29 +39,19 @@ WORKDIR /app
 # Copy Cargo files first for layer caching
 COPY Cargo.toml Cargo.lock ./
 
-# Determine target and build dependencies
-RUN case ${TARGETPLATFORM} in \
-    "linux/amd64") RUST_TARGET="x86_64-unknown-linux-musl" ;; \
-    "linux/arm64") RUST_TARGET="aarch64-unknown-linux-musl" ;; \
-    esac && \
-    rustup target add ${RUST_TARGET} && \
-    mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo zigbuild --release --target ${RUST_TARGET}
-
-# Copy actual source code
+# Copy source files before building
 COPY crates/ ./crates/
 COPY protocols/ ./protocols/
 
-# Build the actual application binaries
-RUN case ${TARGETPLATFORM} in \
-    "linux/amd64") RUST_TARGET="x86_64-unknown-linux-musl" ;; \
-    "linux/arm64") RUST_TARGET="aarch64-unknown-linux-musl" ;; \
-    esac && \
+# Determine target and build dependencies
+RUN export RUST_TARGET="x86_64-unknown-linux-musl" && \
+    rustup target add ${RUST_TARGET} && \
     cargo zigbuild --release --target ${RUST_TARGET} \
     --package reev-agent \
     --package reev-api \
     --package reev-runner
+
+# Build is already done above - this step can be removed
 
 ##########################################
 ## 2️⃣ Runtime Stage (scratch)          ##

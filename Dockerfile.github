@@ -79,6 +79,8 @@ COPY --from=chef /app/recipe.json recipe.json
 # Build dependencies using the recipe
 RUN PROTOC=/usr/bin/protoc \
     PKG_CONFIG_ALLOW_CROSS=1 \
+    CC="gcc -march=x86-64" \
+    CXX="g++ -march=x86-64" \
     cargo chef cook --release --recipe-path recipe.json
 
 # Copy the actual source code
@@ -89,6 +91,8 @@ COPY protocols/ ./protocols/
 # Build the actual application binaries
 RUN PROTOC=/usr/bin/protoc \
     PKG_CONFIG_ALLOW_CROSS=1 \
+    CC="gcc -march=x86-64" \
+    CXX="g++ -march=x86-64" \
     cargo build --release \
     --package reev-agent \
     --package reev-api \
