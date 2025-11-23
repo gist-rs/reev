@@ -11,8 +11,7 @@ use tokio::time::timeout;
 /// Test language variations in prompts
 #[tokio::test]
 async fn test_language_variations() {
-    // Set test mode to use mock executor
-    std::env::set_var("REEV_TEST_MODE", "1");
+    // Tests use cfg(test) to automatically use mocks
 
     // Create a context resolver but avoid using it to prevent network calls
     let _context_resolver = ContextResolver::default();
@@ -89,8 +88,7 @@ async fn test_context_awareness() {
         }
     };
 
-    // Set test mode to use mock executor
-    std::env::set_var("REEV_TEST_MODE", "1");
+    // Tests use cfg(test) to automatically use mocks
 
     // Create executor
     let executor = Executor::new().unwrap();
@@ -182,8 +180,7 @@ async fn test_error_recovery_scenarios() {
         exponential_backoff: true,
     };
 
-    // Set test mode to use mock executor
-    std::env::set_var("REEV_TEST_MODE", "1");
+    // Tests use cfg(test) to automatically use mocks
 
     let executor = Executor::new()
         .unwrap()
@@ -341,8 +338,7 @@ async fn test_slippage_tolerance() {
         }
     };
 
-    // Set test mode to use mock executor
-    std::env::set_var("REEV_TEST_MODE", "1");
+    // Tests use cfg(test) to automatically use mocks
 
     // Create executor
     let executor = Executor::new().unwrap();
@@ -428,8 +424,7 @@ async fn test_critical_step_handling() {
         }
     };
 
-    // Set test mode to use mock executor
-    std::env::set_var("REEV_TEST_MODE", "1");
+    // Tests use cfg(test) to automatically use mocks
 
     // Create executor
     let executor = Executor::new().unwrap();

@@ -5,7 +5,9 @@
 //! structured YML flows with wallet context and steps.
 
 use crate::context::ContextResolver;
-use crate::llm::{glm_client::init_glm_client, mock::init_mock_glm_client};
+use crate::llm::glm_client::init_glm_client;
+#[cfg(test)]
+use crate::tests::common::mock_llm::init_mock_glm_client;
 use crate::yml_schema::{
     YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
 };
@@ -38,7 +40,7 @@ impl Planner {
     /// Create a new planner with GLM client initialized
     pub fn new_with_glm(context_resolver: ContextResolver) -> Result<Self> {
         // Use mock client in test mode
-        let llm_client = if std::env::var("REEV_TEST_MODE").is_ok() {
+        let llm_client = if cfg!(test) {
             init_mock_glm_client()?
         } else {
             init_glm_client()?

@@ -1,12 +1,3 @@
-## Issue #64: Implement Actual LLM Client Integration for Planner
-
-### Status: NOT STARTED
-
-### Description:
-The planner module has the structure in place but lacks actual LLM client implementation. Currently it only has a trait definition and falls back to rule-based pattern matching.
-
-### Current State:
-```rust
 // planner.rs - only a trait exists
 pub trait LlmClient: Send + Sync {
     async fn generate_flow(&self, prompt: &str) -> Result<String>;
@@ -19,28 +10,40 @@ pub trait LlmClient: Send + Sync {
 - **Unified Logic**: `UnifiedGLMAgent` in `reev/crates/reev-agent/src/enhanced/common/mod.rs`
 - **Pattern**: GLM models use unified logic with provider-specific request/response handling
 
+### Why Mock Implementation Appears in the Plan:
+1. **Transitional Implementation**: As stated in IMPLEMENTATION_STATUS.md, current implementation has structure but lacks core functionality
+2. **Avoiding Real Integration**: Multiple attempts to implement have resulted in mock instead of using existing GLM code
+3. **Testing Focus**: Mock is used for testing but is leaking into production paths
+4. **Code Duplication**: Creating new implementations instead of leveraging existing working code
+
 ### Tasks Required:
-1. **Create LlmClient implementation** using existing GLM-4.6-coding model via ZAI
-2. **Leverage UnifiedGLMAgent** for context building and wallet handling
-3. **Implement flow-specific prompt template** for YML generation
-4. **Connect planner to actual LLM client** instead of rule-based fallback
-5. **Test LLM-based flow generation** with various language prompts and typos
-6. **Remove rule-based fallback** once LLM integration is confirmed working
+1. **STOP creating mock implementations** - they prove nothing and are unusable for production
+2. **Use existing GLM implementation** from `reev-agent/src/enhanced/zai_agent.rs`
+3. **Create real LlmClient implementation** using GLM-4.6-coding model via ZAI
+4. **Leverage UnifiedGLMAgent** for context building and wallet handling
+5. **Implement flow-specific prompt template** for YML generation
+6. **Connect planner to actual LLM client** instead of rule-based fallback
+7. **Test LLM-based flow generation** with various language prompts and typos
+8. **Remove rule-based fallback** once LLM integration is confirmed working
+
+### Environment Variable Configuration:
+1. **SOLANA_PRIVATE_KEY**: Accept path to id.json file instead of direct key string
+   - If not set, check `~/.config/solana/id.json` as default
+   - This is NOT IMPLEMENTED YET
 
 ### Success Criteria:
-- Planner generates YML flows using actual GLM-4.6-coding model instead of rules
-- Can handle typos and language variations through LLM
-- Maintain backward compatibility with existing interfaces
-- Integration uses existing authentication (ZAI_API_KEY)
+- Planner uses actual GLM-4.6-coding model via ZAI API
+- YML flows are generated from user prompts in any language/with typos
+- Rule-based fallback is completely removed
+- Mock implementations are moved to tests folder ONLY
+- All existing GLM code is reused without duplication
 
----
-
-## Issue #65: Implement Actual Tool Execution for Executor
+## Issue #65: Implement Real Tool Execution for Executor
 
 ### Status: NOT STARTED
 
 ### Description:
-The executor module has structure in place but tool execution is completely stubbed out. Currently it only returns mock results.
+The executor module returns mock results instead of executing real tools. This makes the entire system unusable for production DeFi operations.
 
 ### Current State:
 ```rust
@@ -53,130 +56,124 @@ async fn execute_step_with_recovery(
     // Creates mock results without actual execution
 ```
 
-### Existing Tool Implementation Found:
-- **Location**: `reev/crates/reev-tools/src/lib.rs`
-- **Tools Available**: SolTransferTool, SplTransferTool, JupiterSwapTool, JupiterLendEarnDepositTool, etc.
-- **Agent Integration**: Tools are already integrated with reev-agent via AgentTools in `reev/crates/reev-agent/src/enhanced/common/mod.rs`
+### Existing Tool Implementations Available:
+- **Location**: `reev-tools/src/lib.rs`
+- **Tools**: JupiterSwap, JupiterLendEarnDeposit, etc.
+- **Agent Integration**: Already exists via AgentTools in `reev-agent/src/enhanced/common/mod.rs`
 
 ### Tasks Required:
-1. **Integrate reev-tools** in executor module for actual tool execution
-2. **Leverage AgentTools** from reev-agent for tool calling
-3. **Implement real tool execution** instead of mock results
-4. **Test with various tools** (jupiter_swap, jupiter_lend_earn_deposit, etc.)
-5. **Implement error recovery scenarios** with actual tool failures
-6. **Add proper context passing** between steps
+1. **STOP creating mock tool results** - they make the system unusable
+2. **Use existing tool implementations** from `reev-tools/src/lib.rs`
+3. **Connect executor to actual tool execution** via AgentTools
+4. **Implement real tool execution** instead of mock results
+5. **Test with real DeFi operations** to ensure functionality
 
 ### Success Criteria:
-- Executor calls actual tools via reev-tools
-- Real tool results are returned instead of mocks
-- Error recovery works with actual tool failures
-- Step results contain real tool outputs
-- Reuse existing tool implementations from reev-tools
+- Executor executes real tools via reev-tools
+- Mock results are eliminated from production code
+- Tool execution results are returned properly
+- All existing tool code is reused without duplication
 
----
-
-## Issue #66: Fix Database Locking Issues in Tests
+## Issue #66: Fix Environment Variable Configuration
 
 ### Status: NOT STARTED
 
 ### Description:
-Many tests are failing with "database is locked" errors, preventing comprehensive testing.
+Environment configuration doesn't properly support default Solana key location.
 
-### Error Pattern:
-```
-Error: Schema error: Failed to execute schema statement: CREATE TABLE IF NOT EXISTS execution_sessions
-Caused by:
-    SQL execution failure: `database is locked`
+### Current Implementation:
+```bash
+# Current .env.example
+SOLANA_PRIVATE_KEY="YOUR_SOLANA_PRIVATE_KEY"
 ```
 
-### Tasks Required:
-1. **Identify root cause** of database locking issues
-2. **Implement proper database cleanup** between tests
-3. **Fix concurrent test execution** to avoid conflicts
-4. **Ensure isolated test environments** for parallel test execution
-5. **Add database connection pooling** if needed
+### Required Implementation:
+1. **Accept path to id.json**: SOLANA_PRIVATE_KEY should accept a file path
+2. **Default location check**: If not set, check `~/.config/solana/id.json`
+3. **Update documentation**: Clearly document this behavior in .env.example
+4. **Implement logic**: Add code to read key from default location if env var not set
 
 ### Success Criteria:
-- All tests can run without database locking errors
-- Tests can be run in parallel without conflicts
-- Database state is properly isolated between tests
+- System reads key from SOLANA_PRIVATE_KEY if set (path or direct key)
+- If SOLANA_PRIVATE_KEY not set, system checks `~/.config/solana/id.json`
+- Documentation clearly explains this behavior
+- Both direct key and file path are supported
 
----
-
-## Issue #67: Remove Deprecated/Unused Code
+## Issue #67: Move Mock Implementations to Tests
 
 ### Status: NOT STARTED
 
 ### Description:
-There may be deprecated or unused code that can be removed to simplify the codebase.
+Mock implementations are in production code paths where they can accidentally be used instead of real implementations.
+
+### Current Problem Areas:
+1. `crates/reev-core/src/llm/mock/mod.rs` - Mock LLM client
+2. Mock tool execution in executor
+3. Mock results in various parts of the codebase
 
 ### Tasks Required:
-1. **Identify deprecated code** that's no longer used after reev-core integration
-2. **Remove unused test files** that fail due to database issues
-3. **Clean up unused imports** and dead code
-4. **Consolidate duplicate functionality** between old and new implementations
-5. **Update documentation** to reflect current architecture
+1. **Move all mocks to tests folder**: Create `crates/reev-core/tests/common/mock_helpers.rs`
+2. **Remove mocks from src**: Ensure no mock code can be used in production
+3. **Feature flag for tests**: Only compile mocks in test configuration
+4. **Update documentation**: Clearly mark mocks as test-only
 
 ### Success Criteria:
-- Cleaner codebase with only necessary code
-- No duplicate functionality
-- Updated documentation reflecting current state
+- No mock implementations in src/ folders
+- All mocks are in tests/ folders
+- Production code cannot accidentally use mocks
+- Tests still work with moved mocks
 
----
-
-## Issue #69: Fix Database Locking in Remaining Tests
-
-### Status: IDENTIFIED
-
-### Description:
-Additional test files are still failing with database locking issues after removing tests from integration_tests.rs.
-
-### Test Files with Database Locking Issues:
-- `reev/crates/reev-orchestrator/tests/orchestrator_tests.rs`
-  - test_prompt_refinement - FAILED
-  - test_swap_flow_generation - FAILED
-  - test_swap_lend_flow_generation - FAILED
-
-### Error Pattern:
-```
-Schema error: Failed to execute schema statement: CREATE TABLE IF NOT EXISTS benchmarks
-Caused by:
-    SQL execution failure: `database is locked`
-```
-
-### Tasks Required:
-1. **Identify root cause** of database locking in orchestrator_tests.rs
-2. **Fix test isolation** in remaining test files
-3. **Remove or fix failing tests** in orchestrator_tests.rs
-4. **Ensure database cleanup** between test runs
-5. **Update test runner configuration** if needed
-
-### Success Criteria:
-- All tests in orchestrator_tests.rs pass without database locking
-- Database state is properly isolated between tests
-- Tests can run in parallel without conflicts
-
----
-
-
-## Issue #68: Implement End-to-End Testing with Real Agent and Tools
+## Issue #68: Fix LLM Integration Avoidance Pattern
 
 ### Status: NOT STARTED
 
 ### Description:
-Currently only basic integration tests exist. We need comprehensive end-to-end testing with actual LLM and tool execution.
+There's a pattern of avoiding real LLM integration by creating new mock implementations instead of using existing working GLM code.
+
+### Evidence of Problem:
+1. Existing GLM implementation exists: `crates/reev-agent/src/enhanced/zai_agent.rs`
+2. ZAI provider exists: `crates/reev-agent/src/providers/zai/`
+3. Yet planner creates new mock implementation instead of using these
+4. This has happened across multiple implementation attempts
+
+### Root Cause:
+- Underestimating complexity of integrating existing GLM code
+- Creating "simpler" mock implementations as temporary solution
+- Not prioritizing real LLM integration as primary requirement
 
 ### Tasks Required:
-1. **Create end-to-end tests** that use real LLM and tool execution
-2. **Test with real wallet addresses** and tokens
-3. **Verify complete flows** from prompt to execution
-4. **Test error scenarios** and recovery
-5. **Benchmark performance** against success criteria
+1. **STOP creating new GLM implementations** - use existing ones
+2. **Integrate with existing ZAI provider** directly
+3. **Reuse UnifiedGLMAgent** without modification
+4. **Focus on integration rather than new implementation**
+5. **Make real LLM integration the highest priority**
 
 ### Success Criteria:
-- End-to-end flows work with real components
-- Performance meets specified criteria (Phase 1 < 2s, Phase 2 < 1s per call)
-- 90%+ success rate on common flows
-- Comprehensive test coverage for real scenarios
+- Planner uses existing GLM-4.6-coding via ZAI provider
+- No new GLM implementations are created
+- Existing code is reused without duplication
+- Integration is minimal and focused
 
----
+## Issue #69: Fix Testing Database Issues
+
+### Status: NOT STARTED
+
+### Description:
+Database locking errors prevent comprehensive testing of the system.
+
+### Current State:
+```
+# Test errors
+database is locked
+```
+
+### Tasks Required:
+1. **Identify root cause**: Determine why database is being locked
+2. **Fix test isolation**: Ensure tests don't interfere with each other
+3. **Use in-memory database**: For tests that don't need persistence
+4. **Update test fixtures**: Ensure clean state between tests
+
+### Success Criteria:
+- All tests run without database locking errors
+- Tests are properly isolated
+- Test suite provides comprehensive coverage

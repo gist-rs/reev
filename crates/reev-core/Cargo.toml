@@ -28,6 +28,11 @@ reev-agent = { path = "../reev-agent" }
 reev-tools = { path = "../reev-tools" }
 reev-flow = { path = "../reev-flow" }
 
+# Additional dependencies for Solana key handling
+dirs = "5.0"
+solana-sdk = { workspace = true }
+bs58 = "0.5"
+
 # Additional required dependencies
 solana-client.workspace = true
 regex.workspace = true

@@ -4,10 +4,14 @@
 //! structured YML flows from user prompts.
 
 pub mod glm_client;
-pub mod mock;
 pub mod prompt_templates;
 
 // Re-export for convenience
 pub use glm_client::GLMClient;
-pub use mock::MockGLMClient;
 pub use prompt_templates::FlowPromptTemplate;
+
+// Mock implementation is only available for testing
+#[cfg(test)]
+pub mod mock_llm;
+#[cfg(test)]
+pub use mock_llm::MockGLMClient;

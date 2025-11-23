@@ -1,7 +1,7 @@
 //! GLM Client Implementation for reev-core
 //!
 //! This module implements the LlmClient trait using the GLM-4.6-coding model
-//! via the ZAI API, leveraging existing implementation in reev-agent.
+//! via the ZAI provider, leveraging existing implementation in reev-agent.
 
 use crate::llm::prompt_templates::FlowPromptTemplate;
 use crate::planner::LlmClient;
@@ -46,7 +46,7 @@ impl LlmClient for GLMClient {
 
         debug!("Calling GLM with structured prompt");
 
-        // Create request payload for ZAIAgent
+        // Create request payload - using the exact same format as ZAIAgent expects
         let payload = reev_agent::LlmRequest {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: uuid::Uuid::new_v4().to_string(),
@@ -65,20 +65,19 @@ impl LlmClient for GLMClient {
         let mut key_map = HashMap::new();
         key_map.insert("ZAI_API_KEY".to_string(), self.api_key.clone());
 
-        // Call ZAIAgent directly which internally uses UnifiedGLMAgent
+        // Call ZAIAgent directly - reusing existing working implementation
+        // This is the KEY CHANGE - we use the existing agent instead of creating new implementation
         let result =
             reev_agent::enhanced::zai_agent::ZAIAgent::run(&self.model_name, payload, key_map)
                 .await
                 .map_err(|e| {
-                    error!("Failed to generate flow with ZAIAgent: {}", e);
-                    anyhow!("LLM generation failed: {e}")
+                    error!("Failed to generate flow with GLM: {}", e);
+                    anyhow!("LLM generation failed: {}", e)
                 })?;
 
-        // The ZAIAgent run returns the response directly as a string
-        // which should contain a valid YML flow
-        debug!("Received ZAIAgent response length: {} chars", result.len());
+        // The ZAIAgent returns a string directly, which should contain a valid YML flow
+        debug!("Received GLM response: {}", result);
 
-        // The response should contain a valid YML flow
         Ok(result)
     }
 }

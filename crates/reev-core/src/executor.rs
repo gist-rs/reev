@@ -33,7 +33,7 @@ impl Executor {
     /// Create a new executor
     pub fn new() -> Result<Self> {
         // Use mock executor in test mode
-        let tool_executor: SharedExecutor = if std::env::var("REEV_TEST_MODE").is_ok() {
+        let tool_executor: SharedExecutor = if cfg!(test) {
             Arc::new(crate::execution::MockToolExecutor::new())
         } else {
             Arc::new(ToolExecutor::new()?)

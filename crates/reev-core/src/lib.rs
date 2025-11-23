@@ -8,6 +8,7 @@ pub mod execution;
 pub mod executor;
 pub mod llm;
 pub mod planner;
+pub mod utils;
 pub mod validation;
 pub mod yml_schema;
 
@@ -16,6 +17,7 @@ pub use context::ContextResolver;
 pub use executor::Executor;
 pub use llm::glm_client::init_glm_client;
 pub use planner::Planner;
+pub use utils::{get_keypair, get_pubkey_from_env, KeySource};
 pub use validation::FlowValidator;
 pub use yml_schema::{
     YmlAssertion, YmlContext, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
