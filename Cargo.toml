@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context", "crates/reev-types", "crates/reev-orchestrator"]
+members = ["crates/reev-lib", "crates/reev-agent", "crates/reev-runner", "crates/reev-tui", "crates/reev-api", "crates/reev-db", "crates/reev-flow", "crates/reev-tools", "crates/reev-protocols", "crates/reev-context", "crates/reev-types", "crates/reev-core", "crates/reev-orchestrator"]
 exclude = ["turso-test"]
 resolver = "2"
 
@@ -30,7 +30,7 @@ regex = "1"
 tokio = "1"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "v7"] }
 
 # Rig dependencies for RAG and multi-step flow orchestration
 rig-core = { version = "0.20.0" }

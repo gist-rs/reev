@@ -3802,6 +3802,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "reev-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "opentelemetry",
+ "reev-agent",
+ "reev-flow",
+ "reev-tools",
+ "reev-types",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "serial_test",
+ "solana-client",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "tracing-opentelemetry",
+ "uuid",
+]
+
+[[package]]
 name = "reev-db"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,50 @@
+[package]
+name = "reev-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core architecture for verifiable AI-generated DeFi flows"
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Workspace dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+
+# UUID v7 for time-sortable IDs - using workspace uuid with v7 feature
+
+# Local dependencies
+reev-types = { path = "../reev-types" }
+reev-agent = { path = "../reev-agent" }
+reev-tools = { path = "../reev-tools" }
+reev-flow = { path = "../reev-flow" }
+
+# Additional required dependencies
+solana-client.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+
+# Async support
+async-trait.workspace = true
+
+# OpenTelemetry
+opentelemetry.workspace = true
+tracing-opentelemetry.workspace = true
+
+[dev-dependencies]
+tokio-test = "0.4"
+serial_test = { workspace = true }
+
+[features]
+default = []
+benchmark = []
+production = []
