@@ -1,3 +1,52 @@
+## Issue #61: PLAN_CORE.md Implementation Status
+
+### 1. Core Architecture Plan Review
+
+The PLAN_CORE.md document outlines an 18-step core flow implementation for the reev system. Here's the current status:
+
+**Plan Core Status**: 🔄 **PARTIALLY IMPLEMENTED** 
+- ❌ The `reev-core` crate mentioned in the plan does not exist
+- ✅ The functionality has been implemented in `reev-orchestrator` instead
+- ⚠️ The 18-step flow is partially implemented with different approach
+
+### 2. Implementation Comparison
+
+**PLAN_CORE.md Requirements vs Actual Implementation:**
+
+| Requirement | PLAN_CORE.md | Actual Implementation | Status |
+|-------------|---------------|----------------------|---------|
+| **Core Module** | `reev-core` crate | `reev-orchestrator` | ✅ Alternative |
+| **18-Step Flow** | Detailed 18 steps | Dynamic flow system | ⚠️ Different approach |
+| **Database Schema** | Specific structs | Similar schema | ✅ Implemented |
+| **YML Templates** | Handlebars templates | Template system | ✅ Implemented |
+| **Snapshot Testing** | API snapshots | Mock-based testing | ✅ Alternative |
+
+### 3. Current Implementation Strengths
+
+The `reev-orchestrator` implementation provides:
+- ✅ **Dynamic Flow Generation**: Context-aware prompt processing
+- ✅ **Template System**: Handlebars with caching and inheritance
+- ✅ **Recovery Engine**: Three strategies for failure handling
+- ✅ **Atomic Execution**: Strict/Lenient/Conditional modes
+- ✅ **OpenTelemetry Integration**: Comprehensive tracing
+- ✅ **Performance Optimization**: < 500ms context resolution
+
+### 4. Missing Elements from PLAN_CORE.md
+
+- ❌ No explicit 18-step implementation
+- ❌ Missing `reev-core` crate (replaced by `reev-orchestrator`)
+- ❌ No snapshot-based testing (uses mocks instead)
+- ❌ Different execution model than outlined
+
+### 5. Recommendations
+
+1. **Document the divergence**: Update documentation to reflect actual implementation
+2. **Consider migration**: Evaluate if 18-step model provides benefits over current approach
+3. **Add missing tests**: Implement snapshot testing if desired
+4. **Consolidate documentation**: Remove or update PLAN_CORE.md to match implementation
+
+---
+
 // Re-enabled in reev-lib/src/lib.rs
 pub mod agent;
 pub mod balance_validation;
