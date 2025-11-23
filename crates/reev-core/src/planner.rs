@@ -5,12 +5,14 @@
 //! structured YML flows with wallet context and steps.
 
 use crate::context::ContextResolver;
+use crate::llm::{glm_client::init_glm_client, mock::init_mock_glm_client};
 use crate::yml_schema::{
     YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
 };
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
 use reev_types::tools::ToolName;
+use serde_json;
 use serde_json::json;
 use std::collections::HashMap;
 use tracing::{debug, info, instrument, warn};
@@ -31,6 +33,21 @@ impl Planner {
             context_resolver,
             llm_client: None,
         }
+    }
+
+    /// Create a new planner with GLM client initialized
+    pub fn new_with_glm(context_resolver: ContextResolver) -> Result<Self> {
+        // Use mock client in test mode
+        let llm_client = if std::env::var("REEV_TEST_MODE").is_ok() {
+            init_mock_glm_client()?
+        } else {
+            init_glm_client()?
+        };
+
+        Ok(Self {
+            context_resolver,
+            llm_client: Some(llm_client),
+        })
     }
 
     /// Set the LLM client
@@ -65,10 +82,12 @@ impl Planner {
         // Generate structured YML flow using LLM or rule-based fallback
         let yml_flow = match &self.llm_client {
             Some(client) => {
+                info!("Using LLM client for flow generation");
                 self.generate_flow_with_llm(prompt, &wallet_context, client.as_ref())
                     .await?
             }
             None => {
+                warn!("No LLM client configured, using rule-based fallback");
                 self.generate_flow_rule_based(prompt, &wallet_context, &mappings)
                     .await?
             }
@@ -82,19 +101,343 @@ impl Planner {
     pub async fn generate_flow_with_llm(
         &self,
         prompt: &str,
-        wallet_context: &WalletContext,
+        _wallet_context: &WalletContext,
         llm_client: &dyn LlmClient,
     ) -> Result<YmlFlow> {
-        // Build structured prompt for LLM
-        let structured_prompt = self.build_structured_prompt(prompt, wallet_context)?;
+        debug!("Calling LLM for flow generation");
 
-        debug!("Calling LLM with structured prompt");
-        let llm_response = llm_client.generate_flow(&structured_prompt).await?;
-        debug!("Received LLM response");
+        // Call LLM client to get response
+        let llm_response = llm_client.generate_flow(prompt).await?;
 
-        // Parse LLM response into YML flow
-        let yml_flow: YmlFlow = serde_yaml::from_str(&llm_response)
-            .map_err(|e| anyhow!("Failed to parse LLM response as YML: {e}"))?;
+        // Parse LLM response (could be JSON or YAML)
+        let yml_flow: YmlFlow = if llm_response.starts_with('{') {
+            // Try parsing as JSON first
+            let json: serde_json::Value = serde_json::from_str(&llm_response)
+                .map_err(|e| anyhow!("Failed to parse LLM response as JSON: {e}"))?;
+
+            // Convert JSON to YmlFlow
+            // This is a simplified conversion - in a real implementation,
+            // we'd need a proper JSON-to-YML conversion
+            let flow_id = json
+                .get("flow_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let user_prompt = json
+                .get("user_prompt")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let subject_wallet_info_json = json
+                .get("subject_wallet_info")
+                .unwrap_or(&serde_json::Value::Object(Default::default()))
+                .clone();
+
+            // Convert JSON values to YmlWalletInfo
+            let subject_wallet_info = if subject_wallet_info_json.is_object() {
+                let obj = subject_wallet_info_json.as_object().unwrap();
+                let pubkey = obj
+                    .get("pubkey")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let lamports = obj
+                    .get("lamports")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default();
+                let total_value_usd = obj
+                    .get("total_value_usd")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or_default();
+
+                let tokens =
+                    if let Some(tokens_array) = obj.get("tokens").and_then(|v| v.as_array()) {
+                        tokens_array
+                            .iter()
+                            .filter_map(|token| {
+                                if let Some(token_obj) = token.as_object() {
+                                    let mint = token_obj
+                                        .get("mint")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or_default()
+                                        .to_string();
+                                    let balance = token_obj
+                                        .get("balance")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or_default();
+                                    Some(reev_types::benchmark::TokenBalance {
+                                        mint,
+                                        balance,
+                                        decimals: Some(0), // Default value
+                                        formatted_amount: Some(String::new()), // Default value
+                                        owner: Some(String::new()), // Default value
+                                        symbol: Some(String::new()), // Default value
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    } else {
+                        vec![]
+                    };
+
+                YmlWalletInfo {
+                    pubkey,
+                    lamports,
+                    tokens,
+                    total_value_usd: Some(total_value_usd),
+                }
+            } else {
+                // Fallback for invalid JSON structure
+                YmlWalletInfo::new("USER_WALLET_PUBKEY".to_string(), 0)
+            };
+
+            let empty_steps: Vec<serde_json::Value> = Vec::new();
+            let steps_json = json
+                .get("steps")
+                .and_then(|v| v.as_array())
+                .unwrap_or(&empty_steps);
+
+            let steps = steps_json
+                .iter()
+                .filter_map(|step| {
+                    if let Some(step_obj) = step.as_object() {
+                        let step_id = step_obj
+                            .get("step_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        let prompt = step_obj
+                            .get("prompt")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        let context = step_obj
+                            .get("context")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        let critical = step_obj
+                            .get("critical")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or_default();
+                        let estimated_time_seconds = step_obj
+                            .get("estimated_time_seconds")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or_default();
+                        let expected_tool_calls = if let Some(calls_array) = step_obj
+                            .get("expected_tool_calls")
+                            .and_then(|v| v.as_array())
+                        {
+                            calls_array
+                                .iter()
+                                .filter_map(|call| {
+                                    if let Some(call_obj) = call.as_object() {
+                                        let tool_name_str = call_obj
+                                            .get("tool_name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or_default();
+
+                                        // Convert string to enum
+                                        let tool_name = match tool_name_str {
+                                            "JupiterSwap" => {
+                                                reev_types::tools::ToolName::JupiterSwap
+                                            }
+                                            "JupiterLendEarnDeposit" => {
+                                                reev_types::tools::ToolName::JupiterLendEarnDeposit
+                                            }
+                                            "GetAccountBalance" => {
+                                                reev_types::tools::ToolName::GetAccountBalance
+                                            }
+                                            _ => reev_types::tools::ToolName::GetAccountBalance, // Fallback
+                                        };
+
+                                        let critical = call_obj
+                                            .get("critical")
+                                            .and_then(|v| v.as_bool())
+                                            .unwrap_or_default();
+
+                                        Some(crate::yml_schema::YmlToolCall {
+                                            tool_name,
+                                            critical,
+                                            expected_parameters: None,
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            vec![]
+                        };
+
+                        Some(crate::yml_schema::YmlStep {
+                            step_id,
+                            prompt,
+                            context,
+                            critical: Some(critical),
+                            estimated_time_seconds: Some(estimated_time_seconds),
+                            expected_tool_calls: Some(expected_tool_calls),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let empty_truth: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+            let ground_truth_json = json
+                .get("ground_truth")
+                .and_then(|v| v.as_object())
+                .unwrap_or(&empty_truth);
+
+            let ground_truth = if let Some(assertions_array) = ground_truth_json
+                .get("final_state_assertions")
+                .and_then(|v| v.as_array())
+            {
+                let assertions = assertions_array
+                    .iter()
+                    .filter_map(|assertion| {
+                        if let Some(assertion_obj) = assertion.as_object() {
+                            let assertion_type = assertion_obj
+                                .get("assertion_type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default()
+                                .to_string();
+                            let pubkey = assertion_obj
+                                .get("pubkey")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default()
+                                .to_string();
+                            let expected_change_gte = assertion_obj
+                                .get("expected_change_gte")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or_default();
+                            let _error_tolerance = assertion_obj
+                                .get("error_tolerance")
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or_default();
+
+                            Some(crate::yml_schema::YmlAssertion {
+                                assertion_type,
+                                pubkey: Some(pubkey),
+                                expected_change_gte: Some(expected_change_gte as f64),
+                                expected_change_lte: None,
+                                parameters: None,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                let expected_tool_calls = if let Some(calls_array) = ground_truth_json
+                    .get("expected_tool_calls")
+                    .and_then(|v| v.as_array())
+                {
+                    calls_array
+                        .iter()
+                        .filter_map(|call| {
+                            if let Some(call_obj) = call.as_object() {
+                                let tool_name_str = call_obj
+                                    .get("tool_name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default();
+
+                                // Convert string to enum
+                                let tool_name = match tool_name_str {
+                                    "JupiterSwap" => reev_types::tools::ToolName::JupiterSwap,
+                                    "JupiterLendEarnDeposit" => {
+                                        reev_types::tools::ToolName::JupiterLendEarnDeposit
+                                    }
+                                    "GetAccountBalance" => {
+                                        reev_types::tools::ToolName::GetAccountBalance
+                                    }
+                                    _ => reev_types::tools::ToolName::GetAccountBalance, // Fallback
+                                };
+
+                                let critical = call_obj
+                                    .get("critical")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or_default();
+
+                                Some(crate::yml_schema::YmlToolCall {
+                                    tool_name,
+                                    critical,
+                                    expected_parameters: None,
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                } else {
+                    vec![]
+                };
+
+                Some(YmlGroundTruth {
+                    final_state_assertions: assertions,
+                    expected_tool_calls: Some(expected_tool_calls),
+                    error_tolerance: Some(0.01),
+                })
+            } else {
+                None
+            };
+
+            // Convert JSON to metadata
+            let metadata = json.get("metadata").and_then(|v| v.as_object()).map(|obj| {
+                let version = obj
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let _created_at = obj
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let category = obj
+                    .get("category")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let complexity_score = obj
+                    .get("complexity_score")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default() as u8;
+                let tags = if let Some(tags_array) = obj.get("tags").and_then(|v| v.as_array()) {
+                    tags_array
+                        .iter()
+                        .filter_map(|tag| tag.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                } else {
+                    vec![]
+                };
+
+                crate::yml_schema::FlowMetadata {
+                    version,
+                    category,
+                    complexity_score,
+                    tags,
+                }
+            });
+
+            YmlFlow {
+                flow_id,
+                user_prompt,
+                subject_wallet_info,
+                steps,
+                ground_truth,
+                metadata: metadata.unwrap_or_default(),
+                created_at: chrono::Utc::now(),
+            }
+        } else {
+            // Try parsing as YAML
+            serde_yaml::from_str(&llm_response)
+                .map_err(|e| anyhow!("Failed to parse LLM response as YAML: {e}"))?
+        };
 
         // Validate the generated flow
         yml_flow
@@ -156,6 +499,7 @@ impl Planner {
     }
 
     /// Build structured prompt for LLM
+    #[allow(dead_code)]
     fn build_structured_prompt(
         &self,
         prompt: &str,

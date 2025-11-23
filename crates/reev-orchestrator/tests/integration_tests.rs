@@ -30,6 +30,8 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn test_yml_structure_validation() -> Result<()> {
+    // Set test mode to avoid requiring ZAI_API_KEY
+    std::env::set_var("REEV_TEST_MODE", "true");
     let gateway = OrchestratorGateway::new().await?;
     let user_prompt = "swap 0.5 SOL to USDC then lend";
     let wallet_pubkey = "validation_test_wallet";
@@ -203,6 +205,9 @@ async fn test_reev_core_integration() -> Result<()> {
 
 #[tokio::test]
 async fn test_reev_core_benchmark_mode() -> Result<()> {
+    // Set test mode to avoid requiring ZAI_API_KEY
+    std::env::set_var("REEV_TEST_MODE", "true");
+
     // Create a database writer for test
     let temp_db = tempfile::NamedTempFile::new().unwrap();
     let db_path = temp_db.path().to_string_lossy().to_string();

@@ -501,8 +501,8 @@ impl OrchestratorGateway {
         // Create reev-core components
         let core_solana_env = reev_core::context::SolanaEnvironment::default();
         let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
-        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
-        let executor = Arc::new(Executor::new());
+        let planner = Arc::new(Planner::new_with_glm((*core_context_resolver).clone())?);
+        let executor = Arc::new(Executor::new()?);
         let validator = Arc::new(FlowValidator::new());
 
         info!("[Orchestrator] Using SEPARATE database: reev_orchestrator.db");
@@ -548,8 +548,8 @@ impl OrchestratorGateway {
         // Create reev-core components
         let core_solana_env = reev_core::context::SolanaEnvironment::default();
         let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
-        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
-        let executor = Arc::new(Executor::new());
+        let planner = Arc::new(Planner::new_with_glm((*core_context_resolver).clone())?);
+        let executor = Arc::new(Executor::new()?);
         let validator = Arc::new(FlowValidator::new());
 
         Ok(Self {
@@ -591,8 +591,8 @@ impl OrchestratorGateway {
         // Create reev-core components
         let core_solana_env = reev_core::context::SolanaEnvironment::default();
         let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
-        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
-        let executor = Arc::new(Executor::new());
+        let planner = Arc::new(Planner::new_with_glm((*core_context_resolver).clone())?);
+        let executor = Arc::new(Executor::new()?);
         let validator = Arc::new(FlowValidator::new());
 
         info!("[Orchestrator] Using SHARED database from API with recovery config");
@@ -631,8 +631,8 @@ impl OrchestratorGateway {
         // Create reev-core components
         let core_solana_env = reev_core::context::SolanaEnvironment::default();
         let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
-        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
-        let executor = Arc::new(Executor::new());
+        let planner = Arc::new(Planner::new_with_glm((*core_context_resolver).clone())?);
+        let executor = Arc::new(Executor::new()?);
         let validator = Arc::new(FlowValidator::new());
 
         // Create database writer for ping-pong execution

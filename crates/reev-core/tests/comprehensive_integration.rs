@@ -11,6 +11,9 @@ use tokio::time::timeout;
 /// Test language variations in prompts
 #[tokio::test]
 async fn test_language_variations() {
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+
     // Create a context resolver but avoid using it to prevent network calls
     let _context_resolver = ContextResolver::default();
 
@@ -86,8 +89,11 @@ async fn test_context_awareness() {
         }
     };
 
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+
     // Create executor
-    let executor = Executor::new();
+    let executor = Executor::new().unwrap();
 
     // Create a multi-step flow with template variables using the actual wallet
     let flow = reev_core::yml_schema::builders::create_swap_then_lend_flow(
@@ -176,7 +182,12 @@ async fn test_error_recovery_scenarios() {
         exponential_backoff: true,
     };
 
-    let executor = Executor::new().with_recovery_config(recovery_config);
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+
+    let executor = Executor::new()
+        .unwrap()
+        .with_recovery_config(recovery_config);
 
     // Create a flow that might fail using the actual wallet
     let flow = reev_core::yml_schema::builders::create_swap_flow(
@@ -330,8 +341,11 @@ async fn test_slippage_tolerance() {
         }
     };
 
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+
     // Create executor
-    let executor = Executor::new();
+    let executor = Executor::new().unwrap();
 
     // Create a flow with ground truth specifying slippage tolerance using the actual wallet
     let flow = reev_core::yml_schema::builders::create_swap_flow(
@@ -414,8 +428,11 @@ async fn test_critical_step_handling() {
         }
     };
 
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+
     // Create executor
-    let executor = Executor::new();
+    let executor = Executor::new().unwrap();
 
     // Create a flow with mixed criticality steps using the actual wallet
     let flow = reev_core::yml_schema::YmlFlow::new(

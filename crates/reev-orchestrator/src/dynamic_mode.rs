@@ -395,6 +395,8 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_should_use_database_flow() {
+        // Set test mode to avoid requiring ZAI_API_KEY
+        std::env::set_var("REEV_TEST_MODE", "true");
         let gateway = OrchestratorGateway::new().await.unwrap();
 
         // Test 1: Dynamic flow should use database
@@ -454,6 +456,8 @@ steps:
     async fn test_dynamic_flow_with_database_routing() {
         // This test verifies that the database routing logic works
         // Full end-to-end test would require actual agent execution
+        // Set test mode to avoid requiring ZAI_API_KEY
+        std::env::set_var("REEV_TEST_MODE", "true");
         let gateway = OrchestratorGateway::new().await.unwrap();
 
         let dynamic_yml = r#"

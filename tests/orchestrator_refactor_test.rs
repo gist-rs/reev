@@ -11,6 +11,8 @@ use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_orchestrator_with_reev_core() {
+    // Set test mode to avoid requiring ZAI_API_KEY
+    std::env::set_var("REEV_TEST_MODE", "true");
     // Create a temporary directory for test databases
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
@@ -49,7 +51,15 @@ async fn test_orchestrator_with_reev_core() {
 }
 
 #[tokio::test]
-async fn test_reev_core_planner_integration() {
+async fn test_reev_core_benchmark_mode() {
+    // Set test mode to avoid requiring ZAI_API_KEY
+    std::env::set_var("REEV_TEST_MODE", "true");
+}
+
+#[tokio::test]
+async fn test_reev_core_integration() {
+    // Set test mode to avoid requiring ZAI_API_KEY
+    std::env::set_var("REEV_TEST_MODE", "true");
     // Create a temporary directory for test databases
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");

@@ -3,124 +3,143 @@
 //! This file contains all unit tests that were previously scattered across
 //! source files, now properly organized in the tests folder as per project rules.
 
+mod fixtures;
+use fixtures::{with_isolated_context_resolver, with_isolated_gateway};
 use reev_orchestrator::{ContextResolver, OrchestratorGateway, YmlGenerator};
 use reev_types::flow::{DynamicStep, WalletContext};
 use reev_types::tools::ToolName;
 
 #[tokio::test]
 async fn test_context_resolver_creation() {
-    let resolver = ContextResolver::new();
-    assert_eq!(resolver.get_cache_stats().await, (0, 0));
+    with_isolated_context_resolver(|resolver| async move {
+        assert_eq!(resolver.get_cache_stats().await, (0, 0));
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_wallet_context_resolution() {
-    let resolver = ContextResolver::new();
-    let pubkey = "test_pubkey";
+    with_isolated_context_resolver(|resolver| async move {
+        let pubkey = "test_pubkey";
 
-    let context = resolver.resolve_wallet_context(pubkey).await.unwrap();
-    assert_eq!(context.owner, pubkey);
-    // Context should be created successfully even with zero balance (mock data)
-    // The real wallet query is temporarily disabled, so balance will be 0
+        let context = resolver.resolve_wallet_context(pubkey).await.unwrap();
+        assert_eq!(context.owner, pubkey);
+        // Context should be created successfully even with zero balance (mock data)
+        // The real wallet query is temporarily disabled, so balance will be 0
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_token_price() {
-    let resolver = ContextResolver::new();
-    let sol_mint = "So11111111111111111111111111111111111111112";
-    println!("DEBUG: Token mint bytes: {:?}", sol_mint.as_bytes());
-    println!(
-        "DEBUG: Expected bytes: {:?}",
-        "So11111111111111111111111111111111111111112".as_bytes()
-    );
+    with_isolated_context_resolver(|resolver| async move {
+        let sol_mint = "So11111111111111111111111111111111111111112";
+        println!("DEBUG: Token mint bytes: {:?}", sol_mint.as_bytes());
+        println!(
+            "DEBUG: Expected bytes: {:?}",
+            "So11111111111111111111111111111111111111112".as_bytes()
+        );
 
-    // Clear cache to ensure fresh price
-    resolver.clear_caches().await;
+        // Clear cache to ensure fresh price
+        resolver.clear_caches().await;
 
-    let price = resolver.get_token_price(sol_mint).await.unwrap();
-    assert_eq!(price, 150.0);
+        let price = resolver.get_token_price(sol_mint).await.unwrap();
+        assert_eq!(price, 150.0);
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_cache_functionality() {
-    let resolver = ContextResolver::new();
-    let pubkey = "test_cache";
+    with_isolated_context_resolver(|resolver| async move {
+        let pubkey = "test_cache";
 
-    // First call - should resolve fresh
-    let start = std::time::Instant::now();
-    let _context1 = resolver.resolve_wallet_context(pubkey).await.unwrap();
-    let _first_call_time = start.elapsed();
+        // First call - should resolve fresh
+        let start = std::time::Instant::now();
+        let _context1 = resolver.resolve_wallet_context(pubkey).await.unwrap();
+        let _first_call_time = start.elapsed();
 
-    // Second call - should use cache
-    let start = std::time::Instant::now();
-    let _context2 = resolver.resolve_wallet_context(pubkey).await.unwrap();
-    let _second_call_time = start.elapsed();
+        // Second call - should use cache
+        let start = std::time::Instant::now();
+        let _context2 = resolver.resolve_wallet_context(pubkey).await.unwrap();
+        let _second_call_time = start.elapsed();
 
-    // Cache should be faster (though this is not guaranteed in tests)
-    assert!(resolver.get_cache_stats().await.0 > 0);
+        // Cache should be faster (though this is not guaranteed in tests)
+        assert!(resolver.get_cache_stats().await.0 > 0);
 
-    // Clear caches
-    resolver.clear_caches().await;
-    assert_eq!(resolver.get_cache_stats().await, (0, 0));
+        // Clear caches
+        resolver.clear_caches().await;
+        assert_eq!(resolver.get_cache_stats().await, (0, 0));
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_gateway_creation() {
-    let gateway = OrchestratorGateway::new().await.unwrap();
-    gateway.cleanup().await.unwrap();
+    with_isolated_gateway(|gateway| async move {
+        // Just test that gateway can be created successfully
+        // The cleanup will be handled by the test fixture
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_prompt_refinement() {
-    let gateway = OrchestratorGateway::new().await.unwrap();
-    let mut context = WalletContext::new("test".to_string());
-    context.sol_balance = 2_000_000_000; // 2 SOL
-    context.total_value_usd = 300.0;
+    with_isolated_gateway(|gateway| async move {
+        let mut context = WalletContext::new("test".to_string());
+        context.sol_balance = 2_000_000_000; // 2 SOL
+        context.total_value_usd = 300.0;
 
-    let refined = gateway.refine_prompt("use my 50% sol", &context);
-    // Should include wallet context information
-    assert!(refined.contains("2.000000 SOL"));
-    assert!(refined.contains("$300.00"));
-    assert!(refined.contains("use my 50% sol"));
+        let refined = gateway.refine_prompt("use my 50% sol", &context);
+        // Should include wallet context information
+        assert!(refined.contains("2.000000 SOL"));
+        assert!(refined.contains("$300.00"));
+        assert!(refined.contains("use my 50% sol"));
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_swap_flow_generation() {
-    let gateway = OrchestratorGateway::new().await.unwrap();
-    let context = WalletContext::new("test".to_string());
+    with_isolated_gateway(|gateway| async move {
+        let context = WalletContext::new("test".to_string());
 
-    // Check if flow fails due to insufficient SOL balance (0 SOL in context)
-    let flow = gateway
-        .generate_enhanced_flow_plan("swap SOL to USDC using Jupiter", &context, None)
-        .await;
-    // Flow should now succeed even with 0 SOL balance (new permissive behavior)
-    assert!(flow.is_ok());
-    let flow_plan = flow.unwrap();
+        // Check if flow fails due to insufficient SOL balance (0 SOL in context)
+        let flow = gateway
+            .generate_enhanced_flow_plan("swap SOL to USDC using Jupiter", &context, None)
+            .await;
+        // Flow should now succeed even with 0 SOL balance (new permissive behavior)
+        assert!(flow.is_ok());
+        let flow_plan = flow.unwrap();
 
-    // Should still generate a proper 3-step flow structure
-    assert_eq!(flow_plan.steps.len(), 3);
-    assert_eq!(flow_plan.steps[0].step_id, "balance_check");
-    assert!(flow_plan.steps[0]
-        .required_tools
-        .contains(&reev_types::tools::ToolName::GetAccountBalance));
+        // Should still generate a proper 3-step flow structure
+        assert_eq!(flow_plan.steps.len(), 3);
+        assert_eq!(flow_plan.steps[0].step_id, "balance_check");
+        assert!(flow_plan.steps[0]
+            .required_tools
+            .contains(&reev_types::tools::ToolName::GetAccountBalance));
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_swap_lend_flow_generation() {
-    let gateway = OrchestratorGateway::new().await.unwrap();
-    let mut context = WalletContext::new("test".to_string());
-    // Give the context some SOL balance to enable the complex flow
-    context.sol_balance = 2_000_000_000; // 2 SOL
-    context.total_value_usd = 300.0;
+    with_isolated_gateway(|gateway| async move {
+        let mut context = WalletContext::new("test".to_string());
+        // Give the context some SOL balance to enable the complex flow
+        context.sol_balance = 2_000_000_000; // 2 SOL
+        context.total_value_usd = 300.0;
 
-    // Flow should succeed with sufficient balance
-    let flow = gateway
-        .generate_enhanced_flow_plan("swap SOL to USDC then lend using Jupiter", &context, None)
-        .await;
-    assert!(flow.is_ok());
-    let flow = flow.unwrap();
-    // Should generate 3 steps for comprehensive flow (balance_check + swap + positions_check)
-    assert_eq!(flow.steps.len(), 3);
+        // Flow should succeed with sufficient balance
+        let flow = gateway
+            .generate_enhanced_flow_plan("swap SOL to USDC then lend using Jupiter", &context, None)
+            .await;
+        assert!(flow.is_ok());
+        let flow = flow.unwrap();
+        // Should generate 3 steps for comprehensive flow (balance_check + swap + positions_check)
+        assert_eq!(flow.steps.len(), 3);
+    })
+    .await;
 }
 
 #[test]

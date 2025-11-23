@@ -10,7 +10,9 @@ use reev_types::tools::ToolName;
 
 #[tokio::test]
 async fn test_execute_simple_swap_flow() {
-    let executor = Executor::new();
+    // Set test mode to use mock executor
+    std::env::set_var("REEV_TEST_MODE", "1");
+    let executor = Executor::new().unwrap();
 
     // Create a simple swap flow
     let wallet_info = YmlWalletInfo::new(
