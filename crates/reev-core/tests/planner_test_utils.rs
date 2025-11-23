@@ -1,7 +1,7 @@
 //! Test utilities for planner module
 
 use anyhow::Result;
-use crate::planner::LlmClient;
+use reev_core::planner::LlmClient;
 
 #[cfg(test)]
 pub struct MockLlmClient;
@@ -13,7 +13,7 @@ impl LlmClient for MockLlmClient {
 flow_id: "test-flow-id"
 user_prompt: "swap 1 SOL to USDC"
 subject_wallet_info:
-  pubkey: "11111111111111111111111111112"
+  pubkey: "11111111111111111111111111111112"
   lamports: 1000000000
   total_value_usd: 150.0
   tokens:

@@ -2,7 +2,8 @@
 
 use reev_core::validation::{AssertionValidator, FlowValidator};
 use reev_core::yml_schema::{
-    YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
+    builders::create_swap_flow, YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall,
+    YmlWalletInfo,
 };
 use reev_types::benchmark::TokenBalance;
 use reev_types::flow::WalletContext;
@@ -121,32 +122,39 @@ async fn test_register_custom_validator() {
     // For now, we just verify registration doesn't panic
 }
 
-// Helper function to create a test flow
-fn create_swap_flow(
-    pubkey: String,
-    lamports: u64,
-    from: String,
-    to: String,
-    amount: f64,
-) -> YmlFlow {
-    let flow_id = Uuid::now_v7().to_string();
+#[test]
+fn test_validate_valid_flow_with_builder() {
+    let validator = FlowValidator::new();
 
-    let wallet_info = YmlWalletInfo::new(pubkey, lamports).with_token(TokenBalance::new(
-        from.clone(),
-        (amount * 1_000_000_000.0) as u64,
-    ));
+    // Create a valid flow using the builder function from yml_schema
+    let flow = create_swap_flow(
+        "test_pubkey".to_string(),
+        1_000_000_000, // 1 SOL
+        "SOL".to_string(),
+        "USDC".to_string(),
+        0.5, // 0.5 SOL
+    );
 
-    let step1 = YmlStep::new(
-        "swap".to_string(),
-        format!("swap {amount} {from} to {to}"),
-        format!("Exchange {amount} {from} for {to}"),
-    )
-    .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
+    // Should validate successfully
+    assert!(validator.validate_flow(&flow).is_ok());
+}
 
-    YmlFlow::new(
-        flow_id,
-        format!("swap {amount} {from} to {to}"),
-        wallet_info,
-    )
-    .with_step(step1)
+#[test]
+fn test_validate_invalid_flow_with_builder() {
+    let validator = FlowValidator::new();
+
+    // Create an invalid flow with empty steps
+    let mut flow = create_swap_flow(
+        "test_pubkey".to_string(),
+        1_000_000_000, // 1 SOL
+        "SOL".to_string(),
+        "USDC".to_string(),
+        0.5, // 0.5 SOL
+    );
+
+    // Remove all steps to make it invalid
+    flow.steps.clear();
+
+    // Should fail validation
+    assert!(validator.validate_flow(&flow).is_err());
 }

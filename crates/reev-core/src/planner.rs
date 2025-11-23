@@ -568,9 +568,3 @@ pub enum UserIntent {
 pub trait LlmClient: Send + Sync {
     async fn generate_flow(&self, prompt: &str) -> Result<String>;
 }
-
-#[cfg(test)]
-mod tests {}
-
-#[cfg(test)]
-pub mod planner_test_utils;
