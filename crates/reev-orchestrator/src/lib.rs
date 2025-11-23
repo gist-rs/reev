@@ -24,6 +24,9 @@ pub use generators::YmlGenerator;
 pub use recovery::{RecoveryConfig, RecoveryEngine, RecoveryOutcome, RecoveryResult};
 pub use templates::{TemplateEngine, TemplateRenderer, TemplateType};
 
+// Re-export reev-core components
+pub use reev_core::{ContextResolver as CoreContextResolver, Executor, FlowValidator, Planner};
+
 /// Result type for orchestrator operations
 pub type Result<T> = anyhow::Result<T>;
 

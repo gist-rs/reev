@@ -10,9 +10,12 @@ use crate::recovery::engine::RecoveryMetrics;
 use crate::recovery::{RecoveryConfig, RecoveryEngine};
 use crate::Result;
 
+use reev_core::{ContextResolver as CoreContextResolver, Executor, FlowValidator, Planner};
 use reev_db::DatabaseConfig;
 use reev_lib::solana_env::environment::SolanaEnv;
-use reev_types::flow::{AtomicMode, DynamicFlowPlan, ExecutionResult, StepResult, WalletContext};
+use reev_types::flow::{
+    AtomicMode, DynamicFlowPlan, DynamicStep, ExecutionResult, StepResult, WalletContext,
+};
 use reev_types::tools::ToolName;
 
 use reev_db::writer::DatabaseWriter;
@@ -46,6 +49,14 @@ pub struct OrchestratorGateway {
     _solana_env: Arc<Mutex<SolanaEnv>>,
     /// Context resolver for wallet and price information
     context_resolver: Arc<ContextResolver>,
+    /// Core context resolver from reev-core for benchmark mode
+    core_context_resolver: Arc<CoreContextResolver>,
+    /// Planner from reev-core for Phase 1 LLM integration
+    planner: Arc<Planner>,
+    /// Executor from reev-core for Phase 2 tool execution
+    executor: Arc<Executor>,
+    /// Flow validator from reev-core for validation
+    validator: Arc<FlowValidator>,
     /// YML generator for creating benchmark files
     yml_generator: Arc<YmlGenerator>,
     /// Generated files tracker for cleanup
@@ -487,11 +498,22 @@ impl OrchestratorGateway {
         let db_config = DatabaseConfig::local("reev_orchestrator.db");
         let database = Arc::new(DatabaseWriter::new(db_config).await?);
 
+        // Create reev-core components
+        let core_solana_env = reev_core::context::SolanaEnvironment::default();
+        let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
+        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
+        let executor = Arc::new(Executor::new());
+        let validator = Arc::new(FlowValidator::new());
+
         info!("[Orchestrator] Using SEPARATE database: reev_orchestrator.db");
         warn!("[Orchestrator] API uses: db/reev_results.db - CONSOLIDATION WILL BE ISOLATED");
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
+            core_context_resolver,
+            planner,
+            executor,
+            validator,
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
@@ -522,15 +544,27 @@ impl OrchestratorGateway {
             "[Orchestrator] Using SHARED database from API: {:?}",
             database.config()
         );
+
+        // Create reev-core components
+        let core_solana_env = reev_core::context::SolanaEnvironment::default();
+        let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
+        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
+        let executor = Arc::new(Executor::new());
+        let validator = Arc::new(FlowValidator::new());
+
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
+            core_context_resolver,
+            planner,
+            executor,
+            validator,
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
             recovery_config,
             ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
-                30000,
+                300000, // 5 minute timeout
                 context_resolver,
                 database,
             ))),
@@ -553,10 +587,22 @@ impl OrchestratorGateway {
         // Create context resolver with Solana environment
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
+        // Create reev-core components
+        // Create reev-core components
+        let core_solana_env = reev_core::context::SolanaEnvironment::default();
+        let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
+        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
+        let executor = Arc::new(Executor::new());
+        let validator = Arc::new(FlowValidator::new());
+
         info!("[Orchestrator] Using SHARED database from API with recovery config");
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
+            core_context_resolver,
+            planner,
+            executor,
+            validator,
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
@@ -582,6 +628,13 @@ impl OrchestratorGateway {
         // Create context resolver with Solana environment
         let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
 
+        // Create reev-core components
+        let core_solana_env = reev_core::context::SolanaEnvironment::default();
+        let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
+        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
+        let executor = Arc::new(Executor::new());
+        let validator = Arc::new(FlowValidator::new());
+
         // Create database writer for ping-pong execution
         let db_config = DatabaseConfig::local("reev_orchestrator.db");
         let database = Arc::new(DatabaseWriter::new(db_config).await?);
@@ -592,6 +645,10 @@ impl OrchestratorGateway {
         Ok(Self {
             _solana_env: solana_env,
             context_resolver: context_resolver.clone(),
+            core_context_resolver,
+            planner,
+            executor,
+            validator,
             yml_generator: Arc::new(YmlGenerator::new()),
             generated_files: Arc::new(RwLock::new(Vec::new())),
             recovery_engine: Arc::new(RwLock::new(recovery_engine)),
@@ -604,7 +661,7 @@ impl OrchestratorGateway {
         })
     }
 
-    /// Process user request and generate dynamic flow
+    /// Process user request and generate dynamic flow using reev-core
     #[instrument(skip(self))]
     pub async fn process_user_request(
         &self,
@@ -613,35 +670,158 @@ impl OrchestratorGateway {
     ) -> Result<(DynamicFlowPlan, String)> {
         info!("Processing user request: {}", user_prompt);
 
-        // 1. Resolve wallet context
-        let context = self
-            .context_resolver
-            .resolve_wallet_context(wallet_pubkey)
-            .await?;
+        // 1. Resolve wallet context using reev-core
+        let context = if wallet_pubkey == "USER_WALLET_PUBKEY" {
+            // Use reev-core context resolver for benchmark mode
+            self.core_context_resolver
+                .resolve_wallet_context(wallet_pubkey)
+                .await?
+        } else {
+            // Use orchestrator context resolver for production mode
+            self.context_resolver
+                .resolve_wallet_context(wallet_pubkey)
+                .await?
+        };
         debug!(
             "Resolved wallet context: {} SOL, ${:.2} total",
             context.sol_balance_sol(),
             context.total_value_usd
         );
 
-        // 2. Refine user prompt with context
-        let refined_prompt = self.refine_prompt(user_prompt, &context);
-        debug!("Refined prompt: {}", refined_prompt);
-
-        // 3. Generate enhanced flow plan using real context
-        let flow_plan = self
-            .generate_enhanced_flow_plan(user_prompt, &context, None)
+        // 2. Use reev-core planner for Phase 1 (refine + plan)
+        let yml_flow = self
+            .planner
+            .refine_and_plan(user_prompt, wallet_pubkey)
             .await?;
         debug!(
-            "Generated enhanced flow plan with {} steps using real wallet data",
-            flow_plan.steps.len()
+            "Generated YML flow with {} steps using reev-core planner",
+            yml_flow.steps.len()
         );
 
-        // 4. Generate YML for bridge mode
+        // 3. Validate the generated flow
+        self.validator.validate_flow(&yml_flow)?;
+
+        // 4. Convert YML flow to DynamicFlowPlan for compatibility
+        let flow_plan = self.yml_flow_to_dynamic_flow_plan(&yml_flow, &context)?;
+
+        // 5. Generate YML for bridge mode
         let yml_path = self.yml_generator.generate_yml(&flow_plan).await?;
         info!("Generated YML: {}", yml_path);
 
         Ok((flow_plan, yml_path))
+    }
+
+    /// Convert YML flow to DynamicFlowPlan for compatibility
+    fn yml_flow_to_dynamic_flow_plan(
+        &self,
+        yml_flow: &reev_core::yml_schema::YmlFlow,
+        context: &WalletContext,
+    ) -> Result<DynamicFlowPlan> {
+        // Create DynamicFlowPlan from YML flow
+        let mut flow_plan = DynamicFlowPlan::new(
+            yml_flow.flow_id.clone(),
+            yml_flow.user_prompt.clone(),
+            context.clone(),
+        )
+        .with_atomic_mode(AtomicMode::Strict);
+
+        // Convert each YML step to DynamicStep
+        for yml_step in &yml_flow.steps {
+            let mut dynamic_step = DynamicStep::new(
+                yml_step.step_id.clone(),
+                yml_step.prompt.clone(),
+                yml_step.context.clone(),
+            )
+            .with_critical(yml_step.critical.unwrap_or(true))
+            .with_estimated_time(yml_step.estimated_time_seconds.unwrap_or(30));
+
+            // Add required tools from expected tool calls
+            if let Some(tool_calls) = &yml_step.expected_tool_calls {
+                let required_tools: Vec<ToolName> =
+                    tool_calls.iter().map(|tc| tc.tool_name.clone()).collect();
+                for tool in required_tools {
+                    dynamic_step = dynamic_step.with_tool(tool);
+                }
+            }
+
+            flow_plan = flow_plan.with_step(dynamic_step);
+        }
+
+        Ok(flow_plan)
+    }
+
+    /// Execute flow using reev-core executor
+    #[instrument(skip(self, flow))]
+    pub async fn execute_flow_with_core_executor(
+        &self,
+        flow: &DynamicFlowPlan,
+        context: &WalletContext,
+    ) -> Result<reev_types::flow::FlowResult> {
+        // Convert DynamicFlowPlan to YML flow for reev-core executor
+        let yml_flow = self.dynamic_flow_plan_to_yml_flow(flow, context)?;
+
+        // Execute using reev-core executor
+        self.executor.execute_flow(&yml_flow, context).await
+    }
+
+    /// Convert DynamicFlowPlan to YML flow for reev-core executor
+    fn dynamic_flow_plan_to_yml_flow(
+        &self,
+        flow_plan: &DynamicFlowPlan,
+        context: &WalletContext,
+    ) -> Result<reev_core::yml_schema::YmlFlow> {
+        // Create YML wallet info from context
+        let mut wallet_info =
+            reev_core::yml_schema::YmlWalletInfo::new(context.owner.clone(), context.sol_balance);
+
+        // Add token balances
+        for balance in context.token_balances.values() {
+            wallet_info = wallet_info.with_token(balance.clone());
+        }
+
+        // Set total value if available
+        if context.total_value_usd > 0.0 {
+            wallet_info = wallet_info.with_total_value(context.total_value_usd);
+        }
+
+        // Create YML flow
+        let mut yml_flow = reev_core::yml_schema::YmlFlow::new(
+            flow_plan.flow_id.clone(),
+            flow_plan.user_prompt.clone(),
+            wallet_info,
+        );
+
+        // Convert each DynamicStep to YML step
+        for dynamic_step in &flow_plan.steps {
+            let mut yml_step = reev_core::yml_schema::YmlStep::new(
+                dynamic_step.step_id.clone(),
+                dynamic_step.prompt_template.clone(),
+                dynamic_step.description.clone(),
+            )
+            .with_critical(dynamic_step.critical)
+            .with_estimated_time(30); // Default 30 seconds
+
+            // Add expected tool calls
+            let tool_calls: Vec<reev_core::yml_schema::YmlToolCall> = dynamic_step
+                .required_tools
+                .iter()
+                .map(|tool| reev_core::yml_schema::YmlToolCall::new(tool.clone(), true))
+                .collect();
+
+            for tool_call in tool_calls {
+                yml_step = yml_step.with_tool_call(tool_call);
+            }
+
+            yml_flow = yml_flow.with_step(yml_step);
+        }
+
+        // Add ground truth if available
+        // This is a simple example - in a real implementation, you would
+        // extract this from the flow plan or generate it based on the flow type
+        let ground_truth = reev_core::yml_schema::YmlGroundTruth::new().with_error_tolerance(0.01); // 1% tolerance
+        yml_flow = yml_flow.with_ground_truth(ground_truth);
+
+        Ok(yml_flow)
     }
 
     /// Refine user prompt with wallet context

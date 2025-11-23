@@ -3914,6 +3914,7 @@ dependencies = [
  "opentelemetry",
  "reev-agent",
  "reev-constants",
+ "reev-core",
  "reev-db",
  "reev-flow",
  "reev-lib",

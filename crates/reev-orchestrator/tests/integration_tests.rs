@@ -1,6 +1,6 @@
 //! Integration Tests for reev-orchestrator
 //!
-//! This file contains comprehensive integration tests for the orchestrator
+//! This file contains comprehensive integration tests for orchestrator
 //! to ensure end-to-end functionality works correctly.
 
 mod mock_data;
@@ -9,6 +9,7 @@ use mock_data::{all_mock_scenarios, create_mock_wallet_context, get_mock_scenari
 use reev_orchestrator::{OrchestratorGateway, Result};
 use reev_types::flow::{DynamicStep, WalletContext};
 use reev_types::tools::ToolName;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_end_to_end_flow_generation() -> Result<()> {
@@ -398,11 +399,103 @@ async fn test_template_system_integration() -> Result<()> {
     assert!(render_result.rendered.contains("wallet test_wallet_owner"));
     assert_eq!(render_result.template_name, "swap");
 
-    // Test that prices are included (even if 0.0, the structure is there)
+    // Test that prices are included (even if 0.0, structure is there)
     assert!(render_result.rendered.contains("price:"));
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_reev_core_integration() -> Result<()> {
+    // Create a database writer for test
+    let temp_db = tempfile::NamedTempFile::new().unwrap();
+    let db_path = temp_db.path().to_string_lossy().to_string();
+    let db_config = reev_db::DatabaseConfig::new(&db_path);
+    let db = Arc::new(reev_db::writer::DatabaseWriter::new(db_config).await?);
+
+    // Create gateway with reev-core components
+    let gateway = OrchestratorGateway::with_database(db).await?;
+
+    // Test process_user_request with a simple swap prompt
+    let (flow_plan, yml_path) = gateway
+        .process_user_request(
+            "swap 1 SOL to USDC",
+            "5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh",
+        )
+        .await?;
+
+    // Verify flow was created correctly
+    assert!(!flow_plan.steps.is_empty(), "Flow should have steps");
+
+    // Verify YML file was created
+    assert!(
+        std::path::Path::new(&yml_path).exists(),
+        "YML file should exist"
+    );
+
+    // Read and verify YML content
+    let yml_content = std::fs::read_to_string(&yml_path)?;
+    assert!(!yml_content.is_empty(), "YML file should not be empty");
+    assert!(
+        yml_content.contains("swap"),
+        "YML should contain swap instruction"
+    );
+
+    // Clean up
+    std::fs::remove_file(&yml_path)?;
+    gateway.cleanup().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_reev_core_benchmark_mode() -> Result<()> {
+    // Create a database writer for test
+    let temp_db = tempfile::NamedTempFile::new().unwrap();
+    let db_path = temp_db.path().to_string_lossy().to_string();
+    let db_config = reev_db::DatabaseConfig::new(&db_path);
+    let db = Arc::new(reev_db::writer::DatabaseWriter::new(db_config).await?);
+
+    // Create gateway with reev-core components
+    let gateway = OrchestratorGateway::with_database(db).await?;
+
+    // Test process_user_request with USER_WALLET_PUBKEY for benchmark mode
+    let (flow_plan, yml_path) = gateway
+        .process_user_request("swap 1 SOL to USDC", "USER_WALLET_PUBKEY")
+        .await?;
+
+    // Verify flow was created correctly
+    assert!(
+        !flow_plan.steps.is_empty(),
+        "Benchmark flow should have steps"
+    );
+
+    // Verify YML file was created
+    assert!(
+        std::path::Path::new(&yml_path).exists(),
+        "Benchmark YML file should exist"
+    );
+
+    // Read and verify YML content
+    let yml_content = std::fs::read_to_string(&yml_path)?;
+    assert!(
+        !yml_content.is_empty(),
+        "Benchmark YML file should not be empty"
+    );
+    assert!(
+        yml_content.contains("swap"),
+        "Benchmark YML should contain swap instruction"
+    );
+
+    // Clean up
+    std::fs::remove_file(&yml_path)?;
+    gateway.cleanup().await?;
+
+    Ok(())
+}
+
+// Test that prices are included (even if 0.0, structure is there)
+// This test was moved to the correct location in the template_system_integration test function
 
 #[test]
 fn test_dynamic_step_creation() {
