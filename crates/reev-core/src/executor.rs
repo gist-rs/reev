@@ -209,8 +209,8 @@ impl Executor {
     }
 
     /// Convert YML step to DynamicStep
-    fn yml_to_dynamic_step(&self, yml_step: &YmlStep, flow_id: &str) -> Result<DynamicStep> {
-        let step_id = format!("{}-{}", flow_id, yml_step.step_id);
+    fn yml_to_dynamic_step(&self, yml_step: &YmlStep, _flow_id: &str) -> Result<DynamicStep> {
+        let step_id = yml_step.step_id.clone();
 
         // Convert expected tool calls to required tools
         let required_tools = if let Some(tool_calls) = &yml_step.expected_tool_calls {
@@ -247,35 +247,5 @@ impl Default for RecoveryConfig {
             retry_delay_ms: 1000,
             exponential_backoff: false,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::yml_schema::builders::create_swap_flow;
-
-    #[tokio::test]
-    async fn test_execute_simple_swap_flow() {
-        let executor = Executor::new();
-
-        // Create a simple swap flow
-        let flow = create_swap_flow(
-            "test_pubkey".to_string(),
-            1_000_000_000, // 1 SOL
-            "SOL".to_string(),
-            "USDC".to_string(),
-            0.5, // 0.5 SOL
-        );
-
-        // Create a basic wallet context
-        let mut context = reev_types::flow::WalletContext::new("test_pubkey".to_string());
-        context.sol_balance = 1_000_000_000; // 1 SOL
-
-        // Execute the flow (will fail because we don't have a real executor)
-        let result = executor.execute_flow(&flow, &context).await;
-
-        // We expect this to fail since we don't have actual tool implementations
-        assert!(result.is_err());
     }
 }

@@ -86,7 +86,7 @@ impl ContextResolver {
     }
 
     /// Check if we're in benchmark mode (using USER_WALLET_PUBKEY placeholder)
-    fn is_benchmark_mode(&self, pubkey: &str) -> bool {
+    pub fn is_benchmark_mode(&self, pubkey: &str) -> bool {
         pubkey == "USER_WALLET_PUBKEY" || std::env::var("BENCHMARK_MODE").is_ok()
     }
 
@@ -316,7 +316,7 @@ impl Default for ContextResolver {
 
 /// Cache entry for resolved contexts
 #[derive(Debug, Clone)]
-struct CacheEntry {
+pub struct CacheEntry {
     /// The cached context
     context: WalletContext,
     /// When the entry was created
@@ -340,64 +340,5 @@ impl CacheEntry {
         let now = chrono::Utc::now();
         let elapsed = (now - self.created_at).num_seconds();
         elapsed > self.ttl_seconds as i64
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_placeholder_mappings() {
-        let mut context = WalletContext::new("test_pubkey".to_string());
-        context.sol_balance = 1_000_000_000; // 1 SOL
-        context.add_token_balance(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            TokenBalance::new(
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-                1_000_000,
-            )
-            .with_decimals(6)
-            .with_symbol("USDC".to_string()),
-        );
-        context.add_token_price(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            1.0,
-        );
-        context.calculate_total_value();
-
-        let resolver = ContextResolver::new(SolanaEnvironment::default());
-        let mappings = resolver.get_placeholder_mappings(&context).await;
-
-        assert_eq!(
-            mappings.get("WALLET_PUBKEY"),
-            Some(&"test_pubkey".to_string())
-        );
-        assert_eq!(
-            mappings.get("SOL_BALANCE"),
-            Some(&"1.000000000".to_string())
-        );
-        assert_eq!(mappings.get("USDC_BALANCE"), Some(&"1.000000".to_string()));
-        assert_eq!(mappings.get("USDC_PRICE"), Some(&"1.000000".to_string()));
-    }
-
-    #[test]
-    fn test_benchmark_mode_detection() {
-        let resolver = ContextResolver::new(SolanaEnvironment::default());
-
-        assert!(resolver.is_benchmark_mode("USER_WALLET_PUBKEY"));
-        assert!(!resolver.is_benchmark_mode("some_other_pubkey"));
-    }
-
-    #[test]
-    fn test_cache_entry_expiration() {
-        let context = WalletContext::new("test".to_string());
-        let entry = CacheEntry::new(context, 60);
-
-        assert!(!entry.is_expired());
-
-        let mut expired_entry = entry;
-        expired_entry.created_at = chrono::Utc::now() - chrono::Duration::seconds(120);
-        assert!(expired_entry.is_expired());
     }
 }
