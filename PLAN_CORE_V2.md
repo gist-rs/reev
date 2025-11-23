@@ -8,11 +8,17 @@
 - **Missing Auditability**: No verifiable, benchmarkable flow definitions
 - **Inefficient LLM Usage**: Either avoiding LLMs or calling them unnecessarily
 
-### **New Design Principles**:
-- **YML as Structured Prompt**: Parseable, auditable, generable, and testable
-- **Two-Phase LLM Approach**: Separate planning/refinement from tool execution
-- **Verifiable Flows**: Every flow can be benchmarked and tested with static YML
-- **Language Agnostic**: Handle any input through proper refinement
+### **Current Implementation Status**:
+- **Architecture In Place**: Core structure implemented but functionality missing
+- **LLM Integration Missing**: Phase 1 uses rule-based instead of actual LLM
+- **Tool Execution Missing**: Phase 2 returns mock results instead of executing tools
+- **Testing Incomplete**: Database issues prevent comprehensive validation
+
+### **Design Principles** (Partially Implemented):
+- **YML as Structured Prompt**: ✅ Parseable, auditable structures implemented
+- **Two-Phase LLM Approach**: ⚠️ Structure in place but not using LLMs
+- **Verifiable Flows**: ⚠️ YML schema exists but can't generate real flows
+- **Language Agnostic**: ❌ Can't handle varied input without LLM integration
 
 ## 🚀 **Novel Architecture: Verifiable AI-Generated DeFi Flows**
 
