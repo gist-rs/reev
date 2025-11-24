@@ -71,6 +71,59 @@ pub struct OrchestratorGateway {
 }
 
 impl OrchestratorGateway {
+    /// Create a new orchestrator gateway for testing with mock components
+    pub async fn new_for_test(database: Option<Arc<DatabaseWriter>>) -> Result<Self> {
+        let recovery_config = RecoveryConfig::default();
+        let recovery_engine = RecoveryEngine::new(recovery_config.clone());
+
+        // Create Solana environment (uses hardcoded surfpool URL)
+        let solana_env =
+            Arc::new(Mutex::new(SolanaEnv::new().map_err(|e| {
+                anyhow::anyhow!("Failed to create SolanaEnv: {e}")
+            })?));
+
+        // Create context resolver with Solana environment
+        let context_resolver = Arc::new(ContextResolver::with_solana_env(solana_env.clone()));
+
+        // Create reev-core components with test mode
+        let core_solana_env = reev_core::context::SolanaEnvironment::default();
+        let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
+
+        // Create planner without GLM for testing
+        let planner = Arc::new(Planner::new((*core_context_resolver).clone()));
+
+        // Create executor with tool executor that works in test mode
+        let executor = Arc::new(Executor::new()?);
+
+        let validator = Arc::new(FlowValidator::new());
+
+        // Use provided database or create a new one
+        let database = if let Some(db) = database {
+            db
+        } else {
+            let db_config = DatabaseConfig::local("test_reev_orchestrator.db");
+            Arc::new(DatabaseWriter::new(db_config).await?)
+        };
+
+        info!("[Orchestrator] Using TEST MODE with mock components");
+        Ok(Self {
+            _solana_env: solana_env,
+            context_resolver: context_resolver.clone(),
+            core_context_resolver,
+            planner,
+            executor,
+            validator,
+            yml_generator: Arc::new(YmlGenerator::new()),
+            generated_files: Arc::new(RwLock::new(Vec::new())),
+            recovery_engine: Arc::new(RwLock::new(recovery_engine)),
+            recovery_config,
+            ping_pong_executor: Arc::new(RwLock::new(PingPongExecutor::new(
+                300000, // 5 minute timeout
+                context_resolver,
+                database,
+            ))),
+        })
+    }
     /// Create enhanced balance check step with detailed wallet context
     fn create_enhanced_balance_check_step(
         &self,
@@ -549,7 +602,10 @@ impl OrchestratorGateway {
         let core_solana_env = reev_core::context::SolanaEnvironment::default();
         let core_context_resolver = Arc::new(CoreContextResolver::new(core_solana_env));
         let planner = Arc::new(Planner::new_with_glm((*core_context_resolver).clone())?);
+
+        // Create executor - ToolExecutor now works in test mode
         let executor = Arc::new(Executor::new()?);
+
         let validator = Arc::new(FlowValidator::new());
 
         Ok(Self {

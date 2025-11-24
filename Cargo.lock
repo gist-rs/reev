@@ -4007,6 +4007,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "dotenvy",
  "futures",
  "handlebars",
  "lru",

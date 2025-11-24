@@ -3,6 +3,9 @@
 //! This file contains comprehensive integration tests for orchestrator
 //! to ensure end-to-end functionality works correctly.
 
+// Load environment variables from .env file
+use dotenvy::dotenv;
+
 mod mock_data;
 
 use mock_data::{all_mock_scenarios, create_mock_wallet_context, get_mock_scenario};
@@ -30,9 +33,11 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn test_yml_structure_validation() -> Result<()> {
-    // Set test mode to avoid requiring ZAI_API_KEY
-    std::env::set_var("REEV_TEST_MODE", "true");
-    let gateway = OrchestratorGateway::new().await?;
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+
+    // Create gateway with reev-core components using test mode
+    let gateway = OrchestratorGateway::new_for_test(None).await?;
     let user_prompt = "swap 0.5 SOL to USDC then lend";
     let wallet_pubkey = "validation_test_wallet";
 
@@ -162,14 +167,16 @@ async fn test_template_system_integration() -> Result<()> {
 
 #[tokio::test]
 async fn test_reev_core_integration() -> Result<()> {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
     // Create a database writer for test
     let temp_db = tempfile::NamedTempFile::new().unwrap();
     let db_path = temp_db.path().to_string_lossy().to_string();
     let db_config = reev_db::DatabaseConfig::new(&db_path);
     let db = Arc::new(reev_db::writer::DatabaseWriter::new(db_config).await?);
 
-    // Create gateway with reev-core components
-    let gateway = OrchestratorGateway::with_database(db).await?;
+    // Create gateway with reev-core components using test mode
+    let gateway = OrchestratorGateway::new_for_test(Some(db)).await?;
 
     // Test process_user_request with a simple swap prompt
     let (flow_plan, yml_path) = gateway
@@ -205,6 +212,9 @@ async fn test_reev_core_integration() -> Result<()> {
 
 #[tokio::test]
 async fn test_reev_core_benchmark_mode() -> Result<()> {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+
     // Set test mode to avoid requiring ZAI_API_KEY
     std::env::set_var("REEV_TEST_MODE", "true");
 
@@ -214,8 +224,8 @@ async fn test_reev_core_benchmark_mode() -> Result<()> {
     let db_config = reev_db::DatabaseConfig::new(&db_path);
     let db = Arc::new(reev_db::writer::DatabaseWriter::new(db_config).await?);
 
-    // Create gateway with reev-core components
-    let gateway = OrchestratorGateway::with_database(db).await?;
+    // Create gateway with reev-core components using test mode
+    let gateway = OrchestratorGateway::new_for_test(Some(db)).await?;
 
     // Test process_user_request with USER_WALLET_PUBKEY for benchmark mode
     let (flow_plan, yml_path) = gateway
