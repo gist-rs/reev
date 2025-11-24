@@ -4,7 +4,6 @@
 //! to ensure end-to-end functionality works correctly.
 
 // Load environment variables from .env file
-use dotenvy::dotenv;
 
 mod mock_data;
 

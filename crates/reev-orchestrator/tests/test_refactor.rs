@@ -1,9 +1,5 @@
 //! Integration test for orchestrator refactor to use reev-core components
 
-use reev_core::yml_schema::{
-    builders::{create_lend_flow, create_swap_flow},
-    YmlAssertion, YmlFlow, YmlGroundTruth,
-};
 use reev_orchestrator::gateway::OrchestratorGateway;
 use reev_types::flow::WalletContext;
 use std::sync::Arc;
@@ -91,23 +87,20 @@ async fn test_reev_core_planner_integration() {
         // Verify the flow was created correctly
         assert!(
             !flow_plan.steps.is_empty(),
-            "Flow for '{}' should have steps",
-            prompt
+            "Flow for '{prompt}' should have steps"
         );
 
         // Verify YML file was created
         assert!(
             std::path::Path::new(&yml_path).exists(),
-            "YML file for '{}' should exist",
-            prompt
+            "YML file for '{prompt}' should exist"
         );
 
         // Read and verify YML content contains expected flow type
         let yml_content = std::fs::read_to_string(&yml_path).unwrap();
         assert!(
             !yml_content.is_empty(),
-            "YML file for '{}' should not be empty",
-            prompt
+            "YML file for '{prompt}' should not be empty"
         );
 
         // Clean up
