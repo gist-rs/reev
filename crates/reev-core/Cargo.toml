@@ -32,6 +32,7 @@ reev-flow = { path = "../reev-flow" }
 dirs = "5.0"
 solana-sdk = { workspace = true }
 bs58 = "0.5"
+ed25519-dalek = "2.0"
 
 # Additional required dependencies
 solana-client.workspace = true
@@ -41,6 +42,9 @@ reqwest.workspace = true
 # Async support
 async-trait.workspace = true
 
+# Tool execution support - Using existing tool frameworks instead
+rig-core.workspace = true
+
 # OpenTelemetry
 opentelemetry.workspace = true
 tracing-opentelemetry.workspace = true
@@ -48,6 +52,9 @@ tracing-opentelemetry.workspace = true
 [dev-dependencies]
 tokio-test = "0.4"
 serial_test = { workspace = true }
+
+# Additional dev dependencies
+reev-tools = { path = "../reev-tools" }
 
 [features]
 default = []

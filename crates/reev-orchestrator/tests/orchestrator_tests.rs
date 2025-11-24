@@ -5,7 +5,7 @@
 
 mod fixtures;
 use fixtures::{with_isolated_context_resolver, with_isolated_gateway};
-use reev_orchestrator::{ContextResolver, OrchestratorGateway, YmlGenerator};
+use reev_orchestrator::YmlGenerator;
 use reev_types::flow::{DynamicStep, WalletContext};
 use reev_types::tools::ToolName;
 

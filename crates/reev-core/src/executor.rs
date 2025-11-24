@@ -32,12 +32,8 @@ impl Default for Executor {
 impl Executor {
     /// Create a new executor
     pub fn new() -> Result<Self> {
-        // Use mock executor in test mode
-        let tool_executor: SharedExecutor = if cfg!(test) {
-            Arc::new(crate::execution::MockToolExecutor::new())
-        } else {
-            Arc::new(ToolExecutor::new()?)
-        };
+        // Always use the real tool executor
+        let tool_executor: SharedExecutor = Arc::new(ToolExecutor::new()?);
 
         Ok(Self {
             _validator: FlowValidator::new(),

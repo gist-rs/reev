@@ -2,22 +2,21 @@
 
 use anyhow::{anyhow, Result};
 use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::signer::keypair::Keypair as SolanaKeypair;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Source of the Solana private key
+/// Source of Solana private key
 #[derive(Debug, Clone)]
 pub enum KeySource {
-    /// From environment variable (direct key string)
+    /// From environment variable (direct key string or file path)
     Environment(String),
-    /// From a file path
-    FilePath(PathBuf),
     /// Default location: ~/.config/solana/id.json
     DefaultPath,
 }
 
-/// Get the Solana keypair from various sources
-pub fn get_keypair() -> Result<Keypair> {
+/// Get a Solana keypair from various sources
+pub fn get_keypair() -> Result<SolanaKeypair> {
     // First try to get from environment variable
     if let Ok(key_str) = std::env::var("SOLANA_PRIVATE_KEY") {
         // Check if it looks like a file path (doesn't contain spaces and exists)
@@ -30,69 +29,96 @@ pub fn get_keypair() -> Result<Keypair> {
         }
     } else {
         // Use default location
-        let default_path = get_default_key_path();
+        let default_path = get_default_key_path()?;
         read_keypair_from_file(&default_path.to_string_lossy())
     }
 }
 
 /// Get the default Solana key path
-pub fn get_default_key_path() -> PathBuf {
+pub fn get_default_key_path() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
     Ok(home_dir.join(".config/solana/id.json"))
 }
 
 /// Read keypair from file
 pub fn read_keypair_from_file(path: &str) -> Result<Keypair> {
-    let content =
-        fs::read_to_string(path).map_err(|e| anyhow!("Failed to read key file: {}", e))?;
+    let content = fs::read_to_string(path).map_err(|e| anyhow!("Failed to read key file: {e}"))?;
 
     if path.ends_with(".json") {
-        // Try to parse as JSON
-        serde_json::from_str(&content).map_err(|e| anyhow!("Failed to parse JSON key file: {}", e))
-    } else {
-        // Try to parse as base58 encoded string
-        let key_bytes =
-            bs58::decode(content).map_err(|e| anyhow!("Failed to decode base58 key: {}", e))?;
+        // Try to parse as JSON array (standard Solana key file format)
+        let json_value: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| anyhow!("Failed to parse JSON key file: {e}"))?;
 
-        if key_bytes.len() < 64 {
-            return Err(anyhow!("Invalid key length"));
+        if let Some(array) = json_value.as_array() {
+            if let Some(key_data) = array.first() {
+                if let Some(key_str) = key_data.as_str() {
+                    // Try to parse as base58
+                    let key_bytes = bs58::decode(key_str)
+                        .into_vec()
+                        .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
+
+                    // Try to create keypair from bytes using deprecated from_bytes method
+                    // We need to use this for now due to compatibility with existing code
+                    #[allow(deprecated)]
+                    let solana_keypair = SolanaKeypair::from_bytes(&key_bytes)
+                        .map_err(|e| anyhow!("Failed to create keypair from bytes: {e}"))?;
+                    Ok(solana_keypair)
+                } else {
+                    Err(anyhow!("Invalid key format in JSON file"))
+                }
+            } else {
+                Err(anyhow!("Empty key array in JSON file"))
+            }
+        } else {
+            Err(anyhow!("Invalid JSON key file format, expected array"))
         }
+    } else {
+        // Read the file content and decode as base58
+        let content = fs::read_to_string(path)?;
+        let key_bytes = bs58::decode(content.trim())
+            .into_vec()
+            .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
 
         let mut key_array = [0u8; 64];
         key_array.copy_from_slice(&key_bytes[..64]);
 
-        Keypair::from_bytes(&key_array).map_err(|e| anyhow!("Failed to create keypair: {}", e))
+        // Use deprecated from_bytes for compatibility
+        #[allow(deprecated)]
+        let solana_keypair = SolanaKeypair::from_bytes(&key_array)
+            .map_err(|e| anyhow!("Failed to create Solana keypair: {e}"))?;
+        Ok(solana_keypair)
     }
 }
 
 /// Read keypair from string
-pub fn read_keypair_from_string(key_str: &str) -> Result<Keypair> {
+pub fn read_keypair_from_string(key_str: &str) -> Result<SolanaKeypair> {
     // Try to parse as JSON first
     if key_str.trim().starts_with('{') {
-        serde_json::from_str(key_str).map_err(|e| anyhow!("Failed to parse JSON key string: {}", e))
+        Err(anyhow!("Direct JSON key strings are not supported"))
     } else {
         // Try to parse as base58 encoded string
-        let key_bytes =
-            bs58::decode(key_str).map_err(|e| anyhow!("Failed to decode base58 key: {}", e))?;
-
-        if key_bytes.len() < 64 {
-            return Err(anyhow!("Invalid key length"));
-        }
+        let key_bytes = bs58::decode(key_str)
+            .into_vec()
+            .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
 
         let mut key_array = [0u8; 64];
         key_array.copy_from_slice(&key_bytes[..64]);
 
-        Keypair::from_bytes(&key_array).map_err(|e| anyhow!("Failed to create keypair: {}", e))
+        // Use deprecated from_bytes for compatibility
+        #[allow(deprecated)]
+        let solana_keypair = SolanaKeypair::from_bytes(&key_array)
+            .map_err(|e| anyhow!("Failed to create Solana keypair: {e}"))?;
+        Ok(solana_keypair)
     }
 }
 
-/// Get the public key as a string
-pub fn get_pubkey(keypair: &Keypair) -> String {
+/// Get public key as a string
+pub fn get_pubkey(keypair: &SolanaKeypair) -> String {
     keypair.pubkey().to_string()
 }
 
-/// Get the public key from environment or default
-pub fn get_pubkey_from_env() -> Result<String> {
+/// Get keypair for signing operations
+pub fn get_signer() -> Result<impl solana_sdk::signature::Signer> {
     let keypair = get_keypair()?;
-    Ok(get_pubkey(&keypair))
+    Ok(keypair)
 }

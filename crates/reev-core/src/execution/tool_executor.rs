@@ -8,10 +8,11 @@ use crate::yml_schema::YmlStep;
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::{AgentTools, UnifiedGLMAgent};
 use reev_types::flow::{StepResult, WalletContext};
+use rig::tool::Tool;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument};
 
 /// Tool Executor for executing actual tools
 pub struct ToolExecutor {
@@ -234,29 +235,115 @@ impl ToolExecutor {
     /// Execute a single tool call
     async fn execute_single_tool(
         &self,
-        _tools: &AgentTools,
+        tools: &AgentTools,
         tool_call: &crate::yml_schema::YmlToolCall,
     ) -> Result<serde_json::Value> {
         debug!("Executing tool: {}", tool_call.tool_name);
 
+        // Extract parameters from expected_parameters
+        let params = if let Some(ref params) = tool_call.expected_parameters {
+            params.clone()
+        } else {
+            HashMap::new()
+        };
+
+        // Execute the actual tool through the Tool trait
         match tool_call.tool_name {
             reev_types::tools::ToolName::JupiterSwap => {
-                // Execute Jupiter swap tool
-                // This is a simplified implementation - we would need to extract parameters
-                warn!("Jupiter swap tool execution not fully implemented");
-                Ok(json!({ "status": "mock_execution", "tool": "jupiter_swap" }))
+                // Execute Jupiter swap tool with actual implementation
+                info!("Executing JupiterSwap with parameters: {:?}", params);
+
+                // Convert parameters to the expected format for JupiterSwapTool
+                let swap_args = reev_tools::tools::jupiter_swap::JupiterSwapArgs {
+                    user_pubkey: params
+                        .get("user_pubkey")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    input_mint: params
+                        .get("input_mint")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    output_mint: params
+                        .get("output_mint")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    amount: params.get("amount").and_then(|v| v.as_u64()).unwrap_or(0),
+                    slippage_bps: params
+                        .get("slippage_bps")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u16),
+                };
+
+                let result = tools
+                    .jupiter_swap_tool
+                    .call(swap_args)
+                    .await
+                    .map_err(|e| anyhow!("JupiterSwap execution failed: {e}"))?;
+                Ok(serde_json::to_value(result)?)
             }
             reev_types::tools::ToolName::JupiterLendEarnDeposit => {
-                // Execute Jupiter lend earn deposit tool
-                // This is a simplified implementation - we would need to extract parameters
-                warn!("Jupiter lend earn deposit tool execution not fully implemented");
-                Ok(json!({ "status": "mock_execution", "tool": "jupiter_lend_earn_deposit" }))
+                // Execute Jupiter lend earn deposit tool with actual implementation
+                info!(
+                    "Executing JupiterLendEarnDeposit with parameters: {:?}",
+                    params
+                );
+
+                // Convert parameters to the expected format for JupiterLendEarnDepositTool
+                let deposit_args =
+                    reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
+                        user_pubkey: params
+                            .get("user_pubkey")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        asset_mint: params
+                            .get("asset_mint")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        amount: params.get("amount").and_then(|v| v.as_u64()).unwrap_or(0),
+                    };
+
+                let result = tools
+                    .jupiter_lend_earn_deposit_tool
+                    .call(deposit_args)
+                    .await
+                    .map_err(|e| anyhow!("JupiterLendEarnDeposit execution failed: {e}"))?;
+                Ok(serde_json::to_value(result)?)
             }
             reev_types::tools::ToolName::SolTransfer => {
-                // Execute SOL transfer tool
-                // This is a simplified implementation - we would need to extract parameters
-                warn!("SOL transfer tool execution not fully implemented");
-                Ok(json!({ "status": "mock_execution", "tool": "sol_transfer" }))
+                // Execute SOL transfer tool with actual implementation
+                info!("Executing SolTransfer with parameters: {:?}", params);
+
+                // Convert parameters to the expected format for SolTransferTool
+                let transfer_args = reev_tools::tools::native::NativeTransferArgs {
+                    user_pubkey: params
+                        .get("user_pubkey")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    recipient_pubkey: params
+                        .get("recipient_pubkey")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    amount: params.get("amount").and_then(|v| v.as_u64()).unwrap_or(0),
+                    operation: reev_tools::tools::native::NativeTransferOperation::Sol,
+                    mint_address: params
+                        .get("mint_address")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                };
+
+                let result = tools
+                    .sol_tool
+                    .call(transfer_args)
+                    .await
+                    .map_err(|e| anyhow!("SolTransfer execution failed: {e}"))?;
+                Ok(serde_json::to_value(result)?)
             }
             _ => {
                 error!("Unknown tool: {:?}", tool_call.tool_name);

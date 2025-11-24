@@ -13,5 +13,6 @@ pub use prompt_templates::FlowPromptTemplate;
 // Mock implementation is only available for testing
 #[cfg(test)]
 pub mod mock_llm;
+
 #[cfg(test)]
-pub use mock_llm::MockGLMClient;
+pub use mock_llm::MockLLMClient;

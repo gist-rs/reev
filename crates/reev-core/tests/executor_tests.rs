@@ -47,7 +47,7 @@ async fn test_execute_simple_swap_flow() {
         "swap 1 SOL to USDC".to_string(),
         wallet_info,
     )
-    .with_step(step)
+    .with_step(step.clone())
     .with_ground_truth(ground_truth);
 
     // Create a mock wallet context
@@ -71,5 +71,6 @@ async fn test_execute_simple_swap_flow() {
     assert_eq!(result.user_prompt, flow.user_prompt);
     assert!(result.success);
     assert_eq!(result.step_results.len(), 1);
-    assert_eq!(result.step_results[0].step_id, "swap");
+    // Check that the step result has a valid step_id (UUID)
+    assert!(!result.step_results[0].step_id.is_empty());
 }

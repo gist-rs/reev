@@ -1,7 +1,6 @@
 //! Trait for Tool Execution
 //!
-//! This module defines a trait for tool execution implementations,
-//! allowing for both real and mock implementations.
+//! This module defines a trait for tool execution implementations.
 
 use crate::yml_schema::YmlStep;
 use anyhow::Result;
@@ -24,17 +23,6 @@ pub type SharedExecutor = Arc<dyn Executor>;
 
 #[async_trait::async_trait]
 impl Executor for crate::execution::ToolExecutor {
-    async fn execute_step(
-        &self,
-        step: &YmlStep,
-        wallet_context: &WalletContext,
-    ) -> Result<StepResult> {
-        self.execute_step(step, wallet_context).await
-    }
-}
-
-#[async_trait::async_trait]
-impl Executor for crate::execution::MockToolExecutor {
     async fn execute_step(
         &self,
         step: &YmlStep,

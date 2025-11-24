@@ -6,8 +6,7 @@
 
 use crate::context::ContextResolver;
 use crate::llm::glm_client::init_glm_client;
-#[cfg(test)]
-use crate::tests::common::mock_llm::init_mock_glm_client;
+
 use crate::yml_schema::{
     YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
 };
@@ -39,12 +38,7 @@ impl Planner {
 
     /// Create a new planner with GLM client initialized
     pub fn new_with_glm(context_resolver: ContextResolver) -> Result<Self> {
-        // Use mock client in test mode
-        let llm_client = if cfg!(test) {
-            init_mock_glm_client()?
-        } else {
-            init_glm_client()?
-        };
+        let llm_client = init_glm_client()?;
 
         Ok(Self {
             context_resolver,
@@ -55,7 +49,28 @@ impl Planner {
     /// Set the LLM client
     pub fn with_llm_client(mut self, client: Box<dyn LlmClient>) -> Self {
         self.llm_client = Some(client);
+
         self
+    }
+
+    /// Create a planner for testing with mock LLM client
+    #[cfg(test)]
+    pub fn new_for_test(context_resolver: ContextResolver) -> Self {
+        // Import MockLLMClient from the correct location
+        #[cfg(test)]
+        use crate::llm::mock_llm::MockLLMClient;
+
+        #[cfg(test)]
+        #[cfg(test)]
+        let llm_client: Option<Box<dyn LlmClient>> = Some(Box::new(MockLLMClient::new()));
+
+        #[cfg(not(test))]
+        let llm_client: Option<Box<dyn LlmClient>> = None;
+
+        Self {
+            context_resolver,
+            llm_client,
+        }
     }
 
     /// Refine and plan: Phase 1 LLM integration for structured YML generation

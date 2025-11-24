@@ -6,6 +6,7 @@
 use crate::llm::prompt_templates::FlowPromptTemplate;
 use crate::planner::LlmClient;
 use anyhow::{anyhow, Result};
+use reev_agent::enhanced::UnifiedGLMAgent;
 use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
 
@@ -46,7 +47,7 @@ impl LlmClient for GLMClient {
 
         debug!("Calling GLM with structured prompt");
 
-        // Create request payload - using the exact same format as ZAIAgent expects
+        // Create request payload for UnifiedGLMAgent
         let payload = reev_agent::LlmRequest {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: uuid::Uuid::new_v4().to_string(),
@@ -65,20 +66,20 @@ impl LlmClient for GLMClient {
         let mut key_map = HashMap::new();
         key_map.insert("ZAI_API_KEY".to_string(), self.api_key.clone());
 
-        // Call ZAIAgent directly - reusing existing working implementation
-        // This is the KEY CHANGE - we use the existing agent instead of creating new implementation
-        let result =
-            reev_agent::enhanced::zai_agent::ZAIAgent::run(&self.model_name, payload, key_map)
-                .await
-                .map_err(|e| {
-                    error!("Failed to generate flow with GLM: {}", e);
-                    anyhow!("LLM generation failed: {}", e)
-                })?;
+        // Use the existing UnifiedGLMAgent implementation
+        let result = UnifiedGLMAgent::run(&self.model_name, payload, key_map)
+            .await
+            .map_err(|e| {
+                error!("Failed to generate flow with GLM: {}", e);
+                anyhow!("LLM generation failed: {e}")
+            })?;
 
-        // The ZAIAgent returns a string directly, which should contain a valid YML flow
-        debug!("Received GLM response: {}", result);
+        // Extract the execution result from the UnifiedGLMAgent response
+        let flow_yml = result.execution_result.summary;
 
-        Ok(result)
+        debug!("Received GLM response: {}", flow_yml);
+
+        Ok(flow_yml)
     }
 }
 

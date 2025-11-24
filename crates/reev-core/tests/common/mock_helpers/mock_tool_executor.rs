@@ -3,8 +3,8 @@
 //! This module provides a mock implementation of tool execution
 //! for testing purposes, avoiding the need for actual tool calls.
 
-use crate::yml_schema::YmlStep;
 use anyhow::Result;
+use reev_core::yml_schema::YmlStep;
 use reev_types::flow::{StepResult, WalletContext};
 use serde_json::json;
 use tracing::{debug, info};
