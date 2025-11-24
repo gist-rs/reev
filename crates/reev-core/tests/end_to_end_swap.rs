@@ -57,7 +57,7 @@ async fn ensure_surfpool_running() -> Result<()> {
             return Ok(());
         }
         Err(_) => {
-            info!("🚀 Starting surfpool...");
+            info!("🚀 Surfpool not running, need to start it...");
         }
     }
 
