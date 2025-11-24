@@ -76,7 +76,7 @@ async fn test_cache_functionality() {
 
 #[tokio::test]
 async fn test_gateway_creation() {
-    with_isolated_gateway(|gateway| async move {
+    with_isolated_gateway(|_gateway| async move {
         // Just test that gateway can be created successfully
         // The cleanup will be handled by the test fixture
     })

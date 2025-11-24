@@ -16,6 +16,7 @@ static TEST_FIXTURE: OnceCell<TestFixture> = OnceCell::const_new();
 
 /// Test fixture with isolated database and shared components
 pub struct TestFixture {
+    #[allow(dead_code)]
     pub temp_dir: TempDir,
     pub db_path: PathBuf,
 }
@@ -30,6 +31,7 @@ impl TestFixture {
     }
 
     /// Get or create the global test fixture
+    #[allow(dead_code)]
     pub async fn get() -> &'static TestFixture {
         TEST_FIXTURE
             .get_or_init(|| async { Self::new().await })
@@ -70,6 +72,7 @@ impl TestFixture {
 }
 
 /// Test helper to run a test with isolated database
+#[allow(dead_code)]
 pub async fn with_isolated_db<F, Fut, R>(test_fn: F) -> R
 where
     F: FnOnce(Arc<DatabaseWriter>) -> Fut,

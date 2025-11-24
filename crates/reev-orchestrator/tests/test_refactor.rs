@@ -78,7 +78,8 @@ async fn test_reev_core_planner_integration() {
         ("swap 1 SOL to USDC then lend", "swap_then_lend"),
     ];
 
-    for (prompt, expected_flow_type) in prompts {
+    #[allow(clippy::uninlined_format_args)]
+    for (prompt, _expected_flow_type) in prompts {
         let (flow_plan, yml_path) = gateway
             .process_user_request(prompt, "test_wallet_123")
             .await
