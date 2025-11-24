@@ -1,12 +1,11 @@
 //! Jupiter swap tool wrapper
 //!
 //! This tool provides AI agent access to Jupiter's swap functionality,
-//! acting as a thin wrapper around the protocol handler.
-
-use reev_protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
+//! preparing transaction components for executor to handle.
 
 use reev_lib::balance_validation::{BalanceValidationError, BalanceValidator};
 use reev_lib::constants::{sol_mint, usdc_mint};
+use reev_protocols::jupiter::{get_jupiter_config, swap::handle_jupiter_swap};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -61,9 +60,8 @@ impl From<BalanceValidationError> for JupiterSwapError {
 pub struct JupiterSwapResponse {
     pub instructions: Vec<serde_json::Value>,
     pub transaction_count: usize,
-    pub estimated_signatures: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub transaction_signature: Option<String>, // Add actual transaction signature field
+    pub transaction_signature: Option<String>, // Will be populated by executor
     pub operation_type: String,
     pub status: String,
     pub completed: bool,
@@ -145,7 +143,7 @@ impl Tool for JupiterSwapTool {
         // Use enhanced logging macro for consistent otel tracking
         log_tool_call!("jupiter_swap", &args);
 
-        info!("[JupiterSwapTool] Starting tool execution with OpenTelemetry tracing");
+        info!("[JupiterSwapTool] Starting tool execution");
         let start_time = Instant::now();
 
         // Parse user_pubkey
@@ -262,83 +260,61 @@ impl Tool for JupiterSwapTool {
             return Err(JupiterSwapError::SameMint);
         }
 
-        // Execute transaction via SURFPOOL
-        info!("[JupiterSwapTool] Executing transaction via SURFPOOL");
+        // Prepare transaction using protocol handler
+        info!("[JupiterSwapTool] Preparing transaction via protocol handler");
 
-        // Import SURFPOOL components
-        use jup_sdk::{models::SwapParams, Jupiter};
-        use reev_lib::utils::solana::get_keypair;
-
-        // Get user keypair for signing
-        let keypair = get_keypair().map_err(|e| {
-            JupiterSwapError::ProtocolCall(anyhow::anyhow!("Failed to get keypair: {e}"))
-        })?;
-
-        // Create Jupiter client for SURFPOOL
-        let jupiter_client = Jupiter::surfpool().with_signer(&keypair);
-
-        // Execute swap transaction
-        let swap_params = SwapParams {
-            input_mint,
-            output_mint,
-            amount: args.amount,
-            slippage_bps,
-        };
-
-        let simulation_result = jupiter_client
-            .swap(swap_params)
-            .commit()
-            .await
-            .map_err(|e| {
-                JupiterSwapError::ProtocolCall(anyhow::anyhow!(
-                    "Failed to execute swap transaction: {e}"
-                ))
-            })?;
-
-        info!(
-            "[JupiterSwapTool] Transaction executed with signature: {}",
-            simulation_result.signature
-        );
-        let _transaction_signature = Some(simulation_result.signature.clone());
-
-        // Get raw instructions from protocol handler for response
-        let raw_instructions = handle_jupiter_swap(
+        // Use the protocol handler from reev-protocols
+        let instructions = handle_jupiter_swap(
             user_pubkey,
             input_mint,
             output_mint,
             args.amount,
             slippage_bps,
         )
-        .await?;
-
-        // 🎯 Create enhanced response with metadata
-        let instruction_count = raw_instructions.len();
-        let transaction_signature = Some(simulation_result.signature.clone());
-        let estimated_signatures = vec![simulation_result.signature.clone()];
-
-        let swap_response = JupiterSwapResponse {
-            instructions: raw_instructions
-                .into_iter()
-                .map(|inst| serde_json::to_value(inst).unwrap_or_default())
-                .collect(),
-            transaction_count: instruction_count,
-            estimated_signatures,
-            transaction_signature, // Add actual transaction signature field
-            operation_type: "jupiter_swap".to_string(),
-            status: "success".to_string(),
-            completed: true,
-            message: format!("Successfully executed {instruction_count} jupiter_swap operation(s)"),
-        };
-
-        // Serialize the enhanced response to JSON string.
-        let output = serde_json::to_string(&swap_response)?;
-
-        let execution_time = start_time.elapsed().as_millis() as u64;
-        log_tool_completion!("jupiter_swap", execution_time, &output, true);
+        .await
+        .map_err(|e| {
+            tracing::error!("Jupiter swap error details: {:?}", e);
+            JupiterSwapError::ProtocolCall(anyhow::anyhow!(
+                "Failed to prepare swap transaction: {e}"
+            ))
+        })?;
 
         info!(
-            "[JupiterSwapTool] Generated {} instructions for {}→{} swap",
-            instruction_count, args.input_mint, args.output_mint
+            "[JupiterSwapTool] Transaction prepared with {} instructions",
+            instructions.len()
+        );
+
+        // Convert protocol handler instructions to tool response format
+        let raw_instructions: Vec<serde_json::Value> = instructions
+            .clone()
+            .into_iter()
+            .map(|inst| serde_json::to_value(inst).unwrap_or_default())
+            .collect();
+
+        // Create JupiterSwapResponse with instructions but no transaction signature yet
+        let swap_response = JupiterSwapResponse {
+            instructions: raw_instructions,
+            transaction_count: instructions.len(),
+            transaction_signature: None, // Will be populated by executor after signing and sending
+            operation_type: "jupiter_swap".to_string(),
+            status: "prepared".to_string(),
+            completed: false, // Not completed until executor signs and sends
+            message: format!(
+                "Prepared {} instructions for jupiter_swap operation (awaiting execution)",
+                instructions.len()
+            ),
+        };
+
+        // Serialize response to JSON string
+        let output = serde_json::to_string(&swap_response)?;
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        log_tool_completion!("jupiter_swap", execution_time, &output, false); // Not completed yet
+
+        info!(
+            "[JupiterSwapTool] Prepared {} instructions for {}→{} swap (awaiting execution)",
+            instructions.len(),
+            args.input_mint,
+            args.output_mint
         );
 
         Ok(output)

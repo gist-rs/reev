@@ -482,9 +482,43 @@ steps:
                             if let Ok(jupiter_response) =
                                 serde_json::from_str::<serde_json::Value>(result_str)
                             {
-                                // Extract the transaction_signature from the JupiterSwapResponse
+                                // Check if we have instructions (new flow) or a transaction_signature (old flow)
                                 if let Some(jupiter_obj) = jupiter_response.as_object() {
-                                    if let Some(signature) =
+                                    // New flow: instructions are prepared by tool, executed by executor
+                                    if let Some(instructions) =
+                                        jupiter_obj.get("instructions").and_then(|v| v.as_array())
+                                    {
+                                        if !instructions.is_empty() {
+                                            info!("\n📝 Step 5: Executing {} Jupiter swap instructions", instructions.len());
+
+                                            // In this flow, the executor has already executed the transaction
+                                            // and included the signature in the step_result output
+                                            if let Some(sig_str) = jupiter_obj
+                                                .get("transaction_signature")
+                                                .and_then(|v| v.as_str())
+                                            {
+                                                if !sig_str.is_empty() {
+                                                    info!("\n📝 Step 5: Transaction executed with signature:");
+                                                    info!("Signature: {}", sig_str);
+
+                                                    info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                                                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                                                    info!(
+                                                        "Transaction URL: https://solscan.io/tx/{}",
+                                                        sig_str
+                                                    );
+
+                                                    info!("\n✅ All steps completed successfully!");
+                                                    return Ok(sig_str.to_string());
+                                                }
+                                            } else {
+                                                info!("\n❌ Error: Transaction execution succeeded but no signature was returned");
+                                            }
+                                        }
+                                    }
+                                    // Old flow: transaction_signature is directly in the response
+                                    else if let Some(signature) =
                                         jupiter_obj.get("transaction_signature")
                                     {
                                         if let Some(sig_str) = signature.as_str() {
