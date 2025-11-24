@@ -6,9 +6,8 @@ use reev_types::flow::WalletContext;
 
 #[tokio::test]
 async fn test_context_resolver() {
-    let context_resolver = ContextResolver::new(reev_core::context::SolanaEnvironment::default());
+    let _context_resolver = ContextResolver::new(reev_core::context::SolanaEnvironment::default());
     // ContextResolver is created with default timeout of 30 seconds
-    assert!(true);
 }
 
 #[tokio::test]

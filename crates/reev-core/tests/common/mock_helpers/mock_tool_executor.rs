@@ -1,6 +1,6 @@
 //! Mock Tool Executor for Tests
 //!
-//! This module provides a mock implementation of tool execution
+//! This module provides a mock implementation of the ToolExecutor trait
 //! for testing purposes, avoiding the need for actual tool calls.
 
 use anyhow::Result;
@@ -10,6 +10,7 @@ use serde_json::json;
 use tracing::{debug, info};
 
 /// Mock tool executor for testing
+#[allow(dead_code)]
 pub struct MockToolExecutor {
     /// Whether to simulate success or failure
     simulate_success: bool,
@@ -30,12 +31,14 @@ impl MockToolExecutor {
     }
 
     /// Set whether to simulate success or failure
+    #[allow(dead_code)]
     pub fn with_success(mut self, success: bool) -> Self {
         self.simulate_success = success;
         self
     }
 
     /// Execute a step with mock tool results
+    #[allow(dead_code)]
     pub async fn execute_step(
         &self,
         step: &YmlStep,

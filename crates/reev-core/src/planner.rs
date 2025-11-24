@@ -56,16 +56,39 @@ impl Planner {
     /// Create a planner for testing with mock LLM client
     #[cfg(test)]
     pub fn new_for_test(context_resolver: ContextResolver) -> Self {
-        // Import MockLLMClient from the correct location
+        // Mock LLM implementation for testing
         #[cfg(test)]
-        use crate::llm::mock_llm::MockLLMClient;
+        struct MockLLMClient;
 
         #[cfg(test)]
-        #[cfg(test)]
-        let llm_client: Option<Box<dyn LlmClient>> = Some(Box::new(MockLLMClient::new()));
+        #[async_trait::async_trait]
+        impl LlmClient for MockLLMClient {
+            async fn generate_flow(&self, prompt: &str) -> anyhow::Result<String> {
+                // Generate a simple mock YML flow based on the prompt
+                let flow_id = uuid::Uuid::new_v4();
+                let yml_response = format!(
+                    r#"flow_id: {flow_id}
+user_prompt: "{prompt}"
+subject_wallet_info:
+  pubkey: "USER_WALLET_PUBKEY"
+  lamports: 4000000000
+  tokens: []
+  total_value_usd: 100.0
+steps:
+  - step_id: "1"
+    prompt: "{prompt}"
+    context: "Test context"
+    critical: true
+    estimated_time_seconds: 5
+ground_truth:
+  final_state_assertions: []
+  expected_tool_calls: []"#
+                );
+                Ok(yml_response)
+            }
+        }
 
-        #[cfg(not(test))]
-        let llm_client: Option<Box<dyn LlmClient>> = None;
+        let llm_client: Option<Box<dyn LlmClient>> = Some(Box::new(MockLLMClient));
 
         Self {
             context_resolver,
