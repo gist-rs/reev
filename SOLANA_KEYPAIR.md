@@ -50,13 +50,13 @@ The keypair handling is implemented in `reev-core/src/utils/solana.rs` with the 
 
 ```bash
 # Set the environment variable with a direct private key
-export SOLANA_PRIVATE_KEY="5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh"
+export SOLANA_PRIVATE_KEY="SomeBase64ofYourPrivateKeyGoHere"
 ```
 
 #### Using a File Path
 
 ```bash
-# Set the environment variable with a file path
+# Set the environment variable with a file path, default to `~/.config/solana/id.json`
 export SOLANA_PRIVATE_KEY="/path/to/my/keyfile.json"
 ```
 
