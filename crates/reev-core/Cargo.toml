@@ -38,6 +38,7 @@ ed25519-dalek = "2.0"
 solana-client.workspace = true
 regex.workspace = true
 reqwest.workspace = true
+dotenvy.workspace = true
 
 # Async support
 async-trait.workspace = true

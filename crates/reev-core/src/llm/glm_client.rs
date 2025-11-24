@@ -27,6 +27,9 @@ impl GLMClient {
 
     /// Initialize with environment variables
     pub fn from_env() -> Result<Self> {
+        // Load environment variables from .env file
+        dotenvy::dotenv().ok();
+
         let model_name =
             std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
         let api_key = std::env::var("ZAI_API_KEY")

@@ -1,0 +1,68 @@
+warning: unused import: `reev_agent::enhanced::UnifiedGLMAgent`
+ --> crates/reev-core/src/llm/glm_client.rs:9:5
+  |
+9 | use reev_agent::enhanced::UnifiedGLMAgent;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `std::collections::HashMap`
+  --> crates/reev-core/src/llm/glm_client.rs:10:5
+   |
+10 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `error`
+  --> crates/reev-core/src/llm/glm_client.rs:11:22
+   |
+11 | use tracing::{debug, error, info, instrument};
+   |                      ^^^^^
+
+warning: unused variable: `flow_prompt`
+  --> crates/reev-core/src/llm/glm_client.rs:46:13
+   |
+46 |         let flow_prompt = FlowPromptTemplate::build_flow_prompt(prompt);
+   |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_flow_prompt`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: fields `model_name` and `api_key` are never read
+  --> crates/reev-core/src/llm/glm_client.rs:15:5
+   |
+14 | pub struct GLMClient {
+   |            --------- fields in this struct
+15 |     model_name: String,
+   |     ^^^^^^^^^^
+16 |     api_key: String,
+   |     ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `reev-core` (lib) generated 5 warnings (run `cargo fix --lib -p reev-core` to apply 3 suggestions)
+warning: use of deprecated associated function `solana_sdk::signature::Keypair::from_bytes`: Use Keypair::try_from(&[u8]) instead
+  --> crates/reev-orchestrator/tests/swap_flow_integration_test.rs:90:43
+   |
+90 |     solana_sdk::signer::keypair::Keypair::from_bytes(&keypair_array)
+   |                                           ^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: `reev-orchestrator` (test "swap_flow_integration_test") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s
+     Running tests/swap_flow_integration_test.rs (target/debug/deps/swap_flow_integration_test-a84b3b8e17cfba6d)
+
+running 1 test
+
+thread 'test_complete_swap_flow' panicked at crates/reev-orchestrator/tests/swap_flow_integration_test.rs:266:5:
+JupiterSwap tool should have been called
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_complete_swap_flow ... FAILED
+
+failures:
+
+failures:
+    test_complete_swap_flow
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+error: test failed, to rerun pass `-p reev-orchestrator --test swap_flow_integration_test`

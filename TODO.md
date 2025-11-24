@@ -1,4 +1,55 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
+
+---
+
+Show me integration test for
+
+1. prompt "swap 1 SOL for USDC"
+2. i should see log info for yml prompt (with wallet info get from surfpool) that send to glm-coding (ZAI_API_KEY and already set at .env, do use it with dotenvy)
+3. i should see log info for swap tool calling from llm
+4. i should see tx that gen from that tool.
+5. it should sign thst tx with default keypair `~/.config/solana/id.json`.
+6. i should see tx complete res from surpool
+7. create other test prompt "sell all SOL for USDC" and it should repeat 1. step with user wallet context as (this mean the test code should share common and DRY and ready for any input later)
+
+if this kind of integration test not exist yet plz add and do make a real call to api, you can add ignore for this test later
+
+not sure it should land in crates/reev-orchestrator/tests
+or crates/reev-core/tests
+
+if you dont know surfpool, do grep from existing crates/reev-core
+---
+
+can you help cross check and refine/fix if needed?
+
+[@swap_flow_integration_test.rs](file:///Users/katopz/git/gist/reev/crates/reev-orchestrator/tests/swap_flow_integration_test.rs) 
+
+it must use default keypair which is ~/.config/solana/id.json btw
+
+
+---
+
+refer to [@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) ,[@SOLANA_KEYPAIR.md](file:///Users/katopz/git/gist/reev/SOLANA_KEYPAIR.md), [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), [@TASKS.md](file:///Users/katopz/git/gist/reev/TASKS.md) , did we fin the task and issue, be honest.
+
+---
+
+Show me integration test for
+1. prompt "swap 1 SOL for USDC"
+2. i should see log info for yml prompt (with wallet info get from surfpool) that send to glm-coding
+3. i should see log info for swap tool calling from llm
+4. i should see tx that gen from that tool.
+5. it should sign thst tx with default keypair `~/.config/solana/id.json`.
+6. i should see tx complete res from surpool
+
+if this integration test not exist yet plz add and do make a real call to api, you can add ignore for this test later
+
+not sure it should land in crates/reev-orchestrator/tests
+or crates/reev-core/tests
+
+if you dont know surfpool, do grep from existing crates/reev-core, no mock allow, this is integration test
+
+---
+
 fix issue, re-test, re-check code, impl remain tasks, rm done task, ALWAYS RUN SERVER IN BG
 
 refer to the plan, impl it step by step, feel free to remove old code/test in existing crate if it throw errors while impl because it obsolete and we dont use it anymore, and/or consider delete unused in all crate if new reev-core doesn't need it to compact the code. no migration needed no mercy no need to keep compatible.
