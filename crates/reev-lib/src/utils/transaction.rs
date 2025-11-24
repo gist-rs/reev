@@ -52,7 +52,7 @@ pub fn build_transaction_from_instructions(
     }
 
     // Get recent blockhash from client
-    let client = RpcClient::new_with_commitment(
+    let _client = RpcClient::new_with_commitment(
         "http://localhost:8899".to_string(), // Default SURFPOOL URL
         CommitmentConfig::confirmed(),
     );
@@ -64,14 +64,17 @@ pub fn build_transaction_from_instructions(
 }
 
 /// Sign a transaction with the user's keypair
-pub fn sign_transaction(mut transaction: Transaction, signer: &impl Signer) -> Result<Transaction> {
+pub async fn sign_transaction(
+    mut transaction: Transaction,
+    signer: &impl Signer,
+) -> Result<Transaction> {
     // Get the latest blockhash for signing
     let client = RpcClient::new_with_commitment(
         "http://localhost:8899".to_string(), // Default SURFPOOL URL
         CommitmentConfig::confirmed(),
     );
 
-    let blockhash = tokio::runtime::Handle::current().block_on(client.get_latest_blockhash())?;
+    let blockhash = client.get_latest_blockhash().await?;
 
     // Sign the transaction with the blockhash
     transaction.try_sign(&[signer], blockhash)?;
@@ -111,7 +114,7 @@ pub async fn execute_transaction(
     let transaction = build_transaction_from_instructions(instructions, payer)?;
 
     debug!("Signing transaction");
-    let signed_tx = sign_transaction(transaction, signer)?;
+    let signed_tx = sign_transaction(transaction, signer).await?;
 
     debug!("Sending transaction to SURFPOOL");
     let signature = send_transaction_to_surfpool(signed_tx).await?;

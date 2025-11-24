@@ -186,8 +186,10 @@ impl ToolExecutor {
                                                 error_message: None,
                                                 tool_calls: vec!["jupiter_swap".to_string()],
                                                 output: json!({
-                                                    "transaction_signature": tx_signature,
-                                                    "full_response": response
+                                                    "jupiter_swap": {
+                                                        "transaction_signature": tx_signature,
+                                                        "full_response": response
+                                                    }
                                                 }),
                                                 execution_time_ms: 1000, // Estimated execution time
                                             };
@@ -206,8 +208,10 @@ impl ToolExecutor {
                                                 )),
                                                 tool_calls: vec!["jupiter_swap".to_string()],
                                                 output: json!({
-                                                    "error": format!("Transaction execution failed: {e}"),
-                                                    "response": response
+                                                    "jupiter_swap": {
+                                                        "error": format!("Transaction execution failed: {e}"),
+                                                        "response": response
+                                                    }
                                                 }),
                                                 execution_time_ms: 1000,
                                             };
@@ -228,8 +232,10 @@ impl ToolExecutor {
                                         )),
                                         tool_calls: vec!["jupiter_swap".to_string()],
                                         output: json!({
-                                            "error": format!("Instruction conversion failed: {e}"),
-                                            "response": response
+                                            "jupiter_swap": {
+                                                "error": format!("Instruction conversion failed: {e}"),
+                                                "response": response
+                                            }
                                         }),
                                         execution_time_ms: 1000,
                                     };
@@ -253,7 +259,10 @@ impl ToolExecutor {
                         ),
                         tool_calls: vec!["jupiter_swap".to_string()],
                         output: json!({
-                            "raw_response": response_json
+                            "jupiter_swap": {
+                                "error": "Could not extract instructions from response",
+                                "raw_response": response_json
+                            }
                         }),
                         execution_time_ms: 1000,
                     };
@@ -270,7 +279,9 @@ impl ToolExecutor {
                         error_message: Some(format!("Tool execution failed: {e}")),
                         tool_calls: vec!["jupiter_swap".to_string()],
                         output: json!({
-                            "error": format!("Tool execution failed: {e}"),
+                            "jupiter_swap": {
+                                "error": format!("Tool execution failed: {e}"),
+                            }
                         }),
                         execution_time_ms: 1000,
                     };

@@ -354,13 +354,52 @@ steps:
             "  Full output: {}",
             serde_json::to_string_pretty(&step_result.output).unwrap_or_default()
         );
+
+        // Debug: Print the entire output structure
+        debug!(
+            "  Output keys: {:?}",
+            step_result
+                .output
+                .as_object()
+                .map(|o| o.keys().collect::<Vec<_>>())
+                .unwrap_or_default()
+        );
+
+        // Debug: Check if jupiter_swap field exists
+        if step_result.output.get("jupiter_swap").is_some() {
+            debug!("  jupiter_swap field found in output");
+        } else {
+            debug!("  jupiter_swap field NOT found in output");
+        }
     }
 
     // Extract transaction signature from the step results
     for (i, step_result) in result.step_results.iter().enumerate() {
         info!("Checking step {} for transaction signature", i + 1);
 
-        // Check for signatures directly in the output
+        // Check for transaction signature directly in jupiter_swap field of output (new refactored flow)
+        if let Some(jupiter_swap) = step_result.output.get("jupiter_swap") {
+            if let Some(jupiter_obj) = jupiter_swap.as_object() {
+                if let Some(signature) = jupiter_obj.get("transaction_signature") {
+                    if let Some(sig_str) = signature.as_str() {
+                        if !sig_str.is_empty() {
+                            info!("\n📝 Step 5: Transaction executed with signature:");
+                            info!("Signature: {}", sig_str);
+
+                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                            info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
+
+                            info!("\n✅ All steps completed successfully!");
+                            return Ok(sig_str.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for signatures directly in the output (legacy flow)
         if let Some(signatures) = step_result.output.get("signatures") {
             if let Some(sig_array) = signatures.as_array() {
                 for sig in sig_array {

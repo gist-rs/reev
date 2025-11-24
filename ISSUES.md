@@ -2,13 +2,13 @@
 
 ## Issue #74: Fix Jupiter Transaction Architecture to Remove Mock Signatures
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
 
 ### Description:
 Jupiter swap tool is currently generating mock transaction signatures in production code, which defeats the purpose of having real Jupiter integration.
 
 ### Root Cause:
-The JupiterSwapTool is preparing instructions but not properly executing transactions through SURFPOOL. Instead, it's generating mock signatures like "mock_tx_10000000_EPjFWdd5_So111111" to make tests pass.
+The JupiterSwapTool was preparing instructions but not properly executing transactions through SURFPOOL. We've successfully separated tool preparation from execution, but the executor is failing to execute transactions with RPC error -32002.
 
 ### Correct Architecture:
 1. **JupiterSwapTool**:
@@ -36,10 +36,23 @@ The JupiterSwapTool is preparing instructions but not properly executing transac
 5. Verify transaction execution through SURFPOOL works correctly
 
 ### Success Criteria:
-- No mock signatures in production code
-- Jupiter swap returns real transaction signatures
-- Transactions are properly signed and sent through SURFPOOL
-- End-to-end test passes with real transactions
+- ✅ Jupiter swap tool only prepares instructions (not signatures)
+- ✅ Tool executor handles building, signing, and sending transactions
+- ❌ Transaction execution failing with RPC error -32002 (Jupiter program errors 0x15, 0xfaded, 0xffff)
+- ❌ Test infrastructure working but transactions not executing successfully
+
+### Current Implementation Status:
+1. ✅ **JupiterSwapTool Refactored**: Now only prepares instructions
+2. ✅ **Transaction Utils Added**: Created build, sign, send functions in reev-lib
+3. ✅ **Tool Executor Updated**: Now handles transaction building and sending
+4. ✅ **Test Infrastructure Working**: Test finds jupiter_swap field in output
+5. ❌ **Transaction Execution Failing**: RPC errors from Jupiter programs during simulation
+
+### Next Steps Required:
+1. Investigate Jupiter program errors (0x15, 0xfaded, 0xffff) during transaction simulation
+2. Verify SURFPOOL compatibility with Jupiter swap instructions
+3. Consider if transaction building or signing process needs adjustment
+4. Update test to handle both success and error cases correctly
 
 
 
