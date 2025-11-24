@@ -57,6 +57,12 @@ tempfile = "3.8"
 
 # Additional dev dependencies
 reev-tools = { path = "../reev-tools" }
+reev-protocols = { path = "../reev-protocols" }
+
+# Additional dependencies for end-to-end test
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
+spl-associated-token-account = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [features]
 default = []
