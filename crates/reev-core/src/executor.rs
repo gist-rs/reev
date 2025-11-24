@@ -171,7 +171,7 @@ impl Executor {
     async fn execute_step_with_recovery(
         &self,
         step: &DynamicStep,
-        previous_results: &[StepResult],
+        _previous_results: &[StepResult],
         initial_context: &WalletContext, // Add initial_context parameter
     ) -> Result<StepResult> {
         // Convert DynamicStep to YmlStep for tool execution

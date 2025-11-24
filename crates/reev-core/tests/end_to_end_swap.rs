@@ -9,7 +9,7 @@
 //! To run this test with the recommended logging filters to reduce noise:
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
 //! ```
 //!
 //! ## Test Flow (6 Steps)
@@ -31,10 +31,11 @@ use reev_types::flow::WalletContext;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
 use std::env;
+
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
-use tracing::info;
+use tracing::{debug, info};
 
 /// Global reference to surfpool process
 static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>> =
@@ -208,6 +209,10 @@ async fn execute_swap_with_planner(
 
     // Step 1: Display the prompt being processed
     println!("\n📋 Step 1: Processing prompt: \"{prompt}\"");
+    debug!(
+        "DEBUG: Initial wallet state - SOL: {}, USDC: {}",
+        initial_sol_balance, initial_usdc_balance
+    );
 
     // Create a structured YML prompt with wallet info
     let yml_prompt = format!(
@@ -258,96 +263,179 @@ steps:
     );
     wallet_context.calculate_total_value();
 
-    info!("\n⚙️ Step 4: Executing swap tool call from LLM...");
-    // Execute flow using the Executor
-    let executor = Executor::new()?;
-    let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
+    debug!(
+        "DEBUG: Created wallet context with SOL: {} lamports, USDC: {} (raw)",
+        wallet_context.sol_balance,
+        wallet_context
+            .token_balances
+            .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+            .map(|t| t.balance)
+            .unwrap_or(0)
+    );
 
-    // Extract the transaction signature from the result
-    if result.step_results.is_empty() {
-        return Err(anyhow!("No step results found"));
+    info!("\n⚙️ Step 4: Executing swap tool call from LLM...");
+
+    // Log the wallet context being passed to the executor
+    info!("Wallet context for executor:");
+    info!("  Owner: {}", wallet_context.owner);
+    info!("  SOL balance: {} lamports", wallet_context.sol_balance);
+    info!("  Token balances: {}", wallet_context.token_balances.len());
+    for (mint, balance) in &wallet_context.token_balances {
+        info!("    {}: {} tokens", mint, balance.balance);
     }
 
-    // Get the first step result
-    let step_result = &result.step_results[0];
+    // Execute flow using the Executor
+    let executor = Executor::new()?;
 
-    // Look for transaction signature in tool_results
-    if let Some(tool_results) = step_result.output.get("tool_results") {
-        if let Some(results_array) = tool_results.as_array() {
-            for result in results_array {
-                if let Some(result_map) = result.as_object() {
-                    // Check for transaction_signature from JupiterSwapResponse
-                    if let Some(tx_sig) = result_map.get("transaction_signature") {
-                        let signature = tx_sig.as_str().unwrap_or_default();
+    info!("About to call executor.execute_flow");
+    let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
+    info!("executor.execute_flow completed successfully");
 
-                        if !signature.is_empty() {
+    // Log the result structure
+    info!("Flow execution result:");
+    info!("  Flow ID: {}", result.flow_id);
+    info!("  Success: {}", result.success);
+    info!("  Step results count: {}", result.step_results.len());
+
+    // Log detailed step results
+    for (i, step_result) in result.step_results.iter().enumerate() {
+        info!("Step {} result:", i + 1);
+        info!("  Step ID: {}", step_result.step_id);
+        info!("  Success: {}", step_result.success);
+        info!("  Tool calls: {:?}", step_result.tool_calls);
+
+        // Try to extract transaction signature from the output
+        if let Some(tool_results) = step_result.output.get("tool_results") {
+            if let Some(results_array) = tool_results.as_array() {
+                info!("  Tool results: {} results", results_array.len());
+                for (j, result) in results_array.iter().enumerate() {
+                    info!(
+                        "    Result {}: {}",
+                        j + 1,
+                        serde_json::to_string_pretty(result).unwrap_or_default()
+                    );
+
+                    // Try to extract signature from different possible locations
+                    if let Some(result_obj) = result.as_object() {
+                        // Check for direct transaction_signature field
+                        if let Some(tx_sig) = result_obj.get("transaction_signature") {
+                            info!("    Found transaction_signature: {:?}", tx_sig);
+                        }
+
+                        // Check in nested structure
+                        if let Some(jupiter_response) = result_obj.get("jupiter_swap") {
+                            if let Some(response_obj) = jupiter_response.as_object() {
+                                if let Some(signature) = response_obj.get("transaction_signature") {
+                                    info!(
+                                        "    Found jupiter_swap.transaction_signature: {:?}",
+                                        signature
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                info!(
+                    "  Tool results is not an array: {}",
+                    serde_json::to_string_pretty(tool_results).unwrap_or_default()
+                );
+            }
+        } else {
+            info!("  No tool_results in output");
+        }
+
+        if let Some(error) = &step_result.error_message {
+            info!("  Error: {}", error);
+        }
+
+        // Log the full output for debugging
+        info!(
+            "  Full output: {}",
+            serde_json::to_string_pretty(&step_result.output).unwrap_or_default()
+        );
+    }
+
+    // Extract transaction signature from the step results
+    for (i, step_result) in result.step_results.iter().enumerate() {
+        info!("Checking step {} for transaction signature", i + 1);
+
+        // Check for signatures directly in the output
+        if let Some(signatures) = step_result.output.get("signatures") {
+            if let Some(sig_array) = signatures.as_array() {
+                for sig in sig_array {
+                    if let Some(sig_str) = sig.as_str() {
+                        if !sig_str.is_empty() {
                             info!("\n📝 Step 5: Generated transaction:");
-                            info!("Signature: {}", signature);
+                            info!("Signature: {}", sig_str);
 
                             info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
 
                             info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                            info!("Transaction URL: https://solscan.io/tx/{}", signature);
+                            info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
 
                             info!("\n✅ All steps completed successfully!");
-                            return Ok(signature.to_string());
+                            return Ok(sig_str.to_string());
                         }
                     }
+                }
+            }
+        }
 
-                    // Check if it's nested in a "result" object
-                    if let Some(result_obj) = result_map.get("result") {
-                        if let Some(result_map) = result_obj.as_object() {
-                            if let Some(tx_sig) = result_map.get("signature") {
-                                let signature = tx_sig.as_str().unwrap_or_default();
+        // Look for transaction signature in tool_results
+        if let Some(tool_results) = step_result.output.get("tool_results") {
+            if let Some(results_array) = tool_results.as_array() {
+                for result in results_array {
+                    if let Some(result_map) = result.as_object() {
+                        // Check for transaction_signature from JupiterSwapResponse
+                        if let Some(tx_sig) = result_map.get("transaction_signature") {
+                            let signature = tx_sig.as_str().unwrap_or_default();
 
-                                if !signature.is_empty() {
-                                    info!("\n📝 Step 5: Generated transaction:");
-                                    info!("Signature: {}", signature);
+                            if !signature.is_empty() {
+                                info!("\n📝 Step 5: Generated transaction:");
+                                info!("Signature: {}", signature);
 
-                                    info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+                                info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
 
-                                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                    info!("Transaction URL: https://solscan.io/tx/{}", signature);
+                                info!(
+                                    "\n📊 Step 6: Transaction completed successfully via SURFPOOL!"
+                                );
+                                info!("Transaction URL: https://solscan.io/tx/{}", signature);
 
-                                    info!("\n✅ All steps completed successfully!");
-                                    return Ok(signature.to_string());
-                                }
+                                info!("\n✅ All steps completed successfully!");
+                                return Ok(signature.to_string());
                             }
                         }
-                    }
 
-                    // Check in nested structure from JupiterSwapResponse
-                    if let Some(jupiter_response) = result_map.get("jupiter_swap") {
-                        if let Some(response_obj) = jupiter_response.as_object() {
-                            if let Some(signature) = response_obj.get("transaction_signature") {
-                                if let Some(sig_str) = signature.as_str() {
-                                    if !sig_str.is_empty() {
+                        // Check if it's nested in a "result" object
+                        if let Some(result_obj) = result_map.get("result") {
+                            if let Some(result_map) = result_obj.as_object() {
+                                if let Some(tx_sig) = result_map.get("signature") {
+                                    let signature = tx_sig.as_str().unwrap_or_default();
+
+                                    if !signature.is_empty() {
                                         info!("\n📝 Step 5: Generated transaction:");
-                                        info!("Signature: {}", sig_str);
+                                        info!("Signature: {}", signature);
 
                                         info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
 
                                         info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                        info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
+                                        info!(
+                                            "Transaction URL: https://solscan.io/tx/{}",
+                                            signature
+                                        );
 
                                         info!("\n✅ All steps completed successfully!");
-                                        return Ok(sig_str.to_string());
+                                        return Ok(signature.to_string());
                                     }
                                 }
                             }
                         }
-                    }
-                    // If still not found, try parsing the result as a JSON string (for real tool responses)
-                    else if let Some(result_str) =
-                        result_map.get("result").and_then(|v| v.as_str())
-                    {
-                        // Parse the JSON string from the JupiterSwapTool response
-                        if let Ok(jupiter_response) =
-                            serde_json::from_str::<serde_json::Value>(result_str)
-                        {
-                            // Extract the transaction_signature from the JupiterSwapResponse
-                            if let Some(jupiter_obj) = jupiter_response.as_object() {
-                                if let Some(signature) = jupiter_obj.get("transaction_signature") {
+
+                        // Check in nested structure from JupiterSwapResponse
+                        if let Some(jupiter_response) = result_map.get("jupiter_swap") {
+                            if let Some(response_obj) = jupiter_response.as_object() {
+                                if let Some(signature) = response_obj.get("transaction_signature") {
                                     if let Some(sig_str) = signature.as_str() {
                                         if !sig_str.is_empty() {
                                             info!("\n📝 Step 5: Generated transaction:");
@@ -368,17 +456,45 @@ steps:
                                 }
                             }
                         }
+                        // If still not found, try parsing the result as a JSON string (for real tool responses)
+                        else if let Some(result_str) =
+                            result_map.get("result").and_then(|v| v.as_str())
+                        {
+                            // Parse the JSON string from the JupiterSwapTool response
+                            if let Ok(jupiter_response) =
+                                serde_json::from_str::<serde_json::Value>(result_str)
+                            {
+                                // Extract the transaction_signature from the JupiterSwapResponse
+                                if let Some(jupiter_obj) = jupiter_response.as_object() {
+                                    if let Some(signature) =
+                                        jupiter_obj.get("transaction_signature")
+                                    {
+                                        if let Some(sig_str) = signature.as_str() {
+                                            if !sig_str.is_empty() {
+                                                info!("\n📝 Step 5: Generated transaction:");
+                                                info!("Signature: {}", sig_str);
+
+                                                info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                                                info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                                                info!(
+                                                    "Transaction URL: https://solscan.io/tx/{}",
+                                                    sig_str
+                                                );
+
+                                                info!("\n✅ All steps completed successfully!");
+                                                return Ok(sig_str.to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
-
-    // Debug output to help diagnose the issue
-    info!(
-        "Step result output: {}",
-        serde_json::to_string_pretty(&step_result.output)?
-    );
 
     // No transaction signature found
     Err(anyhow!(
@@ -459,22 +575,22 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 /// 4. Shows the transaction generated from that tool
 /// 5. Signs the transaction with default keypair at ~/.config/solana/id.json
 /// 6. Shows transaction completion result from SURFPOOL
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore] // Ignore by default since it requires surfpool to be running
-async fn test_swap_1_sol_for_usdc() -> Result<()> {
-    run_swap_test("Swap 1 SOL for USDC", "swap 1 SOL for USDC").await
+async fn test_swap_0_1_sol_for_usdc() -> Result<()> {
+    run_swap_test("Swap 0.1 SOL for USDC", "swap 0.1 SOL for USDC").await
 }
 
 /// Test end-to-end swap flow with prompt "sell all SOL for USDC"
 /// Follows the same 6-step process as test_swap_1_sol_for_usdc
 /// but with a "sell all SOL" prompt instead.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore] // Ignore by default since it requires surfpool to be running
 async fn test_sell_all_sol_for_usdc() -> Result<()> {
     run_swap_test("Sell All SOL for USDC", "sell all SOL for USDC").await
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn test_cleanup_surfpool() -> Result<()> {
     // This test can be used to clean up surfpool if needed
