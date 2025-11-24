@@ -7,50 +7,36 @@
 pub struct FlowPromptTemplate;
 
 impl FlowPromptTemplate {
-    /// Build a structured prompt for YML flow generation
+    /// Build a structured prompt for intent and parameter extraction
     pub fn build_flow_prompt(user_prompt: &str) -> String {
         format!(
-            r#"You are a DeFi assistant that generates structured YAML flows from user prompts.
+            r#"You are a DeFi assistant that extracts user intent and parameters from prompts.
 
-Generate a valid YAML flow that represents the user's intent. The flow should include:
+Extract the user's intent and key parameters from the following prompt. Respond with a simple JSON object containing:
 
-1. flow_id: A unique identifier for the flow (use UUID)
-2. user_prompt: The original user request
-3. subject_wallet_info: Wallet context information
-4. steps: A list of steps to execute
-5. ground_truth: Validation assertions
+1. intent: The type of operation (swap, lend, borrow, etc.)
+2. parameters: Key parameters for the operation
+   - from_token: Source token (e.g., SOL, USDC)
+   - to_token: Destination token (for swaps)
+   - amount: The amount to operate with
+   - percentage: Percentage if specified (e.g., "50%")
+3. steps: Brief description of the steps needed
 
 User Prompt: "{user_prompt}"
 
-Please generate a YAML flow with the following structure:
+Please respond with a JSON object in this format:
+{{
+  "intent": "swap|lend|borrow|etc",
+  "parameters": {{
+    "from_token": "SOL|USDC|etc",
+    "to_token": "USDC|SOL|etc",
+    "amount": "1.0|50|etc",
+    "percentage": "50|100|null"
+  }},
+  "steps": ["Step 1 description", "Step 2 description"]
+}}
 
-```yaml
-flow_id: <UUID>
-user_prompt: "<original user prompt>"
-subject_wallet_info:
-  - pubkey: "placeholder_pubkey"
-    lamports: 4000000000
-    tokens:
-      - mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        amount: 20000000
-steps:
-  - prompt: "<description of what this step does>"
-    context: "<additional context for this step>"
-    expected_tool_calls:
-      - tool_name: "<tool to call>"
-        critical: true
-ground_truth:
-  final_state_assertions:
-    - type: SolBalanceChange
-      pubkey: "placeholder_pubkey"
-      expected_change_gte: <expected SOL change in lamports>
-      error_tolerance: 0.01
-  expected_tool_calls:
-    - tool_name: "<tool to call>"
-      critical: true
-```
-
-Make sure the YAML is valid and properly formatted. Focus on creating a logical flow that achieves the user's goal.
+Focus on extracting the core intent and parameters accurately, even if there are typos or variations in phrasing.
 "#
         )
     }

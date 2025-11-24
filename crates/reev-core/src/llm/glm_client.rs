@@ -6,8 +6,7 @@
 use crate::llm::prompt_templates::FlowPromptTemplate;
 use crate::planner::LlmClient;
 use anyhow::{anyhow, Result};
-use reev_agent::enhanced::UnifiedGLMAgent;
-use std::collections::HashMap;
+use serde_json::json;
 use tracing::{debug, error, info, instrument};
 
 /// GLM Client implementation for reev-core planner
@@ -43,46 +42,101 @@ impl GLMClient {
 impl LlmClient for GLMClient {
     #[instrument(skip(self))]
     async fn generate_flow(&self, prompt: &str) -> Result<String> {
-        info!("Generating flow using GLM-4.6-coding model");
+        info!("Extracting intent using ZAI API");
 
-        // Build structured prompt for YML flow generation
+        // Build structured prompt for intent extraction
         let flow_prompt = FlowPromptTemplate::build_flow_prompt(prompt);
 
-        debug!("Calling GLM with structured prompt");
+        debug!("Calling ZAI API with structured prompt");
 
-        // Create request payload for UnifiedGLMAgent
-        let payload = reev_agent::LlmRequest {
-            id: uuid::Uuid::new_v4().to_string(),
-            session_id: uuid::Uuid::new_v4().to_string(),
-            prompt: flow_prompt.clone(),
-            context_prompt: "You are a helpful DeFi assistant that generates structured YML flows."
-                .to_string(),
-            model_name: self.model_name.clone(),
-            mock: false,
-            initial_state: None,
-            allowed_tools: None, // No tools needed for flow generation
-            account_states: None,
-            key_map: None, // Will be set in the next step
+        // Create a simple HTTP client for ZAI API
+        let api_key = std::env::var("ZAI_API_KEY")
+            .map_err(|_| anyhow!("ZAI_API_KEY environment variable not set"))?;
+
+        let client = reqwest::Client::new();
+
+        // Create request body for ZAI API
+        // Use the correct model name for ZAI API
+        let model_name = if self.model_name == "glm-4.6-coding" {
+            "glm-4.6"
+        } else {
+            &self.model_name
         };
 
-        // Set up key_map for authentication
-        let mut key_map = HashMap::new();
-        key_map.insert("ZAI_API_KEY".to_string(), self.api_key.clone());
+        let request_body = json!({
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a DeFi assistant that extracts user intent and parameters from prompts."
+                },
+                {
+                    "role": "user",
+                    "content": flow_prompt
+                }
+            ],
+            "temperature": 0.1,
+            "max_tokens": 1000
+        });
 
-        // Use the existing UnifiedGLMAgent implementation
-        let result = UnifiedGLMAgent::run(&self.model_name, payload, key_map)
+        // Send request to ZAI API
+        let response = client
+            .post("https://api.z.ai/api/coding/paas/v4/chat/completions")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
             .await
             .map_err(|e| {
-                error!("Failed to generate flow with GLM: {}", e);
+                error!("Failed to send request to ZAI API: {}", e);
                 anyhow!("LLM generation failed: {e}")
             })?;
 
-        // Extract the execution result from the UnifiedGLMAgent response
-        let flow_yml = result.execution_result.summary;
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "ZAI API returned error: {} - {}",
+                status,
+                error_text
+            ));
+        }
 
-        debug!("Received GLM response: {}", flow_yml);
+        let response_json: serde_json::Value = response.json().await.map_err(|e| {
+            error!("Failed to parse ZAI API response: {}", e);
+            anyhow!("LLM generation failed: {e}")
+        })?;
 
-        Ok(flow_yml)
+        debug!("Received ZAI response: {:?}", response_json);
+
+        // Extract content from response
+        let content = response_json
+            .get("choices")
+            .and_then(|choices| choices.get(0))
+            .and_then(|choice| choice.get("message"))
+            .and_then(|message| message.get("content"))
+            .and_then(|content| content.as_str())
+            .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
+
+        debug!("Extracted content: {}", content);
+
+        // Check if the response is empty
+        if content.trim().is_empty() {
+            error!("LLM returned empty response");
+            return Err(anyhow!("LLM returned empty response"));
+        }
+
+        // Try to extract JSON from the response if it contains additional text
+        let cleaned_response = if content.contains('{') && content.contains('}') {
+            // Extract JSON portion if there's extra text
+            let start = content.find('{').unwrap_or(0);
+            let end = content.rfind('}').map(|i| i + 1).unwrap_or(content.len());
+            content[start..end].to_string()
+        } else {
+            content.to_string()
+        };
+
+        Ok(cleaned_response)
     }
 }
 

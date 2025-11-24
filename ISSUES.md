@@ -171,10 +171,11 @@ Performance of the two-phase LLM approach has not been benchmarked yet.
 - 90%+ success rate on common flows
 
 ### Tasks Required:
-1. Implement performance measurement in both planner and executor
-2. Create benchmarks for common flow types
-3. Measure end-to-end execution times
-4. Optimize based on benchmark results
+1. ✅ Fixed LLM integration to use intent extraction only (COMPLETED)
+2. Implement performance measurement in both planner and executor
+3. Create benchmarks for common flow types
+4. Measure end-to-end execution times
+5. Optimize based on benchmark results
 
 ## Issue #71: Limited End-to-End Testing
 
@@ -220,6 +221,13 @@ SURFPOOL integration points are in place but not tested with real calls.
 - ✅ **Executor Module**: Implemented with real tool execution and parameter conversion
 - ✅ **reev-orchestrator Refactor**: Updated to use reev-core components with proper conversions
 - ✅ **Mock Implementation Isolation**: Moved all mocks to test-only locations
+- ✅ **End-to-End Swap Test**: Fixed test to use simplified LLM approach for intent extraction
+
+### Recent Critical Fix
+- ✅ **LLM Integration Simplified**: Fixed issue where LLM was asked to generate complex YAML with UUIDs
+- ✅ **Intent Extraction Only**: Now LLM only extracts intent and parameters, not generates full flow structure
+- ✅ **Programmatic Flow Generation**: Planner now generates flows with proper UUIDs programmatically
+- ✅ **ZAI API Integration**: Connected to existing ZAI provider implementation without creating new code
 
 ### Two-Phase LLM Approach Status
 - ✅ **Phase 1 (Refine+Plan)**: Connected to GLM-4.6-coding model via ZAI API

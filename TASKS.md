@@ -1,5 +1,14 @@
 # Reev Core Implementation Tasks
 
+## Recent Critical Fix
+
+### ✅ End-to-End Swap Test Implementation
+Fixed critical issue where LLM was being asked to generate complex YAML structures including UUIDs. Now:
+- LLM only extracts intent and parameters from user prompt
+- Planner generates flow structure programmatically with proper UUIDs
+- Connected to existing ZAI provider implementation
+- Test now runs through to Jupiter swap execution
+
 ## 🎯 **Why: Third Implementation with Code Reuse**
 
 This is our third implementation attempt of verifiable AI-generated DeFi flows architecture. We have working code in previous implementations that must be reused - not migrated or rewritten. The goal is to consolidate working functionality into new architecture outlined in PLAN_CORE_V2.md.
@@ -128,6 +137,30 @@ User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → To
 - Ensured mocks are only available during testing
 
 ### Task 6: Integration Testing (COMPLETED ✅)
+
+### Task 7: Fix End-to-End Swap Test (COMPLETED ✅)
+
+**Status**: Fully Implemented
+
+**Implementation**:
+- ✅ Fixed LLM integration to extract intent only, not generate full YAML
+- ✅ Updated planner to generate flows programmatically with proper UUIDs
+- ✅ Connected to existing ZAI provider implementation
+- ✅ Fixed model name issue for ZAI API (glm-4.6-coding → glm-4.6)
+- ✅ Test now runs through to Jupiter swap execution
+
+**Key Changes**:
+1. **Simplified Prompt Template**: Changed from asking LLM to generate complex YAML to extracting intent/parameters
+2. **Programmatic Flow Generation**: Planner now creates YML flow with proper UUIDs
+3. **Fixed ZAI Integration**: Used existing ZAI provider without creating new code
+4. **Eliminated Mock Implementations**: Removed mock LLM usage from production code
+
+**Test Results**:
+- ✅ Planner connects to ZAI API and extracts intent from "swap 1 SOL for USDC"
+- ✅ Generates proper flow with UUID and structured steps
+- ✅ Executor runs flow and calls Jupiter swap tool
+- ✅ Test proceeds to transaction execution phase
+
 
 **Status**: All Tests Now Passing
 

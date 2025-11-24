@@ -248,13 +248,39 @@ impl ZAIAgent {
             }
         }
 
-        let request = request_builder
-            .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
-            .build();
+        // For flow generation, we don't want to force tool usage
+        // For regular operations, we need tools
+        let is_flow_mode = flow_mode_indicator.is_some();
 
-        let result = model.completion(request).await?;
+        // Debug request for flow mode
+        if is_flow_mode {
+            info!("[ZAIAgent] Flow mode detected");
+        }
 
-        info!("[ZAIAgent] ZAI completion completed");
+        let request = if is_flow_mode {
+            request_builder.build()
+        } else {
+            request_builder
+                .additional_params(json!({"tool_choice": "required"})) // Force LLM to use tools instead of generating transactions directly
+                .build()
+        };
+
+        // Debug the model completion
+        info!("[ZAIAgent] Sending request to model...");
+        let result = match model.completion(request).await {
+            Ok(result) => {
+                info!("[ZAIAgent] ZAI completion successful");
+                result
+            }
+            Err(e) => {
+                tracing::error!("[ZAIAgent] ZAI completion failed: {}", e);
+                return Err(anyhow::anyhow!("Model completion failed: {}", e));
+            }
+        };
+
+        // Debug the result structure
+        info!("[ZAIAgent] Result structure: {:?}", result);
+        info!("[ZAIAgent] Result choice count: {}", result.choice.len());
 
         // Extract tool calls from the result (provider-specific)
         let tool_calls: Vec<_> = result
@@ -311,6 +337,7 @@ impl ZAIAgent {
                 .unwrap_or_default();
 
             info!("[ZAIAgent] Text response: {}", response_text);
+            info!("[ZAIAgent] Full result object: {:?}", result);
             response_text
         };
 

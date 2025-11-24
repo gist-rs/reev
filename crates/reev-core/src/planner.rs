@@ -137,346 +137,187 @@ ground_truth:
         Ok(yml_flow)
     }
 
-    /// Generate flow using LLM
+    /// Generate flow using LLM for intent extraction
     pub async fn generate_flow_with_llm(
         &self,
         prompt: &str,
-        _wallet_context: &WalletContext,
+        wallet_context: &WalletContext,
         llm_client: &dyn LlmClient,
     ) -> Result<YmlFlow> {
-        debug!("Calling LLM for flow generation");
+        debug!("Calling LLM for intent extraction");
 
-        // Call LLM client to get response
+        // Call LLM client to get response with intent and parameters
         let llm_response = llm_client.generate_flow(prompt).await?;
 
-        // Parse LLM response (could be JSON or YAML)
-        let yml_flow: YmlFlow = if llm_response.starts_with('{') {
-            // Try parsing as JSON first
-            let json: serde_json::Value = serde_json::from_str(&llm_response)
-                .map_err(|e| anyhow!("Failed to parse LLM response as JSON: {e}"))?;
+        // Parse LLM response as JSON with intent and parameters
+        let json: serde_json::Value = serde_json::from_str(&llm_response)
+            .map_err(|e| anyhow!("Failed to parse LLM response as JSON: {e}"))?;
 
-            // Convert JSON to YmlFlow
-            // This is a simplified conversion - in a real implementation,
-            // we'd need a proper JSON-to-YML conversion
-            let flow_id = json
-                .get("flow_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string();
-            let user_prompt = json
-                .get("user_prompt")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string();
-            let subject_wallet_info_json = json
-                .get("subject_wallet_info")
-                .unwrap_or(&serde_json::Value::Object(Default::default()))
-                .clone();
+        // Extract intent from the response
+        let intent_str = json
+            .get("intent")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_lowercase();
 
-            // Convert JSON values to YmlWalletInfo
-            let subject_wallet_info = if subject_wallet_info_json.is_object() {
-                let obj = subject_wallet_info_json.as_object().unwrap();
-                let pubkey = obj
-                    .get("pubkey")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let lamports = obj
-                    .get("lamports")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or_default();
-                let total_value_usd = obj
-                    .get("total_value_usd")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or_default();
+        // Extract parameters
+        let params = json
+            .get("parameters")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
 
-                let tokens =
-                    if let Some(tokens_array) = obj.get("tokens").and_then(|v| v.as_array()) {
-                        tokens_array
-                            .iter()
-                            .filter_map(|token| {
-                                if let Some(token_obj) = token.as_object() {
-                                    let mint = token_obj
-                                        .get("mint")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or_default()
-                                        .to_string();
-                                    let balance = token_obj
-                                        .get("balance")
-                                        .and_then(|v| v.as_u64())
-                                        .unwrap_or_default();
-                                    Some(reev_types::benchmark::TokenBalance {
-                                        mint,
-                                        balance,
-                                        decimals: Some(0), // Default value
-                                        formatted_amount: Some(String::new()), // Default value
-                                        owner: Some(String::new()), // Default value
-                                        symbol: Some(String::new()), // Default value
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    } else {
-                        vec![]
-                    };
+        let from_token = params
+            .get("from_token")
+            .and_then(|v| v.as_str())
+            .unwrap_or("SOL")
+            .to_uppercase();
 
-                YmlWalletInfo {
-                    pubkey,
-                    lamports,
-                    tokens,
-                    total_value_usd: Some(total_value_usd),
-                }
-            } else {
-                // Fallback for invalid JSON structure
-                YmlWalletInfo::new("USER_WALLET_PUBKEY".to_string(), 0)
-            };
+        let to_token = params
+            .get("to_token")
+            .and_then(|v| v.as_str())
+            .unwrap_or("USDC")
+            .to_uppercase();
 
-            let empty_steps: Vec<serde_json::Value> = Vec::new();
-            let steps_json = json
-                .get("steps")
-                .and_then(|v| v.as_array())
-                .unwrap_or(&empty_steps);
+        let amount_str = params
+            .get("amount")
+            .and_then(|v| v.as_str())
+            .unwrap_or("1.0");
 
-            let steps = steps_json
-                .iter()
-                .filter_map(|step| {
-                    if let Some(step_obj) = step.as_object() {
-                        let step_id = step_obj
-                            .get("step_id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
-                        let prompt = step_obj
-                            .get("prompt")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
-                        let context = step_obj
-                            .get("context")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
-                        let critical = step_obj
-                            .get("critical")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or_default();
-                        let estimated_time_seconds = step_obj
-                            .get("estimated_time_seconds")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or_default();
-                        let expected_tool_calls = if let Some(calls_array) = step_obj
-                            .get("expected_tool_calls")
-                            .and_then(|v| v.as_array())
-                        {
-                            calls_array
-                                .iter()
-                                .filter_map(|call| {
-                                    if let Some(call_obj) = call.as_object() {
-                                        let tool_name_str = call_obj
-                                            .get("tool_name")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or_default();
+        let amount: f64 = amount_str.parse().unwrap_or(1.0);
 
-                                        // Convert string to enum
-                                        let tool_name = match tool_name_str {
-                                            "JupiterSwap" => {
-                                                reev_types::tools::ToolName::JupiterSwap
-                                            }
-                                            "JupiterLendEarnDeposit" => {
-                                                reev_types::tools::ToolName::JupiterLendEarnDeposit
-                                            }
-                                            "GetAccountBalance" => {
-                                                reev_types::tools::ToolName::GetAccountBalance
-                                            }
-                                            _ => reev_types::tools::ToolName::GetAccountBalance, // Fallback
-                                        };
+        let percentage_str = params.get("percentage").and_then(|v| v.as_str());
 
-                                        let critical = call_obj
-                                            .get("critical")
-                                            .and_then(|v| v.as_bool())
-                                            .unwrap_or_default();
+        let percentage: Option<f64> = percentage_str.and_then(|s| s.parse().ok());
 
-                                        Some(crate::yml_schema::YmlToolCall {
-                                            tool_name,
-                                            critical,
-                                            expected_parameters: None,
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect()
-                        } else {
-                            vec![]
-                        };
+        // Generate a proper UUID for the flow
+        let flow_id = uuid::Uuid::now_v7().to_string();
 
-                        Some(crate::yml_schema::YmlStep {
-                            step_id,
-                            prompt,
-                            context,
-                            critical: Some(critical),
-                            estimated_time_seconds: Some(estimated_time_seconds),
-                            expected_tool_calls: Some(expected_tool_calls),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+        // Create wallet info programmatically
+        let mut wallet_info = crate::yml_schema::YmlWalletInfo::new(
+            wallet_context.owner.clone(),
+            wallet_context.sol_balance,
+        )
+        .with_total_value(wallet_context.total_value_usd);
 
-            let empty_truth: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-            let ground_truth_json = json
-                .get("ground_truth")
-                .and_then(|v| v.as_object())
-                .unwrap_or(&empty_truth);
+        // Add each token balance to the wallet info
+        for (_mint, token) in &wallet_context.token_balances {
+            wallet_info = wallet_info.with_token(token.clone());
+        }
 
-            let ground_truth = if let Some(assertions_array) = ground_truth_json
-                .get("final_state_assertions")
-                .and_then(|v| v.as_array())
-            {
-                let assertions = assertions_array
-                    .iter()
-                    .filter_map(|assertion| {
-                        if let Some(assertion_obj) = assertion.as_object() {
-                            let assertion_type = assertion_obj
-                                .get("assertion_type")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or_default()
-                                .to_string();
-                            let pubkey = assertion_obj
-                                .get("pubkey")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or_default()
-                                .to_string();
-                            let expected_change_gte = assertion_obj
-                                .get("expected_change_gte")
-                                .and_then(|v| v.as_i64())
-                                .unwrap_or_default();
-                            let _error_tolerance = assertion_obj
-                                .get("error_tolerance")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or_default();
+        // Create the appropriate flow based on intent
+        let yml_flow = match intent_str.as_str() {
+            "swap" => {
+                // Create a swap flow
+                let from_mint = self.token_to_mint(&from_token);
+                let to_mint = self.token_to_mint(&to_token);
 
-                            Some(crate::yml_schema::YmlAssertion {
-                                assertion_type,
-                                pubkey: Some(pubkey),
-                                expected_change_gte: Some(expected_change_gte as f64),
-                                expected_change_lte: None,
-                                parameters: None,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                let step = crate::yml_schema::YmlStep::new(
+                    "swap".to_string(),
+                    format!("swap {amount} {from_token} to {to_token}"),
+                    format!("Exchange {amount} {from_token} for {to_token}"),
+                )
+                .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                    reev_types::tools::ToolName::JupiterSwap,
+                    true,
+                ));
 
-                let expected_tool_calls = if let Some(calls_array) = ground_truth_json
-                    .get("expected_tool_calls")
-                    .and_then(|v| v.as_array())
-                {
-                    calls_array
-                        .iter()
-                        .filter_map(|call| {
-                            if let Some(call_obj) = call.as_object() {
-                                let tool_name_str = call_obj
-                                    .get("tool_name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or_default();
+                let ground_truth = crate::yml_schema::YmlGroundTruth::new()
+                    .with_assertion(
+                        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+                            .with_pubkey(wallet_context.owner.clone())
+                            .with_expected_change_gte(-(amount + 0.1) * 1_000_000_000.0),
+                    ) // Account for fees
+                    .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::JupiterSwap,
+                        true,
+                    ));
 
-                                // Convert string to enum
-                                let tool_name = match tool_name_str {
-                                    "JupiterSwap" => reev_types::tools::ToolName::JupiterSwap,
-                                    "JupiterLendEarnDeposit" => {
-                                        reev_types::tools::ToolName::JupiterLendEarnDeposit
-                                    }
-                                    "GetAccountBalance" => {
-                                        reev_types::tools::ToolName::GetAccountBalance
-                                    }
-                                    _ => reev_types::tools::ToolName::GetAccountBalance, // Fallback
-                                };
-
-                                let critical = call_obj
-                                    .get("critical")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or_default();
-
-                                Some(crate::yml_schema::YmlToolCall {
-                                    tool_name,
-                                    critical,
-                                    expected_parameters: None,
-                                })
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                } else {
-                    vec![]
-                };
-
-                Some(YmlGroundTruth {
-                    final_state_assertions: assertions,
-                    expected_tool_calls: Some(expected_tool_calls),
-                    error_tolerance: Some(0.01),
-                })
-            } else {
-                None
-            };
-
-            // Convert JSON to metadata
-            let metadata = json.get("metadata").and_then(|v| v.as_object()).map(|obj| {
-                let version = obj
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let _created_at = obj
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let category = obj
-                    .get("category")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let complexity_score = obj
-                    .get("complexity_score")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or_default() as u8;
-                let tags = if let Some(tags_array) = obj.get("tags").and_then(|v| v.as_array()) {
-                    tags_array
-                        .iter()
-                        .filter_map(|tag| tag.as_str())
-                        .map(|s| s.to_string())
-                        .collect()
-                } else {
-                    vec![]
-                };
-
-                crate::yml_schema::FlowMetadata {
-                    version,
-                    category,
-                    complexity_score,
-                    tags,
-                }
-            });
-
-            YmlFlow {
-                flow_id,
-                user_prompt,
-                subject_wallet_info,
-                steps,
-                ground_truth,
-                metadata: metadata.unwrap_or_default(),
-                created_at: chrono::Utc::now(),
+                crate::yml_schema::YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+                    .with_step(step)
+                    .with_ground_truth(ground_truth)
             }
-        } else {
-            // Try parsing as YAML
-            serde_yaml::from_str(&llm_response)
-                .map_err(|e| anyhow!("Failed to parse LLM response as YAML: {e}"))?
+            "lend" => {
+                // Create a lend flow
+                let mint = self.token_to_mint(&from_token);
+
+                let step = crate::yml_schema::YmlStep::new(
+                    "lend".to_string(),
+                    format!("lend {amount} {from_token} to jupiter"),
+                    format!("Lend {amount} {from_token} for yield"),
+                )
+                .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                    reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                    true,
+                ));
+
+                let ground_truth = crate::yml_schema::YmlGroundTruth::new().with_tool_call(
+                    crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                        true,
+                    ),
+                );
+
+                crate::yml_schema::YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+                    .with_step(step)
+                    .with_ground_truth(ground_truth)
+            }
+            "swap_then_lend" => {
+                // Create a swap then lend flow
+                let from_mint = self.token_to_mint(&from_token);
+                let to_mint = self.token_to_mint(&to_token);
+
+                let step1 = crate::yml_schema::YmlStep::new(
+                    "swap".to_string(),
+                    format!("swap {amount} {from_token} to {to_token}"),
+                    format!("Exchange {amount} {from_token} for {to_token}"),
+                )
+                .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                    reev_types::tools::ToolName::JupiterSwap,
+                    true,
+                ));
+
+                let step2 = crate::yml_schema::YmlStep::new(
+                    "lend".to_string(),
+                    format!("lend SWAPPED_AMOUNT {to_token} to jupiter"),
+                    format!("Lend swapped {to_token} for yield"),
+                )
+                .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                    reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                    true,
+                ));
+
+                let ground_truth = crate::yml_schema::YmlGroundTruth::new()
+                    .with_assertion(
+                        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+                            .with_pubkey(wallet_context.owner.clone())
+                            .with_expected_change_gte(-(amount + 0.1) * 1_000_000_000.0),
+                    ) // Account for fees
+                    .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::JupiterSwap,
+                        true,
+                    ))
+                    .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                        true,
+                    ));
+
+                crate::yml_schema::YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+                    .with_step(step1)
+                    .with_step(step2)
+                    .with_ground_truth(ground_truth)
+            }
+            _ => {
+                // Default to a simple flow for unknown intent
+                let step = crate::yml_schema::YmlStep::new(
+                    "unknown".to_string(),
+                    format!("Process user request: {prompt}"),
+                    "Processing user request with appropriate tools".to_string(),
+                );
+
+                crate::yml_schema::YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+                    .with_step(step)
+            }
         };
 
         // Validate the generated flow

@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::info;
 
-/// Global reference to the surfpool process
+/// Global reference to surfpool process
 static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>> =
     std::sync::OnceLock::new();
 
