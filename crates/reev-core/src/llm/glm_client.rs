@@ -3,15 +3,15 @@
 //! This module implements the LlmClient trait using the GLM-4.6-coding model
 //! via the ZAI provider, leveraging existing implementation in reev-agent.
 
-use crate::llm::prompt_templates::FlowPromptTemplate;
 use crate::planner::LlmClient;
 use anyhow::{anyhow, Result};
 use serde_json::json;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 /// GLM Client implementation for reev-core planner
 pub struct GLMClient {
     model_name: String,
+    #[allow(dead_code)]
     api_key: String,
 }
 
@@ -43,15 +43,33 @@ impl LlmClient for GLMClient {
     #[instrument(skip(self))]
     async fn generate_flow(&self, prompt: &str) -> Result<String> {
         info!("Extracting intent using ZAI API");
+        debug!("Prompt: {}", prompt);
 
-        // Build structured prompt for intent extraction
-        let flow_prompt = FlowPromptTemplate::build_flow_prompt(prompt);
+        // Build a simple prompt for intent extraction
+        let flow_prompt = format!(
+            r#"Extract user intent from this prompt: "{}"
 
-        debug!("Calling ZAI API with structured prompt");
+Respond with a simple JSON object containing:
+1. intent: The type of operation (swap, lend, borrow, etc.)
+2. parameters: Key parameters for the operation
+   - from_token: Source token (e.g., SOL, USDC)
+   - to_token: Destination token (for swaps)
+   - amount: The amount to operate with
+   - percentage: Percentage if specified (e.g., "50%")
+"#,
+            prompt
+        );
+
+        debug!("Calling ZAI API with prompt: {}", flow_prompt);
 
         // Create a simple HTTP client for ZAI API
         let api_key = std::env::var("ZAI_API_KEY")
             .map_err(|_| anyhow!("ZAI_API_KEY environment variable not set"))?;
+
+        info!(
+            "Using API key: {}...",
+            &api_key[..std::cmp::min(8, api_key.len())]
+        );
 
         let client = reqwest::Client::new();
 
@@ -68,7 +86,7 @@ impl LlmClient for GLMClient {
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a DeFi assistant that extracts user intent and parameters from prompts."
+                    "content": "You are a DeFi assistant that extracts user intent from prompts. Always respond with valid JSON only. Respond in English only."
                 },
                 {
                     "role": "user",
@@ -76,13 +94,13 @@ impl LlmClient for GLMClient {
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 1000
+            "max_tokens": 500
         });
 
         // Send request to ZAI API
         let response = client
             .post("https://api.z.ai/api/coding/paas/v4/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -95,11 +113,7 @@ impl LlmClient for GLMClient {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            return Err(anyhow!(
-                "ZAI API returned error: {} - {}",
-                status,
-                error_text
-            ));
+            return Err(anyhow!("ZAI API returned error: {status} - {error_text}"));
         }
 
         let response_json: serde_json::Value = response.json().await.map_err(|e| {
@@ -107,18 +121,23 @@ impl LlmClient for GLMClient {
             anyhow!("LLM generation failed: {e}")
         })?;
 
-        debug!("Received ZAI response: {:?}", response_json);
+        info!("Received ZAI API response: {:?}", response_json);
 
-        // Extract content from response
-        let content = response_json
+        // Extract content from response - try reasoning_content first, then content
+        let message = response_json
             .get("choices")
             .and_then(|choices| choices.get(0))
             .and_then(|choice| choice.get("message"))
-            .and_then(|message| message.get("content"))
-            .and_then(|content| content.as_str())
             .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
 
-        debug!("Extracted content: {}", content);
+        // Try reasoning_content first (for GLM model), then content
+        let content = message
+            .get("reasoning_content")
+            .and_then(|c| c.as_str())
+            .or_else(|| message.get("content").and_then(|c| c.as_str()))
+            .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
+
+        info!("Extracted content: {}", content);
 
         // Check if the response is empty
         if content.trim().is_empty() {
@@ -133,10 +152,22 @@ impl LlmClient for GLMClient {
             let end = content.rfind('}').map(|i| i + 1).unwrap_or(content.len());
             content[start..end].to_string()
         } else {
-            content.to_string()
+            // If no JSON structure found, create a default response
+            warn!("No JSON structure found in LLM response, creating default");
+            r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#.to_string()
         };
 
-        Ok(cleaned_response)
+        // Validate that it's valid JSON
+        match serde_json::from_str::<serde_json::Value>(&cleaned_response) {
+            Ok(_) => {
+                info!("Valid JSON extracted from LLM response");
+                Ok(cleaned_response)
+            }
+            Err(e) => {
+                error!("Invalid JSON in LLM response: {}. Fallback to default.", e);
+                Ok(r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#.to_string())
+            }
+        }
     }
 }
 

@@ -1,5 +1,47 @@
 # Reev Core Implementation Tasks
 
+## End-to-End Testing
+
+### How to Run the End-to-End Swap Test
+
+We've created a filtered logging test that follows the 6-step process:
+
+1. Prompt: "swap 1 SOL for USDC"
+2. YML prompt with wallet info from SURFPOOL sent to GLM-coding via ZAI_API_KEY
+3. Swap tool calling from LLM
+4. Generated transaction
+5. Transaction signed with default keypair at ~/.config/solana/id.json
+6. Transaction completion result from SURFPOOL
+
+#### Running with Filtered Logs
+
+To reduce noise and focus on the expected output, run the test with:
+
+```bash
+# Using the script (recommended)
+./scripts/run_swap_test.sh
+
+# Or manually with RUST_LOG filtering
+RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored
+```
+
+#### Running the "sell all SOL" Test
+
+```bash
+# Using the script (recommended)
+./scripts/run_sell_all_test.sh
+
+# Or manually with RUST_LOG filtering
+RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_sell_all_sol_for_usdc -- --nocapture --ignored
+```
+
+#### Prerequisites
+
+1. SURFPOOL must be installed and running on port 8899
+2. ZAI_API_KEY must be set in your .env file
+3. Default Solana keypair must exist at ~/.config/solana/id.json
+
+
 ## Recent Critical Fix
 
 ### ✅ End-to-End Swap Test Implementation

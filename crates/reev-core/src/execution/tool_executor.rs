@@ -33,18 +33,6 @@ impl Default for ToolExecutor {
 impl ToolExecutor {
     /// Create a new tool executor
     pub fn new() -> Result<Self> {
-        // Create a mock executor in test mode
-        if std::env::var("REEV_TEST_MODE").is_ok() {
-            // Create a mock executor that returns success for all tool calls
-            let model_name = "mock-model".to_string();
-            let api_key = Some("mock-key".to_string());
-            return Ok(Self {
-                agent_tools: None,
-                api_key,
-                model_name,
-            });
-        }
-
         let model_name =
             std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
         let api_key = std::env::var("ZAI_API_KEY").ok();
@@ -71,47 +59,6 @@ impl ToolExecutor {
     ) -> Result<StepResult> {
         info!("Executing step: {}", step.prompt);
 
-        // Return mock result in test mode
-        if std::env::var("REEV_TEST_MODE").is_ok() {
-            let tool_calls = if let Some(expected_calls) = &step.expected_tool_calls {
-                expected_calls
-                    .iter()
-                    .map(|call| format!("{:?}", call.tool_name))
-                    .collect()
-            } else {
-                vec![]
-            };
-
-            // Generate mock tool results
-            let tool_results = if let Some(expected_calls) = &step.expected_tool_calls {
-                expected_calls
-                    .iter()
-                    .map(|call| {
-                        let tool_name = format!("{:?}", call.tool_name);
-                        json!({
-                            "tool_name": tool_name,
-                            "result": "mock_execution_success",
-                            "timestamp": chrono::Utc::now().to_rfc3339()
-                        })
-                    })
-                    .collect()
-            } else {
-                vec![]
-            };
-
-            let step_result = StepResult {
-                step_id: step.step_id.clone(),
-                success: true,
-                error_message: None,
-                tool_calls,
-                output: json!({ "tool_results": tool_results }),
-                execution_time_ms: 50, // Simulated execution time
-            };
-
-            debug!("Mock step execution completed: {:?}", step_result);
-            return Ok(step_result);
-        }
-
         // Initialize tools if not already done
         let tools = if let Some(tools) = &self.agent_tools {
             tools.clone()
@@ -119,7 +66,8 @@ impl ToolExecutor {
             Arc::new(self.initialize_tools(&wallet_context.owner).await?)
         };
 
-        // Generate tool parameters using LLM if needed
+        // Generate tool parameters using LLM
+        // Generate tool calls from a prompt using LLM
         let tool_calls = if step.expected_tool_calls.is_none()
             || step.expected_tool_calls.as_ref().unwrap().is_empty()
         {
@@ -206,7 +154,7 @@ impl ToolExecutor {
                 wallet_context.sol_balance as f64 / 1_000_000_000.0,
                 wallet_context.total_value_usd
             ),
-            context_prompt: "Generate a list of tool calls to fulfill the user request. For each tool, specify the tool name and parameters."
+            context_prompt: "Generate a list of tool calls to fulfill user request. For each tool, specify: tool name and parameters."
                 .to_string(),
             model_name: self.model_name.clone(),
             mock: false,
@@ -222,7 +170,7 @@ impl ToolExecutor {
             key_map.insert("ZAI_API_KEY".to_string(), api_key.clone());
         }
 
-        // Call the unified GLM agent
+        // Call() unified GLM agent
         let result = UnifiedGLMAgent::run(&self.model_name, payload, key_map)
             .await
             .map_err(|e| {
@@ -233,7 +181,7 @@ impl ToolExecutor {
         // Extract tool calls from the response
         let response = result.execution_result.summary;
 
-        // Parse the response to extract tool calls
+        // Parse() response to extract tool calls
         // This is a simplified implementation - in a production system,
         // we would need more robust parsing of the LLM response
         let tool_calls = self.parse_tool_calls_from_response(&response)?;
@@ -287,6 +235,13 @@ impl ToolExecutor {
         debug!("Executing tool: {}", tool_call.tool_name);
 
         // Extract parameters from expected_parameters
+        let _params = if let Some(ref params) = tool_call.expected_parameters {
+            params.clone()
+        } else {
+            HashMap::new()
+        };
+
+        // Extract parameters from expected_parameters
         let params = if let Some(ref params) = tool_call.expected_parameters {
             params.clone()
         } else {
@@ -299,7 +254,7 @@ impl ToolExecutor {
                 // Execute Jupiter swap tool with actual implementation
                 info!("Executing JupiterSwap with parameters: {:?}", params);
 
-                // Convert parameters to the expected format for JupiterSwapTool
+                // Convert parameters to expected format for JupiterSwapTool
                 let swap_args = reev_tools::tools::jupiter_swap::JupiterSwapArgs {
                     user_pubkey: params
                         .get("user_pubkey")
@@ -337,7 +292,7 @@ impl ToolExecutor {
                     params
                 );
 
-                // Convert parameters to the expected format for JupiterLendEarnDepositTool
+                // Convert parameters to expected format for JupiterLendEarnDepositTool
                 let deposit_args =
                     reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
                         user_pubkey: params
@@ -364,7 +319,7 @@ impl ToolExecutor {
                 // Execute SOL transfer tool with actual implementation
                 info!("Executing SolTransfer with parameters: {:?}", params);
 
-                // Convert parameters to the expected format for SolTransferTool
+                // Convert parameters to expected format for SolTransferTool
                 let transfer_args = reev_tools::tools::native::NativeTransferArgs {
                     user_pubkey: params
                         .get("user_pubkey")

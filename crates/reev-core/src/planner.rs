@@ -119,18 +119,26 @@ ground_truth:
             YmlWalletInfo::new(wallet_pubkey.to_string(), wallet_context.sol_balance)
                 .with_total_value(wallet_context.total_value_usd);
 
+        // Check if we should force rule-based generation (for testing)
+        let use_rule_based = std::env::var("REEV_USE_RULE_BASED").is_ok();
+
         // Generate structured YML flow using LLM or rule-based fallback
-        let yml_flow = match &self.llm_client {
-            Some(client) => {
-                info!("Using LLM client for flow generation");
-                self.generate_flow_with_llm(prompt, &wallet_context, client.as_ref())
-                    .await?
-            }
-            None => {
+        let yml_flow = if use_rule_based || self.llm_client.is_none() {
+            if use_rule_based {
+                info!("Using rule-based flow generation (forced by REEV_USE_RULE_BASED)");
+            } else {
                 warn!("No LLM client configured, using rule-based fallback");
-                self.generate_flow_rule_based(prompt, &wallet_context, &mappings)
-                    .await?
             }
+            self.generate_flow_rule_based(prompt, &wallet_context, &mappings)
+                .await?
+        } else {
+            info!("Using LLM client for flow generation");
+            self.generate_flow_with_llm(
+                prompt,
+                &wallet_context,
+                self.llm_client.as_ref().unwrap().as_ref(),
+            )
+            .await?
         };
 
         debug!("Generated YML flow: {}", yml_flow.flow_id);
@@ -188,7 +196,7 @@ ground_truth:
 
         let percentage_str = params.get("percentage").and_then(|v| v.as_str());
 
-        let percentage: Option<f64> = percentage_str.and_then(|s| s.parse().ok());
+        let _percentage: Option<f64> = percentage_str.and_then(|s| s.parse().ok());
 
         // Generate a proper UUID for the flow
         let flow_id = uuid::Uuid::now_v7().to_string();
@@ -201,7 +209,7 @@ ground_truth:
         .with_total_value(wallet_context.total_value_usd);
 
         // Add each token balance to the wallet info
-        for (_mint, token) in &wallet_context.token_balances {
+        for token in wallet_context.token_balances.values() {
             wallet_info = wallet_info.with_token(token.clone());
         }
 
@@ -209,8 +217,8 @@ ground_truth:
         let yml_flow = match intent_str.as_str() {
             "swap" => {
                 // Create a swap flow
-                let from_mint = self.token_to_mint(&from_token);
-                let to_mint = self.token_to_mint(&to_token);
+                let _from_mint = self.token_to_mint(&from_token);
+                let _to_mint = self.token_to_mint(&to_token);
 
                 let step = crate::yml_schema::YmlStep::new(
                     "swap".to_string(),
@@ -239,7 +247,7 @@ ground_truth:
             }
             "lend" => {
                 // Create a lend flow
-                let mint = self.token_to_mint(&from_token);
+                let _mint = self.token_to_mint(&from_token);
 
                 let step = crate::yml_schema::YmlStep::new(
                     "lend".to_string(),
@@ -264,8 +272,8 @@ ground_truth:
             }
             "swap_then_lend" => {
                 // Create a swap then lend flow
-                let from_mint = self.token_to_mint(&from_token);
-                let to_mint = self.token_to_mint(&to_token);
+                let _from_mint = self.token_to_mint(&from_token);
+                let _to_mint = self.token_to_mint(&to_token);
 
                 let step1 = crate::yml_schema::YmlStep::new(
                     "swap".to_string(),

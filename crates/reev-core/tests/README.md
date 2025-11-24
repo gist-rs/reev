@@ -2,6 +2,16 @@
 
 This directory contains end-to-end integration tests for the reev-core system, focusing on testing the complete flow from user prompt to blockchain transaction execution.
 
+## Focused Logging for Clear Output
+
+The tests now use filtered logging to show only the relevant steps in the swap flow, reducing noise and making it easier to follow the process. The logging is configured to show:
+- YML prompt with wallet info sent to GLM-coding
+- Tool calling from LLM
+- Transaction generation and signing
+- Transaction completion results
+
+The tests follow a 6-step process that is clearly marked in the output.
+
 ## Tests
 
 ### end_to_end_swap.rs
@@ -41,18 +51,21 @@ The tests are marked with `#[ignore]` by default since they require external dep
 2. Run the tests with the `--ignored` flag:
 
    ```bash
-   # Run a specific test
-   cargo test -p reev-core test_swap_1_sol_for_usdc -- --ignored
+   # Run with filtered logging (recommended)
+   RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored
    
-   # Run all swap tests
-   cargo test -p reev-core test_ -- --ignored
+   # Or use the provided scripts (recommended)
+   ./scripts/run_swap_test.sh
+   ./scripts/run_sell_all_test.sh
    ```
 
-3. Alternatively, use the provided script:
-
-   ```bash
-   ./scripts/run_integration_tests.sh
-   ```
+The filtered logging approach ensures you see only the relevant steps:
+1. Prompt input
+2. YML prompt with wallet info sent to GLM-coding
+3. Tool calling from LLM
+4. Generated transaction
+5. Transaction signing with default keypair
+6. Transaction completion result
 
 ## Architecture
 
@@ -64,14 +77,14 @@ The integration tests validate the following components:
 4. **Tool Calling**: Validates that the LLM correctly calls the jupiter_swap_tool
 5. **Transaction Signing**: Ensures transactions are properly signed and submitted
 
-## What is Tested
+## What is Tested (6-Step Process)
 
-1. The planner correctly parses the user intent from natural language
-2. The LLM generates the appropriate tool calls via the ZAI API
-3. The executor properly handles the tool calls and generates transactions
-4. The transactions are correctly signed with the user's keypair
-5. The transactions are successfully submitted to surfpool
-6. The wallet balances are updated correctly after the transaction
+1. **Prompt Processing**: The planner correctly parses "swap 1 SOL for USDC" or "sell all SOL for USDC"
+2. **YML Generation**: YML prompt with wallet info from SURFPOOL is sent to GLM-coding via ZAI_API_KEY
+3. **Tool Calling**: The LLM generates the appropriate tool calls for the Jupiter swap
+4. **Transaction Generation**: The executor handles tool calls and generates the swap transaction
+5. **Transaction Signing**: The transaction is correctly signed with the default keypair at `~/.config/solana/id.json`
+6. **Transaction Completion**: The transaction is successfully submitted and completed via SURFPOOL
 
 ## Future Enhancements
 

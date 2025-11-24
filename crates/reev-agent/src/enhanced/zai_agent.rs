@@ -274,7 +274,7 @@ impl ZAIAgent {
             }
             Err(e) => {
                 tracing::error!("[ZAIAgent] ZAI completion failed: {}", e);
-                return Err(anyhow::anyhow!("Model completion failed: {}", e));
+                return Err(anyhow::anyhow!("Model completion failed: {e}"));
             }
         };
 

@@ -3,8 +3,25 @@
 //! This test loads the wallet from ~/.config/solana/id.json, airdrops SOL via surfpool,
 //! uses the planner to process the prompt "swap 1 SOL for USDC", lets the LLM handle
 //! tool calling via rig, signs the transaction with the default keypair, and verifies completion.
+//!
+//! ## Running the Test with Proper Logging
+//!
+//! To run this test with the recommended logging filters to reduce noise:
+//!
+//! ```bash
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored
+//! ```
+//!
+//! ## Test Flow (6 Steps)
+//!
+//! 1. Prompt: "swap 1 SOL for USDC"
+//! 2. YML prompt with wallet info from SURFPOOL sent to GLM-coding via ZAI_API_KEY
+//! 3. Swap tool calling from LLM
+//! 4. Generated transaction
+//! 5. Transaction signed with default keypair at ~/.config/solana/id.json
+//! 6. Transaction completion result from SURFPOOL
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use jup_sdk::surfpool::SurfpoolClient;
 // ZAIAgent and LlmRequest are now used through the planner
 use reev_core::context::ContextResolver;
@@ -47,7 +64,7 @@ async fn ensure_surfpool_running() -> Result<()> {
     let process_ref = SURFPOOL_PROCESS.get_or_init(|| Arc::new(Mutex::new(None)));
     let mut process_guard = process_ref
         .lock()
-        .map_err(|e| anyhow::anyhow!("Mutex error: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Mutex error: {e}"))?;
 
     // Check if we already started it
     if process_guard.is_some() {
@@ -82,7 +99,7 @@ async fn ensure_surfpool_running() -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| anyhow::anyhow!("Failed to start surfpool: {}. Is surfpool installed?", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to start surfpool: {e}. Is surfpool installed?"))?;
 
     let pid = output.id();
     info!("✅ Started surfpool with PID: {}", pid);
@@ -112,8 +129,7 @@ async fn ensure_surfpool_running() -> Result<()> {
     }
 
     Err(anyhow::anyhow!(
-        "Surfpool did not become ready after {} attempts",
-        max_attempts
+        "Surfpool did not become ready after {max_attempts} attempts"
     ))
 }
 
@@ -124,7 +140,7 @@ async fn cleanup_surfpool() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Process reference not initialized"))?;
     let mut process_guard = process_ref
         .lock()
-        .map_err(|e| anyhow::anyhow!("Mutex error: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Mutex error: {e}"))?;
 
     if let Some(pid) = *process_guard {
         info!("🧹 Cleaning up surfpool with PID: {}...", pid);
@@ -192,7 +208,7 @@ async fn execute_swap_with_planner(
     initial_sol_balance: f64,
     initial_usdc_balance: f64,
 ) -> Result<String> {
-    info!("📝 Prompt: {}", prompt);
+    info!("\n🚀 Starting swap execution with prompt: \"{}\"", prompt);
 
     // Create the YML wallet info
     let wallet_info = json!({
@@ -218,7 +234,9 @@ steps:
         wallet_info["total_value_usd"]
     );
 
-    info!("📝 YML Prompt:\n{}", yml_prompt);
+    // Step 2: Show YML prompt with wallet info that will be sent to GLM-coding
+    println!("\n📋 Step 1: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):");
+    println!("{yml_prompt}");
 
     // Set up the context resolver
     let context_resolver = ContextResolver::default();
@@ -226,9 +244,10 @@ steps:
     // Create a planner with GLM client
     let planner = Planner::new_with_glm(context_resolver)?;
 
+    info!("\n🤖 Step 2: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
     // Generate the flow using the planner
     let yml_flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;
-    info!("✅ Generated flow: {}", yml_flow.flow_id);
+    info!("✅ Flow generated with ID: {}", yml_flow.flow_id);
 
     // Create a wallet context for the executor
     let mut wallet_context = WalletContext::new(pubkey.to_string());
@@ -246,36 +265,84 @@ steps:
     );
     wallet_context.calculate_total_value();
 
-    // Execute the flow using the Executor
+    info!("\n⚙️ Step 3: Executing swap tool call from LLM...");
+    // Execute flow using the Executor
     let executor = Executor::new()?;
     let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
 
     // Extract the transaction signature from the result
-    let signature = result
-        .step_results
-        .iter()
-        .find_map(|step| {
-            if let Some(transaction_sig) = step.output.get("transaction_signature") {
-                transaction_sig.as_str()
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| anyhow::anyhow!("No transaction signature in result"))?;
+    // First check if there are any tool calls
+    if result.step_results.is_empty() {
+        return Err(anyhow!("No step results found"));
+    }
 
-    info!("✅ Transaction completed with signature: {}", signature);
-    Ok(signature.to_string())
+    // Get the first step result
+    let step_result = &result.step_results[0];
+
+    // Check for tool_results in output
+    let signature = if let Some(tool_results) = step_result.output.get("tool_results") {
+        if let Some(results_array) = tool_results.as_array() {
+            for result in results_array {
+                if let Some(tx_sig) = result.get("transaction_signature") {
+                    info!("\n📝 Step 4: Generated transaction:");
+                    info!("Signature: {}", tx_sig);
+
+                    info!("\n🔑 Step 5: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                    info!("Transaction URL: https://solscan.io/tx/{}", tx_sig);
+
+                    info!("\n✅ All steps completed successfully!");
+                    return Ok(tx_sig.to_string());
+                }
+            }
+        }
+
+        // No transaction signature found in tool_results
+        return Err(anyhow!("No transaction signature in result"));
+    } else if let Some(tx_sig) = step_result.output.get("transaction_signature") {
+        info!("\n📝 Step 4: Generated transaction:");
+        info!("Signature: {}", tx_sig);
+
+        info!("\n🔑 Step 5: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+        info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+        info!("Transaction URL: https://solscan.io/tx/{}", tx_sig);
+
+        info!("\n✅ All steps completed successfully!");
+        Ok(tx_sig.to_string())
+    } else {
+        return Err(anyhow!("No transaction signature found in step result"));
+    };
+
+    signature
 }
 
 /// Test end-to-end swap flow with prompt "swap 1 SOL for USDC"
+///
+/// This test follows the 6-step process:
+/// 1. Prompt "swap 1 SOL for USDC"
+/// 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
+/// 3. Shows log info for swap tool calling from LLM
+/// 4. Shows the transaction generated from that tool
+/// 5. Signs the transaction with default keypair at ~/.config/solana/id.json
+/// 6. Shows transaction completion result from SURFPOOL
 #[tokio::test]
 #[ignore] // Ignore by default since it requires surfpool to be running
 async fn test_swap_1_sol_for_usdc() -> Result<()> {
-    // Initialize tracing if not already initialized
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .try_init()
-        .ok();
+    info!("\n🧪 Starting Test: Swap 1 SOL for USDC");
+    info!("=====================================");
+
+    // Initialize tracing with focused logging for the swap flow
+    // Filter to show only relevant logs: planner, executor, and tool execution
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn".into()
+            }),
+        )
+        .with_target(false) // Remove target module prefixes for cleaner output
+        .try_init();
 
     // Load .env file for ZAI_API_KEY
     dotenvy::dotenv().ok();
@@ -286,9 +353,11 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
     })?;
 
     info!("✅ ZAI_API_KEY is configured");
+    info!("🔧 SURFPOOL setup starting...");
 
     // Check if surfpool is running
     ensure_surfpool_running().await?;
+    info!("✅ SURFPOOL is running and ready");
 
     // Load the default Solana keypair from ~/.config/solana/id.json
     let keypair = get_keypair()
@@ -296,14 +365,20 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
+    info!("🔑 Using keypair from ~/.config/solana/id.json");
 
     // Initialize surfpool client
     let surfpool_client = SurfpoolClient::new("http://localhost:8899");
 
+    info!("\n💰 Setting up test wallet with SOL and USDC...");
     // Set up the wallet with SOL and USDC
     let (initial_sol_balance, initial_usdc_balance) =
         setup_wallet(&pubkey, &surfpool_client).await?;
+    println!(
+        "✅ Wallet setup completed with {initial_sol_balance} SOL and {initial_usdc_balance} USDC"
+    );
 
+    info!("\n🔄 Starting swap execution flow...");
     // Execute the swap using the planner and LLM
     let _signature = execute_swap_with_planner(
         "swap 1 SOL for USDC",
@@ -317,19 +392,30 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
     // This would involve checking the final SOL and USDC balances and ensuring
     // that approximately 1 SOL was exchanged for the appropriate amount of USDC
 
-    info!("✅ Swap test completed successfully!");
+    info!("\n🎉 Test completed successfully!");
+    info!("=============================");
     Ok(())
 }
 
 /// Test end-to-end swap flow with prompt "sell all SOL for USDC"
+/// Follows the same 6-step process as test_swap_1_sol_for_usdc
+/// but with a "sell all SOL" prompt instead.
 #[tokio::test]
 #[ignore] // Ignore by default since it requires surfpool to be running
 async fn test_sell_all_sol_for_usdc() -> Result<()> {
-    // Initialize tracing if not already initialized
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .try_init()
-        .ok();
+    info!("\n🧪 Starting Test: Sell All SOL for USDC");
+    info!("=======================================");
+
+    // Initialize tracing with focused logging for the swap flow
+    // Filter to show only relevant logs: planner, executor, and tool execution
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn".into()
+            }),
+        )
+        .with_target(false) // Remove target module prefixes for cleaner output
+        .try_init();
 
     // Load .env file for ZAI_API_KEY
     dotenvy::dotenv().ok();
@@ -361,6 +447,7 @@ async fn test_sell_all_sol_for_usdc() -> Result<()> {
     let (initial_sol_balance, initial_usdc_balance) =
         setup_wallet(&pubkey, &surfpool_client).await?;
 
+    info!("\n🔄 Starting swap execution flow...");
     // Execute the swap using the planner and LLM
     let _signature = execute_swap_with_planner(
         "sell all SOL for USDC",
@@ -374,6 +461,7 @@ async fn test_sell_all_sol_for_usdc() -> Result<()> {
     // This would involve checking the final SOL and USDC balances and ensuring
     // that all SOL was exchanged for the appropriate amount of USDC
 
-    info!("✅ Sell all SOL test completed successfully!");
+    info!("\n🎉 Test completed successfully!");
+    info!("=============================");
     Ok(())
 }

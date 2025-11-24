@@ -179,39 +179,46 @@ Performance of the two-phase LLM approach has not been benchmarked yet.
 
 ## Issue #71: Limited End-to-End Testing
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
 
 ### Description:
-Limited testing with real wallet addresses, tokens, and actual transactions.
+The end-to-end test is currently using mock implementations when it should be using SURFPOOL for real transactions.
 
-### Current State:
-- Tests use mock implementations for some components
-- No testing with real wallet addresses and tokens
-- No verification of actual transaction generation and submission
+### Current Problem:
+- Test is trying to add mock implementations when SURFPOOL provides real transaction execution
+- The test isn't properly extracting transaction signatures from SURFPOOL responses
+- SURFPOOL should handle all blockchain interactions, not mock tools
+
+### Correct Approach (Per SURFPOOL.md):
+1. Use SURFPOOL's real tool execution (not mocks)
+2. Extract transaction signatures from actual SURFPOOL responses
+3. SURFPOOL dynamically fetches account data from Mainnet on-demand
+4. Use real wallet addresses that exist on Solana Mainnet
 
 ### Tasks Required:
-1. Create tests with real wallet addresses and tokens
-2. Verify complete flows from prompt to execution
-3. Test language variations and typos handling
-4. Validate transaction generation and submission
+1. Remove mock execution paths - test should use real SURFPOOL execution
+2. Fix transaction signature extraction from tool results
+3. Ensure test shows all 6 steps clearly with real transaction data
+4. Test with both specific amounts ("1 SOL") and "all SOL" scenarios
 
-## Issue #72: SURFPOOL Integration Not Verified
+## Issue #72: SURFPOOL Integration Test Priority
 
-### Status: NOT STARTED
+### Status: PENDING
 
 ### Description:
-SURFPOOL integration points are in place but not tested with real calls.
+SURFPOOL integration is the correct approach for end-to-end testing per SURFPOOL.md.
 
-### Current State:
-- SURFPOOL integration code is implemented
-- No verification of SURFPOOL calls with real accounts
-- No testing of account setup and funding
+### Key SURFPOOL Features for Testing:
+1. **surfnet_setAccount**: Directly set account properties (lamports, owner, data)
+2. **surfnet_setTokenAccount**: Create/update token accounts with specific balances
+3. **Dynamic Mainnet Fetching**: On-demand account data from real Mainnet addresses
+4. **No Mocking Needed**: SURFPOOL handles real blockchain interactions
 
-### Tasks Required:
-1. Verify SURFPOOL calls work with benchmark mode
-2. Test with real accounts and transactions
-3. Validate account setup and funding
-4. Test SURFPOOL integration in production mode
+### Integration Requirements:
+1. Test should use real SURFPOOL RPC calls (not mocks)
+2. Real wallet addresses from Mainnet must be used
+3. SURFPOOL's "surfnet_*" methods are the test interface
+4. SURFPOOL provides deterministic, controlled test environment
 
 ## Current Implementation Status Summary
 
