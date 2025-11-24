@@ -19,25 +19,132 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
 // HashMap is not used directly in this file
 use std::env;
-use tracing::{error, info};
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use tokio::time::{sleep, Duration};
+use tracing::info;
 
-/// Helper function to check if surfpool is running
-async fn check_surfpool_health() -> Result<bool> {
+/// Global reference to the surfpool process
+static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>> =
+    std::sync::OnceLock::new();
+
+/// Helper function to start surfpool and wait for it to be ready
+async fn ensure_surfpool_running() -> Result<()> {
+    // First check if surfpool is already running
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
-    // Try to get the latest blockhash as a health check
     match rpc_client.get_latest_blockhash().await {
         Ok(_) => {
-            info!("✅ Surfpool is running and accessible");
-            Ok(true)
+            info!("✅ Surfpool is already running and accessible");
+            return Ok(());
         }
-        Err(e) => {
-            error!("❌ Failed to connect to surfpool: {}", e);
-            info!("⚠️ Skipping test - surfpool is not running or not accessible");
-            info!("You can start surfpool with: surfpool --fork-url https://api.mainnet-beta.solana.com --port 8899");
-            Ok(false)
+        Err(_) => {
+            info!("🚀 Starting surfpool...");
         }
     }
+
+    // Try to start surfpool programmatically
+    let process_ref = SURFPOOL_PROCESS.get_or_init(|| Arc::new(Mutex::new(None)));
+    let mut process_guard = process_ref
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Mutex error: {}", e))?;
+
+    // Check if we already started it
+    if process_guard.is_some() {
+        // Just verify surfpool is running
+        info!("⏳ Checking if surfpool is ready...");
+        match rpc_client.get_latest_blockhash().await {
+            Ok(_) => {
+                info!("✅ Surfpool is ready");
+                return Ok(());
+            }
+            Err(_e) => {
+                return Err(anyhow::anyhow!(
+                    "Previously started surfpool is not accessible"
+                ));
+            }
+        }
+    }
+
+    // Start surfpool in background
+    info!("🚀 Starting surfpool...");
+    let output = Command::new("surfpool")
+        .args([
+            "start",
+            "--rpc-url",
+            "https://api.mainnet-beta.solana.com",
+            "--port",
+            "8899",
+            "--no-tui",
+            "--no-deploy",
+            "--disable-instruction-profiling",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("Failed to start surfpool: {}. Is surfpool installed?", e))?;
+
+    let pid = output.id();
+    info!("✅ Started surfpool with PID: {}", pid);
+    *process_guard = Some(pid);
+
+    // Wait for surfpool to be ready
+    info!("⏳ Waiting for surfpool to be ready...");
+    let mut attempts = 0;
+    let max_attempts = 30;
+
+    while attempts < max_attempts {
+        sleep(Duration::from_secs(2)).await;
+        attempts += 1;
+
+        match rpc_client.get_latest_blockhash().await {
+            Ok(_) => {
+                info!("✅ Surfpool is ready after {} attempts", attempts);
+                return Ok(());
+            }
+            Err(_) => {
+                info!(
+                    "Attempt {}/{}: Surfpool not ready yet",
+                    attempts, max_attempts
+                );
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "Surfpool did not become ready after {} attempts",
+        max_attempts
+    ))
+}
+
+/// Cleanup function to kill surfpool after tests
+async fn cleanup_surfpool() -> Result<()> {
+    let process_ref = SURFPOOL_PROCESS
+        .get()
+        .ok_or_else(|| anyhow::anyhow!("Process reference not initialized"))?;
+    let mut process_guard = process_ref
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Mutex error: {}", e))?;
+
+    if let Some(pid) = *process_guard {
+        info!("🧹 Cleaning up surfpool with PID: {}...", pid);
+
+        // Kill the process
+        #[cfg(unix)]
+        {
+            use std::process;
+            let _ = process::Command::new("kill")
+                .arg("-KILL")
+                .arg(pid.to_string())
+                .output();
+        }
+
+        // Reset the process reference
+        *process_guard = None;
+        info!("✅ Surfpool cleanup completed");
+    }
+
+    Ok(())
 }
 
 /// Common function to set up a wallet with SOL and USDC
@@ -181,9 +288,7 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
     info!("✅ ZAI_API_KEY is configured");
 
     // Check if surfpool is running
-    if !check_surfpool_health().await? {
-        return Ok(());
-    }
+    ensure_surfpool_running().await?;
 
     // Load the default Solana keypair from ~/.config/solana/id.json
     let keypair = get_keypair()
@@ -236,10 +341,11 @@ async fn test_sell_all_sol_for_usdc() -> Result<()> {
 
     info!("✅ ZAI_API_KEY is configured");
 
-    // Check if surfpool is running
-    if !check_surfpool_health().await? {
-        return Ok(());
-    }
+    // Start surfpool
+    ensure_surfpool_running().await?;
+
+    // Set up cleanup to kill surfpool after test completes
+    // Note: We'll rely on the process being killed when the test exits
 
     // Load the default Solana keypair from ~/.config/solana/id.json
     let keypair = get_keypair()
