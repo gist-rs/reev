@@ -235,13 +235,16 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "reev_core::planner=info,reev_core::executor=info,warn".into()),
+                .unwrap_or_else(|_| "reev_core::execution::tool_executor=error,warn".into()),
         )
         .with_target(false) // Remove target module prefixes for cleaner output
         .try_init();
 
     // Load .env file for ZAI_API_KEY
     dotenvy::dotenv().ok();
+
+    // Disable enhanced OTEL logging to reduce verbosity
+    env::set_var("REEV_ENHANCED_OTEL", "0");
 
     // Check for ZAI_API_KEY
     let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {

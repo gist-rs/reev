@@ -5,7 +5,7 @@
 this is not scale `// Check if the prompt contains transfer keywords to set appropriate default`
 this is look wrong? `// Extract recipient from the prompt`
 `let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {` // this is really bad coding
-why there is a hughe log `INFO execute_flow` for simple transfer sol?
+why there is a huge log `INFO execute_flow` for simple transfer sol?
 
 ---
 

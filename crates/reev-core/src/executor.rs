@@ -55,7 +55,7 @@ impl Executor {
     }
 
     /// Execute a YML flow with validation and error recovery
-    #[instrument(skip(self, flow))]
+    #[instrument(skip(self, flow, initial_context))]
     pub async fn execute_flow(
         &self,
         flow: &YmlFlow,
@@ -168,6 +168,7 @@ impl Executor {
     }
 
     /// Execute a step with error recovery
+    #[instrument(skip(self, step, _previous_results, initial_context))]
     async fn execute_step_with_recovery(
         &self,
         step: &DynamicStep,

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use serde_json::json;
 use solana_sdk::signer::Signer;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::yml_schema::YmlStep;
 use crate::YmlToolCall;
@@ -58,6 +58,7 @@ impl ToolExecutor {
     }
 
     /// Execute a step with actual tool execution
+    #[instrument(skip(self, step, wallet_context))]
     pub async fn execute_step(
         &self,
         step: &YmlStep,
@@ -207,6 +208,7 @@ impl ToolExecutor {
     }
 
     /// Execute a direct SOL transfer operation without expected parameters
+    #[instrument(skip(self, tools))]
     async fn execute_direct_sol_transfer(
         &self,
         tools: Arc<AgentTools>,
