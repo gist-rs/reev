@@ -203,40 +203,38 @@ The end-to-end test is currently using mock implementations when it should be us
 
 ## Issue #73: Fix End-to-End Swap Test Transaction Signature Extraction
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
 
 ### Description:
-The end-to-end swap test is not properly extracting transaction signatures from SURFPOOL responses and doesn't clearly show all required steps.
+The end-to-end swap test is partially working but has issues with proper transaction execution and signature extraction.
 
 ### Current Issues:
-1. Transaction signatures from SURFPOOL aren't being properly extracted in test
-2. The test doesn't properly show all 6 required steps in sequence
-3. Code duplication between two test functions
-4. The JupiterSwapResponse doesn't include transaction signatures from SURFPOOL execution
+1. Jupiter swap tool isn't being executed properly - tool results are empty
+2. LLM is making too many tool calls and hitting a MaxDepthError
+3. Transaction signatures from SURFPOOL aren't being properly extracted in test
+4. The tool executor isn't correctly using results from ZAI Agent
 
-### Required Changes:
-1. Update Jupiter Swap Tool (crates/reev-tools/src/tools/jupiter_swap.rs)
-   - Modify JupiterSwapResponse to include transaction signatures from SURFPOOL
-   - Update tool execution to call SURFPOOL's execute_simulation function
-   - Ensure response includes actual transaction signature
+### Current Implementation Status:
+1. Fixed tool executor to use UnifiedGLMData from ZAI Agent
+2. Removed mock transaction generation in favor of real tool execution
+3. Added proper signature extraction from execution results
+4. Fixed compilation errors and warnings in tool_executor.rs
 
-2. Update Transaction Signature Extraction (crates/reev-core/tests/end_to_end_swap.rs)
-   - Fix `execute_swap_with_planner` function to look for signatures in the correct response format
-   - Update step logging to clearly show all 6 steps as specified
-   - Add better error handling and debugging information
+### Test Results:
+- Test is running but failing with "No transaction signature found in execution result"
+- Tool results are empty: `"tool_results": [], "signatures": []`
+- LLM is hitting MaxDepthError due to multiple tool calls
+- Jupiter swap tool is not being called despite LLM being invoked
 
-3. Refactor Test Functions
-   - Create a common `run_swap_test` function that accepts a test name and prompt
-   - Update both test functions to use this common function
-   - Ensure code is DRY and reusable for any input
-
-4. Update SURFPOOL Integration
-   - Ensure test uses real SURFPOOL execution (not mocks)
-   - Verify transaction is signed with default keypair at `~/.config/solana/id.json`
-   - Make sure all required environment variables are loaded
+### Next Steps Required:
+1. Fix ZAI Agent to make only one tool call for simple swap operations
+2. Ensure Jupiter swap tool is properly called with correct parameters
+3. Fix transaction signature extraction from SURFPOOL responses
+4. Add proper output to file for grepping (via CLI redirection)
 
 ### Success Criteria:
-- Test properly extracts and displays transaction signatures from SURFPOOL responses
+- Jupiter swap tool is executed exactly once
+- Transaction signature is properly extracted from SURFPOOL response
 - Test shows all 6 required steps in clear sequence
 - Code is DRY and reusable for any input prompt
 - Transaction is signed with default keypair and completed via SURFPOOL
