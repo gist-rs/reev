@@ -39,7 +39,7 @@ reev-types = { path = "../reev-types" }
 # Constants
 reev-constants = { path = "../reev-constants" }
 
-
+dirs = "5.0"
 
 [features]
 default = []

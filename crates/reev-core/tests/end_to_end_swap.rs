@@ -1,8 +1,8 @@
 //! End-to-end swap test using default Solana keypair
 //!
 //! This test loads the wallet from ~/.config/solana/id.json, airdrops SOL via surfpool,
-//! uses the planner to process the prompt "swap 1 SOL for USDC", lets the LLM handle
-//! tool calling via rig, signs the transaction with the default keypair, and verifies completion.
+//! uses the planner to process the prompt, lets the LLM handle tool calling via rig,
+//! signs the transaction with the default keypair, and verifies completion.
 //!
 //! ## Running the Test with Proper Logging
 //!
@@ -14,27 +14,22 @@
 //!
 //! ## Test Flow (6 Steps)
 //!
-//! 1. Prompt: "swap 1 SOL for USDC"
-//! 2. YML prompt with wallet info from SURFPOOL sent to GLM-coding via ZAI_API_KEY
-//! 3. Swap tool calling from LLM
-//! 4. Generated transaction
-//! 5. Transaction signed with default keypair at ~/.config/solana/id.json
-//! 6. Transaction completion result from SURFPOOL
+//! 1. Prompt: "swap 1 SOL for USDC" or "sell all SOL for USDC"
+//! 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
+//! 3. Shows log info for swap tool calling from LLM
+//! 4. Shows the transaction generated from that tool
+//! 5. Signs the transaction with default keypair at ~/.config/solana/id.json
+//! 6. Shows transaction completion result from SURFPOOL
 
 use anyhow::{anyhow, Result};
 use jup_sdk::surfpool::SurfpoolClient;
-// ZAIAgent and LlmRequest are now used through the planner
 use reev_core::context::ContextResolver;
-// init_glm_client is now used through the planner
 use reev_core::planner::Planner;
-use reev_core::utils::solana::get_keypair;
-// YmlFlow is imported through reev_core
 use reev_core::Executor;
+use reev_lib::get_keypair;
 use reev_types::flow::WalletContext;
-use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
-// HashMap is not used directly in this file
 use std::env;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -178,7 +173,8 @@ async fn setup_wallet(
     // Verify SOL balance
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
     let balance = rpc_client.get_balance(pubkey).await?;
-    let sol_balance = balance as f64 / 1_000_000_000.0;
+    let sol_balance = balance as f64 / 1_000_000_000.0_f64;
+
     info!("✅ Account balance: {sol_balance} SOL");
 
     // Set up USDC token account with 100 USDC
@@ -210,14 +206,10 @@ async fn execute_swap_with_planner(
 ) -> Result<String> {
     info!("\n🚀 Starting swap execution with prompt: \"{}\"", prompt);
 
-    // Create the YML wallet info
-    let wallet_info = json!({
-        "pubkey": pubkey.to_string(),
-        "lamports": (initial_sol_balance * 1_000_000_000.0) as u64,
-        "total_value_usd": initial_sol_balance * 150.0 + initial_usdc_balance, // Assuming SOL = $150
-    });
+    // Step 1: Display the prompt being processed
+    println!("\n📋 Step 1: Processing prompt: \"{prompt}\"");
 
-    // Create a structured YML prompt
+    // Create a structured YML prompt with wallet info
     let yml_prompt = format!(
         r#"subject_wallet_info:
   - pubkey: "{}"
@@ -225,17 +217,18 @@ async fn execute_swap_with_planner(
     total_value_usd: {}
 
 steps:
-  prompt: "{prompt}"
+  prompt: "{}"
     context: "Executing a swap using Jupiter"
 "#,
         pubkey,
         (initial_sol_balance * 1_000_000_000.0) as u64,
         initial_sol_balance,
-        wallet_info["total_value_usd"]
+        initial_sol_balance * 150.0 + initial_usdc_balance, // Assuming SOL = $150
+        prompt
     );
 
     // Step 2: Show YML prompt with wallet info that will be sent to GLM-coding
-    println!("\n📋 Step 1: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):");
+    println!("\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):");
     println!("{yml_prompt}");
 
     // Set up the context resolver
@@ -244,7 +237,7 @@ steps:
     // Create a planner with GLM client
     let planner = Planner::new_with_glm(context_resolver)?;
 
-    info!("\n🤖 Step 2: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
+    info!("\n🤖 Step 3: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
     // Generate the flow using the planner
     let yml_flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;
     info!("✅ Flow generated with ID: {}", yml_flow.flow_id);
@@ -265,13 +258,12 @@ steps:
     );
     wallet_context.calculate_total_value();
 
-    info!("\n⚙️ Step 3: Executing swap tool call from LLM...");
+    info!("\n⚙️ Step 4: Executing swap tool call from LLM...");
     // Execute flow using the Executor
     let executor = Executor::new()?;
     let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
 
     // Extract the transaction signature from the result
-    // First check if there are any tool calls
     if result.step_results.is_empty() {
         return Err(anyhow!("No step results found"));
     }
@@ -279,58 +271,124 @@ steps:
     // Get the first step result
     let step_result = &result.step_results[0];
 
-    // Check for tool_results in output
-    let signature = if let Some(tool_results) = step_result.output.get("tool_results") {
+    // Look for transaction signature in tool_results
+    if let Some(tool_results) = step_result.output.get("tool_results") {
         if let Some(results_array) = tool_results.as_array() {
             for result in results_array {
-                if let Some(tx_sig) = result.get("transaction_signature") {
-                    info!("\n📝 Step 4: Generated transaction:");
-                    info!("Signature: {}", tx_sig);
+                if let Some(result_map) = result.as_object() {
+                    // Check for transaction_signature from JupiterSwapResponse
+                    if let Some(tx_sig) = result_map.get("transaction_signature") {
+                        let signature = tx_sig.as_str().unwrap_or_default();
 
-                    info!("\n🔑 Step 5: Transaction signed with default keypair at ~/.config/solana/id.json");
+                        if !signature.is_empty() {
+                            info!("\n📝 Step 5: Generated transaction:");
+                            info!("Signature: {}", signature);
 
-                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                    info!("Transaction URL: https://solscan.io/tx/{}", tx_sig);
+                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
 
-                    info!("\n✅ All steps completed successfully!");
-                    return Ok(tx_sig.to_string());
+                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                            info!("Transaction URL: https://solscan.io/tx/{}", signature);
+
+                            info!("\n✅ All steps completed successfully!");
+                            return Ok(signature.to_string());
+                        }
+                    }
+
+                    // Check if it's nested in a "result" object
+                    if let Some(result_obj) = result_map.get("result") {
+                        if let Some(result_map) = result_obj.as_object() {
+                            if let Some(tx_sig) = result_map.get("signature") {
+                                let signature = tx_sig.as_str().unwrap_or_default();
+
+                                if !signature.is_empty() {
+                                    info!("\n📝 Step 5: Generated transaction:");
+                                    info!("Signature: {}", signature);
+
+                                    info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                                    info!("Transaction URL: https://solscan.io/tx/{}", signature);
+
+                                    info!("\n✅ All steps completed successfully!");
+                                    return Ok(signature.to_string());
+                                }
+                            }
+                        }
+                    }
+
+                    // Check in nested structure from JupiterSwapResponse
+                    if let Some(jupiter_response) = result_map.get("jupiter_swap") {
+                        if let Some(response_obj) = jupiter_response.as_object() {
+                            if let Some(signature) = response_obj.get("transaction_signature") {
+                                if let Some(sig_str) = signature.as_str() {
+                                    if !sig_str.is_empty() {
+                                        info!("\n📝 Step 5: Generated transaction:");
+                                        info!("Signature: {}", sig_str);
+
+                                        info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                                        info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                                        info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
+
+                                        info!("\n✅ All steps completed successfully!");
+                                        return Ok(sig_str.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // If still not found, try parsing the result as a JSON string (for real tool responses)
+                    else if let Some(result_str) =
+                        result_map.get("result").and_then(|v| v.as_str())
+                    {
+                        // Parse the JSON string from the JupiterSwapTool response
+                        if let Ok(jupiter_response) =
+                            serde_json::from_str::<serde_json::Value>(result_str)
+                        {
+                            // Extract the transaction_signature from the JupiterSwapResponse
+                            if let Some(jupiter_obj) = jupiter_response.as_object() {
+                                if let Some(signature) = jupiter_obj.get("transaction_signature") {
+                                    if let Some(sig_str) = signature.as_str() {
+                                        if !sig_str.is_empty() {
+                                            info!("\n📝 Step 5: Generated transaction:");
+                                            info!("Signature: {}", sig_str);
+
+                                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
+
+                                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
+                                            info!(
+                                                "Transaction URL: https://solscan.io/tx/{}",
+                                                sig_str
+                                            );
+
+                                            info!("\n✅ All steps completed successfully!");
+                                            return Ok(sig_str.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
 
-        // No transaction signature found in tool_results
-        return Err(anyhow!("No transaction signature in result"));
-    } else if let Some(tx_sig) = step_result.output.get("transaction_signature") {
-        info!("\n📝 Step 4: Generated transaction:");
-        info!("Signature: {}", tx_sig);
+    // Debug output to help diagnose the issue
+    info!(
+        "Step result output: {}",
+        serde_json::to_string_pretty(&step_result.output)?
+    );
 
-        info!("\n🔑 Step 5: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-        info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-        info!("Transaction URL: https://solscan.io/tx/{}", tx_sig);
-
-        info!("\n✅ All steps completed successfully!");
-        Ok(tx_sig.to_string())
-    } else {
-        return Err(anyhow!("No transaction signature found in step result"));
-    };
-
-    signature
+    // No transaction signature found
+    Err(anyhow!(
+        "No transaction signature found in execution result"
+    ))
 }
 
-/// Test end-to-end swap flow with prompt "swap 1 SOL for USDC"
-///
-/// This test follows the 6-step process:
-/// 1. Prompt "swap 1 SOL for USDC"
-/// 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
-/// 3. Shows log info for swap tool calling from LLM
-/// 4. Shows the transaction generated from that tool
-/// 5. Signs the transaction with default keypair at ~/.config/solana/id.json
-/// 6. Shows transaction completion result from SURFPOOL
-#[tokio::test]
-#[ignore] // Ignore by default since it requires surfpool to be running
-async fn test_swap_1_sol_for_usdc() -> Result<()> {
-    info!("\n🧪 Starting Test: Swap 1 SOL for USDC");
+/// Common test function that executes a swap prompt
+async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
+    info!("\n🧪 Starting Test: {}", test_name);
     info!("=====================================");
 
     // Initialize tracing with focused logging for the swap flow
@@ -353,7 +411,6 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
     })?;
 
     info!("✅ ZAI_API_KEY is configured");
-    info!("🔧 SURFPOOL setup starting...");
 
     // Check if surfpool is running
     ensure_surfpool_running().await?;
@@ -380,21 +437,32 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
 
     info!("\n🔄 Starting swap execution flow...");
     // Execute the swap using the planner and LLM
-    let _signature = execute_swap_with_planner(
-        "swap 1 SOL for USDC",
-        &pubkey,
-        initial_sol_balance,
-        initial_usdc_balance,
-    )
-    .await?;
+    let _signature =
+        execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
+            .await?;
 
     // TODO: Verify the final balances
     // This would involve checking the final SOL and USDC balances and ensuring
-    // that approximately 1 SOL was exchanged for the appropriate amount of USDC
+    // that the appropriate amount of SOL was exchanged for USDC
 
     info!("\n🎉 Test completed successfully!");
     info!("=============================");
     Ok(())
+}
+
+/// Test end-to-end swap flow with prompt "swap 1 SOL for USDC"
+///
+/// This test follows the 6-step process:
+/// 1. Prompt: "swap 1 SOL for USDC"
+/// 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
+/// 3. Shows log info for swap tool calling via rig framework from LLM
+/// 4. Shows the transaction generated from that tool
+/// 5. Signs the transaction with default keypair at ~/.config/solana/id.json
+/// 6. Shows transaction completion result from SURFPOOL
+#[tokio::test]
+#[ignore] // Ignore by default since it requires surfpool to be running
+async fn test_swap_1_sol_for_usdc() -> Result<()> {
+    run_swap_test("Swap 1 SOL for USDC", "swap 1 SOL for USDC").await
 }
 
 /// Test end-to-end swap flow with prompt "sell all SOL for USDC"
@@ -403,65 +471,12 @@ async fn test_swap_1_sol_for_usdc() -> Result<()> {
 #[tokio::test]
 #[ignore] // Ignore by default since it requires surfpool to be running
 async fn test_sell_all_sol_for_usdc() -> Result<()> {
-    info!("\n🧪 Starting Test: Sell All SOL for USDC");
-    info!("=======================================");
+    run_swap_test("Sell All SOL for USDC", "sell all SOL for USDC").await
+}
 
-    // Initialize tracing with focused logging for the swap flow
-    // Filter to show only relevant logs: planner, executor, and tool execution
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn".into()
-            }),
-        )
-        .with_target(false) // Remove target module prefixes for cleaner output
-        .try_init();
-
-    // Load .env file for ZAI_API_KEY
-    dotenvy::dotenv().ok();
-
-    // Check for ZAI_API_KEY
-    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
-        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
-    })?;
-
-    info!("✅ ZAI_API_KEY is configured");
-
-    // Start surfpool
-    ensure_surfpool_running().await?;
-
-    // Set up cleanup to kill surfpool after test completes
-    // Note: We'll rely on the process being killed when the test exits
-
-    // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_keypair()
-        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
-
-    let pubkey = keypair.pubkey();
-    info!("✅ Loaded default keypair: {pubkey}");
-
-    // Initialize surfpool client
-    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
-
-    // Set up the wallet with SOL and USDC
-    let (initial_sol_balance, initial_usdc_balance) =
-        setup_wallet(&pubkey, &surfpool_client).await?;
-
-    info!("\n🔄 Starting swap execution flow...");
-    // Execute the swap using the planner and LLM
-    let _signature = execute_swap_with_planner(
-        "sell all SOL for USDC",
-        &pubkey,
-        initial_sol_balance,
-        initial_usdc_balance,
-    )
-    .await?;
-
-    // TODO: Verify the final balances
-    // This would involve checking the final SOL and USDC balances and ensuring
-    // that all SOL was exchanged for the appropriate amount of USDC
-
-    info!("\n🎉 Test completed successfully!");
-    info!("=============================");
-    Ok(())
+#[tokio::test]
+#[ignore]
+async fn test_cleanup_surfpool() -> Result<()> {
+    // This test can be used to clean up surfpool if needed
+    cleanup_surfpool().await
 }

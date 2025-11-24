@@ -10,11 +10,13 @@ pub mod core;
 pub mod prompts;
 pub mod test_snapshots;
 pub mod types;
+pub mod utils;
 
 // Re-export main types for convenience
 pub use core::*;
 pub use test_snapshots::*;
 pub use types::*;
+pub use utils::*;
 
 // Legacy modules that are kept for compatibility (to be removed later)
 pub mod constants;

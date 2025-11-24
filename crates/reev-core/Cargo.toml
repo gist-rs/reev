@@ -27,9 +27,9 @@ reev-types = { path = "../reev-types" }
 reev-agent = { path = "../reev-agent" }
 reev-tools = { path = "../reev-tools" }
 reev-flow = { path = "../reev-flow" }
+reev-lib = { path = "../reev-lib" }
 
 # Additional dependencies for Solana key handling
-dirs = "5.0"
 solana-sdk = { workspace = true }
 bs58 = "0.5"
 ed25519-dalek = "2.0"

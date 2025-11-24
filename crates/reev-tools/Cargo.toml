@@ -38,6 +38,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 solana-client = { workspace = true }
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 
 [dev-dependencies]
 tokio = { workspace = true }

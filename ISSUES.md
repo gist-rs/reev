@@ -201,26 +201,47 @@ The end-to-end test is currently using mock implementations when it should be us
 3. Ensure test shows all 6 steps clearly with real transaction data
 4. Test with both specific amounts ("1 SOL") and "all SOL" scenarios
 
-## Issue #72: SURFPOOL Integration Test Priority
+## Issue #73: Fix End-to-End Swap Test Transaction Signature Extraction
 
-### Status: PENDING
+### Status: NOT STARTED
 
 ### Description:
-SURFPOOL integration is the correct approach for end-to-end testing per SURFPOOL.md.
+The end-to-end swap test is not properly extracting transaction signatures from SURFPOOL responses and doesn't clearly show all required steps.
 
-### Key SURFPOOL Features for Testing:
-1. **surfnet_setAccount**: Directly set account properties (lamports, owner, data)
-2. **surfnet_setTokenAccount**: Create/update token accounts with specific balances
-3. **Dynamic Mainnet Fetching**: On-demand account data from real Mainnet addresses
-4. **No Mocking Needed**: SURFPOOL handles real blockchain interactions
+### Current Issues:
+1. Transaction signatures from SURFPOOL aren't being properly extracted in test
+2. The test doesn't properly show all 6 required steps in sequence
+3. Code duplication between two test functions
+4. The JupiterSwapResponse doesn't include transaction signatures from SURFPOOL execution
 
-### Integration Requirements:
-1. Test should use real SURFPOOL RPC calls (not mocks)
-2. Real wallet addresses from Mainnet must be used
-3. SURFPOOL's "surfnet_*" methods are the test interface
-4. SURFPOOL provides deterministic, controlled test environment
+### Required Changes:
+1. Update Jupiter Swap Tool (crates/reev-tools/src/tools/jupiter_swap.rs)
+   - Modify JupiterSwapResponse to include transaction signatures from SURFPOOL
+   - Update tool execution to call SURFPOOL's execute_simulation function
+   - Ensure response includes actual transaction signature
 
-## Current Implementation Status Summary
+2. Update Transaction Signature Extraction (crates/reev-core/tests/end_to_end_swap.rs)
+   - Fix `execute_swap_with_planner` function to look for signatures in the correct response format
+   - Update step logging to clearly show all 6 steps as specified
+   - Add better error handling and debugging information
+
+3. Refactor Test Functions
+   - Create a common `run_swap_test` function that accepts a test name and prompt
+   - Update both test functions to use this common function
+   - Ensure code is DRY and reusable for any input
+
+4. Update SURFPOOL Integration
+   - Ensure test uses real SURFPOOL execution (not mocks)
+   - Verify transaction is signed with default keypair at `~/.config/solana/id.json`
+   - Make sure all required environment variables are loaded
+
+### Success Criteria:
+- Test properly extracts and displays transaction signatures from SURFPOOL responses
+- Test shows all 6 required steps in clear sequence
+- Code is DRY and reusable for any input prompt
+- Transaction is signed with default keypair and completed via SURFPOOL
+
+
 
 ### Core Architecture Implementation
 - ✅ **reev-core Crate**: Created with comprehensive YML schemas and module exports (8 tests passing)

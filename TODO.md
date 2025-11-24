@@ -1,6 +1,20 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
-commit current state against the plan [@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) and refine [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), and had nover detail in [@TASKS.md](file:///Users/katopz/git/gist/reev/TASKS.md) 
+[@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) , [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), let's fix [@end_to_end_swap.rs](file:///Users/katopz/git/gist/reev/crates/reev-core/tests/end_to_end_swap.rs) to complete 
+---
+1. prompt "swap 1 SOL for USDC"
+2. i should see log info for yml prompt (with wallet info get from surfpool) that send to glm-coding (ZAI_API_KEY and already set at .env, do use it with dotenvy)
+3. i should see log info for swap tool calling from llm
+4. i should see tx that gen from that tool.
+5. it should sign that tx with default keypair `~/.config/solana/id.json`.
+6. i should see tx complete res from surpool
+7. create other test prompt "sell all SOL for USDC" and it should repeat 1. step with user wallet context as (this mean the test code should share common and DRY and ready for any input later)
+---
+by using [@SURFPOOL.md](file:///Users/katopz/git/gist/reev/SURFPOOL.md) , not mock. ask me for confirm before impl if complex and break the plan
+
+---
+
+commit current state against the plan [@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) and refine [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), and handover detail in [@TASKS.md](file:///Users/katopz/git/gist/reev/TASKS.md) 
 
 ---
 

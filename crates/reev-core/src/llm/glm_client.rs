@@ -47,7 +47,7 @@ impl LlmClient for GLMClient {
 
         // Build a simple prompt for intent extraction
         let flow_prompt = format!(
-            r#"Extract user intent from this prompt: "{}"
+            r#"Extract user intent from this prompt: "{prompt}"
 
 Respond with a simple JSON object containing:
 1. intent: The type of operation (swap, lend, borrow, etc.)
@@ -56,8 +56,7 @@ Respond with a simple JSON object containing:
    - to_token: Destination token (for swaps)
    - amount: The amount to operate with
    - percentage: Percentage if specified (e.g., "50%")
-"#,
-            prompt
+"#
         );
 
         debug!("Calling ZAI API with prompt: {}", flow_prompt);
