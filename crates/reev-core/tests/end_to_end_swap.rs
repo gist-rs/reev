@@ -27,6 +27,7 @@ use reev_core::context::ContextResolver;
 use reev_core::planner::Planner;
 use reev_core::Executor;
 use reev_lib::get_keypair;
+use reev_lib::server_utils::kill_existing_surfpool;
 use reev_types::flow::WalletContext;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
@@ -43,6 +44,10 @@ static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>>
 
 /// Helper function to start surfpool and wait for it to be ready
 async fn ensure_surfpool_running() -> Result<()> {
+    // Kill any existing surfpool process to ensure clean state
+    info!("🧹 Killing any existing surfpool processes...");
+    kill_existing_surfpool(8899).await?;
+
     // First check if surfpool is already running
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
@@ -58,12 +63,16 @@ async fn ensure_surfpool_running() -> Result<()> {
 
     // Try to start surfpool programmatically
     let process_ref = SURFPOOL_PROCESS.get_or_init(|| Arc::new(Mutex::new(None)));
-    let mut process_guard = process_ref
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Mutex error: {e}"))?;
 
     // Check if we already started it
-    if process_guard.is_some() {
+    let already_started = {
+        let process_guard = process_ref
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Mutex error: {e}"))?;
+        process_guard.is_some()
+    };
+
+    if already_started {
         // Just verify surfpool is running
         info!("⏳ Checking if surfpool is ready...");
         match rpc_client.get_latest_blockhash().await {
@@ -99,7 +108,14 @@ async fn ensure_surfpool_running() -> Result<()> {
 
     let pid = output.id();
     info!("✅ Started surfpool with PID: {}", pid);
-    *process_guard = Some(pid);
+
+    // Store the PID in the global reference
+    {
+        let mut process_guard = process_ref
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Mutex error: {e}"))?;
+        *process_guard = Some(pid);
+    } // Guard is dropped here
 
     // Wait for surfpool to be ready
     info!("⏳ Waiting for surfpool to be ready...");
