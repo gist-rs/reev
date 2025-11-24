@@ -25,9 +25,9 @@ echo "✅ ZAI_API_KEY is configured"
 echo "Running integration tests..."
 
 # Run the specific test without the ignore flag
-cargo test -p reev-core --release -- --ignored test_swap_1_sol_for_usdc
+cargo test --test end_to_end_swap test_swap_1_sol_for_usdc --release -- --ignored
 
 echo "Running sell all SOL test..."
-cargo test -p reev-core --release -- --ignored test_sell_all_sol_for_usdc
+cargo test --test end_to_end_swap test_sell_all_sol_for_usdc --release -- --ignored
 
 echo "✅ All tests completed!"

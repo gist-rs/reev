@@ -15,7 +15,7 @@ use reev_core::utils::solana::get_keypair;
 use reev_core::Executor;
 use reev_types::flow::WalletContext;
 use serde_json::json;
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
 // HashMap is not used directly in this file
 use std::env;
@@ -23,10 +23,10 @@ use tracing::{error, info};
 
 /// Helper function to check if surfpool is running
 async fn check_surfpool_health() -> Result<bool> {
-    let rpc_client = RpcClient::new("http://localhost:8899");
+    let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
     // Try to get the latest blockhash as a health check
-    match rpc_client.get_latest_blockhash() {
+    match rpc_client.get_latest_blockhash().await {
         Ok(_) => {
             info!("✅ Surfpool is running and accessible");
             Ok(true)
@@ -53,8 +53,8 @@ async fn setup_wallet(
         .map_err(|e| anyhow::anyhow!("Failed to airdrop SOL: {e}"))?;
 
     // Verify SOL balance
-    let rpc_client = RpcClient::new("http://localhost:8899");
-    let balance = rpc_client.get_balance(pubkey)?;
+    let rpc_client = RpcClient::new("http://localhost:8899".to_string());
+    let balance = rpc_client.get_balance(pubkey).await?;
     let sol_balance = balance as f64 / 1_000_000_000.0;
     info!("✅ Account balance: {sol_balance} SOL");
 
@@ -69,7 +69,7 @@ async fn setup_wallet(
         .map_err(|e| anyhow::anyhow!("Failed to set up USDC token account: {e}"))?;
 
     // Verify USDC balance
-    let usdc_balance = rpc_client.get_token_account_balance(&usdc_ata)?;
+    let usdc_balance = rpc_client.get_token_account_balance(&usdc_ata).await?;
     let usdc_amount = &usdc_balance.ui_amount_string;
     info!("✅ USDC balance: {usdc_amount}");
 
