@@ -52,6 +52,7 @@ tracing-opentelemetry.workspace = true
 [dev-dependencies]
 tokio-test = "0.4"
 serial_test = { workspace = true }
+tempfile = "3.8"
 
 # Additional dev dependencies
 reev-tools = { path = "../reev-tools" }

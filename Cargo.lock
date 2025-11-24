@@ -3919,6 +3919,7 @@ dependencies = [
  "serial_test",
  "solana-client",
  "solana-sdk",
+ "tempfile",
  "tokio",
  "tokio-test",
  "tracing",
