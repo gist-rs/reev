@@ -1,161 +1,47 @@
 # Reev Core Implementation Issues
 
-## Issue #64: Implement Real LLM Integration for Planner
+## Issue #74: Fix Jupiter Transaction Architecture to Remove Mock Signatures
 
-### Status: COMPLETED ✅
-
-### Description:
-The planner has been successfully connected to the existing GLM-4.6-coding model via ZAI API, eliminating the need for mock implementations.
-
-### Implementation Status:
-- **LLM Client Integration**: ✅ Connected planner to existing GLM-4.6-coding model
-- **ZAI Provider Integration**: ✅ Using existing ZAI provider implementation
-- **UnifiedGLMAgent Integration**: ✅ Leveraged existing UnifiedGLMAgent without modification
-- **Minimal Integration**: ✅ Focused on integration rather than new implementation
-
-### Key Changes:
-1. **Fixed GLM Client**: Updated `glm_client.rs` to use existing `UnifiedGLMAgent::run()` method
-2. **Proper Request Format**: Fixed LlmRequest payload to match expected format
-3. **API Key Configuration**: Ensured proper ZAI_API_KEY handling for authentication
-4. **Added dotenvy Support**: Added dotenvy dependency to reev-core for environment variable loading
-5. **Eliminated Mock Implementation**: Removed mock LLM usage in production code
-
-### Success Criteria Met:
-- ✅ Planner uses existing GLM-4.6-coding via ZAI provider
-- ✅ No new GLM implementations are created
-- ✅ Existing code is reused without duplication
-- ✅ Integration is minimal and focused
-- ✅ Environment variables properly loaded from .env file
-
-## Issue #65: Implement Real Tool Execution for Executor
-
-### Status: COMPLETED ✅
+### Status: NOT STARTED
 
 ### Description:
-The executor module now executes real tools instead of returning mock results.
+Jupiter swap tool is currently generating mock transaction signatures in production code, which defeats the purpose of having real Jupiter integration.
 
-### Implementation Status:
-- **Tool Execution**: ✅ Implemented real tool execution using Tool trait from rig-core
-- **Parameter Conversion**: ✅ Fixed parameter conversion for JupiterSwap, JupiterLendEarnDeposit, and SolTransfer tools
-- **Existing Tool Integration**: ✅ Connected to existing tool implementations in `reev-tools/src/lib.rs`
-- **Agent Integration**: ✅ Uses AgentTools from `reev-agent/src/enhanced/common/mod.rs`
+### Root Cause:
+The JupiterSwapTool is preparing instructions but not properly executing transactions through SURFPOOL. Instead, it's generating mock signatures like "mock_tx_10000000_EPjFWdd5_So111111" to make tests pass.
 
-### Key Changes:
-1. **Real Tool Execution**: Replaced mock results with actual tool calls using `Tool::call()` method
-2. **Parameter Conversion**: Fixed parameter conversion from HashMap to tool-specific argument structs
-3. **Proper Error Handling**: Added proper error handling for tool execution failures
-4. **Tool Trait Integration**: Imported and used `Tool` trait from rig-core
+### Correct Architecture:
+1. **JupiterSwapTool**:
+   - Uses Jupiter SDK's `.prepare_transaction_components()` 
+   - Returns raw instructions (no mocking)
+   - Does NOT execute transactions directly
 
-### Success Criteria Met:
-- ✅ Executor executes real tools via reev-tools
-- ✅ Mock results are eliminated from production code
-- ✅ Tool execution results are returned properly
-- ✅ All existing tool code is reused without duplication
+2. **Executor**:
+   - Receives instructions from tool
+   - Builds Solana transaction from instructions
+   - Signs with user's keypair
+   - Sends to SURFPOOL via standard `sendTransaction` RPC call
+   - Returns real transaction signature
 
-## Issue #66: Fix Environment Variable Configuration
+3. **Transaction Utils in reev-lib**:
+   - Create function to build transaction from instructions
+   - Create function to sign transaction with user keypair
+   - Create function to send transaction to SURFPOOL
 
-### Status: COMPLETED ✅
+### Tasks Required:
+1. Remove all mock signature generation from JupiterSwapTool
+2. Add transaction handling utilities to reev-lib
+3. Update executor to properly build, sign and send transactions
+4. Fix end-to-end test to work with real transaction flow
+5. Verify transaction execution through SURFPOOL works correctly
 
-### Description:
-Environment configuration now properly supports default Solana key location.
+### Success Criteria:
+- No mock signatures in production code
+- Jupiter swap returns real transaction signatures
+- Transactions are properly signed and sent through SURFPOOL
+- End-to-end test passes with real transactions
 
-### Implementation Status:
-- **Accept path to id.json**: ✅ SOLANA_PRIVATE_KEY accepts a file path
-- **Default location check**: ✅ If not set, checks `~/.config/solana/id.json`
-- **Updated documentation**: ✅ Clear documentation in .env.example and SOLANA_KEYPAIR.md
-- **Implemented logic**: ✅ Code reads key from default location if env var not set
-- **Added tests**: ✅ Comprehensive tests for all key loading scenarios
 
-### Key Changes:
-1. **Enhanced get_keypair()**: Now accepts both direct keys and file paths
-2. **Default location support**: Falls back to `~/.config/solana/id.json` if env var not set
-3. **Comprehensive documentation**: Added SOLANA_KEYPAIR.md with detailed instructions
-4. **Updated .env.example**: Clear examples of all three key configuration methods
-5. **Test coverage**: Added 8 unit tests covering all key loading scenarios
-
-### Success Criteria Met:
-- ✅ System reads key from SOLANA_PRIVATE_KEY if set (path or direct key)
-- ✅ If SOLANA_PRIVATE_KEY not set, system checks `~/.config/solana/id.json`
-- ✅ Documentation clearly explains this behavior in .env.example and SOLANA_KEYPAIR.md
-- ✅ Both direct key and file path are supported
-- ✅ All 8 tests pass
-
-## Issue #67: Move Mock Implementations to Tests
-
-### Status: COMPLETED ✅
-
-### Description:
-Mock implementations have been moved to tests folder to prevent accidental use in production code.
-
-### Implementation Status:
-- **Mock LLM Client**: ✅ Removed from production code, created test-only implementations
-- **Mock Tool Executor**: ✅ Already properly located in `tests/common/mock_helpers/mock_tool_executor.rs`
-- **Production Code Clean**: ✅ No mock implementations in production code paths
-- **Test Isolation**: ✅ Mock implementations are only compiled in test configuration
-
-### Key Changes:
-1. **Removed MockLLMClient**: Deleted from `src/llm/mock_llm/mod.rs`
-2. **Created Test-Only Mock**: Added local mock implementation in tests
-3. **Updated Imports**: Fixed all imports to use test-only implementations
-4. **Fixed Module Structure**: Properly structured test modules with cfg(test) attributes
-
-### Success Criteria Met:
-- ✅ No mock implementations in src/ folders
-- ✅ All mocks are in tests/ folders
-- ✅ Production code cannot accidentally use mocks
-- ✅ Tests still work with moved mocks
-
-## Issue #68: Fix LLM Integration Avoidance Pattern
-
-### Status: COMPLETED ✅
-
-### Description:
-Fixed the pattern of avoiding real LLM integration by properly connecting to the existing GLM-4.6-coding model via ZAI provider.
-
-### Implementation Status:
-- **GLM Client Integration**: ✅ Connected planner to existing GLM-4.6-coding model
-- **ZAI Provider Integration**: ✅ Using existing ZAI provider implementation
-- **UnifiedGLMAgent Integration**: ✅ Leveraged existing UnifiedGLMAgent without modification
-- **Minimal Integration**: ✅ Focused on integration rather than new implementation
-
-### Key Changes:
-1. **Fixed GLM Client**: Updated `glm_client.rs` to use existing `UnifiedGLMAgent::run()` method
-2. **Proper Request Format**: Fixed LlmRequest payload to match expected format
-3. **API Key Configuration**: Ensured proper ZAI_API_KEY handling for authentication
-4. **Added dotenvy Support**: Added dotenvy dependency to reev-core for environment variable loading
-5. **Eliminated Mock Implementation**: Removed mock LLM usage in production code
-
-### Success Criteria Met:
-- ✅ Planner uses existing GLM-4.6-coding via ZAI provider
-- ✅ No new GLM implementations are created
-- ✅ Existing code is reused without duplication
-- ✅ Integration is minimal and focused
-- ✅ Environment variables properly loaded from .env file
-
-## Issue #69: Fix Testing Database Issues
-
-### Status: COMPLETED ✅
-
-### Description:
-Database locking errors that were preventing comprehensive testing of the system have been resolved.
-
-### Implementation Status:
-- **ZAI_API_KEY Loading**: ✅ Fixed environment variable loading by adding dotenvy to reev-core
-- **Test Method Mismatch**: ✅ Fixed tests to use `new_for_test()` instead of `new()` for test mode
-- **Test Isolation**: ✅ All tests now run without requiring API keys
-- **Comprehensive Testing**: ✅ All test suites now passing
-
-### Key Changes:
-1. **Added dotenvy dependency**: Added `dotenvy.workspace = true` to reev-core's Cargo.toml
-2. **Environment loading**: Added `dotenvy::dotenv().ok()` to `glm_client.rs`
-3. **Fixed test methods**: Changed `OrchestratorGateway::new()` to `OrchestratorGateway::new_for_test(None)`
-4. **Updated test assertions**: Fixed tests to work with actual behavior
-
-### Success Criteria Met:
-- ✅ All tests run without database locking errors
-- ✅ Tests are properly isolated
-- ✅ Test suite provides comprehensive coverage
-- ✅ 38 total tests across all test suites now passing
 
 ## Issue #70: Missing Performance Benchmarking
 
