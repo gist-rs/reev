@@ -153,7 +153,22 @@ Respond with a simple JSON object containing:
         } else {
             // If no JSON structure found, create a default response
             warn!("No JSON structure found in LLM response, creating default");
-            r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#.to_string()
+            // Check if the prompt contains transfer keywords to set appropriate default
+            let default_intent = if prompt.to_lowercase().contains("send")
+                || prompt.to_lowercase().contains("transfer")
+            {
+                "transfer"
+            } else {
+                "swap"
+            };
+
+            let default_response = if default_intent == "transfer" {
+                r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+            } else {
+                r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+            };
+
+            default_response.to_string()
         };
 
         // Validate that it's valid JSON
@@ -164,7 +179,22 @@ Respond with a simple JSON object containing:
             }
             Err(e) => {
                 error!("Invalid JSON in LLM response: {}. Fallback to default.", e);
-                Ok(r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#.to_string())
+                // Check if the prompt contains transfer keywords to set appropriate fallback
+                let fallback_intent = if prompt.to_lowercase().contains("send")
+                    || prompt.to_lowercase().contains("transfer")
+                {
+                    "transfer"
+                } else {
+                    "swap"
+                };
+
+                let fallback_response = if fallback_intent == "transfer" {
+                    r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+                } else {
+                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+                };
+
+                Ok(fallback_response.to_string())
             }
         }
     }

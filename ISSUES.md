@@ -1,5 +1,38 @@
 # Reev Core Implementation Issues
 
+## Issue #75: Create End-to-End SOL Transfer Test
+
+### Status: COMPLETED
+
+### Description:
+Create a new test file `end_to_end_transfer.rs` to test native SOL transfers from default account to target account `gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq`.
+
+### Requirements:
+- Test transferring exactly 1 SOL from default account to target account
+- Use prompt: "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+- Follow similar structure to `end_to_end_swap.rs` but for SOL transfer
+- Use `sol_transfer.rs` from `reev-protocols` for protocol handling
+- Verify successful transaction execution
+
+### Tasks Required:
+1. Create `end_to_end_transfer.rs` test file
+2. Implement test setup, execution, and verification steps
+3. Use real SOL transfer protocol (not mocks)
+4. Verify transaction completes successfully
+5. Ensure proper cleanup after test
+
+### Success Criteria:
+- ✅ Test successfully transfers 1 SOL to target account
+- ✅ Transaction signature is valid and verifiable (4NbjZJ24t4uwPKXwQKtTdvqxqRVCmNU5sR3B8Xn4aQZCaVFEP1PNJwJRUQHYD2KVYioxvJVAac8GopCjgwx4xDF8)
+- ✅ Test follows the 6-step process similar to swap test
+- ✅ No errors during execution
+
+### Implementation Details:
+- Fixed transaction signature extraction logic in test
+- Updated test to properly extract signature from `output.sol_transfer.transaction_signature`
+- Test now successfully completes end-to-end SOL transfer using real SURFPOOL
+- Verified transfer of exactly 1 SOL to target account gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq
+
 ## Issue #74: Fix Jupiter Transaction Architecture to Remove Mock Signatures
 
 ### Status: IN PROGRESS

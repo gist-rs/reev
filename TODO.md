@@ -1,5 +1,14 @@
 # TODO (skip this doc, this meant for human tasks, dont read or write)
 
+---
+
+this is not scale `// Check if the prompt contains transfer keywords to set appropriate default`
+this is look wrong? `// Extract recipient from the prompt`
+`let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {` // this is really bad coding
+why there is a hughe log `INFO execute_flow` for simple transfer sol?
+
+---
+
 [@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) , [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), let's fix [@end_to_end_swap.rs](file:///Users/katopz/git/gist/reev/crates/reev-core/tests/end_to_end_swap.rs) to complete 
 ---
 1. prompt "swap 1 SOL for USDC"

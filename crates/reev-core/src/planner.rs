@@ -213,7 +213,7 @@ ground_truth:
             wallet_info = wallet_info.with_token(token.clone());
         }
 
-        // Create the appropriate flow based on intent
+        // Create a appropriate flow based on intent
         let yml_flow = match intent_str.as_str() {
             "swap" => {
                 // Create a swap flow
@@ -315,6 +315,41 @@ ground_truth:
                     .with_step(step2)
                     .with_ground_truth(ground_truth)
             }
+            "transfer" => {
+                // Create a transfer flow
+                let _mint = self.token_to_mint(&from_token);
+
+                // Extract recipient from parameters
+                let recipient = params
+                    .get("recipient")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+
+                let step = crate::yml_schema::YmlStep::new(
+                    "transfer".to_string(),
+                    format!("transfer {amount} {from_token} to {recipient}"),
+                    format!("Transfer {amount} {from_token} to specified recipient {recipient}"),
+                )
+                .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                    reev_types::tools::ToolName::SolTransfer,
+                    true,
+                ));
+
+                let ground_truth = crate::yml_schema::YmlGroundTruth::new()
+                    .with_assertion(
+                        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+                            .with_pubkey(wallet_context.owner.clone())
+                            .with_expected_change_lte(-(amount + 0.1) * 1_000_000_000.0), // Account for fees
+                    )
+                    .with_tool_call(crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::SolTransfer,
+                        true,
+                    ));
+
+                crate::yml_schema::YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+                    .with_step(step)
+                    .with_ground_truth(ground_truth)
+            }
             _ => {
                 // Default to a simple flow for unknown intent
                 let step = crate::yml_schema::YmlStep::new(
@@ -382,6 +417,15 @@ ground_truth:
                     percentage,
                 )
                 .await
+            }
+            UserIntent::Transfer {
+                mint,
+                to,
+                amount,
+                percentage,
+            } => {
+                self.create_transfer_flow(prompt, wallet_context, &mint, &to, amount, percentage)
+                    .await
             }
             UserIntent::Unknown => Err(anyhow!("Unable to determine intent from prompt: {prompt}")),
         }
@@ -495,6 +539,16 @@ Generate the YAML flow:"#,
                 })
             }
         }
+        // Handle transfer/send intents
+        else if prompt_lower.contains("send") || prompt_lower.contains("transfer") {
+            let (mint, to, amount) = self.extract_transfer_params(&prompt_lower)?;
+            Ok(UserIntent::Transfer {
+                mint,
+                to,
+                amount,
+                percentage,
+            })
+        }
         // Handle lend intents
         else if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
             let (mint, amount) = self.extract_lend_params(&prompt_lower)?;
@@ -518,7 +572,7 @@ Generate the YAML flow:"#,
         let mut amount = 1.0;
 
         // Try to extract "from" token
-        for token in ["SOL", "USDC", "USDT", "ETH", "BTC"] {
+        for token in ["SOL", "USDC", "USDT"] {
             if prompt.contains(&format!("{} ", token.to_lowercase()))
                 || prompt.contains(&format!(" {}", token.to_lowercase()))
             {
@@ -528,7 +582,7 @@ Generate the YAML flow:"#,
         }
 
         // Try to extract "to" token
-        for token in ["SOL", "USDC", "USDT", "ETH", "BTC"] {
+        for token in ["SOL", "USDC", "USDT"] {
             if token != from
                 && (prompt.contains(&format!(" {}", token.to_lowercase()))
                     || prompt.contains(&format!(" to {}", token.to_lowercase())))
@@ -564,7 +618,7 @@ Generate the YAML flow:"#,
         let mut amount = 100.0;
 
         // Try to extract token
-        for token in ["SOL", "USDC", "USDT", "ETH", "BTC"] {
+        for token in ["SOL", "USDC", "USDT"] {
             if prompt.contains(&token.to_lowercase()) {
                 mint = token.to_string();
                 break;
@@ -585,6 +639,48 @@ Generate the YAML flow:"#,
         }
 
         Ok((mint, amount))
+    }
+
+    /// Extract transfer parameters from prompt
+    fn extract_transfer_params(&self, prompt: &str) -> Result<(String, String, f64)> {
+        // Default values
+        let mut mint = "SOL".to_string();
+        let mut to = "unknown".to_string();
+        let mut amount = 1.0;
+
+        // Try to extract token type
+        for token in ["SOL", "USDC", "USDT"] {
+            if prompt.contains(&format!("{} ", token.to_lowercase()))
+                || prompt.contains(&format!(" {}", token.to_lowercase()))
+            {
+                mint = token.to_string();
+                break;
+            }
+        }
+
+        // Try to extract recipient address
+        let pubkey_regex = regex::Regex::new(r"([A-HJ-NP-Za-km-z1-9]{32,44})").unwrap();
+        if let Some(captures) = pubkey_regex.captures(prompt) {
+            to = captures[1].to_string();
+        }
+
+        // Try to extract amount
+        if let Some(percentage) = self.extract_percentage(prompt) {
+            // Percentage detected
+            // We'll use percentage in the flow creation
+            return Ok((mint, to, percentage));
+        } else {
+            // Look for specific amount
+            let amount_regex =
+                regex::Regex::new(r"(\d+\.?\d*)\s*(sol|usdc|usdt|eth|btc)?").unwrap();
+            if let Some(captures) = amount_regex.captures(prompt) {
+                if let Ok(val) = captures[1].parse::<f64>() {
+                    amount = val;
+                }
+            }
+        }
+
+        Ok((mint, to, amount))
     }
 
     /// Create a swap flow
@@ -638,6 +734,53 @@ Generate the YAML flow:"#,
         // Create flow
         let flow = YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
             .with_step(swap_step)
+            .with_ground_truth(ground_truth);
+
+        Ok(flow)
+    }
+
+    /// Create a transfer flow
+    async fn create_transfer_flow(
+        &self,
+        prompt: &str,
+        wallet_context: &WalletContext,
+        mint: &str,
+        to: &str,
+        amount: f64,
+        _percentage: Option<f64>,
+    ) -> Result<YmlFlow> {
+        let flow_id = Uuid::now_v7().to_string();
+
+        // Convert token to mint address
+        let _mint = self.token_to_mint(mint)?;
+
+        // Create wallet info
+        let wallet_info =
+            YmlWalletInfo::new(wallet_context.owner.clone(), wallet_context.sol_balance)
+                .with_total_value(wallet_context.total_value_usd);
+
+        // Create transfer step
+        let transfer_step = YmlStep::new(
+            "transfer".to_string(),
+            format!("transfer {amount} {mint} to {to}"),
+            format!("Transfer {amount} {mint} to recipient {to}"),
+        )
+        .with_tool_call(YmlToolCall::new(ToolName::SolTransfer, true))
+        .with_critical(true);
+
+        // Create ground truth
+        let ground_truth = YmlGroundTruth::new()
+            .with_assertion(
+                YmlAssertion::new("SolBalanceChange".to_string())
+                    .with_pubkey(wallet_context.owner.clone())
+                    .with_expected_change_lte(-((amount * 1_000_000_000.0) + 5_000_000.0)), // Include fees
+            )
+            .with_tool_call(YmlToolCall::new(ToolName::SolTransfer, true))
+            .with_error_tolerance(0.01);
+
+        // Create flow
+        let flow = YmlFlow::new(flow_id, prompt.to_string(), wallet_info)
+            .with_step(transfer_step)
             .with_ground_truth(ground_truth);
 
         Ok(flow)
@@ -792,9 +935,14 @@ pub enum UserIntent {
         amount: f64,
         percentage: Option<f64>,
     },
+    Transfer {
+        mint: String,
+        to: String,
+        amount: f64,
+        percentage: Option<f64>,
+    },
     Unknown,
 }
-
 /// LLM client trait for generating flows
 /// Trait for LLM client abstraction
 #[async_trait::async_trait]

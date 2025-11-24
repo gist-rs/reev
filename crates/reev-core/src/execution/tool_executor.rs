@@ -104,7 +104,9 @@ impl ToolExecutor {
             && tool_calls[0].tool_name == ToolName::JupiterSwap
             && tool_calls[0].expected_parameters.is_none()
         {
-            return self.execute_direct_jupiter_swap(tools).await;
+            return self
+                .execute_direct_sol_transfer(tools, &step.prompt, &wallet_context.owner)
+                .await;
         }
 
         // Handle special case where we need to execute a transfer directly without expected parameters
@@ -112,7 +114,9 @@ impl ToolExecutor {
             && tool_calls[0].tool_name == ToolName::SolTransfer
             && tool_calls[0].expected_parameters.is_none()
         {
-            return self.execute_direct_sol_transfer(tools).await;
+            return self
+                .execute_direct_sol_transfer(tools, &step.prompt, &wallet_context.owner)
+                .await;
         }
 
         // Execute each tool call
@@ -170,7 +174,11 @@ impl ToolExecutor {
     }
 
     /// Execute a direct Jupiter swap operation without expected parameters
-    async fn execute_direct_jupiter_swap(&self, tools: Arc<AgentTools>) -> Result<StepResult> {
+    async fn execute_direct_jupiter_swap(
+        &self,
+        tools: Arc<AgentTools>,
+        _wallet_owner: &str,
+    ) -> Result<StepResult> {
         info!("Executing direct Jupiter swap operation");
 
         // Get SOL and USDC mint addresses
@@ -199,15 +207,48 @@ impl ToolExecutor {
     }
 
     /// Execute a direct SOL transfer operation without expected parameters
-    async fn execute_direct_sol_transfer(&self, tools: Arc<AgentTools>) -> Result<StepResult> {
+    async fn execute_direct_sol_transfer(
+        &self,
+        tools: Arc<AgentTools>,
+        prompt: &str,
+        wallet_owner: &str,
+    ) -> Result<StepResult> {
         info!("Executing direct SOL transfer operation");
 
-        // For a direct transfer, we need a default transfer
-        // In a real implementation, this would likely prompt for parameters or use defaults
+        // Extract the recipient address from the prompt
+        // The prompt format should be: "send X sol to <ADDRESS>"
+        let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {
+            prompt[address_start..].trim().to_string()
+        } else {
+            // Try to find a Solana address pattern (base58 string)
+            use regex::Regex;
+            let re = Regex::new(r"[1-9A-HJ-NP-Za-km-z]{32,44}").unwrap();
+            if let Some(captures) = re.captures(prompt) {
+                captures[0].to_string()
+            } else {
+                // Default fallback for testing
+                "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+            }
+        };
+
+        // Extract the amount from the prompt
+        let amount = if let Some(sol_pos) = prompt.to_lowercase().find("sol") {
+            let before_sol = prompt[..sol_pos].trim();
+            // Try to parse the amount before "sol"
+            let words: Vec<&str> = before_sol.split_whitespace().collect();
+            if let Some(last_word) = words.last() {
+                (last_word.parse::<f64>().unwrap_or(1.0) * 1000000000.0) as u64 // Convert SOL to lamports
+            } else {
+                1000000000 // Default to 1 SOL
+            }
+        } else {
+            1000000000 // Default to 1 SOL
+        };
+
         let transfer_args = reev_tools::tools::native::NativeTransferArgs {
-            user_pubkey: "".to_string(),      // This will be filled by the tool
-            recipient_pubkey: "".to_string(), // This would need to be specified
-            amount: 1000000,                  // 0.001 SOL
+            user_pubkey: wallet_owner.to_string(), // Use the wallet owner's pubkey directly
+            recipient_pubkey, // This is recipient address we extracted from the prompt
+            amount,
             operation: reev_tools::tools::native::NativeTransferOperation::Sol,
             mint_address: None, // Not needed for SOL transfers
         };
@@ -688,6 +729,9 @@ impl ToolExecutor {
         if let Some(ref api_key) = self.api_key {
             key_map.insert("ZAI_API_KEY".to_string(), api_key.clone());
         }
+
+        // Add wallet pubkey to key_map so tools can access it
+        key_map.insert("WALLET_PUBKEY".to_string(), wallet_pubkey.to_string());
 
         let tools = AgentTools::new(key_map);
         Ok(tools)

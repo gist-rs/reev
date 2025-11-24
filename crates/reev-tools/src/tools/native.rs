@@ -5,19 +5,22 @@
 //! around protocol handlers.
 
 use crate::tool_names::SOL_TRANSFER;
+use reev_lib::execute_transaction;
 use spl_associated_token_account::get_associated_token_address;
 // Tool tracking is now handled by OpenTelemetry + rig framework
 // No manual tool wrapper imports needed
-use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
 use rig::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
+
+// Import protocol handlers
+use reev_protocols::native::{handle_sol_transfer, handle_spl_transfer};
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
 
 // Import enhanced logging macros
 use reev_flow::{log_tool_call, log_tool_completion};
@@ -252,10 +255,43 @@ impl Tool for SolTransferTool {
             raw_instructions.len()
         );
 
-        let execution_time = start_time.elapsed().as_millis() as u32;
-        let result = serde_json::to_string(&raw_instructions)?;
+        let _execution_time = start_time.elapsed().as_millis() as u32;
+        // Now execute the transaction with SURFPOOL
+        info!("[SolTransferTool] Executing transaction with SURFPOOL");
 
-        // Log tool completion with enhanced otel
+        // Parse the user pubkey
+        let user_pubkey = Pubkey::from_str(&args.user_pubkey).map_err(|e| {
+            error!("[SolTransferTool] Failed to parse user pubkey: {}", e);
+            NativeTransferError::PubkeyParse(e.to_string())
+        })?;
+
+        // Get the default keypair for signing
+        let keypair = reev_lib::get_keypair().map_err(|e| {
+            error!("[SolTransferTool] Failed to get keypair: {}", e);
+            NativeTransferError::PubkeyParse(e.to_string())
+        })?;
+
+        // Execute the transaction
+        let tx_signature = execute_transaction(raw_instructions.clone(), user_pubkey, &keypair)
+            .await
+            .map_err(|e| {
+                error!("[SolTransferTool] Failed to execute transaction: {}", e);
+                NativeTransferError::ProtocolCall(e)
+            })?;
+
+        info!(
+            "[SolTransferTool] Transaction executed with signature: {}",
+            tx_signature
+        );
+
+        // Return the transaction signature
+        let result = serde_json::json!({
+            "transaction_signature": tx_signature,
+            "instructions": raw_instructions
+        })
+        .to_string();
+
+        let execution_time = start_time.elapsed().as_millis() as u32;
         log_tool_completion!("sol_transfer", execution_time as u64, &result, true);
 
         Ok(result)
