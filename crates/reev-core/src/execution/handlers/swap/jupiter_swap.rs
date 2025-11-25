@@ -346,8 +346,7 @@ pub async fn handle_jupiter_swap_result(
                 tool_calls: vec!["jupiter_swap".to_string()],
                 output: json!({
                     "jupiter_swap": {
-                        "error": "Failed to parse response",
-                        "raw_response": response_json
+                        "error": format!("Tool execution failed: {e}"),
                     }
                 }),
                 execution_time_ms: 1000,
