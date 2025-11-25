@@ -171,12 +171,10 @@ Respond with a simple JSON object containing:
                 } else {
                     r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
                 }
+            } else if contains_all {
+                r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
             } else {
-                if contains_all {
-                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
-                } else {
-                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
-                }
+                r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
             };
 
             default_response.to_string()
@@ -208,12 +206,10 @@ Respond with a simple JSON object containing:
                     } else {
                         r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
                     }
+                } else if contains_all {
+                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
                 } else {
-                    if contains_all {
-                        r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
-                    } else {
-                        r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
-                    }
+                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
                 };
 
                 Ok(fallback_response.to_string())

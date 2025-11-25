@@ -3,6 +3,7 @@
 //! This module provides execution capabilities for agent flows, including tool execution
 //! and transaction processing.
 
+pub mod handlers;
 pub mod tool_executor;
 pub mod trait_def;
 pub mod types;
