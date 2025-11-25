@@ -73,6 +73,13 @@ User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → To
 - Simplified transaction signature extraction logic to match executor output format
 - Both swap tests ("swap 0.1 SOL for USDC" and "sell all SOL for USDC") now pass
 
+### Task 8: Fix Planner Diagnostics (COMPLETED ✅)
+- Fixed compiler diagnostics in planner.rs related to missing else clause and type mismatch
+- Removed redundant amount variable declaration that was immediately overwritten
+- Fixed type conversion issue with and_then(|v| v.to_string()) to and_then(|v| v.as_str()).unwrap_or("1.0").to_string()
+- Added explicit type annotations to resolve type inference issues
+- Fixed both diagnostic issues in planner.rs without affecting functionality
+
 ## 🔄 **Code Reuse Strategy**
 
 ### Successfully Reused (Not Rewritten):

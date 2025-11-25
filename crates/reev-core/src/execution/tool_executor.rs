@@ -213,23 +213,9 @@ impl ToolExecutor {
             }
         }
 
-        // Extract amount - check for "all" keyword after parsing amount
-        // First try to extract amount from patterns like "0.1 sol" or "10 usdc"
-        let re = regex::Regex::new(r"(\d+\.?\d*)\s*(sol|usdc)").unwrap();
-        if let Some(captures) = re.captures(&prompt_lower) {
-            if let (Some(amount_str), Some(token)) = (captures.get(1), captures.get(2)) {
-                let amount_value: f64 = amount_str.as_str().parse().unwrap_or(0.0);
-                let token_type = token.as_str();
-
-                // Convert to raw amount based on token type
-                if token_type == "sol" {
-                    amount = (amount_value * 1_000_000_000.0) as u64;
-                } else if token_type == "usdc" {
-                    amount = (amount_value * 1_000_000.0) as u64;
-                }
-            }
-        } else if prompt_lower.contains("all") {
-            // For "all" SOL, get the actual wallet balance
+        // Check for "all" indicator first before extracting amount with regex
+        if prompt_lower.contains("all") || prompt_lower.contains("all ") {
+            // For "all" SOL or "ALL" indicator, get the actual wallet balance
             // Create a context resolver with explicit RPC URL
             let context_resolver = ContextResolver::new(SolanaEnvironment {
                 rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
@@ -267,8 +253,24 @@ impl ToolExecutor {
                 }
             }
         } else {
-            // Default amount if no pattern matched
-            amount = 100_000_000u64; // Default: 1 SOL
+            // Extract amount from patterns like "0.1 sol" or "10 usdc"
+            let re = regex::Regex::new(r"(\d+\.?\d*)\s*(sol|usdc)").unwrap();
+            if let Some(captures) = re.captures(&prompt_lower) {
+                if let (Some(amount_str), Some(token)) = (captures.get(1), captures.get(2)) {
+                    let amount_value: f64 = amount_str.as_str().parse().unwrap_or(0.0);
+                    let token_type = token.as_str();
+
+                    // Convert to raw amount based on token type
+                    if token_type == "sol" {
+                        amount = (amount_value * 1_000_000_000.0) as u64;
+                    } else if token_type == "usdc" {
+                        amount = (amount_value * 1_000_000.0) as u64;
+                    }
+                }
+            } else {
+                // Default amount if no pattern matched
+                amount = 100_000_000u64; // Default: 1 SOL
+            }
         }
 
         // Create swap args with parsed values

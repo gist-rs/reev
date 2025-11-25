@@ -188,38 +188,47 @@ ground_truth:
             .to_uppercase();
 
         // Handle percentage parameter when amount is null or "all"
-        let amount = if let Some("null") = params.get("amount").and_then(|v| v.as_str()) {
-            // Amount is null, check for percentage or use all SOL
-            if let Some(percentage_str) = params.get("percentage").and_then(|v| v.as_str()) {
-                // Convert percentage to amount based on wallet context
-                let percentage = percentage_str
-                    .trim_end_matches('%')
-                    .parse::<f64>()
-                    .unwrap_or(100.0)
-                    / 100.0;
-                wallet_context.sol_balance as f64 * percentage
-            } else {
-                // No percentage specified, use all SOL
-                wallet_context.sol_balance as f64
-            }
-        } else if let Some("all") = params.get("amount").and_then(|v| v.as_str()) {
-            // Explicit "all" specified
-            wallet_context.sol_balance as f64
-        } else if let Some(percentage_str) = params.get("percentage").and_then(|v| v.as_str()) {
-            // Percentage specified directly
-            let percentage = percentage_str
-                .trim_end_matches('%')
-                .parse::<f64>()
-                .unwrap_or(100.0)
-                / 100.0;
-            wallet_context.sol_balance as f64 * percentage
+        // (This is handled in the amount calculation below)
+
+        // Parse percentage if specified
+        let percentage: Option<f64> = params
+            .get("percentage")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.trim_end_matches('%').parse::<f64>().ok());
+
+        let amount: f64 = if let Some(pct) = percentage {
+            // If percentage is specified, use wallet balance * percentage
+            (wallet_context.sol_balance as f64) * (pct / 100.0)
         } else {
             // Parse amount directly
             let amount_str = params
                 .get("amount")
                 .and_then(|v| v.as_str())
-                .unwrap_or("1.0");
-            amount_str.parse::<f64>().unwrap_or(1.0)
+                .unwrap_or("1.0")
+                .to_string();
+
+            // Check if amount is "null" or "all"
+            if amount_str == "null" {
+                // Amount is null, check for percentage or use all SOL
+                if let Some(percentage_str) = params.get("percentage").and_then(|v| v.as_str()) {
+                    // Convert percentage to amount based on wallet context
+                    let percentage = percentage_str
+                        .trim_end_matches('%')
+                        .parse::<f64>()
+                        .unwrap_or(100.0)
+                        / 100.0;
+                    wallet_context.sol_balance as f64 * percentage
+                } else {
+                    // No percentage specified, use all SOL
+                    wallet_context.sol_balance as f64
+                }
+            } else if amount_str == "all" {
+                // Explicit "all" specified
+                wallet_context.sol_balance as f64
+            } else {
+                // Parse as a regular amount
+                amount_str.parse::<f64>().unwrap_or(1.0)
+            }
         };
 
         // Check if the prompt contains "all" and we're dealing with SOL
@@ -234,25 +243,22 @@ ground_truth:
             amount
         };
 
-        let percentage_str = params.get("percentage").and_then(|v| v.as_str());
-
-        let _percentage: Option<f64> = percentage_str.and_then(|s| s.parse().ok());
-
         // Convert amount from lamports to SOL for display
         let amount_sol = if from_token == "SOL" {
             // Account for gas reserve when calculating display amount
             let gas_reserve_lamports = 50_000_000u64; // 0.05 SOL
-            let amount_u64 = effective_amount as u64;
 
-            // Ensure amount is greater than 0
-            if amount_u64 == 0 {
+            // Use the original parsed amount value for display, not the converted lamports
+            if amount == 0.0 {
                 // Default to 1 SOL if amount is 0 (gas reserve will be handled later)
                 1.0
             } else {
-                let display_amount = if amount_u64 > gas_reserve_lamports {
-                    (amount_u64 - gas_reserve_lamports) as f64
+                // Apply gas reserve deduction for display
+                let amount_in_lamports = amount * 1_000_000_000.0;
+                let display_amount = if amount_in_lamports > gas_reserve_lamports as f64 {
+                    amount_in_lamports - gas_reserve_lamports as f64
                 } else {
-                    effective_amount / 2.0
+                    amount_in_lamports / 2.0
                 };
                 display_amount / 1_000_000_000.0
             }
@@ -282,9 +288,16 @@ ground_truth:
                 let _from_mint = self.token_to_mint(&from_token);
                 let _to_mint = self.token_to_mint(&to_token);
 
+                // Add "ALL" indicator for sell all operations to help executor apply gas reserve
+                let step_prompt = if is_sell_all {
+                    format!("swap ALL {amount_sol:.1} {from_token} to {to_token}")
+                } else {
+                    format!("swap {amount_sol:.1} {from_token} to {to_token}")
+                };
+
                 let step = crate::yml_schema::YmlStep::new(
                     "swap".to_string(),
-                    format!("swap {amount_sol:.1} {from_token} to {to_token}"),
+                    step_prompt.clone(),
                     format!("Exchange {amount_sol:.1} {from_token} for {to_token}"),
                 )
                 .with_tool_call(crate::yml_schema::YmlToolCall::new(
