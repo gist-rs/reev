@@ -205,14 +205,30 @@ impl Tool for JupiterSwapTool {
         // Use shared balance validation utility for input token
         let balance_validator = BalanceValidator::new(self.key_map.clone());
 
+        // Use args.amount directly for validation
+        // For SOL, this already accounts for gas reserve deduction
+        // For other tokens, validate as-is
+        let validation_amount = args.amount;
+
+        // Log amount being passed to Jupiter for debugging
+        info!(
+            "JupiterSwapTool: Swapping {} lamports ({} SOL)",
+            args.amount,
+            args.amount as f64 / 1_000_000_000.0
+        );
+
         match balance_validator
-            .validate_token_balance(&input_mint.to_string(), &args.user_pubkey, args.amount)
+            .validate_token_balance(
+                &input_mint.to_string(),
+                &args.user_pubkey,
+                validation_amount,
+            )
             .map_err(JupiterSwapError::from)
         {
             Ok(()) => {
                 info!(
-                    "✅ Balance validation passed: requested {} for input mint {}",
-                    args.amount, input_mint
+                    "✅ Balance validation passed: requested {} (validation: {}) for input mint {}",
+                    args.amount, validation_amount, input_mint
                 );
 
                 // Log the available balance for debugging
@@ -235,10 +251,13 @@ impl Tool for JupiterSwapTool {
                         available,
                     } = boxed_err.as_ref()
                     {
+                        // Use validation_amount directly
+                        let actual_requested = validation_amount;
+
                         warn!(
                             "💡 Suggestion: Check available balance before swapping. \
-                            Available: {}, Requested: {}",
-                            available, requested
+                            Available: {}, Requested: {} (actual swap amount: {})",
+                            available, requested, actual_requested
                         );
                     }
                 }

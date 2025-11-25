@@ -47,8 +47,21 @@ The "sell all SOL" test is failing because the LLM response with percentage para
 1. ✅ Fixed `generate_flow_with_llm` to handle `percentage: "100%"` case (COMPLETED)
 2. ✅ Fixed step creation to use correct amount with formatting (COMPLETED)
 3. ✅ Fixed `execute_direct_jupiter_swap` to check for "all" keyword first (COMPLETED)
-4. ❌ Test still only swaps 1 SOL - need further investigation
-5. ❌ Step name still shows "swap 1.0 SOL to USDC" - need to fix flow generation
+4. ✅ Fixed amount calculation in Jupiter swap to reserve gas fees (PARTIALLY COMPLETED)
+5. ❌ Transaction still fails with "insufficient lamports" - Jupiter protocol may not be respecting gas reserve (IN PROGRESS)
+
+### Current Debugging:
+- Jupiter swap tool correctly receives 4,950,000,000 lamports (4.95 SOL) after gas reserve deduction
+- Balance validation passes for 4,950,000,000 lamports
+- However, Jupiter protocol still attempts to transfer 5,000,000,000 lamports (full balance)
+- Error: "Transfer: insufficient lamports 4997955720, need 5000000000"
+- This suggests Jupiter protocol is using full balance instead of gas-reserved amount
+
+### Root Cause Analysis:
+- Jupiter swap tool correctly reserves gas fees when calculating amount
+- Balance validator correctly validates against reserved amount
+- But Jupiter protocol/jup-sdk might be using full balance from the wallet context
+- Need to investigate if Jupiter swap protocol is passing amount correctly to Jupiter SDK
 
 ### Implementation Details:
 - Fixed planner to handle when amount is null and percentage is provided

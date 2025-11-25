@@ -65,6 +65,13 @@ pub async fn handle_jupiter_swap(
         input_mint, output_mint, amount, validated_slippage
     );
 
+    // Log amount for debugging
+    debug!(
+        "Jupiter protocol: Swap amount is {} lamports ({} SOL)",
+        amount,
+        amount as f64 / 1_000_000_000.0
+    );
+
     // The jup-sdk's client is designed to work with a local validator.
     let jupiter_client = Jupiter::surfpool().with_user_pubkey(user_pubkey);
 

@@ -222,9 +222,43 @@ ground_truth:
             amount_str.parse::<f64>().unwrap_or(1.0)
         };
 
+        // Check if the prompt contains "all" and we're dealing with SOL
+        let is_sell_all = prompt.to_lowercase().contains("all")
+            && prompt.to_lowercase().contains("sol")
+            && (amount == 0.0 || from_token == "SOL");
+
+        // If we're in a "sell all SOL" scenario but amount is 0, use wallet balance
+        let effective_amount = if is_sell_all && amount == 0.0 {
+            wallet_context.sol_balance as f64
+        } else {
+            amount
+        };
+
         let percentage_str = params.get("percentage").and_then(|v| v.as_str());
 
         let _percentage: Option<f64> = percentage_str.and_then(|s| s.parse().ok());
+
+        // Convert amount from lamports to SOL for display
+        let amount_sol = if from_token == "SOL" {
+            // Account for gas reserve when calculating display amount
+            let gas_reserve_lamports = 50_000_000u64; // 0.05 SOL
+            let amount_u64 = effective_amount as u64;
+
+            // Ensure amount is greater than 0
+            if amount_u64 == 0 {
+                // Default to 1 SOL if amount is 0 (gas reserve will be handled later)
+                1.0
+            } else {
+                let display_amount = if amount_u64 > gas_reserve_lamports {
+                    (amount_u64 - gas_reserve_lamports) as f64
+                } else {
+                    effective_amount / 2.0
+                };
+                display_amount / 1_000_000_000.0
+            }
+        } else {
+            effective_amount
+        };
 
         // Generate a proper UUID for the flow
         let flow_id = uuid::Uuid::now_v7().to_string();
@@ -250,8 +284,8 @@ ground_truth:
 
                 let step = crate::yml_schema::YmlStep::new(
                     "swap".to_string(),
-                    format!("swap {amount:.1} {from_token} to {to_token}"),
-                    format!("Exchange {amount:.1} {from_token} for {to_token}"),
+                    format!("swap {amount_sol:.1} {from_token} to {to_token}"),
+                    format!("Exchange {amount_sol:.1} {from_token} for {to_token}"),
                 )
                 .with_tool_call(crate::yml_schema::YmlToolCall::new(
                     reev_types::tools::ToolName::JupiterSwap,
@@ -262,8 +296,10 @@ ground_truth:
                     .with_assertion(
                         crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
                             .with_pubkey(wallet_context.owner.clone())
-                            .with_expected_change_gte(-(amount + 0.1) * 1_000_000_000.0),
-                    ) // Account for fees
+                            .with_expected_change_gte(
+                                -(amount_sol * 1_000_000_000.0 + 50_000_000.0 + 10_000_000.0),
+                            ),
+                    ) // Account for swap amount + gas reserve + transaction fees
                     .with_tool_call(crate::yml_schema::YmlToolCall::new(
                         reev_types::tools::ToolName::JupiterSwap,
                         true,

@@ -162,10 +162,21 @@ Respond with a simple JSON object containing:
                 "swap"
             };
 
+            // Check if the prompt contains "all" to handle "sell all SOL" case
+            let contains_all = prompt.to_lowercase().contains("all");
+
             let default_response = if default_intent == "transfer" {
-                r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+                if contains_all {
+                    r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": null, "percentage": "100%"}, "steps": ["transfer SOL"]}"#
+                } else {
+                    r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+                }
             } else {
-                r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+                if contains_all {
+                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
+                } else {
+                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+                }
             };
 
             default_response.to_string()
@@ -188,10 +199,21 @@ Respond with a simple JSON object containing:
                     "swap"
                 };
 
+                // Check if the prompt contains "all" to handle "sell all SOL" case
+                let contains_all = prompt.to_lowercase().contains("all");
+
                 let fallback_response = if fallback_intent == "transfer" {
-                    r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+                    if contains_all {
+                        r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": null, "percentage": "100%"}, "steps": ["transfer SOL"]}"#
+                    } else {
+                        r#"{"intent": "transfer", "parameters": {"from_token": "SOL", "amount": "1.0"}, "steps": ["transfer SOL"]}"#
+                    }
                 } else {
-                    r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+                    if contains_all {
+                        r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": null, "percentage": "100%"}, "steps": ["swap SOL for USDC"]}"#
+                    } else {
+                        r#"{"intent": "swap", "parameters": {"from_token": "SOL", "to_token": "USDC", "amount": "1.0"}, "steps": ["swap SOL for USDC"]}"#
+                    }
                 };
 
                 Ok(fallback_response.to_string())

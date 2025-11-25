@@ -16,7 +16,8 @@ use reev_lib::utils::{execute_transaction, get_keypair};
 use reev_types::flow::{StepResult, WalletContext};
 use reev_types::tools::ToolName;
 
-// Import AgentTools and Tool trait
+// Import context resolver and AgentTools
+use crate::context::{ContextResolver, SolanaEnvironment};
 use reev_agent::enhanced::common::AgentTools;
 use rig::tool::Tool;
 
@@ -228,12 +229,42 @@ impl ToolExecutor {
                 }
             }
         } else if prompt_lower.contains("all") {
-            // For "all" SOL, we'll use 5 SOL (default balance) as an example
-            // In a real implementation, this would query the actual balance
-            if input_mint == sol_mint.to_string() {
-                amount = 5_000_000_000u64; // 5 SOL
-            } else if input_mint == usdc_mint.to_string() {
-                amount = 100_000_000u64; // 100 USDC (default balance)
+            // For "all" SOL, get the actual wallet balance
+            // Create a context resolver with explicit RPC URL
+            let context_resolver = ContextResolver::new(SolanaEnvironment {
+                rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+            });
+
+            // Get the actual wallet balance for the user
+            if let Ok(wallet_context) = context_resolver.resolve_wallet_context(wallet_owner).await
+            {
+                if input_mint == sol_mint.to_string() {
+                    // Reserve 0.05 SOL for gas fees
+                    let gas_reserve = 50_000_000u64; // 0.05 SOL
+                    amount = if wallet_context.sol_balance > gas_reserve {
+                        wallet_context.sol_balance - gas_reserve
+                    } else {
+                        // If balance is less than gas reserve, use half of the balance
+                        wallet_context.sol_balance / 2
+                    };
+                } else if input_mint == usdc_mint.to_string() {
+                    // For USDC, find the USDC token balance
+                    if let Some(usdc_balance) = wallet_context
+                        .token_balances
+                        .get(&constants::usdc_mint().to_string())
+                    {
+                        amount = usdc_balance.balance;
+                    } else {
+                        amount = 100_000_000u64; // Default: 100 USDC
+                    }
+                }
+            } else {
+                // Fallback to default values if we can't get wallet context
+                if input_mint == sol_mint.to_string() {
+                    amount = 5_000_000_000u64; // 5 SOL
+                } else if input_mint == usdc_mint.to_string() {
+                    amount = 100_000_000u64; // 100 USDC
+                }
             }
         } else {
             // Default amount if no pattern matched
