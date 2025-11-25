@@ -9,8 +9,8 @@
 //! To run this test with the recommended logging filters to reduce noise:
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_0_1_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
-//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_sell_all_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_0_1_sol_for_usdc -- --nocapture > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_sell_all_sol_for_usdc -- --nocapture > test_output.log 2>&1
 //! ```
 //!
 //! ## Test Flow (6 Steps)
@@ -563,7 +563,6 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 /// 5. Signs the transaction with default keypair at ~/.config/solana/id.json
 /// 6. Shows transaction completion result from SURFPOOL
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_swap_0_1_sol_for_usdc() -> Result<()> {
     run_swap_test("Swap 0.1 SOL for USDC", "swap 0.1 SOL for USDC").await
 }
@@ -572,7 +571,6 @@ async fn test_swap_0_1_sol_for_usdc() -> Result<()> {
 /// Follows the same 6-step process as test_swap_1_sol_for_usdc
 /// but with a "sell all SOL" prompt instead.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_sell_all_sol_for_usdc() -> Result<()> {
     run_swap_test("Sell All SOL for USDC", "sell all SOL for USDC").await
 }

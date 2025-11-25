@@ -327,7 +327,7 @@ impl Tool for JupiterSwapTool {
         // Serialize response to JSON string
         let output = serde_json::to_string(&swap_response)?;
         let execution_time = start_time.elapsed().as_millis() as u64;
-        log_tool_completion!("jupiter_swap", execution_time, &output, false); // Not completed yet
+        log_tool_completion!("jupiter_swap", execution_time, &output, true); // Preparation completed successfully
 
         info!(
             "[JupiterSwapTool] Prepared {} instructions for {}→{} swap (awaiting execution)",

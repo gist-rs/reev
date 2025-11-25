@@ -9,7 +9,7 @@
 //! To run this test with the recommended logging filters to reduce noise:
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test end_to_end_transfer test_send_1_sol_to_target -- --nocapture --ignored > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_transfer test_send_1_sol_to_target -- --nocapture > test_output.log 2>&1
 //! ```
 //!
 //! ## Test Flow (6 Steps)
@@ -316,7 +316,6 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_send_1_sol_to_target() -> Result<()> {
     run_transfer_test(
         "Send 1 SOL to target account",
