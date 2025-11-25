@@ -4,6 +4,13 @@
 //! uses the planner to process the prompt, lets the LLM handle tool calling via rig,
 //! signs the transaction with the default keypair, and verifies completion.
 //!
+//! ## Jupiter Transaction Retry Behavior
+//!
+//! Jupiter transactions are time-sensitive and cannot be simply retried:
+//! - Jupiter swap routes are based on current market conditions and liquidity
+//! - Solana transactions are tied to specific blockhashes that expire
+//! - Proper retry would require getting a fresh quote from Jupiter API with current blockhash
+//!
 //! ## Running the Test with Proper Logging
 //!
 //! To run this test with the recommended logging filters to reduce noise:
@@ -29,7 +36,7 @@ use reev_core::planner::Planner;
 use reev_core::Executor;
 use reev_lib::get_keypair;
 use reev_lib::server_utils::kill_existing_surfpool;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
@@ -447,38 +454,13 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("\n🔄 Starting swap execution flow...");
     // Execute the swap using the planner and LLM
-    let mut retry_count = 0;
-    let max_retries = 2;
-
-    let signature = loop {
-        retry_count += 1;
-        info!("🔄 Attempt {}/{}", retry_count, max_retries);
-
-        match execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
-            .await
-        {
-            Ok(sig) => {
-                info!("✅ Transaction executed with signature: {}", sig);
-                break sig; // Return the signature directly
-            }
-            Err(e) => {
-                error!("❌ Swap execution failed: {}", e);
-
-                // Check if this is a Jupiter 0xfaded error and we have retries left
-                if e.to_string().contains("custom program error: 0xfaded")
-                    && retry_count < max_retries
-                {
-                    warn!("⚠️ Jupiter transaction failed with 0xfaded error. Restarting SURFPOOL and retrying...");
-
-                    // Since SURFPOOL is already restarted at the start of each test,
-                    // just retry without another restart
-                    continue; // Try again
-                } else {
-                    return Err(anyhow::anyhow!("Swap execution failed: {e}"));
-                }
-            }
-        }
-    };
+    // Note: We don't retry Jupiter transactions here because:
+    // 1. Jupiter transactions have time-sensitive routes based on current market conditions
+    // 2. Solana transactions are tied to specific blockhashes that expire
+    // 3. Proper retry would require getting a fresh quote from Jupiter API with current blockhash
+    let signature =
+        execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
+            .await?;
 
     // Initialize RPC client
     let client =
