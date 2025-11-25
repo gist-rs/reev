@@ -13,6 +13,7 @@ async fn test_mock_tool_executor() {
     let test_step = YmlStep {
         step_id: "test_step_1".to_string(),
         prompt: "Swap 1 SOL to USDC".to_string(),
+        refined_prompt: "Swap 1 SOL to USDC".to_string(),
         context: "Test context".to_string(),
         critical: Some(true),
         estimated_time_seconds: Some(30),
@@ -21,6 +22,7 @@ async fn test_mock_tool_executor() {
             critical: true,
             expected_parameters: None,
         }]),
+        expected_tools: None,
     };
 
     // Create a test wallet context
@@ -48,6 +50,7 @@ async fn test_mock_tool_executor_failure() {
     let test_step = YmlStep {
         step_id: "test_step_1".to_string(),
         prompt: "Swap 1 SOL to USDC".to_string(),
+        refined_prompt: "Swap 1 SOL to USDC".to_string(),
         context: "Test context".to_string(),
         critical: Some(true),
         estimated_time_seconds: Some(30),
@@ -56,6 +59,7 @@ async fn test_mock_tool_executor_failure() {
             critical: true,
             expected_parameters: None,
         }]),
+        expected_tools: None,
     };
 
     // Create a test wallet context

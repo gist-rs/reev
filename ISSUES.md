@@ -1,7 +1,7 @@
 # Reev Core Implementation Issues
 
 ## Issue #83: Implement LLM Language Refinement in Phase 1
-### Status: NOT STARTED
+### Status: COMPLETED
 ### Description:
 Current implementation uses LLM for both language refinement and structure generation. According to V3 plan, LLM should only refine language in Phase 1, while rule-based templates handle YML structure generation.
 
@@ -12,16 +12,16 @@ Current implementation uses LLM for both language refinement and structure gener
 - Tests validate language refinement quality and structure generation
 
 ### Tasks Required:
-1. Create LanguageRefiner component that uses LLM only for language refinement
-2. Create YmlGenerator component with rule-based templates for structure
-3. Implement prompt refinement tests
-4. Create rule-based templates for common operations (swap, lend, transfer)
-5. Integrate components into existing planner
+1. ✅ Create LanguageRefiner component that uses LLM only for language refinement
+2. ✅ Create YmlGenerator component with rule-based templates for structure
+3. ✅ Implement prompt refinement tests
+4. ✅ Create rule-based templates for common operations (swap, lend, transfer)
+5. ✅ Integrate components into existing planner
 
 ---
 
 ## Issue #84: Implement Rig Framework for Tool Selection in Phase 2
-### Status: NOT STARTED
+### Status: IN PROGRESS
 ### Description:
 Current implementation uses direct tool calls rather than rig framework for tool selection and calling. V3 plan requires rig framework for LLM-driven tool selection and parameter extraction.
 
@@ -31,6 +31,12 @@ Current implementation uses direct tool calls rather than rig framework for tool
 - Tool calling handled through rig framework
 - Existing direct execution functions maintained as fallbacks
 - Tests validate rig-based tool selection and execution
+
+### Progress:
+- ✅ Added expected_tools hints to YML steps to guide rig agent
+- ✅ Updated YmlFlow and YmlStep schemas with refined_prompt field
+- ✅ Implemented rule-based fallback for LLM requests when API fails
+- ⏳ Tool calling still using direct execution functions (needs migration to rig)
 
 ### Tasks Required:
 1. Create RigAgent component for tool selection and calling
@@ -43,7 +49,7 @@ Current implementation uses direct tool calls rather than rig framework for tool
 ---
 
 ## Issue #85: Implement Runtime Validation Against Ground Truth
-### Status: NOT STARTED
+### Status: IN PROGRESS
 ### Description:
 Ground truth validation exists but is not used during execution. V3 plan requires runtime validation against ground truth during execution to ensure constraints are met.
 
@@ -55,12 +61,14 @@ Ground truth validation exists but is not used during execution. V3 plan require
 - Tests validate parameter and result validation
 
 ### Tasks Required:
-1. Enhance FlowValidator to validate parameters before execution
-2. Implement result validation against ground truth
-3. Add validation feedback to rig agent
-4. Create comprehensive validation error messages
-5. Add validation to execution flow
-6. Create tests for parameter and result validation
+1. ✅ Enhanced YML schema with refined_prompt and expected_tools fields
+2. ✅ Updated YmlGenerator to include expected_tools hints in generated flows
+3. ⏳ Enhance FlowValidator to validate parameters before execution
+4. ⏳ Implement result validation against ground truth
+5. ⏳ Add validation feedback to rig agent
+6. ⏳ Create comprehensive validation error messages
+7. ⏳ Add validation to execution flow
+8. ⏳ Create tests for parameter and result validation
 
 ---
 
@@ -87,7 +95,7 @@ Current implementation has basic error handling but lacks sophisticated recovery
 ---
 
 ## Issue #87: Add Expected_Tools Hints to YML Steps
-### Status: NOT STARTED
+### Status: COMPLETED
 ### Description:
 YML steps need expected_tools hints to guide rig agent tool selection. This helps the LLM select appropriate tools for each step.
 
@@ -99,16 +107,16 @@ YML steps need expected_tools hints to guide rig agent tool selection. This help
 - Tests validate expected_tools hinting functionality
 
 ### Tasks Required:
-1. Update YmlStep schema to include expected_tools field
-2. Modify YmlGenerator to populate expected_tools
-3. Update RigAgent to use expected_tools as hints
-4. Implement fallback behavior for missing/incorrect hints
-5. Add tests for expected_tools hinting
+1. ✅ Update YmlStep schema to include expected_tools field
+2. ✅ Modify YmlGenerator to populate expected_tools
+3. ⏳ Update RigAgent to use expected_tools as hints
+4. ⏳ Implement fallback behavior for missing/incorrect hints
+5. ✅ Add tests for expected_tools hinting
 
 ---
 
 ## Issue #88: Implement Comprehensive Testing for V3 Components
-### Status: NOT STARTED
+### Status: IN PROGRESS
 ### Description:
 New V3 components need comprehensive testing to ensure reliability. This includes unit tests, integration tests, and end-to-end tests.
 
@@ -120,13 +128,13 @@ New V3 components need comprehensive testing to ensure reliability. This include
 - Coverage reports showing >80% test coverage
 
 ### Tasks Required:
-1. Create unit tests for LanguageRefiner component
-2. Create unit tests for YmlGenerator component
-3. Create unit tests for RigAgent component
-4. Create integration tests for component interactions
-5. Create end-to-end tests for V3 workflow
-6. Add performance benchmarks
-7. Generate and review coverage reports
+1. ✅ Create unit tests for LanguageRefiner component
+2. ✅ Create unit tests for YmlGenerator component
+3. ⏳ Create unit tests for RigAgent component
+4. ⏳ Create integration tests for component interactions
+5. ✅ Create end-to-end tests for V3 workflow
+6. ⏳ Add performance benchmarks
+7. ⏳ Generate and review coverage reports
 
 ---
 

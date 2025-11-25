@@ -348,13 +348,13 @@ steps:
         }
     }
 
-    // Extract transaction signature from the step results, matching the format from the executor
-    // Based on the executor's process_transaction_with_instructions_step_result function
+    // Extract transaction signature from the step results, matching format from the executor
+    // Based on executor's process_transaction_with_instructions_step_result function
     let signature = result
         .step_results
         .iter()
         .find_map(|r| {
-            // Look for signature in output.jupiter_swap.transaction_signature (matching executor format)
+            // Look for signature in output.jupiter_swap.transaction_signature (current format)
             if let Some(jupiter_swap) = r.output.get("jupiter_swap") {
                 if let Some(sig) = jupiter_swap.get("transaction_signature") {
                     if let Some(sig_str) = sig.as_str() {

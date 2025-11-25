@@ -6,6 +6,8 @@
 
 use crate::context::ContextResolver;
 use crate::llm::glm_client::init_glm_client;
+use crate::refiner::LanguageRefiner;
+use crate::yml_generator::YmlGenerator;
 
 use crate::yml_schema::{
     YmlAssertion, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
@@ -23,7 +25,11 @@ use uuid::Uuid;
 pub struct Planner {
     /// Context resolver for wallet information
     context_resolver: ContextResolver,
-    /// LLM client for generating flows
+    /// Language refiner for Phase 1 prompt refinement
+    language_refiner: LanguageRefiner,
+    /// YML generator for Phase 1 structured YML generation
+    yml_generator: YmlGenerator,
+    /// LLM client for legacy flow generation (deprecated)
     llm_client: Option<Box<dyn LlmClient>>,
 }
 
@@ -32,6 +38,8 @@ impl Planner {
     pub fn new(context_resolver: ContextResolver) -> Self {
         Self {
             context_resolver,
+            language_refiner: LanguageRefiner::new(),
+            yml_generator: YmlGenerator::new(),
             llm_client: None,
         }
     }
@@ -39,9 +47,10 @@ impl Planner {
     /// Create a new planner with GLM client initialized
     pub fn new_with_glm(context_resolver: ContextResolver) -> Result<Self> {
         let llm_client = init_glm_client()?;
-
         Ok(Self {
             context_resolver,
+            language_refiner: LanguageRefiner::new(),
+            yml_generator: YmlGenerator::new(),
             llm_client: Some(llm_client),
         })
     }
@@ -92,6 +101,8 @@ ground_truth:
 
         Self {
             context_resolver,
+            language_refiner: LanguageRefiner::new(),
+            yml_generator: YmlGenerator::new(),
             llm_client,
         }
     }
@@ -101,6 +112,14 @@ ground_truth:
     pub async fn refine_and_plan(&self, prompt: &str, wallet_pubkey: &str) -> Result<YmlFlow> {
         info!("Starting Phase 1: Refine and Plan for prompt: {}", prompt);
 
+        // Check if we should use V3 implementation
+        let use_v3 = std::env::var("REEV_USE_V3").unwrap_or_else(|_| "1".to_string()) == "1";
+
+        if use_v3 {
+            return self.refine_and_plan_v3(prompt, wallet_pubkey).await;
+        }
+
+        // Legacy implementation for backward compatibility
         // Resolve wallet context
         let wallet_context = self
             .context_resolver
@@ -142,6 +161,36 @@ ground_truth:
         };
 
         debug!("Generated YML flow: {}", yml_flow.flow_id);
+        Ok(yml_flow)
+    }
+
+    /// V3 implementation of refine_and_plan using LanguageRefiner and YmlGenerator
+    async fn refine_and_plan_v3(&self, prompt: &str, wallet_pubkey: &str) -> Result<YmlFlow> {
+        info!(
+            "Starting Phase 1 V3: Refine and Plan for prompt: {}",
+            prompt
+        );
+
+        // Resolve wallet context
+        let wallet_context = self
+            .context_resolver
+            .resolve_wallet_context(wallet_pubkey)
+            .await?;
+        debug!("Resolved wallet context for {}", wallet_pubkey);
+
+        // Step 1: Language refinement using LLM
+        info!("Step 1: Refining language with LLM");
+        let refined_prompt = self.language_refiner.refine_prompt(prompt).await?;
+        debug!("Refined prompt: {}", refined_prompt.refined);
+
+        // Step 2: Generate YML structure using rule-based templates
+        info!("Step 2: Generating YML structure with rule-based templates");
+        let yml_flow = self
+            .yml_generator
+            .generate_flow(&refined_prompt, &wallet_context)
+            .await?;
+        debug!("Generated YML flow: {}", yml_flow.flow_id);
+
         Ok(yml_flow)
     }
 

@@ -14,8 +14,10 @@ use std::collections::HashMap;
 pub struct YmlFlow {
     /// Unique flow identifier (UUID v7 for time-sortable IDs)
     pub flow_id: String,
-    /// User prompt that generated this flow
+    /// Original user prompt (may contain typos, unclear language)
     pub user_prompt: String,
+    /// LLM-refined prompt (clear, unambiguous language)
+    pub refined_prompt: String,
     /// Subject wallet information
     pub subject_wallet_info: YmlWalletInfo,
     /// Flow steps in execution order
@@ -33,7 +35,8 @@ impl YmlFlow {
     pub fn new(flow_id: String, user_prompt: String, subject_wallet_info: YmlWalletInfo) -> Self {
         Self {
             flow_id,
-            user_prompt,
+            user_prompt: user_prompt.clone(),
+            refined_prompt: user_prompt.clone(), // Default to original prompt
             subject_wallet_info,
             steps: Vec::new(),
             ground_truth: None,
@@ -57,6 +60,12 @@ impl YmlFlow {
     /// Set metadata and return self for chaining
     pub fn with_metadata(mut self, metadata: FlowMetadata) -> Self {
         self.metadata = metadata;
+        self
+    }
+
+    /// Set refined prompt and return self for chaining
+    pub fn with_refined_prompt(mut self, refined_prompt: String) -> Self {
+        self.refined_prompt = refined_prompt;
         self
     }
 
@@ -126,12 +135,16 @@ impl YmlWalletInfo {
 pub struct YmlStep {
     /// Unique step identifier
     pub step_id: String,
-    /// Step prompt for LLM
+    /// Original user prompt (may contain typos, unclear language)
     pub prompt: String,
+    /// LLM-refined prompt (clear, unambiguous language)
+    pub refined_prompt: String,
     /// Additional context for this step
     pub context: String,
     /// Expected tool calls for this step
     pub expected_tool_calls: Option<Vec<YmlToolCall>>,
+    /// Expected tools list (hints for rig agent)
+    pub expected_tools: Option<Vec<String>>,
     /// Whether this step is critical (failure = flow failure)
     pub critical: Option<bool>,
     /// Estimated execution time in seconds
@@ -143,9 +156,11 @@ impl YmlStep {
     pub fn new(step_id: String, prompt: String, context: String) -> Self {
         Self {
             step_id,
-            prompt,
+            prompt: prompt.clone(),
+            refined_prompt: prompt.clone(), // Default to original prompt
             context,
             expected_tool_calls: None,
+            expected_tools: None,
             critical: Some(true), // Critical by default
             estimated_time_seconds: Some(30),
         }
@@ -170,6 +185,18 @@ impl YmlStep {
         self.estimated_time_seconds = Some(seconds);
         self
     }
+
+    /// Set refined prompt and return self for chaining
+    pub fn with_refined_prompt(mut self, refined_prompt: String) -> Self {
+        self.refined_prompt = refined_prompt;
+        self
+    }
+
+    /// Set expected tools and return self for chaining
+    pub fn with_expected_tools(mut self, tools: Vec<String>) -> Self {
+        self.expected_tools = Some(tools);
+        self
+    }
 }
 
 /// Expected tool call within a step
@@ -181,6 +208,34 @@ pub struct YmlToolCall {
     pub critical: bool,
     /// Expected parameters (simplified validation)
     pub expected_parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// Expected tool list for rig agent guidance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlExpectedTool {
+    /// Name of the expected tool
+    pub name: String,
+    /// How likely this tool is to be needed (0.0-1.0)
+    pub likelihood: f32,
+    /// Brief description of why this tool is expected
+    pub reason: Option<String>,
+}
+
+impl YmlExpectedTool {
+    /// Create a new expected tool
+    pub fn new(name: String, likelihood: f32) -> Self {
+        Self {
+            name,
+            likelihood,
+            reason: None,
+        }
+    }
+
+    /// Set reason and return self for chaining
+    pub fn with_reason(mut self, reason: String) -> Self {
+        self.reason = Some(reason);
+        self
+    }
 }
 
 impl YmlToolCall {
@@ -430,7 +485,8 @@ pub mod builders {
             format!("swap {amount} {from_mint} to {to_mint}"),
             format!("Exchange {amount} {from_mint} for {to_mint}"),
         )
-        .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
+        .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
+        .with_expected_tools(vec!["JupiterSwap".to_string()]);
 
         YmlFlow::new(
             flow_id,
@@ -454,7 +510,8 @@ pub mod builders {
             format!("lend {amount} {mint} to jupiter"),
             format!("Deposit {amount} {mint} in Jupiter earn for yield"),
         )
-        .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
+        .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true))
+        .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()]);
 
         YmlFlow::new(
             flow_id,
@@ -488,14 +545,16 @@ pub mod builders {
             format!("swap {amount} {from_mint} to {to_mint}"),
             format!("Exchange {amount} {from_mint} for {to_mint}"),
         )
-        .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
+        .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
+        .with_expected_tools(vec!["JupiterSwap".to_string()]);
 
         let step2 = YmlStep::new(
             "lend".to_string(),
             format!("lend {{{swapped_amount_var}}} {to_mint} to jupiter"),
             format!("Lend swapped {to_mint} for yield"),
         )
-        .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
+        .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true))
+        .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()]);
 
         let ground_truth = YmlGroundTruth::new()
             .with_assertion(
