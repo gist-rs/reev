@@ -1,10 +1,11 @@
-//! Tool Execution Module for reev-core
+//! Execution module for reev-core
 //!
-//! This module provides integration with reev-tools for actual tool execution
-//! in the executor module.
+//! This module provides execution capabilities for agent flows, including tool execution
+//! and transaction processing.
 
 pub mod tool_executor;
 pub mod trait_def;
+pub mod types;
 
 // Re-export for convenience
 pub use tool_executor::ToolExecutor;

@@ -316,7 +316,6 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore] // Ignore by default since it requires surfpool to be running
 async fn test_send_1_sol_to_target() -> Result<()> {
     run_transfer_test(
         "Send 1 SOL to target account",

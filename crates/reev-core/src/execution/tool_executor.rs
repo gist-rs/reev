@@ -7,6 +7,7 @@ use serde_json::json;
 use solana_sdk::signer::Signer;
 use tracing::{debug, error, info, instrument, warn};
 
+use crate::execution::types::recovery_config::RecoveryConfig;
 use crate::yml_schema::YmlStep;
 use crate::YmlToolCall;
 
@@ -935,36 +936,6 @@ impl ToolExecutor {
                     execution_time_ms: 1000,
                 })
             }
-        }
-    }
-}
-
-/// Configuration for recovery behavior
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct RecoveryConfig {
-    /// Base delay between retries in milliseconds
-    pub base_retry_delay_ms: u64,
-    /// Maximum delay between retries in milliseconds
-    pub max_retry_delay_ms: u64,
-    /// Exponential backoff multiplier
-    pub backoff_multiplier: f64,
-    /// Maximum total recovery time per step in milliseconds
-    pub max_recovery_time_ms: u64,
-    /// Whether to enable alternative flow recovery
-    pub enable_alternative_flows: bool,
-    /// Whether to enable user fulfillment recovery
-    pub enable_user_fulfillment: bool,
-}
-
-impl Default for RecoveryConfig {
-    fn default() -> Self {
-        Self {
-            base_retry_delay_ms: 1000,
-            max_retry_delay_ms: 30000,
-            backoff_multiplier: 1.5,
-            max_recovery_time_ms: 300000,
-            enable_alternative_flows: true,
-            enable_user_fulfillment: true,
         }
     }
 }
