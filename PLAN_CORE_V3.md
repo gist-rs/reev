@@ -8,6 +8,7 @@
 - Direct execution functions (execute_direct_sol_transfer, etc.) are correct and aligned with V2
 - Rule-based YML generation is appropriate for technical accuracy
 - LLM's role is specifically for language refinement, not structure generation
+- Rig framework should be used for LLM-driven tool selection in Phase 2
 - Current test structure provides a good foundation for end-to-end validation
 
 ### **Current Implementation Status**:
@@ -21,9 +22,9 @@
 - ❌ Proper error recovery not implemented
 
 ### **Design Principles for V3**:
-- **Clarify responsibilities**: LLM for language, rules for structure
-- **Strengthen Phase 1**: Implement proper LLM-based prompt refinement
-- **Maintain direct execution**: Keep direct execution functions as they are
+- **Clarify responsibilities**: LLM for language refinement, rules for YML structure, rig for tool selection
+- **Strengthen Phase 1**: Implement proper LLM-based prompt refinement only
+- **Enhance Phase 2**: Replace direct tool calls with rig framework for tool selection and calling
 - **Add validation during execution**: Use ground truth for runtime validation
 - **Improve error handling**: Add comprehensive error recovery strategies
 
@@ -40,15 +41,17 @@ User Prompt (any language/typos)
 Structured YML Flow with Refined Prompts
 ```
 
-### **Phase 2: Direct Execution with Validation**
+### **Phase 2: Rig-Driven Tool Execution with Validation**
 ```
 YML Step with Refined Prompts
    ↓
-[Direct Execution] - Using execute_direct_* functions
+[Rig Agent] - Uses refined prompt to select and call tools
    ↓
-[Parameter Extraction] - From refined prompts using rules
+[Tool Selection] - LLM determines appropriate tools from refined prompt
    ↓
-[Tool Execution] - Execute with extracted parameters
+[Parameter Extraction] - LLM extracts parameters from refined prompt
+   ↓
+[Tool Execution] - Rig handles tool calling with extracted parameters
    ↓
 [Result Validation] - Against ground truth with error recovery
 ```
@@ -74,9 +77,10 @@ subject_wallet_info:
 # Steps with refined prompts from LLM
 steps:
   - step_id: "transfer_1"
-    prompt: "transfer 1 SOL to address gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+    refined_prompt: "transfer 1 SOL to address gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
     context: "User wants to transfer 1 SOL to the specified recipient"
     critical: true
+    expected_tools: ["SolTransfer"]  # Hint for rig agent
 
 # Ground truth for validation and guardrails
 ground_truth:
@@ -104,52 +108,58 @@ ground_truth:
    - Template-based flow generation for common patterns
 
 3. **reev-executor**: Phase 2 implementation
-   - Direct execution functions (maintained as-is)
-   - Parameter extraction from refined prompts
+   - Rig agent integration for tool selection and calling
+   - Parameter extraction from refined prompts via LLM
    - Result validation against ground truth
    - Error recovery strategies
+   - Transition from direct execution functions to rig-driven execution
 
 4. **reev-validator**: Validation framework (new)
    - Runtime validation against ground truth
    - Parameter validation before execution
    - Error handling and recovery strategies
+   - Integration with rig agent for validation feedback
 
 ### **Clarified Data Flow**:
 ```
 User Request → [LLM Prompt Refinement] → [Rule-based YML Generation] → 
-[Executor] → [Direct Execution] → [Parameter Extraction] → [Tool Execution] → 
-[Result Validation] → [Error Recovery if needed] → Final Result
+[Executor] → [Rig Agent] → [Tool Selection] → [Parameter Extraction] → 
+[Tool Execution] → [Result Validation] → [Error Recovery if needed] → Final Result
 ```
 
 ## 🎯 **Key Implementation Requirements**
 
 ### **Phase 1: Enhanced Prompt Refinement**:
 1. **LLM Integration for Refinement**:
-   - Refine user prompts to clear, unambiguous language
+   - Refine user prompts to clear, unambiguous language ONLY
    - Fix typos and normalize language variations
-   - Extract intent and key parameters
-   - Add context for execution
+   - Do NOT extract intent or determine tools (leave for Phase 2)
+   - Add minimal context for execution
 
 2. **Template-based YML Generation**:
    - Use refined prompts with rule-based templates
    - Ensure technical accuracy in YML structure
-   - Include appropriate ground truth for validation
+   - Include expected_tools hints for rig agent
+   - Generate appropriate ground truth for validation
 
-### **Phase 2: Direct Execution with Validation**:
-1. **Maintain Direct Execution Functions**:
-   - Keep execute_direct_sol_transfer, execute_direct_jupiter_swap, etc.
-   - These functions correctly parse refined prompts
-   - Extract parameters using established patterns
+### **Phase 2: Rig-Driven Execution with Validation**:
+1. **Replace Direct Execution with Rig Agent**:
+   - Create rig agent with available tools (SolTransfer, JupiterSwap, etc.)
+   - Use refined prompts for tool selection and parameter extraction
+   - Maintain existing execute_direct_* functions as fallbacks
+   - Gradually migrate to rig-based execution
 
 2. **Add Runtime Validation**:
    - Validate extracted parameters against ground truth
    - Check constraints before tool execution
    - Validate results after execution
+   - Provide validation feedback to rig agent
 
 3. **Implement Error Recovery**:
    - Handle parameter validation failures
    - Retry with adjusted parameters when appropriate
    - Provide clear error messages for debugging
+   - Allow rig agent to select alternative tools when needed
 
 ### **Validation Framework**:
 1. **Parameter Validation**:
@@ -162,10 +172,11 @@ User Request → [LLM Prompt Refinement] → [Rule-based YML Generation] →
    - Handle slippage and rate variations
    - Verify final state changes
 
-3. **Error Recovery**:
+### **Error Recovery**:
    - Intelligent recovery based on error types
    - Parameter adjustments within constraints
    - Alternative execution strategies
+   - Integration with rig agent for tool selection changes
 
 ## 🔄 **Error Recovery Strategy**
 
@@ -174,16 +185,19 @@ User Request → [LLM Prompt Refinement] → [Rule-based YML Generation] →
    - Adjust parameters within constraints
    - Retry with modified values
    - Report specific validation errors
+   - Allow rig agent to select alternative parameters
 
 2. **Tool Execution Failures**:
    - Network errors: Retry with backoff
    - Slippage errors: Adjust parameters and retry
    - Insufficient balance: Use maximum available
+   - Tool-specific errors: Allow rig agent to select alternative tools
 
 3. **Result Validation Failures**:
    - Report specific validation failures
    - Suggest parameter adjustments
    - Provide clear next steps
+   - Allow rig agent to attempt alternative approaches
 
 ### **Error Types and Responses**:
 ```yaml
@@ -201,26 +215,33 @@ error_responses:
     params: ["initial_delay: 1s", "max_retries: 3"]
   
   validation_error:
-    action: "report_and_suggest"
-    params: ["error_type", "suggested_fix"]
-```
+      action: "report_and_suggest"
+      params: ["error_type", "suggested_fix"]
+  
+    tool_specific_error:
+      action: "retry_with_alternative_tool"
+      params: ["original_tool", "suggested_alternatives"]
+  ```
 
 ## 🔄 **Migration Strategy from Current Implementation**
 
 ### **Phase 1: Enhance LLM Integration** (Week 1-2)
-1. Implement proper LLM-based prompt refinement
+1. Implement proper LLM-based prompt refinement ONLY
 2. Create templates for common operation types
 3. Add prompt refinement tests
+4. Create rig agent with available tools for Phase 2
 
 ### **Phase 2: Strengthen Rule-based YML Generation** (Week 2-3)
 1. Enhance rule-based templates for YML generation
-2. Add more comprehensive ground truth generation
-3. Improve wallet context resolution
+2. Add expected_tools hints for rig agent
+3. Add more comprehensive ground truth generation
+4. Improve wallet context resolution
 
 ### **Phase 3: Add Validation Framework** (Week 3-4)
 1. Create validation components
 2. Implement parameter validation
 3. Add result validation against ground truth
+4. Integrate validation with rig agent feedback
 
 ### **Phase 4: Implement Error Recovery** (Week 4-5)
 1. Add error recovery strategies
@@ -252,12 +273,14 @@ error_responses:
 ## 📝 **Next Immediate Steps**
 
 1. **Enhance LLM Prompt Refinement** (Week 1)
-   - Implement proper LLM integration for prompt refinement
+   - Implement proper LLM integration for prompt refinement ONLY
    - Create templates for refined prompts
    - Add tests for refinement quality
+   - Create rig agent with available tools
 
 2. **Strengthen Rule-based YML Generation** (Week 1-2)
    - Improve templates for YML generation
+   - Add expected_tools hints for rig agent
    - Enhance ground truth generation
    - Add more comprehensive validation rules
 
@@ -265,10 +288,18 @@ error_responses:
    - Create parameter validation components
    - Implement result validation
    - Add validation to the execution flow
+   - Integrate validation with rig agent
 
 4. **Implement Error Recovery** (Week 3-4)
    - Add error recovery strategies
    - Implement retry logic
    - Add comprehensive error reporting
+   - Add alternative tool selection via rig agent
+
+5. **Migrate to Rig-Driven Execution** (Week 4-6)
+   - Implement rig agent for tool selection and calling
+   - Replace direct tool calls with rig-based execution
+   - Add comprehensive tests for rig-driven execution
+   - Maintain direct execution functions as fallbacks
 
 This revised plan corrects the misunderstandings about LLM vs rule-based responsibilities, maintains the strengths of the current implementation, and focuses on enhancing the existing architecture rather than replacing it.
