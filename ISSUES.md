@@ -38,36 +38,34 @@ Current implementation uses LLM for both language refinement and structure gener
 
 ---
 
-## Issue #90: Incorrect Refactoring of rig_agent_e2e_test
-### Status: COMPLETED
+## Issue #90: Missing Test Function in rig_agent_e2e_test
+### Status: NOT STARTED
 ### Description:
-The rig_agent_e2e_test was incorrectly refactored to remove RigAgent testing entirely, instead using Planner::new_with_glm() directly. This defeats the purpose of the test which should validate RigAgent's tool selection capabilities with GLM-coding model.
+The rig_agent_e2e_test.rs file contains helper functions but lacks an actual test function with #[tokio::test] attribute. The infrastructure exists but the test cannot be executed because there's no entry point to run the code.
 
 ### Problems Identified:
-1. Test renamed from `test_rig_agent_transfer` to `test_glm_transfer`, removing RigAgent context
-2. Model changed from "glm-4.6-coding" to "glm-4.6" without justification
-3. Entire RigAgent implementation bypassed in favor of direct Planner/Executor usage
-4. Test no longer validates tool selection or parameter extraction by RigAgent
+1. Missing test function - only helper functions exist (ensure_surfpool_running, setup_wallet, execute_transfer_with_rig_agent, run_rig_agent_transfer_test)
+2. None of the helper functions are called, causing "never used" compiler warnings
+3. No validation that RigAgent actually performs tool selection and parameter extraction
+4. No assertions to verify the end-to-end functionality works correctly
 
 ### Success Criteria:
-- Restore test to validate RigAgent functionality specifically
-- Keep "glm-4.6-coding" model (optimized for coding tasks)
-- Test tool selection, parameter extraction, and execution through RigAgent
-- Maintain proper end-to-end testing approach without mocks
+- Add a proper test function that uses the existing helper functions
+- Verify RigAgent is actually being used for tool selection, not falling back to direct execution
+- Validate tool selection based on expected_tools hints
+- Validate parameter extraction from refined prompts
+- Ensure the test can be run with `cargo test -p reev-core --test rig_agent_e2e_test test_rig_agent_transfer`
 
 ### Tasks Required:
-1. ✅ Restore RigAgent in the test execution flow
-2. ✅ Revert test name to `test_rig_agent_transfer`
-3. ✅ Keep using "glm-4.6-coding" model for specialized task processing
-4. ✅ Ensure test validates tool selection and parameter extraction
-5. ✅ Fix any actual issues with RigAgent GLM integration
+1. Add a test function with #[tokio::test] attribute that calls the existing helper functions
+2. Add assertions to verify RigAgent functionality
+3. Fix the unused client field in RigAgent struct
+4. Ensure proper integration between Executor with RigAgent and the test
+5. Verify that ZAI_API_KEY is properly loaded and used
 
-### Fixes Applied:
-1. Fixed RigAgent to properly use existing `execute_direct_sol_transfer` from `sol_transfer.rs` instead of creating new implementation
-2. Fixed ToolExecutor to use proper default keypair from `reev_lib::get_keypair()` instead of hardcoded string
-3. Fixed imports and API usage issues in RigAgent
-4. Fixed test to properly load .env file with ZAI_API_KEY
-5. Ensured test properly validates RigAgent's tool selection capabilities
+### Additional Issues:
+- RigAgent has an unused `client` field that generates compiler warnings
+- The test infrastructure exists but cannot be validated without an actual test function
 
 ---
 
@@ -105,7 +103,7 @@ Current implementation uses direct tool calls rather than rig framework for tool
 ---
 
 ## Issue #85: Implement Runtime Validation Against Ground Truth
-### Status: IN PROGRESS
+### Status: NOT STARTED
 ### Description:
 Ground truth validation exists but is not used during execution. V3 plan requires runtime validation against ground truth during execution to ensure constraints are met.
 
@@ -119,12 +117,12 @@ Ground truth validation exists but is not used during execution. V3 plan require
 ### Tasks Required:
 1. ✅ Enhanced YML schema with refined_prompt and expected_tools fields
 2. ✅ Updated YmlGenerator to include expected_tools hints in generated flows
-3. ⏳ Enhance FlowValidator to validate parameters before execution
-4. ⏳ Implement result validation against ground truth
-5. ⏳ Add validation feedback to rig agent
-6. ⏳ Create comprehensive validation error messages
-7. ⏳ Add validation to execution flow
-8. ⏳ Create tests for parameter and result validation
+3. Implement FlowValidator enhancement to validate parameters before execution
+4. Implement result validation against ground truth
+5. Add validation feedback to rig agent
+6. Create comprehensive validation error messages
+7. Add validation to execution flow
+8. Create tests for parameter and result validation
 
 ---
 
@@ -150,7 +148,37 @@ Current implementation has basic error handling but lacks sophisticated recovery
 
 ---
 
-## Issue #87: Add Expected_Tools Hints to YML Steps
+## Issue #91: RigAgent Implementation Gaps
+### Status: NOT STARTED
+### Description:
+The RigAgent implementation has several gaps that prevent it from being fully functional and testable. These gaps need to be addressed to ensure the RigAgent can properly select tools and extract parameters for Phase 2 execution.
+
+### Problems Identified:
+1. Unused client field in RigAgent struct generates compiler warnings
+2. Limited error handling in LLM API calls
+3. No validation that the selected tool matches expected_tools hints
+4. Parameter extraction may not work correctly for all tool types
+5. No fallback mechanism when LLM fails to provide valid tool calls
+
+### Success Criteria:
+- All compiler warnings in RigAgent implementation resolved
+- Robust error handling for LLM API failures
+- Validation that selected tools match expected_tools hints
+- Parameter extraction works correctly for all supported tools
+- Fallback mechanism when LLM fails to provide valid responses
+
+### Tasks Required:
+1. Fix unused client field in RigAgent struct
+2. Add comprehensive error handling for LLM API calls
+3. Add validation to ensure selected tools match expected_tools hints
+4. Improve parameter extraction for all supported tools
+5. Implement fallback mechanism for LLM failures
+6. Add unit tests for all RigAgent methods
+7. Add integration tests for RigAgent with ToolExecutor
+
+---
+
+## Issue #92: Add Expected_Tools Hints to YML Steps
 ### Status: COMPLETED
 ### Description:
 YML steps need expected_tools hints to guide rig agent tool selection. This helps the LLM select appropriate tools for each step.
@@ -171,7 +199,7 @@ YML steps need expected_tools hints to guide rig agent tool selection. This help
 
 ---
 
-## Issue #88: Implement Comprehensive Testing for V3 Components
+## Issue #93: Implement Comprehensive Testing for V3 Components
 ### Status: IN PROGRESS
 ### Description:
 New V3 components need comprehensive testing to ensure reliability. This includes unit tests, integration tests, and end-to-end tests.
@@ -186,11 +214,16 @@ New V3 components need comprehensive testing to ensure reliability. This include
 ### Tasks Required:
 1. ✅ Create unit tests for LanguageRefiner component
 2. ✅ Create unit tests for YmlGenerator component
-3. ✅ Create unit tests for RigAgent component
+3. ⏳ Create unit tests for RigAgent component (implementation gaps need to be addressed first)
 4. ⏳ Create integration tests for component interactions
-5. ✅ Create end-to-end tests for V3 workflow
+5. ⏳ Create end-to-end tests for V3 workflow (rig_agent_e2e_test needs actual test function)
 6. ⏳ Add performance benchmarks
 7. ⏳ Generate and review coverage reports
+
+### Current Issues:
+- rig_agent_e2e_test.rs has no actual test function, only helper functions
+- RigAgent has unused client field that needs to be fixed before testing
+- Need to validate that RigAgent is actually being used in tests, not just falling back to direct execution
 
 ---
 
