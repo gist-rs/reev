@@ -1,5 +1,27 @@
 # Reev Core Implementation Issues
 
+## Issue #80: Fix End-to-End Swap Test Infrastructure
+
+### Status: COMPLETED
+
+### Description:
+The end_to_end_swap.rs test had several issues that needed to be addressed:
+1. SURFPOOL restart logic was incorrectly placed - it should happen at the start of each test, not just on errors
+2. There was a warning about `final_signature` variable being assigned but never read
+3. The test needed proper resource cleanup after execution
+
+### Success Criteria:
+- ✅ SURFPOOL restarts at the start of each test
+- ✅ No clippy warnings about unused variables
+- ✅ Proper resource cleanup after test execution
+- ✅ Tests consistently pass or fail with meaningful error messages
+
+### Implementation Details:
+- Fixed SURFPOOL restart to happen at the start of each test
+- Updated error handling to remove unnecessary SURFPOOL restart on errors
+- Fixed format string warnings in error messages
+- Refactored the `final_signature` handling to use a loop that directly returns the signature
+
 ## Issue #75: Create End-to-End SOL Transfer Test
 
 ### Status: COMPLETED

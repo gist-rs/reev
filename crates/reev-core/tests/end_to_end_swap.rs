@@ -448,9 +448,8 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     // Execute the swap using the planner and LLM
     let mut retry_count = 0;
     let max_retries = 2;
-    let mut final_signature = None;
 
-    loop {
+    let signature = loop {
         retry_count += 1;
         info!("🔄 Attempt {}/{}", retry_count, max_retries);
 
@@ -459,8 +458,7 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
         {
             Ok(sig) => {
                 info!("✅ Transaction executed with signature: {}", sig);
-                final_signature = Some(sig);
-                break;
+                break sig; // Return the signature directly
             }
             Err(e) => {
                 error!("❌ Swap execution failed: {}", e);
@@ -479,11 +477,7 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
                 }
             }
         }
-    }
-
-    // Get the final signature or return error
-    let signature = final_signature
-        .ok_or_else(|| anyhow::anyhow!("Swap execution failed after all retries"))?;
+    };
 
     // Initialize RPC client
     let client =
