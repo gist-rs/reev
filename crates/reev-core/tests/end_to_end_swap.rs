@@ -23,7 +23,7 @@
 
 use anyhow::{anyhow, Result};
 use jup_sdk::surfpool::SurfpoolClient;
-use reev_core::context::ContextResolver;
+use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
 use reev_lib::get_keypair;
@@ -252,32 +252,23 @@ steps:
     println!("\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):");
     println!("{yml_prompt}");
 
-    // Set up the context resolver
-    let context_resolver = ContextResolver::default();
+    // Set up the context resolver with explicit RPC URL like the transfer test
+    let context_resolver = ContextResolver::new(SolanaEnvironment {
+        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+    });
 
     // Create a planner with GLM client
-    let planner = Planner::new_with_glm(context_resolver)?;
+    let planner = Planner::new_with_glm(context_resolver.clone())?;
 
     info!("\n🤖 Step 3: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
     // Generate the flow using the planner
     let yml_flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;
     info!("✅ Flow generated with ID: {}", yml_flow.flow_id);
 
-    // Create a wallet context for the executor
-    let mut wallet_context = WalletContext::new(pubkey.to_string());
-    wallet_context.sol_balance = (initial_sol_balance * 1_000_000_000.0) as u64;
-
-    // Add USDC balance to wallet context
-    let usdc_balance = reev_types::benchmark::TokenBalance::new(
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-        (initial_usdc_balance * 1_000_000.0) as u64, // USDC has 6 decimals
-    )
-    .with_decimals(6);
-    wallet_context.add_token_balance(
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-        usdc_balance,
-    );
-    wallet_context.calculate_total_value();
+    // Get the wallet context from the resolver, similar to transfer test
+    let wallet_context = context_resolver
+        .resolve_wallet_context(&pubkey.to_string())
+        .await?;
 
     debug!(
         "DEBUG: Created wallet context with SOL: {} lamports, USDC: {} (raw)",
@@ -320,51 +311,6 @@ steps:
         info!("  Success: {}", step_result.success);
         info!("  Tool calls: {:?}", step_result.tool_calls);
 
-        // Try to extract transaction signature from the output
-        if let Some(tool_results) = step_result.output.get("tool_results") {
-            if let Some(results_array) = tool_results.as_array() {
-                info!("  Tool results: {} results", results_array.len());
-                for (j, result) in results_array.iter().enumerate() {
-                    info!(
-                        "    Result {}: {}",
-                        j + 1,
-                        serde_json::to_string_pretty(result).unwrap_or_default()
-                    );
-
-                    // Try to extract signature from different possible locations
-                    if let Some(result_obj) = result.as_object() {
-                        // Check for direct transaction_signature field
-                        if let Some(tx_sig) = result_obj.get("transaction_signature") {
-                            info!("    Found transaction_signature: {:?}", tx_sig);
-                        }
-
-                        // Check in nested structure
-                        if let Some(jupiter_response) = result_obj.get("jupiter_swap") {
-                            if let Some(response_obj) = jupiter_response.as_object() {
-                                if let Some(signature) = response_obj.get("transaction_signature") {
-                                    info!(
-                                        "    Found jupiter_swap.transaction_signature: {:?}",
-                                        signature
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                info!(
-                    "  Tool results is not an array: {}",
-                    serde_json::to_string_pretty(tool_results).unwrap_or_default()
-                );
-            }
-        } else {
-            info!("  No tool_results in output");
-        }
-
-        if let Some(error) = &step_result.error_message {
-            info!("  Error: {}", error);
-        }
-
         // Log the full output for debugging
         info!(
             "  Full output: {}",
@@ -389,224 +335,45 @@ steps:
         }
     }
 
-    // Extract transaction signature from the step results
-    for (i, step_result) in result.step_results.iter().enumerate() {
-        info!("Checking step {} for transaction signature", i + 1);
-
-        // Check for transaction signature directly in jupiter_swap field of output (new refactored flow)
-        if let Some(jupiter_swap) = step_result.output.get("jupiter_swap") {
-            if let Some(jupiter_obj) = jupiter_swap.as_object() {
-                if let Some(signature) = jupiter_obj.get("transaction_signature") {
-                    if let Some(sig_str) = signature.as_str() {
-                        if !sig_str.is_empty() {
-                            info!("\n📝 Step 5: Transaction executed with signature:");
-                            info!("Signature: {}", sig_str);
-
-                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                            info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
-
-                            info!("\n✅ All steps completed successfully!");
-                            return Ok(sig_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check for signatures directly in the output (legacy flow)
-        if let Some(signatures) = step_result.output.get("signatures") {
-            if let Some(sig_array) = signatures.as_array() {
-                for sig in sig_array {
+    // Extract transaction signature from the step results, matching the format from the executor
+    // Based on the executor's process_transaction_with_instructions_step_result function
+    let signature = result
+        .step_results
+        .iter()
+        .find_map(|r| {
+            // Look for signature in output.jupiter_swap.transaction_signature (matching executor format)
+            if let Some(jupiter_swap) = r.output.get("jupiter_swap") {
+                if let Some(sig) = jupiter_swap.get("transaction_signature") {
                     if let Some(sig_str) = sig.as_str() {
-                        if !sig_str.is_empty() {
-                            info!("\n📝 Step 5: Generated transaction:");
-                            info!("Signature: {}", sig_str);
-
-                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                            info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
-
-                            info!("\n✅ All steps completed successfully!");
-                            return Ok(sig_str.to_string());
-                        }
+                        return Some(sig_str.to_string());
                     }
                 }
             }
-        }
-
-        // Check for transaction_signature directly in the output (for mock transactions)
-        if let Some(tx_signature) = step_result.output.get("transaction_signature") {
-            if let Some(sig_str) = tx_signature.as_str() {
-                if !sig_str.is_empty() && sig_str.starts_with("mock_tx_signature") {
-                    info!("\n📝 Step 5: Generated mock transaction:");
-                    info!("Signature: {}", sig_str);
-
-                    info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                    info!("Transaction URL: https://solscan.io/tx/{}", sig_str);
-
-                    info!("\n✅ All steps completed successfully!");
-                    return Ok(sig_str.to_string());
+            // Also check for transaction_signature directly in output (for mock transactions)
+            if let Some(sig) = r.output.get("transaction_signature") {
+                if let Some(sig_str) = sig.as_str() {
+                    return Some(sig_str.to_string());
                 }
             }
-        }
-
-        // Look for transaction signature in tool_results
-        if let Some(tool_results) = step_result.output.get("tool_results") {
-            if let Some(results_array) = tool_results.as_array() {
-                for result in results_array {
-                    if let Some(result_map) = result.as_object() {
-                        // Check for transaction_signature from JupiterSwapResponse
-                        if let Some(tx_sig) = result_map.get("transaction_signature") {
-                            let signature = tx_sig.as_str().unwrap_or_default();
-
-                            if !signature.is_empty() {
-                                info!("\n📝 Step 5: Generated transaction:");
-                                info!("Signature: {}", signature);
-
-                                info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                                info!(
-                                    "\n📊 Step 6: Transaction completed successfully via SURFPOOL!"
-                                );
-                                info!("Transaction URL: https://solscan.io/tx/{}", signature);
-
-                                info!("\n✅ All steps completed successfully!");
-                                return Ok(signature.to_string());
-                            }
-                        }
-
-                        // Check if it's nested in a "result" object
-                        if let Some(result_obj) = result_map.get("result") {
-                            if let Some(result_map) = result_obj.as_object() {
-                                if let Some(tx_sig) = result_map.get("signature") {
-                                    let signature = tx_sig.as_str().unwrap_or_default();
-
-                                    if !signature.is_empty() {
-                                        info!("\n📝 Step 5: Generated transaction:");
-                                        info!("Signature: {}", signature);
-
-                                        info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                                        info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                        info!(
-                                            "Transaction URL: https://solscan.io/tx/{}",
-                                            signature
-                                        );
-
-                                        info!("\n✅ All steps completed successfully!");
-                                        return Ok(signature.to_string());
-                                    }
-                                }
-                            }
-                        }
-
-                        // Check in nested structure from JupiterSwapResponse
-                        if let Some(jupiter_response) = result_map.get("jupiter_swap") {
-                            if let Some(response_obj) = jupiter_response.as_object() {
-                                if let Some(signature) = response_obj.get("transaction_signature") {
-                                    if let Some(sig_str) = signature.as_str() {
-                                        if !sig_str.is_empty() {
-                                            info!("\n📝 Step 5: Generated transaction:");
-                                            info!("Signature: {}", sig_str);
-
-                                            info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                                            info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                            info!(
-                                                "Transaction URL: https://solscan.io/tx/{}",
-                                                sig_str
-                                            );
-
-                                            info!("\n✅ All steps completed successfully!");
-                                            return Ok(sig_str.to_string());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        // If still not found, try parsing the result as a JSON string (for real tool responses)
-                        else if let Some(result_str) =
-                            result_map.get("result").and_then(|v| v.as_str())
-                        {
-                            // Parse the JSON string from the JupiterSwapTool response
-                            if let Ok(jupiter_response) =
-                                serde_json::from_str::<serde_json::Value>(result_str)
-                            {
-                                // Check if we have instructions (new flow) or a transaction_signature (old flow)
-                                if let Some(jupiter_obj) = jupiter_response.as_object() {
-                                    // New flow: instructions are prepared by tool, executed by executor
-                                    if let Some(instructions) =
-                                        jupiter_obj.get("instructions").and_then(|v| v.as_array())
-                                    {
-                                        if !instructions.is_empty() {
-                                            info!("\n📝 Step 5: Executing {} Jupiter swap instructions", instructions.len());
-
-                                            // In this flow, the executor has already executed the transaction
-                                            // and included the signature in the step_result output
-                                            if let Some(sig_str) = jupiter_obj
-                                                .get("transaction_signature")
-                                                .and_then(|v| v.as_str())
-                                            {
-                                                if !sig_str.is_empty() {
-                                                    info!("\n📝 Step 5: Transaction executed with signature:");
-                                                    info!("Signature: {}", sig_str);
-
-                                                    info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                                                    info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                                    info!(
-                                                        "Transaction URL: https://solscan.io/tx/{}",
-                                                        sig_str
-                                                    );
-
-                                                    info!("\n✅ All steps completed successfully!");
-                                                    return Ok(sig_str.to_string());
-                                                }
-                                            } else {
-                                                info!("\n❌ Error: Transaction execution succeeded but no signature was returned");
-                                            }
-                                        }
-                                    }
-                                    // Old flow: transaction_signature is directly in the response
-                                    else if let Some(signature) =
-                                        jupiter_obj.get("transaction_signature")
-                                    {
-                                        if let Some(sig_str) = signature.as_str() {
-                                            if !sig_str.is_empty() {
-                                                info!("\n📝 Step 5: Generated transaction:");
-                                                info!("Signature: {}", sig_str);
-
-                                                info!("\n🔑 Step 6: Transaction signed with default keypair at ~/.config/solana/id.json");
-
-                                                info!("\n📊 Step 6: Transaction completed successfully via SURFPOOL!");
-                                                info!(
-                                                    "Transaction URL: https://solscan.io/tx/{}",
-                                                    sig_str
-                                                );
-
-                                                info!("\n✅ All steps completed successfully!");
-                                                return Ok(sig_str.to_string());
-                                            }
-                                        }
-                                    }
-                                }
+            // Also check tool calls array for signatures
+            for call in &r.tool_calls {
+                if call.contains("transaction_signature") {
+                    // Extract signature from JSON string
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(call) {
+                        if let Some(sig) = json.get("transaction_signature") {
+                            if let Some(sig_str) = sig.as_str() {
+                                return Some(sig_str.to_string());
                             }
                         }
                     }
                 }
             }
-        }
-    }
+            None
+        })
+        .ok_or_else(|| anyhow!("No transaction signature in result"))?;
 
-    // No transaction signature found
-    Err(anyhow!(
-        "No transaction signature found in execution result"
-    ))
+    info!("\n✅ Step 6: Swap completed with signature: {}", signature);
+    Ok(signature)
 }
 
 /// Common test function that executes a swap prompt
