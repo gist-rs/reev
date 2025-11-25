@@ -38,6 +38,32 @@ Current implementation uses LLM for both language refinement and structure gener
 
 ---
 
+## Issue #90: Incorrect Refactoring of rig_agent_e2e_test
+### Status: NEW
+### Description:
+The rig_agent_e2e_test was incorrectly refactored to remove RigAgent testing entirely, instead using Planner::new_with_glm() directly. This defeats the purpose of the test which should validate RigAgent's tool selection capabilities with GLM-coding model.
+
+### Problems Identified:
+1. Test renamed from `test_rig_agent_transfer` to `test_glm_transfer`, removing RigAgent context
+2. Model changed from "glm-4.6-coding" to "glm-4.6" without justification
+3. Entire RigAgent implementation bypassed in favor of direct Planner/Executor usage
+4. Test no longer validates tool selection or parameter extraction by RigAgent
+
+### Success Criteria:
+- Restore test to validate RigAgent functionality specifically
+- Keep "glm-4.6-coding" model (optimized for coding tasks)
+- Test tool selection, parameter extraction, and execution through RigAgent
+- Maintain proper end-to-end testing approach without mocks
+
+### Tasks Required:
+1. Restore RigAgent in the test execution flow
+2. Revert test name to `test_rig_agent_transfer`
+3. Keep using "glm-4.6-coding" model for specialized task processing
+4. Ensure test validates tool selection and parameter extraction
+5. Fix any actual issues with RigAgent GLM integration
+
+---
+
 ## Issue #84: Implement Rig Framework for Tool Selection in Phase 2
 ### Status: COMPLETED
 ### Description:
