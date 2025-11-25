@@ -1,3 +1,0 @@
-{
-  "yml_content": "session_id: 306114a3-3d36-43bb-ac40-335fef6307ac\ntool_calls:\n  - tool_name: jupiter_swap\n    start_time: \"2025-11-04T09:27:08.902059Z\"\n    input: {amount: 2000000000, input_mint: \"So11111111111111111111111111111111111111112\", output_mint: \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\", slippage_bps: null, user_pubkey: \"9Lv2DeJbXrYRq2k1sRQPCAAwARfAStCqevnVHZsyTgQm\"}\n    duration_ms: 0\n"
-}

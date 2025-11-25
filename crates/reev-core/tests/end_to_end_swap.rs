@@ -28,7 +28,7 @@ use reev_core::planner::Planner;
 use reev_core::Executor;
 use reev_lib::get_keypair;
 use reev_lib::server_utils::kill_existing_surfpool;
-use reev_types::flow::WalletContext;
+
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
 use std::env;
