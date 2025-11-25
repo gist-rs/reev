@@ -9,7 +9,8 @@
 //! To run this test with the recommended logging filters to reduce noise:
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_swap_0_1_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test end_to_end_swap test_sell_all_sol_for_usdc -- --nocapture --ignored > test_output.log 2>&1
 //! ```
 //!
 //! ## Test Flow (6 Steps)
