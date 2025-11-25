@@ -4,9 +4,10 @@
 
 this is not scale `// Check if the prompt contains transfer keywords to set appropriate default`
 this is look wrong? `// Extract recipient from the prompt`
-`let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {` // this is really bad coding
-why there is a huge log `INFO execute_flow` for simple transfer sol?
+`let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {` // this is really bad coding wtf is hard code "gistme"
 
+test_swap_0_1_sol_for_usdc work fine why test_sell_all_sol_for_usdc not?
+it should "sell all SOL" -> planer -> "swap 4.99 SOL for USDC" -> same flow as test_swap_0_1_sol_for_usdc and work? do current logic do this? discuss this first.
 ---
 
 [@PLAN_CORE_V2.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V2.md) , [@ISSUES.md](file:///Users/katopz/git/gist/reev/ISSUES.md), let's fix [@end_to_end_swap.rs](file:///Users/katopz/git/gist/reev/crates/reev-core/tests/end_to_end_swap.rs) to complete 
