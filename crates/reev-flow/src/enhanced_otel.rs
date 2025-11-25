@@ -358,12 +358,12 @@ macro_rules! log_tool_call {
                             tracing::info!("✅ [{}] Tool call logged successfully", $tool_name);
                         }
                         Err(e) => {
-                            tracing::warn!("❌ [{}] Failed to log tool call: {}", $tool_name, e);
+                            tracing::warn!("⚠️ [{}] Failed to log tool call: {}", $tool_name, e);
                         }
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("❌ [{}] Failed to get logger: {:?}", $tool_name, e);
+                    tracing::warn!("⚠️ [{}] Failed to get logger: {:?}", $tool_name, e);
                 }
             }
         } else {

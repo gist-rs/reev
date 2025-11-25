@@ -28,6 +28,7 @@ use reev_core::planner::Planner;
 use reev_core::Executor;
 use reev_lib::get_keypair;
 use reev_lib::server_utils::kill_existing_surfpool;
+use tracing::{debug, error, info, warn};
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signer;
@@ -36,7 +37,7 @@ use std::env;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
-use tracing::{debug, info};
+// debug is already imported above
 
 /// Global reference to surfpool process
 static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>> =
@@ -44,6 +45,10 @@ static SURFPOOL_PROCESS: std::sync::OnceLock<std::sync::Arc<Mutex<Option<u32>>>>
 
 /// Helper function to start surfpool and wait for it to be ready
 async fn ensure_surfpool_running() -> Result<()> {
+    // First, kill any existing SURFPOOL process to ensure a clean start
+    info!("🔄 Restarting SURFPOOL for clean test environment...");
+    kill_existing_surfpool(8899).await?;
+
     // Kill any existing surfpool process to ensure clean state
     info!("🧹 Killing any existing surfpool processes...");
     kill_existing_surfpool(8899).await?;
@@ -373,6 +378,13 @@ steps:
         .ok_or_else(|| anyhow!("No transaction signature in result"))?;
 
     info!("\n✅ Step 6: Swap completed with signature: {}", signature);
+
+    // Check if the execution was successful
+    if result.step_results.iter().any(|r| !r.success) {
+        error!("❌ Some steps in the flow failed");
+        return Err(anyhow::anyhow!("Some steps in the flow failed"));
+    }
+
     Ok(signature)
 }
 
@@ -402,7 +414,14 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("✅ ZAI_API_KEY is configured");
 
-    // Check if surfpool is running
+    // Restart SURFPOOL for a clean test environment
+    info!("🔄 Restarting SURFPOOL for clean test environment...");
+    kill_existing_surfpool(8899).await?;
+
+    // Give SURFPOOL time to restart
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+    // Ensure SURFPOOL is running
     ensure_surfpool_running().await?;
     info!("✅ SURFPOOL is running and ready");
 
@@ -427,9 +446,94 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("\n🔄 Starting swap execution flow...");
     // Execute the swap using the planner and LLM
-    let _signature =
-        execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
-            .await?;
+    let mut retry_count = 0;
+    let max_retries = 2;
+    let mut final_signature = None;
+
+    loop {
+        retry_count += 1;
+        info!("🔄 Attempt {}/{}", retry_count, max_retries);
+
+        match execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
+            .await
+        {
+            Ok(sig) => {
+                info!("✅ Transaction executed with signature: {}", sig);
+                final_signature = Some(sig);
+                break;
+            }
+            Err(e) => {
+                error!("❌ Swap execution failed: {}", e);
+
+                // Check if this is a Jupiter 0xfaded error and we have retries left
+                if e.to_string().contains("custom program error: 0xfaded")
+                    && retry_count < max_retries
+                {
+                    warn!("⚠️ Jupiter transaction failed with 0xfaded error. Restarting SURFPOOL and retrying...");
+
+                    // Since SURFPOOL is already restarted at the start of each test,
+                    // just retry without another restart
+                    continue; // Try again
+                } else {
+                    return Err(anyhow::anyhow!("Swap execution failed: {e}"));
+                }
+            }
+        }
+    }
+
+    // Get the final signature or return error
+    let signature = final_signature
+        .ok_or_else(|| anyhow::anyhow!("Swap execution failed after all retries"))?;
+
+    // Initialize RPC client
+    let client =
+        solana_client::nonblocking::rpc_client::RpcClient::new("http://localhost:8899".to_string());
+
+    // Check transaction status
+    match client
+        .get_signature_status_with_commitment(
+            &signature.parse()?,
+            solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+        )
+        .await?
+    {
+        Some(status) => {
+            if let Err(err) = status {
+                error!("❌ Transaction failed on-chain: {:?}", err);
+
+                return Err(anyhow::anyhow!("Transaction failed on-chain: {err:?}"));
+            }
+            info!("✅ Transaction confirmed successfully on-chain");
+        }
+        None => {
+            error!("❌ Transaction not found on-chain");
+            return Err(anyhow::anyhow!("Transaction not found on-chain"));
+        }
+    }
+
+    // Verify final balances to ensure swap actually happened
+    info!("\n🔍 Verifying final wallet balances...");
+    let final_balance = client.get_balance(&pubkey).await?;
+    let final_sol_balance = final_balance as f64 / 1_000_000_000.0;
+
+    info!("Final SOL balance: {}", final_sol_balance);
+    info!("Initial SOL balance: {}", initial_sol_balance);
+
+    let expected_sol_balance = initial_sol_balance - 0.1; // We swapped 0.1 SOL
+    let balance_diff = (final_sol_balance - expected_sol_balance).abs();
+
+    if balance_diff > 0.01 {
+        error!("❌ Final SOL balance doesn't match expected swap amount");
+        error!(
+            "Expected: {}, Got: {}, Difference: {}",
+            expected_sol_balance, final_sol_balance, balance_diff
+        );
+        return Err(anyhow::anyhow!(
+            "Final balance doesn't match expected swap amount"
+        ));
+    }
+
+    info!("✅ Final SOL balance matches expected swap amount");
 
     // TODO: Verify the final balances
     // This would involve checking the final SOL and USDC balances and ensuring
@@ -437,6 +541,7 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("\n🎉 Test completed successfully!");
     info!("=============================");
+    info!("Final transaction signature: {}", signature);
     Ok(())
 }
 
@@ -468,5 +573,8 @@ async fn test_sell_all_sol_for_usdc() -> Result<()> {
 #[ignore]
 async fn test_cleanup_surfpool() -> Result<()> {
     // This test can be used to clean up surfpool if needed
+    // First ensure surfpool is running to initialize the static variable
+    ensure_surfpool_running().await?;
+    // Then clean it up
     cleanup_surfpool().await
 }

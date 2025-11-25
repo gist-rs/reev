@@ -136,8 +136,8 @@ async fn test_swap_lend_flow_generation() {
             .await;
         assert!(flow.is_ok());
         let flow = flow.unwrap();
-        // Should generate 3 steps for comprehensive flow (balance_check + swap + positions_check)
-        assert_eq!(flow.steps.len(), 3);
+        // Should generate 4 steps for comprehensive flow (balance_check + calculation + swap + positions_check)
+        assert_eq!(flow.steps.len(), 4);
     })
     .await;
 }
