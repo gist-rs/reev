@@ -1,24 +1,22 @@
-//! End-to-end test for RigAgent tool selection and execution
+//! End-to-end test for GLM-based agent execution
 //!
-//! This test focuses on verifying that the RigAgent can:
+//! This test verifies that the GLM-based agent can:
 //! 1. Process user prompts with wallet context
-//! 2. Select appropriate tools based on expected_tools hints
-//! 3. Extract parameters correctly
-//! 4. Execute tools with proper validation
+//! 2. Generate appropriate execution plans
+//! 3. Execute SOL transfers using the proper tools
+//! 4. Verify transaction completion on-chain
 //!
 //! ## Running Test with Proper Logging
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test rig_agent_e2e_test test_rig_agent_transfer -- --nocapture > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test rig_agent_e2e_test test_glm_transfer -- --nocapture > test_output.log 2>&1
 //! ```
 
 use anyhow::{anyhow, Result};
 use reev_core::context::{ContextResolver, SolanaEnvironment};
-use reev_core::execution::rig_agent::RigAgent;
-use reev_core::yml_schema::{YmlFlow, YmlStep};
+use reev_core::planner::Planner;
+use reev_core::Executor;
 use reev_lib::get_keypair;
-use reev_types::flow::WalletContext;
-use reev_types::tools::ToolName;
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -129,115 +127,90 @@ async fn setup_wallet(pubkey: &Pubkey, rpc_client: &RpcClient) -> Result<u64> {
     }
 }
 
-/// Create a test YML flow with rig agent focused steps
-fn create_rig_agent_flow(
-    user_prompt: &str,
-    wallet_pubkey: &Pubkey,
-    sol_balance: u64,
-) -> Result<YmlFlow> {
-    // Create a step with expected_tools hints for rig agent
-    let step = YmlStep::new(
-        "transfer_1".to_string(),
-        user_prompt.to_string(),
-        "Execute SOL transfer using Solana system instructions".to_string(),
-    )
-    .with_refined_prompt(user_prompt.to_string())
-    .with_expected_tools(vec![ToolName::SolTransfer])
-    .with_critical(true)
-    .with_estimated_time(10);
-
-    // Create a YML flow with the step
-    let flow = YmlFlow::new(
-        "rig_agent_transfer_flow".to_string(),
-        user_prompt.to_string(),
-        reev_core::yml_schema::YmlWalletInfo::new(wallet_pubkey.to_string(), sol_balance),
-    )
-    .with_step(step)
-    .with_refined_prompt(user_prompt.to_string());
-
-    // Note: In a real implementation, we would populate subject_wallet_info properly
-    // For this test, we'll create a minimal structure
-
-    Ok(flow)
-}
-
-/// Execute transfer using RigAgent
-async fn execute_transfer_with_rig_agent(
+/// Execute transfer using the planner and executor (with GLM client)
+async fn execute_transfer_with_planner(
     prompt: &str,
     from_pubkey: &Pubkey,
     initial_sol_balance: u64,
 ) -> Result<String> {
-    info!(
-        "\n🚀 Starting RigAgent transfer execution with prompt: {}",
-        prompt
-    );
+    info!("\n🚀 Starting transfer execution with prompt: {}", prompt);
 
-    // Create context resolver
-    let _context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("http://localhost:8899".to_string()),
+    // Step 2: Create YML prompt with wallet context
+    let context_resolver = ContextResolver::new(SolanaEnvironment {
+        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
     });
-
-    // Create a mock wallet context for the test
-    // In a real implementation, this would be resolved from the blockchain
-    let wallet_context = WalletContext {
-        owner: from_pubkey.to_string(),
-        sol_balance: initial_sol_balance,
-        token_balances: std::collections::HashMap::new(),
-        token_prices: std::collections::HashMap::new(),
-        total_value_usd: initial_sol_balance as f64 / 1_000_000_000.0 * 170.0, // Assuming SOL = $170
-    };
-
-    info!("\n📋 Step 1: Creating YML Flow for RigAgent processing...");
-    let flow = create_rig_agent_flow(prompt, from_pubkey, initial_sol_balance)?;
-    info!("✅ Created YML Flow with {} steps", flow.steps.len());
-
-    // Initialize RigAgent with API key
-    info!("\n🤖 Step 2: Initializing RigAgent with API key...");
-    // Force using mock API key for this test
-    let api_key = "mock".to_string();
-    info!("🔑 Using API key type: Mock (forced for test)");
-
-    let rig_agent = RigAgent::new(Some(api_key.clone()), Some("gpt-4".to_string())).await?;
-    info!("✅ RigAgent initialized successfully");
-    if api_key == "mock" {
-        info!("ℹ️ Using mock LLM responses for testing");
-    }
-
-    // Get the transfer step from the flow
-    let transfer_step = &flow.steps[0];
-    info!("\n⚙️ Step 3: Executing transfer using RigAgent...");
-    info!("📝 Refined Prompt: {}", transfer_step.refined_prompt);
-    info!("🔧 Expected Tools: {:?}", transfer_step.expected_tools);
-
-    // Execute the step using RigAgent
-    let step_result = rig_agent
-        .execute_step_with_rig(transfer_step, &wallet_context)
+    let wallet_context = context_resolver
+        .resolve_wallet_context(&from_pubkey.to_string())
         .await?;
 
-    info!("✅ Step execution completed");
-    info!("📊 Step Success: {}", step_result.success);
-    info!("🔧 Tool Calls: {:?}", step_result.tool_calls);
-
-    if !step_result.success {
-        return Err(anyhow!(
-            "Step execution failed: {:?}",
-            step_result.error_message
-        ));
-    }
-
-    // Extract transaction signature from step result
-    let signature = step_result
-        .output
-        .get("tool_results")
-        .and_then(|results| results.as_array())
-        .and_then(|array| array.first())
-        .and_then(|result| result.get("transaction_signature"))
-        .and_then(|sig| sig.as_str())
-        .ok_or_else(|| anyhow!("No transaction signature in step result"))?
-        .to_string();
+    let formatted_balance = initial_sol_balance / 1_000_000_000;
+    let wallet_info = format!(
+        "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
+    );
 
     info!(
-        "\n✅ Step 4: Transfer completed with signature: {}",
+        "\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):\n{}",
+        wallet_info
+    );
+
+    // Step 3: Send prompt to LLM
+    info!("\n🤖 Step 3: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
+
+    // Initialize planner with context and GLM client
+    let planner = Planner::new_with_glm(context_resolver)?;
+
+    // Generate flow from prompt
+    let flow = planner
+        .refine_and_plan(prompt, &from_pubkey.to_string())
+        .await?;
+
+    info!("\n⚙️ Step 4: Executing transfer tool call from LLM...");
+
+    // Initialize executor
+    let executor = Executor::new()?;
+
+    // Execute the flow
+    let result = executor.execute_flow(&flow, &wallet_context).await?;
+
+    // Step 5: Extract transaction signature
+    // Find transaction signature in step results
+    let signature = result
+        .step_results
+        .iter()
+        .find_map(|r| {
+            // Look for signature in output.sol_transfer.transaction_signature
+            if let Some(sol_transfer) = r.output.get("sol_transfer") {
+                if let Some(sig) = sol_transfer.get("transaction_signature") {
+                    if let Some(sig_str) = sig.as_str() {
+                        return Some(sig_str.to_string());
+                    }
+                }
+            }
+            // Also check for transaction_signature directly in output
+            if let Some(sig) = r.output.get("transaction_signature") {
+                if let Some(sig_str) = sig.as_str() {
+                    return Some(sig_str.to_string());
+                }
+            }
+            // Also check tool calls array
+            for call in &r.tool_calls {
+                if call.contains("transaction_signature") {
+                    // Extract signature from JSON string
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(call) {
+                        if let Some(sig) = json.get("transaction_signature") {
+                            if let Some(sig_str) = sig.as_str() {
+                                return Some(sig_str.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        })
+        .ok_or_else(|| anyhow!("No transaction signature in result"))?;
+
+    info!(
+        "\n✅ Step 6: Transfer completed with signature: {}",
         signature
     );
     Ok(signature)
@@ -248,38 +221,35 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     info!("\n🧪 Starting Test: {}", test_name);
     info!("=====================================");
 
-    // Load .env file for ZAI_API_KEY first
-    dotenvy::dotenv().ok();
-
-    // Check if ZAI_API_KEY is set
-    let zai_api_key = env::var("ZAI_API_KEY").unwrap_or_else(|_| "not_set".to_string());
-    info!(
-        "🔑 ZAI_API_KEY status: {}",
-        &match zai_api_key {
-            ref s if s == "not_set" => String::from("Not set (will use mock)"),
-            ref s => format!("Set (length: {})", s.len()),
-        }
-    );
-
-    // Initialize tracing with focused logging for transfer flow
+    // Initialize tracing with focused logging for the transfer flow
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "reev_core::execution::rig_agent=debug,info".into()),
+                .unwrap_or_else(|_| "reev_core::execution::tool_executor=error,warn".into()),
         )
         .with_target(false) // Remove target module prefixes for cleaner output
         .try_init();
 
+    // Load .env file for ZAI_API_KEY
+    dotenvy::dotenv().ok();
+
     // Disable enhanced OTEL logging to reduce verbosity
     env::set_var("REEV_ENHANCED_OTEL", "0");
+
+    // Check for ZAI_API_KEY
+    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
+        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
+    })?;
+
+    info!("✅ ZAI_API_KEY is configured");
 
     // Check if surfpool is running
     ensure_surfpool_running().await?;
     info!("✅ SURFPOOL is running and ready");
 
-    // Load default Solana keypair from ~/.config/solana/id.json
-    let keypair =
-        get_keypair().map_err(|e| anyhow!("Failed to load keypair from default location: {e}"))?;
+    // Load the default Solana keypair from ~/.config/solana/id.json
+    let keypair = get_keypair()
+        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
@@ -288,7 +258,7 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     // Initialize RPC client
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
-    // Set up wallet with SOL
+    // Set up the wallet with SOL
     let initial_sol_balance = setup_wallet(&pubkey, &rpc_client).await?;
     info!(
         "✅ Wallet setup completed with {} SOL",
@@ -307,38 +277,27 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
         initial_target_balance
     );
 
-    info!("\n🔄 Starting RigAgent transfer execution flow...");
+    info!("\n🔄 Starting transfer execution flow...");
 
-    // Execute transfer using RigAgent
-    let signature = execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance).await?;
+    // Execute the transfer using the planner and LLM
+    let signature = execute_transfer_with_planner(prompt, &pubkey, initial_sol_balance).await?;
 
-    // Verify the transaction was processed by surfpool
-    // In a real scenario with a connected blockchain, we would wait for confirmation
-    // For this test, we'll check the signature format
-    if signature.len() == 88
-        && signature
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        info!("\n🎉 RigAgent transfer successful!");
-        info!("✅ Generated valid signature format: {}", signature);
+    // Verify the transfer by checking target account balance
+    let final_target_balance = rpc_client.get_balance(&target_pubkey).await?;
+    let transferred_amount = final_target_balance - initial_target_balance;
 
-        // Check target balance to verify transfer (in a real environment)
-        // In surfpool, we need to simulate the transfer to see balance change
-        let final_target_balance = rpc_client.get_balance(&target_pubkey).await?;
-        let transferred_amount = final_target_balance - initial_target_balance;
-
-        if transferred_amount >= 1_000_000_000 {
-            info!(
-                "✅ Transferred {} lamports to target account",
-                transferred_amount
-            );
-        } else {
-            info!("⚠️ Transfer signature generated, but balance change not verified");
-            info!("ℹ️ This is expected in mock environment");
-        }
+    // 1 SOL = 1,000,000,000 lamports
+    if transferred_amount >= 1_000_000_000 {
+        info!("\n🎉 Transfer successful!");
+        info!(
+            "✅ Transferred {} lamports to target account",
+            transferred_amount
+        );
+        info!("✅ Transaction signature: {}", signature);
     } else {
-        return Err(anyhow!("Invalid signature format: {signature}"));
+        return Err(anyhow::anyhow!(
+            "Transfer verification failed. Expected at least 1 SOL, got {transferred_amount} lamports"
+        ));
     }
 
     info!("\n🎉 Test completed successfully!");
@@ -347,9 +306,9 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rig_agent_transfer() -> Result<()> {
+async fn test_glm_transfer() -> Result<()> {
     run_rig_agent_transfer_test(
-        "RigAgent SOL Transfer",
+        "GLM-based SOL Transfer",
         "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
     )
     .await
