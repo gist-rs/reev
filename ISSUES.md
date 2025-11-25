@@ -1,5 +1,23 @@
 # Reev Core Implementation Issues
 
+## Issue #89: Complete RigAgent Implementation (WIP)
+### Status: IN PROGRESS
+### Description:
+The RigAgent implementation is incomplete - the `prompt_agent` method returns "Prompt agent not implemented yet". This prevents the end-to-end RigAgent test from working correctly.
+
+### Success Criteria:
+- Implement the `prompt_agent` method to call an LLM API
+- Complete the `execute_step_with_rig` method to properly process responses
+- Ensure the RigAgent can select and execute tools based on expected_tools hints
+- Add comprehensive error handling and validation
+
+### Tasks Required:
+1. ⏳ Implement actual LLM API integration in `prompt_agent` method
+2. ⏳ Update `execute_step_with_rig` to handle real LLM responses
+3. ⏳ Add proper parameter extraction and validation
+4. ⏳ Complete tool execution with real blockchain integration
+5. ⏳ Add comprehensive error handling and recovery strategies
+
 ## Issue #83: Implement LLM Language Refinement in Phase 1
 ### Status: COMPLETED
 ### Description:
