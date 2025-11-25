@@ -200,57 +200,43 @@ async fn execute_transfer_with_rig_agent(
     let result = executor.execute_flow(&flow, &wallet_context).await?;
 
     // Step 5: Extract transaction signature
-    // Find transaction signature in step results
-    // Extract transaction signature from step results
     info!("🔍 Step results count: {}", result.step_results.len());
-    for (i, step_result) in result.step_results.iter().enumerate() {
-        info!("Step result {}: step_id={}", i, step_result.step_id);
-        info!("Step result {}: success={}", i, step_result.success);
-        if let Some(ref error) = step_result.error_message {
-            info!("Step result {}: error={}", i, error);
-        }
-        info!("Step result {}: output={}", i, step_result.output);
-        info!("Step result {}: tool_calls={:?}", i, step_result.tool_calls);
-    }
 
     // Debug: Print full step results to understand structure
     println!("DEBUG: Full step results: {:#?}", result.step_results);
 
+    // Extract transaction signature from the first successful step result
     let signature = result
         .step_results
         .iter()
         .find_map(|r| {
-            // Debug: Check if this is being found
-            println!("DEBUG: Checking step result for signature...");
+            // Check for success first
+            if !r.success {
+                return None;
+            }
 
-            // Look for signature in output.tool_results[0].transaction_signature
+            // Try different possible structures for signature
+            // 1. Check for tool_results array with signature
             if let Some(tool_results) = r.output.get("tool_results") {
-                println!("DEBUG: Found tool_results in output");
                 if let Some(results_array) = tool_results.as_array() {
-                    println!(
-                        "DEBUG: Found {} results in tool_results",
-                        results_array.len()
-                    );
-                    if let Some(first_result) = results_array.first() {
-                        println!("DEBUG: Checking first result for signature...");
-                        if let Some(sig) = first_result.get("transaction_signature") {
-                            println!("DEBUG: Found signature in result: {:?}", sig);
+                    for result in results_array {
+                        if let Some(sig) = result.get("transaction_signature") {
                             if let Some(sig_str) = sig.as_str() {
                                 return Some(sig_str.to_string());
                             }
-                        } else {
-                            println!("DEBUG: No transaction_signature field in result");
                         }
-                    } else {
-                        println!("DEBUG: No results in tool_results array");
                     }
-                } else {
-                    println!("DEBUG: tool_results is not an array");
                 }
-            } else {
-                println!("DEBUG: No tool_results in output");
             }
-            // Look for signature in output.sol_transfer.transaction_signature
+
+            // 2. Check for direct transaction_signature field
+            if let Some(sig) = r.output.get("transaction_signature") {
+                if let Some(sig_str) = sig.as_str() {
+                    return Some(sig_str.to_string());
+                }
+            }
+
+            // 3. Check for sol_transfer.transaction_signature
             if let Some(sol_transfer) = r.output.get("sol_transfer") {
                 if let Some(sig) = sol_transfer.get("transaction_signature") {
                     if let Some(sig_str) = sig.as_str() {
@@ -258,15 +244,10 @@ async fn execute_transfer_with_rig_agent(
                     }
                 }
             }
-            // Also check for transaction_signature directly in output
-            if let Some(sig) = r.output.get("transaction_signature") {
-                if let Some(sig_str) = sig.as_str() {
-                    return Some(sig_str.to_string());
-                }
-            }
+
             None
         })
-        .ok_or_else(|| anyhow!("No transaction signature in result"))?;
+        .ok_or_else(|| anyhow!("No transaction signature found in step results"))?;
 
     info!(
         "\n✅ Step 6: Transfer completed with signature: {}",
@@ -334,16 +315,13 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
 
     // Get initial target balance for verification
     let initial_target_balance = rpc_client.get_balance(&target_pubkey).await?;
-    info!(
-        "💰 Target account initial balance: {} lamports",
-        initial_target_balance
-    );
+    info!("💰 Target account initial balance: {initial_target_balance} lamports");
 
     info!("\n🔄 Starting transfer execution flow...");
 
     // Execute the transfer using the planner with RigAgent
     let signature = execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance).await?;
-    println!("DEBUG: Extracted signature: {}", signature);
+    println!("DEBUG: Extracted signature: {signature}");
 
     // Verify that RigAgent selected and executed the correct tool
     // With real blockchain transactions, we need to check if the transaction is confirmed
@@ -375,21 +353,21 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
             match rpc_client.get_signature_status(&sig).await {
                 Ok(status) => {
                     if let Some(err) = status {
-                        println!("Transaction failed with error: {:?}", err);
-                        return Err(anyhow!("Transaction failed: {:?}", err));
+                        println!("Transaction failed with error: {err:?}");
+                        return Err(anyhow!("Transaction failed: {err:?}"));
                     } else {
                         println!("Transaction confirmed successfully");
                     }
                 }
                 Err(e) => {
-                    println!("Error checking transaction status: {:?}", e);
+                    println!("Error checking transaction status: {e:?}");
                     // Continue with test even if status check fails
                 }
             }
         }
         Err(e) => {
-            println!("Error parsing signature: {:?}", e);
-            return Err(anyhow!("Error parsing signature: {}", e));
+            println!("Error parsing signature: {e:?}");
+            return Err(anyhow!("Error parsing signature: {e}"));
         }
     }
 
@@ -403,26 +381,18 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     // 1 SOL = 1,000,000,000 lamports
     info!("📊 Balance changes:");
     info!(
-        "Source account: {} -> {} lamports (deducted: {})",
-        initial_sol_balance, final_source_balance, source_deduction
+        "Source account: {initial_sol_balance} -> {final_source_balance} lamports (deducted: {source_deduction})"
     );
     info!(
-        "Target account: {} -> {} lamports (received: {})",
-        initial_target_balance, final_target_balance, transferred_amount
+        "Target account: {initial_target_balance} -> {final_target_balance} lamports (received: {transferred_amount})"
     );
 
     // Verify both deduction and transfer
     if source_deduction >= 1_000_000_000 && transferred_amount >= 1_000_000_000 {
         info!("\n🎉 Transfer successful!");
-        info!(
-            "✅ Deducted {} lamports from source account",
-            source_deduction
-        );
-        info!(
-            "✅ Transferred {} lamports to target account",
-            transferred_amount
-        );
-        info!("✅ Transaction signature: {}", signature);
+        info!("✅ Deducted {source_deduction} lamports from source account");
+        info!("✅ Transferred {transferred_amount} lamports to target account");
+        info!("✅ Transaction signature: {signature}");
         info!("✅ RigAgent correctly selected SolTransfer tool based on expected_tools hint");
         info!("✅ RigAgent correctly extracted parameters from refined prompt");
         info!("✅ RigAgent executed a real blockchain transaction");
@@ -436,4 +406,12 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     info!("\n🎉 Test completed successfully!");
     info!("=============================");
     Ok(())
+}
+
+/// Test RigAgent with GLM-based tool selection and SOL transfer
+#[tokio::test]
+async fn test_rig_agent_transfer() -> Result<()> {
+    // Test with a simple SOL transfer prompt
+    let prompt = "send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
+    run_rig_agent_transfer_test("SOL Transfer", prompt).await
 }

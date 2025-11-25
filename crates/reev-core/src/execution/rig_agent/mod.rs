@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
 use reqwest;
-use rig::providers::openai::Client;
+// Client from rig::providers::openai is not used, removed
 use rig::tool::ToolSet;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -28,9 +28,7 @@ pub struct RigAgent {
     model_name: String,
     /// API key for the LLM service
     api_key: String,
-    /// HTTP client for API calls
-    client: Client,
-    /// Separate HTTP client for direct API calls
+    /// HTTP client for direct API calls
     http_client: reqwest::Client,
     /// Agent tools for executing blockchain operations
     agent_tools: Option<Arc<AgentTools>>,
@@ -47,7 +45,6 @@ impl RigAgent {
 
         Ok(Self {
             model_name,
-            client: Client::new(&api_key),
             api_key,
             http_client: reqwest::Client::new(),
             agent_tools: None,
@@ -68,7 +65,6 @@ impl RigAgent {
 
         Ok(Self {
             model_name,
-            client: Client::new(&api_key),
             api_key,
             http_client: reqwest::Client::new(),
             agent_tools: Some(agent_tools),
@@ -423,7 +419,7 @@ Available tools:
         // This will handle the actual blockchain transaction
         let transaction_result = sol_transfer::execute_direct_sol_transfer(
             &agent_tools,
-            &format!("send {} sol to {}", amount, recipient),
+            &format!("send {amount} sol to {recipient}"),
             &wallet_context.owner,
         )
         .await?;
@@ -443,6 +439,16 @@ Available tools:
             String::new()
         };
 
+        // If we got a signature, return it directly, otherwise return the error
+        if transaction_signature.is_empty() && !transaction_result.success {
+            return Err(anyhow!(
+                "SOL transfer failed: {:?}",
+                transaction_result
+                    .error_message
+                    .unwrap_or("Unknown error".to_string())
+            ));
+        }
+
         Ok(json!({
             "tool_name": "sol_transfer",
             "params": {
@@ -451,8 +457,8 @@ Available tools:
                 "amount_lamports": amount_lamports,
                 "wallet": wallet_context.owner
             },
-            "transaction_signature": transaction_signature.to_string(),
-            "success": true
+            "transaction_signature": transaction_signature,
+            "success": transaction_result.success
         }))
     }
 
