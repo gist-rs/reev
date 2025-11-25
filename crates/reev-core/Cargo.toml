@@ -41,6 +41,7 @@ regex.workspace = true
 reqwest.workspace = true
 dotenvy.workspace = true
 strum = { version = "0.26", features = ["derive"] }
+rand = "0.8"
 
 # Async support
 async-trait.workspace = true

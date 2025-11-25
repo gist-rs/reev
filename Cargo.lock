@@ -3901,6 +3901,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "jup-sdk",
  "opentelemetry",
+ "rand 0.8.5",
  "reev-agent",
  "reev-flow",
  "reev-lib",

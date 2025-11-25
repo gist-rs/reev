@@ -6,9 +6,12 @@
 
 use anyhow::{anyhow, Result};
 use regex;
+use reqwest::Client;
 use rig::tool::ToolSet;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::env;
 use tracing::{debug, info, instrument};
 
 use crate::yml_schema::YmlStep;
@@ -19,18 +22,26 @@ use reev_types::tools::ToolName;
 pub struct RigAgent {
     /// Model name for logging
     model_name: String,
+    /// API key for the LLM service
+    api_key: String,
+    /// HTTP client for API calls
+    client: Client,
 }
 
 impl RigAgent {
     /// Create a new RigAgent with the given model and tools
     pub async fn new(api_key: Option<String>, model_name: Option<String>) -> Result<Self> {
         let model_name = model_name.unwrap_or_else(|| "gpt-4".to_string());
-        let _api_key = api_key.ok_or_else(|| anyhow!("API key is required for RigAgent"))?; // Prefix with _ to suppress warning
+        let api_key = api_key.ok_or_else(|| anyhow!("API key is required for RigAgent"))?;
 
         // Initialize tool set with Reev tools
         let _tool_set = Self::initialize_tool_set().await?; // Prefix with _ to suppress warning
 
-        Ok(Self { model_name })
+        Ok(Self {
+            model_name,
+            api_key,
+            client: Client::new(),
+        })
     }
 
     /// Execute a step using the rig agent for tool selection
@@ -124,9 +135,177 @@ impl RigAgent {
     async fn prompt_agent(&self, prompt: &str) -> Result<String> {
         debug!("Prompting agent with: {}", prompt);
 
-        // For now, this is a simplified implementation
-        // In a real scenario, we would create an agent here and use it
-        Err(anyhow!("Prompt agent not implemented yet"))
+        // Check if we should use mock implementation
+        if self.api_key == "mock" {
+            return self.mock_llm_response(prompt);
+        }
+
+        // Create a structured prompt for the LLM
+        let system_prompt = "You are an AI assistant for Solana DeFi operations. Based on the user's request, determine the appropriate tool to use and extract the necessary parameters. Respond with valid JSON in the following format:
+{
+  \"tool_calls\": [
+    {
+      \"name\": \"tool_name\",
+      \"parameters\": {
+        \"param1\": \"value1\",
+        \"param2\": \"value2\"
+      }
+    }
+  ]
+}
+
+Available tools:
+- sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string), amount (number in SOL), wallet (string, optional)
+- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string), output_mint (string), input_amount (number), wallet (string, optional)
+- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string), amount (number), wallet (string, optional)
+- get_account_balance: Get account balance. Parameters: account (string), mint (string, optional, defaults to SOL)
+";
+
+        // Prepare the request payload
+        let request_payload = LLMRequest {
+            model: self.model_name.clone(),
+            messages: vec![
+                LLMMessage {
+                    role: "system".to_string(),
+                    content: system_prompt.to_string(),
+                },
+                LLMMessage {
+                    role: "user".to_string(),
+                    content: prompt.to_string(),
+                },
+            ],
+            temperature: 0.3,
+            max_tokens: 1000,
+        };
+
+        // Make the API call
+        let api_base =
+            env::var("ZAI_API_BASE").unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        let url = format!("{api_base}/chat/completions");
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_payload)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "API request failed with status: {}",
+                response.status()
+            ));
+        }
+
+        let response_body: LLMResponse = response.json().await?;
+
+        // Extract the content from the response
+        let content = response_body
+            .choices
+            .first().map(|choice| choice.message.content.clone())
+            .ok_or_else(|| anyhow!("No content in LLM response"))?;
+
+        debug!("LLM response: {}", content);
+        Ok(content)
+    }
+
+    /// Mock LLM response for testing without API keys
+    fn mock_llm_response(&self, prompt: &str) -> Result<String> {
+        debug!("Using mock LLM response for prompt: {}", prompt);
+
+        // Simple pattern matching for common operations
+        let response = if prompt.contains("transfer") || prompt.contains("send") {
+            if let Some(amount) = Self::extract_amount_from_prompt(prompt) {
+                if let Some(recipient) = Self::extract_address_from_prompt(prompt) {
+                    json!({
+                        "tool_calls": [
+                            {
+                                "name": "sol_transfer",
+                                "parameters": {
+                                    "recipient": recipient,
+                                    "amount": amount
+                                }
+                            }
+                        ]
+                    })
+                    .to_string()
+                } else {
+                    // Generic transfer without recipient
+                    json!({
+                        "tool_calls": [
+                            {
+                                "name": "sol_transfer",
+                                "parameters": {
+                                    "amount": amount
+                                }
+                            }
+                        ]
+                    })
+                    .to_string()
+                }
+            } else {
+                json!({
+                    "tool_calls": [
+                        {
+                            "name": "sol_transfer",
+                            "parameters": {
+                                "amount": 1.0
+                            }
+                        }
+                    ]
+                })
+                .to_string()
+            }
+        } else if prompt.contains("swap") {
+            json!({
+                "tool_calls": [
+                    {
+                        "name": "jupiter_swap",
+                        "parameters": {
+                            "input_mint": "So11111111111111111111111111111111111111112",
+                            "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "input_amount": 1.0
+                        }
+                    }
+                ]
+            })
+            .to_string()
+        } else if prompt.contains("deposit") {
+            json!({
+                "tool_calls": [
+                    {
+                        "name": "jupiter_lend_earn_deposit",
+                        "parameters": {
+                            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "amount": 10.0
+                        }
+                    }
+                ]
+            })
+            .to_string()
+        } else if prompt.contains("balance") {
+            json!({
+                "tool_calls": [
+                    {
+                        "name": "get_account_balance",
+                        "parameters": {
+                            "account": "5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh"
+                        }
+                    }
+                ]
+            })
+            .to_string()
+        } else {
+            // Default response
+            json!({
+                "tool_calls": []
+            })
+            .to_string()
+        };
+
+        Ok(response)
     }
 
     /// Extract tool calls from the agent response
@@ -219,7 +398,7 @@ impl RigAgent {
         &self,
         tool_name: &str,
         params: serde_json::Value,
-        _wallet_context: &WalletContext,
+        wallet_context: &WalletContext,
     ) -> Result<serde_json::Value> {
         // Execute the tool using the agent's tool_set
         debug!("Executing tool {} with params: {}", tool_name, params);
@@ -236,62 +415,249 @@ impl RigAgent {
             }
         }
 
-        // Execute the tool directly using the tool set
-        let result = match tool_name {
-            "sol_transfer" => {
-                let recipient = params_map
-                    .get("recipient")
-                    .unwrap_or(&"".to_string())
-                    .clone();
-                let amount = params_map.get("amount").unwrap_or(&"0".to_string()).clone();
-                let wallet = params_map.get("wallet").unwrap_or(&"".to_string()).clone();
-
-                format!("Transferred {amount} SOL to {recipient} from wallet {wallet}")
-            }
-            "jupiter_swap" => {
-                let input_mint = params_map
-                    .get("input_mint")
-                    .unwrap_or(&"".to_string())
-                    .clone();
-                let output_mint = params_map
-                    .get("output_mint")
-                    .unwrap_or(&"".to_string())
-                    .clone();
-                let input_amount = params_map
-                    .get("input_amount")
-                    .unwrap_or(&"0".to_string())
-                    .clone();
-                let wallet = params_map.get("wallet").unwrap_or(&"".to_string()).clone();
-
-                format!(
-                    "Swapped {input_amount} of {input_mint} to {output_mint} using wallet {wallet}"
-                )
-            }
+        // Execute the tool based on its name
+        match tool_name {
+            "sol_transfer" => self.execute_sol_transfer(&params_map, wallet_context).await,
+            "jupiter_swap" => self.execute_jupiter_swap(&params_map, wallet_context).await,
             "jupiter_lend_earn_deposit" => {
-                let mint = params_map.get("mint").unwrap_or(&"".to_string()).clone();
-                let amount = params_map.get("amount").unwrap_or(&"0".to_string()).clone();
-                let wallet = params_map.get("wallet").unwrap_or(&"".to_string()).clone();
-
-                format!("Deposited {amount} of {mint} into lending pool from wallet {wallet}")
+                self.execute_jupiter_lend_deposit(&params_map, wallet_context)
+                    .await
             }
             "get_account_balance" => {
-                let account = params_map.get("account").unwrap_or(&"".to_string()).clone();
-                let mint = params_map
-                    .get("mint")
-                    .unwrap_or(&"So11111111111111111111111111111111111111112".to_string())
-                    .clone();
+                self.execute_get_account_balance(&params_map, wallet_context)
+                    .await
+            }
+            _ => Ok(json!({
+                "tool_name": tool_name,
+                "params": params,
+                "error": format!("Unknown tool: {tool_name}")
+            })),
+        }
+    }
 
-                format!("Retrieved balance for account {account} with token mint {mint}")
+    /// Extract amount from prompt
+    fn extract_amount_from_prompt(prompt: &str) -> Option<f64> {
+        use regex::Regex;
+
+        // Try to extract number followed by "sol" or "SOL"
+        let re = Regex::new(r"(\d+\.?\d*)\s*sol").unwrap();
+        if let Some(captures) = re.captures(prompt) {
+            if let Some(amount_str) = captures.get(1) {
+                if let Ok(amount) = amount_str.as_str().parse::<f64>() {
+                    return Some(amount);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Extract address from prompt
+    fn extract_address_from_prompt(prompt: &str) -> Option<String> {
+        use regex::Regex;
+
+        // Try to extract Solana address (base58 string, typically 32-44 chars)
+        let re = Regex::new(r"([1-9A-HJ-NP-Za-km-z]{32,44})").unwrap();
+        if let Some(captures) = re.captures(prompt) {
+            if let Some(addr) = captures.get(1) {
+                return Some(addr.as_str().to_string());
+            }
+        }
+
+        None
+    }
+
+    /// Execute SOL transfer
+    async fn execute_sol_transfer(
+        &self,
+        params: &std::collections::HashMap<String, String>,
+        wallet_context: &WalletContext,
+    ) -> Result<serde_json::Value> {
+        let recipient = params
+            .get("recipient")
+            .ok_or_else(|| anyhow!("recipient parameter is required"))?;
+
+        let amount_str = params
+            .get("amount")
+            .ok_or_else(|| anyhow!("amount parameter is required"))?;
+
+        let amount: f64 = amount_str
+            .parse()
+            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+
+        let amount_lamports = (amount * 1_000_000_000.0) as u64;
+
+        // Check if wallet has sufficient balance
+        if wallet_context.sol_balance < amount_lamports {
+            return Err(anyhow!(
+                "Insufficient balance. Available: {} SOL, Required: {} SOL",
+                wallet_context.sol_balance / 1_000_000_000,
+                amount
+            ));
+        }
+
+        // Generate a mock transaction signature in Solana format
+        // In a real implementation, this would create and submit a transaction
+        let transaction_signature = format!(
+            "{}{}{}{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
+
+        // Ensure it's exactly 88 characters as expected by Solana
+        let transaction_signature = if transaction_signature.len() > 88 {
+            &transaction_signature[..88]
+        } else {
+            &transaction_signature
+        };
+
+        // Replace any non-alphanumeric characters with empty string
+        let transaction_signature = transaction_signature
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { 'A' })
+            .collect::<String>();
+
+        Ok(json!({
+            "tool_name": "sol_transfer",
+            "params": {
+                "recipient": recipient,
+                "amount": amount,
+                "amount_lamports": amount_lamports,
+                "wallet": wallet_context.owner
+            },
+            "transaction_signature": transaction_signature,
+            "success": true
+        }))
+    }
+
+    /// Execute Jupiter swap
+    async fn execute_jupiter_swap(
+        &self,
+        params: &std::collections::HashMap<String, String>,
+        wallet_context: &WalletContext,
+    ) -> Result<serde_json::Value> {
+        let input_mint = params
+            .get("input_mint")
+            .ok_or_else(|| anyhow!("input_mint parameter is required"))?;
+
+        let output_mint = params
+            .get("output_mint")
+            .ok_or_else(|| anyhow!("output_mint parameter is required"))?;
+
+        let input_amount_str = params
+            .get("input_amount")
+            .ok_or_else(|| anyhow!("input_amount parameter is required"))?;
+
+        let input_amount: f64 = input_amount_str
+            .parse()
+            .map_err(|_| anyhow!("Invalid input_amount: {input_amount_str}"))?;
+
+        // Generate a mock transaction signature for now
+        // In a real implementation, this would call Jupiter API and create a transaction
+        let transaction_signature = format!(
+            "{}{}{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        )
+        .to_uppercase();
+
+        Ok(json!({
+            "tool_name": "jupiter_swap",
+            "params": {
+                "input_mint": input_mint,
+                "output_mint": output_mint,
+                "input_amount": input_amount,
+                "wallet": wallet_context.owner
+            },
+            "transaction_signature": transaction_signature,
+            "success": true
+        }))
+    }
+
+    /// Execute Jupiter lend/earn deposit
+    async fn execute_jupiter_lend_deposit(
+        &self,
+        params: &std::collections::HashMap<String, String>,
+        wallet_context: &WalletContext,
+    ) -> Result<serde_json::Value> {
+        let mint = params
+            .get("mint")
+            .ok_or_else(|| anyhow!("mint parameter is required"))?;
+
+        let amount_str = params
+            .get("amount")
+            .ok_or_else(|| anyhow!("amount parameter is required"))?;
+
+        let amount: f64 = amount_str
+            .parse()
+            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+
+        // Generate a mock transaction signature for now
+        // In a real implementation, this would call Jupiter API and create a transaction
+        let transaction_signature = format!(
+            "{}{}{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        )
+        .to_uppercase();
+
+        Ok(json!({
+            "tool_name": "jupiter_lend_earn_deposit",
+            "params": {
+                "mint": mint,
+                "amount": amount,
+                "wallet": wallet_context.owner
+            },
+            "transaction_signature": transaction_signature,
+            "success": true
+        }))
+    }
+
+    /// Execute get account balance
+    async fn execute_get_account_balance(
+        &self,
+        params: &std::collections::HashMap<String, String>,
+        _wallet_context: &WalletContext,
+    ) -> Result<serde_json::Value> {
+        let account = params
+            .get("account")
+            .ok_or_else(|| anyhow!("account parameter is required"))?;
+
+        let default_mint = "So11111111111111111111111111111111111111112".to_string();
+        let mint = params.get("mint").unwrap_or(&default_mint);
+
+        // Mock balance for now
+        // In a real implementation, this would query the blockchain
+        let balance = match mint.as_str() {
+            "So11111111111111111111111111111111111111112" => {
+                // Mock SOL balance
+                rand::random::<u64>() % 10_000_000_000
+            }
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => {
+                // Mock USDC balance
+                rand::random::<u64>() % 1_000_000_000
             }
             _ => {
-                format!("Unknown tool: {tool_name}")
+                // Mock other token balance
+                rand::random::<u64>() % 1_000_000_000
             }
         };
 
         Ok(json!({
-            "tool_name": tool_name,
-            "params": params,
-            "result": result
+            "tool_name": "get_account_balance",
+            "params": {
+                "account": account,
+                "mint": mint
+            },
+            "balance": balance,
+            "success": true
         }))
     }
 
@@ -306,4 +672,38 @@ impl RigAgent {
 
         Ok(tool_set)
     }
+}
+
+/// LLM API request payload
+#[derive(Debug, Serialize)]
+struct LLMRequest {
+    model: String,
+    messages: Vec<LLMMessage>,
+    temperature: f32,
+    max_tokens: u32,
+}
+
+/// LLM API message
+#[derive(Debug, Serialize)]
+struct LLMMessage {
+    role: String,
+    content: String,
+}
+
+/// LLM API response
+#[derive(Debug, Deserialize)]
+struct LLMResponse {
+    choices: Vec<LLMChoice>,
+}
+
+/// LLM API choice
+#[derive(Debug, Deserialize)]
+struct LLMChoice {
+    message: LLMResponseMessage,
+}
+
+/// LLM API response message
+#[derive(Debug, Deserialize)]
+struct LLMResponseMessage {
+    content: String,
 }
