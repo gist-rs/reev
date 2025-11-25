@@ -8,7 +8,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use std::str::FromStr;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument};
 
 /// Build a Solana transaction from raw instructions
 pub fn build_transaction_from_instructions(
@@ -100,23 +100,8 @@ pub async fn send_transaction_to_surfpool(transaction: Transaction) -> Result<St
             Ok(signature.to_string())
         }
         Err(e) => {
-            // Check if this is the Jupiter 0xfaded error
-            let error_str = e.to_string();
-            if error_str.contains("custom program error: 0xfaded") {
-                warn!("⚠️ Jupiter transaction failed with 0xfaded error. Restarting SURFPOOL...");
-
-                // Import and call the surfpool restart function
-                use crate::server_utils::kill_existing_surfpool;
-
-                // Kill existing surfpool process
-                if let Err(restart_err) = kill_existing_surfpool(8899).await {
-                    error!("Failed to restart SURFPOOL: {}", restart_err);
-                } else {
-                    info!("✅ SURFPOOL restarted successfully. Please retry the transaction.");
-                }
-            }
-
-            // Return the original error with enhanced context
+            // Log the error and return it
+            error!("Transaction failed: {}", e);
             Err(e.into())
         }
     }
