@@ -35,16 +35,18 @@ bs58 = "0.5"
 ed25519-dalek = "2.0"
 
 # Additional required dependencies
+# Additional dependencies
 solana-client.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 dotenvy.workspace = true
+strum = { version = "0.26", features = ["derive"] }
 
 # Async support
 async-trait.workspace = true
 
 # Tool execution support - Using existing tool frameworks instead
-rig-core.workspace = true
+rig-core = { workspace = true }
 
 # OpenTelemetry
 opentelemetry.workspace = true

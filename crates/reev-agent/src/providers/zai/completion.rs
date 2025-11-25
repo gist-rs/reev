@@ -194,8 +194,8 @@ pub struct Function {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
 pub enum ToolType {
+    #[serde(rename = "function")]
     Function,
 }
 
@@ -390,19 +390,20 @@ impl CompletionModel {
                     i,
                     serde_json::to_string_pretty(&tool_json).unwrap()
                 );
-
-                // Check for empty tool type
-                if let Some(tool_type) = tool_json.get("type") {
-                    if tool_type.as_str().unwrap_or("").is_empty() {
-                        error!("ZAI: CRITICAL - Tool {} has empty type field!", i);
-                    }
-                } else {
-                    error!("ZAI: CRITICAL - Tool {} missing type field!", i);
-                }
             }
 
+            // Ensure all tool definitions have a valid type field
+            let validated_tool_definitions: Vec<ZaiToolDefinition> = tool_definitions
+                .into_iter()
+                .map(|mut tool| {
+                    // Ensure the type field is set to "function" if it's empty or invalid
+                    tool.r#type = ToolType::Function;
+                    tool
+                })
+                .collect();
+
             request["tools"] = serde_json::Value::Array(
-                tool_definitions
+                validated_tool_definitions
                     .into_iter()
                     .map(serde_json::to_value)
                     .collect::<Result<Vec<_>, _>>()

@@ -175,6 +175,8 @@ impl ToolName {
     }
 }
 
+// FromStr is automatically implemented by EnumString derive macro
+
 /// Tool categories for organization and analytics
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
 pub enum ToolCategory {

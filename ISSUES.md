@@ -21,7 +21,7 @@ Current implementation uses LLM for both language refinement and structure gener
 ---
 
 ## Issue #84: Implement Rig Framework for Tool Selection in Phase 2
-### Status: IN PROGRESS
+### Status: COMPLETED
 ### Description:
 Current implementation uses direct tool calls rather than rig framework for tool selection and calling. V3 plan requires rig framework for LLM-driven tool selection and parameter extraction.
 
@@ -36,15 +36,20 @@ Current implementation uses direct tool calls rather than rig framework for tool
 - ✅ Added expected_tools hints to YML steps to guide rig agent
 - ✅ Updated YmlFlow and YmlStep schemas with refined_prompt field
 - ✅ Implemented rule-based fallback for LLM requests when API fails
-- ⏳ Tool calling still using direct execution functions (needs migration to rig)
+- ✅ Created RigAgent component for tool selection and calling
+- ✅ Integrated rig framework with existing tool definitions
+- ✅ Implemented parameter extraction via LLM
+- ✅ Added expected_tools hints in YML steps for rig guidance
+- ✅ Created tests for rig-driven execution
+- ✅ Maintained direct execution functions as fallbacks
 
 ### Tasks Required:
-1. Create RigAgent component for tool selection and calling
-2. Integrate rig framework with existing tool definitions
-3. Implement parameter extraction via LLM
-4. Add expected_tools hints in YML steps for rig guidance
-5. Create tests for rig-driven execution
-6. Maintain direct execution functions as fallbacks
+1. ✅ Create RigAgent component for tool selection and calling
+2. ✅ Integrate rig framework with existing tool definitions
+3. ✅ Implement parameter extraction via LLM
+4. ✅ Add expected_tools hints in YML steps for rig guidance
+5. ✅ Create tests for rig-driven execution
+6. ✅ Maintain direct execution functions as fallbacks
 
 ---
 

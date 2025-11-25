@@ -155,7 +155,7 @@ impl YmlGenerator {
             params.amount, params.from_token, params.to_token
         );
         let step = step
-            .with_expected_tools(vec!["JupiterSwap".to_string()])
+            .with_expected_tools(vec![ToolName::JupiterSwap])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
 
         // Create ground truth
@@ -210,7 +210,7 @@ impl YmlGenerator {
         );
         step.context = format!("Transfer {} SOL to {}", params.amount, params.recipient);
         let step = step
-            .with_expected_tools(vec!["SolTransfer".to_string()])
+            .with_expected_tools(vec![ToolName::SolTransfer])
             .with_tool_call(YmlToolCall::new(ToolName::SolTransfer, true));
 
         // Create ground truth
@@ -267,7 +267,7 @@ impl YmlGenerator {
             params.amount, params.token
         );
         let step = step
-            .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()])
+            .with_expected_tools(vec![ToolName::JupiterLendEarnDeposit])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
 
         // Create ground truth
@@ -326,7 +326,7 @@ impl YmlGenerator {
             params.amount, params.from_token, params.to_token
         );
         let step1 = step1
-            .with_expected_tools(vec!["JupiterSwap".to_string()])
+            .with_expected_tools(vec![ToolName::JupiterSwap])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
 
         // Create lend step with expected_tools hint
@@ -337,7 +337,7 @@ impl YmlGenerator {
         );
         step2.context = format!("Lend swapped {} for yield", params.to_token);
         let step2 = step2
-            .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()])
+            .with_expected_tools(vec![ToolName::JupiterLendEarnDeposit])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
 
         // Create ground truth

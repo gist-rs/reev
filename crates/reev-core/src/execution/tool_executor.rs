@@ -21,9 +21,13 @@ use reev_types::tools::ToolName;
 use reev_agent::enhanced::common::AgentTools;
 use rig::tool::Tool;
 
+// Import RigAgent for tool selection
+use crate::execution::rig_agent::RigAgent;
+
 /// Executor for AI agent tools
 pub struct ToolExecutor {
     agent_tools: Option<Arc<AgentTools>>,
+    rig_agent: Option<Arc<RigAgent>>,
     api_key: Option<String>,
     _model_name: String,
 }
@@ -43,6 +47,7 @@ impl ToolExecutor {
 
         Ok(Self {
             agent_tools: None,
+            rig_agent: None,
             api_key,
             _model_name: model_name,
         })
@@ -52,6 +57,13 @@ impl ToolExecutor {
     pub fn with_recovery_config(self, _config: RecoveryConfig) -> Self {
         // Recovery config would be stored here if needed
         self
+    }
+
+    /// Enable rig agent for tool selection
+    pub async fn enable_rig_agent(mut self) -> Result<Self> {
+        info!("Enabling rig agent for tool selection");
+        self.rig_agent = Some(self.initialize_rig_agent().await?);
+        Ok(self)
     }
 
     /// Set custom tool executor
@@ -67,6 +79,13 @@ impl ToolExecutor {
         wallet_context: &WalletContext,
     ) -> Result<StepResult> {
         info!("Executing step: {}", step.prompt);
+
+        // Use rig agent if available and the step has expected_tools
+        if self.rig_agent.is_some() && step.expected_tools.is_some() {
+            info!("Using rig agent for tool selection");
+            let rig_agent = self.rig_agent.as_ref().unwrap();
+            return rig_agent.execute_step_with_rig(step, wallet_context).await;
+        }
 
         // Initialize tools for execution
         let tools = if let Some(ref tools) = self.agent_tools {
@@ -300,5 +319,16 @@ impl ToolExecutor {
 
         let tools = AgentTools::new(key_map);
         Ok(tools)
+    }
+
+    /// Initialize RigAgent for tool selection
+    async fn initialize_rig_agent(&self) -> Result<Arc<RigAgent>> {
+        info!("Initializing RigAgent for tool selection");
+
+        let rig_agent = Arc::new(
+            RigAgent::new(self.api_key.clone(), Some("glm-4.6-coding".to_string())).await?,
+        );
+
+        Ok(rig_agent)
     }
 }

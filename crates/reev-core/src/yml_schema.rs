@@ -144,7 +144,7 @@ pub struct YmlStep {
     /// Expected tool calls for this step
     pub expected_tool_calls: Option<Vec<YmlToolCall>>,
     /// Expected tools list (hints for rig agent)
-    pub expected_tools: Option<Vec<String>>,
+    pub expected_tools: Option<Vec<ToolName>>,
     /// Whether this step is critical (failure = flow failure)
     pub critical: Option<bool>,
     /// Estimated execution time in seconds
@@ -193,7 +193,7 @@ impl YmlStep {
     }
 
     /// Set expected tools and return self for chaining
-    pub fn with_expected_tools(mut self, tools: Vec<String>) -> Self {
+    pub fn with_expected_tools(mut self, tools: Vec<ToolName>) -> Self {
         self.expected_tools = Some(tools);
         self
     }
@@ -486,7 +486,7 @@ pub mod builders {
             format!("Exchange {amount} {from_mint} for {to_mint}"),
         )
         .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
-        .with_expected_tools(vec!["JupiterSwap".to_string()]);
+        .with_expected_tools(vec![ToolName::JupiterSwap]);
 
         YmlFlow::new(
             flow_id,
@@ -511,7 +511,7 @@ pub mod builders {
             format!("Deposit {amount} {mint} in Jupiter earn for yield"),
         )
         .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true))
-        .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()]);
+        .with_expected_tools(vec![ToolName::JupiterLendEarnDeposit]);
 
         YmlFlow::new(
             flow_id,
@@ -546,7 +546,7 @@ pub mod builders {
             format!("Exchange {amount} {from_mint} for {to_mint}"),
         )
         .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
-        .with_expected_tools(vec!["JupiterSwap".to_string()]);
+        .with_expected_tools(vec![ToolName::JupiterSwap]);
 
         let step2 = YmlStep::new(
             "lend".to_string(),
@@ -554,7 +554,7 @@ pub mod builders {
             format!("Lend swapped {to_mint} for yield"),
         )
         .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true))
-        .with_expected_tools(vec!["JupiterLendEarnDeposit".to_string()]);
+        .with_expected_tools(vec![ToolName::JupiterLendEarnDeposit]);
 
         let ground_truth = YmlGroundTruth::new()
             .with_assertion(
