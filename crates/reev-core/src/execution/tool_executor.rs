@@ -1,9 +1,11 @@
+//! Executor for AI agent tools
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use serde_json::json;
-// use solana_sdk::signer::Signer; // Not used here
+use solana_sdk::signature::Signer; // Import Signer trait
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::execution::handlers::swap::jupiter_swap::*;
@@ -44,6 +46,8 @@ impl ToolExecutor {
         let model_name =
             std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
         let api_key = std::env::var("ZAI_API_KEY").ok();
+
+        info!("Creating ToolExecutor with model: {}", model_name);
 
         Ok(Self {
             agent_tools: None,
@@ -325,8 +329,39 @@ impl ToolExecutor {
     async fn initialize_rig_agent(&self) -> Result<Arc<RigAgent>> {
         info!("Initializing RigAgent for tool selection");
 
+        // Create a default wallet pubkey if agent_tools is None
+        let wallet_pubkey = if let Some(ref tools) = self.agent_tools {
+            // Get wallet pubkey from the sol_tool's key_map
+            tools
+                .sol_tool
+                .key_map
+                .get("WALLET_PUBKEY")
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            // Load the default keypair from ~/.config/solana/id.json
+            let keypair = reev_lib::get_keypair()
+                .map_err(|e| anyhow!("Failed to load default keypair: {e}"))?;
+            keypair.pubkey().to_string()
+        };
+
+        // Initialize AgentTools if not already set
+        let agent_tools = if let Some(ref tools) = self.agent_tools {
+            Arc::clone(tools)
+        } else {
+            let mut key_map = std::collections::HashMap::new();
+            key_map.insert("WALLET_PUBKEY".to_string(), wallet_pubkey.clone());
+            Arc::new(AgentTools::new(key_map))
+        };
+
+        // Initialize RigAgent with AgentTools
         let rig_agent = Arc::new(
-            RigAgent::new(self.api_key.clone(), Some("glm-4.6-coding".to_string())).await?,
+            RigAgent::new_with_tools(
+                self.api_key.clone(),
+                Some("glm-4.6-coding".to_string()),
+                agent_tools,
+            )
+            .await?,
         );
 
         Ok(rig_agent)

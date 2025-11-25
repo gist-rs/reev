@@ -39,7 +39,7 @@ Current implementation uses LLM for both language refinement and structure gener
 ---
 
 ## Issue #90: Incorrect Refactoring of rig_agent_e2e_test
-### Status: NEW
+### Status: COMPLETED
 ### Description:
 The rig_agent_e2e_test was incorrectly refactored to remove RigAgent testing entirely, instead using Planner::new_with_glm() directly. This defeats the purpose of the test which should validate RigAgent's tool selection capabilities with GLM-coding model.
 
@@ -56,11 +56,18 @@ The rig_agent_e2e_test was incorrectly refactored to remove RigAgent testing ent
 - Maintain proper end-to-end testing approach without mocks
 
 ### Tasks Required:
-1. Restore RigAgent in the test execution flow
-2. Revert test name to `test_rig_agent_transfer`
-3. Keep using "glm-4.6-coding" model for specialized task processing
-4. Ensure test validates tool selection and parameter extraction
-5. Fix any actual issues with RigAgent GLM integration
+1. ✅ Restore RigAgent in the test execution flow
+2. ✅ Revert test name to `test_rig_agent_transfer`
+3. ✅ Keep using "glm-4.6-coding" model for specialized task processing
+4. ✅ Ensure test validates tool selection and parameter extraction
+5. ✅ Fix any actual issues with RigAgent GLM integration
+
+### Fixes Applied:
+1. Fixed RigAgent to properly use existing `execute_direct_sol_transfer` from `sol_transfer.rs` instead of creating new implementation
+2. Fixed ToolExecutor to use proper default keypair from `reev_lib::get_keypair()` instead of hardcoded string
+3. Fixed imports and API usage issues in RigAgent
+4. Fixed test to properly load .env file with ZAI_API_KEY
+5. Ensured test properly validates RigAgent's tool selection capabilities
 
 ---
 

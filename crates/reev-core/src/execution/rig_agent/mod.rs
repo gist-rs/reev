@@ -1,21 +1,25 @@
 //! Rig Agent Integration for Phase 2 Tool Selection
 //!
-//! This module implements the RigAgent component that wraps the rig framework
-//! for LLM-driven tool selection and parameter extraction in Phase 2 of the
+//! This module implements the RigAgent component that wraps rig framework
+//! for LLM-driven tool selection and parameter extraction in Phase 2 of
 //! Reev Core Architecture.
 
 use anyhow::{anyhow, Result};
-use regex;
-use reqwest::Client;
+use reev_agent::enhanced::common::AgentTools;
+use reev_types::flow::{StepResult, WalletContext};
+use reqwest;
+use rig::providers::openai::Client;
 use rig::tool::ToolSet;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::env;
+use std::string::String;
+use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
+use crate::execution::handlers::transfer::sol_transfer;
 use crate::yml_schema::YmlStep;
-use reev_types::flow::{StepResult, WalletContext};
 use reev_types::tools::ToolName;
 
 /// RigAgent for LLM-driven tool selection and parameter extraction
@@ -26,6 +30,10 @@ pub struct RigAgent {
     api_key: String,
     /// HTTP client for API calls
     client: Client,
+    /// Separate HTTP client for direct API calls
+    http_client: reqwest::Client,
+    /// Agent tools for executing blockchain operations
+    agent_tools: Option<Arc<AgentTools>>,
 }
 
 impl RigAgent {
@@ -39,8 +47,31 @@ impl RigAgent {
 
         Ok(Self {
             model_name,
+            client: Client::new(&api_key),
             api_key,
-            client: Client::new(),
+            http_client: reqwest::Client::new(),
+            agent_tools: None,
+        })
+    }
+
+    /// Create a new RigAgent with the given model and tools
+    pub async fn new_with_tools(
+        api_key: Option<String>,
+        model_name: Option<String>,
+        agent_tools: Arc<AgentTools>,
+    ) -> Result<Self> {
+        let model_name = model_name.unwrap_or_else(|| "gpt-4".to_string());
+        let api_key = api_key.ok_or_else(|| anyhow!("API key is required for RigAgent"))?;
+
+        // Initialize tool set with Reev tools
+        let _tool_set = Self::initialize_tool_set().await?; // Prefix with _ to suppress warning
+
+        Ok(Self {
+            model_name,
+            client: Client::new(&api_key),
+            api_key,
+            http_client: reqwest::Client::new(),
+            agent_tools: Some(agent_tools),
         })
     }
 
@@ -135,11 +166,6 @@ impl RigAgent {
     async fn prompt_agent(&self, prompt: &str) -> Result<String> {
         debug!("Prompting agent with: {}", prompt);
 
-        // Check if we should use mock implementation
-        if self.api_key == "mock" {
-            return self.mock_llm_response(prompt);
-        }
-
         // Create a structured prompt for the LLM
         let system_prompt = "You are an AI assistant for Solana DeFi operations. Based on the user's request, determine the appropriate tool to use and extract the necessary parameters. Respond with valid JSON in the following format:
 {
@@ -162,8 +188,15 @@ Available tools:
 ";
 
         // Prepare the request payload
+        // Use the correct model name for ZAI API
+        let model_name = if self.model_name == "glm-4.6-coding" {
+            "glm-4.6"
+        } else {
+            &self.model_name
+        };
+
         let request_payload = LLMRequest {
-            model: self.model_name.clone(),
+            model: model_name.to_string(),
             messages: vec![
                 LLMMessage {
                     role: "system".to_string(),
@@ -179,12 +212,12 @@ Available tools:
         };
 
         // Make the API call
-        let api_base =
-            env::var("ZAI_API_BASE").unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        let api_base = env::var("ZAI_API_BASE")
+            .unwrap_or_else(|_| "https://api.z.ai/api/coding/paas/v4".to_string());
         let url = format!("{api_base}/chat/completions");
 
         let response = self
-            .client
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -204,108 +237,12 @@ Available tools:
         // Extract the content from the response
         let content = response_body
             .choices
-            .first().map(|choice| choice.message.content.clone())
+            .first()
+            .map(|choice| choice.message.content.clone())
             .ok_or_else(|| anyhow!("No content in LLM response"))?;
 
         debug!("LLM response: {}", content);
         Ok(content)
-    }
-
-    /// Mock LLM response for testing without API keys
-    fn mock_llm_response(&self, prompt: &str) -> Result<String> {
-        debug!("Using mock LLM response for prompt: {}", prompt);
-
-        // Simple pattern matching for common operations
-        let response = if prompt.contains("transfer") || prompt.contains("send") {
-            if let Some(amount) = Self::extract_amount_from_prompt(prompt) {
-                if let Some(recipient) = Self::extract_address_from_prompt(prompt) {
-                    json!({
-                        "tool_calls": [
-                            {
-                                "name": "sol_transfer",
-                                "parameters": {
-                                    "recipient": recipient,
-                                    "amount": amount
-                                }
-                            }
-                        ]
-                    })
-                    .to_string()
-                } else {
-                    // Generic transfer without recipient
-                    json!({
-                        "tool_calls": [
-                            {
-                                "name": "sol_transfer",
-                                "parameters": {
-                                    "amount": amount
-                                }
-                            }
-                        ]
-                    })
-                    .to_string()
-                }
-            } else {
-                json!({
-                    "tool_calls": [
-                        {
-                            "name": "sol_transfer",
-                            "parameters": {
-                                "amount": 1.0
-                            }
-                        }
-                    ]
-                })
-                .to_string()
-            }
-        } else if prompt.contains("swap") {
-            json!({
-                "tool_calls": [
-                    {
-                        "name": "jupiter_swap",
-                        "parameters": {
-                            "input_mint": "So11111111111111111111111111111111111111112",
-                            "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                            "input_amount": 1.0
-                        }
-                    }
-                ]
-            })
-            .to_string()
-        } else if prompt.contains("deposit") {
-            json!({
-                "tool_calls": [
-                    {
-                        "name": "jupiter_lend_earn_deposit",
-                        "parameters": {
-                            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                            "amount": 10.0
-                        }
-                    }
-                ]
-            })
-            .to_string()
-        } else if prompt.contains("balance") {
-            json!({
-                "tool_calls": [
-                    {
-                        "name": "get_account_balance",
-                        "parameters": {
-                            "account": "5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh"
-                        }
-                    }
-                ]
-            })
-            .to_string()
-        } else {
-            // Default response
-            json!({
-                "tool_calls": []
-            })
-            .to_string()
-        };
-
-        Ok(response)
     }
 
     /// Extract tool calls from the agent response
@@ -435,38 +372,6 @@ Available tools:
         }
     }
 
-    /// Extract amount from prompt
-    fn extract_amount_from_prompt(prompt: &str) -> Option<f64> {
-        use regex::Regex;
-
-        // Try to extract number followed by "sol" or "SOL"
-        let re = Regex::new(r"(\d+\.?\d*)\s*sol").unwrap();
-        if let Some(captures) = re.captures(prompt) {
-            if let Some(amount_str) = captures.get(1) {
-                if let Ok(amount) = amount_str.as_str().parse::<f64>() {
-                    return Some(amount);
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Extract address from prompt
-    fn extract_address_from_prompt(prompt: &str) -> Option<String> {
-        use regex::Regex;
-
-        // Try to extract Solana address (base58 string, typically 32-44 chars)
-        let re = Regex::new(r"([1-9A-HJ-NP-Za-km-z]{32,44})").unwrap();
-        if let Some(captures) = re.captures(prompt) {
-            if let Some(addr) = captures.get(1) {
-                return Some(addr.as_str().to_string());
-            }
-        }
-
-        None
-    }
-
     /// Execute SOL transfer
     async fn execute_sol_transfer(
         &self,
@@ -496,29 +401,47 @@ Available tools:
             ));
         }
 
-        // Generate a mock transaction signature in Solana format
-        // In a real implementation, this would create and submit a transaction
-        let transaction_signature = format!(
-            "{}{}{}{}{}",
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple()
-        );
-
-        // Ensure it's exactly 88 characters as expected by Solana
-        let transaction_signature = if transaction_signature.len() > 88 {
-            &transaction_signature[..88]
+        // Use the existing AgentTools if available, otherwise create a new one
+        let agent_tools = if let Some(ref tools) = self.agent_tools {
+            Arc::clone(tools)
         } else {
-            &transaction_signature
+            // Create AgentTools using the wallet context
+            // Convert wallet owner string to keypair
+            let _keypair = reev_lib::get_keypair().map_err(|e| {
+                anyhow!(
+                    "Failed to get keypair for wallet {}: {}",
+                    wallet_context.owner,
+                    e
+                )
+            })?;
+            let mut key_map = std::collections::HashMap::new();
+            key_map.insert("WALLET_PUBKEY".to_string(), wallet_context.owner.clone());
+            Arc::new(reev_agent::enhanced::common::AgentTools::new(key_map))
         };
 
-        // Replace any non-alphanumeric characters with empty string
-        let transaction_signature = transaction_signature
-            .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { 'A' })
-            .collect::<String>();
+        // Use the existing execute_direct_sol_transfer function from handlers
+        // This will handle the actual blockchain transaction
+        let transaction_result = sol_transfer::execute_direct_sol_transfer(
+            &agent_tools,
+            &format!("send {} sol to {}", amount, recipient),
+            &wallet_context.owner,
+        )
+        .await?;
+
+        // Extract the transaction signature from the result
+        let transaction_signature = if transaction_result.success {
+            if let Some(output) = transaction_result.output.get("sol_transfer") {
+                if let Some(sig) = output.get("transaction_signature") {
+                    sig.as_str().unwrap_or("").to_string()
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
 
         Ok(json!({
             "tool_name": "sol_transfer",
@@ -528,7 +451,7 @@ Available tools:
                 "amount_lamports": amount_lamports,
                 "wallet": wallet_context.owner
             },
-            "transaction_signature": transaction_signature,
+            "transaction_signature": transaction_signature.to_string(),
             "success": true
         }))
     }
@@ -539,21 +462,32 @@ Available tools:
         params: &std::collections::HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<serde_json::Value> {
-        let input_mint = params
+        let _input_mint = params
             .get("input_mint")
             .ok_or_else(|| anyhow!("input_mint parameter is required"))?;
 
-        let output_mint = params
+        let _output_mint = params
             .get("output_mint")
             .ok_or_else(|| anyhow!("output_mint parameter is required"))?;
 
-        let input_amount_str = params
-            .get("input_amount")
-            .ok_or_else(|| anyhow!("input_amount parameter is required"))?;
+        let _recipient = params
+            .get("recipient")
+            .ok_or_else(|| anyhow!("recipient parameter is required"))?;
 
-        let input_amount: f64 = input_amount_str
+        let amount_str = params
+            .get("amount")
+            .ok_or_else(|| anyhow!("amount parameter is required"))?;
+        let amount: f64 = amount_str
             .parse()
-            .map_err(|_| anyhow!("Invalid input_amount: {input_amount_str}"))?;
+            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+
+        // Convert SOL amount to lamports (1 SOL = 1,000,000,000 lamports)
+        let amount_lamports = (amount * 1_000_000_000.0) as u64;
+
+        // Get recipient
+        let recipient = params
+            .get("recipient")
+            .ok_or_else(|| anyhow!("recipient parameter is required"))?;
 
         // Generate a mock transaction signature for now
         // In a real implementation, this would call Jupiter API and create a transaction
@@ -567,11 +501,11 @@ Available tools:
         .to_uppercase();
 
         Ok(json!({
-            "tool_name": "jupiter_swap",
+            "tool_name": "sol_transfer",
             "params": {
-                "input_mint": input_mint,
-                "output_mint": output_mint,
-                "input_amount": input_amount,
+                "recipient": recipient,
+                "amount": amount,
+                "amount_lamports": amount_lamports,
                 "wallet": wallet_context.owner
             },
             "transaction_signature": transaction_signature,
