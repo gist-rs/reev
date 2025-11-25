@@ -1,216 +1,189 @@
 # Reev Core Architecture Plan V3
 
-## 🎯 **Why: Realigning Implementation with Vision**
+## 🎯 **Why: Correcting Misunderstandings and Refining Implementation**
 
 ### **What We've Learned**:
 - The YML schema and flow structures are well-designed and working
-- The two-phase architecture concept is solid but implementation needs fixes
-- Direct vs. indirect execution adds complexity without clear benefits
-- Rule-based approach works for simple cases but fails at language flexibility
+- The two-phase architecture concept is solid but implementation needs refinement
+- Direct execution functions (execute_direct_sol_transfer, etc.) are correct and aligned with V2
+- Rule-based YML generation is appropriate for technical accuracy
+- LLM's role is specifically for language refinement, not structure generation
 - Current test structure provides a good foundation for end-to-end validation
 
 ### **Current Implementation Status**:
 - ✅ YML schema and flow structures implemented
-- ✅ Basic two-phase structure in place (Planner + Executor)
-- ✅ Tool execution framework working
+- ✅ Two-phase structure in place (Planner + Executor)
+- ✅ Tool execution framework working with direct execution functions
 - ✅ End-to-end tests validating real blockchain operations
-- ⚠️ LLM integration incomplete (rule-based fallback primary)
-- ⚠️ Phase 2 parameter generation bypassed
-- ❌ Ground truth validation missing
+- ⚠️ Phase 1 LLM integration incomplete (rule-based fallback primary)
+- ⚠️ LLM role for prompt refinement not fully implemented
+- ❌ Ground truth validation not used during execution
 - ❌ Proper error recovery not implemented
 
 ### **Design Principles for V3**:
-- **Simplify over complicate**: Remove unnecessary complexity like direct/indirect split
-- **LLM-first with intelligent fallbacks**: LLMs should be default, not optional
-- **Validation-driven execution**: Ground truth should drive execution decisions
-- **Incremental implementation**: Each phase should deliver working functionality
+- **Clarify responsibilities**: LLM for language, rules for structure
+- **Strengthen Phase 1**: Implement proper LLM-based prompt refinement
+- **Maintain direct execution**: Keep direct execution functions as they are
+- **Add validation during execution**: Use ground truth for runtime validation
+- **Improve error handling**: Add comprehensive error recovery strategies
 
-## 🚀 **Revised Architecture: Validation-Driven Execution**
+## 🚀 **Refined Two-Phase Architecture**
 
-### **Core Concept**:
-Instead of "direct vs. indirect" execution, we use a **validation-driven approach**:
-
-```yaml
-# YML Flow Example with Validation Parameters
-steps:
-  - prompt: "swap 1 SOL to USDC"
-    validation:
-      extract_from: "prompt"  # Extract from prompt using LLM
-      required_params: ["amount", "from_token", "to_token"]
-      constraints:
-        max_amount: "{{wallet.sol_balance * 0.95}}"  # Leave 5% for fees
-        from_token: "SOL"
-        to_token: "USDC"
-```
-
-### **Simplified Two-Phase Architecture**:
-
-**Phase 1: Flow Generation (LLM-first)**
+### **Phase 1: Prompt Refinement (LLM-focused)**
 ```
 User Prompt (any language/typos) 
    ↓
-[LLM Flow Generation] - with structured template
+[LLM Prompt Refinement] - Refine language, extract intent
    ↓
-Structured YML Flow with Validation Rules
+[Rule-based YML Generation] - Generate structured YML with refined prompts
+   ↓
+Structured YML Flow with Refined Prompts
 ```
 
-**Phase 2: Step Execution (Validation-driven)**
+### **Phase 2: Direct Execution with Validation**
 ```
-YML Step with Validation
+YML Step with Refined Prompts
    ↓
-[Parameter Extraction] - LLM or rule-based based on complexity
+[Direct Execution] - Using execute_direct_* functions
    ↓
-[Tool Execution] - with pre-execution validation
+[Parameter Extraction] - From refined prompts using rules
    ↓
-[Result Validation] - against expected outcomes
+[Tool Execution] - Execute with extracted parameters
+   ↓
+[Result Validation] - Against ground truth with error recovery
 ```
 
-## 📋 **Revised YML Structure**
+## 📋 **YML Structure (Simplified and Focused)**
 
-### **YML Flow with Validation Parameters**:
+### **YML Flow with Refined Prompts**:
 ```yaml
-# Enhanced YML Flow Structure
+# Simplified YML Flow Structure (maintaining V2 design)
 flow_id: "uuid-v7"
-user_prompt: "swap 1 sol to usdc"
+user_prompt: "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+refined_prompt: "transfer 1 SOL to address gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
 created_at: "timestamp"
 
 # Wallet context (resolved at runtime)
 subject_wallet_info:
-  - pubkey: "{{WALLET_PUBKEY}}"  # Resolved at runtime
+  - pubkey: "5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh"
+    lamports: 4000000000 # 4 SOL
     tokens:
-      - mint: "So11111111111111111111111111111111111111112"
-        amount: "{{SOL_BALANCE}}"
-        value_usd: "{{SOL_BALANCE * SOL_PRICE}}"
+      - mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        amount: 20000000 # 20 USDC
 
-# Steps with validation rules
+# Steps with refined prompts from LLM
 steps:
-  - step_id: "swap_1"
-    prompt: "swap 1 SOL to USDC"
-    context: "User wants to exchange SOL for USDC"
-    
-    # Validation and parameter extraction rules
-    validation:
-      # How to extract parameters
-      extraction_method: "llm"  # Options: "llm", "rule", "prompt_parse"
-      
-      # What parameters are needed
-      required_params:
-        - name: "amount"
-          source: "prompt"  # Extract from prompt
-          type: "number"
-          default: 1.0
-          constraints:
-            min: 0.001
-            max: "{{wallet.sol_balance * 0.95}}"
-        
-        - name: "from_token"
-          source: "wallet"  # Get from wallet context
-          type: "token"
-          default: "SOL"
-        
-        - name: "to_token"
-          source: "prompt"  # Extract from prompt
-          type: "token"
-          options: ["USDC", "USDT", "SOL"]  # Allowed values
-      
-      # Pre-execution validation
-      pre_execution:
-        - check: "sufficient_balance"
-          params: ["amount", "from_token"]
-        
-        - check: "valid_token_pair"
-          params: ["from_token", "to_token"]
-      
-      # Post-execution validation
-      post_execution:
-        - check: "min_output_received"
-          params: ["{{amount * expected_rate * 0.98}}"]  # 2% slippage
-          tolerance: 0.01
-      
-      # Error handling
-      error_handling:
-        insufficient_balance:
-          action: "retry_with_max"
-          params: ["{{wallet.sol_balance * 0.95}}"]
-        
-        slippage_exceeded:
-          action: "retry_with_adjusted_params"
-          params: ["amount: {{amount * 0.98}}"]
+  - step_id: "transfer_1"
+    prompt: "transfer 1 SOL to address gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+    context: "User wants to transfer 1 SOL to the specified recipient"
+    critical: true
 
-# Ground truth for overall validation
+# Ground truth for validation and guardrails
 ground_truth:
-  final_state:
-    - type: "token_balance_change"
-      token: "SOL"
-      expected_change: "-{{swap_1.amount + fees}}"
-      tolerance: 0.01
-    
-    - type: "token_balance_change"
-      token: "USDC"
-      expected_change: "{{swap_1.amount * expected_rate}}"
-      tolerance: 0.02
+  final_state_assertions:
+    - type: SolBalanceChange
+      pubkey: "5HNT58ajgxLSU3UxcpJBLrEEcpK19CrZx3d5C3yrkPHh"
+      expected_change_lte: -1005000000 # 1 SOL + fees
+      error_tolerance: 0.01
+  expected_tool_calls:
+    - tool_name: "SolTransfer"
+      critical: true
 ```
 
-## 🏗️ **Implementation Architecture V3**
+## 🏗️ **Refined Implementation Architecture**
 
 ### **Core Components**:
 1. **reev-core**: Core schemas and interfaces
-   - Enhanced YML schema with validation rules
+   - Current YML schema (maintained)
    - Common types and utilities
    - Validation framework interfaces
 
 2. **reev-planner**: Phase 1 implementation
-   - LLM flow generation with templates
-   - Rule-based fallback for simple cases
-   - Flow validation before execution
+   - LLM prompt refinement (enhanced)
+   - Rule-based YML generation from refined prompts
+   - Template-based flow generation for common patterns
 
 3. **reev-executor**: Phase 2 implementation
-   - Parameter extraction (LLM or rule-based)
-   - Pre-execution validation
-   - Tool execution with error recovery
-   - Post-execution validation
+   - Direct execution functions (maintained as-is)
+   - Parameter extraction from refined prompts
+   - Result validation against ground truth
+   - Error recovery strategies
 
-4. **reev-validator**: Validation framework
-   - Parameter validation
-   - State change validation
+4. **reev-validator**: Validation framework (new)
+   - Runtime validation against ground truth
+   - Parameter validation before execution
    - Error handling and recovery strategies
 
-### **Revised Data Flow**:
+### **Clarified Data Flow**:
 ```
-User Request → [Planner] → Validated YML Flow → [Executor] → 
-[Parameter Extraction] → [Pre-execution Validation] → [Tool Execution] → 
-[Post-execution Validation] → [Error Recovery if needed] → Final Result
+User Request → [LLM Prompt Refinement] → [Rule-based YML Generation] → 
+[Executor] → [Direct Execution] → [Parameter Extraction] → [Tool Execution] → 
+[Result Validation] → [Error Recovery if needed] → Final Result
 ```
 
 ## 🎯 **Key Implementation Requirements**
 
-### **Phase 1: Enhanced Flow Generation**:
-1. **LLM-first with Templates**: Use structured templates for LLM generation
-2. **Intelligent Fallbacks**: Rule-based for simple prompts, LLM for complex
-3. **Flow Validation**: Validate generated flows before execution
-4. **Template Library**: Create templates for common flow patterns
+### **Phase 1: Enhanced Prompt Refinement**:
+1. **LLM Integration for Refinement**:
+   - Refine user prompts to clear, unambiguous language
+   - Fix typos and normalize language variations
+   - Extract intent and key parameters
+   - Add context for execution
 
-### **Phase 2: Validation-driven Execution**:
-1. **Parameter Extraction**: Choose LLM or rule-based based on complexity
-2. **Pre-execution Validation**: Validate parameters before tool calls
-3. **Tool Execution**: Execute with proper error handling
-4. **Post-execution Validation**: Verify results against expectations
-5. **Error Recovery**: Handle failures with configured strategies
+2. **Template-based YML Generation**:
+   - Use refined prompts with rule-based templates
+   - Ensure technical accuracy in YML structure
+   - Include appropriate ground truth for validation
+
+### **Phase 2: Direct Execution with Validation**:
+1. **Maintain Direct Execution Functions**:
+   - Keep execute_direct_sol_transfer, execute_direct_jupiter_swap, etc.
+   - These functions correctly parse refined prompts
+   - Extract parameters using established patterns
+
+2. **Add Runtime Validation**:
+   - Validate extracted parameters against ground truth
+   - Check constraints before tool execution
+   - Validate results after execution
+
+3. **Implement Error Recovery**:
+   - Handle parameter validation failures
+   - Retry with adjusted parameters when appropriate
+   - Provide clear error messages for debugging
 
 ### **Validation Framework**:
-1. **Parameter Validation**: Ensure parameters meet constraints
-2. **State Validation**: Verify state changes match expectations
-3. **Business Rule Validation**: Apply domain-specific rules
-4. **Error Recovery**: Intelligent recovery based on error types
+1. **Parameter Validation**:
+   - Ensure extracted parameters meet constraints
+   - Validate against wallet context
+   - Apply business rules for specific operations
+
+2. **Result Validation**:
+   - Compare execution results against expected outcomes
+   - Handle slippage and rate variations
+   - Verify final state changes
+
+3. **Error Recovery**:
+   - Intelligent recovery based on error types
+   - Parameter adjustments within constraints
+   - Alternative execution strategies
 
 ## 🔄 **Error Recovery Strategy**
 
-### **Recovery Hierarchy**:
-1. **Parameter Adjustments**: Modify parameters within constraints
-2. **Alternative Tools**: Try alternative approaches if available
-3. **Retry with Different Parameters**: Try again with different values
-4. **Partial Success**: Report partial success if applicable
-5. **Graceful Failure**: Fail with clear explanation
+### **Recovery During Execution**:
+1. **Parameter Validation Failures**:
+   - Adjust parameters within constraints
+   - Retry with modified values
+   - Report specific validation errors
+
+2. **Tool Execution Failures**:
+   - Network errors: Retry with backoff
+   - Slippage errors: Adjust parameters and retry
+   - Insufficient balance: Use maximum available
+
+3. **Result Validation Failures**:
+   - Report specific validation failures
+   - Suggest parameter adjustments
+   - Provide clear next steps
 
 ### **Error Types and Responses**:
 ```yaml
@@ -227,48 +200,48 @@ error_responses:
     action: "retry_with_backoff"
     params: ["initial_delay: 1s", "max_retries: 3"]
   
-  tool_unavailable:
-    action: "try_alternative_tool"
-    params: ["alternative: manual_swap"]
+  validation_error:
+    action: "report_and_suggest"
+    params: ["error_type", "suggested_fix"]
 ```
 
 ## 🔄 **Migration Strategy from Current Implementation**
 
-### **Phase 1: Enhance YML Schema** (Week 1)
-1. Add validation rules to YML structures
-2. Update flow generation to include validation parameters
-3. Create validation rule templates for common scenarios
+### **Phase 1: Enhance LLM Integration** (Week 1-2)
+1. Implement proper LLM-based prompt refinement
+2. Create templates for common operation types
+3. Add prompt refinement tests
 
-### **Phase 2: Refine Planner** (Week 2-3)
-1. Implement LLM-first flow generation with templates
-2. Add flow validation before returning flows
-3. Enhance rule-based fallback for simple cases
+### **Phase 2: Strengthen Rule-based YML Generation** (Week 2-3)
+1. Enhance rule-based templates for YML generation
+2. Add more comprehensive ground truth generation
+3. Improve wallet context resolution
 
-### **Phase 3: Redesign Executor** (Week 3-4)
-1. Remove direct/indirect execution distinction
-2. Implement validation-driven execution
-3. Add parameter extraction with LLM/rule-based selection
+### **Phase 3: Add Validation Framework** (Week 3-4)
+1. Create validation components
+2. Implement parameter validation
+3. Add result validation against ground truth
 
-### **Phase 4: Implement Validator** (Week 4-5)
-1. Create validation framework components
-2. Implement pre and post-execution validation
-3. Add error recovery strategies
+### **Phase 4: Implement Error Recovery** (Week 4-5)
+1. Add error recovery strategies
+2. Implement retry logic with backoff
+3. Add comprehensive error reporting
 
 ### **Phase 5: Enhance Tests** (Week 5-6)
-1. Update tests to work with new validation rules
-2. Add comprehensive error handling tests
-3. Add performance benchmarks
+1. Add tests for prompt refinement
+2. Add validation tests
+3. Add error recovery tests
 
 ## 📊 **Success Metrics**
 
 ### **Functional Requirements**:
-- Handle 90%+ of common DeFi operations without manual intervention
+- Handle 90%+ of common DeFi operations with refined prompts
 - Successfully recover from common error scenarios
 - Generate appropriate flows for 95%+ of user prompts
 
 ### **Performance Requirements**:
-- Flow generation < 2 seconds for 90% of prompts
-- Parameter extraction < 500ms for 90% of steps
+- Prompt refinement < 1 second for 90% of prompts
+- YML generation < 500ms for 90% of cases
 - End-to-end execution < 10 seconds for simple flows
 
 ### **Quality Requirements**:
@@ -278,22 +251,24 @@ error_responses:
 
 ## 📝 **Next Immediate Steps**
 
-1. **Create Enhanced YML Schema** (Week 1)
-   - Add validation rules to current YmlStep structure
-   - Define validation rule templates for common scenarios
-   - Update test YML files to use new structure
+1. **Enhance LLM Prompt Refinement** (Week 1)
+   - Implement proper LLM integration for prompt refinement
+   - Create templates for refined prompts
+   - Add tests for refinement quality
 
-2. **Implement Validation Framework** (Week 2)
+2. **Strengthen Rule-based YML Generation** (Week 1-2)
+   - Improve templates for YML generation
+   - Enhance ground truth generation
+   - Add more comprehensive validation rules
+
+3. **Add Validation Framework** (Week 2-3)
    - Create parameter validation components
-   - Implement pre and post-execution validation
+   - Implement result validation
+   - Add validation to the execution flow
+
+4. **Implement Error Recovery** (Week 3-4)
    - Add error recovery strategies
+   - Implement retry logic
+   - Add comprehensive error reporting
 
-3. **Refine Planner** (Week 2-3)
-   - Make LLM-first generation the default
-   - Create flow generation templates
-   - Add flow validation before execution
-
-4. **Update Executor** (Week 3-4)
-   - Replace direct/indirect with validation-driven approach
-   - Implement parameter extraction with LLM/rule selection
-   - Add comprehensive error handling
+This revised plan corrects the misunderstandings about LLM vs rule-based responsibilities, maintains the strengths of the current implementation, and focuses on enhancing the existing architecture rather than replacing it.
