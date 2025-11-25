@@ -21,6 +21,40 @@ The end_to_end_swap.rs test had several issues that needed to be addressed:
 - Updated error handling to remove unnecessary SURFPOOL restart on errors
 - Fixed format string warnings in error messages
 - Refactored the `final_signature` handling to use a loop that directly returns the signature
+# Reev Core Implementation Issues
+
+## Issue #81: Fix "Sell All SOL" Test Intent Parsing
+
+### Status: IN PROGRESS
+
+### Description:
+The "sell all SOL" test is failing because the LLM response with percentage parameter is not being correctly parsed in the planner. The test is only swapping 1 SOL instead of all 5 SOL.
+
+### Current Issue:
+1. LLM correctly returns `{"amount": null, "percentage": "100%"}` for "sell all SOL" prompt
+2. Planner correctly handles `amount: null` case but not the `percentage: "100%"` case
+3. Step name shows "swap 1.0 SOL to USDC" instead of "swap 5.0 SOL to USDC"
+4. JupiterSwapArgs has `amount: 1000000000` (1 SOL) instead of `amount: 5000000000` (5 SOL)
+
+### Success Criteria:
+- ✅ LLM correctly parses "sell all SOL" as swap with 100% percentage
+- ✅ Planner correctly converts percentage to amount (5.0 SOL)
+- ✅ Step name shows "swap 5.0 SOL to USDC"
+- ✅ JupiterSwapArgs has `amount: 5000000000` (5 SOL)
+- ✅ Test swaps all 5 SOL instead of just 1 SOL
+
+### Tasks Required:
+1. ✅ Fixed `generate_flow_with_llm` to handle `percentage: "100%"` case (COMPLETED)
+2. ✅ Fixed step creation to use correct amount with formatting (COMPLETED)
+3. ✅ Fixed `execute_direct_jupiter_swap` to check for "all" keyword first (COMPLETED)
+4. ❌ Test still only swaps 1 SOL - need further investigation
+5. ❌ Step name still shows "swap 1.0 SOL to USDC" - need to fix flow generation
+
+### Implementation Details:
+- Fixed planner to handle when amount is null and percentage is provided
+- Added conversion from percentage to wallet balance
+- Fixed order of checks in execute_direct_jupiter_swap
+- Added explicit check for "all" string in prompt parsing
 
 ## Issue #75: Create End-to-End SOL Transfer Test
 
@@ -119,10 +153,11 @@ Performance of the two-phase LLM approach has not been benchmarked yet.
 - ✅ **ZAI_API_KEY Issue**: Fixed - all tests now pass without requiring API keys
 
 ### Next Steps:
-1. Continue performance benchmarking as outlined in Issue #70
-2. Expand end-to-end testing to cover more flow types and edge cases
-3. Verify SURFPOOL integration works with real transaction scenarios
-4. Document performance characteristics and success rates
+1. Fix the "sell all SOL" test intent parsing (Issue #81)
+2. Continue performance benchmarking as outlined in Issue #70
+3. Expand end-to-end testing to cover more flow types and edge cases
+4. Verify SURFPOOL integration works with real transaction scenarios
+5. Document performance characteristics and success rates
 
 ## Issue #76: Fix Jupiter Transaction Execution Error 0xfaded
 

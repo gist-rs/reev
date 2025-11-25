@@ -513,7 +513,18 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     info!("Final SOL balance: {}", final_sol_balance);
     info!("Initial SOL balance: {}", initial_sol_balance);
 
-    let expected_sol_balance = initial_sol_balance - 0.1; // We swapped 0.1 SOL
+    // Calculate expected SOL balance based on the prompt
+    // Extract the amount to swap from the prompt
+    let swap_amount = if prompt.contains("sell all") {
+        initial_sol_balance // Swap all SOL
+    } else if let Some(amount_str) = prompt.split_whitespace().nth(1) {
+        // Try to parse the amount (e.g., "0.1" in "swap 0.1 SOL")
+        amount_str.parse::<f64>().unwrap_or(0.1)
+    } else {
+        0.1 // Default to 0.1 SOL
+    };
+
+    let expected_sol_balance = initial_sol_balance - swap_amount;
     let balance_diff = (final_sol_balance - expected_sol_balance).abs();
 
     if balance_diff > 0.01 {

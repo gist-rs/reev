@@ -187,12 +187,40 @@ ground_truth:
             .unwrap_or("USDC")
             .to_uppercase();
 
-        let amount_str = params
-            .get("amount")
-            .and_then(|v| v.as_str())
-            .unwrap_or("1.0");
-
-        let amount: f64 = amount_str.parse().unwrap_or(1.0);
+        // Handle percentage parameter when amount is null or "all"
+        let amount = if let Some("null") = params.get("amount").and_then(|v| v.as_str()) {
+            // Amount is null, check for percentage or use all SOL
+            if let Some(percentage_str) = params.get("percentage").and_then(|v| v.as_str()) {
+                // Convert percentage to amount based on wallet context
+                let percentage = percentage_str
+                    .trim_end_matches('%')
+                    .parse::<f64>()
+                    .unwrap_or(100.0)
+                    / 100.0;
+                wallet_context.sol_balance as f64 * percentage
+            } else {
+                // No percentage specified, use all SOL
+                wallet_context.sol_balance as f64
+            }
+        } else if let Some("all") = params.get("amount").and_then(|v| v.as_str()) {
+            // Explicit "all" specified
+            wallet_context.sol_balance as f64
+        } else if let Some(percentage_str) = params.get("percentage").and_then(|v| v.as_str()) {
+            // Percentage specified directly
+            let percentage = percentage_str
+                .trim_end_matches('%')
+                .parse::<f64>()
+                .unwrap_or(100.0)
+                / 100.0;
+            wallet_context.sol_balance as f64 * percentage
+        } else {
+            // Parse amount directly
+            let amount_str = params
+                .get("amount")
+                .and_then(|v| v.as_str())
+                .unwrap_or("1.0");
+            amount_str.parse::<f64>().unwrap_or(1.0)
+        };
 
         let percentage_str = params.get("percentage").and_then(|v| v.as_str());
 
@@ -222,8 +250,8 @@ ground_truth:
 
                 let step = crate::yml_schema::YmlStep::new(
                     "swap".to_string(),
-                    format!("swap {amount} {from_token} to {to_token}"),
-                    format!("Exchange {amount} {from_token} for {to_token}"),
+                    format!("swap {amount:.1} {from_token} to {to_token}"),
+                    format!("Exchange {amount:.1} {from_token} for {to_token}"),
                 )
                 .with_tool_call(crate::yml_schema::YmlToolCall::new(
                     reev_types::tools::ToolName::JupiterSwap,
