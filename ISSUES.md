@@ -101,3 +101,166 @@ Performance of the two-phase LLM approach has not been benchmarked yet.
 2. Expand end-to-end testing to cover more flow types and edge cases
 3. Verify SURFPOOL integration works with real transaction scenarios
 4. Document performance characteristics and success rates
+
+## Issue #76: Fix Jupiter Transaction Execution Error 0xfaded
+
+### Status: NOT STARTED
+
+### Description:
+End-to-end swap tests are marked as passing despite Jupiter transaction execution failing with custom program error 0xfaded.
+
+### Error Details:
+```
+Program JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4 failed: custom program error: 0xfaded
+```
+
+### Success Criteria:
+- ✅ Jupiter transactions execute successfully on-chain
+- ✅ End-to-end tests fail appropriately when transactions fail
+- ✅ Proper error handling and retry mechanisms for failed transactions
+
+### Tasks Required:
+1. Investigate cause of Jupiter 0xfaded error (may require SURFPOOL restart)
+2. Implement automatic SURFPOOL restart when this error occurs using `reev_lib::server_utils::kill_existing_surfpool(8899)`
+3. Add proper transaction verification to end-to-end tests
+4. Ensure tests fail appropriately when transactions don't complete
+
+### Implementation Details:
+- SURFPOOL restart code already exists in `reev_lib::server_utils::kill_existing_surfpool()`
+- Function is already used in `ensure_surfpool_running()` in end-to-end tests
+- Need to integrate this into the Jupiter error handling in the executor
+- Current tests are incorrectly marked as passing despite transaction failures
+
+## Issue #77: Fix Logger Initialization in Tool Executor
+
+### Status: NOT STARTED
+
+### Description:
+Tool execution attempts to use logger before it's initialized, resulting in warning messages.
+
+### Error Details:
+```
+2025-11-25T03:51:07.855707Z  WARN execute_flow:execute_step_with_recovery: ❌ [jupiter_swap] Failed to get logger: NotInitialized
+```
+
+### Success Criteria:
+- ✅ Logger properly initialized before tool execution
+- ✅ Use ⚠️ emoji instead of ❌ for non-critical warnings
+- ✅ Proper logging levels for different types of messages
+
+### Tasks Required:
+1. Fix logger initialization sequence
+2. Update warning message emoji from ❌ to ⚠️
+3. Ensure proper logging levels for different message types
+
+### Implementation Details:
+- Location of issue: `reev-flow/src/enhanced_otel.rs` in `log_tool_call` macro
+- Line 365-367: `tracing::warn!("❌ [{}] Failed to get logger: {:?}", $tool_name, e);`
+- This should be changed to use ⚠️ emoji instead of ❌ since this is a non-critical warning
+- This happens when the enhanced OTEL logger is not initialized before tool execution
+
+## Issue #78: Fix Failing Unit Tests
+
+### Status: NOT STARTED
+
+### Description:
+Several unit tests are failing due to step count mismatches and process reference issues.
+
+### Error Details:
+1. `reev-core/comprehensive_integration.rs`: test_context_awareness expects 2 step results but gets 1
+2. `reev-orchestrator/orchestrator_tests.rs`: test_swap_lend_flow_generation expects 3 steps but gets 4
+3. `reev-core/end_to_end_swap.rs`: test_cleanup_surfpool fails with "Process reference not initialized"
+
+### Success Criteria:
+- ✅ All unit tests pass consistently
+- ✅ Step count generation is consistent and predictable
+- ✅ Process reference initialization works correctly
+
+### Tasks Required:
+1. Investigate step count generation inconsistencies
+2. Fix process reference initialization for surfpool cleanup
+3. Ensure consistent behavior across all test scenarios
+
+### Implementation Details:
+- `test_context_awareness` in `comprehensive_integration.rs` expects 2 step results but gets 1
+  - Issue: Line 118 expects `flow_result.step_results.len()` to be 2 but only gets 1
+  - This suggests the flow generation is only creating one step instead of the expected two
+- `test_swap_lend_flow_generation` in `orchestrator_tests.rs` expects 3 steps but gets 4
+  - Issue: Line 138 expects `flow.steps.len()` to be 3 but gets 4
+  - This suggests the flow generation is creating an extra step
+- `test_cleanup_surfpool` fails with "Process reference not initialized"
+  - Issue: `SURFPOOL_PROCESS` static variable is not properly initialized before cleanup
+  - Location: `end_to_end_swap.rs` in `cleanup_surfpool()` function
+  - This is likely a race condition or ordering issue in the test setup
+
+## Issue #79: Improve Error Handling in Transaction Execution
+
+### Status: NOT STARTED
+
+### Description:
+Transaction execution errors are not properly handled or reported, making debugging difficult.
+
+### Success Criteria:
+- ✅ Clear, actionable error messages for transaction failures
+- ✅ Proper error propagation through the call stack
+- ✅ Meaningful test failures that help identify root causes
+
+### Tasks Required:
+1. Add specific error messages for different types of transaction failures
+2. Implement proper error handling in the Jupiter swap tool
+3. Ensure test failures provide useful debugging information
+
+## Code Review Summary
+
+### Overall Assessment: LGTM with reservations
+
+### ✅ **What's Working Well:**
+
+1. **Core Architecture**: The two-phase LLM approach with YML schema is properly implemented and follows good design patterns.
+
+2. **Unit Tests**: 
+   - reev-core has 8 passing unit tests
+   - reev-orchestrator has 17 passing unit tests
+   - All integration tests for reev-orchestrator are passing (10 tests)
+
+3. **End-to-End Tests**:
+   - The SOL transfer test (`test_send_1_sol_to_target`) is passing
+   - Both swap tests (`test_swap_0_1_sol_for_usdc` and `test_sell_all_sol_for_usdc`) are passing
+   - The tests correctly demonstrate the 6-step process as described in the documentation
+
+4. **Code Structure**: 
+   - Modular design with proper separation of concerns
+   - Files are kept under the 320-512 line limit as specified in the rules
+   - Types are properly separated into `types.rs` files
+
+5. **Dependencies**: Both crates have appropriate dependencies configured in their Cargo.toml files.
+6. **Clippy Warnings**: No clippy warnings found for either crate.
+
+### ⚠️ **Issues Found:**
+
+1. **Jupiter Transaction Execution**: 
+   - While the swap tests are marked as "passing", they're actually failing to execute transactions on-chain (custom program error: 0xfaded)
+   - The tests are marked as passed because the executor considers the flow "successful" even though the Jupiter transaction fails
+   - This is misleading - the tests should fail if the actual transactions don't complete
+
+2. **Logger Initialization Warning**:
+   - Tool execution attempts to use logger before it's initialized
+   - Uses ❌ emoji instead of ⚠️ for a non-critical warning
+
+3. **Failing Unit Tests**:
+   - `test_context_awareness` in comprehensive_integration.rs expects 2 step results but gets 1
+   - `test_swap_lend_flow_generation` in orchestrator_tests.rs expects 3 steps but gets 4
+   - `test_cleanup_surfpool` in end_to_end_swap.rs fails with "Process reference not initialized"
+
+4. **Error Handling**:
+   - Transaction execution errors are not properly handled or reported
+   - Tests fail without providing useful debugging information
+
+### 📝 **Recommendations:**
+
+1. Fix the Jupiter transaction execution issues (Issue #76)
+2. Update the logger warning emoji from ❌ to ⚠️ (Issue #77)
+3. Fix the failing unit tests (Issue #78)
+4. Improve error handling for better debugging (Issue #79)
+
+The code structure and design are solid, but these issues should be addressed before considering the implementation complete.
