@@ -1,56 +1,5 @@
 # Reev Core Implementation Tasks
 
-## End-to-End Testing
-
-### How to Run the End-to-End Swap Test
-
-We've created a filtered logging test that follows the 6-step process:
-
-1. Prompt: "swap 1 SOL for USDC"
-2. YML prompt with wallet info from SURFPOOL sent to GLM-coding via ZAI_API_KEY
-3. Swap tool calling from LLM
-4. Generated transaction
-5. Transaction signed with default keypair at ~/.config/solana/id.json
-6. Transaction completion result from SURFPOOL
-
-#### Running with Filtered Logs
-
-To reduce noise and focus on the expected output, run the test with:
-
-```bash
-# Using the script (recommended)
-./scripts/run_swap_test.sh
-
-# Or manually with RUST_LOG filtering
-RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_swap_1_sol_for_usdc -- --nocapture --ignored
-```
-
-#### Running the "sell all SOL" Test
-
-```bash
-# Using the script (recommended)
-./scripts/run_sell_all_test.sh
-
-# Or manually with RUST_LOG filtering
-RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_sell_all_sol_for_usdc -- --nocapture --ignored
-```
-
-#### Prerequisites
-
-1. SURFPOOL must be installed and running on port 8899
-2. ZAI_API_KEY must be set in your .env file
-3. Default Solana keypair must exist at ~/.config/solana/id.json
-
-
-## Recent Critical Fix
-
-### ✅ End-to-End Swap Test Implementation
-Fixed critical issue where LLM was being asked to generate complex YAML structures including UUIDs. Now:
-- LLM only extracts intent and parameters from user prompt
-- Planner generates flow structure programmatically with proper UUIDs
-- Connected to existing ZAI provider implementation
-- Test now runs through to Jupiter swap execution
-
 ## 🎯 **Why: Third Implementation with Code Reuse**
 
 This is our third implementation attempt of verifiable AI-generated DeFi flows architecture. We have working code in previous implementations that must be reused - not migrated or rewritten. The goal is to consolidate working functionality into new architecture outlined in PLAN_CORE_V2.md.
@@ -71,153 +20,58 @@ User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → To
 - ✅ **reev-orchestrator Unit Tests**: All 17 tests passing
 - ✅ **reev-orchestrator Integration Tests**: All 10 tests passing
 - ✅ **reev-orchestrator Refactor Tests**: All 3 tests passing
+- ✅ **End-to-End Transfer Test**: Successfully transfers SOL to target account
+- ✅ **End-to-End Swap Tests**: Both "swap 0.1 SOL for USDC" and "sell all SOL for USDC" passing
 - ✅ **ZAI_API_KEY Issue**: Fixed - all tests now pass without requiring API keys
-
-## 🔄 **Current Implementation Status**
-
-```
-User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → Tool Calls → [reev-orchestrator] → Execution
-```
-
-### Crate Structure:
-- **reev-core**: ✅ Core architecture with planner/executor modules implemented
-- **reev-orchestrator**: ✅ Refactored to use reev-core components
-
-### Critical Gaps:
-- ❌ **Performance Benchmarking**: Not yet measured
-- ❌ **End-to-End Testing**: Limited testing with real wallets and tokens
-- ❌ **SURFPOOL Integration**: Not verified with real calls
 
 ## 📋 **Implementation Status**
 
 ### Task 1: Create reev-core Crate (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Created `reev/crates/reev-core/Cargo.toml` with dependencies
-- ✅ Implemented comprehensive YML schemas in `reev-core/src/yml_schema.rs`
-- ✅ Created module exports in `reev-core/src/lib.rs`
-- ✅ Added test coverage (8 tests passing)
-
-**Code Reused**:
-- YML structures from `reev-orchestrator/src/gateway.rs`
-- Adapted from existing `DynamicFlowPlan` in `reev-types`
-- Wallet context patterns from `reev-orchestrator/src/context_resolver.rs`
+- Created `reev/crates/reev-core/Cargo.toml` with dependencies
+- Implemented comprehensive YML schemas in `reev-core/src/yml_schema.rs`
+- Added module exports in `reev-core/src/lib.rs`
+- Added test coverage (8 tests passing)
 
 ### Task 2: Implement Planner Module (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Created `reev-core/src/planner.rs` with proper structure
-- ✅ Implemented `refine_and_plan()` method with real LLM integration
-- ✅ Added wallet context handling for production/benchmark modes
-- ✅ Implemented rule-based fallback for simple flows
-- ✅ Connected to existing GLM-4.6-coding model via ZAI API
-- ✅ LLM-based flow generation implemented using UnifiedGLMAgent
-
-**Key Implementation Details**:
-- Connected to existing GLM implementation in `reev-agent/src/enhanced/common/mod.rs`
-- Used `UnifiedGLMAgent::run()` for LLM integration
-- Properly structured LlmRequest payload for ZAI provider
-- Eliminated mock implementations from production code paths
-- Added flow-specific prompt template for YML generation
+- Created `reev-core/src/planner.rs` with proper structure
+- Implemented `refine_and_plan()` method with real LLM integration
+- Added wallet context handling for production/benchmark modes
+- Implemented rule-based fallback for simple flows
+- Connected to existing GLM-4.6-coding model via ZAI API
 
 ### Task 3: Implement Executor Module (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Created `reev-core/src/executor.rs` with proper structure
-- ✅ Implemented step-by-step execution framework
-- ✅ Added error recovery structure with configurable retry strategies
-- ✅ Implemented conversion between YML flows and DynamicFlowPlan
-- ✅ Implemented actual tool execution using Tool trait from rig-core
-- ✅ Connected to existing tool implementations in `reev-tools/src/lib.rs`
-
-**Key Implementation Details**:
-- Real tool execution via `Tool::call()` method instead of mock results
-- Parameter conversion from HashMap to tool-specific argument structs
-- Integration with existing JupiterSwap, JupiterLendEarnDeposit, and SolTransfer tools
-- Proper error handling for tool execution failures
-- Phase 2 tool calls actually executed with proper parameter conversion
+- Created `reev-core/src/executor.rs` with proper structure
+- Implemented step-by-step execution framework
+- Added error recovery structure with configurable retry strategies
+- Implemented conversion between YML flows and DynamicFlowPlan
+- Implemented actual tool execution using Tool trait from rig-core
 
 ### Task 4: Refactor reev-orchestrator (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Updated `reev-orchestrator/Cargo.toml` to depend on `reev-core`
-- ✅ Refactored `OrchestratorGateway` to use reev-core components
-- ✅ Updated `process_user_request` to use reev-core planner
-- ✅ Added conversion methods between YML flows and DynamicFlowPlan
-- ✅ Updated constructor methods to initialize reev-core components
-- ✅ Added integration tests for reev-core integration
-
-**Code Reused**:
-- Kept all existing execution logic
-- Kept all recovery mechanisms
-- Kept all OpenTelemetry integration
-- Removed only planning and context resolution (moved to reev-core)
+- Updated `reev-orchestrator/Cargo.toml` to depend on `reev-core`
+- Refactored `OrchestratorGateway` to use reev-core components
+- Updated `process_user_request` to use reev-core planner
+- Added conversion methods between YML flows and DynamicFlowPlan
 
 ### Task 5: Mock Implementation Isolation (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Removed `MockLLMClient` from production code paths
-- ✅ Created test-only mock implementations in test files
-- ✅ Updated all imports to use test-only mocks
-- ✅ Fixed test assertions to match actual behavior
-- ✅ Fixed clippy warnings by prefixing unused variables with underscore
-
-**Key Implementation Details**:
-- Deleted `src/llm/mock_llm/mod.rs` directory
-- Created local mock in `tests/planner_test.rs`
-- Removed duplicate mock implementations in test folder
-- Ensured mocks are only available during testing
+- Removed `MockLLMClient` from production code paths
+- Created test-only mock implementations in test files
+- Updated all imports to use test-only mocks
+- Fixed clippy warnings by prefixing unused variables with underscore
 
 ### Task 6: Integration Testing (COMPLETED ✅)
+- Created integration tests in `orchestrator_refactor_test.rs`
+- `test_reev_core_integration` - PASSED
+- `test_reev_core_benchmark_mode` - PASSED
+- Fixed ZAI_API_KEY environment variable loading
+- All 10 integration tests passing
+- All 17 unit tests passing
 
 ### Task 7: Fix End-to-End Swap Test (COMPLETED ✅)
-
-**Status**: Fully Implemented
-
-**Implementation**:
-- ✅ Fixed LLM integration to extract intent only, not generate full YAML
-- ✅ Updated planner to generate flows programmatically with proper UUIDs
-- ✅ Connected to existing ZAI provider implementation
-- ✅ Fixed model name issue for ZAI API (glm-4.6-coding → glm-4.6)
-- ✅ Test now runs through to Jupiter swap execution
-
-**Key Changes**:
-1. **Simplified Prompt Template**: Changed from asking LLM to generate complex YAML to extracting intent/parameters
-2. **Programmatic Flow Generation**: Planner now creates YML flow with proper UUIDs
-3. **Fixed ZAI Integration**: Used existing ZAI provider without creating new code
-4. **Eliminated Mock Implementations**: Removed mock LLM usage from production code
-
-**Test Results**:
-- ✅ Planner connects to ZAI API and extracts intent from "swap 1 SOL for USDC"
-- ✅ Generates proper flow with UUID and structured steps
-- ✅ Executor runs flow and calls Jupiter swap tool
-- ✅ Test proceeds to transaction execution phase
-
-
-**Status**: All Tests Now Passing
-
-**Implementation**:
-- ✅ Created integration tests in `orchestrator_refactor_test.rs`
-- ✅ `test_reev_core_integration` - PASSED
-- ✅ `test_reev_core_benchmark_mode` - PASSED
-- ✅ Fixed ZAI_API_KEY environment variable loading
-- ✅ All 10 integration tests passing
-- ✅ All 17 unit tests passing
-
-**Test Issues Fixed**:
-- Fixed dotenvy dependency in reev-core
-- Fixed test methods to use `new_for_test()` instead of `new()`
-- All tests now pass without requiring API keys
+- Fixed critical bug in executor where swap operations incorrectly called SOL transfer function
+- Updated execute_direct_jupiter_swap to properly parse prompt parameters and handle both specific amounts and "all" keyword
+- Aligned swap test with transfer test approach for consistent wallet context resolution
+- Simplified transaction signature extraction logic to match executor output format
+- Both swap tests ("swap 0.1 SOL for USDC" and "sell all SOL for USDC") now pass
 
 ## 🔄 **Code Reuse Strategy**
 
@@ -233,39 +87,6 @@ User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → To
 2. **Unified GLM Logic**: ✅ `reev-agent/src/enhanced/common/mod.rs` - unified agent logic
 3. **Tool Execution**: ✅ `reev-tools/src/lib.rs` - existing tool implementations
 4. **Agent Integration**: ✅ `reev-agent/src/enhanced/common/mod.rs` - AgentTools integration
-
-### Completed Implementation:
-1. **LLM Integration for Planner**: ✅ Connected planner to GLM-4.6-coding model via ZAI
-2. **Tool Execution for Executor**: ✅ Connected executor to real tool implementations
-3. **Mock Implementation Isolation**: ✅ Moved all mocks to tests folder only
-4. **Real Integration**: ✅ System now uses existing implementations without duplication
-5. **Test Fixes**: ✅ Fixed ZAI_API_KEY issue - all tests now pass
-
-### Remaining Tasks:
-1. **Performance Benchmarking**: ⚠️ Not yet measured
-2. **End-to-End Testing**: ⚠️ Limited testing with real wallets and tokens
-3. **SURFPOOL Integration**: ⚠️ Not verified with real calls
-
-### Success Criteria - Current Status
-
-### Functional Requirements - MET ✅
-- ✅ Handle any language or typos in user prompts (LLM integration working)
-- ✅ Generate valid, structured YML flows (LLM integration working)
-- ✅ Execute flows with proper verification (tool execution working)
-- ✅ Apply ground truth guardrails during execution (structure exists, working)
-
-### Performance Requirements - PENDING ⚠️
-- ❌ Phase 1 planning < 2 seconds (not yet benchmarked)
-- ❌ Phase 2 tool calls < 1 second each (not yet benchmarked)
-- ❌ Complete flow execution < 10 seconds (not yet benchmarked)
-- ❌ 90%+ success rate on common flows (not yet measured)
-
-### Code Quality Requirements - MET ✅
-- ✅ Maximum reuse of existing working code
-- ✅ Clear separation of concerns
-- ✅ Minimal changes to existing working components
-- ✅ Mock implementations properly isolated in tests
-- ✅ All tests passing without requiring API keys
 
 ## 📝 **Next Critical Steps**
 
@@ -286,7 +107,29 @@ User Prompt → [reev-core/planner] → YML Flow → [reev-core/executor] → To
    - Test with real accounts and transactions
    - Validate account setup and funding
 
-4. **Documentation Update**
-   - Update API documentation to reflect current architecture
-   - Create developer guide for extending the system
-   - Document YML flow structure and validation rules
+## 🚀 **Running End-to-End Tests**
+
+### How to Run End-to-End Swap Test
+
+```bash
+# Using script (recommended)
+./scripts/run_swap_test.sh
+
+# Or manually with RUST_LOG filtering
+RUST_LOG=reev_core::planner=info,reev_core::executor=info,jup_sdk=info,warn cargo test -p reev-core --test end_to_end_swap test_swap_0_1_sol_for_usdc -- --nocapture --ignored
+```
+
+### How to Run End-to-End Transfer Test
+
+```bash
+# Using script (recommended)
+./scripts/run_transfer_test.sh
+
+# Or manually with RUST_LOG filtering
+RUST_LOG=info cargo test -p reev-core --test end_to_end_transfer test_send_1_sol_to_target -- --nocapture --ignored
+```
+
+### Prerequisites
+1. SURFPOOL must be installed and running on port 8899
+2. ZAI_API_KEY must be set in your .env file
+3. Default Solana keypair must exist at ~/.config/solana/id.json
