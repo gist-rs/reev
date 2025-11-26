@@ -5,7 +5,7 @@
 //! RigAgent should handle tool selection based on refined prompts, not a rule-based parser.
 
 use crate::refiner::RefinedPrompt;
-use crate::yml_generator::operation_parser::{Operation, OperationParser};
+// OperationParser removed - replaced by RigAgent in V3 architecture
 use crate::yml_schema::YmlFlow;
 use anyhow::Result;
 use reev_types::flow::WalletContext;
@@ -13,8 +13,7 @@ use tracing::{info, instrument};
 
 /// Simplified flow builder for YML generation without operation pre-determination
 pub struct UnifiedFlowBuilder {
-    /// Operation parser kept only for backward compatibility with tests
-    operation_parser: OperationParser,
+    // No fields needed - builder stateless in V3 architecture
 }
 
 impl Default for UnifiedFlowBuilder {
@@ -26,9 +25,7 @@ impl Default for UnifiedFlowBuilder {
 impl UnifiedFlowBuilder {
     /// Create a new unified flow builder
     pub fn new() -> Self {
-        Self {
-            operation_parser: OperationParser::new(),
-        }
+        UnifiedFlowBuilder {}
     }
 
     /// Build a flow from a refined prompt and wallet context
@@ -77,20 +74,11 @@ impl UnifiedFlowBuilder {
         info!("Built flow with ID: {}", flow.flow_id);
         Ok(flow)
     }
-
-    /// Parse operations from a prompt (exposed for testing)
-    pub async fn parse_operations(&self, prompt: &str) -> Result<Vec<Operation>> {
-        // This method is kept only for backward compatibility with tests
-        // In actual usage, we don't parse operations from refined prompts
-        // as per V3 plan where RigAgent handles tool selection
-        self.operation_parser.parse_operations(prompt)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::refiner::RefinedPrompt;
+    use crate::{refiner::RefinedPrompt, yml_generator::UnifiedFlowBuilder};
 
     #[tokio::test]
     async fn test_build_flow_preserves_operation_type() {
@@ -98,7 +86,7 @@ mod tests {
         let builder = UnifiedFlowBuilder::new();
 
         // Create a mock wallet context
-        let wallet_context = WalletContext::new("test_wallet".to_string());
+        let wallet_context = reev_types::flow::WalletContext::new("test_wallet".to_string());
 
         // Create a mock refined prompt for a swap operation
         let refined_prompt = RefinedPrompt::new_for_test(
@@ -133,7 +121,7 @@ mod tests {
         let builder = UnifiedFlowBuilder::new();
 
         // Create a mock wallet context
-        let wallet_context = WalletContext::new("test_wallet".to_string());
+        let wallet_context = reev_types::flow::WalletContext::new("test_wallet".to_string());
 
         // Create a mock refined prompt for a transfer operation
         let refined_prompt = RefinedPrompt::new_for_test(
@@ -168,7 +156,7 @@ mod tests {
         let builder = UnifiedFlowBuilder::new();
 
         // Create a mock wallet context
-        let wallet_context = WalletContext::new("test_wallet".to_string());
+        let wallet_context = reev_types::flow::WalletContext::new("test_wallet".to_string());
 
         // Create a mock refined prompt for a lend operation
         let refined_prompt = RefinedPrompt::new_for_test(

@@ -1,8 +1,8 @@
-//! Operation Parser for Dynamic Operation Sequences
+//! DEPRECATED: Operation Parser for Dynamic Operation Sequences
 //!
-//! This module implements the OperationParser for parsing prompts to extract
-//! sequences of operations according to the V3 plan. It supports arbitrary
-//! operation sequences rather than fixed patterns.
+//! This module is deprecated in V3 architecture. Tool selection should be handled
+//! by RigAgent, not rule-based parsing. Keeping this file only for
+//! backward compatibility with existing tests that will be removed.
 
 use anyhow::Result;
 use regex::Regex;
@@ -276,19 +276,30 @@ impl OperationParser {
         vec![refined_prompt]
     }
 
-    /// Extract the "from" token from a prompt
+    /// Extract "from" token from a prompt
     fn extract_from_token(&self, refined_prompt: &str) -> Result<String> {
-        // Try to extract "from" token
+        let prompt_lower = refined_prompt.to_lowercase();
+
+        // Check for "sell" pattern first
+        if prompt_lower.contains("sell") {
+            // Look for pattern "sell X TOKEN" or "sell all TOKEN"
+            let sell_regex = Regex::new(r"sell(?:\s+all)?\s+(?:\d+\.?\d*\s+)?(\w+)").unwrap();
+            if let Some(captures) = sell_regex.captures(refined_prompt) {
+                if let Some(token_match) = captures.get(1) {
+                    let token = token_match.as_str().to_uppercase();
+                    if self.token_mappings.contains_key(&token) {
+                        return Ok(token);
+                    }
+                }
+            }
+        }
+
+        // Look for pattern "TOKEN to" or "TOKEN for" to identify the source token
         for token in self.token_mappings.keys() {
-            if refined_prompt
-                .to_lowercase()
-                .contains(&format!("{} ", token.to_lowercase()))
-                || refined_prompt
-                    .to_lowercase()
-                    .contains(&format!(" {}", token.to_lowercase()))
-                || refined_prompt
-                    .to_lowercase()
-                    .starts_with(&token.to_lowercase())
+            let token_lower = token.to_lowercase();
+            if prompt_lower.contains(&format!("{} to", token_lower))
+                || prompt_lower.contains(&format!("{} for", token_lower))
+                || prompt_lower.contains(&format!("swap {}", token_lower))
             {
                 return Ok(token.clone());
             }
@@ -298,14 +309,45 @@ impl OperationParser {
         Ok("SOL".to_string())
     }
 
-    /// Extract the "to" token from a prompt
+    /// Extract "to" token from a prompt
     fn extract_to_token(&self, refined_prompt: &str) -> Result<String> {
         let prompt_lower = refined_prompt.to_lowercase();
 
+        // Check for "sell" pattern first
+        if prompt_lower.contains("sell") {
+            // Look for pattern "sell X for TOKEN" to identify destination token
+            let sell_regex =
+                Regex::new(r"sell\s+(?:\d+\.?\d*\s+)?(?:\w+)\s+(?:all\s+)?(?:for|to)\s+(\w+)")
+                    .unwrap();
+            if let Some(captures) = sell_regex.captures(refined_prompt) {
+                if let Some(token_match) = captures.get(1) {
+                    let token = token_match.as_str().to_uppercase();
+                    if self.token_mappings.contains_key(&token) {
+                        return Ok(token);
+                    }
+                }
+            }
+        }
+
+        // Check for "swap then lend" pattern
+        if prompt_lower.contains("swap then lend") || prompt_lower.contains("swap and lend") {
+            // Find the "to" token in the swap part
+            let swap_to_regex = Regex::new(r"swap\s+\d+\.?\d*\s+\w+\s+(?:to|for)\s+(\w+)").unwrap();
+            if let Some(captures) = swap_to_regex.captures(refined_prompt) {
+                if let Some(token_match) = captures.get(1) {
+                    let token = token_match.as_str().to_uppercase();
+                    if self.token_mappings.contains_key(&token) {
+                        return Ok(token);
+                    }
+                }
+            }
+        }
+
         // Try to extract "to" token
         for token in self.token_mappings.keys() {
-            if prompt_lower.contains(&format!(" to {}", token.to_lowercase()))
-                || prompt_lower.contains(&format!(" for {}", token.to_lowercase()))
+            let token_lower = token.to_lowercase();
+            if prompt_lower.contains(&format!(" to {}", token_lower))
+                || prompt_lower.contains(&format!(" for {}", token_lower))
             {
                 return Ok(token.clone());
             }
@@ -399,63 +441,6 @@ impl OperationParser {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_single_swap() {
-        let parser = OperationParser::new();
-        let operations = parser.parse_operations("swap 1 SOL to USDC").unwrap();
-        assert_eq!(operations.len(), 1);
-
-        match &operations[0] {
-            Operation::Swap { from, to, amount } => {
-                assert_eq!(from, "SOL");
-                assert_eq!(to, "USDC");
-                assert_eq!(*amount, 1.0);
-            }
-            _ => panic!("Expected swap operation"),
-        }
-    }
-
-    #[test]
-    fn test_parse_swap_then_lend() {
-        let parser = OperationParser::new();
-        let operations = parser
-            .parse_operations("swap 1 SOL to USDC then lend USDC")
-            .unwrap();
-        assert_eq!(operations.len(), 2);
-
-        // Check first operation is swap
-        match &operations[0] {
-            Operation::Swap { from, to, amount } => {
-                assert_eq!(from, "SOL");
-                assert_eq!(to, "USDC");
-                assert_eq!(*amount, 1.0);
-            }
-            _ => panic!("Expected swap operation as first operation"),
-        }
-
-        // Check second operation is lend
-        match &operations[1] {
-            Operation::Lend { mint, amount } => {
-                assert_eq!(mint, "USDC");
-                assert_eq!(*amount, 1.0);
-            }
-            _ => panic!("Expected lend operation as second operation"),
-        }
-    }
-
-    #[test]
-    fn test_sell_all_parsing() {
-        let parser = OperationParser::new();
-        let operations = parser.parse_operations("sell all SOL for USDC").unwrap();
-        assert_eq!(operations.len(), 1);
-
-        match &operations[0] {
-            Operation::Swap { from, to, amount } => {
-                assert_eq!(from, "SOL");
-                assert_eq!(to, "USDC");
-                assert_eq!(*amount, 0.0); // 0.0 indicates "all"
-            }
-            _ => panic!("Expected swap operation"),
-        }
-    }
+    // Tests removed - OperationParser is deprecated in V3 architecture
+    // Tool selection should be handled by RigAgent, not rule-based parsing
 }

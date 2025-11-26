@@ -6,11 +6,11 @@
 //! follows the V3 plan's dynamic operation parsing and composable step builders.
 
 mod flow_templates;
-pub mod operation_parser;
+// pub mod operation_parser; // Removed in V3 architecture
 mod step_builders;
 mod unified_flow_builder;
 
-pub use operation_parser::{FlowTemplate, Operation};
+// pub use operation_parser::{FlowTemplate, Operation}; // Removed in V3 architecture
 pub use unified_flow_builder::UnifiedFlowBuilder;
 
 use anyhow::Result;
@@ -22,11 +22,10 @@ use crate::yml_schema::YmlFlow;
 
 /// YML generator for creating structured flows from refined prompts
 ///
-/// This implementation follows the V3 plan by using the UnifiedFlowBuilder
-/// which supports dynamic operation parsing and composable step builders.
+/// This implementation follows the V3 plan with a simplified YmlGenerator
+/// that generates flows directly without operation parsing.
 pub struct YmlGenerator {
-    /// Unified flow builder for dynamic operation sequences
-    unified_flow_builder: UnifiedFlowBuilder,
+    // Stateless in V3 architecture - no fields needed
 }
 
 impl Default for YmlGenerator {
@@ -38,9 +37,7 @@ impl Default for YmlGenerator {
 impl YmlGenerator {
     /// Create a new YML generator
     pub fn new() -> Self {
-        Self {
-            unified_flow_builder: UnifiedFlowBuilder::new(),
-        }
+        Self {} // Stateless in V3 architecture
     }
 
     /// Create a YML generator with custom error tolerance
@@ -62,12 +59,39 @@ impl YmlGenerator {
             refined_prompt.refined
         );
 
-        // Use the unified flow builder to handle any sequence of operations
-        // This replaces the fixed operation type matching from the previous implementation
-        let flow = self
-            .unified_flow_builder
-            .build_flow_from_operations(refined_prompt, wallet_context)
-            .await?;
+        // Create a simple flow with a single step containing the refined prompt
+        // According to V3 plan, RigAgent should determine tools and parameters
+        let flow_id = uuid::Uuid::new_v4().to_string();
+
+        // Create wallet info from context
+        let wallet_info = crate::yml_schema::YmlWalletInfo::new(
+            wallet_context.owner.clone(),
+            wallet_context.sol_balance,
+        )
+        .with_total_value(wallet_context.total_value_usd);
+
+        // Add tokens to wallet info
+        let mut final_wallet_info = wallet_info;
+        for token in wallet_context.token_balances.values() {
+            final_wallet_info = final_wallet_info.with_token(token.clone());
+        }
+
+        // Create a simple step with the refined prompt
+        let step = crate::yml_schema::YmlStep::new(
+            uuid::Uuid::new_v4().to_string(),
+            refined_prompt.refined.clone(),
+            format!("Executing: {}", refined_prompt.original),
+        )
+        .with_refined_prompt(refined_prompt.refined.clone());
+
+        // Create the flow
+        let flow = crate::yml_schema::YmlFlow::new(
+            flow_id,
+            refined_prompt.original.clone(),
+            final_wallet_info,
+        )
+        .with_step(step)
+        .with_refined_prompt(refined_prompt.refined.clone());
 
         info!("Generated YML flow with ID: {}", flow.flow_id);
         Ok(flow)
