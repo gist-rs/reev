@@ -102,15 +102,59 @@ Current YmlGenerator uses pattern matching for fixed operation types (swap, tran
    - Parse prompts for sequences of operations
    - Support arbitrary operation sequences
    - Extract operation parameters from refined prompts
+   - Define Operation enum for sequence parsing:
+     ```rust
+     enum Operation {
+         Swap { from: String, to: String, amount: f64 },
+         Lend { mint: String, amount: f64 },
+         Transfer { mint: String, to: String, amount: f64 },
+     }
+     ```
+
 2. Implement composable step builders:
-   - Create individual step builders for each operation type
+   - Define individual step creators for each operation type:
+     ```rust
+     async fn create_swap_step(&self, from: &str, to: &str, amount: f64) -> Result<YmlStep>
+     async fn create_lend_step(&self, mint: &str, amount: f64) -> Result<YmlStep>
+     async fn create_transfer_step(&self, mint: &str, to: &str, amount: f64) -> Result<YmlStep>
+     ```
    - Allow dynamic composition of steps
    - Support parameter passing between steps
-3. Refactor YmlGenerator to use OperationParser:
+
+3. Implement a Unified Flow Builder:
+   - Create a single flow builder that can handle any sequence of operations:
+     ```rust
+     async fn build_flow_from_operations(
+         &self,
+         prompt: &str,
+         wallet_context: &WalletContext,
+         operations: Vec<Operation>
+     ) -> Result<YmlFlow>
+     ```
    - Replace fixed operation type matching with dynamic parsing
+   - Use template-based flow generation for common patterns:
+     ```yaml
+     # flow_templates.yml
+     single_operation:
+       steps: [operation]
+     
+     multi_operation:
+       steps: [operation1, operation2, ...]
+     
+     # More complex patterns
+     swap_then_lend:
+       steps: [swap_operation, lend_operation]
+     ```
+
+4. Refactor YmlGenerator to use OperationParser:
+   - Parse "swap 1 SOL to USDC then lend" -> vec![
+       Swap { from: "SOL", to: "USDC", amount: 1.0 },
+       Lend { mint: "USDC", amount: 1.0 }  // Amount from previous step
+     ]
    - Generate flows based on parsed operation sequences
    - Maintain expected_tools hints for RigAgent
-4. Add tests for complex operation sequences
+
+5. Add tests for complex operation sequences
 
 ---
 

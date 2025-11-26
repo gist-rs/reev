@@ -308,11 +308,62 @@ error_responses:
 ### **Phase 2: Improve Scalability** (Week 1-2)
 1. Refactor YmlGenerator for dynamic operation sequences:
    - Create OperationParser for flexible operation detection
-   - Implement composable step builders
+   - Implement composable step builders for individual operations
    - Add support for arbitrary operation sequences
-2. Enhance LanguageRefiner for better prompt refinement
-3. Improve template system for YML generation
-4. Add tests for complex operation sequences
+   
+2. Create a Composable Step-Based System:
+   - Define individual step creators:
+     ```rust
+     async fn create_swap_step(&self, from: &str, to: &str, amount: f64) -> Result<YmlStep>
+     async fn create_lend_step(&self, mint: &str, amount: f64) -> Result<YmlStep>
+     async fn create_transfer_step(&self, mint: &str, to: &str, amount: f64) -> Result<YmlStep>
+     ```
+   - Parse the sequence of operations from the prompt:
+     ```rust
+     async fn parse_operation_sequence(&self, prompt: &str) -> Result<Vec<Operation>>
+     ```
+
+3. Implement a Unified Flow Builder:
+   - Create a single flow builder that can handle any sequence of operations:
+     ```rust
+     async fn build_flow_from_operations(
+         &self,
+         prompt: &str,
+         wallet_context: &WalletContext,
+         operations: Vec<Operation>
+     ) -> Result<YmlFlow>
+     ```
+   - Use template-based flow generation for common patterns:
+     ```yaml
+     # flow_templates.yml
+     single_operation:
+       steps: [operation]
+     
+     multi_operation:
+       steps: [operation1, operation2, ...]
+     
+     # More complex patterns
+     swap_then_lend:
+       steps: [swap_operation, lend_operation]
+     ```
+
+4. Refine the Operation Parsing:
+   - Define Operation enum for sequence parsing:
+     ```rust
+     enum Operation {
+         Swap { from: String, to: String, amount: f64 },
+         Lend { mint: String, amount: f64 },
+         Transfer { mint: String, to: String, amount: f64 },
+     }
+     ```
+   - Parse "swap 1 SOL to USDC then lend" -> vec![
+       Swap { from: "SOL", to: "USDC", amount: 1.0 },
+       Lend { mint: "USDC", amount: 1.0 }  // Amount from previous step
+     ]
+
+5. Enhance LanguageRefiner for better prompt refinement
+6. Improve template system for YML generation
+7. Add tests for complex operation sequences
 
 ### **Phase 3: Integrate Validation** (Week 2-3)
 1. Integrate FlowValidator into execution flow:
@@ -369,7 +420,10 @@ error_responses:
 2. **Improve Scalability** (Week 1-2)
    - Refactor YmlGenerator for dynamic operation sequences
    - Create OperationParser for flexible operation detection
-   - Implement composable step builders
+   - Implement composable step builders for individual operations
+   - Implement unified flow builder that can handle any sequence of operations
+   - Add template-based flow generation for common patterns
+   - Refine operation parsing to support arbitrary sequences
    - Add tests for complex operation sequences
 
 3. **Integrate Validation** (Week 2-3)
