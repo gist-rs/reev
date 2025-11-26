@@ -14,12 +14,15 @@
 ### **Current Implementation Status**:
 - ✅ YML schema and flow structures implemented
 - ✅ Two-phase structure in place (Planner + Executor)
-- ✅ Tool execution framework working with direct execution functions
+- ✅ Tool execution framework working with direct execution functions and RigAgent
 - ✅ End-to-end tests validating real blockchain operations
-- ⚠️ Phase 1 LLM integration incomplete (rule-based fallback primary)
-- ⚠️ LLM role for prompt refinement not fully implemented
-- ❌ Ground truth validation not used during execution
-- ❌ Proper error recovery not implemented
+- ✅ LanguageRefiner implemented for prompt refinement
+- ✅ YmlGenerator implemented for rule-based YML generation
+- ✅ FlowValidator implemented for validation checks
+- ⚠️ Ground truth validation not fully integrated in execution flow
+- ⚠️ Error recovery not implemented in execution flow
+- ❌ Duplicated flow creation functions in planner.rs (create_swap_then_lend_flow, etc.)
+- ❌ Scalability issues with fixed operation patterns
 
 ### **Design Principles for V3**:
 - **Clarify responsibilities**: LLM for language refinement, rules for YML structure, rig for tool selection
@@ -94,6 +97,33 @@ ground_truth:
       critical: true
 ```
 
+### **Current YML Flow Implementation Details**:
+
+1. **LanguageRefiner**: Handles LLM-based prompt refinement
+   - Located in `src/refiner/mod.rs`
+   - Uses GLM-4.6-coding model via ZAI_API_KEY
+   - Refines language without extracting intent
+
+2. **YmlGenerator**: Handles rule-based YML generation
+   - Located in `src/yml_generator/mod.rs`
+   - Uses pattern matching to detect operation types
+   - Generates structured YML with expected_tools hints
+
+3. **FlowValidator**: Handles validation of flows
+   - Located in `src/validation.rs`
+   - Validates YML structure and assertions
+   - Custom assertion validators for different validation types
+
+4. **RigAgent**: Handles tool selection and parameter extraction
+   - Located in `src/execution/rig_agent/mod.rs`
+   - Integrates with rig framework for LLM-driven tool selection
+   - Extracts parameters from refined prompts
+
+5. **Executor**: Handles flow execution with validation
+   - Located in `src/executor.rs`
+   - Converts YML flows to DynamicFlowPlan for execution
+   - Supports both direct execution and RigAgent-based execution
+
 ## 🏗️ **Refined Implementation Architecture**
 
 ### **Core Components**:
@@ -122,10 +152,48 @@ ground_truth:
 
 ### **Clarified Data Flow**:
 ```
-User Request → [LLM Prompt Refinement] → [Rule-based YML Generation] → 
-[Executor] → [Rig Agent] → [Tool Selection] → [Parameter Extraction] → 
-[Tool Execution] → [Result Validation] → [Error Recovery if needed] → Final Result
+User Request → [Planner::refine_and_plan()] → [LanguageRefiner::refine_prompt()] → 
+[YmlGenerator::generate_flow()] → [FlowValidator::validate_flow()] → 
+[Executor::execute_flow()] → [RigAgent::execute_step()] → [ToolExecutor] → 
+[Result Validation] → [Error Recovery if needed] → Final Result
 ```
+
+### **Current Implementation Classes**:
+
+1. **Planner**: Entry point for Phase 1
+   - Uses LanguageRefiner for prompt refinement
+   - Uses YmlGenerator for YML generation
+   - Provides `refine_and_plan()` method for flow generation
+
+2. **LanguageRefiner**: LLM-based prompt refinement
+   - Uses GLM-4.6-coding model via ZAI_API_KEY
+   - Refines language without extracting intent
+   - Provides `refine_prompt()` method
+
+3. **YmlGenerator**: Rule-based YML generation
+   - Uses pattern matching for operation detection
+   - Generates structured YML with expected_tools hints
+   - Provides `generate_flow()` method
+
+4. **FlowValidator**: Validation framework
+   - Validates YML structure and assertions
+   - Custom assertion validators for different validation types
+   - Provides `validate_flow()` method
+
+5. **Executor**: Flow execution engine
+   - Converts YML flows to DynamicFlowPlan for execution
+   - Supports both direct execution and RigAgent-based execution
+   - Provides `execute_flow()` method
+
+6. **RigAgent**: LLM-driven tool selection
+   - Integrates with rig framework for tool selection
+   - Extracts parameters from refined prompts
+   - Provides `execute_step()` method
+
+7. **ToolExecutor**: Tool execution engine
+   - Executes selected tools with extracted parameters
+   - Handles blockchain interactions
+   - Provides `execute_tool()` method
 
 ## 🎯 **Key Implementation Requirements**
 
@@ -225,33 +293,53 @@ error_responses:
 
 ## 🔄 **Migration Strategy from Current Implementation**
 
-### **Phase 1: Enhance LLM Integration** (Week 1-2)
-1. Implement proper LLM-based prompt refinement ONLY
-2. Create templates for common operation types
-3. Add prompt refinement tests
-4. Create rig agent with available tools for Phase 2
+### **Phase 1: Remove Duplication and Clean Up** (Week 1)
+1. Remove unused functions in planner.rs:
+   - generate_flow_rule_based()
+   - create_swap_flow()
+   - create_transfer_flow()
+   - create_lend_flow()
+   - create_swap_then_lend_flow()
+   - Related helper functions like parse_intent(), extract_swap_params(), etc.
+2. Keep builder functions in yml_schema.rs for testing
+3. Ensure existing tests still pass after removal
+4. Update documentation to reflect current implementation
 
-### **Phase 2: Strengthen Rule-based YML Generation** (Week 2-3)
-1. Enhance rule-based templates for YML generation
-2. Add expected_tools hints for rig agent
-3. Add more comprehensive ground truth generation
-4. Improve wallet context resolution
+### **Phase 2: Improve Scalability** (Week 1-2)
+1. Refactor YmlGenerator for dynamic operation sequences:
+   - Create OperationParser for flexible operation detection
+   - Implement composable step builders
+   - Add support for arbitrary operation sequences
+2. Enhance LanguageRefiner for better prompt refinement
+3. Improve template system for YML generation
+4. Add tests for complex operation sequences
 
-### **Phase 3: Add Validation Framework** (Week 3-4)
-1. Create validation components
-2. Implement parameter validation
-3. Add result validation against ground truth
-4. Integrate validation with rig agent feedback
+### **Phase 3: Integrate Validation** (Week 2-3)
+1. Integrate FlowValidator into execution flow:
+   - Add validation before execution in Executor
+   - Add result validation after execution
+   - Implement parameter validation against ground truth
+2. Improve ground truth generation in YmlGenerator
+3. Add validation error handling and reporting
+4. Add comprehensive validation tests
 
-### **Phase 4: Implement Error Recovery** (Week 4-5)
-1. Add error recovery strategies
-2. Implement retry logic with backoff
+### **Phase 4: Implement Error Recovery** (Week 3-4)
+1. Implement ErrorRecoveryEngine:
+   - Add parameter adjustment strategies
+   - Implement retry logic with backoff
+   - Add alternative tool selection via RigAgent
+2. Integrate ErrorRecoveryEngine into Executor
 3. Add comprehensive error reporting
+4. Add error recovery tests
 
-### **Phase 5: Enhance Tests** (Week 5-6)
-1. Add tests for prompt refinement
-2. Add validation tests
-3. Add error recovery tests
+### **Phase 5: Enhance RigAgent Integration** (Week 4-5)
+1. Improve RigAgent for better tool selection:
+   - Enhance parameter extraction from refined prompts
+   - Add tool selection confidence scoring
+   - Implement tool selection fallbacks
+2. Add RigAgent execution validation
+3. Improve RigAgent error handling
+4. Add comprehensive RigAgent tests
 
 ## 📊 **Success Metrics**
 
@@ -272,34 +360,34 @@ error_responses:
 
 ## 📝 **Next Immediate Steps**
 
-1. **Enhance LLM Prompt Refinement** (Week 1)
-   - Implement proper LLM integration for prompt refinement ONLY
-   - Create templates for refined prompts
-   - Add tests for refinement quality
-   - Create rig agent with available tools
+1. **Remove Duplication and Clean Up** (Week 1)
+   - Remove unused functions in planner.rs
+   - Ensure existing tests still pass after removal
+   - Update documentation to reflect current implementation
+   - Add tests to verify removal doesn't break functionality
 
-2. **Strengthen Rule-based YML Generation** (Week 1-2)
-   - Improve templates for YML generation
-   - Add expected_tools hints for rig agent
-   - Enhance ground truth generation
-   - Add more comprehensive validation rules
+2. **Improve Scalability** (Week 1-2)
+   - Refactor YmlGenerator for dynamic operation sequences
+   - Create OperationParser for flexible operation detection
+   - Implement composable step builders
+   - Add tests for complex operation sequences
 
-3. **Add Validation Framework** (Week 2-3)
-   - Create parameter validation components
-   - Implement result validation
-   - Add validation to the execution flow
-   - Integrate validation with rig agent
+3. **Integrate Validation** (Week 2-3)
+   - Integrate FlowValidator into execution flow
+   - Add validation before and after execution
+   - Implement parameter validation against ground truth
+   - Add comprehensive validation tests
 
 4. **Implement Error Recovery** (Week 3-4)
-   - Add error recovery strategies
-   - Implement retry logic
+   - Implement ErrorRecoveryEngine with strategy patterns
+   - Integrate ErrorRecoveryEngine into Executor
    - Add comprehensive error reporting
-   - Add alternative tool selection via rig agent
+   - Add error recovery tests
 
-5. **Migrate to Rig-Driven Execution** (Week 4-6)
-   - Implement rig agent for tool selection and calling
-   - Replace direct tool calls with rig-based execution
-   - Add comprehensive tests for rig-driven execution
-   - Maintain direct execution functions as fallbacks
+5. **Enhance RigAgent Integration** (Week 4-5)
+   - Improve RigAgent for better tool selection
+   - Enhance parameter extraction from refined prompts
+   - Add tool selection confidence scoring
+   - Add comprehensive RigAgent tests
 
 This revised plan corrects the misunderstandings about LLM vs rule-based responsibilities, maintains the strengths of the current implementation, and focuses on enhancing the existing architecture rather than replacing it.
