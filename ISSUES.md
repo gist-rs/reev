@@ -79,10 +79,10 @@ LanguageRefiner needs improvement to handle more complex prompts and edge cases.
 
 ---
 
-## Issue #110: Remove Unused Code in YmlGenerator (NEW)
-### Status: NOT STARTED
+## Issue #110: Remove Unused Code in YmlGenerator (COMPLETED)
+### Status: COMPLETED
 ### Description:
-There are several unused struct and function definitions in yml_generator modules that represent technical debt from previous implementations. These create compilation warnings and maintenance burden.
+There were several unused struct and function definitions in yml_generator modules that represented technical debt from previous implementations. These created compilation warnings and maintenance burden.
 
 ### Success Criteria:
 - Remove unused struct definitions in flow_templates.rs
@@ -91,12 +91,12 @@ There are several unused struct and function definitions in yml_generator module
 - Fix all dead code warnings in yml_generator modules
 - Ensure no functionality is lost
 
-### Tasks Required:
-1. Remove unused FlowTemplateDefinition struct
-2. Remove unused FlowTemplateManager methods
-3. Remove unused step builder implementations
-4. Clean up dead code warnings
-5. Verify all tests still pass after cleanup
+### Tasks Completed:
+1. ✅ Simplified flow_templates.rs by removing unused FlowTemplateDefinition struct and FlowTemplateManager methods
+2. ✅ Simplified step_builders.rs by removing unused step builder implementations
+3. ✅ Kept module structure for future implementation
+4. ✅ Fixed MockLLMClient warning in planner.rs
+5. ✅ Verified core tests still pass after cleanup
 
 ---
 
@@ -146,7 +146,7 @@ The V3 plan specifies robust error recovery as a key component, but current impl
 ## Implementation Priority
 
 ### Week 1:
-1. Issue #111: Complete RigAgent Integration for Tool Selection (NEW)
+1. Issue #111: Complete RigAgent Integration for Tool Selection (NOT STARTED)
 2. Issue #102: Implement Error Recovery Engine (NOT STARTED)
 
 ### Week 2:
@@ -168,7 +168,7 @@ The architecture is now properly aligned with the V3 plan, where RigAgent handle
 
 ## Notes:
 - All completed issues have been removed from this file to reduce noise
-- Future implementation should follow the V3 plan guidelines
+- Future implementation should follow V3 plan guidelines
 - RigAgent should be the primary mechanism for tool selection and parameter extraction
 - Language refinement should preserve operation types and key details
 - Error recovery implementation is a high priority for production readiness

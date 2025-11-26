@@ -384,6 +384,7 @@ pub mod tests {
     async fn test_refine_and_plan() {
         // Mock LLM implementation for testing
         // Create a mock LLM client for testing
+        #[allow(dead_code)]
         struct MockLLMClient;
 
         #[async_trait::async_trait]
