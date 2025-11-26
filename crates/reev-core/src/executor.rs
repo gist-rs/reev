@@ -85,11 +85,8 @@ impl Executor {
         // Convert YML flow to DynamicFlowPlan for execution
         let dynamic_flow_plan = self.yml_to_dynamic_flow_plan(flow, initial_context)?;
 
-        // Get ground truth for validation
-        let _ground_truth = flow
-            .ground_truth
-            .as_ref()
-            .ok_or_else(|| anyhow!("Flow missing ground truth for validation"))?;
+        // Ground truth is optional for validation
+        let _ground_truth = flow.ground_truth.as_ref();
 
         // Execute each step
         for (step_index, step) in flow.steps.iter().enumerate() {
