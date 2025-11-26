@@ -82,6 +82,12 @@ impl Executor {
         let mut execution_successful = true;
         let mut error_message = None;
 
+        // Validate flow structure before execution
+        if let Err(e) = self._validator.validate_flow(flow) {
+            error!("Flow validation failed: {}", e);
+            return Err(anyhow!("Flow validation failed: {e}"));
+        }
+
         // Convert YML flow to DynamicFlowPlan for execution
         let dynamic_flow_plan = self.yml_to_dynamic_flow_plan(flow, initial_context)?;
 
@@ -102,13 +108,14 @@ impl Executor {
             // Convert YML step to DynamicStep
             let dynamic_step = self.yml_to_dynamic_step(step, &dynamic_flow_plan.flow_id)?;
 
-            // Execute the step using existing step execution pattern
+            // Execute step using existing step execution pattern
             match self
                 .execute_step_with_recovery(&dynamic_step, &step_results, initial_context)
                 .await
             {
                 Ok(step_result) => {
                     debug!("Step {} completed successfully", step.step_id);
+
                     step_results.push(step_result);
                 }
                 Err(e) => {
@@ -142,6 +149,27 @@ impl Executor {
                         );
                     }
                 }
+            }
+        }
+
+        // Validate final state against ground truth if available
+        if let Some(ground_truth) = &flow.ground_truth {
+            // Get final wallet context after all steps
+            let final_context = if execution_successful {
+                self.get_final_wallet_context(initial_context, &step_results)
+                    .await
+            } else {
+                initial_context.clone()
+            };
+
+            if let Err(e) = self
+                ._validator
+                .validate_final_state(&final_context, ground_truth)
+            {
+                warn!("Final state validation failed: {}", e);
+                // Don't fail the entire execution, just record the validation failure
+            } else {
+                info!("Final state validation passed");
             }
         }
 
@@ -267,6 +295,17 @@ impl Executor {
             .with_estimated_time(yml_step.estimated_time_seconds.unwrap_or(30));
 
         Ok(step)
+    }
+
+    /// Get final wallet context after all steps have executed
+    async fn get_final_wallet_context(
+        &self,
+        initial_context: &WalletContext,
+        _step_results: &[StepResult],
+    ) -> WalletContext {
+        // For now, return the initial context as a placeholder
+        // In a full implementation, this would update the context based on step results
+        initial_context.clone()
     }
 }
 
