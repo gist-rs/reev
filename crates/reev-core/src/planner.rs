@@ -112,20 +112,9 @@ ground_truth:
     pub async fn refine_and_plan(&self, prompt: &str, wallet_pubkey: &str) -> Result<YmlFlow> {
         info!("Starting Phase 1: Refine and Plan for prompt: {}", prompt);
 
-        // Check if we should use V3 implementation
-        let use_v3 = std::env::var("REEV_USE_V3").unwrap_or_else(|_| "1".to_string()) == "1";
-
-        if use_v3 {
-            return self.refine_and_plan_v3(prompt, wallet_pubkey).await;
-        }
-
-        // Legacy implementation for backward compatibility
-        // Resolve wallet context
-        let wallet_context = self
-            .context_resolver
-            .resolve_wallet_context(wallet_pubkey)
-            .await?;
-        debug!("Resolved wallet context for {}", wallet_pubkey);
+        // Always use V3 implementation as per PLAN_CORE_V3.md
+        // This removes the environment variable check to ensure V3 is always used
+        return self.refine_and_plan_v3(prompt, wallet_pubkey).await;
 
         // Get placeholder mappings
         let mappings = self
@@ -183,6 +172,10 @@ ground_truth:
         let refined_prompt = self.language_refiner.refine_prompt(prompt).await?;
         debug!("Refined prompt: {}", refined_prompt.refined);
 
+        if refined_prompt.changes_detected {
+            info!("Language refinement applied changes");
+        }
+
         // Step 2: Generate YML structure using rule-based templates
         info!("Step 2: Generating YML structure with rule-based templates");
         let yml_flow = self
@@ -191,6 +184,7 @@ ground_truth:
             .await?;
         debug!("Generated YML flow: {}", yml_flow.flow_id);
 
+        // Phase 1 V3 completed successfully
         Ok(yml_flow)
     }
 

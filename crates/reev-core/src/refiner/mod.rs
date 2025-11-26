@@ -6,7 +6,7 @@
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use tracing::{debug, error, info, instrument, warn};
 
 /// Language refiner for refining user prompts
@@ -240,31 +240,8 @@ Respond with a JSON object with the following fields:
         let mut refined = prompt.to_string();
         let mut changes_detected = false;
 
-        // Common typo corrections
-        let corrections: HashMap<&str, &str> = [
-            ("sendd", "send"),
-            ("tranfer", "transfer"),
-            ("trasnfer", "transfer"),
-            ("solana", "SOL"),
-            ("sol", "SOL"),
-            ("eth", "ETH"),
-            ("ethereum", "ETH"),
-            ("usd coin", "USDC"),
-            ("usdc", "USDC"),
-            ("usdt", "USDT"),
-            ("tether", "USDT"),
-        ]
-        .iter()
-        .cloned()
-        .collect();
-
-        // Apply corrections
-        for (wrong, correct) in &corrections {
-            if refined.contains(wrong) {
-                refined = refined.replace(wrong, correct);
-                changes_detected = true;
-            }
-        }
+        // Note: All language refinement including typo corrections should be handled by the LLM
+        // Rule-based refiner only handles basic formatting as a fallback when LLM is unavailable
 
         // Normalize spacing
         let original = refined.clone();
@@ -275,9 +252,9 @@ Respond with a JSON object with the following fields:
 
         // Determine confidence based on changes
         let confidence = if changes_detected {
-            0.8 // High confidence if changes were made
+            0.8 // Lower confidence since we're using fallback without LLM
         } else {
-            0.9 // Even higher confidence if no changes were needed
+            0.9 // High confidence if no changes were needed
         };
 
         RefinedPrompt {
@@ -302,6 +279,13 @@ pub struct RefinedPrompt {
     confidence: f32,
 }
 
+impl RefinedPrompt {
+    /// Get the confidence of the refinement
+    pub fn get_confidence(&self) -> f32 {
+        self.confidence
+    }
+}
+
 /// Extract the refined prompt from GLM reasoning content
 fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
     // The GLM reasoning content contains analysis in Chinese
@@ -324,7 +308,8 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
                         // Handle case where the prompt is truncated (ends with partial address)
                         if refined.len() < 40 {
                             // Likely truncated, reconstruct full address
-                            return "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string();
+                            return "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+                                .to_string();
                         }
                         return refined;
                     }

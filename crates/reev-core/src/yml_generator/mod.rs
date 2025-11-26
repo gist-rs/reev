@@ -6,6 +6,7 @@
 
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
+use regex;
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
@@ -144,7 +145,7 @@ impl YmlGenerator {
             wallet_info = wallet_info.with_token(token.clone());
         }
 
-        // Create swap step with expected_tools hint
+        // Create swap step with expected_tools hint for RigAgent
         let mut step = YmlStep::new(
             "swap".to_string(),
             refined_prompt.original.clone(),
@@ -154,6 +155,7 @@ impl YmlGenerator {
             "Exchange {} {} for {}",
             params.amount, params.from_token, params.to_token
         );
+        // Set expected_tools hint for RigAgent in Phase 2
         let step = step
             .with_expected_tools(vec![ToolName::JupiterSwap])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
@@ -202,13 +204,14 @@ impl YmlGenerator {
             wallet_info = wallet_info.with_token(token.clone());
         }
 
-        // Create transfer step with expected_tools hint
+        // Create transfer step with expected_tools hint for RigAgent
         let mut step = YmlStep::new(
             "transfer".to_string(),
             refined_prompt.original.clone(),
             refined_prompt.refined.clone(),
         );
         step.context = format!("Transfer {} SOL to {}", params.amount, params.recipient);
+        // Set expected_tools hint for RigAgent in Phase 2
         let step = step
             .with_expected_tools(vec![ToolName::SolTransfer])
             .with_tool_call(YmlToolCall::new(ToolName::SolTransfer, true));
@@ -236,6 +239,8 @@ impl YmlGenerator {
 
         Ok(flow)
     }
+
+    /// Parse swap parameters from refined prompt
 
     /// Generate a lend flow
     async fn generate_lend_flow(
@@ -280,7 +285,7 @@ impl YmlGenerator {
             )
             .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
 
-        // Create flow
+        // Create flow with both steps
         let flow = YmlFlow::new(flow_id, refined_prompt.original.clone(), wallet_info)
             .with_refined_prompt(refined_prompt.refined.clone())
             .with_step(step)
@@ -303,7 +308,6 @@ impl YmlGenerator {
         params: SwapThenLendParams,
     ) -> Result<YmlFlow> {
         let flow_id = Uuid::now_v7().to_string();
-        let _swapped_amount_var = "SWAPPED_AMOUNT".to_string();
 
         // Create wallet info
         let mut wallet_info =
@@ -315,27 +319,29 @@ impl YmlGenerator {
             wallet_info = wallet_info.with_token(token.clone());
         }
 
-        // Create swap step with expected_tools hint
+        // Create swap step with expected_tools hint for RigAgent
         let mut step1 = YmlStep::new(
             "swap".to_string(),
             refined_prompt.original.clone(),
             refined_prompt.refined.clone(),
         );
         step1.context = format!(
-            "Exchange {} {} for {}",
+            "Exchange {} {} for {} before lending",
             params.amount, params.from_token, params.to_token
         );
+        // Set expected_tools hint for RigAgent in Phase 2
         let step1 = step1
             .with_expected_tools(vec![ToolName::JupiterSwap])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true));
 
-        // Create lend step with expected_tools hint
+        // Create lend step with expected_tools hint for RigAgent
         let mut step2 = YmlStep::new(
             "lend".to_string(),
             refined_prompt.original.clone(),
             refined_prompt.refined.clone(),
         );
-        step2.context = format!("Lend swapped {} for yield", params.to_token);
+        step2.context = format!("Lend {} SOL to Marinade", params.amount);
+        // Set expected_tools hint for RigAgent in Phase 2
         let step2 = step2
             .with_expected_tools(vec![ToolName::JupiterLendEarnDeposit])
             .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
@@ -344,14 +350,14 @@ impl YmlGenerator {
         let ground_truth = YmlGroundTruth::new()
             .with_error_tolerance(self.default_error_tolerance)
             .with_assertion(
-                YmlAssertion::new("SolBalanceChange".to_string())
+                YmlAssertion::new("TokenBalanceChange".to_string())
                     .with_pubkey(wallet_context.owner.clone())
                     .with_expected_change_lte(-(params.amount + 0.1) * 1_000_000_000.0), // Account for fees
             )
             .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
             .with_tool_call(YmlToolCall::new(ToolName::JupiterLendEarnDeposit, true));
 
-        // Create flow
+        // Create flow with both steps
         let flow = YmlFlow::new(flow_id, refined_prompt.original.clone(), wallet_info)
             .with_refined_prompt(refined_prompt.refined.clone())
             .with_step(step1)
@@ -361,8 +367,8 @@ impl YmlGenerator {
                 crate::yml_schema::FlowMetadata::new()
                     .with_category("swap_then_lend".to_string())
                     .with_tag("jupiter".to_string())
-                    .with_tag("compound".to_string())
-                    .with_complexity(3),
+                    .with_tag("marinade".to_string())
+                    .with_complexity(4),
             );
 
         Ok(flow)
