@@ -379,7 +379,6 @@ impl YmlGenerator {
         // Simple regex-based parsing for demonstration
         // In a real implementation, this would be more sophisticated
         use regex::Regex;
-
         // Parse amount
         let amount = if let Some(captures) =
             Regex::new(r"(\d+(?:\.\d+)?)\s*(\w+)\s+(?:swap|exchange|to)\s+(\w+)")

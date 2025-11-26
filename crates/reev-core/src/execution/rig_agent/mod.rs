@@ -507,7 +507,7 @@ Available tools:
         .to_uppercase();
 
         Ok(json!({
-            "tool_name": "sol_transfer",
+            "tool_name": "jupiter_swap",
             "params": {
                 "recipient": recipient,
                 "amount": amount,

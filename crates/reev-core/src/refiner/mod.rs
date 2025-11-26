@@ -49,10 +49,9 @@ impl LanguageRefiner {
     pub async fn refine_prompt(&self, prompt: &str) -> Result<RefinedPrompt> {
         info!("Refining prompt: {}", prompt);
 
-        // If no API key is configured, use a simple rule-based refiner
+        // If no API key is configured, return error as per V3 plan
         if self.api_key.is_none() {
-            warn!("No API key configured, using rule-based refiner");
-            return Ok(self.rule_based_refine(prompt));
+            return Err(anyhow!("No API key configured for language refiner"));
         }
 
         // Build LLM request for language refinement
@@ -68,8 +67,7 @@ impl LanguageRefiner {
             Ok(response) => response,
             Err(e) => {
                 warn!("LLM request failed: {}", e);
-                warn!("Falling back to rule-based refiner");
-                return Ok(self.rule_based_refine(prompt));
+                return Err(anyhow!("LLM request failed: {e}"));
             }
         };
 
@@ -81,8 +79,7 @@ impl LanguageRefiner {
                 Ok(r) => r,
                 Err(e) => {
                     warn!("Failed to parse LLM JSON response: {}", e);
-                    warn!("Falling back to rule-based refiner");
-                    return Ok(self.rule_based_refine(prompt));
+                    return Err(anyhow!("Failed to parse LLM response: {e}"));
                 }
             }
         } else {
@@ -120,9 +117,10 @@ You are a language refinement assistant for a DeFi application. Your task is to 
 
 1. Fixing typos and grammatical errors
 2. Normalizing cryptocurrency terminology (e.g., "usd coin" -> "USDC", "solana" -> "SOL")
-3. Making the language clearer and more unambiguous
-4. Preserving the original intent and meaning
-5. Keeping the refined prompt concise and direct
+3. Normalizing action words to standard terms (e.g., "sell" -> "swap", "buy" -> "swap")
+4. Making the language clearer and more unambiguous
+5. Preserving the original intent and meaning
+6. Keeping the refined prompt concise and direct
 
 Do NOT:
 - Extract intent or determine tools
@@ -235,35 +233,8 @@ Respond with a JSON object with the following fields:
         }
     }
 
-    /// Rule-based language refinement as fallback
-    fn rule_based_refine(&self, prompt: &str) -> RefinedPrompt {
-        let mut refined = prompt.to_string();
-        let mut changes_detected = false;
-
-        // Note: All language refinement including typo corrections should be handled by the LLM
-        // Rule-based refiner only handles basic formatting as a fallback when LLM is unavailable
-
-        // Normalize spacing
-        let original = refined.clone();
-        refined = refined.split_whitespace().collect::<Vec<&str>>().join(" ");
-        if original != refined {
-            changes_detected = true;
-        }
-
-        // Determine confidence based on changes
-        let confidence = if changes_detected {
-            0.8 // Lower confidence since we're using fallback without LLM
-        } else {
-            0.9 // High confidence if no changes were needed
-        };
-
-        RefinedPrompt {
-            original: prompt.to_string(),
-            refined,
-            changes_detected,
-            confidence,
-        }
-    }
+    // Rule-based refiner removed as per V3 plan
+    // All language refinement must be handled by the LLM
 }
 
 /// Result of language refinement

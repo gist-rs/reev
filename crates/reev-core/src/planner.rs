@@ -115,42 +115,6 @@ ground_truth:
         // Always use V3 implementation as per PLAN_CORE_V3.md
         // This removes the environment variable check to ensure V3 is always used
         return self.refine_and_plan_v3(prompt, wallet_pubkey).await;
-
-        // Get placeholder mappings
-        let mappings = self
-            .context_resolver
-            .get_placeholder_mappings(&wallet_context)
-            .await;
-
-        // Build YML wallet info
-        let _wallet_info =
-            YmlWalletInfo::new(wallet_pubkey.to_string(), wallet_context.sol_balance)
-                .with_total_value(wallet_context.total_value_usd);
-
-        // Check if we should force rule-based generation (for testing)
-        let use_rule_based = std::env::var("REEV_USE_RULE_BASED").is_ok();
-
-        // Generate structured YML flow using LLM or rule-based fallback
-        let yml_flow = if use_rule_based || self.llm_client.is_none() {
-            if use_rule_based {
-                info!("Using rule-based flow generation (forced by REEV_USE_RULE_BASED)");
-            } else {
-                warn!("No LLM client configured, using rule-based fallback");
-            }
-            self.generate_flow_rule_based(prompt, &wallet_context, &mappings)
-                .await?
-        } else {
-            info!("Using LLM client for flow generation");
-            self.generate_flow_with_llm(
-                prompt,
-                &wallet_context,
-                self.llm_client.as_ref().unwrap().as_ref(),
-            )
-            .await?
-        };
-
-        debug!("Generated YML flow: {}", yml_flow.flow_id);
-        Ok(yml_flow)
     }
 
     /// V3 implementation of refine_and_plan using LanguageRefiner and YmlGenerator

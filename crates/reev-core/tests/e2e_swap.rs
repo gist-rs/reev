@@ -190,6 +190,19 @@ steps:
                 if let Some(sig_str) = sig.as_str() {
                     return Some(sig_str.to_string());
                 }
+            } else if let Some(tool_results) = r.output.get("tool_results") {
+                // RigAgent format: check tool_results array
+                if let Some(results_array) = tool_results.as_array() {
+                    for result in results_array {
+                        if let Some(jupiter_swap) = result.get("jupiter_swap") {
+                            if let Some(sig) = jupiter_swap.get("transaction_signature") {
+                                if let Some(sig_str) = sig.as_str() {
+                                    return Some(sig_str.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
             }
             // Also check tool calls array for signatures
             for call in &r.tool_calls {
