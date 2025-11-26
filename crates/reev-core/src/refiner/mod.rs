@@ -270,7 +270,6 @@ pub struct RefinedPrompt {
 
 impl RefinedPrompt {
     /// Create a new refined prompt (for testing)
-    #[cfg(test)]
     pub fn new_for_test(original: String, refined: String, changes_detected: bool) -> Self {
         Self {
             original,
