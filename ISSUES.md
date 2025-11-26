@@ -96,7 +96,8 @@ There were several unused struct and function definitions in yml_generator modul
 2. ✅ Simplified step_builders.rs by removing unused step builder implementations
 3. ✅ Kept module structure for future implementation
 4. ✅ Fixed MockLLMClient warning in planner.rs
-5. ✅ Verified core tests still pass after cleanup
+5. ✅ Removed all unused code in flow_templates.rs and step_builders.rs
+6. ✅ Verified all tests still pass with no warnings
 
 ---
 
