@@ -1,32 +1,9 @@
+# Reev Core Implementation Issues
 
-```# Reev Core Implementation Issues
-
-## Issue #100: Remove Duplicated Flow Creation Functions (COMPLETED)
+## Issue #101: Integrate Validation Into Execution Flow (COMPLETED)
 ### Status: COMPLETED
 ### Description:
-There is duplication in codebase with flow creation functions like `create_swap_then_lend_flow`, `create_swap_flow`, etc. appearing in both planner.rs and yml_schema.rs. The planner.rs versions are not used by any current code or tests (marked as "never used" by compiler), but they create confusion and maintenance burden.
-
-### Success Criteria:
-- Remove unused flow creation functions in planner.rs
-- Keep builder functions in yml_schema.rs for testing
-- Existing tests still pass after removal
-- Documentation updated to reflect current implementation
-- No compiler warnings about dead code
-
-### Tasks Completed:
-1. ✅ Identified all unused functions in planner.rs related to flow creation
-2. ✅ Removed these functions and their related code
-3. ✅ Ensured no code references the removed functions
-4. ✅ Created a cleaner planner.rs with only essential functions (425 lines, within 320-512 line limit)
-5. ✅ Split yml_generator into smaller modules (mod.rs: 189 lines, operation_types.rs: 179 lines, flow_builders.rs: 242 lines)
-6. ✅ Fixed all compilation errors and warnings
-
----
-
-## Issue #101: Integrate Validation Into Execution Flow (IN PROGRESS)
-### Status: IN PROGRESS
-### Description:
-Validation is currently disconnected from execution flow. The validator exists but isn't integrated into the actual execution process to verify results match expectations. This breaks the core V3 validation loop where execution results should be validated against ground truth.
+Validation was disconnected from execution flow. The validator existed but wasn't integrated into the actual execution process to verify results match expectations. This broke the core V3 validation loop where execution results should be validated against ground truth.
 
 ### Success Criteria:
 - Integrate FlowValidator into execution process
@@ -34,10 +11,10 @@ Validation is currently disconnected from execution flow. The validator exists b
 - Record validation results in execution logs
 - Handle validation failures with appropriate error messages
 
-### Tasks Required:
-1. ✅ Modify Executor to validate flow structure before execution
-2. ✅ Add final state validation after execution (when ground truth is available)
-3. ✅ Implement validation error handling in executor
+### Tasks Completed:
+1. ✅ Modified Executor to validate flow structure before execution
+2. ✅ Added final state validation after execution (when ground truth is available)
+3. ✅ Implemented validation error handling in executor
 4. ✅ Test validation with e2e tests (all passing)
 
 ---
@@ -59,45 +36,6 @@ Error recovery is incomplete. While there's a RecoveryConfig struct, the actual 
 3. Implement slippage adjustment for swap failures
 4. Create error classification system
 5. Add recovery metrics and logging
-
----
-
-## Issue #103: Fix OperationParser Architecture Mismatch (COMPLETED)
-### Status: COMPLETED
-### Description:
-Current implementation incorrectly used OperationParser to extract operations from refined prompts using regex, which violated V3 plan architecture. According to V3, RigAgent should use refined prompts directly for LLM-driven tool selection, not rely on rule-based operation parsing.
-
-### Success Criteria:
-- Remove operation extraction from refined prompts
-- Let RigAgent determine tools from refined prompts directly
-- Simplify YML generation to not pre-determine operations
-- Maintain backward compatibility for existing tests
-
-### Tasks Completed:
-1. ✅ Fixed UnifiedFlowBuilder to create YML with just refined prompts
-2. ✅ Removed operation pre-determination from YML generation
-3. ✅ Aligned implementation with V3 plan where RigAgent handles tool selection
-4. ✅ Added 'sell' as synonym for 'swap' in OperationParser
-5. ✅ Verified all e2e tests pass
-
----
-
-## Issue #104: Fix E2E Test Failures (COMPLETED)
-### Status: COMPLETED
-### Description:
-End-to-end tests were failing due to missing environment variables and incorrect error handling in the LanguageRefiner.
-
-### Success Criteria:
-- All e2e tests pass with proper error handling
-- LanguageRefiner handles missing API keys gracefully
-- Tests provide meaningful output for debugging
-- Tests cover all major operation types
-
-### Tasks Completed:
-1. ✅ Fixed LanguageRefiner to handle missing ZAI_API_KEY
-2. ✅ Updated error messages for better debugging
-3. ✅ Fixed test output format for better readability
-4. ✅ Verified all e2e tests (swap, transfer, lend) pass
 
 ---
 
@@ -141,76 +79,83 @@ LanguageRefiner needs improvement to handle more complex prompts and edge cases.
 
 ---
 
-## Issue #107: Refactor Large Files (COMPLETED)
-### Status: COMPLETED
+## Issue #110: Remove Unused Code in YmlGenerator (NEW)
+### Status: NOT STARTED
 ### Description:
-Several files in the codebase exceed the 320-512 line limit, making them difficult to maintain. This violates the project's architectural guidelines.
+There are several unused struct and function definitions in yml_generator modules that represent technical debt from previous implementations. These create compilation warnings and maintenance burden.
 
 ### Success Criteria:
-- All files are within the 320-512 line limit
-- Related code is properly organized into logical modules
-- No functionality is lost in the refactoring process
-- All tests continue to pass
+- Remove unused struct definitions in flow_templates.rs
+- Remove unused function implementations in flow_templates.rs
+- Remove unused step builders in step_builders.rs
+- Fix all dead code warnings in yml_generator modules
+- Ensure no functionality is lost
 
-### Tasks Completed:
-1. ✅ Split planner.rs into smaller, focused modules
-2. ✅ Split yml_generator.rs into logical components
-3. ✅ Created proper module organization
-4. ✅ Ensured all modules are within the size limits
-5. ✅ Verified all tests pass after refactoring
+### Tasks Required:
+1. Remove unused FlowTemplateDefinition struct
+2. Remove unused FlowTemplateManager methods
+3. Remove unused step builder implementations
+4. Clean up dead code warnings
+5. Verify all tests still pass after cleanup
 
 ---
 
-## Issue #108: Fix LLM Swap Transfer Bug (COMPLETED)
-### Status: COMPLETED
+## Issue #111: Complete RigAgent Integration for Tool Selection (NEW)
+### Status: NOT STARTED
 ### Description:
-LanguageRefiner had hardcoded fallback responses that changed operation types, violating V3 plan. When LLM response parsing failed, it returned "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq", changing "swap 0.1 SOL for USDC" to a transfer operation with a specific recipient address.
+Test outputs show "No RigAgent available, fallback to direct JupiterSwap execution", indicating that RigAgent integration is incomplete. According to V3 plan, RigAgent should be the primary mechanism for tool selection based on refined prompts.
 
 ### Success Criteria:
-- Remove hardcoded fallback responses that change operation types
-- Ensure operation type preservation during language refinement
-- Fix fallback logic to preserve original operation type
-- Add proper error handling when LLM response can't be parsed
-- Test with "swap 0.1 SOL for USDC" to ensure it remains a swap operation
+- Ensure RigAgent is properly initialized in production
+- Remove fallback to direct tool execution when possible
+- Ensure RigAgent handles tool selection based on refined prompts
+- Maintain backward compatibility with existing tests
+- Test RigAgent integration with all operation types
 
-### Tasks Completed:
-1. ✅ Fixed hardcoded fallback responses to return original prompt unchanged
-2. ✅ Enhanced system prompt to emphasize operation type preservation
-3. ✅ Removed requirement for ground truth validation in executor
-4. ✅ Verified all e2e tests passing: swap, transfer, rig_agent, and sell operations
-5. ✅ Confirmed "sell all SOL for USDC" is correctly parsed as swap operation
+### Tasks Required:
+1. Fix RigAgent initialization in executor
+2. Ensure RigAgent is properly configured with required tools
+3. Modify executor to prioritize RigAgent over direct execution
+4. Add proper error handling when RigAgent is unavailable
+5. Update tests to verify RigAgent is being used
 
 ---
 
-## Issue #109: Fix OperationParser Architectural Mismatch (COMPLETED)
-### Status: COMPLETED
+## Issue #112: Add Comprehensive Error Recovery (NEW)
+### Status: NOT STARTED
 ### Description:
-Current implementation incorrectly used OperationParser to extract operations from refined prompts using regex, which violated V3 plan architecture. According to V3, RigAgent should use refined prompts directly for LLM-driven tool selection, not rely on rule-based operation parsing.
+The V3 plan specifies robust error recovery as a key component, but current implementation has minimal error handling. Error recovery should handle different error types with appropriate strategies.
 
 ### Success Criteria:
-- Remove operation extraction from refined prompts
-- Let RigAgent determine tools from refined prompts directly
-- Simplify YML generation to not pre-determine operations
-- Maintain backward compatibility for existing tests
+- Implement error classification for different failure types
+- Add retry logic with exponential backoff for transient errors
+- Implement alternative path selection for failed transactions
+- Add slippage adjustment for swap failures
+- Add circuit breaker pattern for repeated failures
 
-### Tasks Completed:
-1. ✅ Fixed UnifiedFlowBuilder to create YML with just refined prompts
-2. ✅ Removed operation pre-determination from YML generation
-3. ✅ Aligned implementation with V3 plan where RigAgent handles tool selection
-4. ✅ Added 'sell' as synonym for 'swap' in OperationParser
-5. ✅ Verified all e2e tests pass
+### Tasks Required:
+1. Create error classification system
+2. Implement retry logic with exponential backoff
+3. Add alternative transaction path selection
+4. Implement slippage adjustment for swap failures
+5. Add circuit breaker for repeated failures
+6. Add recovery metrics and logging
 
 ---
 
 ## Implementation Priority
 
 ### Week 1:
-1. Issue #101: Integrate Validation Into Execution Flow (IN PROGRESS)
+1. Issue #111: Complete RigAgent Integration for Tool Selection (NEW)
 2. Issue #102: Implement Error Recovery Engine (NOT STARTED)
 
 ### Week 2:
 3. Issue #105: Enhance RigAgent Integration (NOT STARTED)
 4. Issue #106: Improve LanguageRefiner (NOT STARTED)
+
+### Week 3:
+5. Issue #110: Remove Unused Code in YmlGenerator (NEW)
+6. Issue #112: Add Comprehensive Error Recovery (NEW)
 
 ### Current State Summary (Handover):
 The LLM Swap Transfer Bug (Issue #108) has been successfully fixed. All e2e tests are now passing, including:
@@ -219,10 +164,11 @@ The LLM Swap Transfer Bug (Issue #108) has been successfully fixed. All e2e test
 - rig_agent tool selection
 - "sell" terminology parsing as swap operations
 
-The architecture is now properly aligned with the V3 plan, where RigAgent handles tool selection based on refined prompts rather than rule-based operation parsing.
+The architecture is now properly aligned with the V3 plan, where RigAgent handles tool selection based on refined prompts rather than rule-based operation parsing. However, RigAgent integration appears to be incomplete based on test outputs showing fallback to direct execution.
 
 ## Notes:
-- All completed issues have been properly documented and marked
+- All completed issues have been removed from this file to reduce noise
 - Future implementation should follow the V3 plan guidelines
 - RigAgent should be the primary mechanism for tool selection and parameter extraction
 - Language refinement should preserve operation types and key details
+- Error recovery implementation is a high priority for production readiness
