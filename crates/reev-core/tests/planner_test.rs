@@ -13,7 +13,7 @@ async fn test_planner_creation() {
     let _planner = Planner::new(context_resolver);
 
     // Test that planner can be created
-    assert!(true);
+    // Planner creation test passed
 }
 
 #[tokio::test]
@@ -23,11 +23,11 @@ async fn test_planner_with_glm() {
     match Planner::new_with_glm(context_resolver) {
         Ok(_planner) => {
             // Successfully created planner with GLM
-            assert!(true);
+            // Planner with GLM creation test passed
         }
         Err(_e) => {
             // Failed to create planner with GLM (likely missing ZAI_API_KEY)
-            assert!(true);
+            // Expected failure when ZAI_API_KEY is missing
         }
     }
 }

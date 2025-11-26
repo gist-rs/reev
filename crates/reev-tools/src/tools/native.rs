@@ -177,11 +177,26 @@ impl Tool for SolTransferTool {
             );
             resolved.clone()
         } else {
-            warn!(
-                "[SolTransferTool] '{}' not found in key_map, available keys: {:?}",
-                args.recipient_pubkey,
-                self.key_map.keys().collect::<Vec<_>>()
-            );
+            // Check if this is likely a direct pubkey address (starts with a letter and has reasonable length)
+            if args.recipient_pubkey.len() >= 32
+                && args
+                    .recipient_pubkey
+                    .chars()
+                    .next()
+                    .unwrap_or('0')
+                    .is_alphabetic()
+            {
+                info!(
+                    "[SolTransferTool] Using direct address '{}' (not a placeholder from key_map)",
+                    args.recipient_pubkey
+                );
+            } else {
+                warn!(
+                    "[SolTransferTool] '{}' not found in key_map, available keys: {:?}",
+                    args.recipient_pubkey,
+                    self.key_map.keys().collect::<Vec<_>>()
+                );
+            }
             args.recipient_pubkey.clone()
         };
 
