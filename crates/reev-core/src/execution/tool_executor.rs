@@ -84,10 +84,9 @@ impl ToolExecutor {
     ) -> Result<StepResult> {
         info!("Executing step: {}", step.prompt);
 
-        // Use rig agent if available and the step has expected_tools
-        if self.rig_agent.is_some() && step.expected_tools.is_some() {
-            info!("Using rig agent for tool selection");
-            let rig_agent = self.rig_agent.as_ref().unwrap();
+        // Always use rig agent if available as per V3 plan
+        if let Some(rig_agent) = &self.rig_agent {
+            info!("Using rig agent for tool selection based on refined prompt");
             return rig_agent.execute_step_with_rig(step, wallet_context).await;
         }
 
@@ -98,7 +97,7 @@ impl ToolExecutor {
             Arc::new(self.initialize_tools(&wallet_context.owner).await?)
         };
 
-        // Generate tool calls using LLM
+        // Generate tool calls using fallback approach when RigAgent is not available
         let tool_calls = if step.expected_tool_calls.is_none()
             || step.expected_tool_calls.as_ref().unwrap().is_empty()
         {
@@ -106,7 +105,7 @@ impl ToolExecutor {
             let prompt_lower = step.prompt.to_lowercase();
             if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
                 // If this is a transfer, create a YmlToolCall for SolTransfer
-                info!("No expected tool calls specified for transfer, executing SolTransferTool directly");
+                info!("No RigAgent available, fallback to direct SolTransfer execution");
                 vec![YmlToolCall {
                     tool_name: reev_types::tools::ToolName::SolTransfer,
                     critical: true,
@@ -114,7 +113,7 @@ impl ToolExecutor {
                 }]
             } else {
                 // If no specific tool calls are specified, execute jupiter_swap tool directly
-                info!("No expected tool calls specified, executing jupiter_swap directly");
+                info!("No RigAgent available, fallback to direct JupiterSwap execution");
                 vec![YmlToolCall {
                     tool_name: reev_types::tools::ToolName::JupiterSwap,
                     critical: true,

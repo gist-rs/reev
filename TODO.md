@@ -2,6 +2,46 @@
 
 ---
 
+Current Problem Analysis
+
+The core issue is an architectural mismatch between the current implementation and the V3 plan:
+
+### Current Implementation (Problematic):
+1. **LanguageRefiner** refines prompts but has hardcoded fallbacks that change "swap" to "transfer"
+2. **OperationParser** uses regex to extract operations from refined prompts
+3. **YmlGenerator** uses OperationParser to pre-determine tools and parameters
+4. **Executor** uses these pre-determined values to execute tools
+
+### V3 Plan Architecture:
+1. **Phase 1**: LanguageRefiner refines prompts without changing operation types
+2. **Phase 2**: RigAgent uses refined prompts directly to determine tools and parameters
+
+### The Architectural Conflict:
+The current implementation tries to use a rule-based approach (OperationParser) to extract operations from refined prompts, which completely defeats the purpose of having RigAgent handle tool selection via LLM.
+
+### The Specific Bug:
+When LanguageRefiner fails to properly parse the LLM response, it falls back to a hardcoded "Send 1 SOL to address" response, which changes a swap operation to a transfer operation.
+
+## Solution Approach
+
+The fix should be two-fold:
+
+### 1. Fix LanguageRefiner:
+- Remove the hardcoded fallback responses that change operation types
+- Update system prompt to emphasize preserving operation types
+- Ensure "swap" operations aren't changed to "transfer"
+
+### 2. Remove Pre-determination of Operations:
+- YmlGenerator shouldn't try to parse operations from refined prompts
+- Create simple YML steps with just the refined prompt
+- Let RigAgent handle tool selection based on the refined prompt
+
+This aligns with the V3 plan where the LLM (through RigAgent) determines the appropriate tools based on the refined prompt, not a rule-based parser trying to guess the intent.
+
+The V3 plan does mention OperationParser in Phase 2, but it's meant for creating flexible YML structures for complex operations, not for extracting operations from already refined prompts. It's a tool for the YML generator, not a replacement for RigAgent's LLM-driven tool selection.
+
+---
+
 this is not scale `// Check if the prompt contains transfer keywords to set appropriate default`
 this is look wrong? `// Extract recipient from the prompt`
 `let recipient_pubkey = if let Some(address_start) = prompt.find("gistme") {` // this is really bad coding wtf is hard code "gistme"

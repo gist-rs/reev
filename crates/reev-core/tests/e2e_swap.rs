@@ -169,11 +169,14 @@ steps:
         }
     }
 
-    // Extract transaction signature from the step results, matching format from the executor
-    // Based on executor's process_transaction_with_instructions_step_result function
+    // Debug: Print the entire result structure to understand the format
+    info!(
+        "Full result structure: {}",
+        serde_json::to_string_pretty(&result).unwrap_or_default()
+    );
 
-    // Extract transaction signature from the step results, matching format from the executor
-    // Based on executor's process_transaction_with_instructions_step_result function
+    // Extract transaction signature from step results, matching format from the executor
+    // Based on the executor's process_transaction_with_instructions_step_result function
     let signature = result
         .step_results
         .iter()
@@ -199,19 +202,6 @@ steps:
                                 if let Some(sig_str) = sig.as_str() {
                                     return Some(sig_str.to_string());
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-            // Also check tool calls array for signatures
-            for call in &r.tool_calls {
-                if call.contains("transaction_signature") {
-                    // Extract signature from JSON string
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(call) {
-                        if let Some(sig) = json.get("transaction_signature") {
-                            if let Some(sig_str) = sig.as_str() {
-                                return Some(sig_str.to_string());
                             }
                         }
                     }

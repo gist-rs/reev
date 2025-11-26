@@ -51,6 +51,12 @@ impl YmlFlow {
         self
     }
 
+    /// Add multiple steps and return self for chaining
+    pub fn with_steps(mut self, steps: Vec<YmlStep>) -> Self {
+        self.steps = steps;
+        self
+    }
+
     /// Set ground truth and return self for chaining
     pub fn with_ground_truth(mut self, ground_truth: YmlGroundTruth) -> Self {
         self.ground_truth = Some(ground_truth);
@@ -200,7 +206,7 @@ impl YmlStep {
 }
 
 /// Expected tool call within a step
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct YmlToolCall {
     /// Name of the tool to call
     pub tool_name: ToolName,
@@ -301,6 +307,37 @@ impl YmlGroundTruth {
     /// Set error tolerance and return self for chaining
     pub fn with_error_tolerance(mut self, tolerance: f64) -> Self {
         self.error_tolerance = Some(tolerance);
+        self
+    }
+
+    /// Merge this ground truth with another, combining assertions and tool calls
+    pub fn merge(mut self, other: YmlGroundTruth) -> Self {
+        // Merge final state assertions
+        self.final_state_assertions
+            .extend(other.final_state_assertions);
+
+        // Merge expected tool calls
+        let merged_tool_calls = match (self.expected_tool_calls, other.expected_tool_calls) {
+            (Some(mut self_calls), Some(other_calls)) => {
+                self_calls.extend(other_calls);
+                Some(self_calls)
+            }
+            (Some(self_calls), None) => Some(self_calls),
+            (None, Some(other_calls)) => Some(other_calls),
+            (None, None) => None,
+        };
+        self.expected_tool_calls = merged_tool_calls;
+
+        // Use the smallest error tolerance (more strict)
+        self.error_tolerance = match (self.error_tolerance, other.error_tolerance) {
+            (Some(self_tolerance), Some(other_tolerance)) => {
+                Some(self_tolerance.min(other_tolerance))
+            }
+            (Some(self_tolerance), None) => Some(self_tolerance),
+            (None, Some(other_tolerance)) => Some(other_tolerance),
+            (None, None) => Some(0.01), // Default tolerance
+        };
+
         self
     }
 }

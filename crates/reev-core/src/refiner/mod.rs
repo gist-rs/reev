@@ -98,6 +98,9 @@ impl LanguageRefiner {
             prompt, refined.refined_prompt
         );
 
+        // Log the raw response for debugging
+        debug!("LLM raw response: {}", response);
+
         Ok(RefinedPrompt {
             original: prompt.to_string(),
             refined: refined.refined_prompt,
@@ -117,16 +120,30 @@ You are a language refinement assistant for a DeFi application. Your task is to 
 
 1. Fixing typos and grammatical errors
 2. Normalizing cryptocurrency terminology (e.g., "usd coin" -> "USDC", "solana" -> "SOL")
-3. Normalizing action words to standard terms (e.g., "sell" -> "swap", "buy" -> "swap")
-4. Making the language clearer and more unambiguous
-5. Preserving the original intent and meaning
-6. Keeping the refined prompt concise and direct
+3. Making language clearer and more unambiguous
+4. Preserving original intent and meaning
+5. Keeping refined prompt concise and direct
+
+CRITICAL: PRESERVE THE EXACT OPERATION TYPE AND TOKENS:
+- If user says "swap 0.1 SOL for USDC", the refined prompt MUST still be a "swap" operation
+- If user says "transfer 1 SOL to address", the refined prompt MUST still be a "transfer" operation
+- If user says "lend 100 USDC", the refined prompt MUST still be a "lend" operation
+- DO NOT add recipient addresses that weren't in the original prompt
+- DO NOT change the operation type (swap to transfer, transfer to send, etc.)
+- NEVER replace "swap" with "send" or "transfer" - this breaks the entire system
+- NEVER change token symbols (SOL must remain SOL, USDC must remain USDC)
+- NEVER change "swap" to "send" or "transfer" - this breaks the system
+- For swap operations, keep both tokens mentioned in the original prompt
+- For transfer operations, keep the recipient address exactly as provided
 
 Do NOT:
 - Extract intent or determine tools
-- Add information not present in the original prompt
-- Change the meaning of the request
+- Add information not present in the original prompt (especially recipient addresses)
+- Change action words (swap, transfer, send, lend) to other actions
 - Add explanations or additional context
+- Replace operation types (NEVER replace "swap" with "send" or "transfer")
+- Change token symbols or amounts
+- Assume operations based on incomplete information
 
 Respond with a JSON object with the following fields:
 - refined_prompt: The refined prompt
@@ -238,6 +255,7 @@ Respond with a JSON object with the following fields:
 }
 
 /// Result of language refinement
+/// Result of prompt refinement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefinedPrompt {
     /// Original prompt
@@ -248,6 +266,19 @@ pub struct RefinedPrompt {
     pub changes_detected: bool,
     /// Confidence in the refinement (0.0-1.0)
     confidence: f32,
+}
+
+impl RefinedPrompt {
+    /// Create a new refined prompt (for testing)
+    #[cfg(test)]
+    pub fn new_for_test(original: String, refined: String, changes_detected: bool) -> Self {
+        Self {
+            original,
+            refined,
+            changes_detected,
+            confidence: 0.8, // Default confidence for testing
+        }
+    }
 }
 
 impl RefinedPrompt {
@@ -276,11 +307,11 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
                 if let Some(end) = line.rfind('"') {
                     if end > start {
                         let refined = line[start + 1..end].to_string();
-                        // Handle case where the prompt is truncated (ends with partial address)
+                        // Handle case where the prompt is truncated
                         if refined.len() < 40 {
-                            // Likely truncated, reconstruct full address
-                            return "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
-                                .to_string();
+                            // Likely truncated, return the original prompt unchanged
+                            // This preserves operation type and prevents incorrect operation changes
+                            return reasoning.to_string();
                         }
                         return refined;
                     }
@@ -299,16 +330,18 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
             if !trimmed.is_empty() {
                 // Handle case where the prompt is truncated
                 if trimmed.len() < 40 {
-                    // Likely truncated, reconstruct full address
-                    return "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string();
+                    // Likely truncated, return the original prompt unchanged
+                    // This preserves operation type and prevents incorrect operation changes
+                    return reasoning.to_string();
                 }
                 return trimmed.to_string();
             }
         }
     }
 
-    // If all else fails, return the original input unchanged
-    "Send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+    // If all else fails, return the original reasoning unchanged
+    // This preserves operation type and prevents incorrect operation changes
+    reasoning.to_string()
 }
 
 /// Request for language refinement
