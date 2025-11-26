@@ -1,5 +1,22 @@
 # Reev Core Implementation Issues
 
+## Issue #113: Misleading Commit Message About OperationParser Removal (COMPLETED)
+### Status: COMPLETED
+### Description:
+Commit 9152c2d0 claimed to have "removed deprecated OperationParser" but only marked it as deprecated while keeping all rule-based parsing logic intact. The file was not actually deleted despite the commit message stating otherwise.
+
+### Success Criteria:
+- Actually delete the operation_parser.rs file
+- Update documentation to reflect the removal
+- Ensure all tests still pass
+
+### Tasks Completed:
+1. ✅ Deleted the operation_parser.rs file completely
+2. ✅ Updated mod.rs comments to reflect complete removal
+3. ✅ Verified all reev-core tests still pass
+
+---
+
 ## Issue #101: Integrate Validation Into Execution Flow (COMPLETED)
 ### Status: COMPLETED
 ### Description:

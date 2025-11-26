@@ -3,14 +3,14 @@
 //! This module implements the V3 plan YML generation component in Phase 1.
 //! It uses refined prompts from the LanguageRefiner to generate structured YML flows
 //! with appropriate expected_tools hints for the rig agent. This implementation
-//! follows the V3 plan's dynamic operation parsing and composable step builders.
+//! follows the V3 plan where RigAgent handles tool selection based on refined prompts.
 
 mod flow_templates;
-// pub mod operation_parser; // Removed in V3 architecture
+// operation_parser module has been completely removed in V3 architecture
 mod step_builders;
 mod unified_flow_builder;
 
-// pub use operation_parser::{FlowTemplate, Operation}; // Removed in V3 architecture
+// operation_parser exports removed - module has been completely deleted
 pub use unified_flow_builder::UnifiedFlowBuilder;
 
 use anyhow::Result;
