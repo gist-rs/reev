@@ -43,7 +43,6 @@ async fn test_template_registration() {
 #[tokio::test]
 async fn test_template_rendering() {
     let temp_dir = TempDir::new().unwrap();
-    let engine = TemplateEngine::new(temp_dir.path()).unwrap();
 
     // Create and register a simple template
     let template_path = temp_dir.path().join("test.hbs");
@@ -59,7 +58,7 @@ async fn test_template_rendering() {
         vec![],
     );
 
-    let mut engine = TemplateEngine::new(temp_dir.path()).unwrap();
+    let engine = TemplateEngine::new(temp_dir.path()).unwrap();
     engine
         .register_template_file(&template_path, metadata)
         .await
