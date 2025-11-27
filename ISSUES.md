@@ -118,24 +118,26 @@ There were several unused struct and function definitions in yml_generator modul
 
 ---
 
-## Issue #111: Complete RigAgent Integration for Tool Selection (NEW)
-### Status: NOT STARTED
+## Issue #111: Complete RigAgent Integration for Tool Selection (COMPLETED)
+### Status: COMPLETED
 ### Description:
-Test outputs show "No RigAgent available, fallback to direct JupiterSwap execution", indicating that RigAgent integration is incomplete. According to V3 plan, RigAgent should be the primary mechanism for tool selection based on refined prompts.
+Test outputs showed "No RigAgent available, fallback to direct JupiterSwap execution", indicating that RigAgent integration was incomplete. According to V3 plan, RigAgent should be the primary mechanism for tool selection based on refined prompts.
 
 ### Success Criteria:
-- Ensure RigAgent is properly initialized in production
-- Remove fallback to direct tool execution when possible
-- Ensure RigAgent handles tool selection based on refined prompts
-- Maintain backward compatibility with existing tests
-- Test RigAgent integration with all operation types
+- Ensure RigAgent is properly initialized in production ✅
+- Remove fallback to direct tool execution when possible ✅
+- Ensure RigAgent handles tool selection based on refined prompts ✅
+- Maintain backward compatibility with existing tests ✅
+- Test RigAgent integration with all operation types ✅
 
-### Tasks Required:
-1. Fix RigAgent initialization in executor
-2. Ensure RigAgent is properly configured with required tools
-3. Modify executor to prioritize RigAgent over direct execution
-4. Add proper error handling when RigAgent is unavailable
-5. Update tests to verify RigAgent is being used
+### Tasks Completed:
+1. Fixed RigAgent initialization in executor ✅
+2. Ensured RigAgent is properly configured with required tools ✅
+3. Modified executor to prioritize RigAgent over direct execution ✅
+4. Added proper error handling when RigAgent is unavailable ✅
+5. Updated tests to verify RigAgent is being used ✅
+6. Fixed AgentTools initialization to include private key for signing transactions ✅
+7. Fixed execution flow for all tool types (sol_transfer, jupiter_swap, jupiter_lend_earn_deposit) ✅
 
 ---
 
@@ -164,7 +166,7 @@ The V3 plan specifies robust error recovery as a key component, but current impl
 ## Implementation Priority
 
 ### Week 1:
-1. Issue #111: Complete RigAgent Integration for Tool Selection (NOT STARTED)
+1. ~~Issue #111: Complete RigAgent Integration for Tool Selection (COMPLETED)~~
 2. Issue #102: Implement Error Recovery Engine (NOT STARTED)
 
 ### Week 2:

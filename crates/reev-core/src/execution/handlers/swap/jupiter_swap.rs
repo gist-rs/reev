@@ -60,8 +60,8 @@ pub async fn execute_direct_jupiter_swap(
         // Get the actual wallet balance for the user
         if let Ok(wallet_context) = context_resolver.resolve_wallet_context(wallet_owner).await {
             if input_mint == sol_mint.to_string() {
-                // Reserve 0.05 SOL for gas fees
-                let gas_reserve = 50_000_000u64; // 0.05 SOL
+                // Reserve 0.01 SOL for gas fees
+                let gas_reserve = 10_000_000u64; // 0.01 SOL
                 amount = if wallet_context.sol_balance > gas_reserve {
                     wallet_context.sol_balance - gas_reserve
                 } else {

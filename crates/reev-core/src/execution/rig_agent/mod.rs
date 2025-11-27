@@ -9,16 +9,17 @@ use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
 use reqwest;
 // Client from rig::providers::openai is not used, removed
-use rig::tool::ToolSet;
+use rig::tool::{Tool, ToolSet};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::env;
 use std::string::String;
 use std::sync::Arc;
-use tracing::{debug, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::execution::handlers::transfer::sol_transfer;
+
 use crate::yml_schema::YmlStep;
 use reev_types::tools::ToolName;
 
@@ -95,17 +96,23 @@ impl RigAgent {
 
         // If we have expected tools, use them to guide the agent
         let response = if let Some(tools) = expected_tools {
+            info!("Using expected tools to guide agent: {:?}", tools);
             self.prompt_with_expected_tools(&context_prompt, &tools)
                 .await?
         } else {
+            info!("No expected tools provided, using general agent prompt");
             self.prompt_agent(&context_prompt).await?
         };
+
+        info!("Got response from agent: {}", response);
 
         // Extract tool calls from the response
         let tool_calls = self.extract_tool_calls(&response)?;
 
         // Execute the selected tools
+        info!("Tool calls extracted: {:?}", tool_calls);
         let tool_results = self.execute_tools(tool_calls, wallet_context).await?;
+        info!("Tool execution results: {:?}", tool_results);
 
         // Create the step result
         let step_result = StepResult {
@@ -177,10 +184,17 @@ impl RigAgent {
 }
 
 Available tools:
-- sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string), amount (number in SOL), wallet (string, optional)
-- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string), output_mint (string), input_amount (number), wallet (string, optional)
-- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string), amount (number), wallet (string, optional)
-- get_account_balance: Get account balance. Parameters: account (string), mint (string, optional, defaults to SOL)
+- sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string, required), amount (number in SOL, required), wallet (string, optional)
+- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
+- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required), wallet (string, optional)
+- get_account_balance: Get account balance. Parameters: account (string, required), mint (string, optional, defaults to SOL)
+
+For token mint addresses:
+- SOL: So11111111111111111111111111111111111111112
+- USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+For swap operations, always determine the input and output mints based on the token names (SOL, USDC, etc.).
 ";
 
         // Prepare the request payload
@@ -206,6 +220,9 @@ Available tools:
             temperature: 0.3,
             max_tokens: 1000,
         };
+
+        info!("Sending request to ZAI API with model: {}", model_name);
+        info!("Prompt being sent to ZAI API: {}", prompt);
 
         // Make the API call
         let api_base = env::var("ZAI_API_BASE")
@@ -237,7 +254,7 @@ Available tools:
             .map(|choice| choice.message.content.clone())
             .ok_or_else(|| anyhow!("No content in LLM response"))?;
 
-        debug!("LLM response: {}", content);
+        info!("LLM response: {}", content);
         Ok(content)
     }
 
@@ -245,7 +262,7 @@ Available tools:
     fn extract_tool_calls(&self, response: &str) -> Result<HashMap<String, serde_json::Value>> {
         // This is a simplified implementation
         // In a real implementation, we would parse the JSON response to extract tool calls
-        debug!("Extracting tool calls from response: {}", response);
+        info!("Extracting tool calls from response: {}", response);
 
         // Parse the response to extract tool calls
         self.parse_tool_calls_from_response(response)
@@ -256,20 +273,29 @@ Available tools:
         &self,
         response: &str,
     ) -> Result<HashMap<String, serde_json::Value>> {
-        // Try to parse the response as JSON first
+        // Try to parse response as JSON first
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
+            info!("Parsed JSON response successfully");
             if let Some(tool_calls) = json_value.get("tool_calls").and_then(|v| v.as_array()) {
+                info!("Found {} tool calls in response", tool_calls.len());
                 let mut tool_map = HashMap::new();
                 for tool_call in tool_calls {
                     if let (Some(name), Some(params)) = (
                         tool_call.get("name").and_then(|n| n.as_str()),
                         tool_call.get("parameters"),
                     ) {
+                        info!("Extracted tool call: {} with params: {}", name, params);
                         tool_map.insert(name.to_string(), params.clone());
+                    } else {
+                        info!("Tool call missing name or parameters: {:?}", tool_call);
                     }
                 }
                 return Ok(tool_map);
+            } else {
+                info!("No tool_calls found in JSON response");
             }
+        } else {
+            info!("Failed to parse response as JSON, trying text extraction");
         }
 
         // If JSON parsing fails, try to extract tool calls from text
@@ -398,20 +424,25 @@ Available tools:
         }
 
         // Use the existing AgentTools if available, otherwise create a new one
+        // Create AgentTools for Jupiter swap execution
+        // Create AgentTools for Jupiter Lend Earn Deposit execution
         let agent_tools = if let Some(ref tools) = self.agent_tools {
             Arc::clone(tools)
         } else {
             // Create AgentTools using the wallet context
             // Convert wallet owner string to keypair
-            let _keypair = reev_lib::get_keypair().map_err(|e| {
+            let keypair = reev_lib::get_keypair().map_err(|e| {
                 anyhow!(
                     "Failed to get keypair for wallet {}: {}",
                     wallet_context.owner,
                     e
                 )
             })?;
+
+            // Include both public key and private key base58 in key_map
             let mut key_map = std::collections::HashMap::new();
             key_map.insert("WALLET_PUBKEY".to_string(), wallet_context.owner.clone());
+            key_map.insert("WALLET_KEYPAIR".to_string(), keypair.to_base58_string());
             Arc::new(reev_agent::enhanced::common::AgentTools::new(key_map))
         };
 
@@ -468,55 +499,196 @@ Available tools:
         params: &std::collections::HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<serde_json::Value> {
-        let _input_mint = params
+        let input_mint = params
             .get("input_mint")
             .ok_or_else(|| anyhow!("input_mint parameter is required"))?;
 
-        let _output_mint = params
+        let output_mint = params
             .get("output_mint")
             .ok_or_else(|| anyhow!("output_mint parameter is required"))?;
 
-        let _recipient = params
-            .get("recipient")
-            .ok_or_else(|| anyhow!("recipient parameter is required"))?;
-
         let amount_str = params
-            .get("amount")
-            .ok_or_else(|| anyhow!("amount parameter is required"))?;
+            .get("input_amount")
+            .or_else(|| params.get("amount"))
+            .ok_or_else(|| anyhow!("input_amount parameter is required"))?;
         let amount: f64 = amount_str
             .parse()
             .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
 
-        // Convert SOL amount to lamports (1 SOL = 1,000,000,000 lamports)
+        // Special handling for "all" amount to use full balance
+        let is_all_amount = amount_str.to_lowercase() == "all";
+
+        // Convert amount to lamports (1 SOL = 1,000,000,000 lamports)
         let amount_lamports = (amount * 1_000_000_000.0) as u64;
 
-        // Get recipient
-        let recipient = params
-            .get("recipient")
-            .ok_or_else(|| anyhow!("recipient parameter is required"))?;
+        // Create AgentTools for Jupiter swap execution
+        let agent_tools = if let Some(ref tools) = self.agent_tools {
+            Arc::clone(tools)
+        } else {
+            // Create AgentTools using the wallet context
+            // Load the keypair and include both public key and private key
+            let keypair = reev_lib::get_keypair().map_err(|e| {
+                anyhow!(
+                    "Failed to get keypair for wallet {}: {}",
+                    wallet_context.owner,
+                    e
+                )
+            })?;
 
-        // Generate a mock transaction signature for now
-        // In a real implementation, this would call Jupiter API and create a transaction
-        let transaction_signature = format!(
-            "{}{}{}{}",
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple()
-        )
-        .to_uppercase();
+            let mut key_map = std::collections::HashMap::new();
+            key_map.insert("WALLET_PUBKEY".to_string(), wallet_context.owner.clone());
+            key_map.insert("WALLET_KEYPAIR".to_string(), keypair.to_base58_string());
+            Arc::new(reev_agent::enhanced::common::AgentTools::new(key_map))
+        };
 
-        Ok(json!({
-            "tool_name": "jupiter_swap",
-            "params": {
-                "recipient": recipient,
-                "amount": amount,
-                "amount_lamports": amount_lamports,
-                "wallet": wallet_context.owner
-            },
-            "transaction_signature": transaction_signature,
-            "success": true
-        }))
+        // Use full balance if amount is "all", otherwise use specified amount
+        let final_amount_lamports = if is_all_amount {
+            // Use almost all SOL balance, keeping some for fees
+            wallet_context.sol_balance - (100_000_000) // Reserve 0.1 SOL for fees
+        } else {
+            amount_lamports
+        };
+
+        let swap_args = reev_tools::tools::jupiter_swap::JupiterSwapArgs {
+            user_pubkey: wallet_context.owner.clone(),
+            input_mint: input_mint.to_string(),
+            output_mint: output_mint.to_string(),
+            amount: final_amount_lamports,
+            slippage_bps: Some(100), // Default 1% slippage
+        };
+
+        let result = agent_tools
+            .jupiter_swap_tool
+            .call(swap_args)
+            .await
+            .map_err(|e| anyhow!("Jupiter swap execution failed: {e}"))?;
+
+        // Parse the response to extract instructions and execute transaction
+        info!("Jupiter swap tool returned result: {}", &result);
+        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
+            debug!("Parsed response: {:#?}", response);
+            if let Some(instructions) = response.get("instructions") {
+                info!(
+                    "Found {} instructions in Jupiter response",
+                    instructions.as_array().unwrap_or(&vec![]).len()
+                );
+                debug!("Instructions value: {:#?}", instructions);
+
+                // Convert instructions to RawInstruction format
+                let raw_instructions: Result<Vec<reev_lib::agent::RawInstruction>> = instructions
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .map(|inst| {
+                        let program_id = inst
+                            .get("program_id")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| anyhow!("Missing program_id"))?
+                            .to_string();
+
+                        let accounts = inst
+                            .get("accounts")
+                            .and_then(|v| v.as_array())
+                            .ok_or_else(|| anyhow!("Missing accounts"))?
+                            .iter()
+                            .map(|acc| {
+                                Ok(reev_lib::agent::RawAccountMeta {
+                                    pubkey: acc
+                                        .get("pubkey")
+                                        .and_then(|v| v.as_str())
+                                        .ok_or_else(|| anyhow!("Missing pubkey"))?
+                                        .to_string(),
+                                    is_signer: acc
+                                        .get("is_signer")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false),
+                                    is_writable: acc
+                                        .get("is_writable")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false),
+                                })
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+
+                        let data = inst
+                            .get("data")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| anyhow!("Missing data"))?
+                            .to_string();
+
+                        Ok(reev_lib::agent::RawInstruction {
+                            program_id,
+                            accounts,
+                            data,
+                        })
+                    })
+                    .collect();
+
+                // Execute the transaction with the instructions
+                match raw_instructions {
+                    Ok(instructions) => {
+                        let keypair = reev_lib::get_keypair()
+                            .map_err(|e| anyhow!("Failed to load keypair: {e}"))?;
+                        let user_pubkey = solana_sdk::signer::Signer::pubkey(&keypair);
+
+                        match reev_lib::utils::execute_transaction(
+                            instructions,
+                            user_pubkey,
+                            &keypair,
+                        )
+                        .await
+                        {
+                            Ok(signature) => {
+                                info!(
+                                    "Jupiter swap transaction executed with signature: {}",
+                                    signature
+                                );
+                                Ok(json!({
+                                    "tool_name": "jupiter_swap",
+                                    "input_mint": input_mint,
+                                    "output_mint": output_mint,
+                                    "input_amount": amount,
+                                    "input_amount_lamports": amount_lamports,
+                                    "wallet": wallet_context.owner,
+                                    "transaction_signature": signature,
+                                    "success": true
+                                }))
+                            }
+                            Err(e) => {
+                                error!("Failed to execute Jupiter swap transaction: {}", e);
+                                debug!("Transaction execution error details: {:#?}", e);
+                                debug!("Failed at execute_transaction call");
+                                Ok(json!({
+                                    "tool_name": "jupiter_swap",
+                                    "error": format!("Transaction execution failed: {e}"),
+                                    "raw_response": result
+                                }))
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to parse instructions: {}", e);
+                        Ok(json!({
+                            "tool_name": "jupiter_swap",
+                            "error": format!("Failed to parse instructions: {e}"),
+                            "raw_response": result
+                        }))
+                    }
+                }
+            } else {
+                Ok(json!({
+                    "tool_name": "jupiter_swap",
+                    "error": "No instructions found in response",
+                    "raw_response": result
+                }))
+            }
+        } else {
+            Ok(json!({
+                "tool_name": "jupiter_swap",
+                "error": "Failed to parse Jupiter response",
+                "raw_response": result
+            }))
+        }
     }
 
     /// Execute Jupiter lend/earn deposit
@@ -537,16 +709,51 @@ Available tools:
             .parse()
             .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
 
-        // Generate a mock transaction signature for now
-        // In a real implementation, this would call Jupiter API and create a transaction
-        let transaction_signature = format!(
-            "{}{}{}{}",
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple()
-        )
-        .to_uppercase();
+        // Create AgentTools for Jupiter Lend Earn Deposit execution
+        let agent_tools = if let Some(ref tools) = self.agent_tools {
+            Arc::clone(tools)
+        } else {
+            // Create AgentTools using the wallet context
+            // Load the keypair and include both public key and private key
+            let keypair = reev_lib::get_keypair().map_err(|e| {
+                anyhow!(
+                    "Failed to get keypair for wallet {}: {}",
+                    wallet_context.owner,
+                    e
+                )
+            })?;
+
+            let mut key_map = std::collections::HashMap::new();
+            key_map.insert("WALLET_PUBKEY".to_string(), wallet_context.owner.clone());
+            key_map.insert("WALLET_KEYPAIR".to_string(), keypair.to_base58_string());
+            Arc::new(reev_agent::enhanced::common::AgentTools::new(key_map))
+        };
+
+        // Execute Jupiter Lend Earn Deposit using AgentTools
+        let deposit_args =
+            reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
+                user_pubkey: wallet_context.owner.clone(),
+                asset_mint: mint.clone(),
+                amount: (amount * 1_000_000_000.0) as u64, // Convert to lamports
+            };
+
+        let result = agent_tools
+            .jupiter_lend_earn_deposit_tool
+            .call(deposit_args)
+            .await
+            .map_err(|e| anyhow!("Jupiter Lend Earn Deposit execution failed: {e}"))?;
+
+        // Parse the response to extract transaction signature
+        let transaction_signature =
+            if let Ok(instructions) = serde_json::from_str::<serde_json::Value>(&result) {
+                if let Some(sig) = instructions.get("transactionSignature") {
+                    sig.as_str().unwrap_or("").to_string()
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
 
         Ok(json!({
             "tool_name": "jupiter_lend_earn_deposit",

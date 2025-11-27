@@ -75,8 +75,8 @@ async fn execute_transfer_with_planner(
         .await?;
     info!("\n⚙️ Step 4: Executing transfer tool call from LLM...");
 
-    // Initialize executor
-    let executor = Executor::new()?;
+    // Initialize executor with RigAgent
+    let executor = Executor::new_with_rig().await?;
 
     // Execute the flow
     let result = executor.execute_flow(&flow, &wallet_context).await?;
@@ -87,6 +87,28 @@ async fn execute_transfer_with_planner(
         .step_results
         .iter()
         .find_map(|r| {
+            // Check for signature in tool_results array (RigAgent format)
+            if let Some(tool_results) = r.output.get("tool_results") {
+                if let Some(results_array) = tool_results.as_array() {
+                    for result in results_array {
+                        // Check for transaction_signature directly in the tool result
+                        if let Some(sig) = result.get("transaction_signature") {
+                            if let Some(sig_str) = sig.as_str() {
+                                return Some(sig_str.to_string());
+                            }
+                        }
+                        // Also check under sol_transfer if present
+                        if let Some(sol_transfer) = result.get("sol_transfer") {
+                            if let Some(sig) = sol_transfer.get("transaction_signature") {
+                                if let Some(sig_str) = sig.as_str() {
+                                    return Some(sig_str.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Look for signature in output.sol_transfer.transaction_signature
             if let Some(sol_transfer) = r.output.get("sol_transfer") {
                 if let Some(sig) = sol_transfer.get("transaction_signature") {

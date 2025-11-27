@@ -1,27 +1,21 @@
 //! Executor for AI agent tools
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
-use serde_json::json;
 use solana_sdk::signature::Signer; // Import Signer trait
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
-use crate::execution::handlers::swap::jupiter_swap::*;
-use crate::execution::handlers::transfer::sol_transfer::*;
 use crate::execution::types::recovery_config::RecoveryConfig;
 use crate::yml_schema::YmlStep;
-use crate::YmlToolCall;
+// YmlToolCall is no longer used in V3 implementation
 
 // use reev_lib::agent::RawInstruction; // Not used here
 // use reev_lib::utils::{execute_transaction, get_keypair}; // Not used here
 use reev_types::flow::{StepResult, WalletContext};
-use reev_types::tools::ToolName;
 
 // Import context resolver and AgentTools
 use reev_agent::enhanced::common::AgentTools;
-use rig::tool::Tool;
 
 // Import RigAgent for tool selection
 use crate::execution::rig_agent::RigAgent;
@@ -66,8 +60,18 @@ impl ToolExecutor {
     /// Enable rig agent for tool selection
     pub async fn enable_rig_agent(mut self) -> Result<Self> {
         info!("Enabling rig agent for tool selection");
-        self.rig_agent = Some(self.initialize_rig_agent().await?);
-        Ok(self)
+        match self.initialize_rig_agent().await {
+            Ok(agent) => {
+                self.rig_agent = Some(agent);
+                info!("RigAgent successfully enabled");
+                Ok(self)
+            }
+            Err(e) => {
+                error!("Failed to initialize RigAgent: {}", e);
+                // Return error instead of continuing without RigAgent
+                Err(anyhow!("Failed to initialize RigAgent: {e}"))
+            }
+        }
     }
 
     /// Set custom tool executor
@@ -84,244 +88,14 @@ impl ToolExecutor {
     ) -> Result<StepResult> {
         info!("Executing step: {}", step.prompt);
 
-        // Always use rig agent if available as per V3 plan
-        if let Some(rig_agent) = &self.rig_agent {
-            info!("Using rig agent for tool selection based on refined prompt");
-            return rig_agent.execute_step_with_rig(step, wallet_context).await;
-        }
+        // Per V3 plan, always use RigAgent for tool selection
+        // This should never be None since we initialize it in the constructor
+        let rig_agent = self.rig_agent.as_ref().ok_or_else(|| {
+            anyhow!("RigAgent not initialized - this should not happen with the V3 implementation")
+        })?;
 
-        // Initialize tools for execution
-        let tools = if let Some(ref tools) = self.agent_tools {
-            Arc::clone(tools)
-        } else {
-            Arc::new(self.initialize_tools(&wallet_context.owner).await?)
-        };
-
-        // Generate tool calls using fallback approach when RigAgent is not available
-        let tool_calls = if step.expected_tool_calls.is_none()
-            || step.expected_tool_calls.as_ref().unwrap().is_empty()
-        {
-            // Check if this is a transfer operation
-            let prompt_lower = step.prompt.to_lowercase();
-            if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
-                // If this is a transfer, create a YmlToolCall for SolTransfer
-                info!("No RigAgent available, fallback to direct SolTransfer execution");
-                vec![YmlToolCall {
-                    tool_name: reev_types::tools::ToolName::SolTransfer,
-                    critical: true,
-                    expected_parameters: None,
-                }]
-            } else {
-                // If no specific tool calls are specified, execute jupiter_swap tool directly
-                info!("No RigAgent available, fallback to direct JupiterSwap execution");
-                vec![YmlToolCall {
-                    tool_name: reev_types::tools::ToolName::JupiterSwap,
-                    critical: true,
-                    expected_parameters: None,
-                }]
-            }
-        } else {
-            step.expected_tool_calls.clone().unwrap_or_default()
-        };
-
-        // Handle special case where we need to execute a swap directly without expected parameters
-        if !tool_calls.is_empty()
-            && tool_calls[0].tool_name == ToolName::JupiterSwap
-            && tool_calls[0].expected_parameters.is_none()
-        {
-            return self
-                .execute_direct_jupiter_swap(tools, &wallet_context.owner, &step.prompt)
-                .await;
-        }
-
-        // Handle special case where we need to execute a transfer directly without expected parameters
-        if !tool_calls.is_empty()
-            && tool_calls[0].tool_name == ToolName::SolTransfer
-            && tool_calls[0].expected_parameters.is_none()
-        {
-            return self
-                .execute_direct_sol_transfer(tools, &step.prompt, &wallet_context.owner)
-                .await;
-        }
-
-        // Execute each tool call
-        let mut tool_results = Vec::new();
-        let mut all_success = true;
-        let mut first_error = None;
-
-        for tool_call in &tool_calls {
-            debug!("Executing tool: {}", tool_call.tool_name);
-
-            // Extract parameters from expected_parameters
-            let params = if let Some(ref params) = tool_call.expected_parameters {
-                params.clone()
-            } else {
-                HashMap::new()
-            };
-
-            // Execute the tool and process the result
-            let result = self
-                .execute_tool_call(tool_call.tool_name.clone(), &params, &tools)
-                .await;
-
-            match result {
-                Ok(tool_result) => {
-                    tool_results.push(tool_result);
-                }
-                Err(e) => {
-                    error!("Tool execution failed: {}", e);
-                    tool_results.push(json!({
-                        "tool_name": tool_call.tool_name,
-                        "error": format!("Tool execution failed: {e}")
-                    }));
-                    all_success = false;
-                    if first_error.is_none() {
-                        first_error = Some(e);
-                    }
-                }
-            }
-        }
-
-        // Create step result
-        let step_result = StepResult {
-            step_id: uuid::Uuid::new_v4().to_string(),
-            success: all_success,
-            error_message: first_error.map(|e| e.to_string()),
-            tool_calls: tool_calls
-                .iter()
-                .map(|t| format!("{:?}", t.tool_name))
-                .collect(),
-            output: json!({ "tool_results": tool_results }),
-            execution_time_ms: 100, // Default execution time
-        };
-
-        Ok(step_result)
-    }
-
-    /// Execute a direct Jupiter swap operation without expected parameters
-    async fn execute_direct_jupiter_swap(
-        &self,
-        tools: Arc<AgentTools>,
-        wallet_owner: &str,
-        prompt: &str,
-    ) -> Result<StepResult> {
-        execute_direct_jupiter_swap(&tools, wallet_owner, prompt).await
-    }
-
-    /// Execute a direct SOL transfer operation without expected parameters
-    async fn execute_direct_sol_transfer(
-        &self,
-        tools: Arc<AgentTools>,
-        prompt: &str,
-        wallet_owner: &str,
-    ) -> Result<StepResult> {
-        execute_direct_sol_transfer(&tools, prompt, wallet_owner).await
-    }
-
-    /// Execute a specific tool call and return the result
-    async fn execute_tool_call(
-        &self,
-        tool_name: ToolName,
-        params: &HashMap<String, serde_json::Value>,
-        tools: &Arc<AgentTools>,
-    ) -> Result<serde_json::Value> {
-        match tool_name {
-            ToolName::JupiterSwap => self.handle_jupiter_swap(params, tools).await,
-            ToolName::JupiterLendEarnDeposit => {
-                self.handle_jupiter_lend_earn_deposit(params, tools).await
-            }
-            ToolName::SolTransfer => self.handle_sol_transfer(params, tools).await,
-            _ => {
-                let error_msg = format!("Unsupported tool: {tool_name:?}");
-                error!("{}", error_msg);
-                Err(anyhow!(error_msg))
-            }
-        }
-    }
-
-    /// Handle Jupiter swap operation
-    async fn handle_jupiter_swap(
-        &self,
-        params: &HashMap<String, serde_json::Value>,
-        tools: &Arc<AgentTools>,
-    ) -> Result<serde_json::Value> {
-        handle_jupiter_swap(params, tools).await
-    }
-
-    /// Handle Jupiter Lend Earn Deposit operation
-    async fn handle_jupiter_lend_earn_deposit(
-        &self,
-        params: &HashMap<String, serde_json::Value>,
-        tools: &Arc<AgentTools>,
-    ) -> Result<serde_json::Value> {
-        info!(
-            "Executing JupiterLendEarnDeposit with parameters: {:?}",
-            params
-        );
-
-        // Convert parameters to expected format for JupiterLendEarnDepositTool
-        let deposit_args =
-            reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
-                user_pubkey: params
-                    .get("user_pubkey")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                asset_mint: params
-                    .get("asset_mint")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                amount: params.get("amount").and_then(|v| v.as_u64()).unwrap_or(0),
-            };
-
-        let result = tools
-            .jupiter_lend_earn_deposit_tool
-            .call(deposit_args)
-            .await
-            .map_err(|e| anyhow!("JupiterLendEarnDeposit execution failed: {e}"))?;
-
-        // Parse the JSON response to extract structured data
-        if let Ok(instructions) = serde_json::from_str::<serde_json::Value>(&result) {
-            Ok(json!({
-                "tool_name": "JupiterLendEarnDeposit",
-                "instructions": instructions
-            }))
-        } else {
-            // If parsing fails, include the raw response
-            warn!("Failed to parse JupiterLendEarnDeposit response");
-            Ok(json!({
-                "tool_name": "JupiterLendEarnDeposit",
-                "error": "Failed to parse response",
-                "raw_response": result
-            }))
-        }
-    }
-
-    /// Handle SOL transfer operation
-    async fn handle_sol_transfer(
-        &self,
-        params: &HashMap<String, serde_json::Value>,
-        tools: &Arc<AgentTools>,
-    ) -> Result<serde_json::Value> {
-        handle_sol_transfer(params, tools).await
-    }
-
-    /// Initialize tools for a wallet
-    async fn initialize_tools(&self, wallet_pubkey: &str) -> Result<AgentTools> {
-        info!("Initializing tools for wallet: {}", wallet_pubkey);
-
-        // Set up key_map for authentication
-        let mut key_map = HashMap::new();
-        if let Some(ref api_key) = self.api_key {
-            key_map.insert("ZAI_API_KEY".to_string(), api_key.clone());
-        }
-
-        // Add wallet pubkey to key_map so tools can access it
-        key_map.insert("WALLET_PUBKEY".to_string(), wallet_pubkey.to_string());
-
-        let tools = AgentTools::new(key_map);
-        Ok(tools)
+        info!("Using rig agent for tool selection based on refined prompt");
+        rig_agent.execute_step_with_rig(step, wallet_context).await
     }
 
     /// Initialize RigAgent for tool selection
@@ -348,8 +122,13 @@ impl ToolExecutor {
         let agent_tools = if let Some(ref tools) = self.agent_tools {
             Arc::clone(tools)
         } else {
+            // Load the keypair again to get the private key
+            let keypair = reev_lib::get_keypair()
+                .map_err(|e| anyhow!("Failed to load default keypair: {e}"))?;
+
             let mut key_map = std::collections::HashMap::new();
             key_map.insert("WALLET_PUBKEY".to_string(), wallet_pubkey.clone());
+            key_map.insert("WALLET_KEYPAIR".to_string(), keypair.to_base58_string());
             Arc::new(AgentTools::new(key_map))
         };
 

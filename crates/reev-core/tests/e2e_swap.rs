@@ -125,8 +125,8 @@ steps:
         info!("    {}: {} tokens", mint, balance.balance);
     }
 
-    // Execute flow using the Executor
-    let executor = Executor::new()?;
+    // Execute flow using the Executor with RigAgent
+    let executor = Executor::new_with_rig().await?;
 
     info!("About to call executor.execute_flow");
     let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
@@ -197,11 +197,24 @@ steps:
                 // RigAgent format: check tool_results array
                 if let Some(results_array) = tool_results.as_array() {
                     for result in results_array {
+                        // Check for transaction_signature directly in the tool result
+                        if let Some(sig) = result.get("transaction_signature") {
+                            if let Some(sig_str) = sig.as_str() {
+                                return Some(sig_str.to_string());
+                            }
+                        }
+                        // Also check under jupiter_swap if present
                         if let Some(jupiter_swap) = result.get("jupiter_swap") {
                             if let Some(sig) = jupiter_swap.get("transaction_signature") {
                                 if let Some(sig_str) = sig.as_str() {
                                     return Some(sig_str.to_string());
                                 }
+                            }
+                        }
+                        // Also check for Jupiter swap errors - even if transaction failed, we might get signature
+                        if let Some(error_result) = result.get("jupiter_swap") {
+                            if let Some(error) = error_result.get("error") {
+                                warn!("Jupiter swap error detected: {}", error);
                             }
                         }
                     }

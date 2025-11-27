@@ -33,8 +33,22 @@ impl Default for Executor {
 impl Executor {
     /// Create a new executor
     pub fn new() -> Result<Self> {
-        // Always use the real tool executor
+        // Always use the real tool executor with RigAgent enabled
+        // Store the tool executor without RigAgent first
         let tool_executor: SharedExecutor = Arc::new(ToolExecutor::new()?);
+
+        Ok(Self {
+            _validator: FlowValidator::new(),
+            recovery_config: RecoveryConfig::default(),
+            tool_executor,
+        })
+    }
+
+    /// Initialize executor with RigAgent enabled (async version)
+    pub async fn new_async_with_rig() -> Result<Self> {
+        // Create tool executor with RigAgent enabled
+        let tool_executor: SharedExecutor =
+            Arc::new(ToolExecutor::new()?.enable_rig_agent().await?);
 
         Ok(Self {
             _validator: FlowValidator::new(),
@@ -45,15 +59,8 @@ impl Executor {
 
     /// Create a new executor with rig agent enabled
     pub async fn new_with_rig() -> Result<Self> {
-        // Create tool executor with rig agent enabled
-        let tool_executor: SharedExecutor =
-            Arc::new(ToolExecutor::new()?.enable_rig_agent().await?);
-
-        Ok(Self {
-            _validator: FlowValidator::new(),
-            recovery_config: RecoveryConfig::default(),
-            tool_executor,
-        })
+        // Use the async version with RigAgent enabled
+        Self::new_async_with_rig().await
     }
 
     /// Set recovery configuration

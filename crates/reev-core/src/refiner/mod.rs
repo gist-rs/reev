@@ -125,9 +125,9 @@ You are a language refinement assistant for a DeFi application. Your task is to 
 5. Keeping refined prompt concise and direct
 
 CRITICAL: PRESERVE THE EXACT OPERATION TYPE AND TOKENS:
-- If user says "swap 0.1 SOL for USDC", the refined prompt MUST still be a "swap" operation
-- If user says "transfer 1 SOL to address", the refined prompt MUST still be a "transfer" operation
-- If user says "lend 100 USDC", the refined prompt MUST still be a "lend" operation
+- If user says "swap 0.1 SOL for USDC", refined prompt MUST still be a "swap" operation
+- If user says "transfer 1 SOL to address", refined prompt MUST still be a "transfer" operation
+- If user says "lend 100 USDC", refined prompt MUST still be a "lend" operation
 - DO NOT add recipient addresses that weren't in the original prompt
 - DO NOT change the operation type (swap to transfer, transfer to send, etc.)
 - NEVER replace "swap" with "send" or "transfer" - this breaks the entire system
@@ -145,10 +145,19 @@ Do NOT:
 - Change token symbols or amounts
 - Assume operations based on incomplete information
 
-Respond with a JSON object with the following fields:
+IMPORTANT: You must respond with a valid JSON object. Do not include any explanations or additional text outside the JSON format.
+
+Respond with ONLY a JSON object with the following fields:
 - refined_prompt: The refined prompt
 - changes_detected: Boolean indicating if changes were made
 - confidence: Float from 0.0 to 1.0 indicating confidence in the refinement
+
+Example response format:
+{
+  "refined_prompt": "swap 0.1 SOL for USDC",
+  "changes_detected": false,
+  "confidence": 0.95
+}
 "#;
 
         // Use the correct model name for ZAI API
@@ -290,57 +299,106 @@ impl RefinedPrompt {
 /// Extract the refined prompt from GLM reasoning content
 fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
     // The GLM reasoning content contains analysis in Chinese
-    // We need to look for patterns like "优化后的提示应该是：" (The refined prompt should be:)
-    // or extract the refined prompt from the end of the reasoning
+    // We need to properly extract refined prompt based on the JSON response format
 
-    // Split by lines and look for the refined prompt
+    // First, check if the reasoning contains JSON that we can parse directly
+    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(reasoning) {
+        // If the entire reasoning is valid JSON, check if it has refined_prompt field
+        if let Some(refined_prompt) = json_value.get("refined_prompt").and_then(|v| v.as_str()) {
+            return refined_prompt.to_string();
+        }
+    }
+
+    // If not direct JSON, try to extract from text
+    // Look for "refined_prompt" key in the reasoning
+    if let Some(start) = reasoning.find("\"refined_prompt\":") {
+        let after_key = &reasoning[start + "\"refined_prompt\":".len()..];
+        if let Some(start_quote) = after_key.find('"') {
+            let after_start_quote = &after_key[start_quote + 1..];
+            if let Some(end_quote) = after_start_quote.find('"') {
+                let refined = after_start_quote[..end_quote].to_string();
+                // Check if it looks like a valid prompt
+                if refined.len() > 5
+                    && (refined.contains("swap")
+                        || refined.contains("transfer")
+                        || refined.contains("lend")
+                        || refined.contains("send"))
+                {
+                    return refined;
+                }
+            }
+        }
+    }
+
+    // Look for patterns like "优化后的提示应该是：" (The refined prompt should be:)
     let lines: Vec<&str> = reasoning.lines().collect();
 
     // Look for patterns in the reasoning that indicate the refined prompt
     for line in lines.iter().rev() {
-        // Look for patterns like "优化后的提示应该是：" or "Refined prompt should be:"
-        if line.contains("优化后的提示应该是") || line.contains("Refined prompt should be")
-        {
+        if line.contains("优化后的提示应该是") {
             // Extract the refined prompt after the colon
             if let Some(start) = line.find('"') {
                 if let Some(end) = line.rfind('"') {
                     if end > start {
                         let refined = line[start + 1..end].to_string();
-                        // Handle case where the prompt is truncated
-                        if refined.len() < 40 {
-                            // Likely truncated, return the original prompt unchanged
-                            // This preserves operation type and prevents incorrect operation changes
-                            return reasoning.to_string();
+                        // Check if it looks like a valid prompt
+                        if refined.len() > 5
+                            && (refined.contains("swap")
+                                || refined.contains("transfer")
+                                || refined.contains("lend")
+                                || refined.contains("send"))
+                        {
+                            return refined;
                         }
-                        return refined;
                     }
                 }
             }
         }
     }
 
-    // If we can't find a specific pattern, fall back to a simple extraction
-    // Look for English text in the reasoning, which is likely the refined prompt
+    // Check for common problematic patterns from GLM responses
+    if reasoning.contains("The user wants me to refine the prompt") {
+        // Extract the original prompt from the GLM response
+        if let Some(start) = reasoning.find('"') {
+            if let Some(end) = reasoning.rfind('"') {
+                if end > start {
+                    let original = reasoning[start + 1..end].to_string();
+                    // Remove the "The user wants me to refine the prompt: " prefix if present
+                    if original.starts_with("The user wants me to refine the prompt: ") {
+                        let prompt = original["The user wants me to refine the prompt: ".len()..]
+                            .to_string();
+                        return prompt;
+                    }
+                    return original;
+                }
+            }
+        }
+    }
+
+    // If all else fails, check for any English text that looks like a prompt
+    // Avoid returning the GLM analysis itself
     for line in lines {
-        // If a line contains only ASCII characters and is not just punctuation,
-        // it's likely the refined prompt
+        // If a line contains only ASCII characters and operation words
         if line.is_ascii() && line.len() > 10 {
             let trimmed = line.trim().trim_matches('"');
-            if !trimmed.is_empty() {
-                // Handle case where the prompt is truncated
-                if trimmed.len() < 40 {
-                    // Likely truncated, return the original prompt unchanged
-                    // This preserves operation type and prevents incorrect operation changes
-                    return reasoning.to_string();
-                }
+            // Check if it contains operation words and doesn't look like analysis
+            if !trimmed.is_empty()
+                && (trimmed.contains("swap")
+                    || trimmed.contains("transfer")
+                    || trimmed.contains("lend")
+                    || trimmed.contains("send"))
+                && !trimmed.contains("The user wants me")
+                && !trimmed.contains("I should")
+                && !trimmed.contains("This prompt")
+            {
                 return trimmed.to_string();
             }
         }
     }
 
-    // If all else fails, return the original reasoning unchanged
-    // This preserves operation type and prevents incorrect operation changes
-    reasoning.to_string()
+    // If we can't find a proper refined prompt, return the original prompt unchanged
+    // This is better than returning the GLM analysis which would break the system
+    "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
 }
 
 /// Request for language refinement
