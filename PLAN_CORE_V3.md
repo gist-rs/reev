@@ -197,27 +197,27 @@ User Request → [Planner::refine_and_plan()] → [LanguageRefiner::refine_promp
 
 ## 🎯 **Key Implementation Requirements**
 
-### **Phase 1: Enhanced Prompt Refinement**:
+### **Phase 1: Enhanced Prompt Refinement** ✅:
 1. **LLM Integration for Refinement**:
-   - Refine user prompts to clear, unambiguous language ONLY
-   - Fix typos and normalize language variations
-   - Do NOT extract intent or determine tools (leave for Phase 2)
-   - Add minimal context for execution
+   - Refine user prompts to clear, unambiguous language ONLY ✅
+   - Fix typos and normalize language variations ✅
+   - Do NOT extract intent or determine tools (leave for Phase 2) ✅
+   - Add minimal context for execution ✅
 
 2. **Template-based YML Generation**:
-   - Use refined prompts with rule-based templates
-   - Ensure technical accuracy in YML structure
-   - Include expected_tools hints for rig agent
-   - Generate appropriate ground truth for validation
+   - Use refined prompts with rule-based templates ✅
+   - Ensure technical accuracy in YML structure ✅
+   - Include expected_tools hints for rig agent ✅
+   - Generate appropriate ground truth for validation ✅
 
-### **Phase 2: Rig-Driven Execution with Validation**:
-1. **Replace Direct Execution with Rig Agent**:
-   - Create rig agent with available tools (SolTransfer, JupiterSwap, etc.)
-   - Use refined prompts for tool selection and parameter extraction
-   - Maintain existing execute_direct_* functions as fallbacks
-   - Gradually migrate to rig-based execution
+### **Phase 2: Rig-Driven Execution with Validation** ✅:
+1. **Replace Direct Execution with Rig Agent** ✅:
+   - Create rig agent with available tools (SolTransfer, JupiterSwap, etc.) ✅
+   - Use refined prompts for tool selection and parameter extraction ✅
+   - Maintain existing execute_direct_* functions as fallbacks ✅
+   - Gradually migrate to rig-based execution ✅
 
-2. **Add Runtime Validation**:
+2. **Add Runtime Validation** ✅:
    - Validate extracted parameters against ground truth
    - Check constraints before tool execution
    - Validate results after execution
@@ -305,12 +305,12 @@ error_responses:
 3. Ensure existing tests still pass after removal
 4. Update documentation to reflect current implementation
 
-### **Phase 2: Improve Scalability** (Week 1-2)
+### **Phase 2: Improve Scalability** (Week 1-2) ✅
 1. Refactor YmlGenerator for dynamic operation sequences:
-   - Create OperationParser for flexible operation detection
-   - Implement composable step builders for individual operations
-   - Add support for arbitrary operation sequences
-   
+   - Create OperationParser for flexible operation detection ✅
+   - Implement composable step builders for individual operations ✅
+   - Add support for arbitrary operation sequences ✅
+    
 2. Create a Composable Step-Based System:
    - Define individual step creators:
      ```rust
@@ -333,18 +333,19 @@ error_responses:
          operations: Vec<Operation>
      ) -> Result<YmlFlow>
      ```
-   - Use template-based flow generation for common patterns:
+   - **Why chunk approach works better than templates**: Instead of predefining all possible combinations,
+     we create individual operation chunks that can be dynamically combined:
      ```yaml
-     # flow_templates.yml
-     single_operation:
-       steps: [operation]
+     # chunk-based approach (current implementation):
+     # Each operation is a self-contained chunk with its own logic
      
-     multi_operation:
-       steps: [operation1, operation2, ...]
+     # swap chunk handles any SOL→USDC swap
+     # lend chunk handles any USDC→Jupiter lending
+     # transfer chunk handles any SOL→recipient transfer
      
-     # More complex patterns
-     swap_then_lend:
-       steps: [swap_operation, lend_operation]
+     # These chunks are combined dynamically based on user prompt:
+     # "swap SOL→USDC then lend" → [swap_chunk, lend_chunk]
+     # "swap SOL→USDC, transfer 1 SOL, lend remainder" → [swap_chunk, transfer_chunk, lend_chunk]
      ```
 
 4. Refine the Operation Parsing:
@@ -361,9 +362,55 @@ error_responses:
        Lend { mint: "USDC", amount: 1.0 }  // Amount from previous step
      ]
 
-5. Enhance LanguageRefiner for better prompt refinement
-6. Improve template system for YML generation
-7. Add tests for complex operation sequences
+5. Enhance LanguageRefiner for better prompt refinement ✅
+6. Improve template system for YML generation ✅
+7. Add tests for complex operation sequences ✅
+
+### **Current Implementation Status** ✅
+
+The chunk-based approach for multi-step flows is now implemented and validated:
+
+1. **Individual Operation Chunks**: Self-contained builders for swap, lend, and transfer operations
+   - Each chunk handles its own logic, parameters, and expected tools
+   - Can be combined dynamically without predefining all sequences
+
+2. **Dynamic Flow Composition**: Orchestrator combines chunks based on user prompt
+   - Context is passed between steps (e.g., "swapped 4.99 SOL to 708.58 USDC")
+   - No rule-based parsing of specific sequences required
+   - Arbitrary operation sequences supported
+
+3. **Validation**: Tests confirm multi-step flows work correctly
+   - `single_step_chunks_test.rs` validates chunk creation and combination
+   - `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
+   - Generated YML matches expected structure
+
+**Why Chunks Are More Scalable Than Templates**:
+- Templates require predefining all valid operation combinations (n² complexity)
+- Chunks allow any sequence by combining available building blocks (linear complexity)
+- Context passing enables steps to use results of previous steps
+- New operation types only require creating new chunks, not new templates
+
+The chunk-based approach for multi-step flows is now implemented and validated:
+
+1. **Individual Operation Chunks**: Self-contained builders for swap, lend, and transfer operations
+   - Each chunk handles its own logic, parameters, and expected tools
+   - Can be combined dynamically without predefining all sequences
+
+2. **Dynamic Flow Composition**: Orchestrator combines chunks based on user prompt
+   - Context is passed between steps (e.g., "swapped 4.99 SOL to 708.58 USDC")
+   - No rule-based parsing of specific sequences required
+   - Arbitrary operation sequences supported
+
+3. **Validation**: Tests confirm multi-step flows work correctly
+   - `single_step_chunks_test.rs` validates chunk creation and combination
+   - `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
+   - Generated YML matches expected structure
+
+**Why Chunks Are More Scalable Than Templates**:
+- Templates require predefining all valid operation combinations (n² complexity)
+- Chunks allow any sequence by combining available building blocks (linear complexity)
+- Context passing enables steps to use results of previous steps
+- New operation types only require creating new chunks, not new templates
 
 ### **Phase 3: Integrate Validation** (Week 2-3)
 1. Integrate FlowValidator into execution flow:
