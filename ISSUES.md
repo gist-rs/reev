@@ -38,8 +38,8 @@ Error recovery is incomplete. While there's a RecoveryConfig struct, the actual 
 
 ---
 
-## Issue #105: Enhance RigAgent Integration (NOT STARTED)
-### Status: NOT STARTED
+## Issue #105: Enhance RigAgent Integration (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
 ### Description:
 RigAgent integration is basic and doesn't fully leverage LLM capabilities. Tool selection and parameter extraction need improvement to handle more complex operations and edge cases.
 
@@ -49,17 +49,22 @@ RigAgent integration is basic and doesn't fully leverage LLM capabilities. Tool 
 - Implement tool result interpretation
 - Add support for multi-step operations
 
-### Tasks Required:
-1. Enhance RigAgent prompts for better tool selection
-2. Add parameter validation in RigAgent
-3. Implement tool result interpretation
-4. Add multi-step operation support
-5. Improve RigAgent error handling
+### Tasks Completed:
+1. ✅ Basic RigAgent prompts for tool selection
+2. ✅ Basic parameter extraction from refined prompts
+3. ✅ Tool execution for SOL transfers, swaps, etc.
+
+### Tasks Remaining:
+1. ❌ Better prompt engineering for more complex tool selection
+2. ❌ Parameter validation before tool execution
+3. ❌ Tool result interpretation
+4. ❌ Multi-step operation support
+5. ❌ Improved RigAgent error handling for edge cases
 
 ---
 
-## Issue #106: Improve LanguageRefiner (NOT STARTED)
-### Status: NOT STARTED
+## Issue #106: Improve LanguageRefiner (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
 ### Description:
 LanguageRefiner needs improvement to handle more complex prompts and edge cases. Current implementation is basic and doesn't support advanced language refinement features.
 
@@ -69,12 +74,17 @@ LanguageRefiner needs improvement to handle more complex prompts and edge cases.
 - Implement better error handling
 - Add support for multi-language prompts
 
-### Tasks Required:
-1. Enhance LanguageRefiner with context awareness
-2. Add support for more complex prompt patterns
-3. Implement better error handling and recovery
-4. Add multi-language support
-5. Improve refinement quality metrics
+### Tasks Completed:
+1. ✅ LLM-based language refinement implementation
+2. ✅ Support for complex prompt patterns
+3. ✅ Operation type preservation (critical fix)
+4. ✅ Basic error handling
+
+### Tasks Remaining:
+1. ❌ Context awareness to refinement
+2. ❌ Multi-language support
+3. ❌ Better refinement quality metrics
+4. ❌ More sophisticated error recovery
 
 ---
 
@@ -109,8 +119,8 @@ The V3 plan specifies robust error recovery as a key component, but current impl
 2. Issue #102: Implement Error Recovery Engine (NOT STARTED)
 
 ### Week 2:
-3. Issue #105: Enhance RigAgent Integration (NOT STARTED)
-4. Issue #106: Improve LanguageRefiner (NOT STARTED)
+3. Issue #105: Enhance RigAgent Integration (PARTIALLY COMPLETED)
+4. Issue #106: Improve LanguageRefiner (PARTIALLY COMPLETED)
 
 ### Week 3:
 5. Issue #110: Remove Unused Code in YmlGenerator (NEW)

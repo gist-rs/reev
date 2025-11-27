@@ -111,15 +111,20 @@ impl RigAgent {
 
         // Execute the selected tools
         info!("Tool calls extracted: {:?}", tool_calls);
-        let tool_results = self.execute_tools(tool_calls, wallet_context).await?;
+        let tool_results = self
+            .execute_tools(tool_calls.clone(), wallet_context)
+            .await?;
         info!("Tool execution results: {:?}", tool_results);
+
+        // Create list of tool names that were executed
+        let executed_tool_names: Vec<String> = tool_calls.keys().cloned().collect();
 
         // Create the step result
         let step_result = StepResult {
             step_id: step.step_id.clone(),
             success: true,
             error_message: None,
-            tool_calls: vec![self.model_name.clone()],
+            tool_calls: executed_tool_names,
             output: json!({ "tool_results": tool_results }),
             execution_time_ms: 100, // This would be calculated in a real implementation
         };

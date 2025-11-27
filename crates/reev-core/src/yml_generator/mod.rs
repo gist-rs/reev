@@ -5,6 +5,8 @@
 //! with appropriate expected_tools hints for the rig agent. This implementation
 //! follows the V3 plan where RigAgent handles tool selection based on refined prompts.
 
+use reev_types::tools::ToolName;
+
 mod flow_templates;
 // operation_parser module has been completely removed in V3 architecture
 mod step_builders;
@@ -76,13 +78,17 @@ impl YmlGenerator {
             final_wallet_info = final_wallet_info.with_token(token.clone());
         }
 
-        // Create a simple step with the refined prompt
+        // Determine expected tools based on the refined prompt
+        let expected_tools = determine_expected_tools(&refined_prompt.refined).unwrap_or_default(); // Use empty vec if no tools determined
+
+        // Create a simple step with the refined prompt and expected tools
         let step = crate::yml_schema::YmlStep::new(
             uuid::Uuid::new_v4().to_string(),
             refined_prompt.refined.clone(),
             format!("Executing: {}", refined_prompt.original),
         )
-        .with_refined_prompt(refined_prompt.refined.clone());
+        .with_refined_prompt(refined_prompt.refined.clone())
+        .with_expected_tools(expected_tools);
 
         // Create the flow
         let flow = crate::yml_schema::YmlFlow::new(
@@ -96,4 +102,32 @@ impl YmlGenerator {
         info!("Generated YML flow with ID: {}", flow.flow_id);
         Ok(flow)
     }
+}
+
+/// Determine expected tools based on the refined prompt
+fn determine_expected_tools(refined_prompt: &str) -> Option<Vec<ToolName>> {
+    let prompt_lower = refined_prompt.to_lowercase();
+
+    // Check for swap operations
+    if prompt_lower.contains("swap") {
+        return Some(vec![ToolName::JupiterSwap]);
+    }
+
+    // Check for lend operations
+    if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
+        return Some(vec![ToolName::JupiterLendEarnDeposit]);
+    }
+
+    // Check for transfer/send operations
+    if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
+        return Some(vec![ToolName::SolTransfer]);
+    }
+
+    // Check for balance operations
+    if prompt_lower.contains("balance") || prompt_lower.contains("get") {
+        return Some(vec![ToolName::GetAccountBalance]);
+    }
+
+    // Default to no expected tools if no pattern matches
+    None
 }
