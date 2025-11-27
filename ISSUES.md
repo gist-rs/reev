@@ -1,40 +1,22 @@
 # Reev Core Implementation Issues
 
-## Issue #113: Misleading Commit Message About OperationParser Removal (COMPLETED)
+## Issue #115: Test Regression After Adding Balance Validation (COMPLETED)
 ### Status: COMPLETED
 ### Description:
-Commit 9152c2d0 claimed to have "removed deprecated OperationParser" but only marked it as deprecated while keeping all rule-based parsing logic intact. The file was not actually deleted despite the commit message stating otherwise.
+After adding balance_validation.rs, e2e_swap tests started failing with "No transaction signature in result" and "global trace dispatcher already set" errors.
 
 ### Success Criteria:
-- Actually delete the operation_parser.rs file
-- Update documentation to reflect the removal
-- Ensure all tests still pass
+- Fix test_simple_sol_fee_calculation to properly set up wallet
+- Resolve tracing conflicts between tests
+- Ensure "sell all SOL" operations work correctly
 
 ### Tasks Completed:
-1. ✅ Deleted the operation_parser.rs file completely
-2. ✅ Updated mod.rs comments to reflect complete removal
-3. ✅ Verified all reev-core tests still pass
+1. ✅ Fixed test_simple_sol_fee_calculation to set up wallet with SOL
+2. ✅ Removed tracing initialization from run_swap_test to avoid conflicts
+3. ✅ Verified all e2e tests now pass successfully
 
 ---
 
-## Issue #101: Integrate Validation Into Execution Flow (COMPLETED)
-### Status: COMPLETED
-### Description:
-Validation was disconnected from execution flow. The validator existed but wasn't integrated into the actual execution process to verify results match expectations. This broke the core V3 validation loop where execution results should be validated against ground truth.
-
-### Success Criteria:
-- Integrate FlowValidator into execution process
-- Validate execution results against ground truth expectations
-- Record validation results in execution logs
-- Handle validation failures with appropriate error messages
-
-### Tasks Completed:
-1. ✅ Modified Executor to validate flow structure before execution
-2. ✅ Added final state validation after execution (when ground truth is available)
-3. ✅ Implemented validation error handling in executor
-4. ✅ Test validation with e2e tests (all passing)
-
----
 
 ## Issue #102: Implement Error Recovery Engine (NOT STARTED)
 ### Status: NOT STARTED
@@ -96,50 +78,7 @@ LanguageRefiner needs improvement to handle more complex prompts and edge cases.
 
 ---
 
-## Issue #110: Remove Unused Code in YmlGenerator (COMPLETED)
-### Status: COMPLETED
-### Description:
-There were several unused struct and function definitions in yml_generator modules that represented technical debt from previous implementations. These created compilation warnings and maintenance burden.
 
-### Success Criteria:
-- Remove unused struct definitions in flow_templates.rs
-- Remove unused function implementations in flow_templates.rs
-- Remove unused step builders in step_builders.rs
-- Fix all dead code warnings in yml_generator modules
-- Ensure no functionality is lost
-
-### Tasks Completed:
-1. ✅ Simplified flow_templates.rs by removing unused FlowTemplateDefinition struct and FlowTemplateManager methods
-2. ✅ Simplified step_builders.rs by removing unused step builder implementations
-3. ✅ Kept module structure for future implementation
-4. ✅ Fixed MockLLMClient warning in planner.rs
-5. ✅ Removed all unused code in flow_templates.rs and step_builders.rs
-6. ✅ Verified all tests still pass with no warnings
-
----
-
-## Issue #111: Complete RigAgent Integration for Tool Selection (COMPLETED)
-### Status: COMPLETED
-### Description:
-Test outputs showed "No RigAgent available, fallback to direct JupiterSwap execution", indicating that RigAgent integration was incomplete. According to V3 plan, RigAgent should be the primary mechanism for tool selection based on refined prompts.
-
-### Success Criteria:
-- Ensure RigAgent is properly initialized in production ✅
-- Remove fallback to direct tool execution when possible ✅
-- Ensure RigAgent handles tool selection based on refined prompts ✅
-- Maintain backward compatibility with existing tests ✅
-- Test RigAgent integration with all operation types ✅
-
-### Tasks Completed:
-1. Fixed RigAgent initialization in executor ✅
-2. Ensured RigAgent is properly configured with required tools ✅
-3. Modified executor to prioritize RigAgent over direct execution ✅
-4. Added proper error handling when RigAgent is unavailable ✅
-5. Updated tests to verify RigAgent is being used ✅
-6. Fixed AgentTools initialization to include private key for signing transactions ✅
-7. Fixed execution flow for all tool types (sol_transfer, jupiter_swap, jupiter_lend_earn_deposit) ✅
-
----
 
 ## Issue #112: Add Comprehensive Error Recovery (NEW)
 ### Status: NOT STARTED
@@ -177,18 +116,18 @@ The V3 plan specifies robust error recovery as a key component, but current impl
 5. Issue #110: Remove Unused Code in YmlGenerator (NEW)
 6. Issue #112: Add Comprehensive Error Recovery (NEW)
 
-### Current State Summary (Handover):
-The LLM Swap Transfer Bug (Issue #108) has been successfully fixed. All e2e tests are now passing, including:
-- swap operations
+### Current State Summary:
+All e2e tests are now passing, including:
+- swap operations (including "sell all SOL")
 - transfer operations
 - rig_agent tool selection
 - "sell" terminology parsing as swap operations
 
-The architecture is now properly aligned with the V3 plan, where RigAgent handles tool selection based on refined prompts rather than rule-based operation parsing. However, RigAgent integration appears to be incomplete based on test outputs showing fallback to direct execution.
+The architecture is properly aligned with V3 plan, where RigAgent handles tool selection based on refined prompts rather than rule-based operation parsing. Balance validation has been successfully integrated.
 
 ## Notes:
-- All completed issues have been removed from this file to reduce noise
+- Completed issues are removed to reduce noise
 - Future implementation should follow V3 plan guidelines
-- RigAgent should be the primary mechanism for tool selection and parameter extraction
-- Language refinement should preserve operation types and key details
+- RigAgent is the primary mechanism for tool selection and parameter extraction
+- Balance validation is integrated and working
 - Error recovery implementation is a high priority for production readiness
