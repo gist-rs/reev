@@ -1,8 +1,8 @@
 //! Language Refiner for Phase 1 of V3 Plan
 //!
-//! This module implements the language refinement functionality in Phase 1 of the V3 plan.
+//! This module implements language refinement functionality in Phase 1 of V3 plan.
 //! It uses LLM to refine user prompts by fixing typos, normalizing terminology, and making
-//! the language clearer and more unambiguous.
+//! language clearer and more unambiguous.
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -263,7 +263,6 @@ Example response format:
     // All language refinement must be handled by the LLM
 }
 
-/// Result of language refinement
 /// Result of prompt refinement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefinedPrompt {
@@ -287,10 +286,8 @@ impl RefinedPrompt {
             confidence: 0.8, // Default confidence for testing
         }
     }
-}
 
-impl RefinedPrompt {
-    /// Get the confidence of the refinement
+    /// Get confidence of the refinement
     pub fn get_confidence(&self) -> f32 {
         self.confidence
     }
@@ -363,11 +360,11 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
             if let Some(end) = reasoning.rfind('"') {
                 if end > start {
                     let original = reasoning[start + 1..end].to_string();
-                    // Remove the "The user wants me to refine the prompt: " prefix if present
-                    if original.starts_with("The user wants me to refine the prompt: ") {
-                        let prompt = original["The user wants me to refine the prompt: ".len()..]
-                            .to_string();
-                        return prompt;
+                    // Remove "The user wants me to refine prompt: " prefix if present
+                    if let Some(stripped) =
+                        original.strip_prefix("The user wants me to refine prompt: ")
+                    {
+                        return stripped.to_string();
                     }
                     return original;
                 }
@@ -401,7 +398,6 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
     "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
 }
 
-/// Request for language refinement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LanguageRefineRequest {
     /// Original prompt to refine
