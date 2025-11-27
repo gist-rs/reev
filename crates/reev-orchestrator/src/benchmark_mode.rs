@@ -89,8 +89,8 @@ where
 /// * `Result<PathBuf>` - Path to the YML file
 ///
 /// # Errors
-/// * If the benchmark file doesn't exist
-fn get_static_benchmark_path(id: &str) -> Result<PathBuf> {
+/// * If benchmark file doesn't exist
+pub fn get_static_benchmark_path(id: &str) -> Result<PathBuf> {
     let path = PathBuf::from("../../benchmarks").join(format!("{id}.yml"));
 
     if !path.exists() {
@@ -227,39 +227,4 @@ pub struct BenchmarkMetadata {
     pub file_path: PathBuf,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_benchmark_path_construction() {
-        let result = get_static_benchmark_path("100-jup-swap-sol-usdc");
-        assert!(result.is_ok());
-
-        let path = result.unwrap();
-        assert_eq!(
-            path,
-            PathBuf::from("../../benchmarks/100-jup-swap-sol-usdc.yml")
-        );
-    }
-
-    #[test]
-    fn test_benchmark_exists() {
-        // Test with non-existent benchmark
-        assert!(!benchmark_exists("non-existent-benchmark"));
-    }
-
-    #[test]
-    fn test_list_benchmarks() -> Result<()> {
-        // Create temporary benchmarks directory
-        let temp_dir = TempDir::new()?;
-        let _benchmarks_dir = temp_dir.path();
-
-        // This test would need to mock the benchmarks directory
-        // For now, just test that the function doesn't panic
-        let _benchmarks = list_static_benchmarks();
-
-        Ok(())
-    }
-}
+// Tests moved to tests/benchmark_mode_tests.rs
