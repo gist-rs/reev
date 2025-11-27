@@ -368,49 +368,33 @@ error_responses:
 
 ### **Current Implementation Status** ✅
 
-The chunk-based approach for multi-step flows is now implemented and validated:
+The current implementation uses single-step templates as reusable building blocks that are dynamically combined:
 
-1. **Individual Operation Chunks**: Self-contained builders for swap, lend, and transfer operations
-   - Each chunk handles its own logic, parameters, and expected tools
-   - Can be combined dynamically without predefining all sequences
+1. **Single-Step Template Builders**: Self-contained builders for swap, lend, and transfer operations
+   - Each builder creates a complete single-step YML flow
+   - Functions like `build_swap_flow()`, `build_lend_flow()`, and `build_transfer_flow()` act as templates
+   - These templates handle their own logic, parameters, and expected tools
 
-2. **Dynamic Flow Composition**: Orchestrator combines chunks based on user prompt
-   - Context is passed between steps (e.g., "swapped 4.99 SOL to 708.58 USDC")
+2. **Dynamic Flow Composition**: Orchestrator combines single-step flows based on user prompt
+   - Context is passed between steps (e.g., using results from previous operations)
    - No rule-based parsing of specific sequences required
-   - Arbitrary operation sequences supported
+   - Arbitrary operation sequences supported through dynamic combination
 
-3. **Validation**: Tests confirm multi-step flows work correctly
-   - `single_step_chunks_test.rs` validates chunk creation and combination
+3. **Validation**: Tests confirm the approach works correctly
+   - `single_step_chunks_test.rs` validates template creation and combination
    - `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
    - Generated YML matches expected structure
 
-**Why Chunks Are More Scalable Than Templates**:
-- Templates require predefining all valid operation combinations (n² complexity)
-- Chunks allow any sequence by combining available building blocks (linear complexity)
-- Context passing enables steps to use results of previous steps
-- New operation types only require creating new chunks, not new templates
+**Why This Approach Is More Scalable**:
+- Instead of predefining all multi-step flow templates (n² complexity)
+- We reuse single-step templates and dynamically combine them (linear complexity)
+- Context passing enables steps to use results of previous operations
+- New operation types only require creating new single-step templates
 
-The chunk-based approach for multi-step flows is now implemented and validated:
-
-1. **Individual Operation Chunks**: Self-contained builders for swap, lend, and transfer operations
-   - Each chunk handles its own logic, parameters, and expected tools
-   - Can be combined dynamically without predefining all sequences
-
-2. **Dynamic Flow Composition**: Orchestrator combines chunks based on user prompt
-   - Context is passed between steps (e.g., "swapped 4.99 SOL to 708.58 USDC")
-   - No rule-based parsing of specific sequences required
-   - Arbitrary operation sequences supported
-
-3. **Validation**: Tests confirm multi-step flows work correctly
-   - `single_step_chunks_test.rs` validates chunk creation and combination
-   - `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
-   - Generated YML matches expected structure
-
-**Why Chunks Are More Scalable Than Templates**:
-- Templates require predefining all valid operation combinations (n² complexity)
-- Chunks allow any sequence by combining available building blocks (linear complexity)
-- Context passing enables steps to use results of previous steps
-- New operation types only require creating new chunks, not new templates
+**Implementation Note**:
+- The term "chunk" refers to how we conceptually break down operations
+- In practice, each "chunk" is implemented as a single-step template builder
+- The innovation is in dynamic combination rather than in the template structure itself
 
 ### **Phase 3: Integrate Validation** (Week 2-3)
 1. Integrate FlowValidator into execution flow:
