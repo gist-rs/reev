@@ -205,16 +205,57 @@ impl Tool for JupiterSwapTool {
         // Use shared balance validation utility for input token
         let balance_validator = BalanceValidator::new(self.key_map.clone());
 
-        // Use args.amount directly for validation
-        // For SOL, this already accounts for gas reserve deduction
-        // For other tokens, validate as-is
-        let validation_amount = args.amount;
+        // For SOL swaps, we need to account for transaction fees
+        // Calculate the actual swappable amount after accounting for fees
+        let (actual_swap_amount, validation_amount) = if input_mint == sol_mint() {
+            // Reserve 0.01 SOL (10,000,000 lamports) for transaction fees
+            // This should be enough to cover account creation and transfer fees
+            let fee_reserve = 10_000_000; // 0.01 SOL in lamports
+
+            // Get the actual SOL balance
+            let available_balance = balance_validator
+                .get_sol_balance(&args.user_pubkey)
+                .unwrap_or(0);
+
+            // Calculate the maximum swappable amount
+            let max_swappable = if args.amount >= available_balance {
+                // If user wants to swap "all SOL", use available balance minus fee reserve
+                available_balance.saturating_sub(fee_reserve)
+            } else {
+                // If user specified a specific amount, ensure we have enough for fees
+                if args.amount + fee_reserve > available_balance {
+                    warn!(
+                        "Requested amount {} plus fee reserve {} exceeds available balance {}",
+                        args.amount, fee_reserve, available_balance
+                    );
+                    return Err(JupiterSwapError::InvalidAmount(
+                        format!("Amount plus transaction fees exceeds available balance. Available: {} lamports, Requested: {} lamports, Fee reserve: {} lamports",
+                                available_balance, args.amount, fee_reserve)
+                    ));
+                }
+                args.amount
+            };
+
+            info!(
+                "SOL swap calculation: Available={}, Requested={}, Fee reserve={}, Actual swap amount={} SOL",
+                available_balance,
+                args.amount,
+                fee_reserve,
+                max_swappable as f64 / 1_000_000_000.0
+            );
+
+            // For validation, use the actual swap amount (which already accounts for fees)
+            (max_swappable, max_swappable)
+        } else {
+            // For non-SOL tokens, use the amount directly
+            (args.amount, args.amount)
+        };
 
         // Log amount being passed to Jupiter for debugging
         info!(
             "JupiterSwapTool: Swapping {} lamports ({} SOL)",
-            args.amount,
-            args.amount as f64 / 1_000_000_000.0
+            actual_swap_amount,
+            actual_swap_amount as f64 / 1_000_000_000.0
         );
 
         match balance_validator
@@ -228,7 +269,7 @@ impl Tool for JupiterSwapTool {
             Ok(()) => {
                 info!(
                     "✅ Balance validation passed: requested {} (validation: {}) for input mint {}",
-                    args.amount, validation_amount, input_mint
+                    actual_swap_amount, validation_amount, input_mint
                 );
 
                 // Log the available balance for debugging
@@ -287,7 +328,7 @@ impl Tool for JupiterSwapTool {
             user_pubkey,
             input_mint,
             output_mint,
-            args.amount,
+            actual_swap_amount,
             slippage_bps,
         )
         .await
@@ -335,6 +376,15 @@ impl Tool for JupiterSwapTool {
             args.input_mint,
             args.output_mint
         );
+
+        // If this was a SOL "swap all" request, add additional logging for clarity
+        if input_mint == sol_mint() && args.amount >= 5_000_000_000 {
+            info!(
+                "💡 Note: For 'swap all SOL' requests, a small amount is reserved for transaction fees. \
+                Actual swap amount: {} SOL",
+                actual_swap_amount as f64 / 1_000_000_000.0
+            );
+        }
 
         Ok(output)
     }

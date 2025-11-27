@@ -160,6 +160,28 @@ impl BalanceValidator {
         }
     }
 
+    /// Get the maximum swappable SOL amount after reserving fees
+    /// This is useful for "swap all SOL" operations where we need to
+    /// reserve some SOL for transaction fees
+    pub fn get_max_swappable_sol(
+        &self,
+        owner: &str,
+        fee_reserve: u64,
+    ) -> BalanceValidationResult<u64> {
+        let available_balance = self.get_sol_balance(owner)?;
+        let max_swappable = available_balance.saturating_sub(fee_reserve);
+
+        // Ensure we don't return zero if the user has some balance but less than the fee reserve
+        if available_balance > 0 && max_swappable == 0 {
+            return Err(BalanceValidationError::InsufficientFunds {
+                requested: fee_reserve,
+                available: available_balance,
+            });
+        }
+
+        Ok(max_swappable)
+    }
+
     /// Get token balance information including decimals for a specific mint and owner
     pub fn get_token_balance_info(
         &self,
@@ -271,6 +293,32 @@ impl BalanceValidator {
                 account: resolved_owner,
             }),
         }
+    }
+
+    /// Check if a given SOL amount can be swapped after accounting for fees
+    /// Returns the actual swappable amount after reserving fees
+    pub fn get_swappable_amount_after_fees(
+        &self,
+        owner: &str,
+        requested_amount: u64,
+        fee_reserve: u64,
+    ) -> BalanceValidationResult<u64> {
+        let available_balance = self.get_sol_balance(owner)?;
+
+        // If the requested amount is more than available, use the max swappable
+        if requested_amount >= available_balance {
+            return self.get_max_swappable_sol(owner, fee_reserve);
+        }
+
+        // For specific amounts, ensure we have enough for the amount plus fees
+        if requested_amount + fee_reserve > available_balance {
+            return Err(BalanceValidationError::InsufficientFunds {
+                requested: requested_amount + fee_reserve,
+                available: available_balance,
+            });
+        }
+
+        Ok(requested_amount)
     }
 }
 
