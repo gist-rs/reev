@@ -59,7 +59,7 @@ async fn test_single_step_swap_flow() -> Result<(), Box<dyn std::error::Error>> 
     // Build swap flow
     let swap_flow = build_swap_flow(&refined_prompt, &wallet_context, swap_params).await?;
 
-    // Verify single step swap chunk structure
+    // Verify single step swap flow structure
     assert_eq!(swap_flow.steps.len(), 1);
     assert_eq!(swap_flow.user_prompt, "sell all SOL for USDC");
     assert_eq!(swap_flow.refined_prompt, "swap 4.95 SOL to USDC");
@@ -123,7 +123,7 @@ async fn test_single_step_lend_flow() -> Result<(), Box<dyn std::error::Error>> 
     // Build lend flow
     let lend_flow = build_lend_flow(&refined_prompt, &wallet_context, lend_params).await?;
 
-    // Verify single step lend chunk structure
+    // Verify single step lend flow structure
     assert_eq!(lend_flow.steps.len(), 1);
     assert_eq!(lend_flow.user_prompt, "lend USDC to jupiter");
     assert_eq!(lend_flow.refined_prompt, "lend 700 USDC to jupiter");
@@ -148,7 +148,7 @@ async fn test_single_step_lend_flow() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-async fn test_combine_single_step_chunks_into_multi_step_flow() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_combine_single_step_flows_into_multi_step_flow() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -190,15 +190,15 @@ async fn test_combine_single_step_chunks_into_multi_step_flow() -> Result<(), Bo
         amount: 4.95 * 150.0, // Approximate USDC amount at $150 per SOL
     };
 
-    // Build individual step chunks
+    // Build individual step flows
     let swap_flow = build_swap_flow(&refined_prompt, &wallet_context, swap_params).await?;
     let lend_flow = build_lend_flow(&refined_prompt, &wallet_context, lend_params).await?;
 
-    // Verify individual chunks
+    // Verify individual flows
     assert_eq!(swap_flow.steps.len(), 1);
     assert_eq!(lend_flow.steps.len(), 1);
 
-    // Create a multi-step flow by combining chunks
+    // Create a multi-step flow by combining flows
     let flow_id = format!("multi-step-{}", uuid::Uuid::new_v4());
     let mut multi_step_flow = YmlFlow::new(
         flow_id,
