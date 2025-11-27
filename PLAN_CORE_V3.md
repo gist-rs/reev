@@ -333,19 +333,19 @@ error_responses:
          operations: Vec<Operation>
      ) -> Result<YmlFlow>
      ```
-   - **Why chunk approach works better than templates**: Instead of predefining all possible combinations,
-     we create individual operation chunks that can be dynamically combined:
+   - **Why single-step flows work better than predefining templates**: Instead of predefining all possible combinations,
+     we create individual operation flows that can be dynamically combined:
      ```yaml
-     # chunk-based approach (current implementation):
-     # Each operation is a self-contained chunk with its own logic
+     # single-step flow approach (current implementation):
+     # Each operation is a self-contained flow with its own logic
      
-     # swap chunk handles any SOL→USDC swap
-     # lend chunk handles any USDC→Jupiter lending
-     # transfer chunk handles any SOL→recipient transfer
+     # swap flow handles any SOL→USDC swap
+     # lend flow handles any USDC→Jupiter lending
+     # transfer flow handles any SOL→recipient transfer
      
-     # These chunks are combined dynamically based on user prompt:
-     # "swap SOL→USDC then lend" → [swap_chunk, lend_chunk]
-     # "swap SOL→USDC, transfer 1 SOL, lend remainder" → [swap_chunk, transfer_chunk, lend_chunk]
+     # These flows are combined dynamically based on user prompt:
+     # "swap SOL→USDC then lend" → [swap_flow, lend_flow]
+     # "swap SOL→USDC, transfer 1 SOL, lend remainder" → [swap_flow, transfer_flow, lend_flow]
      ```
 
 4. Refine the Operation Parsing:
@@ -381,8 +381,8 @@ The current implementation uses single-step templates as reusable building block
    - Arbitrary operation sequences supported through dynamic combination
 
 3. **Validation**: Tests confirm the approach works correctly
-   - `single_step_chunks_test.rs` validates template creation and combination
-   - `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
+   - `single_step_flows_test.rs` validates template creation and combination
+   + `multi_step_flow_test.rs` validates orchestrator handling of multi-step flows
    - Generated YML matches expected structure
 
 **Why This Approach Is More Scalable**:

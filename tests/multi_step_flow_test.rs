@@ -1,7 +1,7 @@
 //! Test for Multi-Step Flow Generation
 //!
 //! This test validates that the system can handle multi-step prompts like
-//! "sell all SOL and lend to jup" by dynamically combining single-step chunks.
+//! "sell all SOL and lend to jup" by dynamically combining single-step flows.
 
 use reev_core::planner::FlowPlanner;
 use reev_orchestrator::gateway::OrchestratorGateway;

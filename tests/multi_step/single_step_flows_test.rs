@@ -1,6 +1,6 @@
-//! Test Single Step Chunks for Multi-Step Flow Generation
+//! Test Single Step Flows for Multi-Step Flow Generation
 //!
-//! This test validates that single-step chunks are properly combined
+//! This test validates that single-step flows are properly combined
 //! for multi-step flows like "sell all SOL and lend to jup".
 
 use reev_core::planner::FlowPlanner;
@@ -20,7 +20,7 @@ use tempfile::TempDir;
 use tracing_subscriber;
 
 #[tokio::test]
-async fn test_single_step_swap_chunk() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_single_step_swap_flow() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -77,7 +77,7 @@ async fn test_single_step_swap_chunk() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0], ToolName::JupiterSwap);
 
-    println!("Single-step swap chunk created successfully:");
+    println!("Single-step swap flow created successfully:");
     println!("  Step ID: {}", swap_step.step_id);
     println!("  Refined Prompt: {}", swap_step.refined_prompt);
 
@@ -85,7 +85,7 @@ async fn test_single_step_swap_chunk() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn test_single_step_lend_chunk() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_single_step_lend_flow() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -140,7 +140,7 @@ async fn test_single_step_lend_chunk() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0], ToolName::JupiterLendEarnDeposit);
 
-    println!("Single-step lend chunk created successfully:");
+    println!("Single-step lend flow created successfully:");
     println!("  Step ID: {}", lend_step.step_id);
     println!("  Refined Prompt: {}", lend_step.refined_prompt);
 
@@ -270,7 +270,7 @@ async fn test_combine_single_step_chunks_into_multi_step_flow() -> Result<(), Bo
     // Verify YML file exists
     assert!(yml_path.exists());
 
-    println!("Multi-step flow created successfully by combining single-step chunks:");
+    println!("Multi-step flow created successfully by combining single-step flows:");
     println!("  Flow ID: {}", multi_step_flow.flow_id);
     println!("  Steps: {}", multi_step_flow.steps.len());
     println!("  Step 1: {} -> {}", first_step.step_id, first_step.refined_prompt);
