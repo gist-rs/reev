@@ -23,6 +23,9 @@ The issue is in the executor.rs file. When updating the context after a step, it
 3. Verify the fix works for both USDC and other tokens in multi-step flows
 4. Add test to prevent regression
 5. Update the prompt to make it clearer to the LLM to use the exact amount from the previous step
+6. ✅ Added delay between steps to ensure blockchain has fully processed the swap
+7. ✅ Modified context update to use actual on-chain balance instead of adding to previous balance
+8. ❌ Test still failing due to BalanceValidator seeing different balance than context
 
 ---
 

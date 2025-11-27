@@ -92,6 +92,15 @@ impl RigAgent {
     ) -> Result<StepResult> {
         info!("Executing step {} with rig agent", step.step_id);
 
+        // Debug log to verify the current context before creating the prompt
+        info!(
+            "DEBUG: execute_step_with_rig_and_history - USDC balance in context: {:?}",
+            wallet_context
+                .token_balances
+                .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map(|t| t.balance)
+        );
+
         // Use the refined prompt if available, otherwise use the original prompt
         let prompt = if !step.refined_prompt.is_empty() {
             step.refined_prompt.clone()
@@ -160,16 +169,29 @@ impl RigAgent {
         wallet_context: &WalletContext,
         previous_results: &[StepResult],
     ) -> Result<String> {
+        // Debug log to verify the current context
+        info!(
+            "DEBUG: create_context_prompt_with_history - USDC balance in context: {:?}",
+            wallet_context
+                .token_balances
+                .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map(|t| t.balance)
+        );
+
         let wallet_info = json!({
             "pubkey": wallet_context.owner,
             "sol_balance": wallet_context.sol_balance,
             "tokens": wallet_context.token_balances.values().collect::<Vec<_>>()
         });
 
-        let mut full_prompt = format!(
-            "Given the following wallet context:\n{}\n",
-            serde_json::to_string_pretty(&wallet_info)?
+        // Debug the serialized wallet info to ensure it has the correct values
+        let serialized_info = serde_json::to_string_pretty(&wallet_info)?;
+        info!(
+            "DEBUG: Serialized wallet info for LLM with history: {}",
+            serialized_info
         );
+
+        let mut full_prompt = format!("Given the following wallet context:\n{}\n", serialized_info);
 
         // Add information about previous steps if available
         if !previous_results.is_empty() {

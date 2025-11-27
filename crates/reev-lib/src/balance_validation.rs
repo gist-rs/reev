@@ -143,7 +143,13 @@ impl BalanceValidator {
                 if account.owner == spl_token::ID {
                     // Parse the token account
                     match spl_token::state::Account::unpack(&account.data) {
-                        Ok(token_account) => Ok(token_account.amount),
+                        Ok(token_account) => {
+                            tracing::info!(
+                                "DEBUG: BalanceValidator.get_token_balance - Account {} for mint {} has balance: {}",
+                                ata, mint, token_account.amount
+                            );
+                            Ok(token_account.amount)
+                        }
                         Err(_) => Err(BalanceValidationError::BalanceUnavailable {
                             mint: mint.to_string(),
                         }),
@@ -154,9 +160,16 @@ impl BalanceValidator {
                     })
                 }
             }
-            Err(_) => Err(BalanceValidationError::AccountNotFound {
-                account: ata.to_string(),
-            }),
+            Err(_) => {
+                tracing::info!(
+                    "DEBUG: BalanceValidator.get_token_balance - Account {} not found for mint {}",
+                    ata,
+                    mint
+                );
+                Err(BalanceValidationError::AccountNotFound {
+                    account: ata.to_string(),
+                })
+            }
         }
     }
 

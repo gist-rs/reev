@@ -129,6 +129,23 @@ impl Executor {
                     current_context = self
                         .update_context_after_step(&current_context, &step_result)
                         .await?;
+
+                    // Debug log to verify the updated context
+                    info!(
+                        "DEBUG: After updating context - USDC balance: {:?}",
+                        current_context
+                            .token_balances
+                            .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                            .map(|t| t.balance)
+                    );
+
+                    // For multi-step flows, add a delay to ensure blockchain has fully processed
+                    // This helps with timing issues between context updates and balance validation
+                    if step_index < flow.steps.len() - 1 {
+                        info!("Waiting 2 seconds to ensure blockchain has fully processed swap before proceeding to next step");
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    }
+
                     step_results.push(step_result);
                 }
                 Err(e) => {
@@ -582,6 +599,7 @@ impl Executor {
                                     );
 
                                     // Get the actual output amount from the swap transaction
+                                    // Get the actual output amount from the swap transaction
                                     let actual_output_amount = self
                                         .get_swap_output_amount(
                                             &rpc_client,
@@ -590,6 +608,11 @@ impl Executor {
                                         )
                                         .await
                                         .unwrap_or(0);
+
+                                    info!(
+                                        "DEBUG: Blockchain query result - {} balance: {}",
+                                        output_mint, actual_output_amount
+                                    );
 
                                     info!(
                                         "Actual output amount for swap: {} of {}",
@@ -611,33 +634,44 @@ impl Executor {
                                             .saturating_sub(input_amount);
                                     }
 
-                                    // Update output token balance
+                                    // Update output token balance - use actual on-chain balance
                                     info!("Checking if token {} exists in context", output_mint);
+
+                                    // Query the current on-chain balance for the token
+                                    let current_on_chain_balance = self
+                                        .get_swap_output_amount(
+                                            &rpc_client,
+                                            wallet_pubkey,
+                                            output_mint,
+                                        )
+                                        .await
+                                        .unwrap_or(0);
+
+                                    info!(
+                                        "Current on-chain balance for {}: {} (using this instead of adding to previous balance)",
+                                        output_mint, current_on_chain_balance
+                                    );
+
                                     if let Some(token_balance) =
                                         updated_context.token_balances.get_mut(output_mint)
                                     {
                                         info!(
-                                            "Updating {} token balance from {} to {} (adding {})",
+                                            "Updating {} token balance from {} to {} (using actual on-chain balance)",
                                             output_mint,
                                             token_balance.balance,
-                                            token_balance
-                                                .balance
-                                                .saturating_add(actual_output_amount),
-                                            actual_output_amount
+                                            current_on_chain_balance
                                         );
-                                        token_balance.balance = token_balance
-                                            .balance
-                                            .saturating_add(actual_output_amount);
+                                        token_balance.balance = current_on_chain_balance;
                                     } else {
                                         // Create new token entry if it doesn't exist
                                         info!(
                                             "Creating new token entry for {} with balance {}",
-                                            output_mint, actual_output_amount
+                                            output_mint, current_on_chain_balance
                                         );
                                         updated_context.token_balances.insert(
                                             output_mint.to_string(),
                                             reev_types::flow::TokenBalance {
-                                                balance: actual_output_amount,
+                                                balance: current_on_chain_balance,
                                                 decimals: Some(6), // Default to 6 decimals for most tokens
                                                 formatted_amount: None,
                                                 mint: output_mint.to_string(),
@@ -647,7 +681,7 @@ impl Executor {
                                         );
                                         info!(
                                             "New token entry created: {} -> {}",
-                                            output_mint, actual_output_amount
+                                            output_mint, current_on_chain_balance
                                         );
                                     }
 
@@ -738,31 +772,47 @@ impl Executor {
                                                 "Checking if token {} exists in context",
                                                 output_mint
                                             );
+                                            // Update output token balance - use actual on-chain balance
+                                            info!(
+                                                "Checking if token {} exists in context",
+                                                output_mint
+                                            );
+
+                                            // Query the current on-chain balance for this token
+                                            let current_on_chain_balance = self
+                                                .get_swap_output_amount(
+                                                    &rpc_client,
+                                                    wallet_pubkey,
+                                                    output_mint,
+                                                )
+                                                .await
+                                                .unwrap_or(0);
+
+                                            info!(
+                                                "Current on-chain balance for {}: {} (using this instead of adding to previous balance)",
+                                                output_mint, current_on_chain_balance
+                                            );
+
                                             if let Some(token_balance) =
                                                 updated_context.token_balances.get_mut(output_mint)
                                             {
                                                 info!(
-                                                    "Updating {} token balance from {} to {} (adding {})",
+                                                    "Updating {} token balance from {} to {} (using actual on-chain balance)",
                                                     output_mint,
                                                     token_balance.balance,
-                                                    token_balance
-                                                        .balance
-                                                        .saturating_add(actual_output_amount),
-                                                    actual_output_amount
+                                                    current_on_chain_balance
                                                 );
-                                                token_balance.balance = token_balance
-                                                    .balance
-                                                    .saturating_add(actual_output_amount);
+                                                token_balance.balance = current_on_chain_balance;
                                             } else {
                                                 // Create new token entry if it doesn't exist
                                                 info!(
                                                     "Creating new token entry for {} with balance {}",
-                                                    output_mint, actual_output_amount
+                                                    output_mint, current_on_chain_balance
                                                 );
                                                 updated_context.token_balances.insert(
                                                     output_mint.to_string(),
                                                     reev_types::flow::TokenBalance {
-                                                        balance: actual_output_amount,
+                                                        balance: current_on_chain_balance,
                                                         decimals: Some(6), // Default to 6 decimals for most tokens
                                                         formatted_amount: None,
                                                         mint: output_mint.to_string(),
@@ -772,7 +822,7 @@ impl Executor {
                                                 );
                                                 info!(
                                                     "New token entry created: {} -> {}",
-                                                    output_mint, actual_output_amount
+                                                    output_mint, current_on_chain_balance
                                                 );
                                             }
 
@@ -844,6 +894,10 @@ impl Executor {
             "Querying token balance for wallet {} and mint {}",
             wallet_pubkey, output_mint
         );
+
+        // Add a small delay to ensure blockchain has fully processed the transaction
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
         // Use token balance query function from reev-lib
         reev_lib::utils::solana::query_token_balance(rpc_client, wallet_pubkey, output_mint)
     }
