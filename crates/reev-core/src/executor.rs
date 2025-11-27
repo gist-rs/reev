@@ -254,15 +254,16 @@ impl Executor {
         let wallet_context = current_context.clone();
 
         // Execute step using tool executor with previous step history
+        // Execute the step with either simple execution or with history if previous steps exist
         let step_result = if previous_results.is_empty() {
-            // First step, no history to pass
+            // First step or when history is not needed
             self.tool_executor
                 .execute_step(&yml_step, &wallet_context)
                 .await?
         } else {
             // Pass previous step history for context-aware execution
             self.tool_executor
-                .execute_step_with_history(&yml_step, &wallet_context, previous_results)
+                .execute_step_with_history(&yml_step, &current_context, previous_results)
                 .await?
         };
 
@@ -523,6 +524,7 @@ impl Executor {
         if let Some(tool_results) = step_result.output.get("tool_results") {
             if let Some(results_array) = tool_results.as_array() {
                 for result in results_array {
+                    // Check if this is a Jupiter swap result
                     if let Some(jupiter_swap) = result.get("jupiter_swap") {
                         // Extract values from the jupiter_swap object
                         let input_mint = jupiter_swap.get("input_mint").and_then(|v| v.as_str());
@@ -559,7 +561,9 @@ impl Executor {
                                     .and_then(|v| v.as_str())
                                     .unwrap_or_else(|| &updated_context.owner);
 
-                                if let Some(_signature) = tx_signature {
+                                // tx_signature is already an Option<&str> from the destructuring above,
+                                // so we don't need to check if it's Some again
+                                {
                                     // Query the blockchain to get the actual output amount
                                     let rpc_client = solana_client::rpc_client::RpcClient::new(
                                         "http://localhost:8899".to_string(),
@@ -639,6 +643,143 @@ impl Executor {
                                         "Updated context: swapped {} of {} for {} of {}",
                                         input_amount, input_mint, actual_output_amount, output_mint
                                     );
+                                }
+                            } else {
+                                warn!("Jupiter swap failed, not updating context");
+                            }
+                        }
+                    }
+                    // Check if this is a regular swap result with tool_name field
+                    else if let Some(tool_name) = result.get("tool_name").and_then(|v| v.as_str())
+                    {
+                        if tool_name == "jupiter_swap" {
+                            // Check if swap was successful
+                            if let Some(success) = result.get("success").and_then(|v| v.as_bool()) {
+                                if success {
+                                    // Extract swap details
+                                    if let (
+                                        Some(input_mint),
+                                        Some(output_mint),
+                                        Some(tx_signature),
+                                    ) = (
+                                        result.get("input_mint").and_then(|v| v.as_str()),
+                                        result.get("output_mint").and_then(|v| v.as_str()),
+                                        result
+                                            .get("transaction_signature")
+                                            .and_then(|v| v.as_str()),
+                                    ) {
+                                        // Get input amount in lamports
+                                        let input_amount = result
+                                            .get("input_amount_lamports")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+
+                                        // Get wallet pubkey
+                                        let wallet_pubkey = result
+                                            .get("wallet")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or_else(|| &updated_context.owner);
+
+                                        // tx_signature is already an Option<&str> from the destructuring above,
+                                        // so we don't need to check if it's Some again
+                                        {
+                                            // Query the blockchain to get the actual output amount
+                                            let rpc_client =
+                                                solana_client::rpc_client::RpcClient::new(
+                                                    "http://localhost:8899".to_string(),
+                                                );
+
+                                            // Get the actual output amount from the swap transaction
+                                            let actual_output_amount = self
+                                                .get_swap_output_amount(
+                                                    &rpc_client,
+                                                    wallet_pubkey,
+                                                    output_mint,
+                                                )
+                                                .await
+                                                .unwrap_or(0);
+
+                                            info!(
+                                                "Actual output amount for swap: {} of {}",
+                                                actual_output_amount, output_mint
+                                            );
+
+                                            // Update SOL balance if SOL was swapped
+                                            if input_mint
+                                                == "So11111111111111111111111111111111111111112"
+                                            {
+                                                info!(
+                                                    "Updating SOL balance from {} to {} (subtracting {})",
+                                                    updated_context.sol_balance,
+                                                    updated_context
+                                                        .sol_balance
+                                                        .saturating_sub(input_amount),
+                                                    input_amount
+                                                );
+                                                updated_context.sol_balance = updated_context
+                                                    .sol_balance
+                                                    .saturating_sub(input_amount);
+                                            }
+
+                                            // Update output token balance
+                                            info!(
+                                                "Checking if token {} exists in context",
+                                                output_mint
+                                            );
+                                            if let Some(token_balance) =
+                                                updated_context.token_balances.get_mut(output_mint)
+                                            {
+                                                info!(
+                                                    "Updating {} token balance from {} to {} (adding {})",
+                                                    output_mint,
+                                                    token_balance.balance,
+                                                    token_balance
+                                                        .balance
+                                                        .saturating_add(actual_output_amount),
+                                                    actual_output_amount
+                                                );
+                                                token_balance.balance = token_balance
+                                                    .balance
+                                                    .saturating_add(actual_output_amount);
+                                            } else {
+                                                // Create new token entry if it doesn't exist
+                                                info!(
+                                                    "Creating new token entry for {} with balance {}",
+                                                    output_mint, actual_output_amount
+                                                );
+                                                updated_context.token_balances.insert(
+                                                    output_mint.to_string(),
+                                                    reev_types::flow::TokenBalance {
+                                                        balance: actual_output_amount,
+                                                        decimals: Some(6), // Default to 6 decimals for most tokens
+                                                        formatted_amount: None,
+                                                        mint: output_mint.to_string(),
+                                                        owner: Some(updated_context.owner.clone()),
+                                                        symbol: None,
+                                                    },
+                                                );
+                                                info!(
+                                                    "New token entry created: {} -> {}",
+                                                    output_mint, actual_output_amount
+                                                );
+                                            }
+
+                                            info!(
+                                                "Updated context: swapped {} of {} for {} of {}",
+                                                input_amount,
+                                                input_mint,
+                                                actual_output_amount,
+                                                output_mint
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    warn!("Jupiter swap failed, not updating context");
+                                }
+                            } else {
+                                // If success field is not present, check for error field
+                                if result.get("error").is_some() {
+                                    warn!("Jupiter swap failed with error, not updating context");
                                 }
                             }
                         }

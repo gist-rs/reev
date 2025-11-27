@@ -2,6 +2,29 @@
 
 ---
 
+## Issue #117: Updated Context Not Passed to LLM for Multi-Step Flows (NEW)
+### Status: NOT STARTED
+### Description:
+When executing a multi-step flow with a swap followed by a lend operation, the LLM is not receiving the updated wallet context after the swap step. This causes the lend operation to use stale balance information and fail due to requesting an amount that exceeds the available balance.
+
+### Current Behavior:
+- First step (swap) correctly exchanges SOL for USDC
+- Context is updated with correct USDC balance (e.g., 1,000,744,792 USDC)
+- However, the LLM for the second step still receives the original context with the old USDC balance (200,000,000)
+- LLM calculates 95% of the old balance, resulting in a requested amount (951,695,255) that exceeds the available balance (801,744,792 after subtracting pre-existing balance)
+- Balance validation fails because requested amount exceeds available balance
+
+### Root Cause:
+The issue is in the executor.rs file. When updating the context after a step, it updates the internal context correctly, but it's not passing this updated context to the next step in the flow. The `execute_flow` function correctly updates the context after each step, but the updated context is not being used for the subsequent step.
+
+### Tasks Required:
+1. Fix the executor to pass the updated context to subsequent steps
+2. Verify the fix works for both USDC and other tokens in multi-step flows
+3. Add test to prevent regression
+4. Update the prompt to make it clearer to the LLM to use the exact amount from the previous step
+
+---
+
 ## Issue #116: Context Passing Between Multi-Step Flow Steps (COMPLETED)
 ### Status: COMPLETED
 ### Description:
@@ -127,11 +150,12 @@ The V3 plan specifies robust error recovery as a key component, but current impl
 
 ---
 
-## Implementation Priority
+### Implementation Priority
 
 ### Week 1:
 1. ~~Issue #111: Complete RigAgent Integration for Tool Selection (COMPLETED)~~
-2. Issue #116: Complete Context Passing Between Multi-Step Flow Steps (IN PROGRESS)
+2. Issue #117: Fix USDC Amount Multiplied by 1,000,000 in Jupiter Lend Earn Deposit (NEW)
+3. ~~Issue #116: Complete Context Passing Between Multi-Step Flow Steps (COMPLETED)~~
 
 ### Week 2:
 3. Issue #102: Implement Error Recovery Engine (NOT STARTED)

@@ -203,6 +203,9 @@ impl RigAgent {
                                         full_prompt.push_str(&format!(
                                             "  Swapped {input_amount} of {input_mint} for {output_amount} of {output_mint}\n"
                                         ));
+                                        full_prompt.push_str(&format!(
+                                            "  NOTE: For subsequent lend operations, use exactly {output_amount} units of {output_mint} (the amount received from this swap)\n"
+                                        ));
                                     }
                                 }
                                 // Add specific details about lend operations
@@ -237,6 +240,7 @@ impl RigAgent {
         // Add special instruction for multi-step flows
         if !previous_results.is_empty() {
             full_prompt.push_str("\n\nIMPORTANT: For this step, please use the actual amounts from previous steps when determining parameters. For example, if this is a lend step after a swap, use the actual amount received from the swap, not an estimated amount.");
+            full_prompt.push_str("\n\nCRITICAL: For lend operations after a swap, only use the amount received from the swap itself, not the total token balance which might include pre-existing amounts. The amount should already be in the smallest denomination (e.g., for USDC, 1 USDC = 1,000,000 units).");
         }
 
         Ok(full_prompt)
@@ -282,7 +286,7 @@ impl RigAgent {
 Available tools:
 - sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string, required), amount (number in SOL, required), wallet (string, optional)
 - jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
-- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required), wallet (string, optional)
+- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required, already in smallest denomination, e.g., 1,000,000 for 1 USDC), wallet (string, optional)
 - get_account_balance: Get account balance. Parameters: account (string, required), mint (string, optional, defaults to SOL)
 
 For token mint addresses:
@@ -465,7 +469,31 @@ For swap operations, always determine the input and output mints based on the to
                 if let Some(str_value) = value.as_str() {
                     params_map.insert(key.clone(), str_value.to_string());
                 } else {
-                    params_map.insert(key.clone(), value.to_string());
+                    // Handle numeric values more carefully to avoid scientific notation issues
+                    match value {
+                        serde_json::Value::Number(n) => {
+                            if let Some(u) = n.as_u64() {
+                                // For u64 values, use directly to avoid scientific notation
+                                params_map.insert(key.clone(), u.to_string());
+                            } else if let Some(i) = n.as_i64() {
+                                // For i64 values, use directly to avoid scientific notation
+                                params_map.insert(key.clone(), i.to_string());
+                            } else if let Some(f) = n.as_f64() {
+                                // For floating point values, format without scientific notation
+                                // Check if it's an integer value first to preserve precision
+                                if f.fract() == 0.0 && f.abs() < (i64::MAX as f64) {
+                                    params_map.insert(key.clone(), (f as i64).to_string());
+                                } else {
+                                    params_map.insert(key.clone(), f.to_string());
+                                }
+                            } else {
+                                params_map.insert(key.clone(), value.to_string());
+                            }
+                        }
+                        _ => {
+                            params_map.insert(key.clone(), value.to_string());
+                        }
+                    }
                 }
             }
         }
@@ -826,11 +854,13 @@ For swap operations, always determine the input and output mints based on the to
         };
 
         // Execute Jupiter Lend Earn Deposit using AgentTools
+        // Note: The amount is already in the correct units (smallest denomination)
+        // as provided by the LLM, so we don't need to multiply by 1_000_000
         let deposit_args =
             reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
                 user_pubkey: wallet_context.owner.clone(),
                 asset_mint: mint.clone(),
-                amount: (amount * 1_000_000.0) as u64, // Convert to smallest units (USDC has 6 decimals)
+                amount: amount as u64,
             };
 
         let result = agent_tools
