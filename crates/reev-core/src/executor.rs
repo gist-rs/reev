@@ -101,7 +101,9 @@ impl Executor {
         // Ground truth is optional for validation
         let _ground_truth = flow.ground_truth.as_ref();
 
-        // Execute each step
+        // Execute each step with updated context
+        let mut current_context = initial_context.clone();
+
         for (step_index, step) in flow.steps.iter().enumerate() {
             let step_start_time = Instant::now();
 
@@ -117,12 +119,16 @@ impl Executor {
 
             // Execute step using existing step execution pattern
             match self
-                .execute_step_with_recovery(&dynamic_step, &step_results, initial_context)
+                .execute_step_with_recovery(&dynamic_step, &step_results, &current_context)
                 .await
             {
                 Ok(step_result) => {
                     debug!("Step {} completed successfully", step.step_id);
 
+                    // Update context based on step result before moving to next step
+                    current_context = self
+                        .update_context_after_step(&current_context, &step_result)
+                        .await?;
                     step_results.push(step_result);
                 }
                 Err(e) => {
@@ -138,6 +144,7 @@ impl Executor {
                         execution_time_ms: step_start_time.elapsed().as_millis() as u64,
                     };
 
+                    // Don't update context for failed steps
                     step_results.push(step_result);
 
                     // Check if this is a critical step
@@ -214,12 +221,12 @@ impl Executor {
     }
 
     /// Execute a step with error recovery
-    #[instrument(skip(self, step, _previous_results, initial_context))]
+    #[instrument(skip(self, step, previous_results, current_context))]
     async fn execute_step_with_recovery(
         &self,
         step: &DynamicStep,
-        _previous_results: &[StepResult],
-        initial_context: &WalletContext, // Add initial_context parameter
+        previous_results: &[StepResult],
+        current_context: &WalletContext,
     ) -> Result<StepResult> {
         // Convert DynamicStep to YmlStep for tool execution
         let yml_step = YmlStep {
@@ -243,14 +250,22 @@ impl Executor {
             },
         };
 
-        // Use the provided initial_context which has the correct wallet balance
-        let wallet_context = initial_context.clone();
+        // Use the provided current_context which has the correct wallet balance
+        let wallet_context = current_context.clone();
 
-        // Execute the step using the tool executor
-        let step_result = self
-            .tool_executor
-            .execute_step(&yml_step, &wallet_context)
-            .await?;
+        // Execute the step using the tool executor with previous step history
+        let step_result = if previous_results.is_empty() {
+            // First step, no history to pass
+            self.tool_executor
+                .execute_step(&yml_step, &wallet_context)
+                .await?
+        } else {
+            // For now, just execute step without history support
+            // TODO: Implement proper history support in tool executor
+            self.tool_executor
+                .execute_step(&yml_step, &wallet_context)
+                .await?
+        };
 
         Ok(step_result)
     }
@@ -302,6 +317,103 @@ impl Executor {
             .with_estimated_time(yml_step.estimated_time_seconds.unwrap_or(30));
 
         Ok(step)
+    }
+
+    /// Update wallet context after a step execution
+    async fn update_context_after_step(
+        &self,
+        current_context: &WalletContext,
+        step_result: &StepResult,
+    ) -> Result<WalletContext> {
+        info!(
+            "Updating wallet context after step: {}",
+            step_result.step_id
+        );
+
+        // Create a new context based on the current one
+        let mut updated_context = current_context.clone();
+
+        // Extract tool results from step output
+        if let Some(tool_results) = step_result.output.get("tool_results") {
+            if let Some(results_array) = tool_results.as_array() {
+                for result in results_array {
+                    // Update context based on different tool types
+                    if let Some(jupiter_swap) = result.get("jupiter_swap") {
+                        if let (Some(input_mint), Some(output_mint)) = (
+                            jupiter_swap.get("input_mint").and_then(|v| v.as_str()),
+                            jupiter_swap.get("output_mint").and_then(|v| v.as_str()),
+                        ) {
+                            // Get swap amounts
+                            let input_amount = jupiter_swap
+                                .get("input_amount")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0);
+                            let output_amount = jupiter_swap
+                                .get("output_amount")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0);
+
+                            // Update SOL balance if SOL was swapped
+                            if input_mint == "So11111111111111111111111111111111111111111112" {
+                                updated_context.sol_balance =
+                                    updated_context.sol_balance.saturating_sub(input_amount);
+                            }
+
+                            // Update output token balance
+                            if let Some(token_balance) =
+                                updated_context.token_balances.get_mut(output_mint)
+                            {
+                                token_balance.balance =
+                                    token_balance.balance.saturating_add(output_amount);
+                            } else {
+                                // Create new token entry if it doesn't exist
+                                updated_context.token_balances.insert(
+                                    output_mint.to_string(),
+                                    reev_types::flow::TokenBalance {
+                                        balance: output_amount,
+                                        decimals: Some(6), // Default to 6 decimals for most tokens
+                                        formatted_amount: None,
+                                        mint: output_mint.to_string(),
+                                        owner: Some(current_context.owner.clone()),
+                                        symbol: None,
+                                    },
+                                );
+                            }
+
+                            info!(
+                                "Updated context: swapped {} of {} for {} of {}",
+                                input_amount, input_mint, output_amount, output_mint
+                            );
+                        }
+                    } else if let Some(jupiter_lend) = result.get("jupiter_lend") {
+                        if let (Some(asset_mint), Some(amount)) = (
+                            jupiter_lend.get("asset_mint").and_then(|v| v.as_str()),
+                            jupiter_lend.get("amount").and_then(|v| v.as_u64()),
+                        ) {
+                            // Update token balance after lending (subtract from available balance)
+                            if let Some(token_balance) =
+                                updated_context.token_balances.get_mut(asset_mint)
+                            {
+                                token_balance.balance =
+                                    token_balance.balance.saturating_sub(amount);
+                                info!("Updated context: lent {} of {}", amount, asset_mint);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Recalculate total value
+        updated_context.calculate_total_value();
+
+        info!(
+            "Context update completed. SOL: {}, Total value: ${:.2}",
+            updated_context.sol_balance_sol(),
+            updated_context.total_value_usd
+        );
+
+        Ok(updated_context)
     }
 
     /// Get final wallet context after all steps have executed

@@ -89,19 +89,13 @@ async fn execute_sell_all_sol_and_lend(
     })
     .with_critical(true);
 
-    // Step 5: Create lend step (second operation in multi-step flow)
-    let usdc_price_estimate = 150.0; // $150 per SOL estimate
-    let expected_usdc_amount = swap_amount_sol * usdc_price_estimate;
-    info!("💵 Expected USDC from swap: {}", expected_usdc_amount);
-
-    // Create lend step
+    // Create lend step (second operation in multi-step flow)
+    // We'll use a placeholder amount since we don't know the actual amount from swap yet
+    // The LLM will determine the correct amount based on the updated wallet context after the swap step
     let lend_step = YmlStep::new(
         "step_2_lend".to_string(),
-        format!("lend {} USDC to jupiter", expected_usdc_amount),
-        format!(
-            "Deposit USDC from previous swap into Jupiter lending. Expected amount: {:.2} USDC",
-            expected_usdc_amount
-        ),
+        "lend 95% of available USDC to jupiter".to_string(),
+        "Deposit USDC received from previous swap into Jupiter lending. Use 95% of the available USDC balance to account for potential slippage and fees.".to_string(),
     )
     .with_tool_call(YmlToolCall {
         tool_name: reev_types::tools::ToolName::JupiterLendEarnDeposit,
@@ -128,15 +122,18 @@ async fn execute_sell_all_sol_and_lend(
     multi_step_flow.subject_wallet_info = wallet_info;
 
     // Add both steps to the multi-step flow
-    multi_step_flow.steps.push(swap_step);
-    multi_step_flow.steps.push(lend_step);
+    multi_step_flow.steps.push(swap_step.clone());
+    multi_step_flow.steps.push(lend_step.clone());
 
     info!("📋 Multi-step flow created:");
     info!("   Flow ID: {}", flow_id);
     info!("   Steps: {}", multi_step_flow.steps.len());
-    for (i, step) in multi_step_flow.steps.iter().enumerate() {
-        info!("   Step {}: {}", i + 1, step.step_id);
-    }
+    info!("   Step 1: {} - Swap SOL to USDC", swap_step.step_id);
+    info!(
+        "   Step 2: {} - Lend USDC from swap to Jupiter",
+        lend_step.step_id
+    );
+    info!("   Note: The lend step will use the actual USDC amount received from the swap");
 
     // Step 7: Execute multi-step flow using the Executor with RigAgent
     info!("⚙️ Executing multi-step flow...");
@@ -159,9 +156,27 @@ async fn execute_sell_all_sol_and_lend(
         if let Some(jupiter_swap) = step_result.output.get("jupiter_swap") {
             if let Some(sig) = jupiter_swap.get("transaction_signature") {
                 if let Some(sig_str) = sig.as_str() {
-                    info!("  Jupiter transaction signature: {}", sig_str);
+                    info!("  Jupiter swap transaction signature: {}", sig_str);
                     signatures.push(sig_str.to_string());
                 }
+            }
+            // Log the actual swap result
+            if let (Some(input_mint), Some(output_mint)) = (
+                jupiter_swap.get("input_mint").and_then(|v| v.as_str()),
+                jupiter_swap.get("output_mint").and_then(|v| v.as_str()),
+            ) {
+                let input_amount = jupiter_swap
+                    .get("input_amount")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let output_amount = jupiter_swap
+                    .get("output_amount")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                info!(
+                    "  Swap result: {} of {} for {} of {}",
+                    input_amount, input_mint, output_amount, output_mint
+                );
             }
         } else if let Some(jupiter_lend) = step_result.output.get("jupiter_lend") {
             if let Some(sig) = jupiter_lend.get("transaction_signature") {
@@ -169,6 +184,13 @@ async fn execute_sell_all_sol_and_lend(
                     info!("  Jupiter lend transaction signature: {}", sig_str);
                     signatures.push(sig_str.to_string());
                 }
+            }
+            // Log the actual lend result
+            if let (Some(asset_mint), Some(amount)) = (
+                jupiter_lend.get("asset_mint").and_then(|v| v.as_str()),
+                jupiter_lend.get("amount").and_then(|v| v.as_u64()),
+            ) {
+                info!("  Lend result: {} of {}", amount, asset_mint);
             }
         } else if let Some(sig) = step_result.output.get("transaction_signature") {
             if let Some(sig_str) = sig.as_str() {
@@ -216,7 +238,7 @@ async fn verify_transaction_details(signatures: &[String]) -> Result<(), anyhow:
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_sell_all_sol_and_lend_to_jup() -> Result<(), anyhow::Error> {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();

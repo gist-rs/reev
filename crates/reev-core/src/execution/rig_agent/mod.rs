@@ -79,6 +79,17 @@ impl RigAgent {
         step: &YmlStep,
         wallet_context: &WalletContext,
     ) -> Result<StepResult> {
+        self.execute_step_with_rig_and_history(step, wallet_context, &[])
+            .await
+    }
+
+    /// Execute a step with rig agent and previous step history
+    pub async fn execute_step_with_rig_and_history(
+        &self,
+        step: &YmlStep,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<StepResult> {
         info!("Executing step {} with rig agent", step.step_id);
 
         // Use the refined prompt if available, otherwise use the original prompt
@@ -88,8 +99,9 @@ impl RigAgent {
             step.prompt.clone()
         };
 
-        // Create a context-aware prompt with wallet information
-        let context_prompt = self.create_context_prompt(&prompt, wallet_context)?;
+        // Create a context-aware prompt with wallet information and previous step history
+        let context_prompt =
+            self.create_context_prompt_with_history(&prompt, wallet_context, previous_results)?;
 
         // Get expected tools hints from the step
         let expected_tools = step.expected_tools.clone();
@@ -138,17 +150,102 @@ impl RigAgent {
         prompt: &str,
         wallet_context: &WalletContext,
     ) -> Result<String> {
+        self.create_context_prompt_with_history(prompt, wallet_context, &[])
+    }
+
+    /// Create a context-aware prompt with wallet information and previous step history
+    fn create_context_prompt_with_history(
+        &self,
+        prompt: &str,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<String> {
         let wallet_info = json!({
             "pubkey": wallet_context.owner,
             "sol_balance": wallet_context.sol_balance,
             "tokens": wallet_context.token_balances.values().collect::<Vec<_>>()
         });
 
-        Ok(format!(
-            "Given the following wallet context:\n{}\n\nPlease help with the following request: {}",
-            serde_json::to_string_pretty(&wallet_info)?,
+        let mut full_prompt = format!(
+            "Given the following wallet context:\n{}\n",
+            serde_json::to_string_pretty(&wallet_info)?
+        );
+
+        // Add information about previous steps if available
+        if !previous_results.is_empty() {
+            full_prompt.push_str("\n--- Previous Steps ---\n");
+            for (i, result) in previous_results.iter().enumerate() {
+                full_prompt.push_str(&format!(
+                    "Step {}: {} - {}\n",
+                    i + 1,
+                    result.step_id,
+                    if result.success { "Success" } else { "Failed" }
+                ));
+
+                // Extract key information from successful steps
+                if result.success {
+                    if let Some(tool_results) = result.output.get("tool_results") {
+                        if let Some(results_array) = tool_results.as_array() {
+                            for tool_result in results_array {
+                                // Add specific details about swap operations
+                                if let Some(jupiter_swap) = tool_result.get("jupiter_swap") {
+                                    if let (
+                                        Some(input_mint),
+                                        Some(output_mint),
+                                        Some(input_amount),
+                                        Some(output_amount),
+                                    ) = (
+                                        jupiter_swap.get("input_mint").and_then(|v| v.as_str()),
+                                        jupiter_swap.get("output_mint").and_then(|v| v.as_str()),
+                                        jupiter_swap.get("input_amount").and_then(|v| v.as_u64()),
+                                        jupiter_swap.get("output_amount").and_then(|v| v.as_u64()),
+                                    ) {
+                                        full_prompt.push_str(&format!(
+                                            "  Swapped {} of {} for {} of {}\n",
+                                            input_amount, input_mint, output_amount, output_mint
+                                        ));
+                                    }
+                                }
+                                // Add specific details about lend operations
+                                else if let Some(jupiter_lend) = tool_result.get("jupiter_lend") {
+                                    if let (Some(asset_mint), Some(amount)) = (
+                                        jupiter_lend.get("asset_mint").and_then(|v| v.as_str()),
+                                        jupiter_lend.get("amount").and_then(|v| v.as_u64()),
+                                    ) {
+                                        full_prompt.push_str(&format!(
+                                            "  Lent {} of {}\n",
+                                            amount, asset_mint
+                                        ));
+                                    }
+                                }
+                                // Add generic info for other operations
+                                else if let Some(operation_type) =
+                                    tool_result.get("operation_type").and_then(|v| v.as_str())
+                                {
+                                    full_prompt.push_str(&format!(
+                                        "  Completed operation: {}\n",
+                                        operation_type
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            full_prompt.push_str("--- End Previous Steps ---\n\n");
+        }
+
+        full_prompt.push_str(&format!(
+            "Please help with the following request: {}",
             prompt
-        ))
+        ));
+
+        // Add special instruction for multi-step flows
+        if !previous_results.is_empty() {
+            full_prompt.push_str("\n\nIMPORTANT: For this step, please use the actual amounts from previous steps when determining parameters. For example, if this is a lend step after a swap, use the actual amount received from the swap, not an estimated amount.");
+        }
+
+        Ok(full_prompt)
     }
 
     /// Prompt the agent with expected tools hints
