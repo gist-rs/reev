@@ -98,28 +98,6 @@ impl ToolExecutor {
         rig_agent.execute_step_with_rig(step, wallet_context).await
     }
 
-    /// Execute a step with previous step history
-    #[instrument(skip(self, step, wallet_context, previous_results))]
-    pub async fn execute_step_with_history(
-        &self,
-        step: &YmlStep,
-        wallet_context: &WalletContext,
-        previous_results: &[StepResult],
-    ) -> Result<StepResult> {
-        info!("Executing step {} with previous history", step.prompt);
-
-        // Per V3 plan, always use RigAgent for tool selection
-        // This should never be None since we initialize it in the constructor
-        let rig_agent = self.rig_agent.as_ref().ok_or_else(|| {
-            anyhow!("RigAgent not initialized - this should not happen with the V3 implementation")
-        })?;
-
-        info!("Using rig agent with history for tool selection based on refined prompt");
-        rig_agent
-            .execute_step_with_rig_and_history(step, wallet_context, previous_results)
-            .await
-    }
-
     /// Initialize RigAgent for tool selection
     async fn initialize_rig_agent(&self) -> Result<Arc<RigAgent>> {
         info!("Initializing RigAgent for tool selection");
@@ -165,5 +143,27 @@ impl ToolExecutor {
         );
 
         Ok(rig_agent)
+    }
+
+    /// Execute a step with wallet context and previous step history
+    #[instrument(skip(self, step, wallet_context, previous_results))]
+    pub async fn execute_step_with_history(
+        &self,
+        step: &YmlStep,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<StepResult> {
+        info!("Executing step {} with previous history", step.prompt);
+
+        // Per V3 plan, always use RigAgent for tool selection
+        // This should never be None since we initialize it in the constructor
+        let rig_agent = self.rig_agent.as_ref().ok_or_else(|| {
+            anyhow!("RigAgent not initialized - this should not happen with the V3 implementation")
+        })?;
+
+        info!("Using rig agent with history for tool selection based on refined prompt");
+        rig_agent
+            .execute_step_with_rig_and_history(step, wallet_context, previous_results)
+            .await
     }
 }

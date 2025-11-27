@@ -16,6 +16,14 @@ pub trait Executor: Send + Sync {
         step: &YmlStep,
         wallet_context: &WalletContext,
     ) -> Result<StepResult>;
+
+    /// Execute a step with wallet context and previous step history
+    async fn execute_step_with_history(
+        &self,
+        step: &YmlStep,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<StepResult>;
 }
 
 /// Type alias for a shared tool executor
@@ -29,5 +37,15 @@ impl Executor for crate::execution::ToolExecutor {
         wallet_context: &WalletContext,
     ) -> Result<StepResult> {
         self.execute_step(step, wallet_context).await
+    }
+
+    async fn execute_step_with_history(
+        &self,
+        step: &YmlStep,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<StepResult> {
+        self.execute_step_with_history(step, wallet_context, previous_results)
+            .await
     }
 }

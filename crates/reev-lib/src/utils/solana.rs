@@ -1,10 +1,15 @@
-//! Solana utilities for key handling
+//! Solana utilities for key handling and balance queries
 
 use anyhow::{anyhow, Result};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::program_pack::Pack;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::signer::keypair::Keypair as SolanaKeypair;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use tracing::{info, warn};
 
 /// Source of Solana private key
 #[derive(Debug, Clone)]
@@ -135,4 +140,58 @@ pub fn get_pubkey(keypair: &SolanaKeypair) -> String {
 pub fn get_signer() -> Result<impl solana_sdk::signature::Signer> {
     let keypair = get_keypair()?;
     Ok(keypair)
+}
+
+/// Query balance of a specific token for a wallet using SURFPOOL
+/// Uses the same approach as balance_validation.rs with ATA (Associated Token Account)
+pub fn query_token_balance(
+    rpc_client: &RpcClient,
+    wallet_pubkey: &str,
+    token_mint: &str,
+) -> Result<u64> {
+    // Convert string pubkeys to Pubkey objects
+    let wallet_pubkey =
+        Pubkey::from_str(wallet_pubkey).map_err(|e| anyhow!("Invalid wallet pubkey: {e}"))?;
+
+    let token_mint =
+        Pubkey::from_str(token_mint).map_err(|e| anyhow!("Invalid token mint: {e}"))?;
+
+    // Calculate Associated Token Account (ATA) for this token
+    let ata =
+        spl_associated_token_account::get_associated_token_address(&wallet_pubkey, &token_mint);
+
+    // Query token account directly using same approach as balance_validation.rs
+    match rpc_client.get_account(&ata) {
+        Ok(account) => {
+            // Check if the account is a valid token account
+            if account.owner == spl_token::ID {
+                // Parse the token account using spl-token's Account unpack
+                match spl_token::state::Account::unpack(&account.data) {
+                    Ok(token_account) => {
+                        info!(
+                            "Token account balance for mint {}: {} raw units",
+                            token_mint, token_account.amount
+                        );
+                        Ok(token_account.amount)
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse token account: {}", e);
+                        Err(anyhow!("Failed to parse token account"))
+                    }
+                }
+            } else {
+                // Account exists but is not a token account
+                warn!(
+                    "Account exists but is not a token account. Owner: {}",
+                    account.owner
+                );
+                Ok(0)
+            }
+        }
+        Err(e) => {
+            // Account doesn't exist, balance is 0
+            warn!("Failed to query token account: {}", e);
+            Ok(0)
+        }
+    }
 }

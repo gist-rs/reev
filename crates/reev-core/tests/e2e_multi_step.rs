@@ -30,7 +30,6 @@ use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::yml_schema::YmlToolCall;
 use reev_core::yml_schema::{YmlFlow, YmlStep, YmlWalletInfo};
 use reev_core::Executor;
-use solana_client::nonblocking::rpc_client::RpcClient;
 // RpcClient is used indirectly through get_signature_status_with_commitment
 use solana_sdk::signature::Signer;
 // std::env is not needed in this file
@@ -79,7 +78,7 @@ async fn execute_sell_all_sol_and_lend(
     // Create swap step
     let swap_step = YmlStep::new(
         "step_1_swap".to_string(),
-        format!("swap {} SOL to USDC", swap_amount_sol),
+        format!("swap {swap_amount_sol} SOL to USDC"),
         "Swap SOL to USDC using Jupiter DEX".to_string(),
     )
     .with_tool_call(YmlToolCall {

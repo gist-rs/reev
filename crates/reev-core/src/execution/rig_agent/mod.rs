@@ -201,8 +201,7 @@ impl RigAgent {
                                         jupiter_swap.get("output_amount").and_then(|v| v.as_u64()),
                                     ) {
                                         full_prompt.push_str(&format!(
-                                            "  Swapped {} of {} for {} of {}\n",
-                                            input_amount, input_mint, output_amount, output_mint
+                                            "  Swapped {input_amount} of {input_mint} for {output_amount} of {output_mint}\n"
                                         ));
                                     }
                                 }
@@ -213,8 +212,7 @@ impl RigAgent {
                                         jupiter_lend.get("amount").and_then(|v| v.as_u64()),
                                     ) {
                                         full_prompt.push_str(&format!(
-                                            "  Lent {} of {}\n",
-                                            amount, asset_mint
+                                            "  Lent {amount} of {asset_mint}\n"
                                         ));
                                     }
                                 }
@@ -223,8 +221,7 @@ impl RigAgent {
                                     tool_result.get("operation_type").and_then(|v| v.as_str())
                                 {
                                     full_prompt.push_str(&format!(
-                                        "  Completed operation: {}\n",
-                                        operation_type
+                                        "  Completed operation: {operation_type}\n"
                                     ));
                                 }
                             }
@@ -235,10 +232,7 @@ impl RigAgent {
             full_prompt.push_str("--- End Previous Steps ---\n\n");
         }
 
-        full_prompt.push_str(&format!(
-            "Please help with the following request: {}",
-            prompt
-        ));
+        full_prompt.push_str(&format!("Please help with the following request: {prompt}"));
 
         // Add special instruction for multi-step flows
         if !previous_results.is_empty() {
@@ -836,7 +830,7 @@ For swap operations, always determine the input and output mints based on the to
             reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
                 user_pubkey: wallet_context.owner.clone(),
                 asset_mint: mint.clone(),
-                amount: (amount * 1_000_000_000.0) as u64, // Convert to lamports
+                amount: (amount * 1_000_000.0) as u64, // Convert to smallest units (USDC has 6 decimals)
             };
 
         let result = agent_tools
