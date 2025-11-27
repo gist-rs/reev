@@ -2,43 +2,65 @@
 
 ---
 
-Current Problem Analysis
+[@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) , check [@PLAN_CORE_V3.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V3.md) , i will need to support the multi-step prompt l
+btw the plan
+---
+ 3. Implement a Unified Flow Builder:
+   - Create a single flow builder that can handle any sequence of operations:
+     ```rust
+     async fn build_flow_from_operations(
+         &self,
+         prompt: &str,
+         wallet_context: &WalletContext,
+         operations: Vec<Operation>
+     ) -> Result<YmlFlow>
+     ```
+   - Use template-based flow generation for common patterns:
+     ```yaml
+     # flow_templates.yml
+     single_operation:
+       steps: [operation]
+     
+     multi_operation:
+       steps: [operation1, operation2, ...]
+     
+     # More complex patterns
+     swap_then_lend:
+       steps: [swap_operation, lend_operation]
+     ```
 
-The core issue is an architectural mismatch between the current implementation and the V3 plan:
+4. Refine the Operation Parsing:
+   - Define Operation enum for sequence parsing:
+     ```rust
+     enum Operation {
+         Swap { from: String, to: String, amount: f64 },
+         Lend { mint: String, amount: f64 },
+         Transfer { mint: String, to: String, amount: f64 },
+     }
+     ```
+   - Parse "swap 1 SOL to USDC then lend" -> vec![
+       Swap { from: "SOL", to: "USDC", amount: 1.0 },
+       Lend { mint: "USDC", amount: 1.0 }  // Amount from previous step
+     ]
+---
+look weird? why we still have rules based here, it's now scalabe?
+---
 
-### Current Implementation (Problematic):
-1. **LanguageRefiner** refines prompts but has hardcoded fallbacks that change "swap" to "transfer"
-2. **OperationParser** uses regex to extract operations from refined prompts
-3. **YmlGenerator** uses OperationParser to pre-determine tools and parameters
-4. **Executor** uses these pre-determined values to execute tools
 
-### V3 Plan Architecture:
-1. **Phase 1**: LanguageRefiner refines prompts without changing operation types
-2. **Phase 2**: RigAgent uses refined prompts directly to determine tools and parameters
+prompt: "sell all SOL and lend to jup"
 
-### The Architectural Conflict:
-The current implementation tries to use a rule-based approach (OperationParser) to extract operations from refined prompts, which completely defeats the purpose of having RigAgent handle tool selection via LLM.
+expect flow yml that has this content ready for process each step by step by reev-orchestrator 
+```
+steps:
+  - step_id: "{uuidv7}_swap"
+    refined_prompt: "swap 4.99 SOL to USDC"
+    context: 
+  - step_id: "{uuidv7}_lend"
+    wallet_context: "wall context and token price go here"
+    previous_context: "swapped 4.99 SOL to 708.58 USDC" 
+    refined_prompt: "lend 708.58 USDC (value 4.99 SOL) to Jupiter lend"
+```
 
-### The Specific Bug:
-When LanguageRefiner fails to properly parse the LLM response, it falls back to a hardcoded "Send 1 SOL to address" response, which changes a swap operation to a transfer operation.
-
-## Solution Approach
-
-The fix should be two-fold:
-
-### 1. Fix LanguageRefiner:
-- Remove the hardcoded fallback responses that change operation types
-- Update system prompt to emphasize preserving operation types
-- Ensure "swap" operations aren't changed to "transfer"
-
-### 2. Remove Pre-determination of Operations:
-- YmlGenerator shouldn't try to parse operations from refined prompts
-- Create simple YML steps with just the refined prompt
-- Let RigAgent handle tool selection based on the refined prompt
-
-This aligns with the V3 plan where the LLM (through RigAgent) determines the appropriate tools based on the refined prompt, not a rule-based parser trying to guess the intent.
-
-The V3 plan does mention OperationParser in Phase 2, but it's meant for creating flexible YML structures for complex operations, not for extracting operations from already refined prompts. It's a tool for the YML generator, not a replacement for RigAgent's LLM-driven tool selection.
 
 ---
 
