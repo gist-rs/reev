@@ -334,18 +334,18 @@ error_responses:
      ) -> Result<YmlFlow>
      ```
    - **Why single-step flows work better than predefining templates**: Instead of predefining all possible combinations,
-     we create individual operation flows that can be dynamically combined:
+     we create individual operation flows and extract their steps:
      ```yaml
      # single-step flow approach (current implementation):
-     # Each operation is a self-contained flow with its own logic
+     # Each operation is a self-contained flow with one step
      
-     # swap flow handles any SOL→USDC swap
-     # lend flow handles any USDC→Jupiter lending
-     # transfer flow handles any SOL→recipient transfer
+     # swap_flow creates a YmlFlow with one swap step
+     # lend_flow creates a YmlFlow with one lend step
+     # transfer_flow creates a YmlFlow with one transfer step
      
-     # These flows are combined dynamically based on user prompt:
-     # "swap SOL→USDC then lend" → [swap_flow, lend_flow]
-     # "swap SOL→USDC, transfer 1 SOL, lend remainder" → [swap_flow, transfer_flow, lend_flow]
+     # Steps are extracted from these flows and combined into a multi-step flow:
+     # "swap SOL→USDC then lend" → extract swap_step and lend_step into new multi-step_flow
+     # "swap SOL→USDC, transfer 1 SOL, lend remainder" → extract all steps into new multi-step_flow
      ```
 
 4. Refine the Operation Parsing:
