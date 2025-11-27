@@ -1,4 +1,3 @@
-## DO
 - DO add test to tests folder.
 - Create/refine issues in `ISSUES.md` before fix anything and updated when fixed, keep only last 10 issues.
 - Try to keep all md under 320-512 lines, keep only important and use short word, less noise, keep revise for compact.
@@ -17,7 +16,29 @@
 - Must use `RUST_LOG=info` and `--quiet` to reduce log noise and better filter the log by target keyword.
 - RESTRICT jupiter_earn tool to position/earnings benchmarks (114-*.yml) only, never add to normal agent tool list.
 - when stuck, try to find what working and start adding until it break.
-
-## DONT
 - DONT Add a test on each file, place it in tests folder.
 - DONT run server and get stuck, do run server in background, use cargo watch e.g. `nohup cargo ...`.
+
+## AI BEHAVIOR PROMPTS
+When analyzing plans or code:
+- DO read entire document before making suggestions
+- DO connect dots between different sections of the plan
+- DO ask clarifying questions if unsure about plan sections
+- DON'T assume features that aren't explicitly mentioned
+- DON'T ignore implementation details in the plan
+- DON'T suggest alternatives to approaches explicitly in the plan
+
+## PLAN ANALYSIS PROMPT
+"Read PLAN_CORE_V3.md completely, focusing on:
+1. How phases connect together (Phase 1 + Phase 2 architecture)
+2. Migration strategy sections (what's deprecated vs. what's recommended)
+3. YML structure requirements (what fields are needed)
+4. Implementation requirements (what needs to be built)
+
+Then identify if current implementation matches these requirements by:
+1. Checking if YmlGenerator creates correct YML structure
+2. Verifying if flow builders match plan recommendations
+3. Ensuring multi-step operations follow V3 approach
+4. Confirming no rule-based parsing is used where LLM should decide
+
+DO NOT suggest implementations that contradict these plan sections.
