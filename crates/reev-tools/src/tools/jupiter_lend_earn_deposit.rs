@@ -184,6 +184,19 @@ impl Tool for JupiterLendEarnDepositTool {
         // Use shared balance validation utility
         let balance_validator = BalanceValidator::new(self.key_map.clone());
 
+        // Debug: Check available balance before validation
+        let available_balance = balance_validator
+            .get_token_balance(&asset_mint.to_string(), &args.user_pubkey)
+            .unwrap_or(0);
+        debug!(
+            "DEBUG: JupiterLendEarnDepositTool - Available balance for mint {}: {}",
+            asset_mint, available_balance
+        );
+        debug!(
+            "DEBUG: JupiterLendEarnDepositTool - Requested amount: {}",
+            args.amount
+        );
+
         match balance_validator
             .validate_token_balance(&asset_mint.to_string(), &args.user_pubkey, args.amount)
             .map_err(JupiterLendEarnDepositError::from)

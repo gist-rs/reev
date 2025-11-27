@@ -253,6 +253,14 @@ impl Executor {
         // Use the provided current_context which should have the correct wallet balance
         let wallet_context = current_context.clone();
 
+        debug!(
+            "DEBUG: execute_step_with_recovery - USDC balance in context: {:?}",
+            current_context
+                .token_balances
+                .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map(|t| t.balance)
+        );
+
         // Execute step using tool executor with previous step history
         // Execute the step with either simple execution or with history if previous steps exist
         let step_result = if previous_results.is_empty() {
@@ -428,6 +436,10 @@ impl Executor {
                                                     token_balance.balance,
                                                     token_balance.balance.saturating_add(actual_output_amount),
                                                     actual_output_amount
+                                                );
+                                                debug!(
+                                                    "DEBUG: After updating, USDC balance in context: {}",
+                                                    token_balance.balance.saturating_add(actual_output_amount)
                                                 );
                                                 token_balance.balance = token_balance
                                                     .balance

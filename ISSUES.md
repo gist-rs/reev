@@ -2,8 +2,8 @@
 
 ---
 
-## Issue #117: Updated Context Not Passed to LLM for Multi-Step Flows (NEW)
-### Status: NOT STARTED
+## Issue #117: Updated Context Not Passed to LLM for Multi-Step Flows (IN PROGRESS)
+### Status: PARTIALLY FIXED
 ### Description:
 When executing a multi-step flow with a swap followed by a lend operation, the LLM is not receiving the updated wallet context after the swap step. This causes the lend operation to use stale balance information and fail due to requesting an amount that exceeds the available balance.
 
@@ -15,13 +15,14 @@ When executing a multi-step flow with a swap followed by a lend operation, the L
 - Balance validation fails because requested amount exceeds available balance
 
 ### Root Cause:
-The issue is in the executor.rs file. When updating the context after a step, it updates the internal context correctly, but it's not passing this updated context to the next step in the flow. The `execute_flow` function correctly updates the context after each step, but the updated context is not being used for the subsequent step.
+The issue is in the executor.rs file. When updating the context after a step, it updates the internal context correctly, but it's not properly serializing this updated context when passing it to the LLM for the next step in the flow. We've partially fixed the issue by ensuring that `current_context` is passed to `execute_step_with_history` instead of the original `wallet_context` parameter. However, debug logs show that the context being passed to the LLM still contains the old USDC balance, suggesting a serialization issue.
 
 ### Tasks Required:
-1. Fix the executor to pass the updated context to subsequent steps
-2. Verify the fix works for both USDC and other tokens in multi-step flows
-3. Add test to prevent regression
-4. Update the prompt to make it clearer to the LLM to use the exact amount from the previous step
+1. ✅ Fix the executor to pass the updated context to subsequent steps (partially complete)
+2. ⚠️ Investigate why updated context is not being serialized properly when passed to LLM
+3. Verify the fix works for both USDC and other tokens in multi-step flows
+4. Add test to prevent regression
+5. Update the prompt to make it clearer to the LLM to use the exact amount from the previous step
 
 ---
 

@@ -241,6 +241,7 @@ impl RigAgent {
         if !previous_results.is_empty() {
             full_prompt.push_str("\n\nIMPORTANT: For this step, please use the actual amounts from previous steps when determining parameters. For example, if this is a lend step after a swap, use the actual amount received from the swap, not an estimated amount.");
             full_prompt.push_str("\n\nCRITICAL: For lend operations after a swap, only use the amount received from the swap itself, not the total token balance which might include pre-existing amounts. The amount should already be in the smallest denomination (e.g., for USDC, 1 USDC = 1,000,000 units).");
+            full_prompt.push_str("\n\nEXPLICIT INSTRUCTION: When the prompt says 'lend 95% of available USDC', you must calculate 95% of the ACTUAL USDC balance shown in the wallet context above, not any other value. Do not use percentages of old balances or estimated values.");
         }
 
         Ok(full_prompt)
@@ -829,9 +830,23 @@ For swap operations, always determine the input and output mints based on the to
             .get("amount")
             .ok_or_else(|| anyhow!("amount parameter is required"))?;
 
+        debug!(
+            "DEBUG: execute_jupiter_lend_deposit received amount_str: {}",
+            amount_str
+        );
+
         let amount: f64 = amount_str
             .parse()
             .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+
+        debug!(
+            "DEBUG: execute_jupiter_lend_deposit parsed amount as f64: {}",
+            amount
+        );
+        debug!(
+            "DEBUG: execute_jupiter_lend_deposit casting to u64: {}",
+            amount as u64
+        );
 
         // Create AgentTools for Jupiter Lend Earn Deposit execution
         let agent_tools = if let Some(ref tools) = self.agent_tools {
