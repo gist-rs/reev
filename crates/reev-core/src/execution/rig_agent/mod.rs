@@ -16,7 +16,9 @@ use std::collections::HashMap;
 use std::env;
 use std::string::String;
 use std::sync::Arc;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, trace};
+
+use crate::execution::context_builder::{YmlContextBuilder, YmlOperationContext};
 
 use crate::execution::handlers::transfer::sol_transfer;
 
@@ -108,9 +110,15 @@ impl RigAgent {
             step.prompt.clone()
         };
 
-        // Create a context-aware prompt with wallet information and previous step history
-        let context_prompt =
-            self.create_context_prompt_with_history(&prompt, wallet_context, previous_results)?;
+        // Create YML context and convert to prompt
+        let yml_context = self.create_yml_context(step, wallet_context, previous_results)?;
+        let context_prompt = self.yml_context_to_prompt(&yml_context, &prompt)?;
+
+        // Log the YML context for debugging
+        info!(
+            "Generated YML context for step {}: {:?}",
+            step.step_id, yml_context
+        );
 
         // Get expected tools hints from the step
         let expected_tools = step.expected_tools.clone();
@@ -179,113 +187,107 @@ impl RigAgent {
     }
 
     /// Create a context-aware prompt with wallet information and previous step history
+    fn create_yml_context(
+        &self,
+        step: &YmlStep,
+        wallet_context: &WalletContext,
+        previous_results: &[StepResult],
+    ) -> Result<YmlOperationContext> {
+        // Create a builder with wallet context
+        let mut builder =
+            YmlContextBuilder::new(wallet_context.clone()).with_previous_results(previous_results);
+
+        // Add operation type from expected tools if available
+        if let Some(expected_tools) = &step.expected_tools {
+            if !expected_tools.is_empty() {
+                // Convert ToolName to string for operation type
+                if let Some(first_tool) = expected_tools.first() {
+                    let tool_str = format!("{first_tool:?}");
+                    let operation_type = tool_str.to_lowercase();
+                    builder = builder.with_operation_type(&operation_type);
+                }
+
+                // Add constraints based on expected tools
+                for tool in expected_tools {
+                    let tool_str = format!("{tool:?}");
+                    builder = builder.with_constraint(&format!(
+                        "Consider using {tool_str} as it's expected for this operation"
+                    ));
+                }
+            }
+        }
+
+        // Add step information if available
+        if let Some(step_id) = step
+            .step_id
+            .split('_')
+            .next_back()
+            .and_then(|s| s.parse::<usize>().ok())
+        {
+            // Try to extract step number from step_id
+            builder = builder.with_step_info(step_id, step_id + 1);
+        }
+
+        // Build the context
+        let context = builder.build();
+
+        // Log the generated context
+        info!("Generated YML context for step {}", step.step_id);
+        trace!("YML context: {:?}", context);
+
+        Ok(context)
+    }
+
+    /// Convert YML context to prompt format for LLM
+    fn yml_context_to_prompt(&self, context: &YmlOperationContext, prompt: &str) -> Result<String> {
+        let mut full_prompt = String::new();
+
+        // Convert AI context to prompt format
+        full_prompt.push_str(&context.ai_context.to_prompt_format());
+        full_prompt.push('\n');
+
+        // Add constraints if any
+        if !context.metadata.constraints.is_empty() {
+            full_prompt.push_str("\nConstraints:\n");
+            for constraint in &context.metadata.constraints {
+                full_prompt.push_str(&format!("- {constraint}\n"));
+            }
+        }
+
+        // Add the user prompt
+        full_prompt.push_str(&format!(
+            "\nPlease help with the following request: {prompt}\n"
+        ));
+
+        // Add specific instructions for multi-step flows
+        if !context.ai_context.previous_results.is_empty() {
+            full_prompt.push_str("\nIMPORTANT: For this step, please use the actual amounts from previous steps when determining parameters. For example, if this is a lend step after a swap, use the actual amount received from the swap, not an estimated amount.");
+            full_prompt.push_str("\n\nCRITICAL: For lend operations after a swap, only use the amount received from the swap itself, not the total token balance which might include pre-existing amounts. The amount should already be in the smallest denomination (e.g., for USDC, 1 USDC = 1,000,000 units).");
+            full_prompt.push_str("\n\nEXPLICIT INSTRUCTION: When the prompt says 'lend 95% of available USDC', you must calculate 95% of the ACTUAL USDC balance shown in the wallet context above, not any other value. Do not use percentages of old balances or estimated values.");
+        }
+
+        Ok(full_prompt)
+    }
+
+    // Legacy method for backward compatibility - now uses YML context internally
     fn create_context_prompt_with_history(
         &self,
         prompt: &str,
         wallet_context: &WalletContext,
         previous_results: &[StepResult],
     ) -> Result<String> {
-        // Debug log to verify the current context
-        info!(
-            "DEBUG: create_context_prompt_with_history - USDC balance in context: {:?}",
-            wallet_context
-                .token_balances
-                .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                .map(|t| t.balance)
+        // Create a minimal step for context generation
+        let step = YmlStep::new(
+            "legacy_step".to_string(),
+            prompt.to_string(),
+            "".to_string(),
         );
 
-        let wallet_info = json!({
-            "pubkey": wallet_context.owner,
-            "sol_balance": wallet_context.sol_balance,
-            "tokens": wallet_context.token_balances.values().collect::<Vec<_>>()
-        });
+        // Create YML context
+        let yml_context = self.create_yml_context(&step, wallet_context, previous_results)?;
 
-        // Debug the serialized wallet info to ensure it has the correct values
-        let serialized_info = serde_json::to_string_pretty(&wallet_info)?;
-        info!(
-            "DEBUG: Serialized wallet info for LLM with history: {}",
-            serialized_info
-        );
-
-        let mut full_prompt = format!("Given the following wallet context:\n{serialized_info}\n");
-
-        // Add information about previous steps if available
-        if !previous_results.is_empty() {
-            full_prompt.push_str("\n--- Previous Steps ---\n");
-            for (i, result) in previous_results.iter().enumerate() {
-                full_prompt.push_str(&format!(
-                    "Step {}: {} - {}\n",
-                    i + 1,
-                    result.step_id,
-                    if result.success { "Success" } else { "Failed" }
-                ));
-
-                // Extract key information from successful steps
-                if result.success {
-                    if let Some(tool_results) = result.output.get("tool_results") {
-                        if let Some(results_array) = tool_results.as_array() {
-                            for tool_result in results_array {
-                                // Add specific details about swap operations
-                                if let Some(jupiter_swap) = tool_result.get("jupiter_swap") {
-                                    if let (
-                                        Some(input_mint),
-                                        Some(output_mint),
-                                        Some(input_amount),
-                                        Some(output_amount),
-                                    ) = (
-                                        jupiter_swap.get("input_mint").and_then(|v| v.as_str()),
-                                        jupiter_swap.get("output_mint").and_then(|v| v.as_str()),
-                                        jupiter_swap.get("input_amount").and_then(|v| v.as_u64()),
-                                        jupiter_swap.get("output_amount").and_then(|v| v.as_u64()),
-                                    ) {
-                                        full_prompt.push_str(&format!(
-                                            "  Swapped {input_amount} of {input_mint} for {output_amount} of {output_mint}\n"
-                                        ));
-                                        full_prompt.push_str(&format!(
-                                            "  NOTE: For subsequent lend operations, use exactly {output_amount} units of {output_mint} (the amount received from this swap)\n"
-                                        ));
-                                        full_prompt.push_str(&format!(
-                                            "  CRITICAL: When the prompt says 'lend 95% of available USDC', you must use the EXACT amount received from the swap ({output_amount} units), not calculate 95% of the total balance. Do not use percentages of old balances or estimated values.\n"
-                                        ));
-                                    }
-                                }
-                                // Add specific details about lend operations
-                                else if let Some(jupiter_lend) = tool_result.get("jupiter_lend") {
-                                    if let (Some(asset_mint), Some(amount)) = (
-                                        jupiter_lend.get("asset_mint").and_then(|v| v.as_str()),
-                                        jupiter_lend.get("amount").and_then(|v| v.as_u64()),
-                                    ) {
-                                        full_prompt.push_str(&format!(
-                                            "  Lent {amount} of {asset_mint}\n"
-                                        ));
-                                    }
-                                }
-                                // Add generic info for other operations
-                                else if let Some(operation_type) =
-                                    tool_result.get("operation_type").and_then(|v| v.as_str())
-                                {
-                                    full_prompt.push_str(&format!(
-                                        "  Completed operation: {operation_type}\n"
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            full_prompt.push_str("--- End Previous Steps ---\n\n");
-        }
-
-        full_prompt.push_str(&format!("Please help with the following request: {prompt}"));
-
-        // Add special instruction for multi-step flows
-        if !previous_results.is_empty() {
-            full_prompt.push_str("\n\nIMPORTANT: For this step, please use the actual amounts from previous steps when determining parameters. For example, if this is a lend step after a swap, use the actual amount received from the swap, not an estimated amount.");
-            full_prompt.push_str("\n\nCRITICAL: For lend operations after a swap, only use the amount received from the swap itself, not the total token balance which might include pre-existing amounts. The amount should already be in the smallest denomination (e.g., for USDC, 1 USDC = 1,000,000 units).");
-            full_prompt.push_str("\n\nEXPLICIT INSTRUCTION: When the prompt says 'lend 95% of available USDC', you must calculate 95% of the ACTUAL USDC balance shown in the wallet context above, not any other value. Do not use percentages of old balances or estimated values.");
-        }
-
-        Ok(full_prompt)
+        // Convert to prompt format
+        self.yml_context_to_prompt(&yml_context, prompt)
     }
 
     /// Prompt the agent with expected tools hints

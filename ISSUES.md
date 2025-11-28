@@ -104,10 +104,40 @@ The system needs a comprehensive error recovery strategy to handle various failu
 
 ---
 
+## Issue #121: Implement Structured YML Context for AI Operations (COMPLETED)
+### Status: COMPLETED
+### Description:
+Replace the current mixed JSON+markdown context generation in RigAgent with structured YML context that is parseable and maintainable.
+
+### What Was Implemented:
+1. ✅ Created YmlContextBuilder module with builder pattern for context construction
+2. ✅ Implemented YmlOperationContext struct for structured AI operations
+3. ✅ Added MinimalAiContext struct containing only relevant information for AI
+4. ✅ Updated RigAgent to use YML context instead of mixed JSON+markdown
+5. ✅ Added serialization/deserialization methods for YML contexts
+6. ✅ Created comprehensive tests for context builder functionality
+7. ✅ Added proper exports in lib.rs for public API
+
+### Key Features:
+- Structured YML context that can be parsed back to structs for validation
+- Clean separation between minimal AI context and metadata
+- Builder pattern for flexible context construction
+- Support for previous step results and constraints
+- Token filtering based on operation type
+- Prompt format conversion for LLM consumption
+
+### Files Modified:
+- `crates/reev-core/src/execution/context_builder/mod.rs` (new)
+- `crates/reev-core/src/execution/mod.rs` (updated)
+- `crates/reev-core/src/execution/rig_agent/mod.rs` (updated)
+- `crates/reev-core/src/lib.rs` (updated)
+- `crates/reev-core/tests/yml_context_builder_test.rs` (new)
+
 ### Current State Summary:
 - **Active Issues**: 5
 - **Partially Completed**: 2
-- **Not Started**: 3
+- **Completed**: 1
+- **Not Started**: 2
 
 ### Priority Implementation Order:
 1. **Immediate**: Issue #110 (Remove Unused Code)

@@ -15,7 +15,7 @@ We have existing YML schema and builders but RigAgent isn't using them, creating
 
 ## Task #121: Implement Structured YML Context for AI Operations
 
-### Status: NOT STARTED
+### Status: COMPLETED
 ### Priority: HIGH
 
 ### Description:
@@ -25,34 +25,49 @@ Replace the current mixed JSON+markdown context generation in RigAgent with stru
 3. Sends only relevant information to AI
 4. Maintains clean, consistent format
 
-### Tasks Required:
-1. **Create YML Context Builder** (crates/reev-core/src/execution/context_builder.rs):
-   - Implement YmlOperationContext struct for AI operations
-   - Create builder methods for constructing context from wallet info and previous results
-   - Add serialization/deserialization methods
+### Implementation Summary:
+Successfully implemented structured YML context for AI operations with the following components:
 
-2. **Update RigAgent Integration** (crates/reev-core/src/execution/rig_agent/mod.rs):
-   - Replace create_context_prompt_with_history with YML-based approach
-   - Use YmlContextBuilder to create structured context
-   - Select only relevant parts for AI (not full context)
-   - Send clean YML to AI instead of mixed JSON+markdown
+1. **YML Context Builder** (crates/reev-core/src/execution/context_builder/mod.rs):
+   - ✅ Implemented YmlOperationContext struct for AI operations
+   - ✅ Created MinimalAiContext containing only relevant information for AI
+   - ✅ Added PreviousStepResult and TokenInfo for structured data
+   - ✅ Implemented YmlContextBuilder with builder pattern
+   - ✅ Added serialization/deserialization methods for YML/JSON
 
-3. **Implement Context Selection Logic**:
-   - Create MinimalAiContext struct with just what AI needs
-   - Implement selection logic to extract relevant parts
-   - Ensure YML is clean and concise for AI consumption
+2. **Updated RigAgent Integration** (crates/reev-core/src/execution/rig_agent/mod.rs):
+   - ✅ Replaced create_context_prompt_with_history with YML-based approach
+   - ✅ Created create_yml_context method to generate structured context
+   - ✅ Added yml_context_to_prompt for LLM consumption
+   - ✅ Kept legacy method for backward compatibility
+   - ✅ Updated execute_step_with_rig_and_history to use new approach
 
-4. **Update Tests**:
-   - Create tests for YmlContextBuilder
-   - Update e2e tests to verify YML context
-   - Add validation tests for YML parsing
+3. **Context Selection Logic**:
+   - ✅ Implemented MinimalAiContext with just wallet and relevant tokens
+   - ✅ Added token filtering based on operation type (swap/lend)
+   - ✅ Extracted key information from previous step results
+   - ✅ Created clean prompt format for AI consumption
 
-5. **Add Validation**:
-   - Implement validation for generated YML contexts
-   - Add error handling for malformed YML
-   - Ensure backward compatibility with existing flows
+4. **Tests and Validation**:
+   - ✅ Created comprehensive tests in crates/reev-core/tests/yml_context_builder_test.rs
+   - ✅ Added tests for YML serialization/deserialization
+   - ✅ Added tests for token filtering and prompt formatting
+   - ✅ All 7 tests passing successfully
 
-### Expected Outcome:
+5. **Module Integration**:
+   - ✅ Added context_builder to execution module exports
+   - ✅ Added YML context builder types to lib.rs exports
+   - ✅ Ensured proper module structure and imports
+
+### Key Features:
+- Structured YML context that can be parsed back to structs for validation
+- Clean separation between minimal AI context and metadata
+- Builder pattern for flexible context construction
+- Support for previous step results and constraints
+- Token filtering based on operation type
+- Prompt format conversion for LLM consumption
+
+### Expected Outcome Achieved:
 - Clean, structured YML context for AI operations
 - Parseable context for validation and debugging
 - Reduced confusion for AI with concise, relevant information

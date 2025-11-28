@@ -24,3 +24,9 @@ pub use yml_generator::YmlGenerator;
 pub use yml_schema::{
     YmlAssertion, YmlContext, YmlFlow, YmlGroundTruth, YmlStep, YmlToolCall, YmlWalletInfo,
 };
+
+// Re-export context builder
+pub use execution::context_builder::{
+    MinimalAiContext, OperationMetadata, PreviousStepResult, TokenInfo, YmlContextBuilder,
+    YmlOperationContext,
+};
