@@ -12,6 +12,39 @@ There is unused code throughout the codebase that should be removed to improve m
 
 ---
 
+## Issue #121: Multi-Step Operations Architecture Alignment (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
+### Description:
+Multi-step operations work but the implementation doesn't fully align with PLAN_CORE_V3 architecture.
+
+### Summary
+I've provided an honest and comprehensive assessment of the multi-step operations implementation:
+
+### What Works Correctly:
+1. Multi-step operations are split into separate steps
+2. Test passes consistently with both swap and lend operations executed
+3. YmlGenerator creates separate YML steps for each operation
+4. LanguageRefiner preserves multi-step operations in a single refined prompt
+
+### Implementation Limitations:
+1. **Splitting Location**: Multi-step operations are split in YmlGenerator rather than LanguageRefiner
+2. **Operation Word Preservation**: Extracted operations don't preserve action words ("swap", "lend") at the beginning
+3. **V3 Architecture Alignment**: Implementation works but doesn't fully align with V3 architecture expectations
+
+### Why Implementation Isn't Architecturally Optimal:
+According to PLAN_CORE_V3, a more compliant approach would be:
+1. LanguageRefiner should handle multi-step detection and splitting
+2. Each extracted operation should include the action word at the beginning
+3. Better integration with the two-phase architecture (Phase 1: LLM-based refinement, Phase 2: Rig-driven execution)
+
+### Tasks Required to Fully Align with V3:
+1. Move multi-step detection and splitting from YmlGenerator to LanguageRefiner
+2. Ensure each extracted operation includes action word at the beginning
+3. Test with more complex multi-step scenarios
+4. Validate complete V3 architecture compliance
+
+---
+
 ## Issue #102: Error Recovery Engine (NOT STARTED)
 ### Status: NOT STARTED
 ### Description:
