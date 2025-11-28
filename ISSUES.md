@@ -207,45 +207,7 @@ After examining all e2e tests and the implementation, it's clear that this rule-
 
 ---
 
-## Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
-### Status: COMPLETED
-### Description:
-Multi-step flows are not properly executing all operations. The current implementation generates multiple steps correctly, but only executes the first operation in each step.
 
-### Fix Applied:
-Updated RigAgent to properly execute multiple operations from a single refined prompt:
-1. Enhanced prompt_agent to instruct LLM to identify and execute ALL operations in prompt
-2. Added extract_multi_step_tool_calls method to identify additional operations
-3. Added helper methods extract_lend_amount_from_prompt and extract_swap_params_from_prompt
-4. Updated execute_step_with_rig_and_history to check for multi-step prompts
-5. Added debug logging for better troubleshooting
-6. e2e_multi_step test now passes with both operations executed
-
-The implementation now:
-1. Processes the entire refined prompt as a single step
-2. Identifies all operations in the prompt
-3. Executes all operations in sequence
-4. Properly tracks results for each operation
-
-### Root Cause Analysis:
-The issue is in RigAgent's execution of multi-step flows. When processing a refined prompt, the RigAgent only executes a single tool operation per step. This happens because:
-
-1. The `execute_step_with_rig_and_history` function in mod.rs doesn't parse and execute multiple operations from a single refined prompt
-2. The LLM prompt is designed for single operation extraction, not sequential operations
-3. The system architecture is built around one tool call per step
-4. Test setup with pre-allocated tokens masks the actual flow of assets between operations
-
-### Why Tests Were Passing Before:
-- Previous test used unrealistic amounts (swap 0.1 SOL for $15, then lend 100 USDC)
-- With 100 USDC initial balance, this created a false sense of success
-- When changed to realistic amounts (lend 10 USDC from ~15 USDC swap output), test failed
-
-### Tasks Required:
-1. Fix RigAgent to properly execute all operations in multi-step steps
-2. Update the LLM prompt to explicitly identify and execute ALL operations
-3. Ensure context is properly updated between sequential operations
-4. Add validation that all operations in prompt are being executed
-5. Consider implementing a sequential execution pattern within a single step
 
 ---
 

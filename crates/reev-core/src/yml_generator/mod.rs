@@ -61,8 +61,8 @@ impl YmlGenerator {
             refined_prompt.refined
         );
 
-        // Create a simple flow with a single step containing the refined prompt
-        // According to V3 plan, RigAgent should determine tools and parameters
+        // Create a flow with potentially multiple steps based on the refined prompt
+        // Following V3 plan, each operation should be a separate step
         let flow_id = uuid::Uuid::new_v4().to_string();
 
         // Create wallet info from context
@@ -78,28 +78,59 @@ impl YmlGenerator {
             final_wallet_info = final_wallet_info.with_token(token.clone());
         }
 
-        // Determine expected tools based on the refined prompt
-        let expected_tools = determine_expected_tools(&refined_prompt.refined).unwrap_or_default(); // Use empty vec if no tools determined
+        // Parse the refined prompt to extract individual operations
+        let operations = extract_operations_from_prompt(&refined_prompt.refined);
 
-        // Create a simple step with the refined prompt and expected tools
-        let step = crate::yml_schema::YmlStep::new(
-            uuid::Uuid::new_v4().to_string(),
-            refined_prompt.refined.clone(),
-            format!("Executing: {}", refined_prompt.original),
-        )
-        .with_refined_prompt(refined_prompt.refined.clone())
-        .with_expected_tools(expected_tools);
+        // If no operations found, create a single step with the refined prompt
+        let steps = if operations.is_empty() {
+            let expected_tools =
+                determine_expected_tools(&refined_prompt.refined).unwrap_or_default();
+
+            vec![crate::yml_schema::YmlStep::new(
+                uuid::Uuid::new_v4().to_string(),
+                refined_prompt.refined.clone(),
+                format!("Executing: {}", refined_prompt.original),
+            )
+            .with_refined_prompt(refined_prompt.refined.clone())
+            .with_expected_tools(expected_tools)]
+        } else {
+            // Create a separate step for each operation
+            operations
+                .into_iter()
+                .enumerate()
+                .map(|(i, operation)| {
+                    let step_id = uuid::Uuid::new_v4().to_string();
+                    let expected_tools = determine_expected_tools(&operation).unwrap_or_default();
+
+                    crate::yml_schema::YmlStep::new(
+                        step_id,
+                        operation.clone(),
+                        format!("Step {}: {}", i + 1, operation),
+                    )
+                    .with_refined_prompt(operation)
+                    .with_expected_tools(expected_tools)
+                })
+                .collect()
+        };
 
         // Create the flow
-        let flow = crate::yml_schema::YmlFlow::new(
+        let mut flow = crate::yml_schema::YmlFlow::new(
             flow_id,
             refined_prompt.original.clone(),
             final_wallet_info,
         )
-        .with_step(step)
         .with_refined_prompt(refined_prompt.refined.clone());
 
-        info!("Generated YML flow with ID: {}", flow.flow_id);
+        // Add all steps to the flow
+        for step in steps {
+            flow = flow.with_step(step);
+        }
+
+        info!(
+            "Generated YML flow with {} steps, ID: {}",
+            flow.steps.len(),
+            flow.flow_id
+        );
         Ok(flow)
     }
 }
@@ -130,4 +161,72 @@ fn determine_expected_tools(refined_prompt: &str) -> Option<Vec<ToolName>> {
 
     // Default to no expected tools if no pattern matches
     None
+}
+
+/// Extract individual operations from a multi-step prompt
+fn extract_operations_from_prompt(refined_prompt: &str) -> Vec<String> {
+    let prompt_lower = refined_prompt.to_lowercase();
+    let mut operations = Vec::new();
+
+    // If this is a multi-step prompt with "then" or "and"
+    if prompt_lower.contains(" then ") || prompt_lower.contains(" and ") {
+        // Split by "then" first (preferred over "and")
+        if prompt_lower.contains(" then ") {
+            let parts: Vec<&str> = refined_prompt.split(" then ").collect();
+
+            for part in parts {
+                if !part.trim().is_empty() {
+                    // Clean up the operation string
+                    let mut operation = part.trim().to_string();
+
+                    // Remove any trailing quotes that might have been added
+                    if operation.ends_with('"') {
+                        operation.pop();
+                    }
+
+                    // Check if this is a valid operation (contains action words)
+                    if operation.to_lowercase().contains("swap")
+                        || operation.to_lowercase().contains("lend")
+                        || operation.to_lowercase().contains("transfer")
+                        || operation.to_lowercase().contains("send")
+                    {
+                        operations.push(operation);
+                    }
+                }
+            }
+        }
+        // Try splitting by "and" if "then" wasn't found
+        else if prompt_lower.contains(" and ") {
+            let parts: Vec<&str> = refined_prompt.split(" and ").collect();
+
+            for part in parts {
+                if !part.trim().is_empty() {
+                    // Clean up the operation string
+                    let mut operation = part.trim().to_string();
+
+                    // Remove any trailing quotes that might have been added
+                    if operation.ends_with('"') {
+                        operation.pop();
+                    }
+
+                    // Check if this is a valid operation (contains action words)
+                    if operation.to_lowercase().contains("swap")
+                        || operation.to_lowercase().contains("lend")
+                        || operation.to_lowercase().contains("transfer")
+                        || operation.to_lowercase().contains("send")
+                    {
+                        operations.push(operation);
+                    }
+                }
+            }
+        }
+    }
+
+    // Return the operations if we found multiple valid ones
+    if operations.len() > 1 {
+        return operations;
+    }
+
+    // If no multi-step pattern found, return empty to use single step approach
+    Vec::new()
 }

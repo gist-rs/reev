@@ -136,6 +136,13 @@ CRITICAL: PRESERVE THE EXACT OPERATION TYPE AND TOKENS:
 - For swap operations, keep both tokens mentioned in the original prompt
 - For transfer operations, keep the recipient address exactly as provided
 
+CRITICAL FOR MULTI-STEP OPERATIONS:
+- If the prompt contains multiple operations connected by "then" or "and", preserve ALL operations
+- For multi-step prompts like "swap 0.1 SOL to USDC then lend 10 USDC", keep both operations
+- Do NOT split multi-step operations into separate prompts
+- Preserve the entire multi-step sequence in a single refined prompt
+- Do NOT add numbers or bullet points to multi-step operations
+
 Do NOT:
 - Extract intent or determine tools
 - Add information not present in the original prompt (especially recipient addresses)
@@ -144,6 +151,8 @@ Do NOT:
 - Replace operation types (NEVER replace "swap" with "send" or "transfer")
 - Change token symbols or amounts
 - Assume operations based on incomplete information
+- Split multi-step operations into separate prompts
+- Add numbering or bullet points to multi-step operations
 
 IMPORTANT: You must respond with a valid JSON object. Do not include any explanations or additional text outside the JSON format.
 

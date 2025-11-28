@@ -504,6 +504,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
     ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
         let mut tool_calls = existing_calls.clone();
         let response_lower = response.to_lowercase();
+        println!("DEBUG: extract_multi_step_tool_calls called with response: {response}");
 
         // If we already have a swap operation, check if there's also a lend or transfer operation
         if let Some(swap_params) = tool_calls.get("jupiter_swap") {
@@ -955,6 +956,11 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
                             .map_err(|e| anyhow!("Failed to load keypair: {e}"))?;
                         let user_pubkey = solana_sdk::signer::Signer::pubkey(&keypair);
 
+                        // Check if we have any instructions before executing
+                        if instructions.is_empty() {
+                            tracing::warn!("DEBUG: No instructions to execute for Jupiter lend!");
+                        }
+
                         match reev_lib::utils::execute_transaction(
                             instructions,
                             user_pubkey,
@@ -1047,6 +1053,22 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
             amount as u64
         );
 
+        // Check if the amount is already in lamports or needs conversion
+        let amount_lamports = if amount > 1_000_000.0 {
+            // Amount is likely already in lamports (for USDC/USDT)
+            debug!("DEBUG: Amount appears to be in lamports: {}", amount as u64);
+            amount as u64
+        } else {
+            // Amount is likely in human-readable format, convert to lamports
+            debug!(
+                "DEBUG: Converting amount to lamports: {}",
+                amount * 1_000_000.0
+            );
+            (amount * 1_000_000.0) as u64
+        };
+
+        debug!("DEBUG: Final amount for Jupiter lend: {}", amount_lamports);
+
         // Create AgentTools for Jupiter Lend Earn Deposit execution
         let agent_tools = if let Some(ref tools) = self.agent_tools {
             Arc::clone(tools)
@@ -1074,7 +1096,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
             reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
                 user_pubkey: wallet_context.owner.clone(),
                 asset_mint: mint.clone(),
-                amount: amount as u64,
+                amount: amount_lamports,
             };
 
         let result = agent_tools
@@ -1138,9 +1160,13 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
                 })
                 .collect();
 
-            // Execute the transaction with the instructions
+            // Execute transaction with the instructions
             match raw_instructions {
                 Ok(instructions) => {
+                    info!(
+                        "DEBUG: About to execute Jupiter lend transaction with {} instructions",
+                        instructions.len()
+                    );
                     let keypair = reev_lib::get_keypair()
                         .map_err(|e| anyhow!("Failed to load keypair: {e}"))?;
                     let user_pubkey = solana_sdk::signer::Signer::pubkey(&keypair);
@@ -1157,7 +1183,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
                                 "tool_name": "jupiter_lend_earn_deposit",
                                 "params": {
                                     "mint": mint,
-                                    "amount": amount,
+                                    "amount": amount_lamports,
                                     "wallet": wallet_context.owner
                                 },
                                 "transaction_signature": signature,
