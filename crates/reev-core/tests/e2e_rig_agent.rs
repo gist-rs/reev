@@ -259,16 +259,8 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     // Execute the transfer using the planner with RigAgent
     let signature =
         execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
-    println!("DEBUG: Extracted signature: {signature}");
-
-    // Verify that RigAgent selected and executed the correct tool
-    // With real blockchain transactions, we need to check if the transaction is confirmed
 
     // Check if signature format is valid (Solana transaction signature should be 88 characters)
-    // Accepting length >= 87 to account for potential surfpool/forked mainnet issues
-    println!("DEBUG: Raw signature: '{signature}'");
-    println!("DEBUG: Signature bytes: {:?}", signature.as_bytes());
-
     if signature.len() == 87 {
         println!(
             "⚠️  WARNING: Signature length is 87, expected 88 (this may be a surfpool/forked mainnet issue)"
