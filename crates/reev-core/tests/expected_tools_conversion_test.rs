@@ -4,7 +4,7 @@
 //! when converting between YmlStep and DynamicStep.
 
 use anyhow::Result;
-use reev_core::executor::YmlConverter;
+use reev_core::executor::yml_converter::YmlConverter;
 use reev_core::yml_schema::{YmlStep, YmlToolCall};
 use reev_types::flow::DynamicStep;
 use reev_types::tools::ToolName;
