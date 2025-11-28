@@ -47,7 +47,7 @@ async fn execute_transfer_with_rig_agent(
 
     // Step 1: Create YML prompt with wallet context
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("http://localhost:8899".to_string()),
+        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
     });
     let wallet_context = context_resolver
         .resolve_wallet_context(&from_pubkey.to_string())

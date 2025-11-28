@@ -15,9 +15,9 @@ pub struct SolanaEnvironment {
 
 impl Default for SolanaEnvironment {
     fn default() -> Self {
-        // Default to SURFPOOL for consistency with transaction execution
+        // Default to mainnet until SURFPOOL context resolution issues are resolved
         let rpc_url = std::env::var("SURFPOOL_RPC_URL")
-            .unwrap_or_else(|_| "http://localhost:8899".to_string());
+            .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
         Self {
             rpc_url: Some(rpc_url),
         }
@@ -48,7 +48,7 @@ impl ContextResolver {
             timeout_seconds: 30,
             cache: HashMap::new(),
             surfpool_rpc_url: std::env::var("SURFPOOL_RPC_URL")
-                .unwrap_or_else(|_| "http://localhost:8899".to_string()),
+                .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string()),
         }
     }
 

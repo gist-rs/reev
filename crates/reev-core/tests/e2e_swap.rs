@@ -78,9 +78,9 @@ steps:
         prompt
     );
 
-    // Set up the context resolver with explicit RPC URL like the transfer test
+    // Set up the context resolver with explicit RPC URL like ::transfer test
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("http://localhost:8899".to_string()),
+        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
     });
 
     // Create a planner with GLM client
