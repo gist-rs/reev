@@ -94,7 +94,7 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("\n🔄 Starting multi-step execution flow...");
     // Execute multi-step flow using the planner and LLM
     let prompt = "swap 0.1 SOL to USDC then lend 10 USDC";
-    println!("DEBUG: Prompt = {}", prompt);
+    println!("DEBUG: Prompt = {prompt}");
     info!("🔍 SETUP: Starting with 5 SOL and {initial_usdc_balance} USDC");
     info!("🔍 EXPECTED: 0.1 SOL swap should yield ~15 USDC at current prices");
     info!("🔍 EXPECTED: Should lend ~10 USDC from swapped amount (keeping some for fees)");
