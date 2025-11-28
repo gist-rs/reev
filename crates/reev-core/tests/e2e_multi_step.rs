@@ -102,9 +102,9 @@ async fn test_swap_then_lend() -> Result<()> {
     // Debug: Print the steps that will be generated
     info!("🔍 DEBUG: About to generate flow from prompt");
 
-    // Set up the context resolver with explicit RPC URL
+    // Set up the context resolver with SURFPOOL RPC URL (matching transaction execution)
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+        rpc_url: Some("http://localhost:8899".to_string()),
     });
 
     // Create a planner with GLM client

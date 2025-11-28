@@ -52,9 +52,11 @@ pub async fn execute_direct_jupiter_swap(
     // Check for "all" indicator first before extracting amount with regex
     if prompt_lower.contains("all") || prompt_lower.contains("all ") {
         // For "all" SOL or "ALL" indicator, get the actual wallet balance
-        // Create a context resolver with explicit RPC URL
+        // Create a context resolver with environment-aware RPC URL
+        let rpc_url = std::env::var("SURFPOOL_RPC_URL")
+            .unwrap_or_else(|_| "http://localhost:8899".to_string());
         let context_resolver = ContextResolver::new(SolanaEnvironment {
-            rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+            rpc_url: Some(rpc_url),
         });
 
         // Get the actual wallet balance for the user
