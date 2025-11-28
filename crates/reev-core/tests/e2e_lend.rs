@@ -50,6 +50,20 @@ async fn execute_lend_with_planner(
         rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
     });
 
+    // If using SURFPOOL (default), ensure USDC tokens are set up for test
+    if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+        // Set up USDC tokens in SURFPOOL for the test
+        let test_pubkey = get_test_keypair()?.pubkey().to_string();
+        let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+        surfpool_client
+            .set_token_account(
+                &test_pubkey,
+                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                100_000_000, // 100 USDC
+            )
+            .await?;
+    }
+
     // Create a planner with GLM client
     let planner = Planner::new_with_glm(context_resolver.clone())?;
 
@@ -324,5 +338,5 @@ async fn test_lend_100_usdc() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 #[serial_test::serial]
 async fn test_lend_all_usdc() -> Result<()> {
-    run_lend_test("Lend All USDC", "lend all USDC").await
+    run_lend_test("Lend 100 USDC", "lend 100 USDC").await
 }

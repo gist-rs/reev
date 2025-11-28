@@ -83,6 +83,23 @@ steps:
         rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
     });
 
+    // If using SURFPOOL (default), ensure USDC tokens are set up for test
+    if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+        // Ensure SURFPOOL is running
+        ensure_surfpool_running().await?;
+
+        // Set up USDC tokens in SURFPOOL for the test
+        let test_pubkey = get_test_keypair()?.pubkey().to_string();
+        let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+        surfpool_client
+            .set_token_account(
+                &test_pubkey,
+                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                100_000_000, // 100 USDC
+            )
+            .await?;
+    }
+
     // Create a planner with GLM client
     let planner = Planner::new_with_glm(context_resolver.clone())?;
 
