@@ -146,7 +146,7 @@
 ---
 
 ## Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (CRITICAL)
-### Status: CRITICAL ARCHITECTURAL VIOLATION
+### Status: CRITICAL ARCHITECTURAL VIOLATION - NOT YET FIXED
 ### Description:
 Implementation has introduced rule-based logic for multi-step detection in unified_flow_builder.rs, directly contradicting the V3 plan which specifies that LLM should handle multi-step detection, not rule-based parsing.
 
@@ -168,10 +168,26 @@ let is_multi_step = prompt_lower.contains(" then ")
     || (prompt_lower.contains("lend") && prompt_lower.contains("transfer"));
 ```
 
+After examining all e2e tests and the implementation, it's clear that this rule-based approach is a fundamental misunderstanding of the V3 architecture. The V3 plan explicitly states:
+- LLM should handle all language understanding
+- No rule-based parsing should be used for operation detection
+- RigAgent should determine tools based on refined prompts
+
+Current implementation in unified_flow_builder.rs (lines 45-52) still uses rule-based logic:
+```rust
+let is_multi_step = prompt_lower.contains(" then ")
+    || prompt_lower.contains(" and ")
+    || prompt_lower.contains(" followed by ")
+    || (prompt_lower.contains("swap") && prompt_lower.contains("lend"))
+    || (prompt_lower.contains("swap") && prompt_lower.contains("transfer"))
+    || (prompt_lower.contains("lend") && prompt_lower.contains("transfer"));
+```
+
 This violates the V3 architecture by:
 1. Using rule-based detection instead of LLM
 2. Pre-determining operations instead of letting RigAgent handle them
 3. Creating complex parsing logic where LLM should make decisions
+4. The assertion `assert!(is_multi_step, ...)` on line 58 forces tests to pass incorrectly
 
 ### Root Cause Analysis:
 After examining all e2e tests and the implementation, it's clear that this rule-based approach is a fundamental misunderstanding of the V3 architecture. The V3 plan explicitly states:
@@ -195,22 +211,24 @@ After examining all e2e tests and the implementation, it's clear that this rule-
 ---
 
 ## Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
-### Status: CRITICAL ISSUE IDENTIFIED
+### Status: CRITICAL ISSUE IDENTIFIED - NOT YET FIXED
 ### Description:
 Multi-step flows are not properly executing all operations. The current implementation generates multiple steps correctly, but only executes the first operation in each step.
 
 ### Current Behavior:
 - Prompt: "swap 0.1 SOL to USDC then lend 10 USDC"
-- Planner generates 2 steps correctly
-- However, test fails because USDC balance doesn't decrease after "lending"
-- Root cause: RigAgent is executing only the first operation from multi-step prompts
+- UnifiedFlowBuilder generates 2 steps correctly using rule-based parsing (violating V3)
+- RigAgent executes each step individually but doesn't handle multiple operations within a single refined prompt
+- Test appears to pass due to pre-allocated USDC in setup, not actual sequential execution
+- Root cause: RigAgent doesn't execute multiple operations from a single refined prompt
 
 ### Root Cause Analysis:
-The issue is in RigAgent's execution of multi-step flows. When processing a step like "swap 0.1 SOL to USDC then lend 10 USDC", the RigAgent's LLM prompt and tool execution only handle the first operation ("swap") and ignore the second operation ("lend"). This happens because:
+The issue is in RigAgent's execution of multi-step flows. When processing a refined prompt, the RigAgent only executes a single tool operation per step. This happens because:
 
-1. The LLM is prompted to extract a single tool operation
-2. There's no mechanism to identify and execute all operations in a multi-step prompt
-3. The context passing between operations is incomplete
+1. The `execute_step_with_rig_and_history` function in mod.rs doesn't parse and execute multiple operations from a single refined prompt
+2. The LLM prompt is designed for single operation extraction, not sequential operations
+3. The system architecture is built around one tool call per step
+4. Test setup with pre-allocated tokens masks the actual flow of assets between operations
 
 ### Why Tests Were Passing Before:
 - Previous test used unrealistic amounts (swap 0.1 SOL for $15, then lend 100 USDC)
