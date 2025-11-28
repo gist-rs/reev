@@ -18,9 +18,10 @@ mod common;
 
 use anyhow::{anyhow, Result};
 use common::{
-    ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey, setup_wallet,
-    TARGET_PUBKEY,
+    ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey,
+    setup_wallet_for_transfer, TARGET_PUBKEY,
 };
+use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
@@ -45,32 +46,18 @@ async fn execute_transfer_with_rig_agent(
     // Set environment variables to ensure V3 implementation is used
     std::env::set_var("REEV_USE_V3", "1");
 
-    // If using SURFPOOL (default), ensure USDC tokens are set up for test
-    if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
-        // Ensure SURFPOOL is running
-        ensure_surfpool_running().await?;
+    // USDC tokens are already set up by setup_wallet_for_transfer in common.rs
+    // No need for duplicated setup here
 
-        // Set up USDC tokens in SURFPOOL for the test
-        let test_pubkey = get_test_keypair()?.pubkey().to_string();
-        let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
-        surfpool_client
-            .set_token_account(
-                &test_pubkey,
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                100_000_000, // 100 USDC
-            )
-            .await?;
-    }
-
-    // Step 1: Create YML prompt with wallet context
+    // Step 1: Create YML prompt with wallet context using SURFPOOL
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+        rpc_url: Some("http://localhost:8899".to_string()),
     });
     let wallet_context = context_resolver
         .resolve_wallet_context(&from_pubkey.to_string())
         .await?;
 
-    let formatted_balance = initial_sol_balance / 1_000_000_000;
+    let formatted_balance = initial_sol_balance as f64 / 1_000_000_000.0;
     let wallet_info = format!(
         "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
     );
@@ -239,11 +226,14 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     // Initialize RPC client
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
-    // Set up the wallet with SOL
-    let initial_sol_balance = setup_wallet(&pubkey, &rpc_client).await?;
+    // Set up the wallet with SOL and USDC
+    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+    let (initial_sol_balance, initial_usdc_balance) =
+        setup_wallet_for_transfer(&pubkey, &surfpool_client).await?;
     info!(
-        "✅ Wallet setup completed with {} SOL",
-        initial_sol_balance / 1_000_000_000
+        "✅ Wallet setup completed with {} SOL and {} USDC",
+        initial_sol_balance / 1_000_000_000.0,
+        initial_usdc_balance
     );
 
     // Get target account info
@@ -256,7 +246,8 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     info!("\n🔄 Starting transfer execution flow...");
 
     // Execute the transfer using the planner with RigAgent
-    let signature = execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance).await?;
+    let signature =
+        execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
     println!("DEBUG: Extracted signature: {signature}");
 
     // Verify that RigAgent selected and executed the correct tool
@@ -335,13 +326,14 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     let final_source_balance = rpc_client.get_balance(&pubkey).await?;
     let final_target_balance = rpc_client.get_balance(&target_pubkey).await?;
 
-    let source_deduction = initial_sol_balance - final_source_balance;
+    let source_deduction = (initial_sol_balance as u64) - final_source_balance;
     let transferred_amount = final_target_balance - initial_target_balance;
 
     // 1 SOL = 1,000,000,000 lamports
     info!("📊 Balance changes:");
     info!(
-        "Source account: {initial_sol_balance} -> {final_source_balance} lamports (deducted: {source_deduction})"
+        "Source account: {} -> {final_source_balance} lamports (deducted: {source_deduction})",
+        (initial_sol_balance as u64)
     );
     info!(
         "Target account: {initial_target_balance} -> {final_target_balance} lamports (received: {transferred_amount})"

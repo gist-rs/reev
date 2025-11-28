@@ -45,24 +45,13 @@ async fn execute_lend_with_planner(
     // Step 1: Display the prompt being processed
     info!("🔄 Processing prompt: \"{}\"", prompt);
 
-    // Set up the context resolver with explicit RPC URL like transfer test
+    // Set up the context resolver with SURFPOOL RPC URL to match transaction execution
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+        rpc_url: Some("http://localhost:8899".to_string()),
     });
 
-    // If using SURFPOOL (default), ensure USDC tokens are set up for test
-    if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
-        // Set up USDC tokens in SURFPOOL for the test
-        let test_pubkey = get_test_keypair()?.pubkey().to_string();
-        let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
-        surfpool_client
-            .set_token_account(
-                &test_pubkey,
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                100_000_000, // 100 USDC
-            )
-            .await?;
-    }
+    // USDC tokens are already set up by setup_wallet_for_lend in common.rs
+    // No need for duplicated setup here
 
     // Create a planner with GLM client
     let planner = Planner::new_with_glm(context_resolver.clone())?;
@@ -186,7 +175,7 @@ async fn run_lend_test(test_name: &str, prompt: &str) -> Result<()> {
     let surfpool_client = SurfpoolClient::new("http://localhost:8899");
 
     info!("\n💰 Setting up test wallet with SOL and USDC...");
-    // Set up the wallet with SOL and USDC
+    // Set up the wallet with SOL and USDC (200 USDC already set by setup_wallet_for_lend)
     let (initial_sol_balance, initial_usdc_balance) =
         setup_wallet_for_lend(&pubkey, &surfpool_client).await?;
     println!(

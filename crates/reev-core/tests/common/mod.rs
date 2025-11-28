@@ -185,6 +185,46 @@ pub async fn setup_wallet_for_swap(
     Ok((sol_balance, usdc_balance_f64))
 }
 
+/// Setup wallet with SOL and USDC for transfer tests
+#[allow(dead_code)]
+pub async fn setup_wallet_for_transfer(
+    pubkey: &Pubkey,
+    surfpool_client: &SurfpoolClient,
+) -> Result<(f64, f64)> {
+    // Airdrop 5 SOL to account for transaction fees
+    info!("🔄 Airdropping 5 SOL to account for transaction fees...");
+    surfpool_client
+        .set_account(&pubkey.to_string(), 5_000_000_000)
+        .await
+        .map_err(|e| anyhow!("Failed to airdrop SOL: {e}"))?;
+
+    // Verify SOL balance
+    let rpc_client = RpcClient::new("http://localhost:8899".to_string());
+    let balance = rpc_client.get_balance(pubkey).await?;
+    let sol_balance = balance as f64 / 1_000_000_000.0_f64;
+
+    info!("✅ Account balance: {sol_balance} SOL");
+
+    // Set up USDC token account with 100 USDC (for completeness, not used in transfer)
+    let usdc_mint = solana_sdk::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    let usdc_ata = spl_associated_token_account::get_associated_token_address(pubkey, &usdc_mint);
+
+    info!("🔄 Setting up USDC token account with 100 USDC for transfer test...");
+    surfpool_client
+        .set_token_account(&pubkey.to_string(), &usdc_mint.to_string(), 100_000_000)
+        .await
+        .map_err(|e| anyhow!("Failed to set up USDC token account: {e}"))?;
+
+    // Verify USDC balance
+    let usdc_balance = rpc_client.get_token_account_balance(&usdc_ata).await?;
+    let usdc_amount = &usdc_balance.ui_amount_string;
+    info!("✅ USDC balance: {usdc_amount}");
+
+    let usdc_balance_f64 = usdc_balance.ui_amount.unwrap_or(0.0);
+
+    Ok((sol_balance, usdc_balance_f64))
+}
+
 /// Setup wallet with SOL and USDC for lend tests
 #[allow(dead_code)]
 pub async fn setup_wallet_for_lend(

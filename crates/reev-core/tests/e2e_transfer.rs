@@ -25,9 +25,10 @@ mod common;
 
 use anyhow::{anyhow, Result};
 use common::{
-    ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey, setup_wallet,
-    TARGET_PUBKEY,
+    ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey,
+    setup_wallet_for_transfer, TARGET_PUBKEY,
 };
+use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
@@ -38,22 +39,22 @@ use std::env;
 use tracing::info;
 
 /// Execute transfer using the planner and LLM
-async fn execute_transfer_with_planner(
+async fn execute_transfer_with_rig_agent(
     prompt: &str,
     from_pubkey: &Pubkey,
     initial_sol_balance: u64,
 ) -> Result<String> {
     info!("\n🚀 Starting transfer execution with prompt: {}", prompt);
 
-    // Step 2: Create YML prompt with wallet context
+    // Step 2: Create YML prompt with wallet context using SURFPOOL
     let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+        rpc_url: Some("http://localhost:8899".to_string()),
     });
     let wallet_context = context_resolver
         .resolve_wallet_context(&from_pubkey.to_string())
         .await?;
 
-    let formatted_balance = initial_sol_balance / 1_000_000_000;
+    let formatted_balance = initial_sol_balance as f64 / 1_000_000_000.0;
     let wallet_info = format!(
         "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
     );
@@ -182,11 +183,14 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
     // Initialize RPC client
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
-    // Set up the wallet with SOL
-    let initial_sol_balance = setup_wallet(&pubkey, &rpc_client).await?;
+    // Set up the wallet with SOL and USDC
+    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+    let (initial_sol_balance, initial_usdc_balance) =
+        setup_wallet_for_transfer(&pubkey, &surfpool_client).await?;
     info!(
-        "✅ Wallet setup completed with {} SOL",
-        initial_sol_balance / 1_000_000_000
+        "✅ Wallet setup completed with {} SOL and {} USDC",
+        initial_sol_balance / 1_000_000_000.0,
+        initial_usdc_balance
     );
 
     // Get target account info
@@ -202,7 +206,8 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
     info!("\n🔄 Starting transfer execution flow...");
 
     // Execute the transfer using the planner and LLM
-    let signature = execute_transfer_with_planner(prompt, &pubkey, initial_sol_balance).await?;
+    let signature =
+        execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
 
     // Verify the transfer by checking target account balance
     let final_target_balance = rpc_client.get_balance(&target_pubkey).await?;
