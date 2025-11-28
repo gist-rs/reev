@@ -270,6 +270,7 @@ impl RigAgent {
     }
 
     // Legacy method for backward compatibility - now uses YML context internally
+    #[allow(dead_code)]
     fn create_context_prompt_with_history(
         &self,
         prompt: &str,
@@ -379,7 +380,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
         };
 
         info!("Sending request to ZAI API with model: {}", model_name);
-        info!("Prompt being sent to ZAI API: {}", prompt);
+        info!("DEBUG: Full prompt being sent to ZAI API: {}", prompt);
         // Make the API call
         let api_base = env::var("ZAI_API_BASE")
             .unwrap_or_else(|_| "https://api.z.ai/api/coding/paas/v4".to_string());
@@ -414,10 +415,11 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
         Ok(content)
     }
 
-    /// Extract tool calls from the agent response
+    /// Extract tool calls from agent response
     fn extract_tool_calls(&self, response: &str) -> Result<HashMap<String, serde_json::Value>> {
         // This is a simplified implementation
         // In a real implementation, we would parse the JSON response to extract tool calls
+        info!("DEBUG: Full response from LLM: {}", response);
         info!("Extracting tool calls from response: {}", response);
 
         // Parse the response to extract tool calls

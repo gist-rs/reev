@@ -93,6 +93,8 @@ pub struct DynamicStep {
     pub description: String,
     /// Required tools for this step
     pub required_tools: Vec<ToolName>,
+    /// Expected tools for this step (hints for RigAgent)
+    pub expected_tools: Option<Vec<ToolName>>,
     /// Recovery strategy if step fails
     pub recovery_strategy: Option<RecoveryStrategy>,
     /// Estimated execution time in seconds
@@ -108,6 +110,7 @@ impl DynamicStep {
             prompt_template,
             description,
             required_tools: Vec::new(),
+            expected_tools: None,
             recovery_strategy: None,
             estimated_time_seconds: 30,
         }
@@ -140,6 +143,12 @@ impl DynamicStep {
     /// Add required tools and return self for chaining
     pub fn with_required_tools(mut self, tools: Vec<ToolName>) -> Self {
         self.required_tools = tools;
+        self
+    }
+
+    /// Set expected tools and return self for chaining
+    pub fn with_expected_tools(mut self, tools: Vec<ToolName>) -> Self {
+        self.expected_tools = Some(tools);
         self
     }
 }
