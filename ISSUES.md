@@ -239,6 +239,50 @@ Added comprehensive end-to-end tests for Jupiter lending operations.
 
 ---
 
+## Issue #123: ContextResolver Using Mainnet Instead of SURFPOOL (CRITICAL)
+### Status: CRITICAL TEST ENVIRONMENT MISMATCH
+### Description:
+Tests are using ContextResolver with mainnet-beta RPC while transaction execution uses SURFPOOL. This creates a fundamental inconsistency where the context resolver sees different account states than what transactions operate on.
+
+### Current Implementation Issue:
+In e2e_multi_step.rs and other tests, the context resolver is initialized with:
+```rust
+let context_resolver = ContextResolver::new(SolanaEnvironment {
+    rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+});
+```
+
+But transactions are executed through SURFPOOL at http://localhost:8899.
+
+### Why This Is Critical:
+1. Context resolver reads real mainnet state
+2. Test setup creates tokens in SURFPOOL via surfnet_setTokenAccount
+3. LLM receives context from mainnet (different balances)
+4. Transactions execute in SURFPOOL (different state)
+5. This causes unpredictable test behavior
+
+### Correct Approach:
+Both context resolution and transaction execution must use SURFPOOL to ensure consistency:
+```rust
+let context_resolver = ContextResolver::new(SolanaEnvironment {
+    rpc_url: Some("http://localhost:8899".to_string()),
+});
+```
+
+### Tasks Required:
+1. Update all e2e tests to use SURFPOOL URL for context resolver
+2. Ensure SURFPOOL is running before context resolution
+3. Verify tests work consistently with SURFPOOL-only environment
+4. Update any documentation that assumes mainnet context resolution
+
+### Files Requiring Changes:
+- crates/reev-core/tests/e2e_multi_step.rs
+- crates/reev-core/tests/e2e_swap.rs
+- crates/reev-core/tests/e2e_lend.rs
+- crates/reev-core/tests/e2e_transfer.rs
+
+---
+
 ## Issue #110: Remove Unused Code (NOT STARTED)
 ### Status: NOT STARTED
 ### Description:
@@ -304,9 +348,10 @@ Implement robust error recovery with different strategies based on error type.
 ### Implementation Priority
 
 ### Week 1:
-1. Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (CRITICAL)
-2. Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
-3. Issue #110: Remove Unused Code (NOT STARTED)
+-1. Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (CRITICAL)
+-2. Issue #123: ContextResolver Using Mainnet Instead of SURFPOOL (CRITICAL)
+-3. Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
+-4. Issue #110: Remove Unused Code (NOT STARTED)
 
 ### Week 2:
 4. Issue #102: Error Recovery Engine (NOT STARTED)
@@ -326,4 +371,5 @@ Architecture alignment with V3 plan:
 - ❌ Multi-step operations broken - critical issue
 
 ### Critical Implementation Note:
-Issue #122 must be addressed before any other multi-step related fixes. The rule-based approach fundamentally violates the V3 architecture and will cause continuous conflicts with the intended LLM-driven approach.
+-Issue #122 must be addressed before any other multi-step related fixes. The rule-based approach fundamentally violates the V3 architecture and will cause continuous conflicts with the intended LLM-driven approach.
+-Issue #123 is also critical for test consistency - the context resolver and transaction execution must use the same environment (SURFPOOL) to ensure test reliability.
