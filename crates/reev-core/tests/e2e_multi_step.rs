@@ -92,8 +92,18 @@ async fn test_swap_then_lend() -> Result<()> {
     );
 
     info!("\n🔄 Starting multi-step execution flow...");
-    // Execute the multi-step flow using the planner and LLM
-    let prompt = "swap 0.1 SOL to USDC then lend 100 USDC";
+    // Execute multi-step flow using the planner and LLM
+    let prompt = "swap 0.1 SOL to USDC then lend 10 USDC";
+    println!("DEBUG: Prompt = {}", prompt);
+    info!(
+        "🔍 SETUP: Starting with 5 SOL and {} USDC",
+        initial_usdc_balance
+    );
+    info!("🔍 EXPECTED: 0.1 SOL swap should yield ~15 USDC at current prices");
+    info!("🔍 EXPECTED: Should lend ~10 USDC from swapped amount (keeping some for fees)");
+
+    // Debug: Print the steps that will be generated
+    info!("🔍 DEBUG: About to generate flow from prompt");
 
     // Set up the context resolver with explicit RPC URL
     let context_resolver = ContextResolver::new(SolanaEnvironment {
@@ -113,6 +123,21 @@ async fn test_swap_then_lend() -> Result<()> {
         "✅ Flow generated successfully with {} steps",
         yml_flow.steps.len()
     );
+    info!(
+        "✅ Flow generated successfully with {} steps",
+        yml_flow.steps.len()
+    );
+    println!("DEBUG: Total steps generated = {}", yml_flow.steps.len());
+
+    // Debug: Print each step's refined prompt
+    for (i, step) in yml_flow.steps.iter().enumerate() {
+        println!("DEBUG: Step {}: {}", i + 1, step.refined_prompt);
+    }
+
+    // Print the steps for debugging
+    for (i, step) in yml_flow.steps.iter().enumerate() {
+        info!("Step {}: prompt = {}", i + 1, step.refined_prompt);
+    }
 
     // Get the wallet context from the resolver
     let wallet_context = context_resolver
@@ -127,6 +152,29 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("\n🔍 Verifying execution results...");
     info!("Number of steps executed: {}", result.step_results.len());
 
+    // Print each step result for debugging
+    for (i, step_result) in result.step_results.iter().enumerate() {
+        info!("Step {} result: success = {}", i + 1, step_result.success);
+        if let Some(tool_results) = step_result.output.get("tool_results") {
+            if let Some(results) = tool_results.as_array() {
+                for result in results {
+                    if let Some(tool_name) = result.get("tool_name") {
+                        if let Some(params) = result.get("params") {
+                            if let Some(amount) = params.get("amount") {
+                                info!(
+                                    "Step {} - {} amount: {}",
+                                    i + 1,
+                                    tool_name.as_str().unwrap_or("unknown"),
+                                    amount
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Initialize RPC client for verification
     let client =
         solana_client::nonblocking::rpc_client::RpcClient::new("http://localhost:8899".to_string());
@@ -139,6 +187,14 @@ async fn test_swap_then_lend() -> Result<()> {
     let usdc_ata = spl_associated_token_account::get_associated_token_address(&pubkey, &usdc_mint);
     let jusdc_ata =
         spl_associated_token_account::get_associated_token_address(&pubkey, &jusdc_mint);
+
+    // DEBUG: Check USDC balance before execution
+    let pre_swap_usdc = client.get_token_account_balance(&usdc_ata).await?;
+    let pre_swap_usdc_amount = pre_swap_usdc.ui_amount.unwrap_or(0.0);
+    info!(
+        "🔍 DEBUG: USDC balance before any operations: {}",
+        pre_swap_usdc_amount
+    );
 
     // Check final token balances
     let usdc_balance = client.get_token_account_balance(&usdc_ata).await?;
@@ -154,6 +210,7 @@ async fn test_swap_then_lend() -> Result<()> {
     };
 
     info!("Final USDC balance: {}", final_usdc_balance);
+    info!("Initial USDC balance: {}", initial_usdc_balance);
     info!("Final jUSDC balance: {}", jusdc_amount);
 
     // Verify that we have jUSDC tokens from lending
@@ -170,15 +227,30 @@ async fn test_swap_then_lend() -> Result<()> {
         let usdc_lent = initial_usdc_balance - final_usdc_balance;
         info!("✅ USDC amount lent: {}", usdc_lent);
 
-        // Check if approximately 100 USDC was lent
-        if (usdc_lent - 100.0).abs() < 5.0 {
+        // Check if approximately 10 USDC was lent (since we only swapped 0.1 SOL)
+        if (usdc_lent - 10.0).abs() < 5.0 {
             info!("✅ Correct amount of USDC was lent");
         } else {
             warn!(
-                "⚠️ USDC lent amount ({}) differs from expected (100)",
+                "⚠️ USDC lent amount ({}) differs from expected (10)",
                 usdc_lent
             );
         }
+
+        // DEBUG: Let's check if this makes sense - we only swapped 0.1 SOL (~$15)
+        if usdc_lent > 20.0 {
+            warn!(
+                "🚨 INCONSISTENCY: Lent {} USDC but only swapped 0.1 SOL (~$15)",
+                usdc_lent
+            );
+            warn!("🚨 This suggests test is using initial USDC balance, not post-swap balance");
+        }
+
+        // DEBUG: Check for actual swap output vs. lend input
+        info!(
+            "🔍 DEBUG: Initial USDC: {}, Final USDC: {}, Lent: {}",
+            initial_usdc_balance, final_usdc_balance, usdc_lent
+        );
     } else {
         return Err(anyhow::anyhow!(
             "USDC balance did not decrease after lending"

@@ -1,187 +1,329 @@
+-# Reev Core Implementation Issues
+
+---
+
+## Issue #118: Jupiter Lend Deposit Execution (COMPLETED)
+-### Status: COMPLETED
+-### Description:
+-Jupiter lend deposit tool was returning raw instructions instead of executing transactions and returning signatures. Fixed by updating execute_jupiter_lend_deposit to execute transactions like jupiter_swap.
+-
+-### Tasks Completed:
+-1. ✅ Fixed execute_jupiter_lend_deposit to execute transaction and return signature
+-2. ✅ Added proper error handling for transaction execution
+-3. ✅ Verified e2e_lend tests passing
+-
+----
+-
+-## Issue #119: E2E Lend Tests Implementation (COMPLETED)
+-### Status: COMPLETED
+-### Description:
+-Added comprehensive end-to-end tests for Jupiter lending operations to validate the system.
+-
+-### Tasks Completed:
+-1. ✅ Created e2e_lend.rs with test_lend_100_usdc and test_lend_all_usdc
+-2. ✅ Added setup_wallet_for_lend function to common module
+-3. ✅ Verified jUSDC token receipt after lending
+-4. ✅ All tests passing
+-
+----
+-
+-## Issue #120: Multi-Step Swap+Lend Flow Test (COMPLETED)
+-### Status: COMPLETED
+-### Description:
+-Updated e2e_multi_step.rs to test swap then lend operations, proving multi-step flows work correctly.
+-
+-### Tasks Completed:
+-1. ✅ Updated test to use "swap 0.1 SOL to USDC then lend 100 USDC" prompt
+-2. ✅ Added verification for jUSDC tokens after lending
+-3. ✅ Verified proper context passing between steps
+-4. ✅ Removed unused helper functions
+-
+----
+-
+-## Issue #117: Context Update in Multi-Step Flows (IN PROGRESS)
+### Status: PARTIALLY FIXED
+-### Description:
+-Context updates between steps are partially working. While swap step updates context correctly, subsequent lend step may receive stale balance information.
+-
+### Root Cause:
+-Context serialization issue when passing updated context to LLM for next step.
+-
+-### Tasks Required:
+-1. ✅ Fixed executor to pass updated context to subsequent steps
+-2. ⚠️ Investigate serialization of updated context for LLM
+-3. Verify fix for all token types in multi-step flows
+-
+----
+-
+-## Issue #102: Error Recovery Engine (NOT STARTED)
+-### Status: NOT STARTED
+-### Description:
+-Error recovery is incomplete. Need retry logic and alternative paths for failed transactions.
+-
+-### Tasks Required:
+-1. Implement retry with exponential backoff for network errors
+-2. Add alternative path selection for transaction failures
+-3. Implement slippage adjustment for swap failures
+-4. Create error classification system
+-
+----
+-
+-## Issue #105: RigAgent Enhancement (PARTIALLY COMPLETED)
+-### Status: PARTIALLY COMPLETED
+-### Description:
+-RigAgent needs improved tool selection and parameter extraction for complex operations.
+-
+-### Tasks Remaining:
+-1. Better prompt engineering for complex tool selection
+-2. Parameter validation before tool execution
+-3. Tool result interpretation
+-4. Enhanced error handling for edge cases
+-
+----
+-
+-## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
+-### Status: PARTIALLY COMPLETED
+-### Description:
+-LanguageRefiner needs better context awareness and multi-language support.
+-
+-### Tasks Remaining:
+-1. Context awareness integration
+-2. Multi-language support implementation
+-3. Refinement quality metrics
+-4. Advanced error recovery
+-
+----
+-
+-## Issue #110: Remove Unused Code (NOT STARTED)
+-### Status: NOT STARTED
+-### Description:
+-Clean up deprecated functions in YmlGenerator following V3 plan guidelines.
+-
+-### Tasks Required:
+-1. Remove rule-based operation parsing functions
+-2. Keep builder functions for testing only
+-3. Update documentation to reflect current implementation
+-4. Ensure tests still pass after cleanup
+-
+----
+-
+-## Issue #112: Comprehensive Error Recovery (NOT STARTED)
+-### Status: NOT STARTED
+-### Description:
+-Implement robust error recovery with different strategies based on error type.
+-
+-### Tasks Required:
+-1. Create error classification system
+-2. Implement retry logic with backoff
+-3. Add circuit breaker for repeated failures
+-4. Add recovery metrics and logging
+-
+----
+-
+-### Implementation Priority
+-
+-### Week 1:
+-1. Issue #117: Context Update in Multi-Step Flows (IN PROGRESS)
+-2. Issue #110: Remove Unused Code (NOT STARTED)
+-
+-### Week 2:
+-3. Issue #102: Error Recovery Engine (NOT STARTED)
+-4. Issue #112: Comprehensive Error Recovery (NOT STARTED)
+-
+-### Current State Summary:
+-All e2e tests passing:
+-- ✅ swap operations (including "sell all SOL")
+-- ✅ transfer operations
+-- ✅ lend operations (including "lend all USDC")
+-- ✅ multi-step operations (swap then lend)
+-
+-Architecture aligned with V3 plan:
+-- ✅ RigAgent handles tool selection based on refined prompts
+-- ✅ Balance validation integrated and working
+-- ⚠️ Error recovery implementation needed for production readiness
 # Reev Core Implementation Issues
 
 ---
 
-## Issue #117: Updated Context Not Passed to LLM for Multi-Step Flows (IN PROGRESS)
-### Status: PARTIALLY FIXED
+## Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (NEW)
+### Status: CRITICAL ARCHITECTURAL VIOLATION
 ### Description:
-When executing a multi-step flow with a swap followed by a lend operation, the LLM is not receiving the updated wallet context after the swap step. This causes the lend operation to use stale balance information and fail due to requesting an amount that exceeds the available balance.
+Implementation has introduced rule-based logic for multi-step detection in unified_flow_builder.rs, directly contradicting the V3 plan which specifies that LLM should handle multi-step detection, not rule-based parsing.
+
+### V3 Plan Requirements:
+From PLAN_CORE_V3.md:
+- "RigAgent should handle tool selection based on refined prompts, not a rule-based parser"
+- "LLM's role is specifically for language refinement, not structure generation"
+- Phase 1: LLM-based prompt refinement
+- Phase 2: Rig-driven tool execution (NOT rule-based)
+
+### Current Implementation Issue:
+In unified_flow_builder.rs (uncommitted changes), rule-based logic was added:
+```rust
+let is_multi_step = prompt_lower.contains(" then ")
+    || prompt_lower.contains(" and ")
+    || prompt_lower.contains(" followed by ")
+    || (prompt_lower.contains("swap") && prompt_lower.contains("lend"))
+    || (prompt_lower.contains("swap") && prompt_lower.contains("transfer"))
+    || (prompt_lower.contains("lend") && prompt_lower.contains("transfer"));
+```
+
+This violates the V3 architecture by:
+1. Using rule-based detection instead of LLM
+2. Pre-determining operations instead of letting RigAgent handle them
+3. Creating complex parsing logic where LLM should make decisions
+
+### Correct V3 Architecture Approach:
+1. LLM should refine prompts and naturally detect multi-step operations
+2. YML generator should create simple structures with refined prompts
+3. RigAgent should handle tool selection based on refined prompts
+4. No rule-based parsing for operation detection
+
+### Tasks Required:
+1. Remove rule-based multi-step detection from unified_flow_builder.rs
+2. Simplify flow builder to create single steps with refined prompts
+3. Ensure LLM properly handles multi-step detection through prompt refinement
+4. Update RigAgent to handle all operations in multi-step prompts
+5. Fix e2e_multi_step.rs test expectations to align with V3 architecture
+
+---
+
+## Issue #121: Multi-Step Operations Not Properly Executed (IN PROGRESS)
+### Status: CRITICAL ISSUE IDENTIFIED
+### Description:
+Multi-step flows are not properly executing all operations. The planner generates multiple steps correctly, but only the first operation (swap) is being executed.
 
 ### Current Behavior:
-- First step (swap) correctly exchanges SOL for USDC
-- Context is updated with correct USDC balance (e.g., 1,000,744,792 USDC)
-- However, the LLM for the second step still receives the original context with the old USDC balance (200,000,000)
-- LLM calculates 95% of the old balance, resulting in a requested amount (951,695,255) that exceeds the available balance (801,744,792 after subtracting pre-existing balance)
-- Balance validation fails because requested amount exceeds available balance
+- Prompt: "swap 0.1 SOL to USDC then lend 10 USDC"
+- Planner generates 2 steps correctly after fixing detection logic
+- However, test fails because USDC balance doesn't decrease after "lending"
+- Root cause: LLM is executing only the swap operation, ignoring the lend operation
+
+### Why Tests Were Passing Before:
+- Previous test used unrealistic amounts (swap 0.1 SOL for $15, then lend 100 USDC)
+- With 100 USDC initial balance, this created a false sense of success
+- When changed to realistic amounts (lend 10 USDC from ~15 USDC swap output), test failed
 
 ### Root Cause:
-The issue is in the executor.rs file. When updating the context after a step, it updates the internal context correctly, but it's not properly serializing this updated context when passing it to the LLM for the next step in the flow. We've partially fixed the issue by ensuring that `current_context` is passed to `execute_step_with_history` instead of the original `wallet_context` parameter. However, debug logs show that the context being passed to the LLM still contains the old USDC balance, suggesting a serialization issue.
+The issue is in RigAgent's execution of multi-step flows. It's not properly handling sequential operations in a single step. The LLM is extracting only the first operation from multi-step prompts.
 
 ### Tasks Required:
-1. ✅ Fix the executor to pass the updated context to subsequent steps (partially complete)
-2. ⚠️ Investigate why updated context is not being serialized properly when passed to LLM
-3. Verify the fix works for both USDC and other tokens in multi-step flows
-4. Add test to prevent regression
-5. Update the prompt to make it clearer to the LLM to use the exact amount from the previous step
-6. ✅ Added delay between steps to ensure blockchain has fully processed the swap
-7. ✅ Modified context update to use actual on-chain balance instead of adding to previous balance
-8. ❌ Test still failing due to BalanceValidator seeing different balance than context
+1. Fix RigAgent to properly execute all operations in multi-step steps
+2. Ensure context is properly updated between sequential operations
+3. Add validation that all operations in prompt are being executed
+4. Fix prompt refinement to preserve all operations correctly
 
 ---
 
-## Issue #116: Context Passing Between Multi-Step Flow Steps (COMPLETED)
+## Issue #118: Jupiter Lend Deposit Execution (COMPLETED)
 ### Status: COMPLETED
 ### Description:
-Multi-step flows need to pass actual results from previous steps to subsequent steps. The implementation has been completed to properly update wallet context between steps.
+Fixed jupiter_lend_deposit to execute transactions and return signatures instead of just returning instructions.
 
-### Current Implementation:
-1. ✅ Added multi-threaded runtime to test to support blocking calls in jup_sdk
-2. ✅ Implemented update_context_after_step method to update wallet context after each step
-3. ✅ Added previous step history to RigAgent context for better decision making
-4. ✅ Modified test to use conservative amount approach for lend step
-5. ✅ Fixed borrowing issues in test
-6. ✅ Fixed context update logic for Jupiter swap to query blockchain for actual output amount
-7. ✅ Fixed USDC amount conversion from USDC to smallest units (1,000,000 instead of 1,000,000,000)
-
-### Current Issue:
-The swap step is now correctly updating the context with actual swap output amounts. However, the updated context is not being passed to the next step in the flow. The LLM still receives the original wallet context with old balances.
-
-### Current Behavior:
-- First step (swap) succeeds with transaction signature
-- Context is correctly updated with actual swap output (e.g., 801,854,694 USDC)
-- Second step (lend) still receives original context (e.g., 200,000,000 USDC)
-- Lend step fails because it tries to lend 95% of original balance, not updated balance
-
-### Next Steps:
-1. Fix the issue where updated context is not being passed to subsequent steps
-2. Verify that the context update is being applied to the context object used for the next step
+### Tasks Completed:
+1. ✅ Updated execute_jupiter_lend_deposit to execute transaction like jupiter_swap
+2. ✅ Added proper error handling for transaction execution
+3. ✅ Verified e2e_lend tests passing
 
 ---
 
+## Issue #119: E2E Lend Tests Implementation (COMPLETED)
+### Status: COMPLETED
+### Description:
+Added comprehensive end-to-end tests for Jupiter lending operations.
 
+### Tasks Completed:
+1. ✅ Created e2e_lend.rs with test_lend_100_usdc and test_lend_all_usdc
+2. ✅ Added setup_wallet_for_lend function to common module
+3. ✅ Verified jUSDC token receipt after lending
 
-## Issue #102: Implement Error Recovery Engine (NOT STARTED)
+---
+
+## Issue #110: Remove Unused Code (NOT STARTED)
 ### Status: NOT STARTED
 ### Description:
-Error recovery is incomplete. While there's a RecoveryConfig struct, the actual recovery logic isn't fully implemented. Failed steps need proper recovery strategies based on error type.
-
-### Success Criteria:
-- Implement error recovery strategies for common failures
-- Add retry logic with exponential backoff for network errors
-- Implement alternative path selection for transaction failures
-- Add slippage adjustment for swap failures
+Clean up deprecated functions in YmlGenerator following V3 plan guidelines.
 
 ### Tasks Required:
-1. Implement retry mechanism for network errors
-2. Add alternative path selection for failed transactions
-3. Implement slippage adjustment for swap failures
-4. Create error classification system
-5. Add recovery metrics and logging
+1. Remove rule-based operation parsing functions
+2. Keep builder functions for testing only
+3. Update documentation to reflect current implementation
 
 ---
 
-## Issue #105: Enhance RigAgent Integration (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-RigAgent integration is basic and doesn't fully leverage LLM capabilities. Tool selection and parameter extraction need improvement to handle more complex operations and edge cases.
-
-### Success Criteria:
-- Improve RigAgent prompt engineering for better tool selection
-- Add parameter validation before tool execution
-- Implement tool result interpretation
-- Add support for multi-step operations
-
-### Tasks Completed:
-1. ✅ Basic RigAgent prompts for tool selection
-2. ✅ Basic parameter extraction from refined prompts
-3. ✅ Tool execution for SOL transfers, swaps, etc.
-
-### Tasks Remaining:
-1. ❌ Better prompt engineering for more complex tool selection
-2. ❌ Parameter validation before tool execution
-3. ❌ Tool result interpretation
-4. ❌ Multi-step operation support
-5. ❌ Improved RigAgent error handling for edge cases
-
----
-
-## Issue #106: Improve LanguageRefiner (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-LanguageRefiner needs improvement to handle more complex prompts and edge cases. Current implementation is basic and doesn't support advanced language refinement features.
-
-### Success Criteria:
-- Support more complex prompt patterns
-- Add context awareness to refinement
-- Implement better error handling
-- Add support for multi-language prompts
-
-### Tasks Completed:
-1. ✅ LLM-based language refinement implementation
-2. ✅ Support for complex prompt patterns
-3. ✅ Operation type preservation (critical fix)
-4. ✅ Basic error handling
-
-### Tasks Remaining:
-1. ❌ Context awareness to refinement
-2. ❌ Multi-language support
-3. ❌ Better refinement quality metrics
-4. ❌ More sophisticated error recovery
-
----
-
-
-
-## Issue #112: Add Comprehensive Error Recovery (NEW)
+## Issue #102: Error Recovery Engine (NOT STARTED)
 ### Status: NOT STARTED
 ### Description:
-The V3 plan specifies robust error recovery as a key component, but current implementation has minimal error handling. Error recovery should handle different error types with appropriate strategies.
+Error recovery is incomplete. Need retry logic and alternative paths for failed transactions.
 
-### Success Criteria:
-- Implement error classification for different failure types
-- Add retry logic with exponential backoff for transient errors
-- Implement alternative path selection for failed transactions
-- Add slippage adjustment for swap failures
-- Add circuit breaker pattern for repeated failures
+### Tasks Required:
+1. Implement retry with exponential backoff for network errors
+2. Add alternative path selection for transaction failures
+3. Implement slippage adjustment for swap failures
+4. Create error classification system
+
+---
+
+## Issue #105: RigAgent Enhancement (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
+### Description:
+RigAgent needs improved multi-step operation handling.
+
+### Tasks Remaining:
+1. Fix multi-step execution to handle all operations in prompt
+2. Improve parameter validation before tool execution
+3. Better prompt engineering for complex tool selection
+
+---
+
+## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
+### Description:
+LanguageRefiner needs better context awareness and multi-language support.
+
+### Tasks Remaining:
+1. Context awareness integration
+2. Multi-language support implementation
+3. Refinement quality metrics
+
+---
+
+## Issue #112: Comprehensive Error Recovery (NOT STARTED)
+### Status: NOT STARTED
+### Description:
+Implement robust error recovery with different strategies based on error type.
 
 ### Tasks Required:
 1. Create error classification system
-2. Implement retry logic with exponential backoff
-3. Add alternative transaction path selection
-4. Implement slippage adjustment for swap failures
-5. Add circuit breaker for repeated failures
-6. Add recovery metrics and logging
+2. Implement retry logic with backoff
+3. Add circuit breaker for repeated failures
+4. Add recovery metrics and logging
 
 ---
 
 ### Implementation Priority
 
 ### Week 1:
-1. ~~Issue #111: Complete RigAgent Integration for Tool Selection (COMPLETED)~~
-2. Issue #117: Fix USDC Amount Multiplied by 1,000,000 in Jupiter Lend Earn Deposit (NEW)
-3. ~~Issue #116: Complete Context Passing Between Multi-Step Flow Steps (COMPLETED)~~
+1. Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (CRITICAL)
+2. Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
+3. Issue #110: Remove Unused Code (NOT STARTED)
 
 ### Week 2:
-3. Issue #102: Implement Error Recovery Engine (NOT STARTED)
-4. Issue #105: Enhance RigAgent Integration (PARTIALLY COMPLETED)
-5. Issue #106: Improve LanguageRefiner (PARTIALLY COMPLETED)
-
-### Week 3:
-6. Issue #110: Remove Unused Code in YmlGenerator (NEW)
-7. Issue #112: Add Comprehensive Error Recovery (NEW)
+4. Issue #102: Error Recovery Engine (NOT STARTED)
+5. Issue #112: Comprehensive Error Recovery (NOT STARTED)
 
 ### Current State Summary:
-All e2e tests are now passing, including:
-- swap operations (including "sell all SOL")
-- transfer operations
-- rig_agent tool selection
-- "sell" terminology parsing as swap operations
+E2e tests status:
+- ✅ swap operations (including "sell all SOL")
+- ✅ transfer operations
+- ✅ lend operations (single-step only)
+- ❌ multi-step operations (only first operation executes)
 
-The architecture is properly aligned with V3 plan, where RigAgent handles tool selection based on refined prompts rather than rule-based operation parsing. Balance validation has been successfully integrated.
+Architecture alignment with V3 plan:
+- ✅ RigAgent handles tool selection based on refined prompts
+- ✅ Balance validation integrated and working
+- ❌ CRITICAL VIOLATION: Rule-based multi-step detection contradicts V3 architecture
+- ❌ Multi-step operations broken - critical issue
 
-## Notes:
-- Completed issues are removed to reduce noise
-- Future implementation should follow V3 plan guidelines
-- RigAgent is the primary mechanism for tool selection and parameter extraction
-- Balance validation is integrated and working
-- Error recovery implementation is a high priority for production readiness
+### Critical Implementation Note:
+Issue #122 must be addressed before any other multi-step related fixes. The rule-based approach fundamentally violates the V3 architecture and will cause continuous conflicts with the intended LLM-driven approach.
