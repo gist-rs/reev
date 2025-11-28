@@ -117,6 +117,10 @@ Replace the current mixed JSON+markdown context generation in RigAgent with stru
 5. ✅ Added serialization/deserialization methods for YML contexts
 6. ✅ Created comprehensive tests for context builder functionality
 7. ✅ Added proper exports in lib.rs for public API
+8. ✅ Implemented balance change tracking for multi-step operations
+9. ✅ Added constraints generation based on previous step results
+10. ✅ Created error recovery mechanisms for failed operations
+11. ✅ Enhanced context passing between multi-step operations
 
 ### Key Features:
 - Structured YML context that can be parsed back to structs for validation
@@ -125,6 +129,9 @@ Replace the current mixed JSON+markdown context generation in RigAgent with stru
 - Support for previous step results and constraints
 - Token filtering based on operation type
 - Prompt format conversion for LLM consumption
+- Balance change tracking after each operation
+- Available tokens calculation for next steps
+- Error recovery constraints for failed operations
 
 ### Files Modified:
 - `crates/reev-core/src/execution/context_builder/mod.rs` (new)
@@ -132,18 +139,52 @@ Replace the current mixed JSON+markdown context generation in RigAgent with stru
 - `crates/reev-core/src/execution/rig_agent/mod.rs` (updated)
 - `crates/reev-core/src/lib.rs` (updated)
 - `crates/reev-core/tests/yml_context_builder_test.rs` (new)
+- `crates/reev-core/tests/multi_step_context_test.rs` (new)
+
+### Tests Status:
+- All 7 tests in yml_context_builder_test.rs passing
+- All 8 tests in multi_step_context_test.rs passing
 
 ### Current State Summary:
-- **Active Issues**: 5
+- **Active Issues**: 4
 - **Partially Completed**: 2
-- **Completed**: 1
+- **Completed**: 2
 - **Not Started**: 2
+
+### Issue #122: Enhance Multi-Step Operation Context Passing (COMPLETED)
+### Status: COMPLETED
+### Description:
+Improve context passing between operations in multi-step flows to ensure proper wallet state updates, clear indication of changes, accurate constraints, and proper token balance tracking.
+
+### What Was Implemented:
+1. ✅ Implemented balance change tracking after each operation
+2. ✅ Added constraints generation based on previous step results
+3. ✅ Created error recovery mechanisms for failed operations
+4. ✅ Enhanced context passing between multi-step operations
+5. ✅ Added available tokens calculation for next steps
+6. ✅ Created comprehensive tests for multi-step context handling
+
+### Key Features:
+- Balance change tracking with before/after amounts
+- Constraint generation for next operations
+- Error recovery with appropriate constraints
+- Available tokens calculation based on previous results
+- Clear indication of what changed in each step
+- Proper token balance tracking throughout flow
+
+### Files Modified:
+- `crates/reev-core/src/execution/context_builder/mod.rs` (updated)
+- `crates/reev-core/tests/multi_step_context_test.rs` (new)
+
+### Tests Status:
+- All 8 tests in multi_step_context_test.rs passing
 
 ### Priority Implementation Order:
 1. **Immediate**: Issue #110 (Remove Unused Code)
 2. **Short-term**: Issue #102 (Error Recovery Engine)
 3. **Medium-term**: Issue #112 (Comprehensive Error Recovery)
 4. **Ongoing**: Issue #105 and #106 (Enhancements)
+5. **Future**: Issue #123 (Implement YML Context Validation Framework)
 
 ### Critical Implementation Note:
 All new implementations should follow V3 architecture with:

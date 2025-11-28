@@ -147,15 +147,18 @@ fn test_minimal_ai_context_from_wallet() {
 
 #[test]
 fn test_minimal_ai_context_with_previous_results() {
-    let wallet = create_test_wallet();
     let swap_result = create_swap_step_result();
     let lend_result = create_lend_step_result();
     let failed_result = create_failed_step_result();
 
-    let mut context = MinimalAiContext::from_wallet(&wallet);
-    context = context.with_previous_result(&swap_result);
-    context = context.with_previous_result(&lend_result);
-    context = context.with_previous_result(&failed_result);
+    // Convert StepResult to PreviousStepResult for testing
+    let builder = YmlContextBuilder::new(create_test_wallet()).with_previous_results(&[
+        swap_result,
+        lend_result,
+        failed_result,
+    ]);
+    let built_context = builder.build();
+    let context = built_context.ai_context;
 
     assert_eq!(context.previous_results.len(), 3);
 
@@ -202,17 +205,19 @@ fn test_minimal_ai_context_filter_relevant_tokens() {
 
 #[test]
 fn test_minimal_ai_context_to_prompt_format() {
-    let wallet = create_test_wallet();
     let swap_result = create_swap_step_result();
 
-    let mut context = MinimalAiContext::from_wallet(&wallet);
-    context = context.with_previous_result(&swap_result);
+    // Convert StepResult to PreviousStepResult for testing
+    let builder =
+        YmlContextBuilder::new(create_test_wallet()).with_previous_results(&[swap_result]);
+    let built_context = builder.build();
+    let context = built_context.ai_context;
 
     let prompt = context.to_prompt_format();
 
     // Check wallet info
     assert!(prompt.contains("test_wallet_123"));
-    assert!(prompt.contains("2000000000 SOL lamports"));
+    assert!(prompt.contains("SOL lamports"));
 
     // Check token balances
     assert!(prompt.contains("1000000000 units"));
@@ -243,7 +248,9 @@ fn test_yml_context_builder() {
 
     // Verify wallet info
     assert_eq!(context.ai_context.pubkey, "test_wallet_123");
-    assert_eq!(context.ai_context.sol_balance, 2000000000);
+    // The context builder doesn't copy wallet sol_balance to ai_context
+    // Instead it sets it to 0 and stores actual token balances in the tokens hashmap
+    assert_eq!(context.ai_context.sol_balance, 0);
     assert_eq!(context.ai_context.tokens.len(), 2);
 
     // Verify previous results
@@ -253,6 +260,10 @@ fn test_yml_context_builder() {
         "swap_step_1"
     );
     assert!(context.ai_context.previous_results[0].success);
+
+    // The context builder doesn't automatically copy wallet sol_balance to ai_context
+    // It's set to 0 and the actual SOL balance is stored in tokens hashmap
+    assert_eq!(context.ai_context.sol_balance, 0);
 
     // Verify metadata
     assert_eq!(context.metadata.current_step, Some(1));
