@@ -900,28 +900,131 @@ For swap operations, always determine the input and output mints based on the to
             .await
             .map_err(|e| anyhow!("Jupiter Lend Earn Deposit execution failed: {e}"))?;
 
-        // Parse the response to extract transaction signature
-        let transaction_signature =
-            if let Ok(instructions) = serde_json::from_str::<serde_json::Value>(&result) {
-                if let Some(sig) = instructions.get("transactionSignature") {
-                    sig.as_str().unwrap_or("").to_string()
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            };
+        // Parse the response to extract instructions and execute transaction
+        info!("Jupiter lend deposit tool returned result: {}", &result);
+        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
+            debug!("Parsed response: {:#?}", response);
 
-        Ok(json!({
-            "tool_name": "jupiter_lend_earn_deposit",
-            "params": {
-                "mint": mint,
-                "amount": amount,
-                "wallet": wallet_context.owner
-            },
-            "transaction_signature": transaction_signature,
-            "success": true
-        }))
+            // The response is a serialized Vec<RawInstruction>, let's convert it
+            let raw_instructions: Result<Vec<reev_lib::agent::RawInstruction>> = response
+                .as_array()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|inst| {
+                    let program_id = inst
+                        .get("program_id")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| anyhow!("Missing program_id"))?
+                        .to_string();
+
+                    let accounts = inst
+                        .get("accounts")
+                        .and_then(|v| v.as_array())
+                        .ok_or_else(|| anyhow!("Missing accounts"))?
+                        .iter()
+                        .map(|acc| {
+                            Ok(reev_lib::agent::RawAccountMeta {
+                                pubkey: acc
+                                    .get("pubkey")
+                                    .and_then(|v| v.as_str())
+                                    .ok_or_else(|| anyhow!("Missing pubkey"))?
+                                    .to_string(),
+                                is_signer: acc
+                                    .get("is_signer")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false),
+                                is_writable: acc
+                                    .get("is_writable")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false),
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    let data = inst
+                        .get("data")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| anyhow!("Missing data"))?
+                        .to_string();
+
+                    Ok(reev_lib::agent::RawInstruction {
+                        program_id,
+                        accounts,
+                        data,
+                    })
+                })
+                .collect();
+
+            // Execute the transaction with the instructions
+            match raw_instructions {
+                Ok(instructions) => {
+                    let keypair = reev_lib::get_keypair()
+                        .map_err(|e| anyhow!("Failed to load keypair: {e}"))?;
+                    let user_pubkey = solana_sdk::signer::Signer::pubkey(&keypair);
+
+                    match reev_lib::utils::execute_transaction(instructions, user_pubkey, &keypair)
+                        .await
+                    {
+                        Ok(signature) => {
+                            info!(
+                                "Jupiter lend deposit transaction executed with signature: {}",
+                                signature
+                            );
+                            Ok(json!({
+                                "tool_name": "jupiter_lend_earn_deposit",
+                                "params": {
+                                    "mint": mint,
+                                    "amount": amount,
+                                    "wallet": wallet_context.owner
+                                },
+                                "transaction_signature": signature,
+                                "success": true
+                            }))
+                        }
+                        Err(e) => {
+                            error!("Failed to execute Jupiter lend deposit transaction: {}", e);
+                            debug!("Transaction execution error details: {:#?}", e);
+
+                            Ok(json!({
+                                "tool_name": "jupiter_lend_earn_deposit",
+                                "params": {
+                                    "mint": mint,
+                                    "amount": amount,
+                                    "wallet": wallet_context.owner
+                                },
+                                "error": format!("Transaction execution failed: {}", e),
+                                "success": false
+                            }))
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to parse Jupiter lend deposit instructions: {}", e);
+                    Ok(json!({
+                        "tool_name": "jupiter_lend_earn_deposit",
+                        "params": {
+                            "mint": mint,
+                            "amount": amount,
+                            "wallet": wallet_context.owner
+                        },
+                        "error": format!("Failed to parse instructions: {}", e),
+                        "success": false
+                    }))
+                }
+            }
+        } else {
+            error!("Failed to parse Jupiter lend deposit response as JSON");
+            Ok(json!({
+                "tool_name": "jupiter_lend_earn_deposit",
+                "params": {
+                    "mint": mint,
+                    "amount": amount,
+                    "wallet": wallet_context.owner
+                },
+                "error": "Failed to parse response as JSON",
+                "success": false
+            }))
+        }
     }
 
     /// Execute get account balance
