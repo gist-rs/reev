@@ -7,8 +7,6 @@
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
-use reqwest;
-// Client from rig::providers::openai is not used, removed
 use rig::tool::{Tool, ToolSet};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -267,28 +265,6 @@ impl RigAgent {
         }
 
         Ok(full_prompt)
-    }
-
-    // Legacy method for backward compatibility - now uses YML context internally
-    #[allow(dead_code)]
-    fn create_context_prompt_with_history(
-        &self,
-        prompt: &str,
-        wallet_context: &WalletContext,
-        previous_results: &[StepResult],
-    ) -> Result<String> {
-        // Create a minimal step for context generation
-        let step = YmlStep::new(
-            "legacy_step".to_string(),
-            prompt.to_string(),
-            "".to_string(),
-        );
-
-        // Create YML context
-        let yml_context = self.create_yml_context(&step, wallet_context, previous_results)?;
-
-        // Convert to prompt format
-        self.yml_context_to_prompt(&yml_context, prompt)
     }
 
     /// Prompt the agent with expected tools hints

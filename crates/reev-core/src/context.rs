@@ -3,9 +3,7 @@
 //! This module provides context resolution for wallet information in both production
 //! and benchmark modes, with support for SURFPOOL integration in benchmark mode.
 
-use reev_types::benchmark::TokenBalance;
 use reev_types::flow::WalletContext;
-// use reev_types::tools::ToolName; // Currently unused
 
 // Define SolanaEnvironment locally as it's not available in reev-types
 #[derive(Debug, Clone)]
@@ -23,11 +21,8 @@ impl Default for SolanaEnvironment {
         }
     }
 }
-use anyhow::{anyhow, Result};
-use serde_json::json;
+use anyhow::Result;
 use std::collections::HashMap;
-use std::time::Duration;
-use tokio::time::timeout;
 use tracing::{debug, info, instrument};
 
 /// Context resolver for wallet information in different modes
@@ -37,8 +32,6 @@ pub struct ContextResolver {
     timeout_seconds: u64,
     /// Cache for resolved contexts
     cache: HashMap<String, CacheEntry>,
-    /// SURFPOOL RPC URL for benchmark mode
-    surfpool_rpc_url: String,
 }
 
 impl ContextResolver {
@@ -47,8 +40,6 @@ impl ContextResolver {
         Self {
             timeout_seconds: 30,
             cache: HashMap::new(),
-            surfpool_rpc_url: std::env::var("SURFPOOL_RPC_URL")
-                .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string()),
         }
     }
 
@@ -173,116 +164,6 @@ impl ContextResolver {
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
             1.0, // $1 USDC
         );
-
-        context.calculate_total_value();
-        Ok(context)
-    }
-
-    /// Setup a benchmark wallet via SURFPOOL
-    #[instrument(skip(self))]
-    #[allow(dead_code)]
-    async fn setup_benchmark_wallet(&self) -> Result<WalletContext> {
-        info!("Setting up benchmark wallet via SURFPOOL");
-
-        // Create HTTP client for SURFPOOL requests
-        let client = reqwest::Client::new();
-
-        // Create request to set up account
-        let mut request_body = serde_json::Map::new();
-        request_body.insert("jsonrpc".to_string(), json!("2.0"));
-        request_body.insert("id".to_string(), json!(1));
-        request_body.insert("method".to_string(), json!("surfnet_setAccount"));
-
-        let mut params = serde_json::Map::new();
-        params.insert("lamports".to_string(), json!(5_000_000_000i64)); // 5 SOL
-
-        // Add some common tokens for testing
-        let mut tokens = Vec::new();
-
-        // USDC
-        let mut usdc = serde_json::Map::new();
-        usdc.insert(
-            "mint".to_string(),
-            json!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-        );
-        usdc.insert("amount".to_string(), json!(200_000_000)); // 200 USDC
-        usdc.insert("decimals".to_string(), json!(6));
-        tokens.push(json!(usdc));
-
-        // SOL
-        let mut sol = serde_json::Map::new();
-        sol.insert(
-            "mint".to_string(),
-            json!("So11111111111111111111111111111111111111111112"),
-        );
-        sol.insert("amount".to_string(), json!(1_000_000_000)); // 1 SOL
-        sol.insert("decimals".to_string(), json!(9));
-        tokens.push(json!(sol));
-
-        params.insert("tokens".to_string(), json!(tokens));
-        request_body.insert("params".to_string(), json!(vec![params]));
-
-        // Make request to SURFPOOL
-        let response = timeout(
-            Duration::from_secs(self.timeout_seconds),
-            client
-                .post(&self.surfpool_rpc_url)
-                .header("Content-Type", "application/json")
-                .json(&request_body)
-                .send(),
-        )
-        .await
-        .map_err(|_| anyhow!("Timeout setting up benchmark account via SURFPOOL"))?
-        .map_err(|e| anyhow!("Error setting up benchmark account via SURFPOOL: {e}"))?;
-
-        let response_json: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| anyhow!("Error parsing SURFPOOL response: {e}"))?;
-
-        if let Some(error) = response_json.get("error") {
-            return Err(anyhow!("SURFPOOL error: {error}"));
-        }
-
-        let result = response_json
-            .get("result")
-            .ok_or_else(|| anyhow!("Missing result in SURFPOOL response"))?;
-
-        let pubkey = result
-            .get("pubkey")
-            .and_then(|p| p.as_str())
-            .ok_or_else(|| anyhow!("Missing pubkey in SURFPOOL result"))?;
-
-        info!("Created benchmark wallet: {}", pubkey);
-
-        // Now build a context with the created wallet
-        let mut context = WalletContext::new(pubkey.to_string());
-        context.sol_balance = 5_000_000_000; // 5 SOL
-
-        // Add token balances from the response
-        if let Some(tokens) = result.get("tokens").and_then(|t| t.as_array()) {
-            for token in tokens {
-                if let (Some(mint), Some(amount), Some(decimals)) = (
-                    token.get("mint").and_then(|m| m.as_str()),
-                    token.get("amount").and_then(|a| a.as_u64()),
-                    token.get("decimals").and_then(|d| d.as_u64()),
-                ) {
-                    let balance =
-                        TokenBalance::new(mint.to_string(), amount).with_decimals(decimals as u8);
-                    context.add_token_balance(mint.to_string(), balance);
-                }
-            }
-        }
-
-        // Add some default prices for common tokens
-        context.add_token_price(
-            "So11111111111111111111111111111111111111111112".to_string(),
-            150.0,
-        ); // SOL
-        context.add_token_price(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            1.0,
-        ); // USDC
 
         context.calculate_total_value();
         Ok(context)
