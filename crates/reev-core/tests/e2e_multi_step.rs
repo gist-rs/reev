@@ -37,8 +37,8 @@ use tracing::{error, info, warn};
 async fn execute_swap_with_planner(
     prompt: &str,
     pubkey: &solana_sdk::pubkey::Pubkey,
-    initial_sol_balance: f64,
-    initial_usdc_balance: f64,
+    _initial_sol_balance: f64,
+    _initial_usdc_balance: f64,
 ) -> Result<String> {
     info!("\n🚀 Starting swap execution with prompt: \"{}\"", prompt);
 
@@ -123,10 +123,6 @@ async fn execute_swap_with_planner(
         .ok_or_else(|| anyhow!("No transaction signature in result"))?;
 
     info!("✅ Swap completed with signature: {}", signature);
-    println!(
-        "✅ Swap completed with signature: {} (debug print)",
-        signature
-    );
     Ok(signature)
 }
 
@@ -134,7 +130,6 @@ async fn execute_swap_with_planner(
 async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     info!("\n🧪 Starting Test: {}", test_name);
     info!("=====================================");
-    println!("🧪 Starting Test: {} (debug print)", test_name);
 
     // Tracing initialization removed to avoid conflicts between tests
 
@@ -165,7 +160,7 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
     info!("🔑 Using keypair from ~/.config/solana/id.json");
-    println!("✅ Loaded default keypair: {pubkey} (debug print)");
+    // println!("✅ Loaded default keypair: {pubkey} (debug print)");
 
     // Initialize surfpool client
     let surfpool_client = SurfpoolClient::new("http://localhost:8899");
@@ -179,7 +174,7 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     );
 
     info!("\n🔄 Starting swap execution flow...");
-    println!("🔄 Starting swap execution flow... (debug print)");
+    // println!("🔄 Starting swap execution flow... (debug print)");
     // Execute the swap using the planner and LLM
     // Note: We don't retry Jupiter transactions here because:
     // 1. Jupiter transactions have time-sensitive routes based on current market conditions
@@ -205,29 +200,29 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
         Some(status) => {
             if let Err(err) = status {
                 error!("❌ Transaction failed on-chain: {:?}", err);
-                println!("❌ Transaction failed on-chain: {:?} (debug print)", err);
+                // println!("❌ Transaction failed on-chain: {:?} (debug print)", err);
                 return Err(anyhow::anyhow!("Transaction failed on-chain: {err:?}"));
             }
             info!("✅ Transaction confirmed successfully on-chain");
-            println!("✅ Transaction confirmed successfully on-chain (debug print)");
+            // println!("✅ Transaction confirmed successfully on-chain (debug print)");
         }
         None => {
             error!("❌ Transaction not found on-chain");
-            println!("❌ Transaction not found on-chain (debug print)");
+            // println!("❌ Transaction not found on-chain (debug print)");
             return Err(anyhow::anyhow!("Transaction not found on-chain"));
         }
     }
 
     // Verify final balances to ensure swap actually happened
     info!("\n🔍 Verifying final wallet balances...");
-    println!("🔍 Verifying final wallet balances... (debug print)");
+    // println!("🔍 Verifying final wallet balances... (debug print)");
     let final_balance = client.get_balance(&pubkey).await?;
     let final_sol_balance = final_balance as f64 / 1_000_000_000.0;
 
     info!("Final SOL balance: {}", final_sol_balance);
     info!("Initial SOL balance: {}", initial_sol_balance);
-    println!("Final SOL balance: {} (debug print)", final_sol_balance);
-    println!("Initial SOL balance: {} (debug print)", initial_sol_balance);
+    // println!("Final SOL balance: {} (debug print)", final_sol_balance);
+    // println!("Initial SOL balance: {} (debug print)", initial_sol_balance);
 
     // Calculate expected SOL balance based on the prompt
     // Extract the amount to swap from the prompt
@@ -282,9 +277,9 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     info!("\n🎉 Test completed successfully!");
     info!("=============================");
     info!("Final transaction signature: {}", signature);
-    println!("🎉 Test completed successfully! (debug print)");
-    println!("=============================");
-    println!("Final transaction signature: {} (debug print)", signature);
+    // println!("🎉 Test completed successfully! (debug print)");
+    // println!("=============================");
+    // println!("Final transaction signature: {} (debug print)", signature);
     Ok(())
 }
 

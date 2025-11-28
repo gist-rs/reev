@@ -16,7 +16,7 @@ async fn test_orchestrator_generates_multi_step_flow() -> Result<(), Box<dyn std
     // tracing_subscriber::fmt::init(); // Commented out to avoid duplicate initialization
 
     // Create a temporary directory
-    let temp_dir = TempDir::new()?;
+    let _temp_dir = TempDir::new()?;
 
     // Create test wallet context
     let mut token_balances = HashMap::new();
@@ -182,7 +182,8 @@ async fn test_orchestrator_handles_complex_multi_step_sequence(
         "step_2_transfer".to_string(),
         "Transfer 2 SOL to Bob. \
              Remaining SOL after transfer: 3 SOL. \
-             Recipient address: BobPubkey123".to_string(),
+             Recipient address: BobPubkey123"
+            .to_string(),
         "Transfer SOL to Bob".to_string(),
     )
     .with_tool(ToolName::SolTransfer)
