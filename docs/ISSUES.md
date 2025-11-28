@@ -91,6 +91,12 @@ RigAgent needs improvements to handle complex tool calling scenarios and better 
 2. Enhance prompt engineering for complex scenarios
 3. Add tool execution validation
 
+### Detailed Implementation:
+See `/docs/tasks/105/rig_agent/TASKS.md` for comprehensive implementation details including:
+- Enhanced operation history tracking and step-specific constraints
+- Complex operation detection and context-aware prompt refinement
+- Parameter validation framework, result validation, and error recovery mechanisms
+
 ---
 
 ## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
