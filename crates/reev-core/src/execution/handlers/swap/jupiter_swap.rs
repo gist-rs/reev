@@ -450,7 +450,8 @@ async fn process_transaction_with_instructions_step_result(
                         error_message: Some(format!("Transaction execution failed: {e}")),
                         tool_calls: vec![tool_name.to_string()],
                         output: json!({
-                            tool_name: {
+                            "jupiter_swap": {
+                                "success": false,
                                 "error": format!("Transaction execution failed: {e}"),
                                 "raw_response": response
                             }

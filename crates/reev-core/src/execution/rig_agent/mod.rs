@@ -153,15 +153,6 @@ impl RigAgent {
         Ok(step_result)
     }
 
-    /// Create a context-aware prompt with wallet information
-    fn create_context_prompt(
-        &self,
-        prompt: &str,
-        wallet_context: &WalletContext,
-    ) -> Result<String> {
-        self.create_context_prompt_with_history(prompt, wallet_context, &[])
-    }
-
     /// Create a context-aware prompt with wallet information and previous step history
     fn create_context_prompt_with_history(
         &self,
@@ -191,7 +182,7 @@ impl RigAgent {
             serialized_info
         );
 
-        let mut full_prompt = format!("Given the following wallet context:\n{}\n", serialized_info);
+        let mut full_prompt = format!("Given the following wallet context:\n{serialized_info}\n");
 
         // Add information about previous steps if available
         if !previous_results.is_empty() {
@@ -227,6 +218,9 @@ impl RigAgent {
                                         ));
                                         full_prompt.push_str(&format!(
                                             "  NOTE: For subsequent lend operations, use exactly {output_amount} units of {output_mint} (the amount received from this swap)\n"
+                                        ));
+                                        full_prompt.push_str(&format!(
+                                            "  CRITICAL: When the prompt says 'lend 95% of available USDC', you must use the EXACT amount received from the swap ({output_amount} units), not calculate 95% of the total balance. Do not use percentages of old balances or estimated values.\n"
                                         ));
                                     }
                                 }

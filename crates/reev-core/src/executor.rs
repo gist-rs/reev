@@ -288,9 +288,20 @@ impl Executor {
         } else {
             // Pass previous step history for context-aware execution
             self.tool_executor
-                .execute_step_with_history(&yml_step, &current_context, previous_results)
+                .execute_step_with_history(&yml_step, current_context, previous_results)
                 .await?
         };
+
+        // Add debug logging to ensure updated context is being passed correctly
+        if !previous_results.is_empty() {
+            info!(
+                "DEBUG: execute_step_with_recovery - Passing updated context to next step: USDC balance: {:?}",
+                wallet_context
+                    .token_balances
+                    .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                    .map(|t| t.balance)
+            );
+        }
 
         Ok(step_result)
     }
@@ -388,7 +399,7 @@ impl Executor {
                                         if let (
                                             Some(input_mint),
                                             Some(output_mint),
-                                            Some(tx_signature),
+                                            Some(_tx_signature),
                                         ) = (
                                             result.get("input_mint").and_then(|v| v.as_str()),
                                             result.get("output_mint").and_then(|v| v.as_str()),
@@ -549,6 +560,11 @@ impl Executor {
         updated_context: &mut WalletContext,
         step_result: &StepResult,
     ) -> Result<()> {
+        // First, check if the step was successful
+        if !step_result.success {
+            warn!("Jupiter swap step failed, not updating context");
+            return Ok(());
+        }
         // First, try to extract the values from the tool_results array
         if let Some(tool_results) = step_result.output.get("tool_results") {
             if let Some(results_array) = tool_results.as_array() {
@@ -558,29 +574,34 @@ impl Executor {
                         // Extract values from the jupiter_swap object
                         let input_mint = jupiter_swap.get("input_mint").and_then(|v| v.as_str());
                         let output_mint = jupiter_swap.get("output_mint").and_then(|v| v.as_str());
-                        let success = jupiter_swap
-                            .get("success")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
+                        // Check if there's an error field in the response
+                        // This is the most reliable indicator of failure
+                        let has_error = jupiter_swap.get("error").is_some();
+                        if has_error {
+                            warn!("Jupiter swap failed with error, not updating context");
+                            return Ok(());
+                        }
+
+                        // Check for transaction signature as another indicator of success
+                        let has_tx_signature = jupiter_swap.get("transaction_signature").is_some();
 
                         if let (Some(input_mint), Some(output_mint)) = (input_mint, output_mint) {
-                            if success {
-                                // Get input amount from the swap result
+                            // Only update context if we have a transaction signature (indicating success)
+                            if has_tx_signature {
+                                // Get input amount from swap result
                                 let input_amount =
                                     if let Some(amount) = jupiter_swap.get("input_amount") {
                                         if let Some(f) = amount.as_f64() {
                                             (f * 1_000_000_000.0) as u64
-                                        } else if let Some(i) = amount.as_u64() {
-                                            i
                                         } else {
-                                            0
+                                            amount.as_u64().unwrap_or_default()
                                         }
                                     } else {
                                         0
                                     };
 
                                 // Get transaction signature from step result
-                                let tx_signature = jupiter_swap
+                                let _tx_signature = jupiter_swap
                                     .get("transaction_signature")
                                     .and_then(|v| v.as_str());
 
@@ -598,7 +619,6 @@ impl Executor {
                                         "http://localhost:8899".to_string(),
                                     );
 
-                                    // Get the actual output amount from the swap transaction
                                     // Get the actual output amount from the swap transaction
                                     let actual_output_amount = self
                                         .get_swap_output_amount(
@@ -706,7 +726,7 @@ impl Executor {
                                     if let (
                                         Some(input_mint),
                                         Some(output_mint),
-                                        Some(tx_signature),
+                                        Some(_tx_signature),
                                     ) = (
                                         result.get("input_mint").and_then(|v| v.as_str()),
                                         result.get("output_mint").and_then(|v| v.as_str()),
