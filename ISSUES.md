@@ -145,7 +145,7 @@
 
 ---
 
-## Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (NEW)
+## Issue #122: Rule-Based Multi-Step Detection Contradicts V3 Architecture (CRITICAL)
 ### Status: CRITICAL ARCHITECTURAL VIOLATION
 ### Description:
 Implementation has introduced rule-based logic for multi-step detection in unified_flow_builder.rs, directly contradicting the V3 plan which specifies that LLM should handle multi-step detection, not rule-based parsing.
@@ -158,7 +158,7 @@ From PLAN_CORE_V3.md:
 - Phase 2: Rig-driven tool execution (NOT rule-based)
 
 ### Current Implementation Issue:
-In unified_flow_builder.rs (uncommitted changes), rule-based logic was added:
+In unified_flow_builder.rs, rule-based logic was added:
 ```rust
 let is_multi_step = prompt_lower.contains(" then ")
     || prompt_lower.contains(" and ")
@@ -172,6 +172,12 @@ This violates the V3 architecture by:
 1. Using rule-based detection instead of LLM
 2. Pre-determining operations instead of letting RigAgent handle them
 3. Creating complex parsing logic where LLM should make decisions
+
+### Root Cause Analysis:
+After examining all e2e tests and the implementation, it's clear that this rule-based approach is a fundamental misunderstanding of the V3 architecture. The V3 plan explicitly states:
+- LLM should handle all language understanding
+- No rule-based parsing should be used for operation detection
+- RigAgent should determine tools based on refined prompts
 
 ### Correct V3 Architecture Approach:
 1. LLM should refine prompts and naturally detect multi-step operations
@@ -188,30 +194,35 @@ This violates the V3 architecture by:
 
 ---
 
-## Issue #121: Multi-Step Operations Not Properly Executed (IN PROGRESS)
+## Issue #121: Multi-Step Operations Not Properly Executed (CRITICAL)
 ### Status: CRITICAL ISSUE IDENTIFIED
 ### Description:
-Multi-step flows are not properly executing all operations. The planner generates multiple steps correctly, but only the first operation (swap) is being executed.
+Multi-step flows are not properly executing all operations. The current implementation generates multiple steps correctly, but only executes the first operation in each step.
 
 ### Current Behavior:
 - Prompt: "swap 0.1 SOL to USDC then lend 10 USDC"
-- Planner generates 2 steps correctly after fixing detection logic
+- Planner generates 2 steps correctly
 - However, test fails because USDC balance doesn't decrease after "lending"
-- Root cause: LLM is executing only the swap operation, ignoring the lend operation
+- Root cause: RigAgent is executing only the first operation from multi-step prompts
+
+### Root Cause Analysis:
+The issue is in RigAgent's execution of multi-step flows. When processing a step like "swap 0.1 SOL to USDC then lend 10 USDC", the RigAgent's LLM prompt and tool execution only handle the first operation ("swap") and ignore the second operation ("lend"). This happens because:
+
+1. The LLM is prompted to extract a single tool operation
+2. There's no mechanism to identify and execute all operations in a multi-step prompt
+3. The context passing between operations is incomplete
 
 ### Why Tests Were Passing Before:
 - Previous test used unrealistic amounts (swap 0.1 SOL for $15, then lend 100 USDC)
 - With 100 USDC initial balance, this created a false sense of success
 - When changed to realistic amounts (lend 10 USDC from ~15 USDC swap output), test failed
 
-### Root Cause:
-The issue is in RigAgent's execution of multi-step flows. It's not properly handling sequential operations in a single step. The LLM is extracting only the first operation from multi-step prompts.
-
 ### Tasks Required:
 1. Fix RigAgent to properly execute all operations in multi-step steps
-2. Ensure context is properly updated between sequential operations
-3. Add validation that all operations in prompt are being executed
-4. Fix prompt refinement to preserve all operations correctly
+2. Update the LLM prompt to explicitly identify and execute ALL operations
+3. Ensure context is properly updated between sequential operations
+4. Add validation that all operations in prompt are being executed
+5. Consider implementing a sequential execution pattern within a single step
 
 ---
 
@@ -287,42 +298,323 @@ let context_resolver = ContextResolver::new(SolanaEnvironment {
 
 ---
 
-## Issue #124: SURFPOOL Context Resolution Affects Tool Selection (CRITICAL)
-### Status: CRITICAL CONSISTENCY ISSUE
+## Issue #124: Context Resolution Inconsistency Between Tests (PARTIALLY FIXED)
+### Status: PARTIALLY FIXED
 ### Description:
-When ContextResolver uses SURFPOOL RPC URL instead of mainnet, e2e tests fail because LLM selects wrong tools. The wallet context retrieved from SURFPOOL appears to differ from mainnet, causing the LLM to make incorrect tool selections.
+Some e2e tests are still using mainnet RPC URL for context resolution instead of SURFPOOL, creating inconsistency between context resolution and transaction execution.
 
 ### Current Symptoms:
-1. e2e_lend/test_lend_100_usdc: LLM selects sol_transfer instead of jupiter_lend_earn_deposit for "lend 100 USDC"
-2. e2e_swap/test_swap_0_1_sol_for_usdc: Test fails when run with other tests, but passes when run individually (test isolation issue)
+1. e2e_transfer.rs, e2e_swap.rs, and e2e_lend.rs are still using mainnet RPC URL in ContextResolver
+2. Only e2e_multi_step.rs and e2e_rig_agent.rs have been updated to use SURFPOOL
+3. This creates inconsistent behavior where some tests work and others don't
 
 ### Root Cause:
-When SURFPOOL starts fresh, it doesn't automatically have USDC tokens in user wallets. The context resolver reads the wallet state and finds no USDC tokens, which causes the LLM to select `sol_transfer` instead of `jupiter_lend_earn_deposit` for "lend 100 USDC" prompts.
+The context resolver in several tests is initialized with:
+```rust
+let context_resolver = ContextResolver::new(SolanaEnvironment {
+    rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+});
+```
 
-The e2e tests were setting up USDC tokens using setup_wallet_for_lend/swap functions, but if SURFPOOL restarts between tests, those tokens are lost.
+But transactions are executed through SURFPOOL at http://localhost:8899.
 
 ### Tasks Required:
-1. Ensure SURFPOOL persists token state between tests
-2. Add USDC token setup to e2e_rig_agent test (already has for others)
+1. Update all remaining e2e tests to use SURFPOOL URL for context resolver
+2. Ensure consistent token setup across all tests
 3. Add robust token balance verification in context resolution
-4. Improve SURFPOOL state management to prevent token loss on restart
+4. Improve test isolation to prevent interference between tests
 
-### Current Solution Implemented:
-1. Added automatic USDC token setup to e2e_lend and e2e_swap tests when using SURFPOOL
-2. Added USDC token setup to e2e_rig_agent test
-3. All e2e tests now pass with SURFPOOL context resolver
-
-### Tests Verified:
-- e2e_transfer: ✅ PASSING with SURFPOOL
+### Tests Status:
+- e2e_transfer: ❌ Using mainnet for context resolution
 - e2e_rig_agent: ✅ PASSING with SURFPOOL
-- e2e_lend: ✅ PASSING with SURFPOOL
-- e2e_swap: ❌ test_swap_0_1_sol_for_usdc still failing when running with other tests
-
-### Workaround:
-None required - SURFPOOL context resolution issues have been fixed.
+- e2e_lend: ❌ Using mainnet for context resolution
+- e2e_swap: ❌ Using mainnet for context resolution
+- e2e_multi_step: ✅ PASSING with SURFPOOL
 
 ### Recommendation:
-Always use SURFPOOL for all e2e tests to ensure consistency between context resolution and transaction execution.
+All e2e tests should use SURFPOOL for both context resolution and transaction execution to ensure consistency.
+
+---
+
+## Issue #126: Duplicated USDC Token Setup Logic Across E2E Tests (NEW)
+### Status: CRITICAL CODE DUPLICATION
+### Description:
+The AI has added duplicated USDC token setup logic across multiple e2e tests without checking existing code, creating maintenance issues and inconsistent behavior.
+
+### Problem Areas:
+1. In `e2e_transfer.rs` (lines 44-52):
+```rust
+// If using SURFPOOL (default), ensure USDC tokens are set up for test
+if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+    // Ensure SURFPOOL is running
+    ensure_surfpool_running().await?;
+
+    // Set up USDC tokens in SURFPOOL for the test
+    let test_pubkey = get_test_keypair()?.pubkey().to_string();
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    surfpool_client
+        .set_token_account(
+            &test_pubkey,
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            100_000_000, // 100 USDC
+        )
+        .await?;
+}
+```
+
+2. In `e2e_rig_agent.rs` (lines 42-56):
+```rust
+// If using SURFPOOL (default), ensure USDC tokens are set up for test
+if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+    // Ensure SURFPOOL is running
+    ensure_surfpool_running().await?;
+
+    // Set up USDC tokens in SURFPOOL for the test
+    let test_pubkey = get_test_keypair()?.pubkey().to_string();
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    surfpool_client
+        .set_token_account(
+            &test_pubkey,
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            100_000_000, // 100 USDC
+        )
+        .await?;
+}
+```
+
+3. In `e2e_swap.rs` (lines 72-81):
+```rust
+// If using SURFPOOL (default), ensure USDC tokens are set up for test
+if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+    // Ensure SURFPOOL is running
+    ensure_surfpool_running().await?;
+
+    // Set up USDC tokens in SURFPOOL for the test
+    let test_pubkey = get_test_keypair()?.pubkey().to_string();
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    surfpool_client
+        .set_token_account(
+            &test_pubkey,
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            100_000_000, // 100 USDC
+        )
+        .await?;
+}
+```
+
+4. In `e2e_lend.rs` (lines 50-60):
+```rust
+// If using SURFPOOL (default), ensure USDC tokens are set up for test
+if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+    // Set up USDC tokens in SURFPOOL for the test
+    let test_pubkey = get_test_keypair()?.pubkey().to_string();
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    surfpool_client
+        .set_token_account(
+            &test_pubkey,
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            100_000_000, // 100 USDC
+        )
+        .await?;
+}
+```
+
+### Root Cause:
+The AI added this logic to multiple tests without checking if setup_wallet_for_swap/ lend functions in common.rs already handle USDC token setup. This creates:
+1. Code duplication across multiple files
+2. Inconsistent amounts (100 USDC hardcoded everywhere)
+3. Maintenance burden when changes are needed
+4. Potential conflicts between setup functions
+
+### Correct Solution:
+1. Remove all duplicated USDC token setup logic from individual test files
+2. setup_wallet_for_swap already sets up 100 USDC in common.rs (lines 85-97)
+3. setup_wallet_for_lend already sets up 200 USDC in common.rs (lines 117-129)
+4. For transfer tests, add a new setup_wallet_for_transfer function or use existing functions
+
+### Priority Fixes:
+1. **IMMEDIATE**: Remove duplicated USDC setup code from all e2e test files
+2. **HIGH**: Remove all duplicated USDC setup code from test files
+3. **MEDIUM**: Add setup_wallet_for_transfer function in common.rs for transfer tests
+
+---
+
+## Issue #125: Fix E2E Tests to Align with V3 Architecture (NEW)
+### Status: CRITICAL IMPLEMENTATION NEEDS
+### Description:
+After comprehensive analysis of all e2e tests, several critical misalignments with V3 architecture have been identified that need immediate fixes.
+
+### Test-by-Test Analysis:
+
+#### e2e_transfer.rs
+**Issues:**
+- Uses mainnet RPC URL for context resolution while transactions execute on SURFPOOL
+- Creates custom YML prompt manually instead of using planner's flow generation
+
+**Fixes Needed:**
+1. Update context resolver to use SURFPOOL URL (http://localhost:8899)
+2. Remove manual YML prompt creation, use planner.generate_flow() instead
+
+#### e2e_rig_agent.rs
+**Issues:**
+- Uses mainnet RPC URL for context resolution while transactions execute on SURFPOOL
+
+**Fixes Needed:**
+1. Update context resolver to use SURFPOOL URL (http://localhost:8899)
+
+#### e2e_swap.rs
+**Issues:**
+- Uses mainnet RPC URL for context resolution while transactions execute on SURFPOOL
+- Creates custom YML prompt manually instead of using planner's flow generation
+
+**Fixes Needed:**
+1. Update context resolver to use SURFPOOL URL (http://localhost:8899)
+2. Remove manual YML prompt creation, use planner.generate_flow() instead
+
+#### e2e_lend.rs
+**Issues:**
+- Uses mainnet RPC URL for context resolution while transactions execute on SURFPOOL
+- Creates custom YML prompt manually instead of using planner's flow generation
+
+**Fixes Needed:**
+1. Update context resolver to use SURFPOOL URL (http://localhost:8899)
+2. Remove manual YML prompt creation, use planner.generate_flow() instead
+
+#### e2e_multi_step.rs
+**Issues:**
+- Correctly uses SURFPOOL for context resolution, but test relies on the broken multi-step implementation
+
+**Fixes Needed:**
+1. Update test expectations once multi-step execution is fixed
+2. Add validation for all operations in multi-step flows
+
+### Root Cause Analysis:
+1. **Inconsistent Context Resolution**: Some tests use mainnet RPC while executing on SURFPOOL, causing mismatches
+2. **Manual YML Creation**: Tests manually create YML prompts instead of using planner's flow generation
+3. **Broken Multi-Step Flow**: Multi-step operations only execute first operation due to fundamental issue in RigAgent
+
+### V3 Architecture Compliance Requirements:
+1. **Consistent Environment**: All tests must use SURFPOOL for both context resolution and transaction execution
+2. **LLM-Driven Flow**: Tests must use planner.generate_flow() for flow generation, not manual YML creation
+3. **Proper Multi-Step**: Multi-step tests must validate that ALL operations are executed, not just the first
+
+### Implementation Plan:
+
+#### Phase 1: Fix Critical Code Duplication and Architecture Violations
+
+**1. Fix Issue #126: Remove Duplicated USDC Token Setup Logic (IMMEDIATE)**
+```rust
+// In e2e_transfer.rs, e2e_rig_agent.rs, e2e_swap.rs, e2e_lend.rs
+// REMOVE all duplicated USDC setup code blocks:
+/*
+if std::env::var("SURFPOOL_RPC_URL").unwrap_or_default() == "http://localhost:8899" {
+    // Ensure SURFPOOL is running
+    ensure_surfpool_running().await?;
+
+    // Set up USDC tokens in SURFPOOL for the test
+    let test_pubkey = get_test_keypair()?.pubkey().to_string();
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    surfpool_client
+        .set_token_account(
+            &test_pubkey,
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            100_000_000, // 100 USDC
+        )
+        .await?;
+}
+*/
+
+// RELY on existing setup_wallet_for_swap/lend functions in common.rs instead
+// These functions already handle USDC setup correctly:
+// - setup_wallet_for_swap: 100 USDC (common.rs lines 85-97)
+// - setup_wallet_for_lend: 200 USDC (common.rs lines 117-129)
+```
+
+**2. Fix Issue #122: Remove Rule-Based Multi-Step Detection (IMMEDIATE)**
+```rust
+// In unified_flow_builder.rs, replace rule-based detection with LLM-only approach
+// REMOVE these lines:
+let is_multi_step = prompt_lower.contains(" then ")
+    || prompt_lower.contains(" and ")
+    || prompt_lower.contains(" followed by ")
+    || (prompt_lower.contains("swap") && prompt_lower.contains("lend"))
+    || (prompt_lower.contains("swap") && prompt_lower.contains("transfer"))
+    || (prompt_lower.contains("lend") && prompt_lower.contains("transfer"));
+
+// REPLACE with LLM-based detection or always single-step approach
+// as per V3 plan where RigAgent handles all operations
+```
+
+**2. Fix Issue #121: Multi-Step Execution (IMMEDIATE)**
+```rust
+// In rig_agent/mod.rs, update prompt_agent function to handle multi-step operations
+// ADD explicit instructions to LLM to identify and execute ALL operations
+system_prompt = "You are an AI assistant for Solana DeFi operations. 
+IMPORTANT: For prompts with multiple operations (e.g., 'swap then lend'), 
+you must identify and execute ALL operations in sequence, not just the first one."
+```
+
+#### Phase 2: Align E2E Tests with V3 Architecture
+
+**3. Update Context Resolution to Use SURFPOOL (HIGH PRIORITY)**
+```rust
+// In e2e_transfer.rs, e2e_swap.rs, e2e_lend.rs
+// REPLACE:
+let context_resolver = ContextResolver::new(SolanaEnvironment {
+    rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
+});
+
+// WITH:
+let context_resolver = ContextResolver::new(SolanaEnvironment {
+    rpc_url: Some("http://localhost:8899".to_string()),
+});
+```
+
+**4. Remove Manual YML Creation (MEDIUM PRIORITY)**
+```rust
+// In all e2e test files
+// REMOVE manual YML prompt creation:
+let wallet_info = format!(
+    "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
+);
+
+// REPLACE with planner-generated flow:
+let flow = planner
+    .refine_and_plan(prompt, &from_pubkey.to_string())
+    .await?;
+```
+
+#### Phase 3: Validation and Testing
+
+**5. Add Multi-Step Operation Validation**
+```rust
+// In e2e_multi_step.rs
+// ADD validation for all operations:
+fn validate_multi_step_execution(result: &FlowResult) -> Result<()> {
+    // Verify swap operation was executed
+    let swap_executed = result.step_results.iter().any(|r| 
+        r.tool_calls.contains(&"jupiter_swap".to_string())
+    );
+    
+    // Verify lend operation was executed
+    let lend_executed = result.step_results.iter().any(|r| 
+        r.tool_calls.contains(&"jupiter_lend_earn_deposit".to_string())
+    );
+    
+    if !swap_executed || !lend_executed {
+        return Err(anyhow!("Not all operations in multi-step flow were executed"));
+    }
+    
+    Ok(())
+}
+```
+
+### Priority Fixes:
+1. **CRITICAL**: Fix Issue #122 (remove rule-based multi-step detection)
+2. **CRITICAL**: Fix Issue #121 (multi-step execution)
+3. **HIGH**: Update all e2e tests to use SURFPOOL for context resolution
+4. **MEDIUM**: Remove manual YML creation from tests, use planner.generate_flow()
+5. **MEDIUM**: Add validation for all operations in multi-step flows
 
 ---
 
