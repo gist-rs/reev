@@ -63,27 +63,41 @@ pub fn create_subject_wallet_info_yml(
 ///
 /// # Returns
 /// A formatted string with the complete YML prompt
-pub fn create_yml_prompt(
-    flow_id: &str,
-    user_prompt: &str,
-    refined_prompt: Option<&str>,
-    pubkey: &Pubkey,
-    lamports: u64,
-    tokens: Option<HashMap<String, f64>>,
-    total_value_usd: f64,
-    steps: Vec<YmlStepData>,
-) -> Result<String> {
+/// Parameters for creating a YML prompt
+pub struct YmlPromptParams {
+    pub flow_id: String,
+    pub user_prompt: String,
+    pub refined_prompt: Option<String>,
+    pub pubkey: Pubkey,
+    pub lamports: u64,
+    pub tokens: Option<HashMap<String, f64>>,
+    pub total_value_usd: f64,
+    pub steps: Vec<YmlStepData>,
+}
+
+pub fn create_yml_prompt(params: YmlPromptParams) -> Result<String> {
+    let YmlPromptParams {
+        flow_id,
+        user_prompt,
+        refined_prompt,
+        pubkey,
+        lamports,
+        tokens,
+        total_value_usd,
+        steps,
+    } = params;
+    let refined_prompt_str = refined_prompt.unwrap_or_else(|| user_prompt.clone());
     let mut result = format!(
         "flow_id: {}\nuser_prompt: \"{}\"\nrefined_prompt: \"{}\"\ncreated_at: {}\n",
         flow_id,
         user_prompt,
-        refined_prompt.unwrap_or(user_prompt),
+        refined_prompt_str,
         chrono::Utc::now().to_rfc3339()
     );
 
     // Add subject_wallet_info section
     result.push_str(&create_subject_wallet_info_yml(
-        pubkey,
+        &pubkey,
         lamports,
         tokens,
         total_value_usd,
@@ -237,19 +251,22 @@ pub struct YmlToolCallData {
 ///
 /// # Returns
 /// A formatted string with the complete YML structure including ground truth
-pub fn create_complete_yml_with_ground_truth(
-    flow_id: &str,
-    user_prompt: &str,
-    refined_prompt: Option<&str>,
-    pubkey: &Pubkey,
-    lamports: u64,
-    tokens: Option<HashMap<String, f64>>,
-    total_value_usd: f64,
-    steps: Vec<YmlStepData>,
-    final_state_assertions: Vec<YmlAssertionData>,
-    expected_tool_calls: Vec<YmlToolCallData>,
-) -> Result<String> {
-    let mut result = create_yml_prompt(
+/// Parameters for creating a complete YML with ground truth
+pub struct CompleteYmlParams {
+    pub flow_id: String,
+    pub user_prompt: String,
+    pub refined_prompt: Option<String>,
+    pub pubkey: Pubkey,
+    pub lamports: u64,
+    pub tokens: Option<HashMap<String, f64>>,
+    pub total_value_usd: f64,
+    pub steps: Vec<YmlStepData>,
+    pub final_state_assertions: Vec<YmlAssertionData>,
+    pub expected_tool_calls: Vec<YmlToolCallData>,
+}
+
+pub fn create_complete_yml_with_ground_truth(params: CompleteYmlParams) -> Result<String> {
+    let CompleteYmlParams {
         flow_id,
         user_prompt,
         refined_prompt,
@@ -258,11 +275,24 @@ pub fn create_complete_yml_with_ground_truth(
         tokens,
         total_value_usd,
         steps,
-    )?;
+        final_state_assertions: _,
+        expected_tool_calls: _,
+    } = params;
+
+    let mut result = create_yml_prompt(YmlPromptParams {
+        flow_id,
+        user_prompt,
+        refined_prompt,
+        pubkey,
+        lamports,
+        tokens,
+        total_value_usd,
+        steps,
+    })?;
 
     result.push_str(&create_ground_truth_yml(
-        final_state_assertions,
-        expected_tool_calls,
+        params.final_state_assertions,
+        params.expected_tool_calls,
     ));
 
     Ok(result)

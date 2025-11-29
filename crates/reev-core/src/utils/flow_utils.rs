@@ -129,17 +129,18 @@ pub fn create_yml_prompt_for_flow(
         rand::random::<u32>()
     );
 
-    // Create the YML prompt
-    crate::utils::yml_utils::create_yml_prompt(
-        &flow_id,
-        prompt,
-        None,
-        pubkey,
-        initial_sol_balance,
-        initial_token_balances,
+    // Create YML prompt
+    let yml_params = crate::utils::yml_utils::YmlPromptParams {
+        flow_id: flow_id.to_string(),
+        user_prompt: prompt.to_string(),
+        refined_prompt: None,
+        pubkey: *pubkey,
+        lamports: initial_sol_balance,
+        tokens: initial_token_balances,
         total_value_usd,
-        vec![step],
-    )
+        steps: vec![step],
+    };
+    crate::utils::yml_utils::create_yml_prompt(yml_params)
 }
 
 /// Creates a flow from a prompt
