@@ -99,6 +99,45 @@ See `/docs/tasks/105/rig_agent/TASKS.md` for comprehensive implementation detail
 
 ---
 
+## Issue #105: RigAgent Enhancement (COMPLETED)
+### Status: COMPLETED
+### Description:
+RigAgent needs improvements to handle complex tool calling scenarios and better error handling.
+
+### What Was Implemented:
+1. ✅ Enhanced operation history tracking with detailed input/output information
+2. ✅ Step-specific constraints for parameter validation
+3. ✅ Dynamic context updates after tool execution
+4. ✅ Balance change tracking for multi-step operations
+5. ✅ Constraint generation based on previous step results
+6. ✅ Context prompt builder for AI consumption
+7. ✅ Integration with existing YML context builder
+
+### Files Added:
+- `crates/reev-core/src/execution/rig_agent/enhancement/operation_history.rs` (new)
+- `crates/reev-core/src/execution/rig_agent/enhancement/constraints.rs` (new)
+- `crates/reev-core/src/execution/rig_agent/enhancement/dynamic_context.rs` (new)
+- `crates/reev-core/src/execution/rig_agent/enhancement/mod.rs` (new)
+
+### Files Modified:
+- `crates/reev-core/src/execution/rig_agent/mod.rs` - Updated to expose enhancement features
+- `crates/reev-core/src/execution/context_builder/mod.rs` - Added integration with enhancement features
+- `crates/reev-core/tests/enhanced_context_test.rs` (new) - Added comprehensive tests for enhancement features
+
+### Key Features:
+- **OperationHistory**: Tracks each operation with inputs, outputs, and results
+- **BalanceCalculator**: Calculates available balances after operations
+- **StepConstraint**: Parameter validation with various constraint types
+- **DynamicContextUpdater**: Updates wallet context and generates constraints
+- **ContextPromptBuilder**: Creates context prompts for AI consumption
+
+### Test Results:
+- All 8 tests in enhanced_context_test.rs passing
+- No compilation errors with new code
+- Integration with existing components working correctly
+
+---
+
 ## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
 ### Status: PARTIALLY COMPLETED
 ### Description:

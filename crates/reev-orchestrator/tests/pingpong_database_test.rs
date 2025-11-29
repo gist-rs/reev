@@ -207,17 +207,49 @@ execution_time_ms: 1000
     );
 
     let content = stored_content.unwrap();
+
+    // Parse the JSON content to verify structure
+    let consolidated_json: serde_json::Value =
+        serde_json::from_str(&content).expect("Consolidated session should be valid JSON");
+
+    // Verify the structure contains expected fields
     assert!(
-        content.contains("Consolidated Session"),
-        "Should contain consolidation header"
+        consolidated_json.get("consolidated_session_id").is_some(),
+        "Should contain consolidated_session_id field"
     );
     assert!(
-        content.contains("Status: ✅ SUCCESS"),
-        "Should contain success status"
+        consolidated_json.get("execution_id").is_some(),
+        "Should contain execution_id field"
     );
     assert!(
-        content.contains("Status: ❌ FAILED"),
-        "Should contain failure status"
+        consolidated_json.get("steps").is_some(),
+        "Should contain steps array"
+    );
+    assert!(
+        consolidated_json.get("metadata").is_some(),
+        "Should contain metadata object"
+    );
+
+    // Verify metadata contains expected fields
+    let metadata = consolidated_json.get("metadata").unwrap();
+    assert_eq!(
+        metadata.get("successful_steps").unwrap(),
+        1,
+        "Should have 1 successful step"
+    );
+    assert_eq!(
+        metadata.get("failed_steps").unwrap(),
+        1,
+        "Should have 1 failed step"
+    );
+    assert_eq!(
+        metadata.get("total_steps").unwrap(),
+        2,
+        "Should have total of 2 steps"
+    );
+    assert!(
+        metadata.get("success_rate").is_some(),
+        "Should contain success_rate"
     );
 }
 

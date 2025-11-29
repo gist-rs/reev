@@ -1207,6 +1207,11 @@ impl PingPongExecutor {
 
     /// Analyze session content to determine if it was successful
     pub fn analyze_session_success(content: &str) -> bool {
+        // Explicitly check for false indicators first
+        if content.contains("success: false") || content.contains("\"success\":false") {
+            return false;
+        }
+
         // Look for success indicators in the YML content
         content.contains("status: success")
             || content.contains("success: true")
@@ -1220,19 +1225,32 @@ impl PingPongExecutor {
         let tool_count =
             content.matches("tool_name:").count() + content.matches("\"tool_name\":").count();
 
-        if tool_count == 0 {
-            // Fallback: count common tool names
-            [
-                "jupiter_swap",
-                "jupiter_lend_earn_deposit",
-                "get_account_balance",
-                "get_jupiter_lend_earn_position",
-            ]
-            .iter()
-            .map(|tool| content.matches(tool).count())
-            .sum()
-        } else {
-            tool_count
+        if tool_count > 0 {
+            // For JSON content, only count unquoted tool_name patterns
+            // For non-JSON content, count all matches
+            let trimmed = content.trim().trim_start_matches('\n');
+            if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                return content.matches("tool_name:").count();
+            } else {
+                return tool_count;
+            }
         }
+
+        // Fallback for non-JSON content: count common tool names
+        let trimmed = content.trim().trim_start_matches('\n');
+        if trimmed.starts_with('{') || trimmed.starts_with('[') {
+            // For JSON content without explicit tool_name patterns, don't use fallback
+            return 0;
+        }
+
+        [
+            "jupiter_swap",
+            "jupiter_lend_earn_deposit",
+            "get_account_balance",
+            "get_jupiter_lend_earn_position",
+        ]
+        .iter()
+        .map(|tool| content.matches(tool).count())
+        .sum()
     }
 }

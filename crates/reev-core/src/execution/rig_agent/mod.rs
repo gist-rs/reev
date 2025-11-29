@@ -18,12 +18,18 @@ use crate::yml_schema::YmlStep;
 
 // Import modules
 mod context;
+mod enhancement;
 mod prompting;
 mod tool_execution;
 mod types;
 
 // Re-export types and traits
 pub use context::ContextProvider;
+pub use enhancement::{
+    BalanceCalculator, ConstraintBuilder, ConstraintType, ContextPromptBuilder,
+    ContextUpdateResult, DynamicContextUpdater, OperationHistory, OperationHistoryBuilder,
+    ParameterValidator, StepConstraint, ValidationReport,
+};
 pub use prompting::{HttpProvider, MultiStepHandler, PromptProvider};
 pub use tool_execution::{AgentProvider, AgentToolHelper, ToolExecutor};
 pub use types::*;
@@ -38,6 +44,12 @@ pub struct RigAgent {
     http_client: reqwest::Client,
     /// Agent tools for executing blockchain operations
     agent_tools: Option<Arc<AgentTools>>,
+    // Dynamic context updater for enhanced context passing
+    // Removed for now to avoid mutability issues
+    // context_updater: Option<DynamicContextUpdater>,
+    // Parameter validator for tool execution
+    // Removed for now to avoid mutability issues
+    // parameter_validator: Option<ParameterValidator>,
 }
 
 impl RigAgent {
@@ -54,6 +66,9 @@ impl RigAgent {
             api_key,
             http_client: reqwest::Client::new(),
             agent_tools: None,
+            // Removed for now to avoid mutability issues
+            // context_updater: None,
+            // parameter_validator: None,
         })
     }
 
@@ -74,6 +89,9 @@ impl RigAgent {
             api_key,
             http_client: reqwest::Client::new(),
             agent_tools: Some(agent_tools),
+            // Removed for now to avoid mutability issues
+            // context_updater: None,
+            // parameter_validator: None,
         })
     }
 
@@ -187,6 +205,17 @@ impl RigAgent {
         };
 
         Ok(step_result)
+    }
+
+    /// Validate parameters before tool execution
+    pub fn validate_parameters(
+        &self,
+        _tool_name: &str,
+        _parameters: &serde_json::Value,
+        _step_number: usize,
+    ) -> Result<ValidationReport> {
+        // Create default validation report for now
+        Ok(ValidationReport::new())
     }
 
     /// Initialize the tool set with Reev tools

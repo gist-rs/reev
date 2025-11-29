@@ -1,5 +1,6 @@
 //! Context builder for structured YML context generation
 
+// PreviousStepResult is defined in this module, not imported
 use reev_types::flow::{StepResult, WalletContext};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -259,8 +260,7 @@ impl MinimalAiContext {
                             .get(mint)
                             .and_then(|t| t.symbol.as_deref())
                             .unwrap_or("Unknown");
-                        prompt
-                            .push_str(&format!("    {amount} units of {symbol} ({mint})\n"));
+                        prompt.push_str(&format!("    {amount} units of {symbol} ({mint})\n"));
                     }
                 }
 
@@ -647,5 +647,105 @@ impl YmlContextBuilder {
             metadata: builder.metadata,
             generated_at: chrono::Utc::now(),
         }
+    }
+
+    /// Integrate with enhanced context features from issue #105
+    pub fn with_enhanced_context(
+        mut self,
+        operation_history: Vec<crate::execution::rig_agent::OperationHistory>,
+        balance_calculator: &crate::execution::rig_agent::BalanceCalculator,
+        constraints: Vec<crate::execution::rig_agent::StepConstraint>,
+    ) -> Self {
+        // Add operation history information to the most recent result
+        if let Some(last_result) = self.previous_results.last_mut() {
+            // Add operation history summary to key_info
+            if !operation_history.is_empty() {
+                let history_summary: Vec<String> = operation_history
+                    .iter()
+                    .map(|op| op.get_summary())
+                    .collect();
+                last_result.key_info.insert(
+                    "operation_history".to_string(),
+                    serde_json::json!(history_summary),
+                );
+            }
+        }
+
+        // Update wallet context with calculated balances
+        let updated_balances = balance_calculator.calculate_all_balances();
+        for (mint, balance) in updated_balances {
+            if mint == "So11111111111111111111111111111111111111112" {
+                self.wallet_context.sol_balance = balance as u64;
+            } else if let Some(token_balance) = self.wallet_context.token_balances.get_mut(&mint) {
+                token_balance.balance = balance as u64;
+            }
+        }
+
+        // Add constraint information to metadata
+        for constraint in constraints {
+            self.metadata
+                .constraints
+                .push(constraint.constraint_type.description());
+        }
+
+        self
+    }
+
+    /// Create a YML context builder from enhanced context features
+    pub fn from_enhanced_context(
+        wallet_context: WalletContext,
+        dynamic_context: &crate::execution::rig_agent::ContextUpdateResult,
+    ) -> Self {
+        let mut builder = Self::new(wallet_context);
+
+        // Add operation history information
+        if !dynamic_context.operation_history.is_empty() {
+            let history_summary: Vec<String> = dynamic_context
+                .operation_history
+                .iter()
+                .map(|op| op.get_summary())
+                .collect();
+
+            // Create a dummy result to hold the history information
+            let dummy_result = PreviousStepResult {
+                step_id: "history".to_string(),
+                success: true,
+                key_info: HashMap::from_iter([(
+                    "operation_history".to_string(),
+                    serde_json::json!(history_summary),
+                )]),
+                balance_changes: dynamic_context
+                    .balance_changes
+                    .iter()
+                    .map(|change| BalanceChange {
+                        mint: change.mint.clone(),
+                        balance_before: change.balance_before,
+                        balance_after: change.balance_after,
+                        change_amount: change.change_amount,
+                        symbol: change.symbol.clone(),
+                    })
+                    .collect(),
+                next_step_constraints: dynamic_context
+                    .next_step_constraints
+                    .iter()
+                    .map(|c| c.constraint_type.description())
+                    .collect(),
+                available_tokens: HashMap::new(), // Will be populated below
+            };
+            builder.previous_results.push(dummy_result);
+        }
+
+        // Update wallet context with the updated one
+        builder.wallet_context = dynamic_context.updated_wallet_context.clone();
+
+        // Add constraints from the next step constraints
+        for constraint in &dynamic_context.next_step_constraints {
+            builder
+                .metadata
+                .constraints
+                .push(constraint.constraint_type.description());
+        }
+
+        builder
     }
 }
