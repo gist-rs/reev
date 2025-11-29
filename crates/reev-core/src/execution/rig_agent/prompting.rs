@@ -128,7 +128,11 @@ For multi-step operations, always include ALL operations in your response.
 // If the prompt says "swap 0.1 SOL to USDC then lend 10 USDC", your response must include BOTH jupiter_swap and jupiter_lend_earn_deposit tool calls
 // Never ignore any operation mentioned in the prompt
 
-CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 0.1 SOL to USDC then lend 10 USDC'), you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request."#;
+CRITICAL INSTRUCTION: When the prompt says "swap 0.1 SOL to USDC then lend 10 USDC", you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request.
+
+IMPORTANT: For all tool calls, you MUST extract the user_pubkey from the wallet information provided in the context. The user_pubkey should be the first field in the wallet information (typically labeled as "Wallet"). Do NOT try to extract user_pubkey from the prompt text itself. The wallet information is provided above the prompt and contains the actual Solana pubkey string (44 characters starting with a number).
+
+IMPORTANT: For all tool calls, you MUST extract the user_pubkey from the wallet information provided in the context. The user_pubkey should be the first field in the wallet information (typically labeled as "Wallet"). Do NOT extract user_pubkey from the prompt text itself."#;
 
         // Use the correct model name for the ZAI API
         let model_name = if self.model_name() == "glm-4.6-coding" {

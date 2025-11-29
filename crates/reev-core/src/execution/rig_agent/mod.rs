@@ -319,7 +319,7 @@ impl RigAgent {
                         // Update token balances based on the swap result
                         // This is a simplified implementation - in a full implementation,
                         // we would parse the actual transaction result and update all affected tokens
-                        if let Some(before_bal) = before.get("USDC").and_then(|v| v.as_f64()) {
+                        if let Some(_before_bal) = before.get("USDC").and_then(|v| v.as_f64()) {
                             if let Some(after_bal) = after.get("USDC").and_then(|v| v.as_f64()) {
                                 if let Some(usdc_token) = new_context
                                     .token_balances

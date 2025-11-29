@@ -81,8 +81,15 @@ impl<T> ContextProvider for T {
         let mut full_prompt = String::new();
 
         // Convert AI context to prompt format
-        full_prompt.push_str(&context.ai_context.to_prompt_format());
+        let context_prompt = context.ai_context.to_prompt_format();
+        full_prompt.push_str(&context_prompt);
         full_prompt.push('\n');
+
+        // Debug logging for pubkey
+        tracing::info!(
+            "DEBUG: Context prompt includes pubkey: {}",
+            context_prompt.contains("pubkey")
+        );
 
         // Add constraints if any
         if !context.metadata.constraints.is_empty() {

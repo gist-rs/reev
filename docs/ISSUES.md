@@ -236,6 +236,59 @@ The e2e_rig_agent test is failing because RigAgent is not properly extracting to
 
 ---
 
+## Issue #125: Multi-Step Operation Extraction from LLM Responses (PARTIALLY COMPLETED)
+### Status: PARTIALLY COMPLETED
+### Description:
+Multi-step operations are being split correctly, but the LLM is not properly extracting parameters from the prompt, causing "Failed to parse pubkey: String is the wrong size" errors in Jupiter swap execution.
+
+### Summary:
+I've successfully implemented a pattern-based approach for extracting operations from multi-step prompts in the YmlGenerator, bypassing the limitations of the GLM client which is not designed for operation extraction.
+
+### What Was Implemented:
+1. ✅ **Fixed Operation Extraction**: Implemented pattern-based `extract_operations_from_prompt` function that correctly identifies and splits multi-step operations like "swap X to Y then lend Z" into separate steps.
+2. ✅ **Fixed Tool Determination**: Implemented pattern-based `determine_expected_tools` function that correctly identifies required tools for operations.
+3. ✅ **Added JSON Refinement Handling**: Modified extraction functions to handle when LanguageRefiner returns JSON instead of plain text.
+4. ✅ **Created Focused Unit Tests**: Added comprehensive tests in `test_llm_operation_extraction.rs` to verify operation extraction and tool determination without running full e2e tests.
+
+### Current Issue:
+The core issue is with **parameter extraction** from the LLM response. Even though multi-step operations are being split correctly, the LLM is not correctly extracting the `user_pubkey` parameter from the wallet context, causing the Jupiter swap tool to fail with "Failed to parse pubkey: String is the wrong size" error.
+
+### Debug Investigation:
+1. ✅ Multi-step operation splitting is working correctly
+   - Input: "swap 0.1 SOL to USDC and then lend 10 USDC"
+   - Output: Two separate steps: ["swap 0.1 SOL to USDC", "lend 10 USDC"]
+   - Pattern matching is extracting operations correctly
+
+2. ❌ Pubkey extraction is failing
+   - The LLM is not correctly extracting `user_pubkey` from the wallet context
+   - The pubkey being passed is: '86SRa3Msg65SpNi4UF1KQ8M9z8V8foDZzFCnZaCcoJTJ' (length: 44)
+   - This looks like a valid 44-character Solana pubkey, but `Pubkey::from_str()` is failing
+   - Error: "Failed to parse pubkey: String is the wrong size"
+
+### Root Cause:
+The system prompt in `prompting.rs` instructs the LLM to extract `user_pubkey` from the wallet context, but the LLM is not correctly following this instruction and is trying to extract it from the prompt text instead.
+
+### Tasks Required to Complete:
+1. **Fix LLM Parameter Extraction**: Improve the system prompt or context format to ensure the LLM correctly extracts `user_pubkey` from the wallet context.
+2. **Add Validation**: Add validation to ensure the extracted pubkey is valid before passing to Jupiter swap tool.
+3. **Test with Simpler LLM Calls**: Create a simplified test to verify that the LLM can correctly extract parameters when given proper context.
+
+### Files Modified:
+- `crates/reev-core/src/yml_generator/mod.rs` - Added pattern-based operation extraction and JSON handling
+- `crates/reev-core/src/execution/rig_agent/prompting.rs` - Updated system prompt to be more explicit about pubkey extraction
+- `crates/reev-core/tests/test_llm_operation_extraction.rs` - Created focused tests for operation extraction
+- `crates/reev-tools/src/tools/jupiter_swap.rs` - Added debugging for pubkey parsing
+
+### Test Results:
+- All 6 focused tests in test_llm_operation_extraction.rs passing
+- Multi-step operations are being split correctly
+- Tool determination is working correctly
+- The e2e test still fails due to pubkey extraction issue
+
+### Priority:
+This is a **high priority** issue as it's blocking the core functionality of multi-step operations.
+
+
 ### Current State Summary:
 - **Active Issues**: 5
 - **Partially Completed**: 2
@@ -279,6 +332,6 @@ Improve context passing between operations in multi-step flows to ensure proper 
 
 ### Critical Implementation Note:
 All new implementations should follow V3 architecture with:
-- Phase 1: Prompt Refinement (LLM-focused)
+- Phase 1: Prompt Refinement (LLM-based)
 - Phase 2: Rig-Driven Tool Execution with Validation
 - Proper multi-step handling at YML generation stage

@@ -60,14 +60,16 @@ Respond with a simple JSON object containing:
         );
 
         debug!("Calling ZAI API with prompt: {}", flow_prompt);
+        info!("Prompt length: {}", flow_prompt.len());
 
         // Create a simple HTTP client for ZAI API
         let api_key = std::env::var("ZAI_API_KEY")
             .map_err(|_| anyhow!("ZAI_API_KEY environment variable not set"))?;
 
         info!(
-            "Using API key: {}...",
-            &api_key[..std::cmp::min(8, api_key.len())]
+            "Using API key: {}... (length: {})",
+            &api_key[..std::cmp::min(8, api_key.len())],
+            api_key.len()
         );
 
         let client = reqwest::Client::new();
@@ -93,8 +95,11 @@ Respond with a simple JSON object containing:
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 500
+            "max_tokens": 500,
+            "response_format": {"type": "json_object"}
         });
+
+        info!("Request body length: {}", request_body.to_string().len());
 
         // Send request to ZAI API
         let response = client
@@ -109,9 +114,12 @@ Respond with a simple JSON object containing:
                 anyhow!("LLM generation failed: {e}")
             })?;
 
+        info!("Received response with status: {}", response.status());
+
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
+            error!("ZAI API returned error: {status} - {error_text}");
             return Err(anyhow!("ZAI API returned error: {status} - {error_text}"));
         }
 
@@ -122,7 +130,7 @@ Respond with a simple JSON object containing:
 
         info!("Received ZAI API response: {:?}", response_json);
 
-        // Extract content from response - try reasoning_content first, then content
+        // Extract content from response - check both content and reasoning_content
         let message = response_json
             .get("choices")
             .and_then(|choices| choices.get(0))
@@ -130,26 +138,37 @@ Respond with a simple JSON object containing:
             .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
 
         // Try reasoning_content first (for GLM model), then content
-        let content = message
+        let reasoning_content = message
             .get("reasoning_content")
             .and_then(|c| c.as_str())
-            .or_else(|| message.get("content").and_then(|c| c.as_str()))
+            .unwrap_or("");
+
+        let content = message
+            .get("content")
+            .and_then(|c| c.as_str())
             .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
 
-        info!("Extracted content: {}", content);
+        // If reasoning_content exists, try to extract JSON from it
+        let final_content = if !reasoning_content.is_empty() {
+            extract_json_from_text(reasoning_content)
+        } else {
+            content.to_string()
+        };
+
+        info!("Extracted reasoning_content: {}", reasoning_content);
+        info!("Extracted final_content: {}", final_content);
 
         // Check if the response is empty
         if content.trim().is_empty() {
             error!("LLM returned empty response");
+            error!("Reasoning content length: {}", reasoning_content.len());
+            error!("Full response from API: {:?}", response_json);
             return Err(anyhow!("LLM returned empty response"));
         }
 
-        // Try to extract JSON from the response if it contains additional text
-        let cleaned_response = if content.contains('{') && content.contains('}') {
-            // Extract JSON portion if there's extra text
-            let start = content.find('{').unwrap_or(0);
-            let end = content.rfind('}').map(|i| i + 1).unwrap_or(content.len());
-            content[start..end].to_string()
+        // Try to extract JSON from response if it contains additional text
+        let cleaned_response = if final_content.contains('{') && final_content.contains('}') {
+            extract_json_from_text(&final_content)
         } else {
             // If no JSON structure found, create a default response
             warn!("No JSON structure found in LLM response, creating default");
@@ -188,7 +207,7 @@ Respond with a simple JSON object containing:
             }
             Err(e) => {
                 error!("Invalid JSON in LLM response: {}. Fallback to default.", e);
-                // Check if the prompt contains transfer keywords to set appropriate fallback
+                // Check if the prompt contains transfer keywords to set appropriate default
                 let fallback_intent = if prompt.to_lowercase().contains("send")
                     || prompt.to_lowercase().contains("transfer")
                 {
@@ -216,6 +235,36 @@ Respond with a simple JSON object containing:
             }
         }
     }
+}
+
+/// Extract JSON from text that might contain additional analysis
+fn extract_json_from_text(text: &str) -> String {
+    // Look for JSON array pattern in the text
+    if let Some(start) = text.find('[') {
+        if let Some(end) = text.rfind(']') {
+            // Extract the array portion
+            let array_str = &text[start..=end];
+            // Try to validate it's proper JSON
+            if serde_json::from_str::<serde_json::Value>(array_str).is_ok() {
+                return array_str.to_string();
+            }
+        }
+    }
+
+    // Look for JSON object pattern
+    if let Some(start) = text.find('{') {
+        if let Some(end) = text.rfind('}') {
+            // Extract the object portion
+            let obj_str = &text[start..=end];
+            // Try to validate it's proper JSON
+            if serde_json::from_str::<serde_json::Value>(obj_str).is_ok() {
+                return obj_str.to_string();
+            }
+        }
+    }
+
+    // If no valid JSON found, return empty string
+    String::new()
 }
 
 /// Initialize GLM client with environment configuration

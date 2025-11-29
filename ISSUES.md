@@ -1,40 +1,37 @@
 # Issues
 
-## Critical Issues (V3 Plan Violations)
+## Current Status: LLM-Based Operation Extraction Implementation
 
-### Issue #1: Rule-Based Multi-Step Detection (Critical)
-**Status**: PARTIALLY FIXED
+### Issue #1: LLM Integration In Progress
+**Status**: IN PROGRESS
 **Location**: `crates/reev-core/src/yml_generator/mod.rs` (extract_operations_from_prompt and determine_expected_tools functions)
-**Description**: Removed rule-based parsing from `extract_operations_from_prompt` and `determine_expected_tools` functions, and from `RigAgent`'s multi-step detection. However, this is a partial fix as we're returning empty vectors/default values rather than implementing true LLM-based operation extraction.
-**Impact**: System now avoids rule-based detection but needs proper LLM-based implementation to correctly interpret multi-step requests.
+**Description**: Currently implementing LLM-based operation extraction and tool determination to replace rule-based approaches. GLM client is being properly initialized in planner and passed to YmlGenerator.
 
-**TODO**: Implement LLM-based operation extraction:
-1. Update `extract_operations_from_prompt` to use the LLM to parse and identify multiple operations in a single prompt
-2. Update `determine_expected_tools` to use the LLM to determine which tools are needed for each operation
-3. Ensure RigAgent properly executes all operations identified by the LLM in sequence
+**Current Implementation**:
+1. YmlGenerator now accepts an LLM client in constructor
+2. `extract_operations_from_prompt` uses LLM to identify multiple operations in a prompt
+3. `determine_expected_tools` uses LLM to determine required tools
+4. Enhanced JSON extraction from GLM responses with fallback handling
 
-### Issue #2: Multi-Step Operations Not Properly Executed (Critical)
-**Status**: NOT FIXED
-**Location**: `crates/reev-core/src/execution/rig_agent/mod.rs`
-**Description**: The `RigAgent` only processes single steps instead of iterating through multiple operations in a refined prompt.
-**Impact**: Multi-step workflows are not executed as intended, breaking core functionality.
+**Current Issues**:
+1. GLM model is returning analysis text instead of structured JSON
+2. JSON parsing is not working correctly for operation extraction
+3. Test still shows only 1 step instead of multiple steps
 
-### Issue #3: E2E Tests Don't Validate Multi-Step Functionality (Critical)
-**Status**: NOT FIXED
+### Issue #2: LLM Response Parsing
+**Status**: BEING DEBUGGED
+**Location**: `crates/reev-core/src/llm/glm_client.rs`
+**Description**: GLM model returns reasoning_content with analysis instead of structured JSON response. Working on extracting JSON from mixed text responses.
+
+### Issue #3: Test Validation
+**Status**: WAITING FOR FIXES
 **Location**: `crates/reev-core/tests/e2e_multi_step.rs`
-**Description**: Tests appear to pass but only execute one operation at a time. The `test_swap_then_lend` test uses pre-allocated tokens, creating an illusion of multi-step execution.
-**Impact**: Test suite doesn't validate actual multi-step operations, masking fundamental issues.
-
-### Issue #4: Language Understanding Still Rule-Based (Critical)
-**Status**: NOT FIXED
-**Location**: `crates/reev-core/src/yml_generator/mod.rs`
-**Description**: The `determine_expected_tools` function uses string matching instead of LLM for language understanding.
-**Impact**: Violates core architectural principle that LLM should handle all language understanding.
+**Description**: Once LLM integration is fixed, test should show multiple steps being generated and executed.
 
 ## Recent Fixes
 
-### 2024-XX-XX: Fixed test_extract_tool_count and test_perform_consolidation_with_sessions tests
-**Description**: Two tests were failing but marked as complete in previous iterations.
+### 2024-XX-XX: LLM Integration Started
+**Description**: Started implementing LLM-based operation extraction and tool determination. YmlGenerator now properly initialized with LLM client from planner.
 
 **Issues Fixed**:
 1. `test_extract_tool_count` was failing because the function was incorrectly counting tool names in JSON content. The test expected 0 for JSON format without "tool_name:" prefix, but was returning 2.

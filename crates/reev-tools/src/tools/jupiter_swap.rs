@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 // Import enhanced logging macros
 use reev_flow::{log_tool_call, log_tool_completion};
@@ -147,8 +147,26 @@ impl Tool for JupiterSwapTool {
         let start_time = Instant::now();
 
         // Parse user_pubkey
-        let user_pubkey = Pubkey::from_str(&args.user_pubkey)
-            .map_err(|e| JupiterSwapError::PubkeyParse(e.to_string()))?;
+        info!(
+            "[JupiterSwapTool] Parsing user_pubkey: '{}' (length: {})",
+            args.user_pubkey,
+            args.user_pubkey.len()
+        );
+        println!(
+            "[JupiterSwapTool] Parsing user_pubkey: '{}' (length: {})",
+            args.user_pubkey,
+            args.user_pubkey.len()
+        );
+        error!("[JupiterSwapTool] Full JupiterSwapArgs: {:?}", args);
+        let user_pubkey = Pubkey::from_str(&args.user_pubkey).map_err(|e| {
+            error!(
+                "[JupiterSwapTool] Failed to parse pubkey: {}, pubkey: '{}' (length: {})",
+                e,
+                args.user_pubkey,
+                args.user_pubkey.len()
+            );
+            JupiterSwapError::PubkeyParse(e.to_string())
+        })?;
 
         // Parse input_mint
         let input_mint =

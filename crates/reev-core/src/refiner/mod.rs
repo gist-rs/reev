@@ -363,8 +363,8 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
     }
 
     // Check for common problematic patterns from GLM responses
-    if reasoning.contains("The user wants me to refine the prompt") {
-        // Extract the original prompt from the GLM response
+    if reasoning.contains("The user wants me to refine prompt") {
+        // Extract original prompt from the GLM response
         if let Some(start) = reasoning.find('"') {
             if let Some(end) = reasoning.rfind('"') {
                 if end > start {
@@ -373,6 +373,23 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
                     if let Some(stripped) =
                         original.strip_prefix("The user wants me to refine prompt: ")
                     {
+                        return stripped.to_string();
+                    }
+                    return original;
+                }
+            }
+        }
+    }
+
+    // Check for "Original prompt:" prefix and remove it
+    if reasoning.contains("Original prompt:") {
+        // Try to extract the actual prompt after "Original prompt:"
+        if let Some(start) = reasoning.find('"') {
+            if let Some(end) = reasoning.rfind('"') {
+                if end > start {
+                    let original = reasoning[start + 1..end].to_string();
+                    // Remove "Original prompt: " prefix if present
+                    if let Some(stripped) = original.strip_prefix("Original prompt: ") {
                         return stripped.to_string();
                     }
                     return original;

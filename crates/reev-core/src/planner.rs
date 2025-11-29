@@ -10,6 +10,7 @@ use crate::refiner::LanguageRefiner;
 use crate::yml_generator::YmlGenerator;
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
+use std::sync::Arc;
 
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
@@ -39,12 +40,16 @@ impl Planner {
 
     /// Create a new planner with GLM client initialized
     pub fn new_with_glm(context_resolver: ContextResolver) -> Result<Self> {
+        info!("DEBUG: Starting new_with_glm planner initialization");
         let llm_client = init_glm_client()?;
+        info!("DEBUG: LLM client initialized successfully");
+        let llm_client_arc: Arc<dyn crate::planner::LlmClient> = Arc::from(llm_client);
+        info!("DEBUG: Creating YmlGenerator with LLM client");
         Ok(Self {
             context_resolver,
             language_refiner: LanguageRefiner::new(),
-            yml_generator: YmlGenerator::new(),
-            llm_client: Some(llm_client),
+            yml_generator: YmlGenerator::with_llm_client(llm_client_arc.clone()),
+            llm_client: None, // Don't store the client here
         })
     }
 
@@ -61,9 +66,11 @@ impl Planner {
         prompt: &str,
         wallet_pubkey: &str,
     ) -> Result<crate::yml_schema::YmlFlow> {
+        info!("DEBUG: refine_and_plan called with prompt: {}", prompt);
         info!("Starting Phase 1: Refine and Plan for prompt: {}", prompt);
 
         // Always use V3 implementation as per PLAN_CORE_V3.md
+        info!("DEBUG: About to call refine_and_plan_v3");
         return self.refine_and_plan_v3(prompt, wallet_pubkey).await;
     }
 
@@ -73,21 +80,29 @@ impl Planner {
         prompt: &str,
         wallet_pubkey: &str,
     ) -> Result<crate::yml_schema::YmlFlow> {
+        info!("DEBUG: refine_and_plan_v3 called with prompt: {}", prompt);
         info!(
             "Starting Phase 1 V3: Refine and Plan for prompt: {}",
             prompt
         );
 
         // Resolve wallet context
+        info!(
+            "DEBUG: About to resolve wallet context for {}",
+            wallet_pubkey
+        );
         let wallet_context = self
             .context_resolver
             .resolve_wallet_context(wallet_pubkey)
             .await?;
+        info!("DEBUG: Resolved wallet context for {}", wallet_pubkey);
         debug!("Resolved wallet context for {}", wallet_pubkey);
 
         // Step 1: Language refinement using LLM
         info!("Step 1: Refining language with LLM");
+        info!("DEBUG: About to call refine_prompt with: {}", prompt);
         let refined_prompt = self.language_refiner.refine_prompt(prompt).await?;
+        info!("DEBUG: refine_prompt returned successfully");
         debug!("Refined prompt: {}", refined_prompt.refined);
 
         if refined_prompt.changes_detected {
@@ -96,10 +111,18 @@ impl Planner {
 
         // Step 2: Generate YML structure using rule-based templates
         info!("Step 2: Generating YML structure with rule-based templates");
+        info!(
+            "DEBUG: About to call generate_flow with refined prompt: {}",
+            refined_prompt.refined
+        );
         let yml_flow = self
             .yml_generator
             .generate_flow(&refined_prompt, &wallet_context)
             .await?;
+        info!(
+            "DEBUG: generate_flow returned flow with {} steps",
+            yml_flow.steps.len()
+        );
         debug!("Generated YML flow: {}", yml_flow.flow_id);
 
         // Phase 1 V3 completed successfully

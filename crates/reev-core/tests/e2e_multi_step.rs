@@ -107,12 +107,23 @@ async fn test_swap_then_lend() -> Result<()> {
         rpc_url: Some("http://localhost:8899".to_string()),
     });
 
+    // DEBUG: Check if planner is initialized with LLM client
+    info!("DEBUG: About to create planner with GLM client");
+
     // Create a planner with GLM client
+    info!("DEBUG: Creating planner with GLM client");
     let planner = Planner::new_with_glm(context_resolver.clone())?;
+    info!("DEBUG: Planner created successfully");
 
     info!("🤖 Processing prompt: \"{}\"", prompt);
+    // DEBUG: About to call refine_and_plan
+    info!(
+        "DEBUG: About to call refine_and_plan with prompt: {}",
+        prompt
+    );
     // Generate the flow using the planner
     let yml_flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;
+    info!("DEBUG: Flow generated with {} steps", yml_flow.steps.len());
 
     // Log refined prompt for clarity
     info!("📝 Refined prompt: \"{}\"", yml_flow.refined_prompt);

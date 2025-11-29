@@ -20,8 +20,8 @@ pub async fn execute_direct_jupiter_swap(
     prompt: &str,
 ) -> Result<StepResult> {
     info!(
-        "Executing direct Jupiter swap operation with prompt: {}",
-        prompt
+        "Executing direct Jupiter swap operation with prompt: {}, wallet_owner: {}",
+        prompt, wallet_owner
     );
 
     // Get SOL and USDC mint addresses
@@ -116,6 +116,12 @@ pub async fn execute_direct_jupiter_swap(
         amount,
         slippage_bps: Some(100), // Default 1% slippage
     };
+
+    info!(
+        "Created JupiterSwapArgs with user_pubkey: '{}' (length: {})",
+        swap_args.user_pubkey,
+        swap_args.user_pubkey.len()
+    );
 
     info!("Executing JupiterSwapTool with args: {:?}", swap_args);
 
