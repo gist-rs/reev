@@ -338,6 +338,16 @@ impl TestOperation for LendOperation {
 
         let usdc_balance_f64 = usdc_balance.ui_amount.unwrap_or(0.0);
 
+        // Set up jUSDC token account (might be needed for some lend operations)
+        let jusdc_mint = pubkeys::jusdc();
+        let jusdc_ata =
+            spl_associated_token_account::get_associated_token_address(pubkey, &jusdc_mint);
+        info!("🔄 Ensuring jUSDC token account exists...");
+        surfpool_client
+            .set_token_account(&pubkey.to_string(), &jusdc_mint.to_string(), 0)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to set up jUSDC token account: {e}"))?;
+
         Ok((sol_balance, usdc_balance_f64))
     }
 

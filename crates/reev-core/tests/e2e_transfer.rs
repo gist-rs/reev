@@ -19,7 +19,6 @@ use anyhow::Result;
 use common::operations::{TestOperation, TransferOperation};
 use common::pubkeys;
 use rstest::*;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use tracing::info;
@@ -30,15 +29,10 @@ fn target_pubkey() -> Pubkey {
     Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
 }
 
-/// Helper function to check if SURFPOOL is running
-async fn is_surfpool_running() -> bool {
-    match RpcClient::new("http://localhost:8899".to_string())
-        .get_latest_blockhash()
-        .await
-    {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+/// Async test fixture for the target public key
+#[fixture]
+async fn async_target_pubkey() -> Pubkey {
+    Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
 }
 
 /// Test that checks if the test framework is properly set up but doesn't require SURFPOOL
@@ -82,16 +76,10 @@ async fn test_transfers(
     #[case] description: &str,
     target_pubkey: Pubkey,
 ) -> Result<()> {
-    // Skip test if SURFPOOL is not running
-    if !is_surfpool_running().await {
-        println!("⚠️ Skipping test: SURFPOOL is not running");
-        return Ok(());
-    }
-
     info!("🧪 Starting Transfer Test: {}", description);
     info!("=====================================");
 
-    // Initialize the test environment
+    // Initialize the test environment (will start SURFPOOL if needed)
     let mut runner = common::framework::TestRunner::new()?;
     runner.initialize().await?;
 
@@ -113,16 +101,10 @@ async fn test_transfers(
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_send_1_sol_to_target(target_pubkey: Pubkey) -> Result<()> {
-    // Skip test if SURFPOOL is not running
-    if !is_surfpool_running().await {
-        println!("⚠️ Skipping test: SURFPOOL is not running");
-        return Ok(());
-    }
-
     info!("🧪 Starting Test: Send 1 SOL to target account");
     info!("=====================================");
 
-    // Initialize the test environment
+    // Initialize the test environment (will start SURFPOOL if needed)
     let mut runner = common::framework::TestRunner::new()?;
     runner.initialize().await?;
 
@@ -157,16 +139,10 @@ async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &s
 
     // Only process transfer prompts in this test
     if operation_type == "transfer" {
-        // Skip test if SURFPOOL is not running
-        if !is_surfpool_running().await {
-            println!("⚠️ Skipping test: SURFPOOL is not running");
-            return Ok(());
-        }
-
         let target_pubkey = Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key");
         let operation = TransferOperation::new(&target_pubkey.to_string(), 1.0);
 
-        // Initialize the test environment
+        // Initialize the test environment (will start SURFPOOL if needed)
         let mut runner = common::framework::TestRunner::new()?;
         runner.initialize().await?;
 
@@ -189,16 +165,10 @@ async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &s
 #[timeout(std::time::Duration::from_secs(180))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_transfer_with_timeout(target_pubkey: Pubkey) -> Result<()> {
-    // Skip test if SURFPOOL is not running
-    if !is_surfpool_running().await {
-        println!("⚠️ Skipping test: SURFPOOL is not running");
-        return Ok(());
-    }
-
     info!("🧪 Starting Transfer Test with Timeout");
     info!("=====================================");
 
-    // Initialize the test environment
+    // Initialize the test environment (will start SURFPOOL if needed)
     let mut runner = common::framework::TestRunner::new()?;
     runner.initialize().await?;
 
@@ -212,6 +182,23 @@ async fn test_transfer_with_timeout(target_pubkey: Pubkey) -> Result<()> {
     info!("✅ Transfer with timeout test completed successfully!");
     info!("✅ Transaction signature: {}", signature);
     info!("=============================");
+
+    Ok(())
+}
+
+/// Test using async fixtures with #[future] and #[awt]
+#[rstest]
+#[tokio::test(flavor = "multi_thread")]
+#[awt]
+async fn test_async_fixture(#[future] async_target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Testing async fixtures with #[awt]");
+    info!("=====================================");
+
+    // Check that we can use the async fixture
+    info!("✅ Target pubkey: {}", async_target_pubkey);
+
+    info!("✅ Async fixture test completed successfully!");
+    info!("=========================================");
 
     Ok(())
 }

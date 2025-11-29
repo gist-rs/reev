@@ -48,10 +48,6 @@ impl TestRunner {
 
         info!("✅ ZAI_API_KEY is configured");
 
-        // Ensure SURFPOOL is running
-        reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
         // Check if SURFPOOL is running
         match solana_client::nonblocking::rpc_client::RpcClient::new(
             "http://localhost:8899".to_string(),
@@ -63,7 +59,14 @@ impl TestRunner {
                 info!("✅ SURFPOOL is running and ready");
             }
             Err(_) => {
-                return Err(anyhow::anyhow!("SURFPOOL is not running"));
+                // SURFPOOL is not running, try to start it
+                info!("⏳ SURFPOOL is not running, attempting to start it...");
+                reev_lib::server_utils::kill_existing_surfpool(8899).await?;
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+                // Use ensure_surfpool_running from helpers to start SURFPOOL
+                crate::common::helpers::ensure_surfpool_running().await?;
+                info!("✅ SURFPOOL is now running");
             }
         }
 
