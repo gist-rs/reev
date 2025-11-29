@@ -67,6 +67,8 @@ jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
 spl-associated-token-account = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+rstest.workspace = true
+
 [features]
 default = []
 benchmark = []

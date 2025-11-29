@@ -26,11 +26,12 @@
 mod common;
 
 use anyhow::Result;
-use common::{ensure_surfpool_running, get_test_keypair, setup_wallet_for_swap};
+use common::{ensure_surfpool_running, setup_wallet_for_swap};
 use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
+use reev_lib::get_keypair;
 use solana_sdk::signature::Signer;
 use std::env;
 use tracing::{info, warn};
@@ -74,7 +75,8 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("✅ SURFPOOL is running and ready");
 
     // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_test_keypair()?;
+    let keypair = get_keypair()
+        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");

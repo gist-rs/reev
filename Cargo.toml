@@ -50,3 +50,6 @@ dotenvy = "0.15"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 handlebars = "4.5"
 lru = "0.12"
+
+[workspace.dev-dependencies]
+rstest = "0.26.1"

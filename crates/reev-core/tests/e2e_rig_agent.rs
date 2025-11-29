@@ -18,9 +18,13 @@ mod common;
 
 use anyhow::{anyhow, Result};
 use common::{
-    ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey,
-    setup_wallet_for_transfer, TARGET_PUBKEY,
+    ensure_surfpool_running,
+    helpers::{init_tracing, parse_pubkey},
+    pubkeys::target,
+    setup_wallet_for_transfer,
 };
+use reev_lib::get_keypair;
+
 use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
@@ -58,8 +62,9 @@ async fn execute_transfer_with_rig_agent(
         .await?;
 
     let formatted_balance = initial_sol_balance as f64 / 1_000_000_000.0;
+    let target_pubkey = target().to_string();
     let wallet_info = format!(
-        "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
+        "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{target_pubkey}\""
     );
 
     info!(
@@ -228,7 +233,8 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     info!("✅ SURFPOOL is running and ready");
 
     // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_test_keypair()?;
+    let keypair = get_keypair()
+        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
@@ -248,7 +254,7 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     );
 
     // Get target account info
-    let target_pubkey = parse_pubkey(TARGET_PUBKEY)?;
+    let target_pubkey = target();
 
     // Get initial target balance for verification
     let initial_target_balance = rpc_client.get_balance(&target_pubkey).await?;

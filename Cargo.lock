@@ -3854,6 +3854,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rig-core",
+ "rstest",
  "serde",
  "serde_json",
  "serde_yaml",
