@@ -1,6 +1,6 @@
 //! LLM Prompting and Response Parsing for RigAgent
 //!
-//! This module contains methods for prompting the LLM and parsing responses.
+//! This module contains methods for prompting LLM and parsing responses.
 
 use anyhow::{anyhow, Result};
 use reev_types::tools::ToolName;
@@ -23,16 +23,16 @@ pub trait PromptProvider {
     /// Prompt the agent and get the response
     async fn prompt_agent(&self, prompt: &str) -> Result<String>;
 
-    /// Extract tool calls from agent response
+    /// Extract tool calls from the agent response
     fn extract_tool_calls(&self, response: &str) -> Result<HashMap<String, serde_json::Value>>;
 
-    /// Parse tool calls from LLM response
+    /// Parse tool calls from the LLM response
     fn parse_tool_calls_from_response(
         &self,
         response: &str,
     ) -> Result<HashMap<String, serde_json::Value>>;
 
-    /// Extract tool calls from text response
+    /// Extract tool calls from a text response
     fn extract_tool_calls_from_text(
         &self,
         response: &str,
@@ -48,10 +48,10 @@ pub trait MultiStepHandler {
         existing_calls: &HashMap<String, serde_json::Value>,
     ) -> Result<HashMap<String, serde_json::Value>>;
 
-    /// Extract lend amount from a multi-step prompt
+    /// Extract the lend amount from a multi-step prompt
     fn extract_lend_amount_from_prompt(&self, prompt: &str) -> Result<u64>;
 
-    /// Extract swap parameters from a multi-step prompt
+    /// Extract the swap parameters from a multi-step prompt
     fn extract_swap_params_from_prompt(&self, prompt: &str) -> Result<Option<serde_json::Value>>;
 }
 
@@ -76,6 +76,7 @@ where
             "For this request, you should use one or more of these tools: {tools_hint}. {prompt}"
         );
 
+        debug!("DEBUG: Guided prompt with tools: {}", guided_prompt);
         self.prompt_agent(&guided_prompt).await
     }
 
@@ -84,25 +85,27 @@ where
         debug!("Prompting agent with: {}", prompt);
 
         // Create a structured prompt for the LLM
-        let system_prompt = "You are an AI assistant for Solana DeFi operations. Based on the user's request, determine the appropriate tools to use and extract the necessary parameters.
+        let system_prompt = r#"You are an AI assistant for Solana DeFi operations. Your task is to extract and execute blockchain operations based on the user's request.
 
-IMPORTANT: The prompt may contain multiple operations connected by words like 'then', 'and', 'followed by'. You MUST identify and execute ALL operations in the prompt, not just the first one.
+CRITICAL: The prompt may contain multiple operations connected by words like 'then', 'and', 'followed by'. You MUST identify and extract ALL operations in the prompt, not just the first one.
 
-Respond with valid JSON in the following format:
+IMPORTANT: You are not refining the prompt. You are extracting operations to be executed immediately.
+
+Respond with valid JSON in the following format with ONLY tool calls:
 {
-  \"tool_calls\": [
+  "tool_calls": [
     {
-      \"name\": \"tool_name\",
-      \"parameters\": {
-        \"param1\": \"value1\",
-        \"param2\": \"value2\"
+      "name": "tool_name",
+      "parameters": {
+        "param1": "value1",
+        "param2": "value2"
       }
     },
     {
-      \"name\": \"second_tool_name\",
-      \"parameters\": {
-        \"param1\": \"value1\",
-        \"param2\": \"value2\"
+      "name": "second_tool_name",
+      "parameters": {
+        "param1": "value1",
+        "param2": "value2"
       }
     }
   ]
@@ -110,22 +113,24 @@ Respond with valid JSON in the following format:
 
 Available tools:
 - sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string, required), amount (number in SOL, required), wallet (string, optional)
-- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
+- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
 - jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required, already in smallest denomination, e.g., 1,000,000 for 1 USDC), wallet (string, optional)
 - get_account_balance: Get account balance. Parameters: account (string, required), mint (string, optional, defaults to SOL)
 
 For token mint addresses:
-- SOL: So11111111111111111111111111111111111111112
+- SOL: So11111111111111111111111111111111111112
 - USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 - USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
 
 For swap operations, always determine the input and output mints based on the token names (SOL, USDC, etc.).
 
-CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 0.1 SOL to USDC then lend 10 USDC'), you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request.
-";
+For multi-step operations, always include ALL operations in your response.
+// If the prompt says "swap 0.1 SOL to USDC then lend 10 USDC", your response must include BOTH jupiter_swap and jupiter_lend_earn_deposit tool calls
+// Never ignore any operation mentioned in the prompt
 
-        // Prepare the request payload
-        // Use the correct model name for ZAI API
+CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 0.1 SOL to USDC then lend 10 USDC'), you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request."#;
+
+        // Use the correct model name for the ZAI API
         let model_name = if self.model_name() == "glm-4.6-coding" {
             "glm-4.6"
         } else {
@@ -162,13 +167,12 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
             .ok_or_else(|| anyhow!("No content in LLM response"))?;
 
         info!("LLM response: {}", content);
+        debug!("DEBUG: Raw LLM response: {}", content);
         Ok(content)
     }
 
-    /// Extract tool calls from agent response
+    /// Extract tool calls from the agent response
     fn extract_tool_calls(&self, response: &str) -> Result<HashMap<String, serde_json::Value>> {
-        // This is a simplified implementation
-        // In a real implementation, we would parse the JSON response to extract tool calls
         info!("DEBUG: Full response from LLM: {}", response);
         info!("Extracting tool calls from response: {}", response);
 
@@ -176,14 +180,14 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
         self.parse_tool_calls_from_response(response)
     }
 
-    /// Parse tool calls from LLM response
+    /// Parse tool calls from the LLM response
     fn parse_tool_calls_from_response(
         &self,
         response: &str,
     ) -> Result<HashMap<String, serde_json::Value>> {
-        // Try to parse response as JSON first
+        // Try to parse the response as JSON first
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
-            info!("Parsed JSON response successfully");
+            debug!("DEBUG: Parsed JSON response successfully: {}", json_value);
             if let Some(tool_calls) = json_value.get("tool_calls").and_then(|v| v.as_array()) {
                 info!("Found {} tool calls in response", tool_calls.len());
                 let mut tool_map = HashMap::new();
@@ -201,16 +205,24 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
                 return Ok(tool_map);
             } else {
                 info!("No tool_calls found in JSON response");
+                debug!("DEBUG: JSON response structure: {}", json_value);
+                debug!(
+                    "DEBUG: Available keys in JSON: {:?}",
+                    json_value
+                        .as_object()
+                        .map(|obj| obj.keys().collect::<Vec<_>>())
+                );
             }
         } else {
             info!("Failed to parse response as JSON, trying text extraction");
         }
 
         // If JSON parsing fails, try to extract tool calls from text
+        debug!("DEBUG: Falling back to text extraction");
         self.extract_tool_calls_from_text(response)
     }
 
-    /// Extract tool calls from text response
+    /// Extract tool calls from a text response
     fn extract_tool_calls_from_text(
         &self,
         response: &str,
@@ -245,6 +257,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
         }
 
         info!("DEBUG: Final tool_map: {:?}", tool_map);
+        debug!("DEBUG: Returning {} tool calls", tool_map.len());
         Ok(tool_map)
     }
 }
@@ -259,7 +272,10 @@ impl<T> MultiStepHandler for T {
     ) -> Result<HashMap<String, serde_json::Value>> {
         let mut tool_calls = existing_calls.clone();
         let response_lower = response.to_lowercase();
-        println!("DEBUG: extract_multi_step_tool_calls called with response: {response}");
+        println!(
+            "DEBUG: extract_multi_step_tool_calls called with response: {}",
+            response
+        );
 
         // If we already have a swap operation, check if there's also a lend or transfer operation
         if let Some(swap_params) = tool_calls.get("jupiter_swap") {
@@ -296,7 +312,7 @@ impl<T> MultiStepHandler for T {
         else if tool_calls.contains_key("jupiter_lend_earn_deposit")
             && response_lower.contains("swap")
         {
-            // Extract swap parameters from the prompt
+            // Extract the swap parameters from the prompt
             if let Some(swap_params) = self.extract_swap_params_from_prompt(response)? {
                 tool_calls.insert("jupiter_swap".to_string(), swap_params);
                 info!("Added jupiter_swap operation from prompt");
@@ -306,9 +322,9 @@ impl<T> MultiStepHandler for T {
         Ok(tool_calls)
     }
 
-    /// Extract lend amount from a multi-step prompt
+    /// Extract the lend amount from a multi-step prompt
     fn extract_lend_amount_from_prompt(&self, prompt: &str) -> Result<u64> {
-        // Simple regex to extract lend amount
+        // Simple regex to extract the lend amount
         // This is a simplified implementation - in a real scenario, we would use
         // the LLM to extract this information more accurately
         let re = regex::Regex::new(r"(?i)lend\s+(\d+(?:\.\d+)?)\s*(usdc|sol|usdt)?").unwrap();
@@ -317,7 +333,7 @@ impl<T> MultiStepHandler for T {
             let amount_str = captures.get(1).unwrap().as_str();
             let amount = amount_str.parse::<f64>()?;
 
-            // Determine token mint and convert to smallest denomination
+            // Determine the token mint and convert to smallest denomination
             let token = captures
                 .get(2)
                 .map(|m| m.as_str().to_lowercase())
@@ -335,9 +351,9 @@ impl<T> MultiStepHandler for T {
         }
     }
 
-    /// Extract swap parameters from a multi-step prompt
+    /// Extract the swap parameters from a multi-step prompt
     fn extract_swap_params_from_prompt(&self, prompt: &str) -> Result<Option<serde_json::Value>> {
-        // Simple regex to extract swap parameters
+        // Simple regex to extract the swap parameters
         let re = regex::Regex::new(r"(?i)swap\s+(\d+(?:\.\d+)?)\s*(sol|usdc|usdt)?\s+(?:to|for)\s+(\d+(?:\.\d+)?)\s*(sol|usdc|usdt)?").unwrap();
 
         if let Some(captures) = re.captures(prompt) {
@@ -355,14 +371,14 @@ impl<T> MultiStepHandler for T {
 
             // Convert to mint addresses
             let input_mint = match input_token.as_str() {
-                "sol" => "So11111111111111111111111111111111111111112",
+                "sol" => "So11111111111111111111111111111111111112",
                 "usdc" => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
                 "usdt" => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-                _ => "So11111111111111111111111111111111111111112",
+                _ => "So11111111111111111111111111111111111112",
             };
 
             let output_mint = match output_token.as_str() {
-                "sol" => "So11111111111111111111111111111111111111112",
+                "sol" => "So11111111111111111111111111111111111112",
                 "usdc" => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
                 "usdt" => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
                 _ => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -424,3 +440,6 @@ pub trait HttpProvider {
         Ok(response_body)
     }
 }
+// For multi-step operations, always include ALL operations in your response
+// If the prompt says "swap 0.1 SOL to USDC then lend 10 USDC", your response must include BOTH jupiter_swap and jupiter_lend_earn_deposit tool calls
+// Never ignore any operation mentioned in the prompt
