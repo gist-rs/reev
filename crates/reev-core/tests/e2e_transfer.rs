@@ -19,6 +19,7 @@ use anyhow::Result;
 use common::operations::{TestOperation, TransferOperation};
 use common::pubkeys;
 use rstest::*;
+use serial_test::serial;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use tracing::info;
@@ -38,6 +39,7 @@ async fn async_target_pubkey() -> Pubkey {
 /// Test that checks if the test framework is properly set up but doesn't require SURFPOOL
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_framework_setup(target_pubkey: Pubkey) -> Result<()> {
     info!("🧪 Testing framework setup (no SURFPOOL required)");
     info!("=====================================");
@@ -71,6 +73,7 @@ async fn test_framework_setup(target_pubkey: Pubkey) -> Result<()> {
 #[case(0.5, "0.5 SOL")]
 #[case(0.1, "0.1 SOL")]
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_transfers(
     #[case] amount: f64,
     #[case] description: &str,
@@ -100,6 +103,7 @@ async fn test_transfers(
 /// Test for specific 1 SOL transfer case (maintains backward compatibility)
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_send_1_sol_to_target(target_pubkey: Pubkey) -> Result<()> {
     info!("🧪 Starting Test: Send 1 SOL to target account");
     info!("=====================================");
@@ -130,6 +134,7 @@ async fn test_send_1_sol_to_target(target_pubkey: Pubkey) -> Result<()> {
 )]
 #[case("swap", "swap 1 sol to usdc")]
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &str) -> Result<()> {
     info!(
         "🧪 Testing prompt processing for operation: {}",
@@ -164,6 +169,7 @@ async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &s
 #[rstest]
 #[timeout(std::time::Duration::from_secs(180))]
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn test_transfer_with_timeout(target_pubkey: Pubkey) -> Result<()> {
     info!("🧪 Starting Transfer Test with Timeout");
     info!("=====================================");
@@ -190,6 +196,7 @@ async fn test_transfer_with_timeout(target_pubkey: Pubkey) -> Result<()> {
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]
 #[awt]
+#[serial]
 async fn test_async_fixture(#[future] async_target_pubkey: Pubkey) -> Result<()> {
     info!("🧪 Testing async fixtures with #[awt]");
     info!("=====================================");
