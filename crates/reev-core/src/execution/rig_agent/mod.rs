@@ -161,28 +161,14 @@ impl RigAgent {
         // Extract tool calls from the response
         let tool_calls = self.extract_tool_calls(&response)?;
 
-        // Check if this is a multi-step prompt and we have multiple operations
-        let prompt_lower = prompt.to_lowercase();
-        let is_multi_step = prompt_lower.contains(" then ")
-            || prompt_lower.contains(" and ")
-            || prompt_lower.contains(" followed by ");
-
-        info!("DEBUG: is_multi_step = {}", is_multi_step);
+        // Let's LLM handle multi-step detection implicitly in the response
+        // We don't use rule-based detection to determine if this is multi-step
         info!("DEBUG: Initial tool_calls count = {}", tool_calls.len());
         info!("DEBUG: Initial tool_calls = {:?}", tool_calls);
         info!("DEBUG: Response = {}", response);
 
-        // For multi-step prompts, we need to ensure we extract all operations
-        let tool_calls = if is_multi_step && tool_calls.len() < 2 {
-            // Try to extract additional operations if we only got one tool call
-            info!("Multi-step prompt detected but only one tool call extracted, attempting to extract additional operations");
-            let additional_calls = self.extract_multi_step_tool_calls(&response, &tool_calls)?;
-            info!("DEBUG: Additional tool_calls = {:?}", additional_calls);
-            additional_calls
-        } else {
-            info!("DEBUG: Using initial tool_calls as-is");
-            tool_calls
-        };
+        // Use the tool calls as extracted by the LLM
+        // The LLM should identify all operations in a multi-step prompt
 
         // Execute the selected tools
         info!("Tool calls extracted: {:?}", tool_calls);

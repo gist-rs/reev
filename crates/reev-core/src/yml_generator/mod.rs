@@ -135,98 +135,20 @@ impl YmlGenerator {
     }
 }
 
-/// Determine expected tools based on the refined prompt
-fn determine_expected_tools(refined_prompt: &str) -> Option<Vec<ToolName>> {
-    let prompt_lower = refined_prompt.to_lowercase();
-
-    // Check for swap operations
-    if prompt_lower.contains("swap") {
-        return Some(vec![ToolName::JupiterSwap]);
-    }
-
-    // Check for lend operations
-    if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
-        return Some(vec![ToolName::JupiterLendEarnDeposit]);
-    }
-
-    // Check for transfer/send operations
-    if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
-        return Some(vec![ToolName::SolTransfer]);
-    }
-
-    // Check for balance operations
-    if prompt_lower.contains("balance") || prompt_lower.contains("get") {
-        return Some(vec![ToolName::GetAccountBalance]);
-    }
-
-    // Default to no expected tools if no pattern matches
+/// Determine expected tools using LLM instead of rule-based detection
+/// This is a placeholder implementation - the real implementation should use LLM
+fn determine_expected_tools(_refined_prompt: &str) -> Option<Vec<ToolName>> {
+    // TODO: Implement LLM-based tool determination
+    // For now, we return None to let RigAgent determine tools dynamically
+    // This follows the V3 plan where RigAgent should handle tool selection
     None
 }
 
-/// Extract individual operations from a multi-step prompt
-fn extract_operations_from_prompt(refined_prompt: &str) -> Vec<String> {
-    let prompt_lower = refined_prompt.to_lowercase();
-    let mut operations = Vec::new();
-
-    // If this is a multi-step prompt with "then" or "and"
-    if prompt_lower.contains(" then ") || prompt_lower.contains(" and ") {
-        // Split by "then" first (preferred over "and")
-        if prompt_lower.contains(" then ") {
-            let parts: Vec<&str> = refined_prompt.split(" then ").collect();
-
-            for part in parts {
-                if !part.trim().is_empty() {
-                    // Clean up the operation string
-                    let mut operation = part.trim().to_string();
-
-                    // Remove any trailing quotes that might have been added
-                    if operation.ends_with('"') {
-                        operation.pop();
-                    }
-
-                    // Check if this is a valid operation (contains action words)
-                    if operation.to_lowercase().contains("swap")
-                        || operation.to_lowercase().contains("lend")
-                        || operation.to_lowercase().contains("transfer")
-                        || operation.to_lowercase().contains("send")
-                    {
-                        operations.push(operation);
-                    }
-                }
-            }
-        }
-        // Try splitting by "and" if "then" wasn't found
-        else if prompt_lower.contains(" and ") {
-            let parts: Vec<&str> = refined_prompt.split(" and ").collect();
-
-            for part in parts {
-                if !part.trim().is_empty() {
-                    // Clean up the operation string
-                    let mut operation = part.trim().to_string();
-
-                    // Remove any trailing quotes that might have been added
-                    if operation.ends_with('"') {
-                        operation.pop();
-                    }
-
-                    // Check if this is a valid operation (contains action words)
-                    if operation.to_lowercase().contains("swap")
-                        || operation.to_lowercase().contains("lend")
-                        || operation.to_lowercase().contains("transfer")
-                        || operation.to_lowercase().contains("send")
-                    {
-                        operations.push(operation);
-                    }
-                }
-            }
-        }
-    }
-
-    // Return the operations if we found multiple valid ones
-    if operations.len() > 1 {
-        return operations;
-    }
-
-    // If no multi-step pattern found, return empty to use single step approach
+/// Extract individual operations from a multi-step prompt using LLM
+/// This is a placeholder implementation - the real implementation should use LLM
+fn extract_operations_from_prompt(_refined_prompt: &str) -> Vec<String> {
+    // TODO: Implement LLM-based operation extraction
+    // For now, we return an empty vector to create a single step
+    // This follows the V3 plan where RigAgent should handle all operations
     Vec::new()
 }

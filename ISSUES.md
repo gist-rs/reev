@@ -3,10 +3,15 @@
 ## Critical Issues (V3 Plan Violations)
 
 ### Issue #1: Rule-Based Multi-Step Detection (Critical)
-**Status**: NOT FIXED
-**Location**: `crates/reev-core/src/yml_generator/unified_flow_builder.rs` (lines 45-52)
-**Description**: The `UnifiedFlowBuilder` still uses rule-based parsing to detect multi-step operations, violating the V3 plan which requires LLM to handle all language understanding.
-**Impact**: System incorrectly interprets user intent and doesn't properly understand natural language multi-step requests.
+**Status**: PARTIALLY FIXED
+**Location**: `crates/reev-core/src/yml_generator/mod.rs` (extract_operations_from_prompt and determine_expected_tools functions)
+**Description**: Removed rule-based parsing from `extract_operations_from_prompt` and `determine_expected_tools` functions, and from `RigAgent`'s multi-step detection. However, this is a partial fix as we're returning empty vectors/default values rather than implementing true LLM-based operation extraction.
+**Impact**: System now avoids rule-based detection but needs proper LLM-based implementation to correctly interpret multi-step requests.
+
+**TODO**: Implement LLM-based operation extraction:
+1. Update `extract_operations_from_prompt` to use the LLM to parse and identify multiple operations in a single prompt
+2. Update `determine_expected_tools` to use the LLM to determine which tools are needed for each operation
+3. Ensure RigAgent properly executes all operations identified by the LLM in sequence
 
 ### Issue #2: Multi-Step Operations Not Properly Executed (Critical)
 **Status**: NOT FIXED
