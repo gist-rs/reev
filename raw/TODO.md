@@ -2,6 +2,18 @@
 
 ---
 
+let template_content = r#"
+Token Price Test
+Wallet: {{wallet.owner}}
+SOL Price: ${{get_token_price "So11111111111111111111111111111111111112"}}
+USDC Price: ${{get_token_price "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}}
+Unknown Price: ${{get_token_price "UnknownMint"}}
+"#;
+
+this aginst the plan which we must use yml?
+
+---
+
 [@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) , check [@PLAN_CORE_V3.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V3.md) , i will need to support the multi-step prompt l
 btw the plan
 ---

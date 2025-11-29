@@ -277,8 +277,7 @@ impl<T> MultiStepHandler for T {
         let mut tool_calls = existing_calls.clone();
         let response_lower = response.to_lowercase();
         println!(
-            "DEBUG: extract_multi_step_tool_calls called with response: {}",
-            response
+            "DEBUG: extract_multi_step_tool_calls called with response: {response}"
         );
 
         // If we already have a swap operation, check if there's also a lend or transfer operation

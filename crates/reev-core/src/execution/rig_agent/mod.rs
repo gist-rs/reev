@@ -302,81 +302,78 @@ impl RigAgent {
         let transaction_result = operation_result
             .get("result")
             .or_else(|| operation_result.get("transaction"))
-            .or_else(|| Some(operation_result));
+            .or(Some(operation_result));
 
-        match transaction_result {
-            Some(result) => {
-                // For Jupiter swap operations, update token balances
-                if tool_name == "jupiter_swap" {
-                    // Check if we have balance information in the result
-                    if let (Some(before), Some(after)) =
-                        (result.get("before_balance"), result.get("after_balance"))
-                    {
-                        info!("Updating token balances from swap result");
-                        // Create a new wallet context with updated balances
-                        let mut new_context = current_context.clone();
-
-                        // Update token balances based on the swap result
-                        // This is a simplified implementation - in a full implementation,
-                        // we would parse the actual transaction result and update all affected tokens
-                        if let Some(_before_bal) = before.get("USDC").and_then(|v| v.as_f64()) {
-                            if let Some(after_bal) = after.get("USDC").and_then(|v| v.as_f64()) {
-                                if let Some(usdc_token) = new_context
-                                    .token_balances
-                                    .get_mut("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                                {
-                                    usdc_token.balance = after_bal as u64;
-                                }
-                            }
-                        }
-
-                        return Ok(Some(new_context));
-                    }
-                }
-
-                // For Jupiter lend operations, update relevant balances
-                if tool_name == "jupiter_lend_earn_deposit" {
-                    info!("Updating token balances from lend result");
+        if let Some(result) = transaction_result {
+            // For Jupiter swap operations, update token balances
+            if tool_name == "jupiter_swap" {
+                // Check if we have balance information in the result
+                if let (Some(before), Some(after)) =
+                    (result.get("before_balance"), result.get("after_balance"))
+                {
+                    info!("Updating token balances from swap result");
                     // Create a new wallet context with updated balances
                     let mut new_context = current_context.clone();
 
-                    // Update token balances based on the lend result
-                    if let Some(amount) = operation_result
-                        .get("params")
-                        .and_then(|p| p.get("amount"))
-                        .and_then(|a| a.as_u64())
-                    {
-                        if let Some(usdc_token) = new_context
-                            .token_balances
-                            .get_mut("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                        {
-                            usdc_token.balance = usdc_token.balance.saturating_sub(amount);
-                        }
-
-                        // Add jUSDC token to the wallet if it doesn't exist
-                        if !new_context
-                            .token_balances
-                            .contains_key("jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw")
-                        {
-                            use reev_types::flow::TokenBalance;
-                            new_context.token_balances.insert(
-                                "jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw".to_string(),
-                                TokenBalance {
-                                    mint: "jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw".to_string(),
-                                    balance: amount,
-                                    decimals: Some(6),
-                                    symbol: Some("jUSDC".to_string()),
-                                    formatted_amount: None,
-                                    owner: Some(current_context.owner.clone()),
-                                },
-                            );
+                    // Update token balances based on the swap result
+                    // This is a simplified implementation - in a full implementation,
+                    // we would parse the actual transaction result and update all affected tokens
+                    if let Some(_before_bal) = before.get("USDC").and_then(|v| v.as_f64()) {
+                        if let Some(after_bal) = after.get("USDC").and_then(|v| v.as_f64()) {
+                            if let Some(usdc_token) = new_context
+                                .token_balances
+                                .get_mut("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                            {
+                                usdc_token.balance = after_bal as u64;
+                            }
                         }
                     }
 
                     return Ok(Some(new_context));
                 }
             }
-            None => {}
+
+            // For Jupiter lend operations, update relevant balances
+            if tool_name == "jupiter_lend_earn_deposit" {
+                info!("Updating token balances from lend result");
+                // Create a new wallet context with updated balances
+                let mut new_context = current_context.clone();
+
+                // Update token balances based on the lend result
+                if let Some(amount) = operation_result
+                    .get("params")
+                    .and_then(|p| p.get("amount"))
+                    .and_then(|a| a.as_u64())
+                {
+                    if let Some(usdc_token) = new_context
+                        .token_balances
+                        .get_mut("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                    {
+                        usdc_token.balance = usdc_token.balance.saturating_sub(amount);
+                    }
+
+                    // Add jUSDC token to the wallet if it doesn't exist
+                    if !new_context
+                        .token_balances
+                        .contains_key("jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw")
+                    {
+                        use reev_types::flow::TokenBalance;
+                        new_context.token_balances.insert(
+                            "jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw".to_string(),
+                            TokenBalance {
+                                mint: "jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw".to_string(),
+                                balance: amount,
+                                decimals: Some(6),
+                                symbol: Some("jUSDC".to_string()),
+                                formatted_amount: None,
+                                owner: Some(current_context.owner.clone()),
+                            },
+                        );
+                    }
+                }
+
+                return Ok(Some(new_context));
+            }
         }
 
         Ok(None)

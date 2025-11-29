@@ -194,7 +194,7 @@ impl MinimalAiContext {
     pub fn to_prompt_format(&self) -> String {
         let mut prompt = String::new();
 
-        // Add wallet information
+        // Add wallet information with proper field name for LLM extraction
         prompt.push_str(&format!(
             "Wallet: {} with {} SOL lamports\n",
             self.pubkey, self.sol_balance

@@ -158,6 +158,18 @@ impl Tool for JupiterSwapTool {
             args.user_pubkey.len()
         );
         error!("[JupiterSwapTool] Full JupiterSwapArgs: {:?}", args);
+        // Debug: Log the exact bytes we're trying to parse
+        let pubkey_bytes = args.user_pubkey.as_bytes();
+        println!("[DEBUG] Pubkey string bytes: {:?}", pubkey_bytes);
+        println!(
+            "[DEBUG] Pubkey string first 10 chars: {:?}",
+            &args.user_pubkey[..10.min(args.user_pubkey.len())]
+        );
+        println!(
+            "[DEBUG] Pubkey string last 10 chars: {:?}",
+            &args.user_pubkey[args.user_pubkey.len().saturating_sub(10)..]
+        );
+
         let user_pubkey = Pubkey::from_str(&args.user_pubkey).map_err(|e| {
             error!(
                 "[JupiterSwapTool] Failed to parse pubkey: {}, pubkey: '{}' (length: {})",

@@ -30,10 +30,10 @@ async fn test_glm_client_multi_step() -> Result<()> {
 
     // Test with a multi-step prompt
     let multi_step_prompt = "swap 0.1 SOL to USDC then lend 10 USDC";
-    println!("DEBUG: Sending multi-step prompt: {}", multi_step_prompt);
+    println!("DEBUG: Sending multi-step prompt: {multi_step_prompt}");
 
     let response = llm_client.generate_flow(multi_step_prompt).await?;
-    println!("DEBUG: Multi-step prompt response: {}", response);
+    println!("DEBUG: Multi-step prompt response: {response}");
 
     Ok(())
 }
@@ -58,10 +58,10 @@ async fn test_glm_client_simple() -> Result<()> {
 
     // Test with a very simple prompt
     let simple_prompt = "swap";
-    println!("DEBUG: Sending very simple prompt: {}", simple_prompt);
+    println!("DEBUG: Sending very simple prompt: {simple_prompt}");
 
     let response = llm_client.generate_flow(simple_prompt).await?;
-    println!("DEBUG: Simple prompt response: {}", response);
+    println!("DEBUG: Simple prompt response: {response}");
 
     Ok(())
 }
@@ -92,8 +92,7 @@ async fn test_simple_operation_extraction() -> Result<()> {
     let prompt = "swap 0.1 SOL to USDC";
     info!("Testing operation extraction for prompt: {}", prompt);
     println!(
-        "DEBUG: About to test operation extraction for prompt: {}",
-        prompt
+        "DEBUG: About to test operation extraction for prompt: {prompt}"
     );
 
     // Call extract_operations_from_prompt directly
@@ -354,17 +353,17 @@ async fn test_glm_client_direct_response() -> Result<()> {
 
     // Test with simple prompt
     let simple_prompt = "swap 0.1 SOL to USDC";
-    println!("DEBUG: Sending simple prompt: {}", simple_prompt);
+    println!("DEBUG: Sending simple prompt: {simple_prompt}");
 
     let simple_response = llm_client_arc.generate_flow(simple_prompt).await?;
-    println!("DEBUG: Simple prompt response: {}", simple_response);
+    println!("DEBUG: Simple prompt response: {simple_response}");
 
     // Test with multi-step prompt
     let multi_step_prompt = "swap 0.1 SOL to USDC then lend 10 USDC";
-    println!("DEBUG: Sending multi-step prompt: {}", multi_step_prompt);
+    println!("DEBUG: Sending multi-step prompt: {multi_step_prompt}");
 
     let multi_step_response = llm_client_arc.generate_flow(multi_step_prompt).await?;
-    println!("DEBUG: Multi-step prompt response: {}", multi_step_response);
+    println!("DEBUG: Multi-step prompt response: {multi_step_response}");
 
     // Test with complex prompt
     let complex_prompt = r#"Analyze this DeFi request and break it down into individual operations that should be executed sequentially:
@@ -389,7 +388,7 @@ CRITICAL: Respond with ONLY a valid JSON array. No explanations, no markdown for
     );
 
     let complex_response = llm_client_arc.generate_flow(complex_prompt).await?;
-    println!("DEBUG: Complex prompt response: {}", complex_response);
+    println!("DEBUG: Complex prompt response: {complex_response}");
 
     Ok(())
 }

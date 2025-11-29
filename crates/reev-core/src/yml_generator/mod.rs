@@ -7,7 +7,7 @@
 
 use reev_types::tools::ToolName;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 mod flow_templates;
 // operation_parser module has been completely removed in V3 architecture
@@ -279,7 +279,7 @@ pub async fn extract_operations_from_prompt(
     {
         // Extract swap operation
         if let Some(swap_start) = prompt_lower.find("swap") {
-            if let Some(then_pos) = prompt_lower.find("then") {
+            if let Some(_then_pos) = prompt_lower.find("then") {
                 // For "then", we need to find the actual position in the original prompt
                 let original_then_pos = refined_prompt.to_lowercase().find("then").unwrap();
 
@@ -304,7 +304,7 @@ pub async fn extract_operations_from_prompt(
     {
         // Extract swap operation
         if let Some(swap_start) = prompt_lower.find("swap") {
-            if let Some(and_then_pos) = prompt_lower.find("and then") {
+            if let Some(_and_then_pos) = prompt_lower.find("and then") {
                 // For "and then", we need to find the actual position in the original prompt
                 let original_and_then_pos = refined_prompt.to_lowercase().find("and then").unwrap();
 
@@ -333,7 +333,7 @@ pub async fn extract_operations_from_prompt(
     {
         // Extract swap operation
         if let Some(swap_start) = prompt_lower.find("swap") {
-            if let Some(and_pos) = prompt_lower.find(" and ") {
+            if let Some(_and_pos) = prompt_lower.find(" and ") {
                 // For "and", we need to find the actual position in the original prompt
                 let original_and_pos = refined_prompt.to_lowercase().find(" and ").unwrap();
 

@@ -18,7 +18,7 @@ async fn test_llm_integration() {
             Arc::new(client)
         }
         Err(e) => {
-            println!("DEBUG: Failed to initialize LLM client: {}", e);
+            println!("DEBUG: Failed to initialize LLM client: {e}");
             return;
         }
     };
@@ -29,8 +29,7 @@ async fn test_llm_integration() {
     // Test operation extraction with a multi-step prompt
     let multi_step_prompt = "swap 1 SOL to USDC then lend 100 USDC";
     println!(
-        "DEBUG: Testing operation extraction with prompt: {}",
-        multi_step_prompt
+        "DEBUG: Testing operation extraction with prompt: {multi_step_prompt}"
     );
 
     // This should call the LLM to extract operations
@@ -38,7 +37,7 @@ async fn test_llm_integration() {
 
     // Test with a simple prompt first
     let simple_prompt = "swap 1 SOL to USDC";
-    println!("DEBUG: Testing with simple prompt: {}", simple_prompt);
+    println!("DEBUG: Testing with simple prompt: {simple_prompt}");
 
     println!("DEBUG: Test completed");
 }

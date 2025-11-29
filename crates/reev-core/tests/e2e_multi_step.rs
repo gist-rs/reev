@@ -78,6 +78,13 @@ async fn test_swap_then_lend() -> Result<()> {
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
+
+    // Debug: Log the actual pubkey
+    println!(
+        "DEBUG: Actual pubkey from keypair: '{}' (length: {})",
+        pubkey,
+        pubkey.to_string().len()
+    );
     info!("🔑 Using keypair from ~/.config/solana/id.json");
 
     // Initialize surfpool client

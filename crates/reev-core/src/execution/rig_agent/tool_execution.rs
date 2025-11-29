@@ -273,6 +273,13 @@ where
             amount_lamports
         };
 
+        // Debug: Log the exact pubkey being passed to tool
+        println!(
+            "[DEBUG] wallet_context.owner = '{}' (length: {})",
+            wallet_context.owner,
+            wallet_context.owner.len()
+        );
+
         let swap_args = reev_tools::tools::jupiter_swap::JupiterSwapArgs {
             user_pubkey: wallet_context.owner.clone(),
             input_mint: input_mint.to_string(),
@@ -281,11 +288,26 @@ where
             slippage_bps: Some(100), // Default 1% slippage
         };
 
+        // Debug: Log the exact pubkey being passed to tool
+        println!(
+            "[DEBUG] Calling JupiterSwapTool with pubkey: '{}' (length: {})",
+            swap_args.user_pubkey,
+            swap_args.user_pubkey.len()
+        );
+
+        // Debug: Log the exact arguments being passed to jupiter_swap_tool.call
+        println!(
+            "[DEBUG] About to call jupiter_swap_tool with args: {:?}",
+            swap_args
+        );
+
         let result = agent_tools
             .jupiter_swap_tool
             .call(swap_args)
             .await
             .map_err(|e| anyhow!("Jupiter swap execution failed: {e}"))?;
+
+        println!("[DEBUG] jupiter_swap_tool.call completed");
 
         // Parse the response to extract instructions and execute transaction
         info!("Jupiter swap tool returned result: {}", &result);
