@@ -7,36 +7,15 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::signer::keypair::Keypair as SolanaKeypair;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::{info, warn};
 
-/// Source of Solana private key
-#[derive(Debug, Clone)]
-pub enum KeySource {
-    /// From environment variable (direct key string or file path)
-    Environment(String),
-    /// Default location: ~/.config/solana/id.json
-    DefaultPath,
-}
-
-/// Get a Solana keypair from various sources
+/// Get a Solana keypair from ~/.config/solana/id.json
 pub fn get_keypair() -> Result<SolanaKeypair> {
-    // First try to get from environment variable
-    if let Ok(key_str) = std::env::var("SOLANA_PRIVATE_KEY") {
-        // Check if it looks like a file path (doesn't contain spaces and exists)
-        if !key_str.contains(' ') && Path::new(&key_str).exists() {
-            // Treat as file path
-            read_keypair_from_file(&key_str)
-        } else {
-            // Treat as direct key string
-            read_keypair_from_string(&key_str)
-        }
-    } else {
-        // Use default location
-        let default_path = get_default_key_path()?;
-        read_keypair_from_file(&default_path.to_string_lossy())
-    }
+    // Only use default location for security
+    let default_path = get_default_key_path()?;
+    read_keypair_from_file(&default_path.to_string_lossy())
 }
 
 /// Get the default Solana key path
@@ -49,86 +28,73 @@ pub fn get_default_key_path() -> Result<PathBuf> {
 pub fn read_keypair_from_file(path: &str) -> Result<Keypair> {
     let content = fs::read_to_string(path).map_err(|e| anyhow!("Failed to read key file: {e}"))?;
 
-    if path.ends_with(".json") {
-        // Try to parse as JSON array (standard Solana key file format)
-        let json_value: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse JSON key file: {e}"))?;
+    if !path.ends_with(".json") {
+        return Err(anyhow!("Key file must be in JSON format"));
+    }
 
-        if let Some(array) = json_value.as_array() {
-            if let Some(key_data) = array.first() {
-                if let Some(key_str) = key_data.as_str() {
-                    // Try to parse as base58
-                    let key_bytes = bs58::decode(key_str)
-                        .into_vec()
-                        .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
+    // Parse as JSON array (standard Solana key file format)
+    let json_value: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| anyhow!("Failed to parse JSON key file: {e}"))?;
 
-                    // Try to create keypair from bytes using deprecated from_bytes method
-                    // We need to use this for now due to compatibility with existing code
+    // Handle both direct array format and nested array format
+    if let Some(key_array) = json_value.as_array() {
+        // Check if this is a direct array of numbers (e.g., [234,171,...])
+        if key_array.len() >= 64 && key_array.iter().all(|v| v.is_number()) {
+            info!("Found direct array of {} numbers", key_array.len());
+            let mut key_bytes = [0u8; 64];
+            for (i, num) in key_array.iter().enumerate() {
+                if let Some(n) = num.as_u64() {
+                    key_bytes[i] = n as u8;
+                } else {
+                    return Err(anyhow!(
+                        "Key array contains non-numeric value at position {i}"
+                    ));
+                }
+            }
+
+            // Use deprecated from_bytes method as try_from doesn't work with Vec<u8>
+            #[allow(deprecated)]
+            let solana_keypair = SolanaKeypair::from_bytes(&key_bytes)
+                .map_err(|e| anyhow!("Failed to create keypair from bytes: {e}"))?;
+            return Ok(solana_keypair);
+        }
+
+        // Check if this is a nested array format (e.g., [[234,171,...]])
+        if let Some(key_data) = key_array.first() {
+            if let Some(inner_array) = key_data.as_array() {
+                if inner_array.len() >= 64 && inner_array.iter().all(|v| v.is_number()) {
+                    info!("Found nested array of {} numbers", inner_array.len());
+                    let mut key_bytes = [0u8; 64];
+                    for (i, num) in inner_array.iter().enumerate() {
+                        if let Some(n) = num.as_u64() {
+                            key_bytes[i] = n as u8;
+                        } else {
+                            return Err(anyhow!(
+                                "Key array contains non-numeric value at position {i}"
+                            ));
+                        }
+                    }
+
+                    // Use deprecated from_bytes method as try_from doesn't work with Vec<u8>
                     #[allow(deprecated)]
                     let solana_keypair = SolanaKeypair::from_bytes(&key_bytes)
                         .map_err(|e| anyhow!("Failed to create keypair from bytes: {e}"))?;
-                    Ok(solana_keypair)
-                } else {
-                    Err(anyhow!("Invalid key format in JSON file"))
+                    return Ok(solana_keypair);
                 }
-            } else {
-                Err(anyhow!("Empty key array in JSON file"))
             }
-        } else {
-            Err(anyhow!("Invalid JSON key file format, expected array"))
         }
-    } else {
-        // Read the file content and decode as base58
-        let content = fs::read_to_string(path)?;
-        let key_bytes = bs58::decode(content.trim())
-            .into_vec()
-            .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
-
-        // Create keypair directly from decoded bytes
-        // Convert to array of expected size (64 bytes for Ed25519 keypair)
-        let mut key_array = [0u8; 64];
-        if key_bytes.len() >= 64 {
-            key_array.copy_from_slice(&key_bytes[..64]);
-        } else {
-            // If we have less than 64 bytes, pad with zeros
-            key_array[..key_bytes.len()].copy_from_slice(&key_bytes);
-        }
-
-        // Use the deprecated from_bytes method as try_from doesn't work with Vec<u8>
-        #[allow(deprecated)]
-        let solana_keypair = SolanaKeypair::from_bytes(&key_array)
-            .map_err(|e| anyhow!("Failed to create Solana keypair: {e}"))?;
-        Ok(solana_keypair)
     }
+
+    // If we get here, the format is not supported
+    Err(anyhow!(
+        "Key must be provided as an array of numbers (direct or nested), not as a string"
+    ))
 }
 
-/// Read keypair from string
-pub fn read_keypair_from_string(key_str: &str) -> Result<SolanaKeypair> {
-    // Try to parse as JSON first
-    if key_str.trim().starts_with('{') {
-        Err(anyhow!("Direct JSON key strings are not supported"))
-    } else {
-        // Try to parse as base58 encoded string
-        let key_bytes = bs58::decode(key_str)
-            .into_vec()
-            .map_err(|e| anyhow!("Failed to decode base58 key: {e}"))?;
-
-        // Create keypair directly from decoded bytes
-        // Convert to array of expected size (64 bytes for Ed25519 keypair)
-        let mut key_array = [0u8; 64];
-        if key_bytes.len() >= 64 {
-            key_array.copy_from_slice(&key_bytes[..64]);
-        } else {
-            // If we have less than 64 bytes, pad with zeros
-            key_array[..key_bytes.len()].copy_from_slice(&key_bytes);
-        }
-
-        // Use the deprecated from_bytes method as try_from doesn't work with Vec<u8>
-        #[allow(deprecated)]
-        let solana_keypair = SolanaKeypair::from_bytes(&key_array)
-            .map_err(|e| anyhow!("Failed to create Solana keypair: {e}"))?;
-        Ok(solana_keypair)
-    }
+// read_keypair_from_string is no longer needed as we only load from file
+// Kept for backward compatibility but returns an error
+pub fn read_keypair_from_string(_key_str: &str) -> Result<SolanaKeypair> {
+    Err(anyhow!("Reading keys from strings is not supported for security reasons. Use ~/.config/solana/id.json"))
 }
 
 /// Get public key as a string

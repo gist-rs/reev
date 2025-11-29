@@ -4,7 +4,7 @@ pub mod solana;
 pub mod transaction;
 
 /// Re-export Solana utilities
-pub use solana::{get_keypair, KeySource};
+pub use solana::get_keypair;
 
 /// Re-export transaction utilities
 pub use transaction::{
