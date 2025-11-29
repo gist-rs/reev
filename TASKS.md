@@ -72,94 +72,94 @@ The 6-step process is documented in tests and should be standardized in the main
 
 ## Tasks
 
-## Phase 1: Refactor e2e_transfer.rs
+## Phase 1: Refactor e2e_transfer.rs (COMPLETED)
 
-### 1. Create Shared Utilities in Main Crate (from e2e_transfer.rs)
-- [ ] Create a new module `crates/reev-core/src/yml_utils.rs` for YML prompt utilities
-  - [ ] Extract wallet_info formatting from e2e_transfer.rs 
-  - [ ] Create a generic function for creating subject_wallet_info YML section
-  - [ ] Make it flexible enough for different transaction types (transfer, swap, lend)
-  - [ ] Align with PLAN_CORE_V3.md YML structure for subject_wallet_info including lamports and tokens
-  - [ ] Add documentation for YML format requirements per PLAN_CORE_V3
-  - [ ] Support the flow_id, user_prompt, and refined_prompt fields from PLAN_CORE_V3
-- [ ] Create a new module `crates/reev-core/src/result_utils.rs` for result processing utilities
-  - [ ] Extract transaction signature extraction logic from e2e_transfer.rs
-  - [ ] Create a unified function that handles all possible response formats
-  - [ ] Make it robust enough to handle different tool types (transfer, swap, lend)
-  - [ ] Add error handling for missing signatures
-  - [ ] Align with validation framework from PLAN_CORE_V3.md Phase 3
-- [ ] Create a new module `crates/reev-core/src/flow_utils.rs` for execution flow utilities
-  - [ ] Extract common execution flow steps from e2e_transfer.rs
-  - [ ] Create functions for each step of the 6-step process
-  - [ ] Make them composable for different scenarios (test, API, runner)
-  - [ ] Align with the 6-step flow from PLAN_CORE_V3.md (Phase 1 and Phase 2)
-  - [ ] Support the ground truth validation structure from PLAN_CORE_V3.md
-  - [ ] Implement the expected_tools and critical flags for step validation
-  - [ ] Support benchmark YML structure from PLAN_CORE_BENCHMARK.md
-    - [ ] Include success_criteria, weight, and required fields
-    - [ ] Support expected_flow_complexity metrics
-    - [ ] Implement expected_multiplication_metrics for advanced flows
-    - [ ] Support expected_otel_tracking for observability
+### 1. Create Shared Utilities in Main Crate (from e2e_transfer.rs) ✅
+- [x] Create a new module `crates/reev-core/src/yml_utils.rs` for YML prompt utilities
+  - [x] Extract wallet_info formatting from e2e_transfer.rs 
+  - [x] Create a generic function for creating subject_wallet_info YML section
+  - [x] Make it flexible enough for different transaction types (transfer, swap, lend)
+  - [x] Align with PLAN_CORE_V3.md YML structure for subject_wallet_info including lamports and tokens
+  - [x] Add documentation for YML format requirements per PLAN_CORE_V3
+  - [x] Support the flow_id, user_prompt, and refined_prompt fields from PLAN_CORE_V3
+- [x] Create a new module `crates/reev-core/src/result_utils.rs` for result processing utilities
+  - [x] Extract transaction signature extraction logic from e2e_transfer.rs
+  - [x] Create a unified function that handles all possible response formats
+  - [x] Make it robust enough to handle different tool types (transfer, swap, lend)
+  - [x] Add error handling for missing signatures
+  - [x] Align with validation framework from PLAN_CORE_V3.md Phase 3
+- [x] Create a new module `crates/reev-core/src/flow_utils.rs` for execution flow utilities
+  - [x] Extract common execution flow steps from e2e_transfer.rs
+  - [x] Create functions for each step of the 6-step process
+  - [x] Make them composable for different scenarios (test, API, runner)
+  - [x] Align with the 6-step flow from PLAN_CORE_V3.md (Phase 1 and Phase 2)
+  - [x] Support the ground truth validation structure from PLAN_CORE_V3.md
+  - [x] Implement the expected_tools and critical flags for step validation
+  - [x] Support benchmark YML structure from PLAN_CORE_BENCHMARK.md
+    - [x] Include success_criteria, weight, and required fields
+    - [x] Support expected_flow_complexity metrics
+    - [x] Implement expected_multiplication_metrics for advanced flows
+    - [x] Support expected_otel_tracking for observability
 
-### 2. Refactor e2e_transfer.rs to Use New Utilities
-- [ ] Update e2e_transfer.rs to use the new yml_utils module
-- [ ] Update e2e_transfer.rs to use the new result_utils module
-- [ ] Update e2e_transfer.rs to use the new flow_utils module
-- [ ] Ensure e2e_transfer.rs follows the same 6-step process
-- [ ] Verify that all functionality still works
+### 2. Refactor e2e_transfer.rs to Use New Utilities ✅
+- [x] Update e2e_transfer.rs to use the new yml_utils module
+- [x] Update e2e_transfer.rs to use the new result_utils module
+- [x] Update e2e_transfer.rs to use the new flow_utils module
+- [x] Ensure e2e_transfer.rs follows the same 6-step process
+- [x] Verify that all functionality still works
 
-### 3. Document Patterns for Reuse
-- [ ] Document the extraction patterns used for e2e_transfer.rs
-- [ ] Create guidelines for applying the same patterns to other tests
-- [ ] Prepare documentation for how to handle differences between tests
+### 3. Document Patterns for Reuse ✅
+- [x] Document the extraction patterns used for e2e_transfer.rs
+- [x] Create guidelines for applying the same patterns to other tests
+- [x] Prepare documentation for how to handle differences between tests
 
-## Phase 2: Apply to e2e_swap.rs and e2e_lend.rs
+## Phase 2: Apply to e2e_swap.rs and e2e_lend.rs (COMPLETED)
 
-### 4. Refactor e2e_swap.rs Using Same Patterns
-- [ ] Update e2e_swap.rs to use the yml_utils module (fixing the unused _yml_prompt issue)
-- [ ] Update e2e_swap.rs to use the result_utils module (unifying signature extraction)
-- [ ] Update e2e_swap.rs to use the flow_utils module (standardizing 6-step process)
-- [ ] Ensure e2e_swap.rs follows the same structure as e2e_transfer.rs
-- [ ] Verify that all functionality still works
+### 4. Refactor e2e_swap.rs Using Same Patterns ✅
+- [x] Update e2e_swap.rs to use the yml_utils module (fixing the unused _yml_prompt issue)
+- [x] Update e2e_swap.rs to use the result_utils module (unifying signature extraction)
+- [x] Update e2e_swap.rs to use the flow_utils module (standardizing 6-step process)
+- [x] Ensure e2e_swap.rs follows the same structure as e2e_transfer.rs
+- [x] Verify that all functionality still works
 
-### 5. Refactor e2e_lend.rs Using Same Patterns
-- [ ] Update e2e_lend.rs to use the yml_utils module
-- [ ] Update e2e_lend.rs to use the result_utils module
-- [ ] Update e2e_lend.rs to use the flow_utils module
-- [ ] Ensure e2e_lend.rs follows the same structure as other tests
-- [ ] Verify that all functionality still works
+### 5. Refactor e2e_lend.rs Using Same Patterns ✅
+- [x] Update e2e_lend.rs to use the yml_utils module
+- [x] Update e2e_lend.rs to use the result_utils module
+- [x] Update e2e_lend.rs to use the flow_utils module
+- [x] Ensure e2e_lend.rs follows the same structure as other tests
+- [x] Verify that all functionality still works
 
-### 3. Standardize YML Prompt Handling
-- [ ] Fix `e2e_swap.rs` to properly use the YML prompt
-- [ ] Ensure all tests follow the same pattern for YML prompt creation and usage
-- [ ] Make sure the 6-step process documentation matches the actual implementation in all tests
-- [ ] Ensure API and runner also follow the same YML prompt format
+### 3. Standardize YML Prompt Handling ✅
+- [x] Fix `e2e_swap.rs` to properly use the YML prompt
+- [x] Ensure all tests follow the same pattern for YML prompt creation and usage
+- [x] Make sure the 6-step process documentation matches the actual implementation in all tests
+- [x] Ensure API and runner also follow the same YML prompt format
 
-### 4. Unify Execution Flow
-- [ ] Ensure all tests resolve wallet context in the same way
-- [ ] Make the planner initialization identical between tests
-- [ ] Standardize executor initialization and flow execution
-- [ ] Use the shared signature extraction function
+### 4. Unify Execution Flow ✅
+- [x] Ensure all tests resolve wallet context in the same way
+- [x] Make the planner initialization identical between tests
+- [x] Standardize executor initialization and flow execution
+- [x] Use the shared signature extraction function
 
-### 5. Clean Up Code
-- [ ] Remove unused variables in all test files
-- [ ] Ensure consistent error handling patterns across tests and crates
-- [ ] Make logging patterns identical between tests and other components
-- [ ] Standardize comments and documentation style across all files
+### 5. Clean Up Code ✅
+- [x] Remove unused variables in all test files
+- [x] Ensure consistent error handling patterns across tests and crates
+- [x] Make logging patterns identical between tests and other components
+- [x] Standardize comments and documentation style across all files
 
-### 6. Improve Documentation
-- [ ] Ensure all tests have the same level of documentation
-- [ ] Make the 6-step process documentation match actual implementation
-- [ ] Add consistent header documentation to all test files
-- [ ] Ensure examples and usage instructions are identical in format
+### 6. Improve Documentation ✅
+- [x] Ensure all tests have the same level of documentation
+- [x] Make the 6-step process documentation match actual implementation
+- [x] Add consistent header documentation to all test files
+- [x] Ensure examples and usage instructions are identical in format
 
-### 7. Verify Functionality
-- [ ] Ensure all tests pass after standardization
-- [ ] Verify that the shared utilities work correctly for all test cases
-- [ ] Check that all tests handle edge cases in the same way
-- [ ] Test API endpoints with new utilities
-- [ ] Test runner benchmarks with new utilities
-- [ ] Run full test suite to ensure no regressions
+### 7. Verify Functionality ✅
+- [x] Ensure all tests pass after standardization
+- [x] Verify that the shared utilities work correctly for all test cases
+- [x] Check that all tests handle edge cases in the same way
+- [x] Test API endpoints with new utilities
+- [x] Test runner benchmarks with new utilities
+- [x] Run full test suite to ensure no regressions
 
 ## Expected Outcome
 After completing these tasks:

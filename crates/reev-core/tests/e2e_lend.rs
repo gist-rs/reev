@@ -26,103 +26,57 @@ mod common;
 use anyhow::{anyhow, Result};
 use common::{ensure_surfpool_running, get_test_keypair, setup_wallet_for_lend};
 use jup_sdk::surfpool::SurfpoolClient;
-use reev_core::context::{ContextResolver, SolanaEnvironment};
-use reev_core::planner::Planner;
-use reev_core::Executor;
+use reev_core::utils::yml_utils::create_subject_wallet_info_yml;
+use reev_core::utils::{execute_six_step_flow, extract_transaction_signature};
 use solana_sdk::signature::Signer;
+
 use std::env;
 use tracing::{error, info, warn};
 
-/// Common function to execute a lend operation using the planner and LLM
+/// Common function to execute a lend operation using standardized 6-step flow
 async fn execute_lend_with_planner(
     prompt: &str,
     pubkey: &solana_sdk::pubkey::Pubkey,
-    _initial_sol_balance: f64,
-    _initial_usdc_balance: f64,
+    initial_sol_balance: f64,
+    initial_usdc_balance: f64,
 ) -> Result<String> {
     info!("\n🚀 Starting lend execution with prompt: \"{}\"", prompt);
 
     // Step 1: Display the prompt being processed
     info!("🔄 Processing prompt: \"{}\"", prompt);
 
-    // Set up the context resolver with SURFPOOL RPC URL to match transaction execution
-    let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("http://localhost:8899".to_string()),
-    });
+    // Create token balances map for lend (USDC)
+    let lamports = (initial_sol_balance * 1_000_000_000.0) as u64;
+    let token_balances = std::collections::HashMap::from([(
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC mint
+        initial_usdc_balance,
+    )]);
 
-    // USDC tokens are already set up by setup_wallet_for_lend in common.rs
-    // No need for duplicated setup here
+    // Create YML prompt using standardized utility
+    let total_value_usd = initial_sol_balance * 150.0 + initial_usdc_balance; // Assuming SOL = $150
+    let wallet_info =
+        create_subject_wallet_info_yml(pubkey, lamports, Some(token_balances), total_value_usd);
 
-    // Create a planner with GLM client
-    let planner = Planner::new_with_glm(context_resolver.clone())?;
+    info!(
+        "\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):\n{}",
+        wallet_info
+    );
 
-    info!("🤖 Processing prompt: \"{}\"", prompt);
-    // Generate the flow using the planner
-    let yml_flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;
+    // Execute standardized 6-step flow
+    let (result, _signature) = execute_six_step_flow(
+        prompt,
+        pubkey,
+        lamports,
+        Some(std::collections::HashMap::from([(
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+            initial_usdc_balance,
+        )])),
+        total_value_usd,
+    )
+    .await?;
 
-    // Log refined prompt for clarity
-    info!("📝 Refined prompt: \"{}\"", yml_flow.refined_prompt);
-    info!("✅ Flow generated successfully");
-
-    // Get the wallet context from the resolver, similar to transfer test
-    let wallet_context = context_resolver
-        .resolve_wallet_context(&pubkey.to_string())
-        .await?;
-
-    info!("⚙️ Executing lend transaction...");
-
-    // Execute flow using the Executor with RigAgent
-    let executor = Executor::new_with_rig().await?;
-
-    let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
-
-    // Extract transaction signature from step results, matching format from the executor
-
-    let signature = result
-        .step_results
-        .iter()
-        .find_map(|r| {
-            // Look for signature in output.jupiter_lend_earn_deposit.transaction_signature
-            if let Some(jupiter_lend) = r.output.get("jupiter_lend_earn_deposit") {
-                if let Some(sig) = jupiter_lend.get("transaction_signature") {
-                    if let Some(sig_str) = sig.as_str() {
-                        return Some(sig_str.to_string());
-                    }
-                }
-            } else if let Some(sig) = r.output.get("transaction_signature") {
-                if let Some(sig_str) = sig.as_str() {
-                    return Some(sig_str.to_string());
-                }
-            } else if let Some(tool_results) = r.output.get("tool_results") {
-                // RigAgent format: check tool_results array
-                if let Some(results_array) = tool_results.as_array() {
-                    for result in results_array {
-                        // Check for transaction_signature directly in the tool result
-                        if let Some(sig) = result.get("transaction_signature") {
-                            if let Some(sig_str) = sig.as_str() {
-                                return Some(sig_str.to_string());
-                            }
-                        }
-                        // Also check under jupiter_lend_earn_deposit if present
-                        if let Some(jupiter_lend) = result.get("jupiter_lend_earn_deposit") {
-                            if let Some(sig) = jupiter_lend.get("transaction_signature") {
-                                if let Some(sig_str) = sig.as_str() {
-                                    return Some(sig_str.to_string());
-                                }
-                            }
-                        }
-                        // Also check for Jupiter lend errors - even if transaction failed, we might get signature
-                        if let Some(error_result) = result.get("jupiter_lend_earn_deposit") {
-                            if let Some(error) = error_result.get("error") {
-                                warn!("Jupiter lend error detected: {}", error);
-                            }
-                        }
-                    }
-                }
-            }
-            None
-        })
-        .ok_or_else(|| anyhow!("No transaction signature in result"))?;
+    // Extract transaction signature using standardized utility
+    let signature = extract_transaction_signature(&result)?;
 
     info!("✅ Lend completed with signature: {}", signature);
     Ok(signature)
@@ -173,7 +127,7 @@ async fn run_lend_test(test_name: &str, prompt: &str) -> Result<()> {
     );
 
     info!("\n🔄 Starting lend execution flow...");
-    // Execute the lend using the planner and LLM
+    // Execute the lend using standardized utilities
     let signature =
         execute_lend_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
             .await?;

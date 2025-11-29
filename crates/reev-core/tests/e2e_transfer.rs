@@ -23,22 +23,23 @@
 
 mod common;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use common::{
     ensure_surfpool_running, get_test_keypair, init_tracing, parse_pubkey,
     setup_wallet_for_transfer, TARGET_PUBKEY,
 };
 use jup_sdk::surfpool::SurfpoolClient;
-use reev_core::context::{ContextResolver, SolanaEnvironment};
-use reev_core::planner::Planner;
-use reev_core::Executor;
+use reev_core::utils::yml_utils::create_subject_wallet_info_yml;
+use reev_core::utils::{execute_six_step_flow, extract_transaction_signature};
+
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
+use std::collections::HashMap;
 use std::env;
 use tracing::info;
 
-/// Execute transfer using the planner and LLM
+/// Execute transfer using standardized 6-step flow
 async fn execute_transfer_with_rig_agent(
     prompt: &str,
     from_pubkey: &Pubkey,
@@ -46,100 +47,33 @@ async fn execute_transfer_with_rig_agent(
 ) -> Result<String> {
     info!("\n🚀 Starting transfer execution with prompt: {}", prompt);
 
-    // Step 2: Create YML prompt with wallet context using SURFPOOL
-    let context_resolver = ContextResolver::new(SolanaEnvironment {
-        rpc_url: Some("http://localhost:8899".to_string()),
-    });
-    let wallet_context = context_resolver
-        .resolve_wallet_context(&from_pubkey.to_string())
-        .await?;
+    // Create token balances map (empty for transfer test)
+    let token_balances = HashMap::new();
 
-    let formatted_balance = initial_sol_balance as f64 / 1_000_000_000.0;
-    let wallet_info = format!(
-        "subject_wallet_info:\n  - pubkey: \"{from_pubkey}\"\n    lamports: {initial_sol_balance} # {formatted_balance} SOL\n    total_value_usd: 170\n\nsteps:\n  prompt: \"{prompt}\"\n    intent: \"send\"\n    context: \"Executing a SOL transfer using Solana system instructions\"\n    recipient: \"{TARGET_PUBKEY}\""
+    // Create YML prompt using standardized utility
+    let wallet_info = create_subject_wallet_info_yml(
+        from_pubkey,
+        initial_sol_balance,
+        None,
+        170.0, // Default USD value
     );
-
     info!(
         "\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):\n{}",
         wallet_info
     );
 
-    // Step 3: Send prompt to LLM
-    info!("\n🤖 Step 3: Sending prompt to GLM-4.6 model via ZAI_API_KEY...");
+    // Execute standardized 6-step flow
+    let (result, _signature) = execute_six_step_flow(
+        prompt,
+        from_pubkey,
+        initial_sol_balance,
+        Some(token_balances),
+        170.0,
+    )
+    .await?;
 
-    // Initialize planner with context and GLM client
-    let planner = Planner::new_with_glm(context_resolver)?;
-
-    // Generate flow from prompt
-    let flow = planner
-        .refine_and_plan(prompt, &from_pubkey.to_string())
-        .await?;
-    info!("\n⚙️ Step 4: Executing transfer tool call from LLM...");
-
-    // Initialize executor with RigAgent
-    let executor = Executor::new_with_rig().await?;
-
-    // Execute the flow
-    let result = executor.execute_flow(&flow, &wallet_context).await?;
-
-    // Step 5: Extract transaction signature
-    // Find transaction signature in step results
-    let signature = result
-        .step_results
-        .iter()
-        .find_map(|r| {
-            // Check for signature in tool_results array (RigAgent format)
-            if let Some(tool_results) = r.output.get("tool_results") {
-                if let Some(results_array) = tool_results.as_array() {
-                    for result in results_array {
-                        // Check for transaction_signature directly in the tool result
-                        if let Some(sig) = result.get("transaction_signature") {
-                            if let Some(sig_str) = sig.as_str() {
-                                return Some(sig_str.to_string());
-                            }
-                        }
-                        // Also check under sol_transfer if present
-                        if let Some(sol_transfer) = result.get("sol_transfer") {
-                            if let Some(sig) = sol_transfer.get("transaction_signature") {
-                                if let Some(sig_str) = sig.as_str() {
-                                    return Some(sig_str.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Look for signature in output.sol_transfer.transaction_signature
-            if let Some(sol_transfer) = r.output.get("sol_transfer") {
-                if let Some(sig) = sol_transfer.get("transaction_signature") {
-                    if let Some(sig_str) = sig.as_str() {
-                        return Some(sig_str.to_string());
-                    }
-                }
-            }
-            // Also check for transaction_signature directly in output
-            if let Some(sig) = r.output.get("transaction_signature") {
-                if let Some(sig_str) = sig.as_str() {
-                    return Some(sig_str.to_string());
-                }
-            }
-            // Also check tool calls array
-            for call in &r.tool_calls {
-                if call.contains("transaction_signature") {
-                    // Extract signature from JSON string
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(call) {
-                        if let Some(sig) = json.get("transaction_signature") {
-                            if let Some(sig_str) = sig.as_str() {
-                                return Some(sig_str.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            None
-        })
-        .ok_or_else(|| anyhow!("No transaction signature in result"))?;
+    // Extract transaction signature using standardized utility
+    let signature = extract_transaction_signature(&result)?;
 
     info!(
         "\n✅ Step 6: Transfer completed with signature: {}",
@@ -205,7 +139,7 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("\n🔄 Starting transfer execution flow...");
 
-    // Execute the transfer using the planner and LLM
+    // Execute the transfer using standardized utilities
     let signature =
         execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
 
