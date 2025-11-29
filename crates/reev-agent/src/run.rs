@@ -139,7 +139,7 @@ pub async fn run_agent(model_name: &str, payload: LlmRequest) -> Result<String> 
                     .as_ref()
                     .map(|r| r.text.clone())
                     .unwrap_or_else(String::new);
-                return Ok(response_text);
+                Ok(response_text)
             }
         }
     } else if model_name == "local" {
