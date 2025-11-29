@@ -34,7 +34,7 @@ use std::env;
 use tracing::{error, info, warn};
 
 /// Common function to execute a lend operation using standardized 6-step flow
-async fn execute_lend_with_planner(
+async fn execute_lend_with_standardized_flow(
     prompt: &str,
     pubkey: &solana_sdk::pubkey::Pubkey,
     initial_sol_balance: f64,
@@ -128,9 +128,13 @@ async fn run_lend_test(test_name: &str, prompt: &str) -> Result<()> {
 
     info!("\n🔄 Starting lend execution flow...");
     // Execute the lend using standardized utilities
-    let signature =
-        execute_lend_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
-            .await?;
+    let signature = execute_lend_with_standardized_flow(
+        prompt,
+        &pubkey,
+        initial_sol_balance,
+        initial_usdc_balance,
+    )
+    .await?;
 
     // Initialize RPC client
     let client =

@@ -2,6 +2,10 @@
 
 ---
 
+i can see a lot tool name in string, do replace with enum (we already have that, try grep, dont create new)
+
+---
+
 [@AGENTS.md](file:///Users/katopz/git/gist/reev/AGENTS.md) , check [@PLAN_CORE_V3.md](file:///Users/katopz/git/gist/reev/PLAN_CORE_V3.md) , i will need to support the multi-step prompt l
 btw the plan
 ---

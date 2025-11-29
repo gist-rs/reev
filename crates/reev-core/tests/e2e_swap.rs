@@ -49,7 +49,7 @@ use tracing::{error, info};
 // setup_wallet_for_swap is now imported from common module
 
 /// Common function to execute a swap using standardized 6-step flow
-async fn execute_swap_with_planner(
+async fn execute_swap_with_standardized_flow(
     prompt: &str,
     pubkey: &solana_sdk::pubkey::Pubkey,
     initial_sol_balance: f64,
@@ -150,9 +150,13 @@ async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
     // 1. Jupiter transactions have time-sensitive routes based on current market conditions
     // 2. Solana transactions are tied to specific blockhashes that expire
     // 3. Proper retry would require getting a fresh quote from Jupiter API with current blockhash
-    let signature =
-        execute_swap_with_planner(prompt, &pubkey, initial_sol_balance, initial_usdc_balance)
-            .await?;
+    let signature = execute_swap_with_standardized_flow(
+        prompt,
+        &pubkey,
+        initial_sol_balance,
+        initial_usdc_balance,
+    )
+    .await?;
 
     // Initialize RPC client
     let client =

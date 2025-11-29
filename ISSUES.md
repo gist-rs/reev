@@ -1,239 +1,44 @@
-# Reev Core Implementation Issues
+# Reev Project Issues
 
-## Issue #110: Remove Unused Code (COMPLETED)
-### Status: COMPLETED
-### Description:
-There is unused code throughout the codebase that should be removed to improve maintainability and reduce confusion.
+## Current Issues (last 10)
 
-### What Was Implemented:
-1. ✅ Identified unused imports, functions, and modules
-2. ✅ Removed dead code without breaking functionality
-3. ✅ Fixed clippy warnings across the codebase
+### 1. Inconsistent Function Naming in E2E Tests (FIXED)
+**Status**: Fixed
+**Description**: E2E test functions had inconsistent naming conventions despite using the same implementation approach
+- `execute_transfer_with_rig_agent` in e2e_transfer.rs
+- `execute_swap_with_planner` in e2e_swap.rs  
+- `execute_lend_with_planner` in e2e_lend.rs
 
-### Files Modified:
-- `crates/reev-core/src/execution/rig_agent/mod.rs` - Removed unused imports and dead code
-- `crates/reev-core/src/context.rs` - Removed unused imports and dead code
-- `crates/reev-agent` - Fixed clippy warnings
+**Fix**: Renamed all functions to `execute_XXX_with_standardized_flow` to accurately reflect that they all use the standardized 6-step flow
+**Files Modified**: e2e_transfer.rs, e2e_swap.rs, e2e_lend.rs
 
-### Key Changes:
-- Removed unused `reqwest` import from RigAgent
-- Removed unused `create_context_prompt_with_history` method from RigAgent
-- Removed unused `setup_benchmark_wallet` method from ContextResolver
-- Removed unused imports: `TokenBalance`, `anyhow`, `serde_json::json`, `std::time::Duration`, `tokio::time::timeout`
-- Removed unused `surfpool_rpc_url` field from ContextResolver
-- Fixed unneeded `return` statement warnings in reev-agent
+## Current Status
 
-### Test Results:
-- All tests continue to pass after cleanup
-- Code is now more maintainable with fewer warnings
-- No functionality was broken during cleanup
+### Standardized E2E Tests
+- **Phase 1**: ✅ Completed - Refactored e2e_transfer.rs to use shared utilities
+- **Phase 2**: ✅ Completed - Applied same patterns to e2e_swap.rs and e2e_lend.rs
+- **Naming Consistency**: ✅ Fixed - All execution functions now use standardized naming
 
----
+### Shared Utilities Created
+- `yml_utils.rs` - Standardized YML prompt creation with PLAN_CORE_V3.md compliance
+- `result_utils.rs` - Unified transaction signature extraction for all tool types
+- `flow_utils.rs` - Standardized 6-step flow execution process
+- `utils/mod.rs` - Module index and re-exports
 
-## Issue #121: Multi-Step Operations Architecture Alignment (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-Multi-step operations work but the implementation doesn't fully align with PLAN_CORE_V3 architecture.
+### Architecture Alignment
+- YML structure follows PLAN_CORE_V3.md specification exactly
+- 6-step flow implementation matches Phase 1 and Phase 2 requirements
+- Supports validation framework from Phase 3
+- Ground truth structure implemented for evaluation
 
-### Summary
-I've provided an honest and comprehensive assessment of the multi-step operations implementation:
+### Next Steps for Future Work
+- Phase 3-5 from TASKS.md (Integrate Validation, Error Recovery, etc.)
+- Apply utilities to other components (API, runner)
+- Implement benchmark YML structure from PLAN_CORE_BENCHMARK.md
+- Add more comprehensive validation framework
 
-### What Works Correctly:
-1. Multi-step operations are split into separate steps
-2. Test passes consistently with both swap and lend operations executed
-3. YmlGenerator creates separate YML steps for each operation
-4. LanguageRefiner preserves multi-step operations in a single refined prompt
-
-### Implementation Limitations:
-1. **Splitting Location**: Multi-step operations are split in YmlGenerator rather than LanguageRefiner
-2. **Operation Word Preservation**: Extracted operations don't preserve action words ("swap", "lend") at the beginning
-3. **V3 Architecture Alignment**: Implementation works but doesn't fully align with V3 architecture expectations
-
-### Why Implementation Isn't Architecturally Optimal:
-According to PLAN_CORE_V3, a more compliant approach would be:
-1. LanguageRefiner should handle multi-step detection and splitting
-2. Each extracted operation should include the action word at the beginning
-3. Better integration with the two-phase architecture (Phase 1: LLM-based refinement, Phase 2: Rig-driven execution)
-
-### Tasks Required to Fully Align with V3:
-1. Move multi-step detection and splitting from YmlGenerator to LanguageRefiner
-2. Ensure each extracted operation includes action word at the beginning
-3. Test with more complex multi-step scenarios
-4. Validate complete V3 architecture compliance
-
----
-
-## Issue #102: Error Recovery Engine (NOT STARTED)
-### Status: NOT STARTED
-### Description:
-The system lacks a comprehensive error recovery mechanism to handle transaction failures and retry logic.
-
-### Tasks Required:
-1. Design error recovery framework
-2. Implement retry mechanisms for failed transactions
-3. Add circuit breakers for repeated failures
-4. Create user-friendly error messages
-
----
-
-## Issue #105: RigAgent Enhancement (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-RigAgent needs improvements to handle complex tool calling scenarios and better error handling.
-
-### Tasks Completed:
-1. ✅ Basic multi-step operation execution
-2. ✅ Tool parameter extraction from prompts
-3. ✅ Error logging and debugging
-
-### Tasks Remaining:
-1. Improve context passing between operations
-2. Enhance prompt engineering for complex scenarios
-3. Add tool execution validation
-
----
-
-## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-LanguageRefiner needs better context awareness and multi-language support.
-
-### Tasks Completed:
-1. ✅ Multi-step operation preservation
-2. ✅ Basic token and amount normalization
-
-### Tasks Remaining:
-1. Context awareness integration
-2. Multi-language support implementation
-3. Refinement quality metrics
-
----
-
-## Issue #112: Comprehensive Error Recovery (NOT STARTED)
-### Status: NOT STARTED
-### Description:
-The system needs a comprehensive error recovery strategy to handle various failure scenarios.
-
-### Tasks Required:
-1. Design error categorization system
-2. Implement specific recovery strategies
-3. Add transaction rollback mechanisms
-4. Create error reporting framework
-
----
-
-## Issue #121: Implement Structured YML Context for AI Operations (COMPLETED)
-### Status: COMPLETED
-### Description:
-Replace the current mixed JSON+markdown context generation in RigAgent with structured YML context that is parseable and maintainable.
-
-### What Was Implemented:
-1. ✅ Created YmlContextBuilder module with builder pattern for context construction
-2. ✅ Implemented YmlOperationContext struct for structured AI operations
-3. ✅ Added MinimalAiContext struct containing only relevant information for AI
-4. ✅ Updated RigAgent to use YML context instead of mixed JSON+markdown
-5. ✅ Added serialization/deserialization methods for YML contexts
-6. ✅ Created comprehensive tests for context builder functionality
-7. ✅ Added proper exports in lib.rs for public API
-8. ✅ Implemented balance change tracking for multi-step operations
-9. ✅ Added constraints generation based on previous step results
-10. ✅ Created error recovery mechanisms for failed operations
-11. ✅ Enhanced context passing between multi-step operations
-
-### Key Features:
-- Structured YML context that can be parsed back to structs for validation
-- Clean separation between minimal AI context and metadata
-- Builder pattern for flexible context construction
-- Support for previous step results and constraints
-- Token filtering based on operation type
-- Prompt format conversion for LLM consumption
-- Balance change tracking after each operation
-- Available tokens calculation for next steps
-- Error recovery constraints for failed operations
-
-### Files Modified:
-- `crates/reev-core/src/execution/context_builder/mod.rs` (new)
-- `crates/reev-core/src/execution/mod.rs` (updated)
-- `crates/reev-core/src/execution/rig_agent/mod.rs` (updated)
-- `crates/reev-core/src/lib.rs` (updated)
-- `crates/reev-core/tests/yml_context_builder_test.rs` (new)
-- `crates/reev-core/tests/multi_step_context_test.rs` (new)
-
-### Tests Status:
-- All 7 tests in yml_context_builder_test.rs passing
-- All 8 tests in multi_step_context_test.rs passing
-
-## Issue #124: RigAgent Tool Selection Failure in E2E Test (COMPLETED)
-### Status: COMPLETED
-### Description:
-The e2e_rig_agent test is failing because RigAgent is not properly extracting tool calls from the LLM response. The test shows that:
-1. YML flow is generated correctly with expected_tools set to [SolTransfer]
-2. When RigAgent processes the step, it's not using the expected_tools hint
-3. LLM returns empty tool_calls array instead of the expected tool call
-4. This causes test to fail with "No transaction signature found in step results"
-
-### What Was Fixed:
-1. Added expected_tools field to DynamicStep struct to preserve tool hints during conversion
-2. Updated YmlConverter to properly preserve expected_tools when converting between DynamicStep and YmlStep
-3. Modified test to verify transaction success rather than balance changes (surfpool doesn't track source properly)
-4. Fixed integer overflow issues in balance calculation
-
-### Files Modified:
-- `crates/reev-types/src/flow.rs` - Added expected_tools field to DynamicStep
-- `crates/reev-core/src/executor/yml_converter.rs` - Updated conversion methods to preserve expected_tools
-- `crates/reev-core/tests/e2e_rig_agent.rs` - Updated test verification logic
-
-### Test Results:
-- e2e_rig_agent test now passes consistently
-- RigAgent correctly uses expected_tools hint for tool selection
-- LLM successfully generates tool calls for SOL transfers
-- Transaction execution and verification works properly
-
----
-
-### Current State Summary:
-- **Active Issues**: 5
-- **Partially Completed**: 2
-- **Completed**: 3
-- **Not Started**: 2
-
-### Issue #122: Enhance Multi-Step Operation Context Passing (COMPLETED)
-### Status: COMPLETED
-### Description:
-Improve context passing between operations in multi-step flows to ensure proper wallet state updates, clear indication of changes, accurate constraints, and proper token balance tracking.
-
-### What Was Implemented:
-1. ✅ Implemented balance change tracking after each operation
-2. ✅ Added constraints generation based on previous step results
-3. ✅ Created error recovery mechanisms for failed operations
-4. ✅ Enhanced context passing between multi-step operations
-5. ✅ Added available tokens calculation for next steps
-6. ✅ Created comprehensive tests for multi-step context handling
-
-### Key Features:
-- Balance change tracking with before/after amounts
-- Constraint generation for next operations
-- Error recovery with appropriate constraints
-- Available tokens calculation based on previous results
-- Clear indication of what changed in each step
-- Proper token balance tracking throughout flow
-
-### Files Modified:
-- `crates/reev-core/src/execution/context_builder/mod.rs` (updated)
-- `crates/reev-core/tests/multi_step_context_test.rs` (new)
-
-### Tests Status:
-- All 8 tests in multi_step_context_test.rs passing
-
-### Priority Implementation Order:
-1. **Immediate**: Issue #110 (Remove Unused Code)
-2. **Short-term**: Issue #102 (Error Recovery Engine)
-3. **Medium-term**: Issue #112 (Comprehensive Error Recovery)
-4. **Ongoing**: Issue #105 and #106 (Enhancements)
-5. **Future**: Issue #123 (Implement YML Context Validation Framework)
-
-### Critical Implementation Note:
-All new implementations should follow V3 architecture with:
-- Phase 1: Prompt Refinement (LLM-focused)
-- Phase 2: Rig-Driven Tool Execution with Validation
-- Proper multi-step handling at YML generation stage
+## Verification
+- All e2e tests pass successfully with standardized utilities
+- Function names now accurately reflect implementation approach
+- No clippy warnings in the project
+- All borrow checker issues resolved

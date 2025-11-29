@@ -40,7 +40,7 @@ use std::env;
 use tracing::info;
 
 /// Execute transfer using standardized 6-step flow
-async fn execute_transfer_with_rig_agent(
+async fn execute_transfer_with_standardized_flow(
     prompt: &str,
     from_pubkey: &Pubkey,
     initial_sol_balance: u64,
@@ -141,7 +141,8 @@ async fn run_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
 
     // Execute the transfer using standardized utilities
     let signature =
-        execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
+        execute_transfer_with_standardized_flow(prompt, &pubkey, initial_sol_balance as u64)
+            .await?;
 
     // Verify the transfer by checking target account balance
     let final_target_balance = rpc_client.get_balance(&target_pubkey).await?;
