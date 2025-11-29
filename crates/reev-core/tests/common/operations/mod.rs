@@ -384,9 +384,7 @@ impl TestOperation for LendOperation {
             Ok(())
         } else {
             Err(anyhow::anyhow!(
-                "Lend operation failed: USDC deducted={}, jUSDC gained={}",
-                usdc_deducted,
-                jusdc_gained
+                "Lend operation failed: USDC deducted={usdc_deducted}, jUSDC gained={jusdc_gained}"
             ))
         }
     }

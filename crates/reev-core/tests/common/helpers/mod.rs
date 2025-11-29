@@ -19,13 +19,9 @@ pub const TARGET_PUBKEY: &str = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
 /// Check if SURFPOOL is running and accessible
 pub async fn is_surfpool_running() -> bool {
-    match RpcClient::new("http://localhost:8899".to_string())
+    (RpcClient::new("http://localhost:8899".to_string())
         .get_latest_blockhash()
-        .await
-    {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+        .await).is_ok()
 }
 
 /// Helper function to start surfpool and wait for it to be ready
