@@ -8,10 +8,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use reev_core::{ContextResolver, Executor};
+// use reev_core::{ContextResolver, Executor}; // TODO: Uncomment when implementing migration
 use reev_types::{ExecutionResponse, ExecutionStatus};
 use serde_json::json;
-use std::sync::Arc;
+// use std::sync::Arc; // TODO: Uncomment when implementing migration
 use std::time::Instant;
 use tokio::task;
 use tracing::{error, info, instrument};
@@ -51,9 +51,10 @@ pub async fn execute_dynamic_flow(
     );
 
     // Clone request data to avoid borrow checker issues
-    let prompt = request.prompt.clone();
-    let wallet = request.wallet.clone();
-    let agent_type = request.agent.clone();
+    // TODO: Use these variables when implementing migration
+    let _prompt = request.prompt.clone();
+    let _wallet = request.wallet.clone();
+    let _agent_type = request.agent.clone();
     let _atomic_mode = request.atomic_mode;
 
     // Clone the database config for use in blocking task
@@ -69,20 +70,25 @@ pub async fn execute_dynamic_flow(
 
         rt.block_on(async {
             // Create new DatabaseWriter using same configuration as pooled database
-            let database_writer = reev_db::writer::DatabaseWriter::new(db_config)
+            // TODO: Use database_writer when implementing migration
+            let _database_writer = reev_db::writer::DatabaseWriter::new(db_config)
                 .await
                 .map_err(|e| {
                     error!("Failed to create database writer: {}", e);
                     anyhow::anyhow!("Database writer creation failed: {e}")
                 })?;
 
-            let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
-                .await
-                .map_err(|e| {
-                    error!("Failed to create gateway: {}", e);
-                    anyhow::anyhow!("Gateway creation failed: {e}")
-                })?;
-            gateway.process_user_request(&prompt, &wallet).await
+            // TODO: Replace OrchestratorGateway with reev-core components
+            // let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
+            //     .await
+            //     .map_err(|e| {
+            //         error!("Failed to create gateway: {}", e);
+            //         anyhow::anyhow!("Gateway creation failed: {e}")
+            //     })?;
+            // gateway.process_user_request(&prompt, &wallet).await
+
+            // Temporarily return an error until OrchestratorGateway is replaced
+            Err::<(reev_types::flow::DynamicFlowPlan, String), anyhow::Error>(anyhow::anyhow!("Dynamic flow execution is temporarily disabled - OrchestratorGateway needs to be replaced"))
         })
     })
     .await;
@@ -98,7 +104,8 @@ pub async fn execute_dynamic_flow(
 
             // Clone flow_plan and database config for use in blocking task
             let flow_plan_clone = flow_plan.clone();
-            let db_config_for_execution = state.db.config().clone();
+            // TODO: Use db_config_for_execution when implementing migration
+            // let _db_config_for_execution = state.db.config().clone();
 
             info!(
                 flow_id = %flow_plan.flow_id,
@@ -116,24 +123,27 @@ pub async fn execute_dynamic_flow(
                 })?;
 
                 rt.block_on(async {
-                    // Create new DatabaseWriter using same configuration as pooled database
-                    let database_writer =
-                        reev_db::writer::DatabaseWriter::new(db_config_for_execution)
-                            .await
-                            .map_err(|e| {
-                                error!("Failed to create database writer: {}", e);
-                                anyhow::anyhow!("Database writer creation failed: {e}")
-                            })?;
+                    // TODO: Create new DatabaseWriter using same configuration as pooled database
+                    // let database_writer = reev_db::writer::DatabaseWriter::new(db_config_for_execution)
+                    //     .await
+                    //     .map_err(|e| {
+                    //         error!("Failed to create database writer: {}", e);
+                    //         anyhow::anyhow!("Database writer creation failed: {e}")
+                    //     })?;
 
-                    let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to create gateway: {}", e);
-                            anyhow::anyhow!("Gateway creation failed: {e}")
-                        })?;
-                    gateway
-                        .execute_dynamic_flow_with_consolidation(&flow_plan, &agent_type)
-                        .await
+                    // TODO: Replace OrchestratorGateway with reev-core components
+                    // let gateway = OrchestratorGateway::with_database(Arc::new(database_writer))
+                    //     .await
+                    //     .map_err(|e| {
+                    //         error!("Failed to create gateway: {}", e);
+                    //         anyhow::anyhow!("Gateway creation failed: {e}")
+                    //     })?;
+                    // gateway
+                    //     .execute_dynamic_flow_with_consolidation(&flow_plan, &agent_type)
+                    //     .await
+
+                    // Temporarily return an error until OrchestratorGateway is replaced
+                    Err::<reev_types::flow::ExecutionResult, anyhow::Error>(anyhow::anyhow!("Dynamic flow execution with consolidation is temporarily disabled - OrchestratorGateway needs to be replaced"))
                 })
             })
             .await;

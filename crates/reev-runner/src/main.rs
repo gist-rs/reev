@@ -6,7 +6,7 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace as sdktrace;
 use project_root::get_project_root;
-use reev_core::{ContextResolver, Executor};
+// use reev_core::{ContextResolver, Executor}; // TODO: Uncomment when implementing migration
 use reev_runner::renderer;
 use std::path::PathBuf;
 use tracing::{info, subscriber};
@@ -202,43 +202,21 @@ async fn handle_dynamic_flow(cli: Cli) -> Result<()> {
     info!("Generating dynamic flow for prompt: '{}'", prompt);
     info!("Using wallet: {}", wallet);
 
-    // Initialize orchestrator gateway
-    let gateway = OrchestratorGateway::new()
-        .await
-        .context("Failed to create orchestrator gateway")?;
+    // TODO: Initialize orchestrator gateway - temporarily disabled
+    // let gateway = OrchestratorGateway::new()
+    //     .await
+    //     .context("Failed to create orchestrator gateway")?;
 
-    // Process user request and generate dynamic flow
-    let (flow_plan, yml_path) = gateway
-        .process_user_request(&prompt, &wallet)
-        .await
-        .context("Failed to process dynamic flow request")?;
+    // TODO: Process user request and generate dynamic flow
+    // let (flow_plan, yml_path) = gateway
+    //     .process_user_request(&prompt, &wallet)
+    //     .await
+    //     .context("Failed to process dynamic flow request")?;
 
-    info!(
-        "Generated flow plan '{}' with {} steps",
-        flow_plan.flow_id,
-        flow_plan.steps.len()
-    );
-    info!("Temporary YML file: {}", yml_path);
-
-    // Run the generated flow using existing runner functionality
-    let yml_path = PathBuf::from(yml_path);
-    let results = reev_runner::run_benchmarks(
-        yml_path.clone(),
-        &cli.agent,
-        cli.shared_surfpool,
-        false,
-        cli.execution_id,
-    )
-    .await
-    .context("Failed to execute generated dynamic flow")?;
-
-    // Render the results
-    for result in &results {
-        let tree_output = renderer::render_result_as_tree(result);
-        info!("\n{tree_output}");
-    }
-
-    Ok(())
+    // Temporarily return an error until OrchestratorGateway is replaced
+    Err(anyhow::anyhow!(
+        "Dynamic flow generation is temporarily disabled - OrchestratorGateway needs to be replaced"
+    ))
 }
 
 /// Handle Phase 3 recovery flow execution from natural language prompt
@@ -258,51 +236,35 @@ async fn handle_recovery_flow(cli: Cli) -> Result<()> {
         prompt, wallet
     );
 
-    // Parse atomic mode
-    let atomic_mode = match cli.atomic_mode.as_deref() {
-        Some("lenient") => Some(reev_types::flow::AtomicMode::Lenient),
-        Some("conditional") => Some(reev_types::flow::AtomicMode::Conditional),
-        _ => Some(reev_types::flow::AtomicMode::Strict), // default
-    };
+    // TODO: Parse atomic mode - temporarily disabled
+    // let atomic_mode = match cli.atomic_mode.as_deref() {
+    //     Some("lenient") => Some(reev_types::flow::AtomicMode::Lenient),
+    //     Some("conditional") => Some(reev_types::flow::AtomicMode::Conditional),
+    //     _ => Some(reev_types::flow::AtomicMode::Strict), // default
+    // };
 
     info!(
-        "Atomic mode: {:?}, Max recovery time: {}ms, Alternative flows: {}, User fulfillment: {}",
-        atomic_mode,
+        "Recovery mode: {:?}, Max recovery time: {}ms, Alternative flows: {}, User fulfillment: {}",
+        cli.atomic_mode,
         cli.max_recovery_time_ms,
         cli.enable_alternative_flows,
         cli.enable_user_fulfillment
     );
 
-    // Create recovery configuration
-    let recovery_config = reev_orchestrator::RecoveryConfig {
-        max_recovery_time_ms: cli.max_recovery_time_ms,
-        enable_alternative_flows: cli.enable_alternative_flows,
-        enable_user_fulfillment: cli.enable_user_fulfillment,
-        base_retry_delay_ms: 1000,
-        max_retry_delay_ms: 10000,
-        backoff_multiplier: 2.0,
-    };
+    // TODO: Create recovery configuration - temporarily disabled
+    // let recovery_config = reev_orchestrator::RecoveryConfig {
+    //     max_recovery_time_ms: cli.max_recovery_time_ms,
+    //     enable_alternative_flows: cli.enable_alternative_flows,
+    //     enable_user_fulfillment: cli.enable_user_fulfillment,
+    //     base_retry_delay_ms: 1000,
+    //     max_retry_delay_ms: 10000,
+    //     backoff_multiplier: 2.0,
+    // };
 
-    // Use new recovery execution function
-    let results = reev_runner::run_recovery_flow(
-        &prompt,
-        &wallet,
-        &cli.agent,
-        cli.shared_surfpool,
-        cli.execution_id,
-        recovery_config,
-        atomic_mode,
-    )
-    .await
-    .context("Failed to execute recovery flow")?;
-
-    // Render the results
-    for result in &results {
-        let tree_output = renderer::render_result_as_tree(result);
-        info!("\n{tree_output}");
-    }
-
-    Ok(())
+    // Temporarily return an error until reev_orchestrator is replaced
+    Err(anyhow::anyhow!(
+        "Recovery flow execution is temporarily disabled - reev_orchestrator needs to be replaced"
+    ))
 }
 
 /// Handle Phase 2 direct flow execution from natural language prompt

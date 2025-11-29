@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 
-use reev_core::{ContextResolver, Executor};
+// use reev_core::{ContextResolver, Executor}; // TODO: Uncomment when implementing migration
 use reev_flow::{FlowLogger, init_enhanced_otel_logging_with_session};
 use reev_lib::{
     agent::{Agent, AgentObservation},
@@ -801,13 +801,13 @@ pub async fn run_dynamic_flow(
     // };
 
     // Ok(vec![test_result])
-    let result = Err(anyhow!(
+    Err(anyhow!(
         "run_dynamic_flow is deprecated - use execute_flow_with_core instead"
-    ));
-    result
+    ))
 }
 
 /// Calculate score for dynamic flow based on step success rates
+#[allow(dead_code)]
 fn calculate_dynamic_flow_score(step_results: &[reev_types::flow::StepResult]) -> f64 {
     if step_results.is_empty() {
         return 0.0;
@@ -830,7 +830,7 @@ pub async fn run_recovery_flow(
     shared_surfpool: bool,
     execution_id: Option<String>,
     recovery_config: reev_core::executor::recovery::RecoveryConfig,
-    atomic_mode: Option<reev_types::flow::AtomicMode>,
+    _atomic_mode: Option<reev_types::flow::AtomicMode>, // TODO: Remove prefix when used
 ) -> Result<Vec<TestResult>> {
     info!("--- Phase 3: Recovery Flow Execution ---");
     info!(
@@ -912,8 +912,6 @@ pub async fn run_recovery_flow(
         agent_name,
         &format!("recovery://{}", flow_result.flow_id),
         &session_id,
-        // TODO: Implement recovery metrics with reev-core
-        &executor,
     )
     .await?;
 
@@ -941,6 +939,7 @@ pub async fn run_recovery_flow(
 }
 
 /// Create TestCase from DynamicFlowPlan for execution
+#[allow(dead_code)]
 fn create_test_case_from_flow_plan(flow_plan: &DynamicFlowPlan) -> Result<TestCase> {
     // Convert dynamic steps to flow steps
     let flow_steps: Vec<FlowStep> = flow_plan
@@ -1004,6 +1003,7 @@ fn generate_initial_accounts_from_context(
 }
 
 /// Generate ground truth assertions from dynamic steps
+#[allow(dead_code)]
 fn generate_ground_truth_from_steps(
     steps: &[reev_types::flow::DynamicStep],
 ) -> Result<GroundTruth> {
@@ -1369,7 +1369,7 @@ async fn run_flow_benchmark_with_recovery(
     agent_name: &str,
     _benchmark_path: &str,
     session_id: &str,
-    _executor: &Executor,
+    // _executor: &Executor, // TODO: Uncomment when Executor is re-introduced
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
