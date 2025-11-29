@@ -1,337 +1,183 @@
-# Reev Core Implementation Issues
-
-## Issue #110: Remove Unused Code (COMPLETED)
-### Status: COMPLETED
-### Description:
-There is unused code throughout the codebase that should be removed to improve maintainability and reduce confusion.
-
-### What Was Implemented:
-1. ✅ Identified unused imports, functions, and modules
-2. ✅ Removed dead code without breaking functionality
-3. ✅ Fixed clippy warnings across the codebase
-
-### Files Modified:
-- `crates/reev-core/src/execution/rig_agent/mod.rs` - Removed unused imports and dead code
-- `crates/reev-core/src/context.rs` - Removed unused imports and dead code
-- `crates/reev-agent` - Fixed clippy warnings
-
-### Key Changes:
-- Removed unused `reqwest` import from RigAgent
-- Removed unused `create_context_prompt_with_history` method from RigAgent
-- Removed unused `setup_benchmark_wallet` method from ContextResolver
-- Removed unused imports: `TokenBalance`, `anyhow`, `serde_json::json`, `std::time::Duration`, `tokio::time::timeout`
-- Removed unused `surfpool_rpc_url` field from ContextResolver
-- Fixed unneeded `return` statement warnings in reev-agent
-
-### Test Results:
-- All tests continue to pass after cleanup
-- Code is now more maintainable with fewer warnings
-- No functionality was broken during cleanup
-
----
-
-## Issue #121: Multi-Step Operations Architecture Alignment (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-Multi-step operations work but the implementation doesn't fully align with PLAN_CORE_V3 architecture.
-
-### Summary
-I've provided an honest and comprehensive assessment of the multi-step operations implementation:
-
-### What Works Correctly:
-1. Multi-step operations are split into separate steps
-2. Test passes consistently with both swap and lend operations executed
-3. YmlGenerator creates separate YML steps for each operation
-4. LanguageRefiner preserves multi-step operations in a single refined prompt
-
-### Implementation Limitations:
-1. **Splitting Location**: Multi-step operations are split in YmlGenerator rather than LanguageRefiner
-2. **Operation Word Preservation**: Extracted operations don't preserve action words ("swap", "lend") at the beginning
-3. **V3 Architecture Alignment**: Implementation works but doesn't fully align with V3 architecture expectations
-
-### Why Implementation Isn't Architecturally Optimal:
-According to PLAN_CORE_V3, a more compliant approach would be:
-1. LanguageRefiner should handle multi-step detection and splitting
-2. Each extracted operation should include the action word at the beginning
-3. Better integration with the two-phase architecture (Phase 1: LLM-based refinement, Phase 2: Rig-driven execution)
-
-### Tasks Required to Fully Align with V3:
-1. Move multi-step detection and splitting from YmlGenerator to LanguageRefiner
-2. Ensure each extracted operation includes action word at the beginning
-3. Test with more complex multi-step scenarios
-4. Validate complete V3 architecture compliance
-
----
-
-## Issue #102: Error Recovery Engine (NOT STARTED)
-### Status: NOT STARTED
-### Description:
-The system lacks a comprehensive error recovery mechanism to handle transaction failures and retry logic.
-
-### Tasks Required:
-1. Design error recovery framework
-2. Implement retry mechanisms for failed transactions
-3. Add circuit breakers for repeated failures
-4. Create user-friendly error messages
-
----
-
-## Issue #105: RigAgent Enhancement (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-RigAgent needs improvements to handle complex tool calling scenarios and better error handling.
-
-### Tasks Completed:
-1. ✅ Basic multi-step operation execution
-2. ✅ Tool parameter extraction from prompts
-3. ✅ Error logging and debugging
-
-### Tasks Remaining:
-1. Improve context passing between operations
-2. Enhance prompt engineering for complex scenarios
-3. Add tool execution validation
-
-### Detailed Implementation:
-See `/docs/tasks/105/rig_agent/TASKS.md` for comprehensive implementation details including:
-- Enhanced operation history tracking and step-specific constraints
-- Complex operation detection and context-aware prompt refinement
-- Parameter validation framework, result validation, and error recovery mechanisms
-
----
-
-## Issue #105: RigAgent Enhancement (COMPLETED)
-### Status: COMPLETED
-### Description:
-RigAgent needs improvements to handle complex tool calling scenarios and better error handling.
-
-### What Was Implemented:
-1. ✅ Enhanced operation history tracking with detailed input/output information
-2. ✅ Step-specific constraints for parameter validation
-3. ✅ Dynamic context updates after tool execution
-4. ✅ Balance change tracking for multi-step operations
-5. ✅ Constraint generation based on previous step results
-6. ✅ Context prompt builder for AI consumption
-7. ✅ Integration with existing YML context builder
-
-### Files Added:
-- `crates/reev-core/src/execution/rig_agent/enhancement/operation_history.rs` (new)
-- `crates/reev-core/src/execution/rig_agent/enhancement/constraints.rs` (new)
-- `crates/reev-core/src/execution/rig_agent/enhancement/dynamic_context.rs` (new)
-- `crates/reev-core/src/execution/rig_agent/enhancement/mod.rs` (new)
-
-### Files Modified:
-- `crates/reev-core/src/execution/rig_agent/mod.rs` - Updated to expose enhancement features
-- `crates/reev-core/src/execution/context_builder/mod.rs` - Added integration with enhancement features
-- `crates/reev-core/tests/enhanced_context_test.rs` (new) - Added comprehensive tests for enhancement features
-
-### Key Features:
-- **OperationHistory**: Tracks each operation with inputs, outputs, and results
-- **BalanceCalculator**: Calculates available balances after operations
-- **StepConstraint**: Parameter validation with various constraint types
-- **DynamicContextUpdater**: Updates wallet context and generates constraints
-- **ContextPromptBuilder**: Creates context prompts for AI consumption
-
-### Test Results:
-- All 8 tests in enhanced_context_test.rs passing
-- No compilation errors with new code
-- Integration with existing components working correctly
-
----
-
-## Issue #106: LanguageRefiner Improvement (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-LanguageRefiner needs better context awareness and multi-language support.
-
-### Tasks Completed:
-1. ✅ Multi-step operation preservation
-2. ✅ Basic token and amount normalization
-
-### Tasks Remaining:
-1. Context awareness integration
-2. Multi-language support implementation
-3. Refinement quality metrics
-
----
-
-## Issue #112: Comprehensive Error Recovery (NOT STARTED)
-### Status: NOT STARTED
-### Description:
-The system needs a comprehensive error recovery strategy to handle various failure scenarios.
-
-### Tasks Required:
-1. Design error categorization system
-2. Implement specific recovery strategies
-3. Add transaction rollback mechanisms
-4. Create error reporting framework
-
----
-
-## Issue #121: Implement Structured YML Context for AI Operations (COMPLETED)
-### Status: COMPLETED
-### Description:
-Replace the current mixed JSON+markdown context generation in RigAgent with structured YML context that is parseable and maintainable.
-
-### What Was Implemented:
-1. ✅ Created YmlContextBuilder module with builder pattern for context construction
-2. ✅ Implemented YmlOperationContext struct for structured AI operations
-3. ✅ Added MinimalAiContext struct containing only relevant information for AI
-4. ✅ Updated RigAgent to use YML context instead of mixed JSON+markdown
-5. ✅ Added serialization/deserialization methods for YML contexts
-6. ✅ Created comprehensive tests for context builder functionality
-7. ✅ Added proper exports in lib.rs for public API
-8. ✅ Implemented balance change tracking for multi-step operations
-9. ✅ Added constraints generation based on previous step results
-10. ✅ Created error recovery mechanisms for failed operations
-11. ✅ Enhanced context passing between multi-step operations
-
-### Key Features:
-- Structured YML context that can be parsed back to structs for validation
-- Clean separation between minimal AI context and metadata
-- Builder pattern for flexible context construction
-- Support for previous step results and constraints
-- Token filtering based on operation type
-- Prompt format conversion for LLM consumption
-- Balance change tracking after each operation
-- Available tokens calculation for next steps
-- Error recovery constraints for failed operations
-
-### Files Modified:
-- `crates/reev-core/src/execution/context_builder/mod.rs` (new)
-- `crates/reev-core/src/execution/mod.rs` (updated)
-- `crates/reev-core/src/execution/rig_agent/mod.rs` (updated)
-- `crates/reev-core/src/lib.rs` (updated)
-- `crates/reev-core/tests/yml_context_builder_test.rs` (new)
-- `crates/reev-core/tests/multi_step_context_test.rs` (new)
-
-### Tests Status:
-- All 7 tests in yml_context_builder_test.rs passing
-- All 8 tests in multi_step_context_test.rs passing
-
-## Issue #124: RigAgent Tool Selection Failure in E2E Test (COMPLETED)
-### Status: COMPLETED
-### Description:
-The e2e_rig_agent test is failing because RigAgent is not properly extracting tool calls from the LLM response. The test shows that:
-1. YML flow is generated correctly with expected_tools set to [SolTransfer]
-2. When RigAgent processes the step, it's not using the expected_tools hint
-3. LLM returns empty tool_calls array instead of the expected tool call
-4. This causes test to fail with "No transaction signature found in step results"
-
-### What Was Fixed:
-1. Added expected_tools field to DynamicStep struct to preserve tool hints during conversion
-2. Updated YmlConverter to properly preserve expected_tools when converting between DynamicStep and YmlStep
-3. Modified test to verify transaction success rather than balance changes (surfpool doesn't track source properly)
-4. Fixed integer overflow issues in balance calculation
-
-### Files Modified:
-- `crates/reev-types/src/flow.rs` - Added expected_tools field to DynamicStep
-- `crates/reev-core/src/executor/yml_converter.rs` - Updated conversion methods to preserve expected_tools
-- `crates/reev-core/tests/e2e_rig_agent.rs` - Updated test verification logic
-
-### Test Results:
-- e2e_rig_agent test now passes consistently
-- RigAgent correctly uses expected_tools hint for tool selection
-- LLM successfully generates tool calls for SOL transfers
-- Transaction execution and verification works properly
-
----
-
-## Issue #125: Multi-Step Operation Extraction from LLM Responses (PARTIALLY COMPLETED)
-### Status: PARTIALLY COMPLETED
-### Description:
-Multi-step operations are being split correctly, but the LLM is not properly extracting parameters from the prompt, causing "Failed to parse pubkey: String is the wrong size" errors in Jupiter swap execution.
-
-### Summary:
-I've successfully implemented a pattern-based approach for extracting operations from multi-step prompts in the YmlGenerator, bypassing the limitations of the GLM client which is not designed for operation extraction.
-
-### What Was Implemented:
-1. ✅ **Fixed Operation Extraction**: Implemented pattern-based `extract_operations_from_prompt` function that correctly identifies and splits multi-step operations like "swap X to Y then lend Z" into separate steps.
-2. ✅ **Fixed Tool Determination**: Implemented pattern-based `determine_expected_tools` function that correctly identifies required tools for operations.
-3. ✅ **Added JSON Refinement Handling**: Modified extraction functions to handle when LanguageRefiner returns JSON instead of plain text.
-4. ✅ **Created Focused Unit Tests**: Added comprehensive tests in `test_llm_operation_extraction.rs` to verify operation extraction and tool determination without running full e2e tests.
-
-### Current Issue:
-The core issue is with **parameter extraction** from the LLM response. Even though multi-step operations are being split correctly, the LLM is not correctly extracting the `user_pubkey` parameter from the wallet context, causing the Jupiter swap tool to fail with "Failed to parse pubkey: String is the wrong size" error.
-
-### Debug Investigation:
-1. ✅ Multi-step operation splitting is working correctly
-   - Input: "swap 0.1 SOL to USDC and then lend 10 USDC"
-   - Output: Two separate steps: ["swap 0.1 SOL to USDC", "lend 10 USDC"]
-   - Pattern matching is extracting operations correctly
-
-2. ❌ Pubkey extraction is failing
-   - The LLM is not correctly extracting `user_pubkey` from the wallet context
-   - The pubkey being passed is: '86SRa3Msg65SpNi4UF1KQ8M9z8V8foDZzFCnZaCcoJTJ' (length: 44)
-   - This looks like a valid 44-character Solana pubkey, but `Pubkey::from_str()` is failing
-   - Error: "Failed to parse pubkey: String is the wrong size"
-
-### Root Cause:
-The system prompt in `prompting.rs` instructs the LLM to extract `user_pubkey` from the wallet context, but the LLM is not correctly following this instruction and is trying to extract it from the prompt text instead.
-
-### Tasks Required to Complete:
-1. **Fix LLM Parameter Extraction**: Improve the system prompt or context format to ensure the LLM correctly extracts `user_pubkey` from the wallet context.
-2. **Add Validation**: Add validation to ensure the extracted pubkey is valid before passing to Jupiter swap tool.
-3. **Test with Simpler LLM Calls**: Create a simplified test to verify that the LLM can correctly extract parameters when given proper context.
-
-### Files Modified:
-- `crates/reev-core/src/yml_generator/mod.rs` - Added pattern-based operation extraction and JSON handling
-- `crates/reev-core/src/execution/rig_agent/prompting.rs` - Updated system prompt to be more explicit about pubkey extraction
-- `crates/reev-core/tests/test_llm_operation_extraction.rs` - Created focused tests for operation extraction
-- `crates/reev-tools/src/tools/jupiter_swap.rs` - Added debugging for pubkey parsing
-
-### Test Results:
-- All 6 focused tests in test_llm_operation_extraction.rs passing
-- Multi-step operations are being split correctly
-- Tool determination is working correctly
-- The e2e test still fails due to pubkey extraction issue
-
-### Priority:
-This is a **high priority** issue as it's blocking the core functionality of multi-step operations.
-
-
-### Current State Summary:
-- **Active Issues**: 5
-- **Partially Completed**: 2
-- **Completed**: 3
-- **Not Started**: 2
-
-### Issue #122: Enhance Multi-Step Operation Context Passing (COMPLETED)
-### Status: COMPLETED
-### Description:
-Improve context passing between operations in multi-step flows to ensure proper wallet state updates, clear indication of changes, accurate constraints, and proper token balance tracking.
-
-### What Was Implemented:
-1. ✅ Implemented balance change tracking after each operation
-2. ✅ Added constraints generation based on previous step results
-3. ✅ Created error recovery mechanisms for failed operations
-4. ✅ Enhanced context passing between multi-step operations
-5. ✅ Added available tokens calculation for next steps
-6. ✅ Created comprehensive tests for multi-step context handling
-
-### Key Features:
-- Balance change tracking with before/after amounts
-- Constraint generation for next operations
-- Error recovery with appropriate constraints
-- Available tokens calculation based on previous results
-- Clear indication of what changed in each step
-- Proper token balance tracking throughout flow
-
-### Files Modified:
-- `crates/reev-core/src/execution/context_builder/mod.rs` (updated)
-- `crates/reev-core/tests/multi_step_context_test.rs` (new)
-
-### Tests Status:
-- All 8 tests in multi_step_context_test.rs passing
-
-### Priority Implementation Order:
-1. **Immediate**: Issue #110 (Remove Unused Code)
-2. **Short-term**: Issue #102 (Error Recovery Engine)
-3. **Medium-term**: Issue #112 (Comprehensive Error Recovery)
-4. **Ongoing**: Issue #105 and #106 (Enhancements)
-5. **Future**: Issue #123 (Implement YML Context Validation Framework)
-
-### Critical Implementation Note:
-All new implementations should follow V3 architecture with:
-- Phase 1: Prompt Refinement (LLM-based)
-- Phase 2: Rig-Driven Tool Execution with Validation
-- Proper multi-step handling at YML generation stage
+# Reev Core Issues
+
+## Current Status: LLM Integration & Multi-Step Operations
+
+## 🚨 Critical Issue Requiring Immediate Attention
+
+### Issue #1: Pubkey Parsing Failure in e2e_multi_step Test
+
+**Status**: BLOCKING
+**Location**: `crates/reev-core/src/execution/rig_agent/prompting.rs`
+**Impact**: All e2e tests fail, blocking multi-step operation development
+
+**Problem Summary**:
+- e2e_multi_step test fails with "Failed to parse pubkey: String is the wrong size"
+- Pubkey appears correct in logs: `3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr` (44 chars)
+- Same pubkey parses correctly in isolated test (`test_pubkey_parsing.rs`)
+- Issue is in the LLM parameter extraction or string processing pipeline
+
+**Root Cause Analysis**:
+1. LLM extracts pubkey correctly (44 chars, starts with number)
+2. String appears correct when passed to JupiterSwapArgs
+3. Direct parsing test passes with same pubkey
+4. Issue likely in how string is processed between LLM extraction and tool execution
+
+**Implementation Plan**:
+1. Add hex representation debugging in JupiterSwapTool::call
+   - Log hex bytes of pubkey string before parsing
+   - Compare with hex bytes in test_pubkey_parsing.rs
+   - Identify any invisible characters or encoding differences
+
+2. Create robust string sanitization
+   - Strip invisible characters (BOM, zero-width spaces, etc.)
+   - Normalize Unicode (NFC)
+   - Add validation for pubkey format (44 chars, base58)
+
+3. Implement fallback parsing with multiple validation methods
+   - Try direct Pubkey::from_str first
+   - If fails, try sanitized version
+   - As last resort, extract from wallet_context directly
+   - Add explicit error messages for each failure mode
+
+4. Add comprehensive logging for debugging
+   - Log pubkey string at each step in pipeline
+   - Log byte-by-byte comparison between working/failing cases
+   - Create a dedicated debug test for this issue
+
+**Files to Modify**:
+- `crates/reev-tools/src/tools/jupiter_swap.rs` - Add hex debugging and sanitization
+- `crates/reev-core/src/execution/rig_agent/tool_execution.rs` - Improve parameter handling
+- `crates/reev-core/src/execution/rig_agent/prompting.rs` - Fix pubkey extraction
+
+## Priority Issues
+
+### Issue #2: GLM Response Parsing Issues
+
+**Status**: IN PROGRESS
+**Location**: `crates/reev-core/src/llm/glm_client.rs`
+
+**Problem**: GLM returns `reasoning_content` with analysis instead of structured JSON
+
+**Current Workarounds**:
+- `extract_json_from_text` function parses JSON from mixed responses
+- Fallback responses when JSON extraction fails
+- Pattern-based operation extraction as backup
+
+**Implementation Plan**:
+1. Enhance JSON extraction with better error handling
+   - Add detailed logging for extraction attempts
+   - Track which extraction method succeeded
+   - Improve regex patterns for edge cases
+   - Add validation of extracted JSON structure
+
+2. Consider alternative prompt engineering
+   - Experiment with different prompt formats
+   - Test more explicit instructions for JSON-only response
+   - Try adding JSON schema in the prompt
+   - Evaluate temperature settings for more deterministic output
+
+3. Evaluate if GLM is optimal for structured output
+   - Compare with other LLMs for JSON output reliability
+   - Consider implementing a structured output wrapper
+   - Evaluate using OpenAI's function calling or similar features
+   - Test with different model versions for improvement
+
+### Issue #3: Multi-Step Operations Architecture
+
+**Status**: PARTIALLY IMPLEMENTED
+**Location**: `crates/reev-core/src/yml_generator/mod.rs`
+
+**Working Correctly**:
+- Multi-step operations split into separate steps
+- Pattern-based extraction handles common scenarios
+- Tests pass for single-step operations
+
+**V3 Compliance Issues**:
+1. Operations split in YmlGenerator instead of LanguageRefiner
+2. Action words not preserved in extracted operations
+3. Not fully aligned with V3 architecture requirements
+
+**Implementation Plan**:
+1. Move multi-step detection to LanguageRefiner
+   - Refactor YmlGenerator to only handle single operations
+   - Move sequence detection logic to LanguageRefiner
+   - Update Planner to use LanguageRefiner for multi-step
+   - Add tests to validate the new flow
+
+2. Preserve action words in operations
+   - Modify operation extraction to keep action words
+   - Update YML schema to include action context
+   - Ensure action words are passed through to execution
+   - Add validation that action words are preserved
+
+3. Validate complete V3 compliance
+   - Compare current implementation with PLAN_CORE_V3.md
+   - Identify any remaining gaps in architecture
+   - Add tests specifically for V3 compliance
+   - Document migration strategy for remaining changes
+
+## Test Status Summary
+
+**Passing**:
+- `test_llm_operation_extraction.rs`: 6/6 tests
+- `enhanced_context_test.rs`: 8/8 tests
+- `yml_context_builder_test.rs`: 7/7 tests
+- `multi_step_context_test.rs`: 8/8 tests
+- `test_pubkey_parsing.rs`: 1/1 tests (isolated parsing works)
+
+**Failing**:
+- `e2e_multi_step.rs`: Pubkey extraction issue in LLM pipeline
+
+## Implementation Priority
+
+1. **URGENT (Blocker)**: Fix pubkey extraction & parsing (Issue #1)
+   - Must be resolved before any e2e tests can pass
+   - Blocking all multi-step operation development
+   - Estimated effort: 2-3 days
+   - **Dependencies**: None
+
+2. **High**: Improve GLM response parsing (Issue #2)
+   - Enhances reliability of LLM integration
+   - Critical for production stability
+   - Estimated effort: 1-2 days
+   - **Dependencies**: None
+
+3. **Medium**: Align multi-step with V3 architecture (Issue #3)
+   - Long-term architecture improvement
+   - Can be addressed after blockers resolved
+   - Estimated effort: 3-5 days
+   - **Dependencies**: Issue #1, #2
+
+## Immediate Next Steps
+
+1. Today: Implement hex debugging in JupiterSwapTool::call to identify root cause
+2. Tomorrow: Implement string sanitization and fallback parsing mechanisms
+3. Follow-up: Address GLM response parsing improvements
+4. Later: Align with V3 architecture once core issues resolved
+
+## Critical Files for Fixes
+
+1. `crates/reev-tools/src/tools/jupiter_swap.rs` - Pubkey parsing improvements
+   - Add hex debugging for pubkey bytes
+   - Implement string sanitization
+   - Add robust fallback parsing
+
+2. `crates/reev-core/src/execution/rig_agent/tool_execution.rs` - Parameter processing
+   - Improve parameter type handling
+   - Add validation for critical parameters
+   - Fix numeric value conversion
+
+3. `crates/reev-core/src/execution/rig_agent/prompting.rs` - System prompt improvements
+   - Fix pubkey extraction from wallet context
+   - Improve tool parameter parsing
+   - Add robust error handling
+
+4. `crates/reev-core/src/llm/glm_client.rs` - JSON extraction enhancements
+   - Improve `extract_json_from_text` function
+   - Add better fallback mechanisms
+   - Enhance error reporting
+
+5. `crates/reev-core/src/yml_generator/mod.rs` - Architecture alignment
+   - Move multi-step detection to LanguageRefiner
+   - Preserve action words in operations
+   - Align with V3 architecture
