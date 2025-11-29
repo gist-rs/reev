@@ -76,17 +76,7 @@ async fn execute_lend_with_planner(
 
     let result = executor.execute_flow(&yml_flow, &wallet_context).await?;
 
-    // Debug: Print the full execution result
-    println!("DEBUG: Full execution result: {result:#?}");
-
     // Extract transaction signature from step results, matching format from the executor
-    println!(
-        "DEBUG: Searching for signature in {} step results",
-        result.step_results.len()
-    );
-    for (i, step_result) in result.step_results.iter().enumerate() {
-        println!("DEBUG: Step result {i}: {step_result:#?}");
-    }
 
     let signature = result
         .step_results
@@ -193,8 +183,6 @@ async fn run_lend_test(test_name: &str, prompt: &str) -> Result<()> {
         solana_client::nonblocking::rpc_client::RpcClient::new("http://localhost:8899".to_string());
 
     // Check transaction status
-    println!("🔍 Checking transaction status... (debug print)");
-    println!("DEBUG: Raw signature value: {signature}");
     let signature = signature
         .parse::<solana_sdk::signature::Signature>()
         .map_err(|e| anyhow!("Failed to parse transaction signature: {e}"))?;
@@ -277,7 +265,6 @@ async fn run_lend_test(test_name: &str, prompt: &str) -> Result<()> {
     }
 
     info!("✅ Final USDC balance matches expected lend amount");
-    println!("✅ Final USDC balance matches expected lend amount (debug print)");
 
     // Check for Jupiter USDC (jUSDC) token balance after lending
     let jusdc_mint = solana_sdk::pubkey!("jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw"); // Jupiter USDC mint
@@ -327,5 +314,5 @@ async fn test_lend_100_usdc() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 #[serial_test::serial]
 async fn test_lend_all_usdc() -> Result<()> {
-    run_lend_test("Lend 100 USDC", "lend 100 USDC").await
+    run_lend_test("Lend all USDC", "lend all USDC").await
 }

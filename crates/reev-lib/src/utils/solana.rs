@@ -55,6 +55,31 @@ pub fn read_keypair_from_file(path: &str) -> Result<Keypair> {
             .map_err(|e| anyhow!("Failed to parse JSON key file: {e}"))?;
 
         if let Some(array) = json_value.as_array() {
+            // Check if the array contains numbers (old Solana format)
+            if let Some(first_elem) = array.first() {
+                if first_elem.is_number() {
+                    // Convert array of numbers to bytes
+                    let key_bytes: Result<Vec<u8>, _> = array
+                        .iter()
+                        .map(|v| {
+                            v.as_u64()
+                                .ok_or_else(|| anyhow!("Not a number"))
+                                .map(|n| n as u8)
+                        })
+                        .collect();
+
+                    let key_bytes =
+                        key_bytes.map_err(|e| anyhow!("Failed to convert array to bytes: {e}"))?;
+
+                    // Create keypair from bytes
+                    #[allow(deprecated)]
+                    let solana_keypair = SolanaKeypair::from_bytes(&key_bytes)
+                        .map_err(|e| anyhow!("Failed to create keypair from array: {e}"))?;
+                    return Ok(solana_keypair);
+                }
+            }
+
+            // Try the original logic for string format
             if let Some(key_data) = array.first() {
                 if let Some(key_str) = key_data.as_str() {
                     // Try to parse as base58
