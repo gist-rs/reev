@@ -14,7 +14,7 @@
 //!
 //! ## Test Flow (8 Steps)
 //!
-//! 1. Prompt: "swap 0.1 SOL to USDC then lend 100 USDC"
+//! 1. Prompt: "swap 0.1 SOL to USDC then lend 10 USDC"
 //! 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
 //! 3. Creates a flow with swap and lend operations
 //! 4. Shows log info for swap tool calling from LLM
@@ -26,20 +26,21 @@
 mod common;
 
 use anyhow::Result;
-use common::{ensure_surfpool_running, setup_wallet_for_swap};
+use common::pubkeys::{jusdc, usdc};
 use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
-use reev_lib::get_keypair;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use std::env;
 use tracing::{info, warn};
 
-/// Test end-to-end multi-step flow with prompt "swap 0.1 SOL to USDC then lend 100 USDC"
+/// Test end-to-end multi-step flow with prompt "swap 0.1 SOL to USDC then lend 10 USDC"
 ///
 /// This test follows the 8-step process:
-/// 1. Prompt: "swap 0.1 SOL to USDC then lend 100 USDC"
+/// 1. Prompt: "swap 0.1 SOL to USDC then lend 10 USDC"
 /// 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
 /// 3. Creates a flow with swap and lend operations
 /// 4. Shows log info for swap tool calling via rig framework from LLM
@@ -47,36 +48,16 @@ use tracing::{info, warn};
 /// 6. Shows the transactions generated from these tools
 /// 7. Signs the transactions with default keypair at ~/.config/solana/id.json
 /// 8. Shows transaction completion result from SURFPOOL
+#[rstest]
 #[tokio::test(flavor = "multi_thread")]
 #[serial_test::serial]
-async fn test_swap_then_lend() -> Result<()> {
+async fn test_swap_then_lend(
+    #[from(common::fixtures::surfpool_running)] _surfpool_running: Result<()>,
+    #[from(common::fixtures::configured_env)] _configured_env: Result<()>,
+    #[from(common::fixtures::default_keypair)] keypair: solana_sdk::signer::keypair::Keypair,
+) -> Result<()> {
     info!("\n🧪 Starting Test: Swap then Lend");
     info!("=====================================");
-
-    // Load .env file for ZAI_API_KEY
-    dotenvy::dotenv().ok();
-
-    // Check for ZAI_API_KEY
-    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
-        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
-    })?;
-
-    info!("✅ ZAI_API_KEY is configured");
-
-    // Restart SURFPOOL for a clean test environment
-    info!("🔄 Restarting SURFPOOL for clean test environment...");
-    reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-
-    // Give SURFPOOL time to restart
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    // Ensure SURFPOOL is running
-    ensure_surfpool_running().await?;
-    info!("✅ SURFPOOL is running and ready");
-
-    // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_keypair()
-        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
 
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
@@ -88,7 +69,7 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("\n💰 Setting up test wallet with SOL and USDC...");
     // Set up the wallet with SOL and USDC
     let (initial_sol_balance, initial_usdc_balance) =
-        setup_wallet_for_swap(&pubkey, &surfpool_client).await?;
+        common::helpers::setup_wallet_for_swap(&pubkey, &surfpool_client).await?;
     println!(
         "✅ Wallet setup completed with {initial_sol_balance} SOL and {initial_usdc_balance} USDC"
     );
@@ -100,9 +81,6 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("🔍 SETUP: Starting with 5 SOL and {initial_usdc_balance} USDC");
     info!("🔍 EXPECTED: 0.1 SOL swap should yield ~15 USDC at current prices");
     info!("🔍 EXPECTED: Should lend ~10 USDC from swapped amount (keeping some for fees)");
-
-    // Debug: Print the steps that will be generated
-    info!("🔍 DEBUG: About to generate flow from prompt");
 
     // Set up the context resolver with SURFPOOL RPC URL (matching transaction execution)
     let context_resolver = ContextResolver::new(SolanaEnvironment {
@@ -123,16 +101,7 @@ async fn test_swap_then_lend() -> Result<()> {
         "✅ Flow generated successfully with {} steps",
         yml_flow.steps.len()
     );
-    info!(
-        "✅ Flow generated successfully with {} steps",
-        yml_flow.steps.len()
-    );
     println!("DEBUG: Total steps generated = {}", yml_flow.steps.len());
-
-    // Debug: Print each step's refined prompt
-    for (i, step) in yml_flow.steps.iter().enumerate() {
-        println!("DEBUG: Step {}: {}", i + 1, step.refined_prompt);
-    }
 
     // Debug: Print each step's refined prompt
     for (i, step) in yml_flow.steps.iter().enumerate() {
@@ -161,14 +130,9 @@ async fn test_swap_then_lend() -> Result<()> {
     let client =
         solana_client::nonblocking::rpc_client::RpcClient::new("http://localhost:8899".to_string());
 
-    // Get token mint addresses
-    let usdc_mint = solana_sdk::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    let jusdc_mint = solana_sdk::pubkey!("jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw"); // Jupiter USDC mint
-
     // Get token account addresses
-    let usdc_ata = spl_associated_token_account::get_associated_token_address(&pubkey, &usdc_mint);
-    let jusdc_ata =
-        spl_associated_token_account::get_associated_token_address(&pubkey, &jusdc_mint);
+    let usdc_ata = spl_associated_token_account::get_associated_token_address(&pubkey, &usdc());
+    let jusdc_ata = spl_associated_token_account::get_associated_token_address(&pubkey, &jusdc());
 
     // Check USDC balance before execution
     let usdc_balance_before = client.get_token_account_balance(&usdc_ata).await?;
@@ -247,9 +211,7 @@ async fn test_swap_then_lend() -> Result<()> {
         ));
     }
 
-    // RPC client and token addresses were already initialized above
-
-    // DEBUG: Check USDC balance before execution
+    // Check USDC balance before execution
     let pre_swap_usdc = client.get_token_account_balance(&usdc_ata).await?;
     let pre_swap_usdc_amount = pre_swap_usdc.ui_amount.unwrap_or(0.0);
     info!("🔍 DEBUG: USDC balance before any operations: {pre_swap_usdc_amount}");
@@ -280,9 +242,6 @@ async fn test_swap_then_lend() -> Result<()> {
     info!("Final jUSDC balance: {}", jusdc_amount);
 
     // Verify that we have jUSDC tokens from lending
-    // Count operations executed check is already done above
-
-    // Verify that we have jUSDC tokens from lending (primary check for multi-step success)
     if jusdc_amount > 0.0 {
         info!("✅ Successfully received jUSDC tokens from lending");
     } else {

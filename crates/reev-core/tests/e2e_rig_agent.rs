@@ -17,21 +17,13 @@
 mod common;
 
 use anyhow::{anyhow, Result};
-use common::{
-    ensure_surfpool_running,
-    helpers::{init_tracing, parse_pubkey},
-    pubkeys::target,
-    setup_wallet_for_transfer,
-};
-use reev_lib::get_keypair;
+use common::{helpers::init_tracing, pubkeys::target};
 
-use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
 use std::env;
 use tokio::time::sleep;
 use tracing::{info, warn};
@@ -112,9 +104,6 @@ async fn execute_transfer_with_rig_agent(
 
     // Step 5: Extract transaction signature
     info!("🔍 Step results count: {}", result.step_results.len());
-
-    // Debug: Print full step results to understand structure
-    println!("DEBUG: Full step results: {:#?}", result.step_results);
 
     // Debug: Print full step results to understand structure
     println!("DEBUG: Full step results: {:#?}", result.step_results);
@@ -205,53 +194,20 @@ async fn execute_transfer_with_rig_agent(
 }
 
 /// Run transfer test with given prompt
-async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()> {
+async fn run_rig_agent_transfer_test(
+    test_name: &str,
+    prompt: &str,
+    pubkey: &Pubkey,
+    initial_sol_balance: u64,
+) -> Result<()> {
     info!("\n🧪 Starting Test: {}", test_name);
     info!("=====================================");
-
-    // Load .env file for ZAI_API_KEY
-    dotenvy::dotenv().ok();
 
     // Initialize tracing with focused logging for the transfer flow
     init_tracing();
 
-    // Load .env file for ZAI_API_KEY
-    dotenvy::dotenv().ok();
-
-    // Disable enhanced OTEL logging to reduce verbosity
-    env::set_var("REEV_ENHANCED_OTEL", "0");
-
-    // Check for ZAI_API_KEY
-    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
-        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
-    })?;
-
-    info!("✅ ZAI_API_KEY is configured");
-
-    // Check if surfpool is running
-    ensure_surfpool_running().await?;
-    info!("✅ SURFPOOL is running and ready");
-
-    // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_keypair()
-        .map_err(|e| anyhow::anyhow!("Failed to load keypair from default location: {e}"))?;
-
-    let pubkey = keypair.pubkey();
-    info!("✅ Loaded default keypair: {pubkey}");
-    info!("🔑 Using keypair from ~/.config/solana/id.json");
-
     // Initialize RPC client
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
-
-    // Set up the wallet with SOL and USDC
-    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
-    let (initial_sol_balance, initial_usdc_balance) =
-        setup_wallet_for_transfer(&pubkey, &surfpool_client).await?;
-    info!(
-        "✅ Wallet setup completed with {} SOL and {} USDC",
-        initial_sol_balance / 1_000_000_000.0,
-        initial_usdc_balance
-    );
 
     // Get target account info
     let target_pubkey = target();
@@ -263,8 +219,7 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
     info!("\n🔄 Starting transfer execution flow...");
 
     // Execute the transfer using the planner with RigAgent
-    let signature =
-        execute_transfer_with_rig_agent(prompt, &pubkey, initial_sol_balance as u64).await?;
+    let signature = execute_transfer_with_rig_agent(prompt, pubkey, initial_sol_balance).await?;
     println!("DEBUG: Extracted signature: {signature}");
 
     // Verify that RigAgent selected and executed the correct tool
@@ -370,9 +325,30 @@ async fn run_rig_agent_transfer_test(test_name: &str, prompt: &str) -> Result<()
 }
 
 /// Test RigAgent with GLM-based tool selection and SOL transfer
+#[rstest]
 #[tokio::test]
-async fn test_rig_agent_transfer() -> Result<()> {
+async fn test_rig_agent_transfer(
+    #[from(common::fixtures::surfpool_running)] _surfpool_running: Result<()>,
+    #[from(common::fixtures::configured_env)] _configured_env: Result<()>,
+    #[from(common::fixtures::default_keypair)] keypair: solana_sdk::signer::keypair::Keypair,
+) -> Result<()> {
+    // Set up the wallet with SOL and USDC
+    let surfpool_client = jup_sdk::surfpool::SurfpoolClient::new("http://localhost:8899");
+    let (initial_sol_balance, initial_usdc_balance) =
+        common::helpers::setup_wallet_for_transfer(&keypair.pubkey(), &surfpool_client).await?;
+    info!(
+        "✅ Wallet setup completed with {} SOL and {} USDC",
+        initial_sol_balance / 1_000_000_000.0,
+        initial_usdc_balance
+    );
+
     // Test with a simple SOL transfer prompt
     let prompt = "send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
-    run_rig_agent_transfer_test("SOL Transfer", prompt).await
+    run_rig_agent_transfer_test(
+        "SOL Transfer",
+        prompt,
+        &keypair.pubkey(),
+        initial_sol_balance as u64,
+    )
+    .await
 }

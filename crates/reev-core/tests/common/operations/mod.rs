@@ -351,18 +351,34 @@ impl TestOperation for LendOperation {
         check_transaction_status(signature).await?;
 
         // Get initial token balances
-        let _initial_usdc_balance = get_token_balance(pubkey, &usdc()).await?;
-        let _initial_jusdc_balance = get_token_balance(pubkey, &jusdc()).await?;
+        let initial_usdc_balance = get_token_balance(pubkey, &usdc()).await?;
+        let initial_jusdc_balance = get_token_balance(pubkey, &jusdc()).await?;
 
-        // Re-execute operation to get final balances
-        // Note: In a real implementation, we would track the actual amount lent
-        // For now, we'll just verify that some USDC was lent and some jUSDC was received
+        // Wait a moment for the transaction to be processed
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Get final token balances
+        let final_usdc_balance = get_token_balance(pubkey, &usdc()).await?;
+        let final_jusdc_balance = get_token_balance(pubkey, &jusdc()).await?;
+
+        // Verify that USDC was deducted and jUSDC was received
+        let usdc_deducted = initial_usdc_balance - final_usdc_balance;
+        let jusdc_gained = final_jusdc_balance - initial_jusdc_balance;
+
         info!("🧪 Verifying lend operation...");
+        info!("USDC deducted: {}", usdc_deducted);
+        info!("jUSDC gained: {}", jusdc_gained);
 
-        // This is a simplified verification - in a real test we would need to track
-        // the exact amount lent from the operation result
-        info!("✅ Lend operation verified with signature: {}", signature);
-        Ok(())
+        if usdc_deducted > 0.0 && jusdc_gained > 0.0 {
+            info!("✅ Lend operation verified with signature: {}", signature);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Lend operation failed: USDC deducted={}, jUSDC gained={}",
+                usdc_deducted,
+                jusdc_gained
+            ))
+        }
     }
 }
 
