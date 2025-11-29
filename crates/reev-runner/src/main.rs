@@ -6,7 +6,7 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace as sdktrace;
 use project_root::get_project_root;
-use reev_orchestrator::OrchestratorGateway;
+use reev_core::{ContextResolver, Executor};
 use reev_runner::renderer;
 use std::path::PathBuf;
 use tracing::{info, subscriber};

@@ -131,18 +131,17 @@ The framework operates on **`surfpool`**, a high-performance in-memory fork of S
     *   **Agent Interface**: Defines a simple `Agent` trait and provides an `LlmAgent` that can reason about prompts.
     *   **Benchmark Structs**: Rust types that define the structure of a benchmark YAML file, enabling strongly-typed parsing.
 
-2.  **`reev-orchestrator` (Dynamic Flow Engine)**:
-    *   **Natural Language Processing**: Context-aware prompt generation with template system
-    *   **Dynamic Flow Generation**: Transforms natural language into atomic, executable flows
-    *   **Context Resolution**: Real-time wallet balance and pricing data integration
-    *   **Recovery Engine**: Enterprise-grade failure handling with three recovery strategies
-    *   **Execution Modes**: Bridge (compatibility), Direct (zero file I/O), and Recovery (resilient) modes
+2.  **`reev-core` (Core Architecture)**:
+    *   **YML Flow Generation**: Creates structured flows following PLAN_CORE_V3
+    *   **Two-Phase Architecture**: Phase 1 (LLM refinement) → Phase 2 (Rig execution)
+    *   **Context-Aware Prompts**: Refines user prompts for clear tool execution
+    *   **Validation Framework**: Ground truth-based validation and error recovery
 
-3.  **`reev-runner` (CLI Orchestrator)**:
+**`reev-runner` (CLI Orchestrator)**:
     *   The command-line tool for loading and running benchmarks.
     *   Supports both static YML files and dynamic natural language flows
-    *   Orchestrates the entire evaluation loop, from setting up the environment to calculating metrics and reporting results.
-    *   Features atomic execution modes: Strict, Lenient, and Conditional
+    *   Implements benchmark evaluation following PLAN_CORE_BENCHMARK.md
+    *   Features deterministic verification using SURFPOOL's mainnet-forking capability
 
 4.  **`reev-agent` (LLM Service)**:
     *   A standalone server that exposes an LLM's reasoning capabilities over an API.

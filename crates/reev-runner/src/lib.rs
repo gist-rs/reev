@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 
+use reev_core::{ContextResolver, Executor};
 use reev_flow::{FlowLogger, init_enhanced_otel_logging_with_session};
 use reev_lib::{
     agent::{Agent, AgentObservation},
@@ -13,7 +14,6 @@ use reev_lib::{
     solana_env::environment::SolanaEnv,
     trace::ExecutionTrace,
 };
-use reev_orchestrator::OrchestratorGateway;
 use reev_types::flow::{BenchmarkSource, DynamicFlowPlan};
 
 use std::{
@@ -739,10 +739,12 @@ pub async fn run_benchmarks_with_source(
 }
 
 /// Runs dynamic flow directly in memory without temporary files (Phase 2)
+// TODO: Refactor to use reev-core components instead of OrchestratorGateway
+#[allow(dead_code)]
 pub async fn run_dynamic_flow(
     prompt: &str,
     wallet: &str,
-    agent_name: &str,
+    _agent_name: &str,
     _shared_surfpool: bool,
     _execution_id: Option<String>,
 ) -> Result<Vec<TestResult>> {
@@ -753,51 +755,56 @@ pub async fn run_dynamic_flow(
     );
 
     // Initialize orchestrator gateway
-    let gateway = OrchestratorGateway::new()
-        .await
-        .context("Failed to create orchestrator gateway")?;
+    // TODO: Replace with reev-core implementation
+    // let gateway = OrchestratorGateway::new()
+    //     .await
+    //     .context("Failed to create orchestrator gateway")?;
 
-    // Process user request and generate dynamic flow plan
-    let (flow_plan, _yml_path) = gateway
-        .process_user_request(prompt, wallet)
-        .await
-        .context("Failed to process dynamic flow request")?;
+    // TODO: Refactor to use reev-core components instead of OrchestratorGateway
+    // let (flow_plan, _yml_path) = gateway
+    //     .process_user_request(prompt, wallet)
+    //     .await
+    //     .context("Failed to process dynamic flow request")?;
 
-    info!(
-        "Generated flow plan '{}' with {} steps (direct execution)",
-        flow_plan.flow_id,
-        flow_plan.steps.len()
-    );
+    // info!(
+    //     "Generated flow plan '{}' with {} steps (direct execution)",
+    //     flow_plan.flow_id,
+    //     flow_plan.steps.len()
+    // );
 
-    // Execute the flow plan using ping-pong executor
-    let gateway = OrchestratorGateway::new()
-        .await
-        .context("Failed to create orchestrator gateway for execution")?;
+    // // Execute flow plan using ping-pong executor
+    // let gateway = OrchestratorGateway::new()
+    //     .await
+    //     .context("Failed to create orchestrator gateway for execution")?;
 
-    let step_results = gateway
-        .execute_flow_with_ping_pong(&flow_plan, agent_name)
-        .await
-        .context("Failed to execute dynamic flow with ping-pong")?;
+    // let step_results = gateway
+    //     .execute_flow_with_ping_pong(&flow_plan, agent_name)
+    //     .await
+    //     .context("Failed to execute dynamic flow with ping-pong")?;
 
-    info!("Dynamic flow execution completed successfully");
+    // info!("Dynamic flow execution completed successfully");
 
-    // Convert step results to TestResult format
-    let test_result = TestResult {
-        id: flow_plan.flow_id.clone(),
-        prompt: flow_plan.user_prompt.clone(),
-        final_status: if step_results.iter().all(|r| r.success) {
-            FinalStatus::Succeeded
-        } else {
-            FinalStatus::Failed
-        },
-        score: calculate_dynamic_flow_score(&step_results),
-        trace: ExecutionTrace {
-            prompt: flow_plan.user_prompt.clone(),
-            steps: vec![],
-        },
-    };
+    // // Convert step results to TestResult format
+    // let test_result = TestResult {
+    //     id: flow_plan.flow_id.clone(),
+    //     prompt: flow_plan.user_prompt.clone(),
+    //     final_status: if step_results.iter().all(|r| r.success) {
+    //         FinalStatus::Succeeded
+    //     } else {
+    //         FinalStatus::Failed
+    //     },
+    //     score: calculate_dynamic_flow_score(&step_results),
+    //     trace: ExecutionTrace {
+    //         prompt: flow_plan.user_prompt.clone(),
+    //         steps: vec![],
+    //     },
+    // };
 
-    Ok(vec![test_result])
+    // Ok(vec![test_result])
+    let result = Err(anyhow!(
+        "run_dynamic_flow is deprecated - use execute_flow_with_core instead"
+    ));
+    result
 }
 
 /// Calculate score for dynamic flow based on step success rates
@@ -814,13 +821,15 @@ fn calculate_dynamic_flow_score(step_results: &[reev_types::flow::StepResult]) -
 }
 
 /// Execute a flow with Phase 3 recovery mechanisms
+// TODO: Refactor to use reev-core components instead of OrchestratorGateway
+#[allow(dead_code)]
 pub async fn run_recovery_flow(
     prompt: &str,
     wallet: &str,
     agent_name: &str,
     shared_surfpool: bool,
     execution_id: Option<String>,
-    recovery_config: reev_orchestrator::RecoveryConfig,
+    recovery_config: reev_core::executor::recovery::RecoveryConfig,
     atomic_mode: Option<reev_types::flow::AtomicMode>,
 ) -> Result<Vec<TestResult>> {
     info!("--- Phase 3: Recovery Flow Execution ---");
@@ -829,25 +838,37 @@ pub async fn run_recovery_flow(
         prompt, wallet
     );
 
-    // Initialize orchestrator gateway with recovery configuration
-    let gateway = reev_orchestrator::OrchestratorGateway::with_recovery_config(recovery_config)
-        .await
-        .context("Failed to create orchestrator gateway with recovery config")?;
-
     // Create wallet context for flow generation
     let wallet_context = reev_types::flow::WalletContext::new(wallet.to_string());
 
-    // Process user request and generate dynamic flow plan
-    let flow_plan = gateway
-        .generate_enhanced_flow_plan(prompt, &wallet_context, atomic_mode)
+    // Generate refined prompt using reev-core's LanguageRefiner
+    let refiner = reev_core::LanguageRefiner::new();
+    let refined_prompt = refiner
+        .refine_prompt(prompt)
         .await
-        .context("Failed to generate recovery flow plan")?;
+        .context("Failed to refine prompt")?;
+
+    // Generate YML flow using reev-core's YmlGenerator
+    let yml_generator = reev_core::YmlGenerator::new();
+    let yml_flow = yml_generator
+        .generate_flow(&refined_prompt, &wallet_context)
+        .await
+        .context("Failed to generate YML flow")?;
+
+    // Initialize executor with recovery configuration
+    let executor = reev_core::Executor::new()?.with_recovery_config(recovery_config);
+
+    // Execute YML flow using executor
+    let flow_result = executor
+        .execute_flow(&yml_flow, &wallet_context)
+        .await
+        .context("Failed to execute YML flow")?;
 
     info!(
-        "Generated recovery flow plan '{}' with {} steps (atomic mode: {:?})",
-        flow_plan.flow_id,
-        flow_plan.steps.len(),
-        flow_plan.atomic_mode
+        "Executed flow '{}' with {} steps (success: {})",
+        flow_result.flow_id,
+        flow_result.step_results.len(),
+        flow_result.success
     );
 
     // Initialize dependency management system
@@ -859,19 +880,19 @@ pub async fn run_recovery_flow(
     .await
     .context("Failed to initialize dependencies")?;
 
-    // Create test case from flow plan (in-memory)
-    let test_case = create_test_case_from_flow_plan(&flow_plan)?;
+    // Create test case from flow result (in-memory)
+    let test_case = create_test_case_from_flow_result(&flow_result)?;
 
     // Start reev-agent for this flow
     info!(
         "Starting reev-agent for recovery flow: {} with agent: {}",
-        flow_plan.flow_id, agent_name
+        flow_result.flow_id, agent_name
     );
     dependency_guard
         .manager
         .update_config_and_restart_agent(
             Some(agent_name.to_string()),
-            Some(flow_plan.flow_id.clone()),
+            Some(flow_result.flow_id.clone()),
         )
         .await
         .context("Failed to start reev-agent for recovery flow")?;
@@ -889,31 +910,28 @@ pub async fn run_recovery_flow(
             .as_ref()
             .expect("Flow steps should be present"),
         agent_name,
-        &format!("recovery://{}", flow_plan.flow_id),
+        &format!("recovery://{}", flow_result.flow_id),
         &session_id,
-        &gateway,
+        // TODO: Implement recovery metrics with reev-core
+        &executor,
     )
     .await?;
 
     info!("Recovery flow execution completed");
 
     // Log recovery metrics
-    let recovery_metrics = gateway.get_recovery_metrics().await;
-    info!(
-        "Recovery metrics - Total attempts: {}, Successful recoveries: {}, Failed recoveries: {}",
-        recovery_metrics.total_attempts,
-        recovery_metrics.successful_recoveries,
-        recovery_metrics.failed_recoveries
-    );
+    // TODO: Implement recovery metrics with reev-core
+    info!("Recovery metrics implementation not yet available in reev-core V3");
 
     // Stop reev-agent after flow completion
     info!(
         "Stopping reev-agent after recovery flow: {}",
-        flow_plan.flow_id
+        flow_result.flow_id
     );
+
     if let Err(e) = dependency_guard.manager.stop_reev_agent().await {
         warn!(
-            flow_id = %flow_plan.flow_id,
+            flow_id = %flow_result.flow_id,
             error = %e,
             "Failed to stop reev-agent gracefully after recovery flow"
         );
@@ -1351,7 +1369,7 @@ async fn run_flow_benchmark_with_recovery(
     agent_name: &str,
     _benchmark_path: &str,
     session_id: &str,
-    _gateway: &reev_orchestrator::OrchestratorGateway,
+    _executor: &Executor,
 ) -> Result<TestResult> {
     info!(
         benchmark_id = %test_case.id,
@@ -1673,4 +1691,50 @@ async fn run_evaluation_loop(
     trace.add_step(trace_step);
     info!("Episode finished.");
     Ok((step_result.observation, trace, actions))
+}
+
+/// Create test case from flow result (used when working with reev-core)
+fn create_test_case_from_flow_result(
+    flow_result: &reev_types::flow::FlowResult,
+) -> Result<TestCase> {
+    // Convert step results to flow steps
+    let flow_steps: Vec<FlowStep> = flow_result
+        .step_results
+        .iter()
+        .enumerate()
+        .map(|(index, step)| FlowStep {
+            step: (index + 1) as u32,
+            description: format!("Step {}: {}", index + 1, step.step_id),
+            prompt: format!("Executed step {}", step.step_id),
+            critical: true,
+            timeout: Some(30),
+            depends_on: Vec::new(),
+        })
+        .collect();
+
+    // Generate initial accounts from flow context
+    let initial_accounts = if let Some(context) = &flow_result.final_context {
+        generate_initial_accounts_from_context(context)?
+    } else {
+        vec![]
+    };
+
+    // Generate simple ground truth
+    let ground_truth = reev_lib::benchmark::GroundTruth {
+        transaction_status: "Success".to_string(),
+        final_state_assertions: vec![],
+        expected_instructions: vec![],
+        skip_instruction_validation: false,
+    };
+
+    Ok(TestCase {
+        id: flow_result.flow_id.clone(),
+        description: format!("Flow result: {}", flow_result.user_prompt),
+        prompt: flow_result.user_prompt.clone(),
+        initial_state: initial_accounts,
+        ground_truth,
+        flow_type: "dynamic".to_string(),
+        flow: Some(flow_steps),
+        tags: vec!["dynamic".to_string(), "core-v3".to_string()],
+    })
 }

@@ -8,7 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use reev_orchestrator::OrchestratorGateway;
+use reev_core::{ContextResolver, Executor};
 use reev_types::{ExecutionResponse, ExecutionStatus};
 use serde_json::json;
 use std::sync::Arc;

@@ -2,7 +2,7 @@
 //!
 //! This module provides the handler for executing flow plans using ping-pong coordination.
 
-use reev_orchestrator::OrchestratorGateway;
+use reev_core::{ContextResolver, Executor};
 use reev_types::execution::ToolCallSummary;
 use std::sync::Arc;
 use tracing::{error, info};

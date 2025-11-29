@@ -40,7 +40,8 @@ path = "tests/agent_restart_test.rs"
 [dependencies]
  reev-lib = { path = "../reev-lib" }
  reev-flow = { path = "../reev-flow" }
- reev-orchestrator = { path = "../reev-orchestrator" }
+# Removed reev-orchestrator dependency - using reev-core for PLAN_CORE_V3 architecture
+reev-core = { path = "../reev-core" }
  reev-types = { path = "../reev-types" }
  anyhow = "1.0"
 serde_yaml = "0.9"

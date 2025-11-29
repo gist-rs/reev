@@ -27,7 +27,8 @@ direct_runner = []
 reev-lib = { path = "../reev-lib", features = ["database"] }
 reev-db = { path = "../reev-db" }
 reev-flow = { path = "../reev-flow" }
-reev-orchestrator = { path = "../reev-orchestrator" }
+# Removed reev-orchestrator dependency - using reev-core for PLAN_CORE_V3 architecture
+reev-core = { path = "../reev-core" }
 reev-runner = { path = "../reev-runner" }
 reev-tools = { path = "../reev-tools" }
 reev-agent = { path = "../reev-agent" }
