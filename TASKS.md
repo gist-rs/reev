@@ -1,14 +1,89 @@
-# Reev Benchmark Implementation Tasks
+# Reev Benchmark Implementation Tasks - Two-Stage Protocol Approach
 
-This document outlines the remaining work to fully implement the benchmark requirements from PLAN_CORE_BENCHMARK.md. Each task is modular, testable independently, and aligned with the comprehensive benchmark architecture.
+This document outlines the remaining work to fully implement the benchmark requirements from PLAN_CORE_BENCHMARK.md, with a focus on the two-stage protocol approach defined in PLAN_PROTOCOLS.md. Each task is modular, testable independently, and aligned with the comprehensive benchmark architecture.
 
 ## 📋 Task Categories
 
-### 1. Enhanced Validation Framework
+### 1. Stage 1 Protocol Interface Implementation
+**Priority**: High
+**Estimated Effort**: 4-5 days
+
+#### 1.1 Core Protocol Interface
+**File**: `crates/reev-core/src/protocols/executor.rs`
+**Description**: Implement minimal protocol interface for immediate needs
+**Acceptance Criteria**:
+- [ ] Create `ProtocolExecutor` trait with execute method
+- [ ] Define `ProtocolOperation` and `OperationType` structures
+- [ ] Implement error types for protocol operations
+- [ ] Keep interface minimal but extensible
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_protocol_executor_trait() {
+    // Test ProtocolExecutor trait implementation
+}
+
+#[tokio::test]
+async fn test_protocol_operation() {
+    // Test ProtocolOperation structure and serialization
+}
+```
+
+#### 1.2 Jupiter Protocol Wrapper
+**File**: `crates/reev-core/src/protocols/jupiter/mod.rs`
+**Description**: Wrap existing Jupiter handlers with protocol interface
+**Acceptance Criteria**:
+- [ ] Implement `JupiterProtocol` struct with protocol trait
+- [ ] Wrap existing swap, lend, and earn handlers
+- [ ] Convert between protocol and handler parameter formats
+- [ ] Maintain compatibility with existing functionality
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_jupiter_protocol_swap() {
+    // Test Jupiter protocol swap operation
+}
+
+#[tokio::test]
+async fn test_jupiter_protocol_lend() {
+    // Test Jupiter protocol lend operation
+}
+
+#[tokio::test]
+async fn test_jupiter_protocol_earn() {
+    // Test Jupiter protocol earn operation
+}
+```
+
+#### 1.3 Protocol Registry
+**File**: `crates/reev-core/src/protocols/registry.rs`
+**Description**: Simple protocol registry for protocol discovery
+**Acceptance Criteria**:
+- [ ] Implement protocol registration and retrieval
+- [ ] Support protocol selection by operation type
+- [ ] Prepare for future protocol additions
+- [ ] Maintain protocol instances during execution
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_protocol_registry() {
+    // Test protocol registration and retrieval
+}
+
+#[tokio::test]
+async fn test_protocol_selection() {
+    // Test protocol selection by operation type
+}
+```
+
+### 2. Enhanced Validation Framework
 **Priority**: High
 **Estimated Effort**: 3-4 days
 
-#### 1.1 Blockchain State Validation
+#### 2.1 Blockchain State Validation
 **File**: `crates/reev-core/src/benchmark/validators/blockchain_state.rs`
 **Description**: Implement actual blockchain state validation for assertions
 **Acceptance Criteria**:
@@ -30,7 +105,7 @@ async fn test_token_balance_validation() {
 }
 ```
 
-#### 1.2 Assertion Engine
+#### 2.2 Assertion Engine
 **File**: `crates/reev-core/src/benchmark/validators/assertion_engine.rs`
 **Description**: Create a generic assertion validation engine
 **Acceptance Criteria**:
@@ -47,17 +122,17 @@ async fn test_assertion_engine() {
 }
 ```
 
-### 2. Benchmark Runner
+### 3. Benchmark Runner
 **Priority**: High
 **Estimated Effort**: 4-5 days
 
-#### 2.1 Static Benchmark Runner
+#### 3.1 Static Benchmark Runner
 **File**: `crates/reev-core/src/benchmark/runner/static_runner.rs`
 **Description**: Execute predefined benchmark flows
 **Acceptance Criteria**:
 - [ ] Load YML flows from file system
 - [ ] Initialize SURFPOOL with deterministic state
-- [ ] Execute flows with timing and monitoring
+- [ ] Execute flows using protocol interface
 - [ ] Collect metrics and generate reports
 - [ ] Support multiple flow categories
 
@@ -74,13 +149,13 @@ async fn test_static_multi_step_benchmark() {
 }
 ```
 
-#### 2.2 Dynamic Benchmark Runner
+#### 3.2 Dynamic Benchmark Runner
 **File**: `crates/reev-core/src/benchmark/runner/dynamic_runner.rs`
 **Description**: Generate and test flows from prompts
 **Acceptance Criteria**:
 - [ ] Accept prompt input in various languages
 - [ ] Generate flows using QueryHandler
-- [ ] Handle typos and variations
+- [ ] Execute flows using protocol interface
 - [ ] Score generation quality against expectations
 
 **Test Cases**:
@@ -96,7 +171,7 @@ async fn test_dynamic_multi_step_benchmark() {
 }
 ```
 
-#### 2.3 Benchmark CLI
+#### 3.3 Benchmark CLI
 **File**: `crates/reev-core/src/bin/benchmark_runner.rs`
 **Description**: Command-line interface for running benchmarks
 **Acceptance Criteria**:
@@ -111,11 +186,11 @@ cargo run --bin benchmark_runner --static --path benchmarks/flows/ --output json
 cargo run --bin benchmark_runner --dynamic --category swap --prompt "swap 1 sol to usdc"
 ```
 
-### 3. SURFPOOL Integration
+### 4. SURFPOOL Integration
 **Priority**: High
 **Estimated Effort**: 3-4 days
 
-#### 3.1 SURFPOOL Environment Setup
+#### 4.1 SURFPOOL Environment Setup
 **File**: `crates/reev-core/src/surfpool/environment.rs`
 **Description**: Initialize and manage SURFPOOL environments
 **Acceptance Criteria**:
@@ -132,7 +207,7 @@ async fn test_surfpool_setup() {
 }
 ```
 
-#### 3.2 State Initialization
+#### 4.2 State Initialization
 **File**: `crates/reev-core/src/surfpool/state_manager.rs`
 **Description**: Initialize deterministic blockchain state
 **Acceptance Criteria**:
@@ -149,11 +224,11 @@ async fn test_state_initialization() {
 }
 ```
 
-### 4. Performance Monitoring
+### 5. Performance Monitoring
 **Priority**: Medium
 **Estimated Effort**: 2-3 days
 
-#### 4.1 Resource Usage Tracker
+#### 5.1 Resource Usage Tracker
 **File**: `crates/reev-core/src/benchmark/performance/resource_tracker.rs`
 **Description**: Track memory, CPU, and network usage
 **Acceptance Criteria**:
@@ -170,7 +245,7 @@ async fn test_resource_tracking() {
 }
 ```
 
-#### 4.2 Performance Metrics Collector
+#### 5.2 Performance Metrics Collector
 **File**: `crates/reev-core/src/benchmark/performance/metrics_collector.rs`
 **Description**: Collect and aggregate performance metrics
 **Acceptance Criteria**:
@@ -187,18 +262,18 @@ async fn test_metrics_collection() {
 }
 ```
 
-### 5. Error Recovery Framework
+### 6. Error Recovery Framework
 **Priority**: Medium
 **Estimated Effort**: 3-4 days
 
-#### 5.1 Error Recovery Strategies
+#### 6.1 Error Recovery Strategies
 **File**: `crates/reev-core/src/executor/recovery/strategies.rs`
 **Description**: Implement specific recovery strategies for different errors
 **Acceptance Criteria**:
 - [ ] Handle insufficient_balance with reduced amount
 - [ ] Handle slippage_exceeded with alternative routes
 - [ ] Handle network_error with retries and fallback
-- [ ] Support custom recovery strategies
+- [ ] Support protocol-specific recovery strategies
 
 **Test Cases**:
 ```rust
@@ -213,7 +288,7 @@ async fn test_slippage_recovery() {
 }
 ```
 
-#### 5.2 Recovery Executor
+#### 6.2 Recovery Executor
 **File**: `crates/reev-core/src/executor/recovery/executor.rs`
 **Description**: Execute recovery strategies and track success
 **Acceptance Criteria**:
@@ -230,11 +305,54 @@ async fn test_recovery_execution() {
 }
 ```
 
-### 6. Benchmark Test Suite
+### 7. Stage 2 Protocol Framework (Future Priority)
+**Priority**: Low
+**Estimated Effort**: 5-6 days
+
+#### 7.1 Enhanced Protocol Interface
+**File**: `crates/reev-core/src/protocols/validator.rs` (extension)
+**Description**: Add validation and gas estimation to protocol interface
+**Acceptance Criteria**:
+- [ ] Extend ProtocolExecutor with validation methods
+- [ ] Implement ProtocolValidator trait
+- [ ] Implement ProtocolResultMapper trait
+- [ ] Add protocol metadata support
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_enhanced_protocol_interface() {
+    // Test enhanced protocol interface with validation
+}
+
+#[tokio::test]
+async fn test_protocol_validation() {
+    // Test protocol validation implementation
+}
+```
+
+#### 7.2 Marinade Protocol Implementation
+**File**: `crates/reev-core/src/protocols/marinade/mod.rs`
+**Description**: Implement Marinade protocol using enhanced interface
+**Acceptance Criteria**:
+- [ ] Implement Marinade protocol with validation
+- [ ] Add staking operation support
+- [ ] Implement result mapping for Marinade
+- [ ] Add gas estimation for staking operations
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_marinade_protocol_stake() {
+    // Test Marinade protocol staking operation
+}
+```
+
+### 8. Benchmark Test Suite
 **Priority**: Medium
 **Estimated Effort**: 2-3 days
 
-#### 6.1 Language Variation Tests
+#### 8.1 Language Variation Tests
 **File**: `crates/reev-core/tests/benchmark/language_variation.rs`
 **Description**: Test handling of different languages and typos
 **Acceptance Criteria**:
@@ -256,7 +374,7 @@ async fn test_typo_handling() {
 }
 ```
 
-#### 6.2 Complexity Tests
+#### 8.2 Complexity Tests
 **File**: `crates/reev-core/tests/benchmark/complexity_tests.rs`
 **Description**: Test handling of different complexity levels
 **Acceptance Criteria**:
@@ -278,11 +396,11 @@ async fn test_complex_multiplication() {
 }
 ```
 
-### 7. CI/CD Integration
+### 9. CI/CD Integration
 **Priority**: Low
 **Estimated Effort**: 2-3 days
 
-#### 7.1 GitHub Actions Workflow
+#### 9.1 GitHub Actions Workflow
 **File**: `.github/workflows/benchmark.yml`
 **Description**: Automated benchmark execution in CI/CD
 **Acceptance Criteria**:
@@ -315,7 +433,7 @@ jobs:
           path: benchmark-results.json
 ```
 
-#### 7.2 Benchmark Dashboard
+#### 9.2 Benchmark Dashboard
 **File**: `scripts/benchmark_dashboard.py`
 **Description**: Visualize benchmark results over time
 **Acceptance Criteria**:
@@ -337,40 +455,62 @@ def generate_dashboard(results_file):
 
 ## 🚀 Implementation Sequence
 
-### Week 1: Foundation (High Priority)
+### Week 1: Stage 1 Protocol Foundation (High Priority)
+1. Core Protocol Interface
+   - ProtocolExecutor trait
+   - ProtocolOperation and OperationType
+   - Protocol error types
+
+2. Jupiter Protocol Wrapper
+   - JupiterProtocol struct
+   - Handler wrapping for swap, lend, earn
+   - Parameter format conversion
+
+### Week 2: Validation Framework (High Priority)
 1. Enhanced Validation Framework
    - Blockchain State Validation
    - Assertion Engine
 
-2. Benchmark Runner Foundation
-   - Static Benchmark Runner
+2. Protocol Registry
+   - Protocol registration and retrieval
+   - Protocol selection by operation type
 
-### Week 2: Core Runner (High Priority)
-1. Benchmark Runner Completion
-   - Dynamic Benchmark Runner
-   - Benchmark CLI
+### Week 3: Benchmark Runner (High Priority)
+1. Benchmark Runner Foundation
+   - Static Benchmark Runner
+   - SURFPOOL Integration
+   - Environment Setup
 
 2. SURFPOOL Integration
-   - Environment Setup
    - State Initialization
+   - Environment management
 
-### Week 3: Advanced Features (Medium Priority)
-1. Performance Monitoring
+### Week 4: Advanced Features (Medium Priority)
+1. Dynamic Benchmark Runner
+   - Prompt-based flow generation
+   - Protocol interface integration
+
+2. Performance Monitoring
    - Resource Usage Tracker
    - Metrics Collector
 
-2. Error Recovery Framework
+### Week 5: Error Handling (Medium Priority)
+1. Error Recovery Framework
    - Recovery Strategies
    - Recovery Executor
 
-### Week 4: Testing & Integration (Medium/Low Priority)
-1. Benchmark Test Suite
+2. Benchmark Test Suite
    - Language Variation Tests
    - Complexity Tests
 
-2. CI/CD Integration
+### Week 6: CI/CD & Future Prep (Low Priority)
+1. CI/CD Integration
    - GitHub Actions Workflow
    - Benchmark Dashboard
+
+2. Stage 2 Preparation
+   - Enhanced Protocol Interface design
+   - Marinade Protocol planning
 
 ## 📊 Success Metrics
 
@@ -423,4 +563,4 @@ This task list is designed for iterative development:
 
 ---
 
-This task list provides a modular, step-by-step approach to implementing the comprehensive benchmark requirements from PLAN_CORE_BENCHMARK.md. Each task is designed to be testable independently while contributing to the overall benchmark infrastructure.
+This task list provides a modular, step-by-step approach to implementing the comprehensive benchmark requirements from PLAN_CORE_BENCHMARK.md, with a focus on the two-stage protocol approach outlined in PLAN_PROTOCOLS.md. Each task is designed to be testable independently while contributing to the overall benchmark infrastructure.

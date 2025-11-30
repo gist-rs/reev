@@ -1,523 +1,418 @@
-# Reev Protocol Architecture Plan
+# Reev Protocol Architecture Plan - Two-Stage Approach
 
-## 🎯 Why: Clear Protocol Separation for Maintainable AI-Generated Flows
+## 🎯 Why: Phased Protocol Abstraction for Immediate and Future Needs
 
-Current protocol implementation faces several challenges:
-1. **Duplicate implementations** between `crates/reev-protocols` and `crates/reev-core/src/execution/handlers`
-2. **Confusing dependencies** with protocol-specific code mixed into core orchestration
-3. **Maintenance burden** keeping two separate implementations in sync
-4. **Testing complexity** due to unclear boundaries between components
-5. **Difficulty extending** to new protocols without clear patterns
+This document outlines a two-stage approach to implementing protocol abstraction in Reev, prioritizing immediate needs while keeping the architecture flexible for future protocol additions.
 
-This plan establishes a clear, testable approach to consolidate protocol implementations while maintaining the existing `reev-core` structure for E2E compatibility.
+### Current State
+- Jupiter operations (swap, lend, earn) implemented with separate handlers
+- Marinade operations (stake) and wallet operations (transfer) in development
+- Need for benchmarking and testing infrastructure per TASKS.md
+- Project constraints: files under 320-512 lines, modular design, incremental implementation
 
-## 🏗️ Architecture Overview
+### Future Needs
+- Multiple protocol support (Jupiter, Marinade, custom protocols)
+- Enhanced validation and error recovery
+- Performance optimization and gas estimation
+- Protocol-specific configuration and parameters
 
-### Core Principle: Protocol Abstraction Layer
-Create a generic protocol abstraction that allows plugging in different DeFi protocols while keeping core orchestration logic unchanged.
+## 🏗️ Two-Stage Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   reev-core (Orchestration)            │
-├─────────────────────────────────────────────────────────────┤
-│  • QueryHandler • Planner • Executor • YMLGenerator      │
-│  • BenchmarkScorer • Validation Framework                │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          │ uses
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│               Protocol Abstraction Layer               │
-├─────────────────────────────────────────────────────────────┤
-│  • ProtocolTraits • GenericExecutor • ErrorHandling       │
-│  • ParameterValidation • ResultMapping                  │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          │ implements
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│             Protocol Implementations               │
-├─────────────────────────────────────────────────────────────┤
-│  • Jupiter • Orca • Marinade • Raydium • Custom    │
-└─────────────────────────────────────────────────────────────┘
-```
+### Stage 1: Minimal Protocol Interface (Immediate Priority)
+**Focus**: Consolidate current operations with a simple, extensible interface
 
-## 📋 Testable Refactoring Groups
+**Timeline**: Weeks 1-2
+**Goals**:
+1. Create a lightweight protocol abstraction
+2. Consolidate existing Jupiter operations without breaking functionality
+3. Prepare the foundation for future protocol additions
+4. Support immediate benchmarking and testing needs
 
-### Group 1: Protocol Trait Definition (Priority: High)
-**Files**:
-- `crates/reev-core/src/protocols/mod.rs`
-- `crates/reev-core/src/protocols/traits.rs`
+### Stage 2: Full Protocol Abstraction (Future Priority)
+**Focus**: Enhanced features for production-scale multi-protocol support
 
-**Goal**: Define generic interfaces for all protocol operations.
+**Timeline**: Future (triggered by specific needs)
+**Goals**:
+1. Add advanced protocol features (validation, gas estimation)
+2. Implement comprehensive error handling and recovery
+3. Optimize performance for high-throughput scenarios
+4. Enhance configuration and protocol management
 
-**Implementation Steps**:
-1. Create `ProtocolExecutor` trait for execution
-2. Create `ProtocolValidator` trait for parameter validation
-3. Create `ProtocolResultMapper` trait for result standardization
+## 📋 Stage 1: Minimal Protocol Interface (Priority: High)
 
-**Tests**:
-- Unit tests for trait definitions
-- Mock implementations for testing
-- E2E tests using mock protocols
-
-### Group 2: Jupiter Protocol Implementation (Priority: High)
-**Files**:
-- `crates/reev-core/src/protocols/jupiter/mod.rs`
-- `crates/reev-core/src/protocols/jupiter/swap.rs`
-- `crates/reev-core/src/protocols/jupiter/lend.rs`
-- `crates/reev-core/src/protocols/jupiter/earn.rs`
-
-**Goal**: Implement Jupiter protocol using new trait structure.
-
-**Implementation Steps**:
-1. Create Jupiter struct implementing protocol traits
-2. Consolidate duplicate Jupiter implementations
-3. Maintain compatibility with existing E2E tests
-4. Add comprehensive error handling
-
-**Tests**:
-- Unit tests for each operation
-- Integration tests with SURFPOOL
-- E2E tests preserving current functionality
-
-### Group 3: Protocol Registry (Priority: High)
-**Files**:
-- `crates/reev-core/src/protocols/registry.rs`
-- `crates/reev-core/src/protocols/factory.rs`
-
-**Goal**: Create protocol discovery and instantiation mechanism.
-
-**Implementation Steps**:
-1. Implement protocol registry with dynamic loading
-2. Create factory pattern for protocol instantiation
-3. Add protocol selection based on operation type
-4. Support custom protocol registration
-
-**Tests**:
-- Registry population tests
-- Factory creation tests
-- Dynamic loading tests
-
-### Group 4: Generic Protocol Executor (Priority: Medium)
-**Files**:
-- `crates/reev-core/src/execution/generic_executor.rs`
-- `crates/reev-core/src/execution/parameter_validator.rs`
-
-**Goal**: Create execution layer that works with any protocol.
-
-**Implementation Steps**:
-1. Implement generic executor using protocol traits
-2. Add parameter validation before execution
-3. Standardize result handling across protocols
-4. Integrate with existing executor framework
-
-**Tests**:
-- Generic executor tests with multiple protocols
-- Parameter validation tests
-- Result mapping tests
-
-### Group 5: Error Handling Framework (Priority: Medium)
-**Files**:
-- `crates/reev-core/src/protocols/error_handling.rs`
-- `crates/reev-core/src/protocols/recovery.rs`
-
-**Goal**: Standardize error handling across protocols.
-
-**Implementation Steps**:
-1. Create protocol-agnostic error types
-2. Implement recovery strategies
-3. Add error mapping between protocols
-4. Integrate with existing error handling
-
-**Tests**:
-- Error type conversion tests
-- Recovery strategy tests
-- Error propagation tests
-
-### Group 6: Configuration System (Priority: Low)
-**Files**:
-- `crates/reev-core/src/protocols/config.rs`
-- `crates/reev-core/src/protocols/settings.rs`
-
-**Goal**: Centralized protocol configuration.
-
-**Implementation Steps**:
-1. Create configuration structure for protocols
-2. Add protocol-specific settings
-3. Implement configuration validation
-4. Support environment-based configuration
-
-**Tests**:
-- Configuration loading tests
-- Validation tests
-- Environment override tests
-
-## 🔧 Implementation Strategy
-
-### Phase 1: Foundation (Week 1)
-1. Implement Group 1: Protocol Trait Definition
-   - Define clear interfaces for all protocols
-   - Create testable trait boundaries
-   - Document usage patterns
-
-2. Verify E2E Tests Pass
-   - Ensure all existing tests still work
-   - Document any compatibility issues
-   - Create migration plan if needed
-
-### Phase 2: Core Protocol (Week 2)
-1. Implement Group 2: Jupiter Protocol
-   - Consolidate existing Jupiter implementations
-   - Implement new trait structure
-   - Maintain backward compatibility
-
-2. Implement Group 3: Protocol Registry
-   - Create protocol discovery mechanism
-   - Add factory pattern for instantiation
-   - Support protocol selection
-
-3. Verify E2E Tests Pass
-   - Test all Jupiter operations
-   - Ensure registry works correctly
-   - Validate factory pattern implementation
-
-### Phase 3: Generic Execution (Week 3)
-1. Implement Group 4: Generic Protocol Executor
-   - Create protocol-agnostic execution layer
-   - Add parameter validation
-   - Standardize result handling
-
-2. Implement Group 5: Error Handling Framework
-   - Create protocol-agnostic error types
-   - Implement recovery strategies
-   - Integrate with existing error handling
-
-3. Verify E2E Tests Pass
-   - Test generic execution with multiple protocols
-   - Validate error handling
-   - Test recovery mechanisms
-
-### Phase 4: Configuration (Week 4)
-1. Implement Group 6: Configuration System
-   - Create centralized configuration
-   - Add protocol-specific settings
-   - Support environment-based configuration
-
-2. Add Protocol Extension Examples
-   - Document adding new protocols
-   - Create template implementations
-   - Provide best practices guide
-
-3. Verify E2E Tests Pass
-   - Test configuration system
-   - Validate protocol extensions
-   - Test with different configurations
-
-## 📊 Protocol Trait Definition
-
-### Core Protocol Traits
+### Core Protocol Executor
+**File**: `crates/reev-core/src/protocols/executor.rs`
+**Description**: Simple protocol interface for immediate needs
 
 ```rust
-/// Core trait for all protocol executors
-#[async_trait]
-pub trait ProtocolExecutor: Send + Sync {
-    /// Execute a protocol operation with given parameters
-    async fn execute(
-        &self,
-        operation: &ProtocolOperation,
-        context: &ExecutionContext,
-    ) -> Result<ProtocolExecutionResult>;
+/// Minimal protocol interface for Stage 1
+pub trait ProtocolExecutor {
+    type Error;
+    type Result;
     
-    /// Validate parameters before execution
-    fn validate_parameters(
-        &self,
-        operation: &ProtocolOperation,
-    ) -> Result<ParameterValidationResult>;
-    
-    /// Estimate gas costs for the operation
-    fn estimate_gas_cost(
-        &self,
-        operation: &ProtocolOperation,
-    ) -> Result<u64>;
-    
-    /// Get protocol metadata
-    fn metadata(&self) -> &ProtocolMetadata;
+    /// Execute a protocol operation
+    async fn execute(&self, operation: &ProtocolOperation) -> Result<Self::Result, Self::Error>;
 }
 
-/// Core trait for protocol validators
-pub trait ProtocolValidator {
-    /// Validate operation parameters
-    fn validate_operation(
-        &self,
-        operation: &ProtocolOperation,
-    ) -> Result<ValidationResult>;
-    
-    /// Validate execution context
-    fn validate_context(
-        &self,
-        context: &ExecutionContext,
-    ) -> Result<ValidationResult>;
-}
-
-/// Core trait for result mapping
-pub trait ProtocolResultMapper {
-    /// Map protocol-specific result to standard format
-    fn map_result(
-        &self,
-        protocol_result: &ProtocolSpecificResult,
-    ) -> Result<StandardizedResult>;
-    
-    /// Extract transaction signature from result
-    fn extract_signature(
-        &self,
-        protocol_result: &ProtocolSpecificResult,
-    ) -> Result<String>;
-}
-```
-
-### Protocol Operation Definition
-
-```rust
-/// Generic protocol operation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Protocol operation definition
 pub struct ProtocolOperation {
-    /// Operation type (swap, lend, transfer, etc.)
     pub operation_type: OperationType,
-    /// Protocol name (jupiter, orca, etc.)
-    pub protocol: String,
-    /// Input parameters
     pub parameters: HashMap<String, serde_json::Value>,
-    /// Execution context
-    pub context: Option<ExecutionContext>,
 }
 
-/// Operation type enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Protocol operation types
 pub enum OperationType {
     Swap,
     Lend,
-    Borrow,
+    Earn,
     Stake,
     Transfer,
     Custom(String),
 }
 ```
 
-## 🎯 Jupiter Protocol Implementation Example
-
-### Jupiter Protocol Structure
+### Jupiter Protocol Implementation
+**File**: `crates/reev-core/src/protocols/jupiter/mod.rs`
+**Description**: Jupiter protocol implementation that wraps existing handlers
 
 ```rust
 /// Jupiter protocol implementation
 pub struct JupiterProtocol {
-    /// Jupiter client
-    client: Jupiter,
-    /// Configuration
-    config: JupiterConfig,
-}
-
-/// Jupiter-specific configuration
-#[derive(Debug, Clone)]
-pub struct JupiterConfig {
-    /// RPC URL for SURFPOOL
-    pub surfpool_rpc_url: Option<String>,
-    /// Default slippage tolerance in basis points
-    pub default_slippage_bps: u16,
-    /// Maximum slippage tolerance in basis points
-    pub max_slippage_bps: u16,
-}
-
-/// Jupiter-specific swap operation
-#[derive(Debug, Clone)]
-pub struct JupiterSwapOperation {
-    /// Input token mint
-    pub input_mint: Pubkey,
-    /// Output token mint
-    pub output_mint: Pubkey,
-    /// Amount to swap
-    pub amount: u64,
-    /// Slippage tolerance in basis points
-    pub slippage_bps: u16,
-}
-
-/// Jupiter-specific operation result
-#[derive(Debug, Clone)]
-pub struct JupiterSwapResult {
-    /// Transaction signature
-    pub signature: String,
-    /// Input amount actually swapped
-    pub input_amount: u64,
-    /// Output amount received
-    pub output_amount: u64,
-    /// Price impact
-    pub price_impact: Option<f64>,
-}
-```
-
-### Jupiter Implementation
-
-```rust
-#[async_trait]
-impl ProtocolExecutor for JupiterProtocol {
-    async fn execute(
-        &self,
-        operation: &ProtocolOperation,
-        context: &ExecutionContext,
-    ) -> Result<ProtocolExecutionResult> {
-        match operation.operation_type {
-            OperationType::Swap => self.execute_swap(operation, context).await,
-            OperationType::Lend => self.execute_lend(operation, context).await,
-            _ => Err(anyhow!("Unsupported operation type for Jupiter protocol")),
-        }
-    }
-    
-    fn validate_parameters(
-        &self,
-        operation: &ProtocolOperation,
-    ) -> Result<ParameterValidationResult> {
-        match operation.operation_type {
-            OperationType::Swap => self.validate_swap_params(operation),
-            OperationType::Lend => self.validate_lend_params(operation),
-            _ => Err(anyhow!("Unsupported operation type for validation")),
-        }
-    }
-    
-    fn estimate_gas_cost(
-        &self,
-        operation: &ProtocolOperation,
-    ) -> Result<u64> {
-        // Estimate based on operation complexity
-        match operation.operation_type {
-            OperationType::Swap => Ok(5_000_000), // 0.005 SOL
-            OperationType::Lend => Ok(3_000_000), // 0.003 SOL
-            _ => Ok(10_000_000), // 0.01 SOL default
-        }
-    }
-    
-    fn metadata(&self) -> &ProtocolMetadata {
-        &self.metadata
-    }
+    swap_handler: Box<dyn SwapHandler>,
+    lend_handler: Box<dyn LendHandler>,
+    earn_handler: Box<dyn EarnHandler>,
 }
 
 impl JupiterProtocol {
-    async fn execute_swap(
-        &self,
-        operation: &ProtocolOperation,
-        context: &ExecutionContext,
-    ) -> Result<ProtocolExecutionResult> {
-        // Extract Jupiter-specific parameters
-        let swap_params = self.extract_swap_params(operation)?;
-        
-        // Execute swap using Jupiter client
-        let swap_result = self.client.swap(swap_params).await?;
-        
-        // Map to standardized result
-        Ok(ProtocolExecutionResult {
-            success: true,
-            transaction_signature: swap_result.signature.clone(),
-            protocol_specific: serde_json::to_value(swap_result)?,
-            gas_used: self.estimate_gas_cost(operation)?,
-            execution_time_ms: None, // Would be filled by caller
-        })
+    pub fn new(
+        swap_handler: Box<dyn SwapHandler>,
+        lend_handler: Box<dyn LendHandler>,
+        earn_handler: Box<dyn EarnHandler>,
+    ) -> Self {
+        Self {
+            swap_handler,
+            lend_handler,
+            earn_handler,
+        }
+    }
+}
+
+impl ProtocolExecutor for JupiterProtocol {
+    type Error = JupiterError;
+    type Result = JupiterResult;
+    
+    async fn execute(&self, operation: &ProtocolOperation) -> Result<Self::Result, Self::Error> {
+        match operation.operation_type {
+            OperationType::Swap => {
+                // Convert parameters and delegate to existing swap handler
+                let params = SwapParameters::from(operation.parameters.clone());
+                let result = self.swap_handler.execute(params).await?;
+                Ok(JupiterResult::Swap(result))
+            }
+            OperationType::Lend => {
+                // Convert parameters and delegate to existing lend handler
+                let params = LendParameters::from(operation.parameters.clone());
+                let result = self.lend_handler.execute(params).await?;
+                Ok(JupiterResult::Lend(result))
+            }
+            OperationType::Earn => {
+                // Convert parameters and delegate to existing earn handler
+                let params = EarnParameters::from(operation.parameters.clone());
+                let result = self.earn_handler.execute(params).await?;
+                Ok(JupiterResult::Earn(result))
+            }
+            _ => Err(JupiterError::UnsupportedOperation(operation.operation_type.clone())),
+        }
     }
 }
 ```
+
+### Protocol Registry
+**File**: `crates/reev-core/src/protocols/registry.rs`
+**Description**: Simple protocol registry for future extensibility
+
+```rust
+/// Simple protocol registry for Stage 1
+pub struct ProtocolRegistry {
+    protocols: HashMap<String, Box<dyn ProtocolExecutor<Error = ProtocolError, Result = ProtocolResult>>>,
+}
+
+impl ProtocolRegistry {
+    pub fn new() -> Self {
+        Self {
+            protocols: HashMap::new(),
+        }
+    }
+    
+    pub fn register<E, R>(&mut self, name: &str, protocol: E) 
+    where
+        E: ProtocolExecutor<Error = E::Error, Result = E::Result> + 'static,
+        E::Error: Into<ProtocolError>,
+        E::Result: Into<ProtocolResult>,
+    {
+        self.protocols.insert(name.to_string(), Box::new(protocol));
+    }
+    
+    pub fn get(&self, name: &str) -> Option<&dyn ProtocolExecutor<Error = ProtocolError, Result = ProtocolResult>> {
+        self.protocols.get(name).map(|p| p.as_ref())
+    }
+}
+```
+
+## 📋 Stage 2: Full Protocol Abstraction (Priority: Future)
+
+### Enhanced Protocol Executor
+**File**: `crates/reev-core/src/protocols/executor.rs` (extension)
+**Description**: Extended protocol interface with advanced features
+
+```rust
+/// Enhanced protocol interface for Stage 2
+pub trait ProtocolExecutor {
+    type Error;
+    type Result;
+    
+    /// Execute a protocol operation (from Stage 1)
+    async fn execute(&self, operation: &ProtocolOperation) -> Result<Self::Result, Self::Error>;
+    
+    /// Validate operation parameters
+    fn validate_parameters(&self, operation: &ProtocolOperation) -> Result<(), ValidationError>;
+    
+    /// Estimate gas cost for operation
+    fn estimate_gas_cost(&self, operation: &ProtocolOperation) -> Result<u64, GasEstimationError>;
+    
+    /// Get protocol metadata
+    fn metadata(&self) -> ProtocolMetadata;
+}
+
+/// Protocol metadata
+pub struct ProtocolMetadata {
+    pub name: String,
+    pub version: String,
+    pub supported_operations: Vec<OperationType>,
+    pub configuration_schema: serde_json::Value,
+}
+```
+
+### Protocol Validator
+**File**: `crates/reev-core/src/protocols/validator.rs`
+**Description**: Protocol validation framework
+
+```rust
+/// Protocol validator trait
+pub trait ProtocolValidator {
+    /// Validate operation against protocol rules
+    fn validate_operation(&self, operation: &ProtocolOperation) -> Result<(), ValidationError>;
+    
+    /// Validate context against protocol requirements
+    fn validate_context(&self, context: &WalletContext) -> Result<(), ValidationError>;
+}
+
+/// Default protocol validator implementation
+pub struct DefaultProtocolValidator;
+
+impl ProtocolValidator for DefaultProtocolValidator {
+    fn validate_operation(&self, operation: &ProtocolOperation) -> Result<(), ValidationError> {
+        // Basic validation logic
+        match operation.operation_type {
+            OperationType::Swap => {
+                // Validate swap parameters
+                if !operation.parameters.contains_key("input_mint") {
+                    return Err(ValidationError::MissingParameter("input_mint".to_string()));
+                }
+                if !operation.parameters.contains_key("output_mint") {
+                    return Err(ValidationError::MissingParameter("output_mint".to_string()));
+                }
+                if !operation.parameters.contains_key("amount") {
+                    return Err(ValidationError::MissingParameter("amount".to_string()));
+                }
+            }
+            OperationType::Lend => {
+                // Validate lend parameters
+                if !operation.parameters.contains_key("mint") {
+                    return Err(ValidationError::MissingParameter("mint".to_string()));
+                }
+                if !operation.parameters.contains_key("amount") {
+                    return Err(ValidationError::MissingParameter("amount".to_string()));
+                }
+            }
+            // ... other operation types
+        }
+        Ok(())
+    }
+    
+    fn validate_context(&self, context: &WalletContext) -> Result<(), ValidationError> {
+        // Basic context validation
+        if context.pubkey == Pubkey::default() {
+            return Err(ValidationError::InvalidContext("Invalid wallet pubkey".to_string()));
+        }
+        Ok(())
+    }
+}
+```
+
+### Protocol Result Mapper
+**File**: `crates/reev-core/src/protocols/result_mapper.rs`
+**Description**: Protocol result mapping framework
+
+```rust
+/// Protocol result mapper trait
+pub trait ProtocolResultMapper {
+    /// Map protocol result to standard format
+    fn map_result(&self, result: &ProtocolResult) -> Result<StandardResult, MappingError>;
+    
+    /// Extract transaction signature from result
+    fn extract_signature(&self, result: &ProtocolResult) -> Option<String>;
+}
+
+/// Default protocol result mapper
+pub struct DefaultProtocolResultMapper;
+
+impl ProtocolResultMapper for DefaultProtocolResultMapper {
+    fn map_result(&self, result: &ProtocolResult) -> Result<StandardResult, MappingError> {
+        match result {
+            ProtocolResult::Jupiter(jupiter_result) => {
+                match jupiter_result {
+                    JupiterResult::Swap(swap_result) => {
+                        Ok(StandardResult {
+                            operation_type: OperationType::Swap,
+                            success: swap_result.success,
+                            signature: swap_result.signature.clone(),
+                            details: serde_json::to_value(swap_result).unwrap_or_default(),
+                        })
+                    }
+                    JupiterResult::Lend(lend_result) => {
+                        Ok(StandardResult {
+                            operation_type: OperationType::Lend,
+                            success: lend_result.success,
+                            signature: lend_result.signature.clone(),
+                            details: serde_json::to_value(lend_result).unwrap_or_default(),
+                        })
+                    }
+                    // ... other result types
+                }
+            }
+            // ... other protocol results
+        }
+    }
+    
+    fn extract_signature(&self, result: &ProtocolResult) -> Option<String> {
+        match result {
+            ProtocolResult::Jupiter(jupiter_result) => {
+                match jupiter_result {
+                    JupiterResult::Swap(swap_result) => swap_result.signature.clone(),
+                    JupiterResult::Lend(lend_result) => lend_result.signature.clone(),
+                    // ... other result types
+                }
+            }
+            // ... other protocol results
+        }
+    }
+}
+```
+
+## 🔧 Implementation Strategy
+
+### Stage 1: Immediate Implementation (Weeks 1-2)
+
+#### Week 1: Foundation
+1. Create minimal `ProtocolExecutor` trait
+2. Implement `ProtocolOperation` and `OperationType`
+3. Implement `JupiterProtocol` wrapper
+4. Write basic tests for the interface
+
+#### Week 2: Integration
+1. Implement simple `ProtocolRegistry`
+2. Update benchmark runner to use protocol interface
+3. Add error handling for protocol operations
+4. Write integration tests
+
+### Stage 2: Future Implementation (Triggered by Specific Needs)
+
+#### Week 1: Enhanced Interface
+1. Extend `ProtocolExecutor` with validation methods
+2. Implement `ProtocolValidator` trait
+3. Implement `ProtocolResultMapper` trait
+4. Add protocol metadata support
+
+#### Week 2: Advanced Features
+1. Implement parameter validation
+2. Add gas estimation
+3. Enhance error handling
+4. Update tests for new features
 
 ## 🔄 Migration Strategy
 
+### From Stage 1 to Stage 2
+1. Extend existing protocols with new trait methods
+2. Implement validation and result mapping for existing protocols
+3. Update protocol registry to support enhanced features
+4. Migrate tests to cover new functionality
+
 ### Backward Compatibility
-
-1. **Preserve Existing Handler Interface**
-   - Keep existing handlers as adapters during transition
-   - Gradually migrate E2E tests to new protocol system
-   - Maintain compatibility with existing tool integrations
-
-2. **Adapter Pattern for Legacy Handlers**
-```rust
-/// Adapter for legacy handlers
-pub struct LegacyHandlerAdapter {
-    legacy_handler: Box<dyn LegacyHandler>,
-}
-
-#[async_trait]
-impl ProtocolExecutor for LegacyHandlerAdapter {
-    async fn execute(
-        &self,
-        operation: &ProtocolOperation,
-        context: &ExecutionContext,
-    ) -> Result<ProtocolExecutionResult> {
-        // Convert to legacy format
-        let legacy_params = self.convert_to_legacy_params(operation)?;
-        
-        // Execute using legacy handler
-        let legacy_result = self.legacy_handler.execute(legacy_params, context).await?;
-        
-        // Convert back to standardized result
-        Ok(self.convert_from_legacy_result(legacy_result))
-    }
-}
-```
-
-### Test Preservation
-
-1. **E2E Test Compatibility**
-   - All existing E2E tests must continue to pass
-   - Implement adapter layer if needed during transition
-   - Track test compatibility at each refactoring stage
-
-2. **Incremental Migration**
-   - Migrate tests one operation type at a time
-   - Document any test changes required
-   - Maintain clear mapping between old and new implementations
+- Maintain Stage 1 interface functionality in Stage 2
+- Provide adapter pattern for legacy code
+- Support gradual migration of individual protocols
 
 ## 🧪 Testing Strategy
 
-### Unit Tests
-- Test each protocol implementation in isolation
-- Verify trait implementations
-- Test error conditions and edge cases
+### Stage 1 Tests
+```rust
+#[tokio::test]
+async fn test_jupiter_protocol_swap() {
+    // Test Jupiter protocol swap operation
+}
 
-### Integration Tests
-- Test protocol registry and factory
-- Verify configuration loading
-- Test protocol selection and execution
+#[tokio::test]
+async fn test_protocol_registry() {
+    // Test protocol registration and retrieval
+}
 
-### E2E Tests
-- Ensure all existing E2E tests pass
-- Add new tests for generic protocol features
-- Verify backward compatibility
+#[tokio::test]
+async fn test_protocol_integration() {
+    // Test protocol integration with benchmark runner
+}
+```
 
-### Performance Tests
-- Measure execution time with new abstraction layer
-- Validate minimal overhead from trait abstraction
-- Test resource usage with multiple protocols
+### Stage 2 Tests
+```rust
+#[tokio::test]
+async fn test_protocol_validation() {
+    // Test protocol validation
+}
+
+#[tokio::test]
+async fn test_gas_estimation() {
+    // Test gas estimation
+}
+
+#[tokio::test]
+async fn test_result_mapping() {
+    // Test result mapping
+}
+```
 
 ## 📈 Benefits
 
-1. **Clear Separation of Concerns**
-   - Protocol-specific code isolated from orchestration
-   - Clear boundaries between components
-   - Easier to understand and maintain
+### Stage 1 Benefits
+1. **Immediate Value**: Cleaner code structure without major refactoring
+2. **Future-Ready**: Easy to add new protocols when needed
+3. **Low Risk**: Minimal changes to existing functionality
+4. **Testable**: Each component can be tested independently
+5. **Aligned with Tasks**: Supports immediate benchmark needs
 
-2. **Extensibility**
-   - Easy to add new protocols
-   - Generic execution framework works with all protocols
-   - Plugin-like architecture for protocols
+### Stage 2 Benefits
+1. **Enhanced Validation**: Comprehensive parameter and context validation
+2. **Gas Estimation**: Cost estimation for operations
+3. **Standardized Results**: Consistent result format across protocols
+4. **Performance Optimization**: Protocol-specific optimizations
+5. **Advanced Error Handling**: Granular error types and recovery strategies
 
-3. **Testability**
-   - Protocol implementations can be tested in isolation
-   - Core orchestration can be tested with mocks
-   - Clear test boundaries
+## 📝 Related Documents
 
-4. **Maintainability**
-   - Single implementation of each protocol
-   - Reduced duplication
-   - Centralized error handling
+- PLAN_CORE_V3.md: Core architecture for production implementation
+- PLAN_CORE_BENCHMARK.md: Benchmark requirements for AI-generated flows
+- TASKS.md: Implementation tasks for benchmark infrastructure
 
-5. **Performance**
-   - Protocol-specific optimizations in implementation
-   - Generic framework adds minimal overhead
-   - Efficient protocol selection
+---
 
-This plan provides a clear, testable path to consolidate protocol implementations while maintaining E2E test compatibility and enabling future extensibility.
+This document outlines a pragmatic two-stage approach to protocol abstraction, prioritizing immediate needs while maintaining flexibility for future enhancements. The approach aligns with the project's constraints and the tasks outlined in TASKS.md.
