@@ -6,11 +6,13 @@
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 
+#[allow(unused)]
 pub const TARGET: &str = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 pub const USDC: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-pub const JUSDC: &str = "jupsoL7By9suyDaGK735BLahFzhWd8vFjYUjdnFnJsw";
+pub const JUSDC: &str = "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D";
 
 /// Get the target pubkey for transfer tests
+#[allow(unused)]
 pub fn target() -> Pubkey {
     Pubkey::from_str(TARGET).expect("Invalid target pubkey")
 }
