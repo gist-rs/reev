@@ -11,6 +11,7 @@ pub mod llm;
 pub mod planner;
 pub mod prompt_processor;
 pub mod prompts;
+pub mod protocols;
 pub mod query_handler;
 pub mod utils;
 pub mod validation;
