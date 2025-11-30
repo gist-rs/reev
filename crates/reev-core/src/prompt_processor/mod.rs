@@ -32,7 +32,8 @@ impl Default for PromptProcessor {
 impl PromptProcessor {
     /// Create a new language refiner
     pub fn new() -> Self {
-        let model_name = std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4".to_string());
+        let model_name =
+            std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
         let api_key = std::env::var("ZAI_API_KEY").ok();
 
         Self {
@@ -104,9 +105,7 @@ impl PromptProcessor {
             );
 
             // Add calculated amount as context for the LLM to use
-            format!(
-                "Transferable amount: {max_amount_sol:.3} SOL. {original_prompt}"
-            )
+            format!("Transferable amount: {max_amount_sol:.3} SOL. {original_prompt}")
         } else {
             original_prompt.clone()
         };
