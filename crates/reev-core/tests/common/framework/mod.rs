@@ -12,6 +12,7 @@ use std::env;
 use tracing::info;
 
 /// Standardized test runner that handles common setup and execution
+#[allow(dead_code)]
 pub struct TestRunner {
     pub pubkey: Pubkey,
     initialized: bool,
@@ -19,6 +20,7 @@ pub struct TestRunner {
 
 impl TestRunner {
     /// Create a new test runner with the default keypair
+    #[allow(dead_code)]
     pub fn new() -> Result<Self> {
         // Initialize tracing for all tests (runs only once)
         let _ = tracing_subscriber::fmt::try_init();
@@ -35,6 +37,7 @@ impl TestRunner {
     }
 
     /// Initialize the test environment
+    #[allow(dead_code)]
     pub async fn initialize(&mut self) -> Result<()> {
         if self.initialized {
             return Ok(());
@@ -78,6 +81,7 @@ impl TestRunner {
     }
 
     /// Execute a test operation using the standardized flow
+    #[allow(dead_code)]
     pub async fn execute_operation<T: crate::common::operations::TestOperation>(
         &self,
         operation: &T,
@@ -87,6 +91,7 @@ impl TestRunner {
     }
 
     /// Get the pubkey of the test runner
+    #[allow(dead_code)]
     pub fn pubkey(&self) -> Pubkey {
         self.pubkey
     }

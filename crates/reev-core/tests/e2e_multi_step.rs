@@ -31,10 +31,7 @@ use jup_sdk::surfpool::SurfpoolClient;
 use reev_core::context::{ContextResolver, SolanaEnvironment};
 use reev_core::planner::Planner;
 use reev_core::Executor;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
-use std::env;
+
 use tracing::{info, warn};
 
 /// Test end-to-end multi-step flow with prompt "swap 0.1 SOL to USDC then lend 10 USDC"
@@ -48,20 +45,40 @@ use tracing::{info, warn};
 /// 6. Shows the transactions generated from these tools
 /// 7. Signs the transactions with default keypair at ~/.config/solana/id.json
 /// 8. Shows transaction completion result from SURFPOOL
-#[rstest]
 #[tokio::test(flavor = "multi_thread")]
-#[serial_test::serial]
-async fn test_swap_then_lend(
-    #[from(common::fixtures::surfpool_running)] _surfpool_running: Result<()>,
-    #[from(common::fixtures::configured_env)] _configured_env: Result<()>,
-    #[from(common::fixtures::default_keypair)] keypair: solana_sdk::signer::keypair::Keypair,
-) -> Result<()> {
+async fn test_swap_then_lend() -> Result<()> {
     info!("\n🧪 Starting Test: Swap then Lend");
     info!("=====================================");
 
+    // Load the default Solana keypair from ~/.config/solana/id.json
+    let home_dir = std::env::var_os("HOME")
+        .and_then(|h| h.into_string().ok())
+        .expect("Could not find home directory");
+    let keypair_path = std::path::PathBuf::from(home_dir).join(".config/solana/id.json");
+
+    let keypair = solana_sdk::signer::keypair::read_keypair_file(&keypair_path)
+        .unwrap_or_else(|e| panic!("Failed to read keypair: {e}"));
+
+    use solana_sdk::signature::Signer;
     let pubkey = keypair.pubkey();
     info!("✅ Loaded default keypair: {pubkey}");
     info!("🔑 Using keypair from ~/.config/solana/id.json");
+
+    // Ensure SURFPOOL is running
+    info!("🔄 Ensuring SURFPOOL is running...");
+    reev_lib::server_utils::kill_existing_surfpool(8899).await?;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    crate::common::helpers::ensure_surfpool_running().await?;
+    info!("✅ SURFPOOL is running and ready");
+
+    // Configure environment
+    dotenvy::dotenv().ok();
+    let _zai_api_key = std::env::var("ZAI_API_KEY")
+        .map_err(|_| anyhow::anyhow!("ZAI_API_KEY environment variable not set"))?;
+    info!("✅ ZAI_API_KEY is configured");
+
+    // Disable enhanced OTEL logging
+    std::env::set_var("REEV_ENHANCED_OTEL", "0");
 
     // Initialize surfpool client
     let surfpool_client = SurfpoolClient::new("http://localhost:8899");

@@ -15,15 +15,19 @@ use tracing::info;
 /// Trait defining the common behavior for all operation types
 pub trait TestOperation {
     /// Get the prompt string for this operation
+    #[allow(dead_code)]
     fn prompt(&self) -> String;
 
     /// Get the token balances needed for this operation
+    #[allow(dead_code)]
     fn token_balances(&self) -> HashMap<String, f64>;
 
     /// Calculate the total USD value of the wallet
+    #[allow(dead_code)]
     fn total_value_usd(&self, sol_balance: f64, usdc_balance: f64) -> f64;
 
     /// Set up the wallet for this specific operation
+    #[allow(dead_code)]
     async fn setup_wallet(
         &self,
         pubkey: &Pubkey,
@@ -31,6 +35,7 @@ pub trait TestOperation {
     ) -> Result<(f64, f64)>;
 
     /// Verify the operation completed successfully
+    #[allow(dead_code)]
     async fn verify_operation(
         &self,
         pubkey: &Pubkey,
@@ -47,6 +52,8 @@ pub struct TransferOperation {
 }
 
 impl TransferOperation {
+    /// Create a new transfer operation
+    #[allow(dead_code)]
     pub fn new(to: &str, amount: f64) -> Self {
         Self {
             to: to.to_string(),
@@ -112,6 +119,8 @@ pub struct SwapOperation {
 }
 
 impl SwapOperation {
+    /// Create a new swap operation
+    #[allow(dead_code)]
     pub fn new(from: &str, to: &str, amount: &str) -> Self {
         Self {
             from: from.to_string(),
@@ -266,6 +275,8 @@ pub struct LendOperation {
 }
 
 impl LendOperation {
+    /// Create a new lend operation with specified amount
+    #[allow(dead_code)]
     pub fn new(amount: f64) -> Self {
         Self {
             amount,
@@ -273,6 +284,8 @@ impl LendOperation {
         }
     }
 
+    /// Create a lend operation that lends all available tokens
+    #[allow(dead_code)]
     pub fn lend_all() -> Self {
         Self {
             amount: 0.0,
@@ -340,7 +353,7 @@ impl TestOperation for LendOperation {
 
         // Set up jUSDC token account (might be needed for some lend operations)
         let jusdc_mint = pubkeys::jusdc();
-        let jusdc_ata =
+        let _jusdc_ata =
             spl_associated_token_account::get_associated_token_address(pubkey, &jusdc_mint);
         info!("🔄 Ensuring jUSDC token account exists...");
         surfpool_client
@@ -391,6 +404,7 @@ impl TestOperation for LendOperation {
 }
 
 /// Execute a standardized test operation
+#[allow(dead_code)]
 pub async fn execute_standardized_operation<T: TestOperation>(
     operation: &T,
     pubkey: &Pubkey,
@@ -438,6 +452,7 @@ pub async fn execute_standardized_operation<T: TestOperation>(
 }
 
 /// Standardized execution function for all operation types
+#[allow(dead_code)]
 pub async fn execute_operation_with_standardized_flow(
     prompt: &str,
     pubkey: &Pubkey,

@@ -19,6 +19,7 @@ use tracing_subscriber;
 pub const TARGET_PUBKEY: &str = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
 /// Check if SURFPOOL is running and accessible
+#[allow(dead_code)]
 pub async fn is_surfpool_running() -> bool {
     (RpcClient::new("http://localhost:8899".to_string())
         .get_latest_blockhash()
@@ -153,6 +154,7 @@ pub fn parse_pubkey(pubkey_str: &str) -> Result<Pubkey> {
 }
 
 /// Check transaction status
+#[allow(dead_code)]
 pub async fn check_transaction_status(signature: &str) -> Result<()> {
     let client = RpcClient::new("http://localhost:8899".to_string());
     let signature = signature
@@ -183,6 +185,7 @@ pub async fn check_transaction_status(signature: &str) -> Result<()> {
 }
 
 /// Get token balance
+#[allow(dead_code)]
 pub async fn get_token_balance(pubkey: &Pubkey, mint: &Pubkey) -> Result<f64> {
     let client = RpcClient::new("http://localhost:8899".to_string());
     let ata = spl_associated_token_account::get_associated_token_address(pubkey, mint);
