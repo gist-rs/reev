@@ -220,7 +220,7 @@ impl TestOperation for SwapOperation {
 
         let balance_diff = (final_sol_balance - expected_sol_balance).abs();
 
-        // Allow for higher tolerance due to Jupiter swap fees and slippage
+        // Allow for reasonable tolerance due to Jupiter swap fees and slippage
         if balance_diff > 0.2 {
             tracing::error!("❌ Final SOL balance doesn't match expected swap amount");
             tracing::error!(
@@ -230,21 +230,18 @@ impl TestOperation for SwapOperation {
                 balance_diff
             );
 
-            // Check if at least some SOL was deducted
+            // Log what happened for debugging purposes
             let sol_deducted = initial_sol_balance - final_sol_balance;
-            if sol_deducted > 0.01 {
-                info!(
-                    "⚠️ Some SOL was deducted ({}) but not the expected amount ({})",
-                    sol_deducted, amount
-                );
-                info!("This might be due to slippage or fees exceeding the limit");
-                info!("✅ Transaction was executed with signature: {}", signature);
-                info!("⚠️ Test completed with partial success due to Jupiter swap limitations");
-                return Ok(()); // Consider this a partial success
-            }
+            info!(
+                "SOL deducted: {}, Expected: {}, Difference: {}",
+                sol_deducted, amount, balance_diff
+            );
+            info!("This might be due to slippage or fees exceeding the limit");
+            info!("✅ Transaction was executed with signature: {}", signature);
 
+            // Always return error when expected swap amount is not met
             return Err(anyhow::anyhow!(
-                "Final balance doesn't match expected swap amount"
+                "Final balance doesn't match expected swap amount. Expected: {expected_sol_balance}, Got: {final_sol_balance}, Difference: {balance_diff}"
             ));
         }
 
