@@ -5,6 +5,7 @@
 //! and verification patterns.
 
 use anyhow::Result;
+use jup_sdk::surfpool::SurfpoolClient;
 use reev_lib::get_keypair;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
@@ -94,6 +95,23 @@ impl TestRunner {
     #[allow(dead_code)]
     pub fn pubkey(&self) -> Pubkey {
         self.pubkey
+    }
+
+    /// Reset wallet balance to a known state for testing
+    #[allow(dead_code)]
+    pub async fn reset_wallet_balance(&self) -> Result<()> {
+        info!("🔄 Resetting wallet balance for test...");
+
+        let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+
+        // Airdrop 5 SOL to ensure we have enough for tests
+        surfpool_client
+            .set_account(&self.pubkey.to_string(), 5_000_000_000)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to reset wallet balance: {e}"))?;
+
+        info!("✅ Wallet balance reset to 5 SOL");
+        Ok(())
     }
 }
 

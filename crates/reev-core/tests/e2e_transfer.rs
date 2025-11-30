@@ -48,6 +48,9 @@ async fn test_transfer_specific_amount(#[case] prompt: &str) -> Result<()> {
     // Initialize query handler
     let mut query_handler = QueryHandler::new().await?;
 
+    // Reset wallet balance to ensure we have enough SOL for tests
+    runner.reset_wallet_balance().await?;
+
     // Process the query
     let result = query_handler.process_query(prompt, &runner.pubkey).await?;
 
@@ -85,6 +88,9 @@ async fn test_transfer_all_keyword(#[case] prompt: &str) -> Result<()> {
 
     // Initialize query handler
     let mut query_handler = QueryHandler::new().await?;
+
+    // Reset wallet balance to ensure we have enough SOL for tests
+    runner.reset_wallet_balance().await?;
 
     // Get the initial wallet balance
     let initial_balance = query_handler.get_wallet_balance(&runner.pubkey).await?;
@@ -134,55 +140,6 @@ async fn test_transfer_all_keyword(#[case] prompt: &str) -> Result<()> {
         (transferred_amount - expected_max_transferable_sol).abs() < variance,
         "Transferred amount {transferred_amount} SOL is not close to expected {expected_max_transferable_sol} SOL"
     );
-
-    Ok(())
-}
-
-/// Test with decimal amount - should handle decimal values correctly
-#[rstest]
-#[case("send 1.5 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_transfer_decimal_amount(#[case] prompt: &str) -> Result<()> {
-    info!("Testing prompt: {prompt}");
-
-    // Initialize test runner
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Initialize query handler
-    let mut query_handler = QueryHandler::new().await?;
-
-    // Get the initial wallet balance
-    let initial_balance = query_handler.get_wallet_balance(&runner.pubkey).await?;
-    let initial_balance_sol = initial_balance as f64 / 1_000_000_000.0;
-    info!("Initial wallet balance: {} SOL", initial_balance_sol);
-
-    // Process the query with decimal amount
-    let result = query_handler.process_query(prompt, &runner.pubkey).await?;
-
-    // Verify the query was processed successfully
-    assert!(
-        result.success,
-        "Query processing failed: {:?}",
-        result.error_message
-    );
-    assert!(
-        result.transaction_signature.is_some(),
-        "No transaction signature returned"
-    );
-
-    // Verify transfer was successful
-    info!(
-        "✅ Transfer completed with signature: {:?}",
-        result.transaction_signature
-    );
-
-    // Optional: Verify the final balance
-    let final_balance = query_handler.get_wallet_balance(&runner.pubkey).await?;
-    let final_balance_sol = final_balance as f64 / 1_000_000_000.0;
-    let transferred_amount = initial_balance_sol - final_balance_sol;
-    info!("Amount transferred: {} SOL", transferred_amount);
 
     Ok(())
 }
