@@ -402,7 +402,13 @@ pub async fn execute_standardized_operation<T: TestOperation>(
     let (initial_sol_balance, initial_usdc_balance) =
         operation.setup_wallet(pubkey, &surfpool_client).await?;
 
+    info!(
+        "🔧 Wallet setup completed with SOL: {}, USDC: {}",
+        initial_sol_balance, initial_usdc_balance
+    );
+
     // Execute the operation using standardized flow
+    info!("🚀 Executing operation with standardized flow...");
     let signature = execute_operation_with_standardized_flow(
         &operation.prompt(),
         pubkey,
@@ -412,7 +418,13 @@ pub async fn execute_standardized_operation<T: TestOperation>(
     )
     .await?;
 
+    info!(
+        "✅ Operation execution completed with signature: {}",
+        signature
+    );
+
     // Verify the operation
+    info!("🔍 Verifying operation results...");
     operation
         .verify_operation(
             pubkey,
@@ -421,6 +433,7 @@ pub async fn execute_standardized_operation<T: TestOperation>(
         )
         .await?;
 
+    info!("✅ Operation verification completed successfully");
     Ok(signature)
 }
 

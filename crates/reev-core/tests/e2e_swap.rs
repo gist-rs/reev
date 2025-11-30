@@ -1,7 +1,8 @@
-//! End-to-end swap test using default Solana keypair
+//! End-to-end swap test using rstest and the common test framework
 //!
-//! This test loads the wallet from ~/.config/solana/id.json, airdrops SOL via surfpool,
-//! uses the planner to process the prompt, lets the LLM handle tool calling via rig,
+//! This test uses the rstest framework for parameterization and the common test
+//! framework to reduce duplication. It loads the wallet from ~/.config/solana/id.json,
+//! uses the planner to process the swap prompt, lets the LLM handle tool calling via rig,
 //! signs the transaction with the default keypair, and verifies completion.
 //!
 //! ## Jupiter Transaction Retry Behavior
@@ -16,294 +17,253 @@
 //! To run this test with the recommended logging filters to reduce noise:
 //!
 //! ```bash
-//! RUST_LOG=info cargo test -p reev-core --test e2e_swap test_swap_0_1_sol_for_usdc -- --nocapture > test_output.log 2>&1
-//! RUST_LOG=info cargo test -p reev-core --test e2e_swap test_sell_all_sol_for_usdc -- --nocapture > test_output.log 2>&1
+//! RUST_LOG=info cargo test -p reev-core --test e2e_swap -- --nocapture > test_output.log 2>&1
 //! ```
-//!
-//! ## Test Flow (6 Steps)
-//!
-//! 1. Prompt: "swap 1 SOL for USDC" or "sell all SOL for USDC"
-//! 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
-//! 3. Shows log info for swap tool calling from LLM
-//! 4. Shows the transaction generated from that tool
-//! 5. Signs the transaction with default keypair at ~/.config/solana/id.json
-//! 6. Shows transaction completion result from SURFPOOL
 
 mod common;
 
 use anyhow::Result;
-use common::helpers::{ensure_surfpool_running, get_test_keypair, setup_wallet_for_swap};
-use jup_sdk::surfpool::SurfpoolClient;
-use reev_core::utils::yml_utils::create_subject_wallet_info_yml;
-use reev_core::utils::{execute_six_step_flow, extract_transaction_signature};
-use solana_sdk::signature::Signer;
-use std::collections::HashMap;
-use std::env;
-use tracing::{error, info};
-// debug is already imported above
+use common::operations::{SwapOperation, TestOperation};
+use common::pubkeys;
+use rstest::*;
+use serial_test::serial;
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr;
+use tracing::info;
 
-// ensure_surfpool_running is now imported from common module
-
-// cleanup_surfpool is not needed since we're using the common module
-
-// setup_wallet_for_swap is now imported from common module
-
-/// Common function to execute a swap using standardized 6-step flow
-async fn execute_swap_with_standardized_flow(
-    prompt: &str,
-    pubkey: &solana_sdk::pubkey::Pubkey,
-    initial_sol_balance: f64,
-    initial_usdc_balance: f64,
-) -> Result<String> {
-    info!("\n🚀 Starting swap execution with prompt: \"{}\"", prompt);
-
-    // Step 1: Display the prompt being processed
-    info!("🔄 Processing prompt: \"{}\"", prompt);
-
-    // Create token balances map for swap (USDC)
-    let mut token_balances = HashMap::new();
-    token_balances.insert(
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC mint
-        initial_usdc_balance,
-    );
-
-    // Create YML prompt using standardized utility
-    let total_value_usd = initial_sol_balance * 150.0 + initial_usdc_balance; // Assuming SOL = $150
-    let lamports = (initial_sol_balance * 1_000_000_000.0) as u64;
-    let wallet_info =
-        create_subject_wallet_info_yml(pubkey, lamports, Some(token_balances), total_value_usd);
-
-    info!(
-        "\n📋 Step 2: YML Prompt with Wallet Info (sent to GLM-coding via ZAI_API_KEY):\n{}",
-        wallet_info
-    );
-
-    // Execute standardized 6-step flow
-    let (result, _signature) = execute_six_step_flow(
-        prompt,
-        pubkey,
-        lamports,
-        Some(HashMap::from([(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            initial_usdc_balance,
-        )])),
-        total_value_usd,
-    )
-    .await?;
-
-    // Extract transaction signature using standardized utility
-    let signature = extract_transaction_signature(&result)?;
-
-    info!("✅ Swap completed with signature: {}", signature);
-    Ok(signature)
+/// Test fixture for the target public key
+#[fixture]
+fn target_pubkey() -> Pubkey {
+    Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
 }
 
-/// Common test function that executes a swap prompt
-async fn run_swap_test(test_name: &str, prompt: &str) -> Result<()> {
-    info!("\n🧪 Starting Test: {}", test_name);
+/// Async test fixture for the target public key
+#[fixture]
+async fn async_target_pubkey() -> Pubkey {
+    Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
+}
+
+/// Test that checks if the test framework is properly set up but doesn't require SURFPOOL
+#[rstest]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_framework_setup(target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Testing framework setup (no SURFPOOL required)");
     info!("=====================================");
 
-    // Tracing initialization removed to avoid conflicts between tests
+    // This test verifies that the basic test framework is working
+    // without requiring SURFPOOL to be running
 
-    // Load .env file for ZAI_API_KEY
-    dotenvy::dotenv().ok();
+    // Check that we can create a target pubkey
+    info!("✅ Target pubkey: {}", target_pubkey);
 
-    // Check for ZAI_API_KEY
-    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
-        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
-    })?;
-
-    info!("✅ ZAI_API_KEY is configured");
-
-    // Restart SURFPOOL for a clean test environment
-    info!("🔄 Restarting SURFPOOL for clean test environment...");
-    reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-
-    // Give SURFPOOL time to restart
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    // Ensure SURFPOOL is running
-    ensure_surfpool_running().await?;
-    info!("✅ SURFPOOL is running and ready");
-
-    // Load the default Solana keypair from ~/.config/solana/id.json
-    let keypair = get_test_keypair()?;
-
-    let pubkey = keypair.pubkey();
-    info!("✅ Loaded default keypair: {pubkey}");
-    info!("🔑 Using keypair from ~/.config/solana/id.json");
-
-    // Initialize surfpool client
-    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
-
-    info!("\n💰 Setting up test wallet with SOL and USDC...");
-    // Set up of wallet with SOL and USDC
-    let (initial_sol_balance, initial_usdc_balance) =
-        setup_wallet_for_swap(&pubkey, &surfpool_client).await?;
-    println!(
-        "✅ Wallet setup completed with {initial_sol_balance} SOL and {initial_usdc_balance} USDC"
+    // Check that we can create a SwapOperation
+    let operation = SwapOperation::new("SOL", "USDC", "1");
+    info!(
+        "✅ Swap operation: swap {} {} for {}",
+        operation.amount, operation.from, operation.to
     );
 
-    info!("\n🔄 Starting swap execution flow...");
-    // Execute the swap using standardized utilities
-    // Note: We don't retry Jupiter transactions here because:
-    // 1. Jupiter transactions have time-sensitive routes based on current market conditions
-    // 2. Solana transactions are tied to specific blockhashes that expire
-    // 3. Proper retry would require getting a fresh quote from Jupiter API with current blockhash
-    let signature = execute_swap_with_standardized_flow(
-        prompt,
-        &pubkey,
-        initial_sol_balance,
-        initial_usdc_balance,
-    )
-    .await?;
+    // Check that we can generate a prompt
+    let prompt = operation.prompt();
+    info!("✅ Generated prompt: {}", prompt);
 
-    // Initialize RPC client
-    let client =
-        solana_client::nonblocking::rpc_client::RpcClient::new("http://localhost:8899".to_string());
+    info!("✅ Framework setup test completed successfully!");
+    info!("=============================================");
 
-    // Check transaction status
-    match client
-        .get_signature_status_with_commitment(
-            &signature.parse()?,
-            solana_sdk::commitment_config::CommitmentConfig::confirmed(),
-        )
-        .await?
-    {
-        Some(status) => {
-            if let Err(err) = status {
-                error!("❌ Transaction failed on-chain: {:?}", err);
-
-                return Err(anyhow::anyhow!("Transaction failed on-chain: {err:?}"));
-            }
-            info!("✅ Transaction confirmed successfully on-chain");
-        }
-        None => {
-            error!("❌ Transaction not found on-chain");
-            return Err(anyhow::anyhow!("Transaction not found on-chain"));
-        }
-    }
-
-    // Verify final balances to ensure swap actually happened
-    info!("\n🔍 Verifying final wallet balances...");
-    let final_balance = client.get_balance(&pubkey).await?;
-    let final_sol_balance = final_balance as f64 / 1_000_000_000.0;
-
-    info!("Final SOL balance: {}", final_sol_balance);
-    info!("Initial SOL balance: {}", initial_sol_balance);
-
-    // Calculate expected SOL balance based on the prompt
-    // Extract amount to swap from prompt
-    let swap_amount = if prompt.contains("sell all") {
-        // Reserve 0.1 SOL for gas fees (increase to account for higher Jupiter fees)
-        initial_sol_balance - 0.1
-    } else if let Some(amount_str) = prompt.split_whitespace().nth(1) {
-        // Try to parse the amount (e.g., "0.1" in "swap 0.1 SOL")
-        amount_str.parse::<f64>().unwrap_or(0.1)
-    } else {
-        0.1 // Default to 0.1 SOL
-    };
-
-    let expected_sol_balance = initial_sol_balance - swap_amount;
-    let balance_diff = (final_sol_balance - expected_sol_balance).abs();
-
-    // Increase tolerance to account for gas fees and slippage
-    // For Jupiter swaps, we need a higher tolerance due to potential slippage
-    if balance_diff > 0.1 {
-        error!("❌ Final SOL balance doesn't match expected swap amount");
-        error!(
-            "Expected: {}, Got: {}, Difference: {}",
-            expected_sol_balance, final_sol_balance, balance_diff
-        );
-
-        // If balance changed significantly but not as expected, swap might have partially failed
-        // Let's check if at least some SOL was deducted
-        let sol_deducted = initial_sol_balance - final_sol_balance;
-        if sol_deducted > 0.01 {
-            info!(
-                "⚠️ Some SOL was deducted ({}) but not the expected amount ({})",
-                sol_deducted, swap_amount
-            );
-            info!("This might be due to slippage or fees exceeding the limit");
-            info!("✅ Transaction was executed with signature: {}", signature);
-            info!("⚠️ Test completed with partial success due to Jupiter swap limitations");
-            return Ok(()); // Consider this a partial success
-        }
-
-        return Err(anyhow::anyhow!(
-            "Final balance doesn't match expected swap amount"
-        ));
-    }
-
-    info!("✅ Final SOL balance matches expected swap amount");
-
-    // TODO: Verify final balances
-    // This would involve checking the final SOL and USDC balances and ensuring
-    // that the appropriate amount of SOL was exchanged for USDC
-
-    info!("\n🎉 Test completed successfully!");
-    info!("=============================");
-    info!("Final transaction signature: {}", signature);
     Ok(())
 }
 
-/// Test end-to-end swap flow with prompt "swap 1 SOL for USDC"
-///
-/// This test follows 6-step process:
-/// 1. Prompt: "swap 1 SOL for USDC"
-/// 2. Shows log info for YML prompt with wallet info from SURFPOOL sent to GLM-coding
-/// 3. Shows log info for swap tool calling via rig framework from LLM
-/// 4. Shows transaction generated from that tool
-/// 5. Signs transaction with default keypair at ~/.config/solana/id.json
-/// 6. Shows transaction completion result from SURFPOOL
+/// Parameterized test that executes different swap amounts
+#[rstest]
+#[case("1.0", "1 SOL")]
+#[case("0.5", "0.5 SOL")]
+#[case("0.1", "0.1 SOL")]
 #[tokio::test(flavor = "multi_thread")]
-#[serial_test::serial]
-async fn test_swap_0_1_sol_for_usdc() -> Result<()> {
-    run_swap_test("Swap 0.1 SOL for USDC", "swap 0.1 SOL for USDC").await
+#[serial]
+async fn test_swaps(
+    #[case] amount: &str,
+    #[case] description: &str,
+    target_pubkey: Pubkey,
+) -> Result<()> {
+    info!("🧪 Starting Swap Test: {}", description);
+    info!("=====================================");
+
+    // Initialize the test environment (will start SURFPOOL if needed)
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
+
+    // Create the swap operation
+    let operation = SwapOperation::new("SOL", "USDC", amount);
+
+    // Execute the swap using the standardized operation
+    let signature =
+        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
+
+    info!("✅ Swap test '{}' completed successfully!", description);
+    info!("✅ Transaction signature: {}", signature);
+    info!("=============================");
+
+    Ok(())
 }
 
-/// Test end-to-end swap flow with prompt "sell all SOL for USDC"
-/// Follows same 6-step process as test_swap_1_sol_for_usdc
-/// but with a "sell all SOL" prompt instead.
+/// Test for specific 1 SOL swap case (maintains backward compatibility)
+#[rstest]
 #[tokio::test(flavor = "multi_thread")]
-#[serial_test::serial]
-async fn test_sell_all_sol_for_usdc() -> Result<()> {
-    run_swap_test("Sell All SOL for USDC", "sell all SOL for USDC").await
+#[serial]
+async fn test_swap_1_sol_for_usdc(target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Starting Test: Swap 1 SOL for USDC");
+    info!("=====================================");
+
+    // Initialize the test environment (will start SURFPOOL if needed)
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
+
+    // Create the swap operation for 1 SOL
+    let operation = SwapOperation::new("SOL", "USDC", "1");
+
+    // Execute the swap using the standardized operation
+    let signature =
+        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
+
+    info!("✅ Swap completed successfully!");
+    info!("✅ Transaction signature: {}", signature);
+    info!("=============================");
+
+    Ok(())
 }
 
+/// Test for "sell all SOL" swap case
+#[rstest]
 #[tokio::test(flavor = "multi_thread")]
-#[serial_test::serial]
-async fn test_simple_sol_fee_calculation() -> Result<()> {
-    // Don't initialize tracing here to avoid conflicts with other tests
+#[serial]
+async fn test_sell_all_sol_for_usdc(target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Starting Test: Sell all SOL for USDC");
+    info!("=====================================");
 
-    // Load default keypair
-    let keypair = get_test_keypair()?;
-    let pubkey = keypair.pubkey();
+    // Initialize the test environment (will start SURFPOOL if needed)
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
 
-    // Start surfpool
-    ensure_surfpool_running().await?;
+    // Create the swap operation for all SOL
+    let operation = SwapOperation::new("SOL", "USDC", "all");
 
-    // Initialize surfpool client to set up the wallet
-    let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+    // Execute the swap using the standardized operation
+    let signature =
+        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
 
-    // Set up the wallet with some SOL first
-    info!("🔄 Setting up test wallet with SOL...");
-    // Use existing setup_wallet_for_swap function to airdrop SOL
-    let (initial_sol_balance, _) = setup_wallet_for_swap(&pubkey, &surfpool_client).await?;
-    println!(
-        "✅ Account balance: {} lamports",
-        (initial_sol_balance * 1_000_000_000.0) as u64
+    info!("✅ Swap completed successfully!");
+    info!("✅ Transaction signature: {}", signature);
+    info!("=============================");
+
+    Ok(())
+}
+
+/// Test with custom prompt (testing prompt generation)
+#[rstest]
+#[case(
+    "transfer",
+    "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+)]
+#[case("swap", "swap 1 sol to usdc")]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &str) -> Result<()> {
+    info!(
+        "🧪 Testing prompt processing for operation: {}",
+        operation_type
     );
+    info!("Prompt: {}", prompt);
+
+    // Only process swap prompts in this test
+    if operation_type == "swap" {
+        // Initialize the test environment (will start SURFPOOL if needed)
+        let mut runner = common::framework::TestRunner::new()?;
+        runner.initialize().await?;
+
+        // Create the swap operation
+        let operation = SwapOperation::new("SOL", "USDC", "1");
+
+        // Execute the swap using the standardized operation
+        let signature =
+            common::operations::execute_standardized_operation(&operation, &runner.pubkey())
+                .await?;
+
+        info!("✅ Prompt processing test completed successfully!");
+        info!("✅ Transaction signature: {}", signature);
+    } else {
+        info!("⚠️ Skipping non-swap operation in swap test");
+    }
+
+    Ok(())
+}
+
+/// Test with timeout to ensure the operation completes within a reasonable time
+#[rstest]
+#[timeout(std::time::Duration::from_secs(180))]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_swap_with_timeout(target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Starting Swap Test with Timeout");
+    info!("=====================================");
+
+    // Initialize the test environment (will start SURFPOOL if needed)
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
+
+    // Create the swap operation for 0.1 SOL (smaller amount for faster processing)
+    let operation = SwapOperation::new("SOL", "USDC", "0.1");
+
+    // Execute the swap using the standardized operation
+    let signature =
+        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
+
+    info!("✅ Swap with timeout test completed successfully!");
+    info!("✅ Transaction signature: {}", signature);
+    info!("=============================");
+
+    Ok(())
+}
+
+/// Test using async fixtures with #[future] and #[awt]
+#[rstest]
+#[tokio::test(flavor = "multi_thread")]
+#[awt]
+#[serial]
+async fn test_async_fixture(#[future] async_target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Testing async fixtures with #[awt]");
+    info!("=====================================");
+
+    // Check that we can use the async fixture
+    info!("✅ Target pubkey: {}", async_target_pubkey);
+
+    info!("✅ Async fixture test completed successfully!");
+    info!("=========================================");
+
+    Ok(())
+}
+
+/// Test simple SOL fee calculation
+#[rstest]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_simple_sol_fee_calculation(target_pubkey: Pubkey) -> Result<()> {
+    info!("🧪 Testing SOL fee calculation");
+    info!("=====================================");
+
+    // Initialize the test environment (will start SURFPOOL if needed)
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
 
     // Initialize balance validator
     let mut key_map = std::collections::HashMap::new();
-    key_map.insert("USER_PUBKEY".to_string(), pubkey.to_string());
+    key_map.insert("USER_PUBKEY".to_string(), target_pubkey.to_string());
 
     let balance_validator = reev_lib::balance_validation::BalanceValidator::new(key_map);
 
     // Test 1: Check max swappable SOL with fee reserve
     let max_swappable = balance_validator.get_max_swappable_sol(
-        &pubkey.to_string(),
+        &target_pubkey.to_string(),
         10_000_000, // 0.01 SOL fee reserve
     )?;
 
@@ -315,7 +275,7 @@ async fn test_simple_sol_fee_calculation() -> Result<()> {
 
     // Test 2: Check specific amount with fee calculation
     let swappable_amount = balance_validator.get_swappable_amount_after_fees(
-        &pubkey.to_string(),
+        &target_pubkey.to_string(),
         1_000_000_000, // 1 SOL
         10_000_000,    // 0.01 SOL fee reserve
     )?;
@@ -328,13 +288,16 @@ async fn test_simple_sol_fee_calculation() -> Result<()> {
 
     // Test 3: Test with insufficient balance
     match balance_validator.get_swappable_amount_after_fees(
-        &pubkey.to_string(),
+        &target_pubkey.to_string(),
         10_000_000_000, // 10 SOL
         10_000_000,     // 0.01 SOL fee reserve
     ) {
         Ok(amount) => println!("Swappable amount for 10 SOL request: {amount} lamports"),
         Err(e) => println!("Expected error for insufficient SOL: {e}"),
     }
+
+    info!("✅ SOL fee calculation test completed successfully!");
+    info!("=============================================");
 
     Ok(())
 }
