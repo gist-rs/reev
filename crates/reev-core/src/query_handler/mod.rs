@@ -1,19 +1,22 @@
 //! Query Handler for Processing User Prompts
 //!
 //! This module provides a high-level interface for processing user queries
-//! from natural language to transaction execution. It handles the complete
+//! from natural language to transaction execution. It handles complete
 //! flow from prompt refinement to transaction execution, including special
 //! handling for "all" keyword in transfer requests.
 //!
 //! This module is intended to be used by:
 //! 1. API endpoints that handle user queries
 //! 2. Test suites that need to verify end-to-end functionality
-//! 3. CLI tools that interact with the system
+//! 3. CLI tools that interact with system
 
 use anyhow::Result;
 use solana_sdk::pubkey::Pubkey;
+use std::time::Instant;
 use tracing::{debug, info, instrument};
 
+use crate::benchmark::types::ExecutionMetrics;
+use crate::benchmark::{BenchmarkReport, BenchmarkScorer};
 use crate::context::{ContextResolver, SolanaEnvironment};
 use crate::executor::Executor;
 use crate::planner::Planner;
@@ -75,6 +78,108 @@ pub struct QueryHandler {
 }
 
 impl QueryHandler {
+    /// Process a user query from natural language to execution with benchmark scoring
+    ///
+    /// This method handles the complete flow of processing a user query with benchmark scoring:
+    /// 1. Resolves the wallet context
+    /// 2. Refines and plans the query
+    /// 3. Executes the flow with timing
+    /// 4. Scores the execution against ground truth
+    /// 5. Returns both the execution result and benchmark score
+    ///
+    /// # Arguments
+    /// * `prompt` - Natural language prompt from the user
+    /// * `wallet_pubkey` - Public key of the wallet to use
+    ///
+    /// # Returns
+    /// A tuple containing QueryResult and BenchmarkReport
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use reev_core::query_handler::QueryHandler;
+    ///
+    /// let handler = QueryHandler::new().await?;
+    ///
+    /// // Process a transfer with benchmark scoring
+    /// let (result, report) = handler.process_query_with_benchmark(
+    ///     "send 1.5 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    ///     &user_pubkey
+    /// ).await?;
+    ///
+    /// println!("Execution succeeded: {}", result.success);
+    /// println!("Benchmark score: {:.2}", report.overall_score);
+    /// ```
+    #[instrument(skip(self))]
+    pub async fn process_query_with_benchmark(
+        &mut self,
+        prompt: &str,
+        wallet_pubkey: &Pubkey,
+    ) -> Result<(QueryResult, BenchmarkReport)> {
+        info!("Processing user query with benchmark: {}", prompt);
+
+        // Start timing the execution
+        let execution_start_time = Instant::now();
+
+        // Step 1: Resolve wallet context
+        debug!("Resolving wallet context for {}", wallet_pubkey);
+        let wallet_context = self
+            .context_resolver
+            .resolve_wallet_context(&wallet_pubkey.to_string())
+            .await?;
+
+        // Step 2: Refine and plan the query
+        debug!("Refining and planning query");
+        let flow = self
+            .planner
+            .refine_and_plan(prompt, &wallet_pubkey.to_string())
+            .await?;
+
+        // Step 3: Execute the flow
+        debug!("Executing flow: {}", flow.flow_id);
+        let result = self.executor.execute_flow(&flow, &wallet_context).await?;
+
+        // Step 4: Extract transaction signature
+        debug!("Extracting transaction signature");
+        let signature = crate::utils::result_utils::extract_transaction_signature(&result)?;
+
+        // Step 5: Create query result
+        let query_result = QueryResult::success_with_signature(signature.clone());
+
+        // Step 6: Score the execution against ground truth
+        debug!("Scoring execution against ground truth");
+        let scorer = BenchmarkScorer::new();
+        let scored_result = scorer
+            .score_flow_execution(&flow, &result, execution_start_time)
+            .await?;
+
+        // Step 7: Create execution metrics
+        let execution_time_ms = execution_start_time.elapsed().as_millis() as u64;
+        let execution_metrics = ExecutionMetrics {
+            total_execution_time_ms: execution_time_ms,
+            steps_executed: flow.steps.len() as u32,
+            tool_calls_made: result.step_results.len() as u32,
+            successful_tool_calls: result
+                .step_results
+                .iter()
+                .filter(|step| step.success)
+                .count() as u32,
+            recovery_attempts: 0, // Would be filled in a full implementation
+            memory_usage_bytes: None,
+            cpu_usage_percent: None,
+        };
+
+        // Step 8: Generate the benchmark report
+        let benchmark_report = scorer.generate_report(&flow, &scored_result, execution_metrics);
+
+        info!(
+            "Query processed with benchmark score: {:.2} (signature: {})",
+            benchmark_report.overall_score, signature
+        );
+
+        Ok((query_result, benchmark_report))
+    }
+
     /// Create a new query handler with default configuration
     ///
     /// # Returns

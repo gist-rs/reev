@@ -266,10 +266,22 @@ impl YmlToolCall {
 /// Ground truth for validation and guardrails
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YmlGroundTruth {
+    /// Minimum score required for benchmark success
+    pub min_score: Option<f64>,
     /// Final state assertions
     pub final_state_assertions: Vec<YmlAssertion>,
     /// Expected tool calls (redundant with step expected_tool_calls for convenience)
     pub expected_tool_calls: Option<Vec<YmlToolCall>>,
+    /// Success criteria for benchmark evaluation
+    pub success_criteria: Option<Vec<YmlSuccessCriterion>>,
+    /// Expected data structure for validation
+    pub expected_data_structure: Option<Vec<YmlDataStructure>>,
+    /// Expected flow complexity metrics
+    pub expected_flow_complexity: Option<Vec<YmlFlowComplexity>>,
+    /// Expected OpenTelemetry tracking
+    pub expected_otel_tracking: Option<Vec<YmlOtelTracking>>,
+    /// Expected recovery behavior
+    pub recovery_expectations: Option<Vec<YmlRecoveryExpectation>>,
     /// Error tolerance for slippage and rate issues (default 1%)
     pub error_tolerance: Option<f64>,
 }
@@ -284,10 +296,22 @@ impl YmlGroundTruth {
     /// Create a new ground truth
     pub fn new() -> Self {
         Self {
+            min_score: Some(0.7), // Default minimum score
             final_state_assertions: Vec::new(),
             expected_tool_calls: None,
+            success_criteria: None,
+            expected_data_structure: None,
+            expected_flow_complexity: None,
+            expected_otel_tracking: None,
+            recovery_expectations: None,
             error_tolerance: Some(0.01), // 1% default tolerance
         }
+    }
+
+    /// Set minimum score and return self for chaining
+    pub fn with_min_score(mut self, score: f64) -> Self {
+        self.min_score = Some(score);
+        self
     }
 
     /// Add assertion and return self for chaining
@@ -301,6 +325,46 @@ impl YmlGroundTruth {
         self.expected_tool_calls
             .get_or_insert_with(Vec::new)
             .push(tool_call);
+        self
+    }
+
+    /// Add success criterion and return self for chaining
+    pub fn with_success_criterion(mut self, criterion: YmlSuccessCriterion) -> Self {
+        self.success_criteria
+            .get_or_insert_with(Vec::new)
+            .push(criterion);
+        self
+    }
+
+    /// Add data structure expectation and return self for chaining
+    pub fn with_data_structure(mut self, structure: YmlDataStructure) -> Self {
+        self.expected_data_structure
+            .get_or_insert_with(Vec::new)
+            .push(structure);
+        self
+    }
+
+    /// Add flow complexity expectation and return self for chaining
+    pub fn with_flow_complexity(mut self, complexity: YmlFlowComplexity) -> Self {
+        self.expected_flow_complexity
+            .get_or_insert_with(Vec::new)
+            .push(complexity);
+        self
+    }
+
+    /// Add otel tracking expectation and return self for chaining
+    pub fn with_otel_tracking(mut self, tracking: YmlOtelTracking) -> Self {
+        self.expected_otel_tracking
+            .get_or_insert_with(Vec::new)
+            .push(tracking);
+        self
+    }
+
+    /// Add recovery expectation and return self for chaining
+    pub fn with_recovery_expectation(mut self, recovery: YmlRecoveryExpectation) -> Self {
+        self.recovery_expectations
+            .get_or_insert_with(Vec::new)
+            .push(recovery);
         self
     }
 
@@ -384,6 +448,295 @@ impl YmlAssertion {
     /// Set expected change less than or equal and return self for chaining
     pub fn with_expected_change_lte(mut self, value: f64) -> Self {
         self.expected_change_lte = Some(value);
+        self
+    }
+
+    /// Add parameter and return self for chaining
+    pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
+        self.parameters
+            .get_or_insert_with(HashMap::new)
+            .insert(key, value);
+        self
+    }
+}
+
+/// Success criterion for benchmark evaluation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlSuccessCriterion {
+    /// Type of success criterion
+    pub criterion_type: String,
+    /// Description of the criterion
+    pub description: Option<String>,
+    /// Whether this criterion is required
+    pub required: Option<bool>,
+    /// Weight of this criterion in overall score (0.0-1.0)
+    pub weight: Option<f64>,
+    /// Custom criterion parameters
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl YmlSuccessCriterion {
+    /// Create a new success criterion
+    pub fn new(criterion_type: String) -> Self {
+        Self {
+            criterion_type,
+            description: None,
+            required: Some(true),
+            weight: Some(1.0),
+            parameters: None,
+        }
+    }
+
+    /// Set description and return self for chaining
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Set required and return self for chaining
+    pub fn with_required(mut self, required: bool) -> Self {
+        self.required = Some(required);
+        self
+    }
+
+    /// Set weight and return self for chaining
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    /// Add parameter and return self for chaining
+    pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
+        self.parameters
+            .get_or_insert_with(HashMap::new)
+            .insert(key, value);
+        self
+    }
+}
+
+/// Expected data structure for validation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlDataStructure {
+    /// JSON path to the data structure
+    pub path: String,
+    /// Expected data type
+    pub type_: String,
+    /// Required fields in the data structure
+    pub required_fields: Option<Vec<String>>,
+    /// Weight of this structure in overall score (0.0-1.0)
+    pub weight: Option<f64>,
+    /// Custom validation parameters
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl YmlDataStructure {
+    /// Create a new data structure expectation
+    pub fn new(path: String, type_: String) -> Self {
+        Self {
+            path,
+            type_,
+            required_fields: None,
+            weight: Some(1.0),
+            parameters: None,
+        }
+    }
+
+    /// Set required fields and return self for chaining
+    pub fn with_required_fields(mut self, fields: Vec<String>) -> Self {
+        self.required_fields = Some(fields);
+        self
+    }
+
+    /// Set weight and return self for chaining
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    /// Add parameter and return self for chaining
+    pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
+        self.parameters
+            .get_or_insert_with(HashMap::new)
+            .insert(key, value);
+        self
+    }
+}
+
+/// Expected flow complexity metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlFlowComplexity {
+    /// Type of complexity metric
+    pub complexity_type: String,
+    /// Description of the complexity metric
+    pub description: Option<String>,
+    /// Whether this metric is required
+    pub required: Option<bool>,
+    /// Minimum number of steps/items
+    pub min_steps: Option<u32>,
+    /// Weight of this metric in overall score (0.0-1.0)
+    pub weight: Option<f64>,
+    /// Custom complexity parameters
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl YmlFlowComplexity {
+    /// Create a new flow complexity expectation
+    pub fn new(complexity_type: String) -> Self {
+        Self {
+            complexity_type,
+            description: None,
+            required: Some(true),
+            min_steps: None,
+            weight: Some(1.0),
+            parameters: None,
+        }
+    }
+
+    /// Set description and return self for chaining
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Set required and return self for chaining
+    pub fn with_required(mut self, required: bool) -> Self {
+        self.required = Some(required);
+        self
+    }
+
+    /// Set minimum steps and return self for chaining
+    pub fn with_min_steps(mut self, steps: u32) -> Self {
+        self.min_steps = Some(steps);
+        self
+    }
+
+    /// Set weight and return self for chaining
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    /// Add parameter and return self for chaining
+    pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
+        self.parameters
+            .get_or_insert_with(HashMap::new)
+            .insert(key, value);
+        self
+    }
+}
+
+/// Expected OpenTelemetry tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlOtelTracking {
+    /// Type of tracking
+    pub tracking_type: String,
+    /// Description of what should be tracked
+    pub description: Option<String>,
+    /// Whether this tracking is required
+    pub required: Option<bool>,
+    /// Required tools to be tracked
+    pub required_tools: Option<Vec<String>>,
+    /// Required spans to be tracked
+    pub required_spans: Option<Vec<String>>,
+    /// Required metrics to be tracked
+    pub required_metrics: Option<Vec<String>>,
+    /// Weight of this tracking in overall score (0.0-1.0)
+    pub weight: Option<f64>,
+}
+
+impl YmlOtelTracking {
+    /// Create a new otel tracking expectation
+    pub fn new(tracking_type: String) -> Self {
+        Self {
+            tracking_type,
+            description: None,
+            required: Some(true),
+            required_tools: None,
+            required_spans: None,
+            required_metrics: None,
+            weight: Some(1.0),
+        }
+    }
+
+    /// Set description and return self for chaining
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Set required and return self for chaining
+    pub fn with_required(mut self, required: bool) -> Self {
+        self.required = Some(required);
+        self
+    }
+
+    /// Set required tools and return self for chaining
+    pub fn with_required_tools(mut self, tools: Vec<String>) -> Self {
+        self.required_tools = Some(tools);
+        self
+    }
+
+    /// Set required spans and return self for chaining
+    pub fn with_required_spans(mut self, spans: Vec<String>) -> Self {
+        self.required_spans = Some(spans);
+        self
+    }
+
+    /// Set required metrics and return self for chaining
+    pub fn with_required_metrics(mut self, metrics: Vec<String>) -> Self {
+        self.required_metrics = Some(metrics);
+        self
+    }
+
+    /// Set weight and return self for chaining
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+}
+
+/// Expected recovery behavior
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YmlRecoveryExpectation {
+    /// Type of recovery scenario
+    pub recovery_type: String,
+    /// Description of the recovery scenario
+    pub description: Option<String>,
+    /// Whether this recovery behavior is required
+    pub required: Option<bool>,
+    /// Weight of this recovery expectation in overall score (0.0-1.0)
+    pub weight: Option<f64>,
+    /// Custom recovery parameters
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl YmlRecoveryExpectation {
+    /// Create a new recovery expectation
+    pub fn new(recovery_type: String) -> Self {
+        Self {
+            recovery_type,
+            description: None,
+            required: Some(true),
+            weight: Some(1.0),
+            parameters: None,
+        }
+    }
+
+    /// Set description and return self for chaining
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// Set required and return self for chaining
+    pub fn with_required(mut self, required: bool) -> Self {
+        self.required = Some(required);
+        self
+    }
+
+    /// Set weight and return self for chaining
+    pub fn with_weight(mut self, weight: f64) -> Self {
+        self.weight = Some(weight);
         self
     }
 

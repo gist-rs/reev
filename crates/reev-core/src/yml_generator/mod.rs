@@ -126,6 +126,11 @@ impl YmlGenerator {
             flow = flow.with_step(step);
         }
 
+        // Generate comprehensive ground truth for benchmarking
+        let ground_truth =
+            generate_comprehensive_ground_truth(&flow, &refined_prompt.refined, wallet_context);
+        flow = flow.with_ground_truth(ground_truth);
+
         info!(
             "Generated YML flow with {} steps, ID: {}",
             flow.steps.len(),
@@ -161,6 +166,268 @@ fn determine_expected_tools(refined_prompt: &str) -> Option<Vec<ToolName>> {
 
     // Default to no expected tools if no pattern matches
     None
+}
+
+/// Generate comprehensive ground truth for benchmarking
+fn generate_comprehensive_ground_truth(
+    flow: &crate::yml_schema::YmlFlow,
+    refined_prompt: &str,
+    wallet_context: &reev_types::flow::WalletContext,
+) -> crate::yml_schema::YmlGroundTruth {
+    let prompt_lower = refined_prompt.to_lowercase();
+
+    // Start with basic ground truth
+    let mut ground_truth = crate::yml_schema::YmlGroundTruth::new().with_min_score(0.7); // Default minimum score
+
+    // Add final state assertions based on operation type
+    if prompt_lower.contains("swap") {
+        ground_truth = add_swap_assertions(ground_truth, &wallet_context.owner);
+    } else if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
+        ground_truth = add_lend_assertions(ground_truth, &wallet_context.owner);
+    } else if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
+        ground_truth = add_transfer_assertions(ground_truth, &wallet_context.owner);
+    }
+
+    // Add success criteria
+    ground_truth = add_success_criteria(ground_truth, refined_prompt);
+
+    // Add expected data structures
+    ground_truth = add_expected_data_structures(ground_truth);
+
+    // Add flow complexity expectations
+    ground_truth = add_flow_complexity_expectations(ground_truth, flow);
+
+    // Add OpenTelemetry tracking expectations
+    ground_truth = add_otel_tracking_expectations(ground_truth, flow);
+
+    // Add recovery expectations
+    ground_truth = add_recovery_expectations(ground_truth, flow);
+
+    ground_truth
+}
+
+/// Add assertions for swap operations
+fn add_swap_assertions(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    _owner: &str,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Account for swap amount + gas reserve + transaction fees
+    ground_truth = ground_truth.with_assertion(
+        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+            .with_pubkey(_owner.to_string())
+            .with_expected_change_lte(-2_500_000_000.0), // 2.5 SOL max (swap + fees)
+    );
+
+    // Add expected tool call
+    ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
+        reev_types::tools::ToolName::JupiterSwap,
+        true, // critical
+    ));
+
+    ground_truth
+}
+
+/// Add assertions for lend operations
+fn add_lend_assertions(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    _owner: &str,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Add expected tool call
+    ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
+        reev_types::tools::ToolName::JupiterLendEarnDeposit,
+        true, // critical
+    ));
+
+    ground_truth
+}
+
+/// Add assertions for transfer operations
+fn add_transfer_assertions(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    _owner: &str,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Account for transfer amount + transaction fees
+    ground_truth = ground_truth.with_assertion(
+        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+            .with_pubkey(_owner.to_string())
+            .with_expected_change_lte(-1_100_000_000.0), // 1.1 SOL max (transfer + fees)
+    );
+
+    // Add expected tool call
+    ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
+        reev_types::tools::ToolName::SolTransfer,
+        true, // critical
+    ));
+
+    ground_truth
+}
+
+/// Add success criteria based on operation type
+fn add_success_criteria(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    refined_prompt: &str,
+) -> crate::yml_schema::YmlGroundTruth {
+    let prompt_lower = refined_prompt.to_lowercase();
+
+    if prompt_lower.contains("swap") {
+        ground_truth = ground_truth.with_success_criterion(
+            crate::yml_schema::YmlSuccessCriterion::new("token_exchange".to_string())
+                .with_description("Successfully exchange tokens at fair rate".to_string())
+                .with_required(true)
+                .with_weight(0.6),
+        );
+    } else if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
+        ground_truth = ground_truth.with_success_criterion(
+            crate::yml_schema::YmlSuccessCriterion::new("yield_generation".to_string())
+                .with_description("Successfully deposit assets for yield".to_string())
+                .with_required(true)
+                .with_weight(0.6),
+        );
+    } else if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
+        ground_truth = ground_truth.with_success_criterion(
+            crate::yml_schema::YmlSuccessCriterion::new("asset_transfer".to_string())
+                .with_description("Successfully transfer assets to recipient".to_string())
+                .with_required(true)
+                .with_weight(0.6),
+        );
+    }
+
+    // Add common success criteria
+    ground_truth = ground_truth.with_success_criterion(
+        crate::yml_schema::YmlSuccessCriterion::new("error_handling".to_string())
+            .with_description("Handle errors gracefully and provide feedback".to_string())
+            .with_required(true)
+            .with_weight(0.2),
+    );
+
+    ground_truth
+}
+
+/// Add expected data structures for validation
+fn add_expected_data_structures(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Add wallet context data structure expectation
+    ground_truth = ground_truth.with_data_structure(
+        crate::yml_schema::YmlDataStructure::new(
+            "$.result.data.wallet_context".to_string(),
+            "object".to_string(),
+        )
+        .with_required_fields(vec![
+            "sol_balance".to_string(),
+            "total_portfolio_value".to_string(),
+        ])
+        .with_weight(0.2),
+    );
+
+    // Add execution result data structure expectation
+    ground_truth = ground_truth.with_data_structure(
+        crate::yml_schema::YmlDataStructure::new(
+            "$.result.data.execution_result".to_string(),
+            "object".to_string(),
+        )
+        .with_required_fields(vec![
+            "success".to_string(),
+            "transaction_signature".to_string(),
+        ])
+        .with_weight(0.2),
+    );
+
+    ground_truth
+}
+
+/// Add flow complexity expectations based on flow characteristics
+fn add_flow_complexity_expectations(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    flow: &crate::yml_schema::YmlFlow,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Add step count expectation
+    ground_truth = ground_truth.with_flow_complexity(
+        crate::yml_schema::YmlFlowComplexity::new("step_count".to_string())
+            .with_description("Flow should have appropriate number of steps".to_string())
+            .with_required(true)
+            .with_min_steps(flow.steps.len() as u32)
+            .with_weight(0.2),
+    );
+
+    // Add multi-step execution expectation for multi-step flows
+    if flow.steps.len() > 1 {
+        ground_truth = ground_truth.with_flow_complexity(
+            crate::yml_schema::YmlFlowComplexity::new("multi_step_execution".to_string())
+                .with_description("Should execute multiple steps in correct order".to_string())
+                .with_required(true)
+                .with_min_steps(2)
+                .with_weight(0.3),
+        );
+    }
+
+    ground_truth
+}
+
+/// Add OpenTelemetry tracking expectations
+fn add_otel_tracking_expectations(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    flow: &crate::yml_schema::YmlFlow,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Collect expected tools from all steps
+    let mut expected_tools = Vec::new();
+    for step in &flow.steps {
+        if let Some(tools) = &step.expected_tools {
+            for tool in tools {
+                expected_tools.push(format!("{tool:?}"));
+            }
+        }
+    }
+
+    // Add tool call tracking expectation
+    ground_truth = ground_truth.with_otel_tracking(
+        crate::yml_schema::YmlOtelTracking::new("tool_call_logging".to_string())
+            .with_description("OpenTelemetry should track all tool calls".to_string())
+            .with_required(true)
+            .with_required_tools(expected_tools)
+            .with_weight(0.3),
+    );
+
+    // Add execution tracing expectation
+    ground_truth = ground_truth.with_otel_tracking(
+        crate::yml_schema::YmlOtelTracking::new("execution_tracing".to_string())
+            .with_description("Flow execution should be traceable end-to-end".to_string())
+            .with_required(true)
+            .with_required_spans(vec![
+                "prompt_processing".to_string(),
+                "context_resolution".to_string(),
+                "flow_execution".to_string(),
+            ])
+            .with_weight(0.3),
+    );
+
+    ground_truth
+}
+
+/// Add recovery expectations based on flow characteristics
+fn add_recovery_expectations(
+    mut ground_truth: crate::yml_schema::YmlGroundTruth,
+    flow: &crate::yml_schema::YmlFlow,
+) -> crate::yml_schema::YmlGroundTruth {
+    // Add atomic execution expectation for all flows
+    ground_truth = ground_truth.with_recovery_expectation(
+        crate::yml_schema::YmlRecoveryExpectation::new("atomic_execution".to_string())
+            .with_description("Flow should execute atomically or fail gracefully".to_string())
+            .with_required(true)
+            .with_weight(0.4),
+    );
+
+    // Add multi-step specific recovery expectations
+    if flow.steps.len() > 1 {
+        ground_truth = ground_truth.with_recovery_expectation(
+            crate::yml_schema::YmlRecoveryExpectation::new("partial_success_handling".to_string())
+                .with_description("Should handle partial successes gracefully".to_string())
+                .with_required(true)
+                .with_weight(0.3),
+        );
+    }
+
+    ground_truth
 }
 
 /// Extract individual operations from a multi-step prompt

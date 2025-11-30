@@ -3,6 +3,7 @@
 //! Core architecture for verifiable AI-generated DeFi flows with YML schemas
 //! and two-phase LLM approach.
 
+pub mod benchmark;
 pub mod context;
 pub mod execution;
 pub mod executor;
@@ -17,6 +18,7 @@ pub mod yml_generator;
 pub mod yml_schema;
 
 // Re-export key types for convenience
+pub use benchmark::{BenchmarkReport, BenchmarkScore, BenchmarkScorer};
 pub use context::ContextResolver;
 pub use executor::Executor;
 pub use llm::glm_client::init_glm_client;
