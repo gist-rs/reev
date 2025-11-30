@@ -86,7 +86,7 @@ async fn test_lend(#[case] prompt: &str) -> Result<()> {
                 );
             }
         }
-    }
+    };
 
     // Process the original query (deposit or withdraw)
     // The LLM will handle both scenarios appropriately
