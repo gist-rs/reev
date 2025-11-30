@@ -149,7 +149,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
         };
 
         info!("Sending request to ZAI API with model: {}", model_name);
-        info!("DEBUG: Full prompt being sent to ZAI API: {}", prompt);
+        debug!("Full prompt being sent to ZAI API: {}", prompt);
 
         // Make the API call
         let response_body: LLMResponse = self.make_api_request(&request_payload).await?;
@@ -161,16 +161,15 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
             .map(|choice| choice.message.content.clone())
             .ok_or_else(|| anyhow!("No content in LLM response"))?;
 
-        info!("LLM response: {}", content);
+        debug!("LLM response: {}", content);
         Ok(content)
     }
 
     /// Extract tool calls from agent response
     fn extract_tool_calls(&self, response: &str) -> Result<HashMap<String, serde_json::Value>> {
         // This is a simplified implementation
-        // In a real implementation, we would parse the JSON response to extract tool calls
-        info!("DEBUG: Full response from LLM: {}", response);
-        info!("Extracting tool calls from response: {}", response);
+        // In a real implementation, we would parse JSON response to extract tool calls
+        debug!("Parsing tool calls from LLM response");
 
         // Parse the response to extract tool calls
         self.parse_tool_calls_from_response(response)
@@ -183,27 +182,27 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., 'swap 
     ) -> Result<HashMap<String, serde_json::Value>> {
         // Try to parse response as JSON first
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
-            info!("Parsed JSON response successfully");
+            debug!("Parsed JSON response successfully");
             if let Some(tool_calls) = json_value.get("tool_calls").and_then(|v| v.as_array()) {
-                info!("Found {} tool calls in response", tool_calls.len());
+                debug!("Found {} tool calls in response", tool_calls.len());
                 let mut tool_map = HashMap::new();
                 for tool_call in tool_calls {
                     if let (Some(name), Some(params)) = (
                         tool_call.get("name").and_then(|n| n.as_str()),
                         tool_call.get("parameters"),
                     ) {
-                        info!("Extracted tool call: {} with params: {}", name, params);
+                        debug!("Extracted tool call: {} with params: {}", name, params);
                         tool_map.insert(name.to_string(), params.clone());
                     } else {
-                        info!("Tool call missing name or parameters: {:?}", tool_call);
+                        debug!("Tool call missing name or parameters: {:?}", tool_call);
                     }
                 }
                 return Ok(tool_map);
             } else {
-                info!("No tool_calls found in JSON response");
+                debug!("No tool_calls found in JSON response");
             }
         } else {
-            info!("Failed to parse response as JSON, trying text extraction");
+            debug!("Failed to parse response as JSON, trying text extraction");
         }
 
         // If JSON parsing fails, try to extract tool calls from text

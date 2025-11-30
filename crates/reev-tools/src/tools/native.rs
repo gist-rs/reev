@@ -145,7 +145,7 @@ impl Tool for SolTransferTool {
         log_tool_call!("sol_transfer", &args);
 
         let _start_time = Instant::now();
-        info!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
+        debug!("[SolTransferTool] Starting tool execution with OpenTelemetry tracing");
         debug!(
             "[SolTransferTool] tool args: user_pubkey='{}', recipient_pubkey='{}'",
             args.user_pubkey, args.recipient_pubkey
@@ -164,14 +164,14 @@ impl Tool for SolTransferTool {
             .map_err(|e| NativeTransferError::PubkeyParse(e.to_string()))?;
 
         // Enhanced recipient_pubkey resolution with debugging
-        info!(
+        debug!(
             "[SolTransferTool] Resolving recipient_pubkey: '{}', available keys: {:?}",
             args.recipient_pubkey,
             self.key_map.keys().collect::<Vec<_>>()
         );
 
         let recipient_pubkey = if let Some(resolved) = self.key_map.get(&args.recipient_pubkey) {
-            info!(
+            debug!(
                 "[SolTransferTool] Directly resolved '{}' to '{}'",
                 args.recipient_pubkey, resolved
             );
@@ -186,7 +186,7 @@ impl Tool for SolTransferTool {
                     .unwrap_or('0')
                     .is_alphabetic()
             {
-                info!(
+                debug!(
                     "[SolTransferTool] Using direct address '{}' (not a placeholder from key_map)",
                     args.recipient_pubkey
                 );
@@ -205,7 +205,7 @@ impl Tool for SolTransferTool {
             recipient_pubkey
         );
 
-        info!(
+        debug!(
             "[SolTransferTool] Final resolved '{}' to '{}'",
             args.recipient_pubkey, recipient_pubkey
         );
@@ -246,7 +246,7 @@ impl Tool for SolTransferTool {
 
         let execution_time = start_time.elapsed().as_millis() as u32;
 
-        info!(
+        debug!(
             "[SolTransferTool] Tool execution completed - total_time: {}ms, operation: {:?}",
             execution_time, args.operation
         );
@@ -265,14 +265,14 @@ impl Tool for SolTransferTool {
         // No manual tracking needed anymore
 
         // Tool execution completed successfully
-        info!(
+        debug!(
             "[SolTransferTool] Successfully created transfer with {} instructions",
             raw_instructions.len()
         );
 
         let _execution_time = start_time.elapsed().as_millis() as u32;
-        // Now execute the transaction with SURFPOOL
-        info!("[SolTransferTool] Executing transaction with SURFPOOL");
+        // Now execute transaction with SURFPOOL
+        debug!("[SolTransferTool] Executing transaction with SURFPOOL");
 
         // Parse the user pubkey
         let user_pubkey = Pubkey::from_str(&args.user_pubkey).map_err(|e| {
@@ -294,7 +294,7 @@ impl Tool for SolTransferTool {
                 NativeTransferError::ProtocolCall(e)
             })?;
 
-        info!(
+        debug!(
             "[SolTransferTool] Transaction executed with signature: {}",
             tx_signature
         );

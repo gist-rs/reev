@@ -12,7 +12,7 @@ use serde_json::json;
 
 use std::string::String;
 use std::sync::Arc;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::yml_schema::YmlStep;
 
@@ -98,8 +98,8 @@ impl RigAgent {
         info!("Executing step {} with rig agent", step.step_id);
 
         // Debug log to verify the current context before creating the prompt
-        info!(
-            "DEBUG: execute_step_with_rig_and_history - USDC balance in context: {:?}",
+        debug!(
+            "USDC balance in context: {:?}",
             wallet_context
                 .token_balances
                 .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
@@ -118,7 +118,7 @@ impl RigAgent {
         let context_prompt = self.yml_context_to_prompt(&yml_context, &prompt)?;
 
         // Log the YML context for debugging
-        info!(
+        debug!(
             "Generated YML context for step {}: {:?}",
             step.step_id, yml_context
         );
@@ -128,17 +128,17 @@ impl RigAgent {
 
         // If we have expected tools, use them to guide the agent
         let response = if let Some(tools) = expected_tools {
-            info!("Using expected tools to guide agent: {:?}", tools);
+            debug!("Using expected tools to guide agent: {:?}", tools);
             self.prompt_with_expected_tools(&context_prompt, &tools)
                 .await?
         } else {
-            info!("No expected tools provided, using general agent prompt");
+            debug!("No expected tools provided, using general agent prompt");
             self.prompt_agent(&context_prompt).await?
         };
 
-        info!("Got response from agent: {}", response);
+        debug!("Got response from agent: {}", response);
 
-        info!("DEBUG: Parsing tool calls from LLM response: {}", response);
+        debug!("Parsing tool calls from LLM response");
 
         // Extract tool calls from the response
         let tool_calls = self.extract_tool_calls(&response)?;
@@ -149,29 +149,27 @@ impl RigAgent {
             || prompt_lower.contains(" and ")
             || prompt_lower.contains(" followed by ");
 
-        info!("DEBUG: is_multi_step = {}", is_multi_step);
-        info!("DEBUG: Initial tool_calls count = {}", tool_calls.len());
-        info!("DEBUG: Initial tool_calls = {:?}", tool_calls);
-        info!("DEBUG: Response = {}", response);
+        debug!("is_multi_step = {}", is_multi_step);
+        debug!("Initial tool_calls count = {}", tool_calls.len());
 
         // For multi-step prompts, we need to ensure we extract all operations
         let tool_calls = if is_multi_step && tool_calls.len() < 2 {
             // Try to extract additional operations if we only got one tool call
-            info!("Multi-step prompt detected but only one tool call extracted, attempting to extract additional operations");
+            debug!("Multi-step prompt detected but only one tool call extracted, attempting to extract additional operations");
             let additional_calls = self.extract_multi_step_tool_calls(&response, &tool_calls)?;
-            info!("DEBUG: Additional tool_calls = {:?}", additional_calls);
+            debug!("Additional tool_calls = {:?}", additional_calls);
             additional_calls
         } else {
-            info!("DEBUG: Using initial tool_calls as-is");
+            debug!("Using initial tool_calls as-is");
             tool_calls
         };
 
-        // Execute the selected tools
-        info!("Tool calls extracted: {:?}", tool_calls);
+        // Execute selected tools
+        debug!("Tool calls extracted: {:?}", tool_calls);
         let tool_results = self
             .execute_tools(tool_calls.clone(), wallet_context)
             .await?;
-        info!("Tool execution results: {:?}", tool_results);
+        debug!("Tool execution results: {:?}", tool_results);
 
         // Create list of tool names that were executed
         let executed_tool_names: Vec<String> = tool_calls.keys().cloned().collect();
