@@ -56,23 +56,6 @@ pub async fn surfpool_client() -> SurfpoolClient {
     SurfpoolClient::new("http://localhost:8899")
 }
 
-/// Fixture that ensures SURFPOOL is running
-#[fixture]
-pub async fn surfpool_running() -> Result<()> {
-    // Restart SURFPOOL for a clean test environment
-    tracing::info!("🔄 Restarting SURFPOOL for clean test environment...");
-    reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-
-    // Give SURFPOOL time to restart
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    // Ensure SURFPOOL is running
-    crate::common::helpers::ensure_surfpool_running().await?;
-    tracing::info!("✅ SURFPOOL is running and ready");
-
-    Ok(())
-}
-
 /// Fixture that provides a configured environment
 #[fixture]
 pub async fn configured_env() -> Result<()> {
