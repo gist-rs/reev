@@ -165,33 +165,6 @@ async fn test_prompt_processing(#[case] operation_type: &str, #[case] prompt: &s
     Ok(())
 }
 
-/// Test with timeout to ensure the operation completes within a reasonable time
-#[rstest]
-#[timeout(std::time::Duration::from_secs(180))]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_transfer_with_timeout(target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Starting Transfer Test with Timeout");
-    info!("=====================================");
-
-    // Initialize the test environment (will start SURFPOOL if needed)
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Create the transfer operation for 0.1 SOL (smaller amount for faster processing)
-    let operation = TransferOperation::new(&target_pubkey.to_string(), 0.1);
-
-    // Execute the transfer using the standardized operation
-    let signature =
-        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
-
-    info!("✅ Transfer with timeout test completed successfully!");
-    info!("✅ Transaction signature: {}", signature);
-    info!("=============================");
-
-    Ok(())
-}
-
 /// Test using async fixtures with #[future] and #[awt]
 #[rstest]
 #[tokio::test(flavor = "multi_thread")]

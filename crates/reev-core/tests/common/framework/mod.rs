@@ -20,6 +20,9 @@ pub struct TestRunner {
 impl TestRunner {
     /// Create a new test runner with the default keypair
     pub fn new() -> Result<Self> {
+        // Initialize tracing for all tests (runs only once)
+        let _ = tracing_subscriber::fmt::try_init();
+
         let keypair = get_keypair()?;
         let pubkey = keypair.pubkey();
         info!("✅ Loaded default keypair: {pubkey}");
@@ -87,23 +90,6 @@ impl TestRunner {
     pub fn pubkey(&self) -> Pubkey {
         self.pubkey
     }
-}
-
-/// Convenience function to run a simple test with minimal setup
-pub async fn run_simple_test<T, F, R>(test_fn: F) -> Result<()>
-where
-    T: crate::common::operations::TestOperation,
-    F: FnOnce(T) -> Result<R>,
-{
-    let mut runner = TestRunner::new()?;
-    runner.initialize().await?;
-
-    info!("✅ Test environment initialized successfully");
-
-    // This function is meant to be used in test files to wrap test logic
-    // The actual test implementation would be passed in as test_fn
-    // For now, we just return Ok to indicate the framework is working
-    Ok(())
 }
 
 /// Macro to simplify writing parameterized tests

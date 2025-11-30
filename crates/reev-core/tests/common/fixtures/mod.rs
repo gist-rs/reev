@@ -7,7 +7,6 @@ use anyhow::Result;
 use jup_sdk::surfpool::SurfpoolClient;
 use rstest::fixture;
 use solana_client::nonblocking::rpc_client::RpcClient;
-
 use solana_sdk::signer::{keypair::Keypair, Signer};
 use std::env;
 

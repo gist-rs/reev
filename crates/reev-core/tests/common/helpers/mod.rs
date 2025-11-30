@@ -12,6 +12,7 @@ use solana_sdk::signer::keypair;
 use std::process::{Command, Stdio};
 use tokio::time::{sleep, Duration};
 use tracing::info;
+use tracing_subscriber;
 
 /// Target account for SOL transfer tests
 #[allow(dead_code)]
@@ -21,7 +22,8 @@ pub const TARGET_PUBKEY: &str = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 pub async fn is_surfpool_running() -> bool {
     (RpcClient::new("http://localhost:8899".to_string())
         .get_latest_blockhash()
-        .await).is_ok()
+        .await)
+        .is_ok()
 }
 
 /// Helper function to start surfpool and wait for it to be ready
