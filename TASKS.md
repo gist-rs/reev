@@ -64,8 +64,22 @@ When a user submits a query like "send allll sol to gistmeAhMG7AcKSPCHis8JikGmKT
 - ✅ **COMPLETED**: "send all sol" transfers now work correctly
 - ✅ **COMPLETED**: System handles typos like "alll", "allll"
 - ✅ **COMPLETED**: Tests verify end-to-end functionality
+- ✅ **COMPLETED**: Added reset_wallet_balance method to TestRunner for test consistency
+- ✅ **COMPLETED**: Fixed test balance verification to use direct blockchain queries
 - 🔄 **IN PROGRESS**: SPL token support (currently uses same logic as SOL)
 - ⏸️ **TODO**: Dynamic gas reserve calculation based on transaction type
+
+## Recent Fixes (2025-11-30)
+
+1. **Added reset_wallet_balance method**: 
+   - Added to TestRunner in `common/framework/mod.rs`
+   - Uses SurfpoolClient.set_account() to reset wallet balance to 5 SOL
+   - Ensures consistent test state across test runs
+
+2. **Fixed test balance verification**:
+   - Replaced QueryHandler.get_wallet_balance() with direct blockchain queries
+   - This ensures accurate balance tracking before and after transfers
+   - Fixed issue where test showed 0 SOL transferred instead of 4.999 SOL
 
 ## Next Steps
 

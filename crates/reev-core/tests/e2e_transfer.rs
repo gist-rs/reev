@@ -31,6 +31,7 @@ use anyhow::Result;
 use reev_core::QueryHandler;
 use rstest::*;
 use serial_test::serial;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use tracing::info;
 
 /// Test with specific amount
@@ -92,8 +93,9 @@ async fn test_transfer_all_keyword(#[case] prompt: &str) -> Result<()> {
     // Reset wallet balance to ensure we have enough SOL for tests
     runner.reset_wallet_balance().await?;
 
-    // Get the initial wallet balance
-    let initial_balance = query_handler.get_wallet_balance(&runner.pubkey).await?;
+    // Get the initial wallet balance directly from blockchain
+    let rpc_client = RpcClient::new("http://localhost:8899".to_string());
+    let initial_balance = rpc_client.get_balance(&runner.pubkey).await?;
     let initial_balance_sol = initial_balance as f64 / 1_000_000_000.0;
     info!("Initial wallet balance: {} SOL", initial_balance_sol);
 
@@ -127,8 +129,8 @@ async fn test_transfer_all_keyword(#[case] prompt: &str) -> Result<()> {
         result.transaction_signature
     );
 
-    // Verify the final balance
-    let final_balance = query_handler.get_wallet_balance(&runner.pubkey).await?;
+    // Verify the final balance directly from blockchain
+    let final_balance = rpc_client.get_balance(&runner.pubkey).await?;
     let final_balance_sol = final_balance as f64 / 1_000_000_000.0;
     let transferred_amount = initial_balance_sol - final_balance_sol;
     info!("Amount transferred: {} SOL", transferred_amount);
