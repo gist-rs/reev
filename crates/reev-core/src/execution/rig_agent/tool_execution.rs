@@ -252,12 +252,18 @@ where
             .get("input_amount")
             .or_else(|| params.get("amount"))
             .ok_or_else(|| anyhow!("input_amount parameter is required"))?;
-        let amount: f64 = amount_str
-            .parse()
-            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
 
-        // Special handling for "all" amount to use full balance
+        // Check if amount is "all" before parsing to float
         let is_all_amount = amount_str.to_lowercase() == "all";
+
+        let amount: f64 = if is_all_amount {
+            // For "all", use the SOL balance directly
+            wallet_context.sol_balance as f64 / 1_000_000_000.0
+        } else {
+            amount_str
+                .parse()
+                .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?
+        };
 
         // Convert amount to lamports (1 SOL = 1,000,000,000 lamports)
         let amount_lamports = (amount * 1_000_000_000.0) as u64;
@@ -267,8 +273,8 @@ where
 
         // Use full balance if amount is "all", otherwise use specified amount
         let final_amount_lamports = if is_all_amount {
-            // Use almost all SOL balance, keeping some for fees
-            wallet_context.sol_balance - (100_000_000) // Reserve 0.1 SOL for fees
+            // Reserve 0.01 SOL for gas fees
+            wallet_context.sol_balance.saturating_sub(10_000_000) // Reserve 0.01 SOL for fees
         } else {
             amount_lamports
         };

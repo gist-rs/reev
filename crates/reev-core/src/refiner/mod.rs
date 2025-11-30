@@ -239,7 +239,7 @@ Example response format:
             // Extract the refined prompt from reasoning content
             // The GLM response contains analysis in Chinese, but the refined prompt should be in English
             // We need to extract the actual refined prompt from the reasoning text
-            let refined = extract_refined_prompt_from_reasoning(reasoning_content);
+            let refined = extract_refined_prompt_from_reasoning(reasoning_content, &request.prompt);
             debug!("Extracted refined prompt: {}", refined);
 
             // Create a valid LanguageRefineResponse from the extracted prompt
@@ -303,7 +303,7 @@ impl RefinedPrompt {
 }
 
 /// Extract the refined prompt from GLM reasoning content
-fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
+fn extract_refined_prompt_from_reasoning(reasoning: &str, original_prompt: &str) -> String {
     // The GLM reasoning content contains analysis in Chinese
     // We need to properly extract refined prompt based on the JSON response format
 
@@ -404,7 +404,7 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str) -> String {
 
     // If we can't find a proper refined prompt, return the original prompt unchanged
     // This is better than returning the GLM analysis which would break the system
-    "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+    original_prompt.to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
