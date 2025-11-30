@@ -163,7 +163,7 @@ pub async fn create_flow_from_prompt(
     });
 
     // Create a planner with GLM client
-    let planner = Planner::new_with_glm(context_resolver.clone())?;
+    let mut planner = Planner::new_with_glm(context_resolver.clone())?;
 
     // Generate the flow using the planner
     let flow = planner.refine_and_plan(prompt, &pubkey.to_string()).await?;

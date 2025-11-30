@@ -169,19 +169,47 @@ where
             .get("amount")
             .ok_or_else(|| anyhow!("amount parameter is required"))?;
 
-        let amount: f64 = amount_str
-            .parse()
-            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+        // Handle "all" keyword case
+        let amount: f64 = if amount_str.to_lowercase() == "all" {
+            // Calculate transfer amount as wallet balance minus gas reserve
+            // Reserve 0.05 SOL for transaction fees (5,000,000 lamports)
+            let gas_reserve = 5_000_000u64;
 
-        let amount_lamports = (amount * 1_000_000_000.0) as u64;
+            // Ensure we don't try to transfer more than available
+            let available_balance = if wallet_context.sol_balance > gas_reserve {
+                wallet_context.sol_balance - gas_reserve
+            } else {
+                // If balance is less than or equal to gas reserve, transfer half
+                wallet_context.sol_balance / 2
+            };
 
-        // Check if wallet has sufficient balance
-        if wallet_context.sol_balance < amount_lamports {
-            return Err(anyhow!(
-                "Insufficient balance. Available: {} SOL, Required: {} SOL",
-                wallet_context.sol_balance / 1_000_000_000,
-                amount
-            ));
+            available_balance as f64 / 1_000_000_000.0
+        } else {
+            amount_str
+                .parse()
+                .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?
+        };
+
+        let amount_lamports = if amount_str.to_lowercase() == "all" {
+            // For "all" keyword, use calculated amount
+            (amount * 1_000_000_000.0) as u64
+        } else {
+            // For specific amounts, use the parsed amount
+            (amount * 1_000_000_000.0) as u64
+        };
+
+        // For "all" keyword, we've already checked balance above
+        if amount_str.to_lowercase() != "all" {
+            // Only check balance for specific amounts
+            let amount_lamports = (amount * 1_000_000_000.0) as u64;
+
+            if wallet_context.sol_balance < amount_lamports {
+                return Err(anyhow!(
+                    "Insufficient balance. Available: {} SOL, Required: {} SOL",
+                    wallet_context.sol_balance / 1_000_000_000,
+                    amount
+                ));
+            }
         }
 
         // Use the existing AgentTools if available, otherwise create a new one

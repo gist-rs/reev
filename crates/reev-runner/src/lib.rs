@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 
+use reev_core::prompt_processor::PromptProcessor;
 // use reev_core::{ContextResolver, Executor}; // TODO: Uncomment when implementing migration
 use reev_flow::{FlowLogger, init_enhanced_otel_logging_with_session};
 use reev_lib::{
@@ -841,12 +842,12 @@ pub async fn run_recovery_flow(
     // Create wallet context for flow generation
     let wallet_context = reev_types::flow::WalletContext::new(wallet.to_string());
 
-    // Generate refined prompt using reev-core's LanguageRefiner
-    let refiner = reev_core::LanguageRefiner::new();
-    let refined_prompt = refiner
-        .refine_prompt(prompt)
+    // Generate refined prompt using reev-core's PromptProcessor
+    let mut processor = PromptProcessor::new();
+    let refined_prompt = processor
+        .process_prompt(prompt, wallet)
         .await
-        .context("Failed to refine prompt")?;
+        .context("Failed to process prompt")?;
 
     // Generate YML flow using reev-core's YmlGenerator
     let yml_generator = reev_core::YmlGenerator::new();

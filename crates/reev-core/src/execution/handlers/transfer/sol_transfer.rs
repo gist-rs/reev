@@ -33,15 +33,24 @@ pub async fn execute_direct_sol_transfer(
         }
     };
 
-    // Extract the amount from the prompt
+    // Extract amount from the prompt
     let amount = if let Some(sol_pos) = prompt.to_lowercase().find("sol") {
         let before_sol = prompt[..sol_pos].trim();
-        // Try to parse the amount before "sol"
-        let words: Vec<&str> = before_sol.split_whitespace().collect();
-        if let Some(last_word) = words.last() {
-            (last_word.parse::<f64>().unwrap_or(1.0) * 1000000000.0) as u64 // Convert SOL to lamports
+
+        // Check if this is an "all sol" request
+        if before_sol.trim().to_lowercase().ends_with("all") {
+            // For "send all sol", we'll pass a special value
+            // The actual amount will be calculated by the tool execution layer
+            // which has access to the wallet balance
+            u64::MAX // Use max value to indicate "all"
         } else {
-            1000000000 // Default to 1 SOL
+            // Try to parse the amount before "sol"
+            let words: Vec<&str> = before_sol.split_whitespace().collect();
+            if let Some(last_word) = words.last() {
+                (last_word.parse::<f64>().unwrap_or(1.0) * 1000000000.0) as u64 // Convert SOL to lamports
+            } else {
+                1000000000 // Default to 1 SOL
+            }
         }
     } else {
         1000000000 // Default to 1 SOL

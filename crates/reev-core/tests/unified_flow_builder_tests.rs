@@ -1,6 +1,6 @@
 //! Tests for unified flow builder module
 
-use reev_core::refiner::RefinedPrompt;
+use reev_core::prompt_processor::RefinedPrompt;
 use reev_core::yml_generator::UnifiedFlowBuilder;
 
 #[tokio::test]

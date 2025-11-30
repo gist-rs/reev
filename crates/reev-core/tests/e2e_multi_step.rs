@@ -105,7 +105,7 @@ async fn test_swap_then_lend() -> Result<()> {
     });
 
     // Create a planner with GLM client
-    let planner = Planner::new_with_glm(context_resolver.clone())?;
+    let mut planner = Planner::new_with_glm(context_resolver.clone())?;
 
     info!("🤖 Processing prompt: \"{}\"", prompt);
     // Generate the flow using the planner

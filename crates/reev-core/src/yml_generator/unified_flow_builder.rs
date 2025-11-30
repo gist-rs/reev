@@ -4,7 +4,7 @@
 //! with refined prompts without pre-determining operations. Following V3 plan,
 //! RigAgent should handle tool selection based on refined prompts, not a rule-based parser.
 
-use crate::refiner::RefinedPrompt;
+use crate::prompt_processor::RefinedPrompt;
 // OperationParser removed - replaced by RigAgent in V3 architecture
 use crate::yml_schema::YmlFlow;
 use anyhow::Result;

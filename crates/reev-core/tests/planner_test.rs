@@ -38,7 +38,7 @@ async fn test_simple_planning() {
     dotenvy::dotenv().ok();
 
     let context_resolver = ContextResolver::new(SolanaEnvironment::default());
-    let planner = Planner::new(context_resolver);
+    let mut planner = Planner::new(context_resolver);
 
     // Test rule-based planning
     let _wallet_context = WalletContext::new("test_wallet".to_string());

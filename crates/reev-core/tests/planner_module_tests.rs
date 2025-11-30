@@ -1,7 +1,7 @@
 //! Tests for planner module
 
 use reev_core::planner::LlmClient;
-use reev_core::refiner::RefinedPrompt;
+use reev_core::prompt_processor::RefinedPrompt;
 use reev_core::yml_generator::YmlGenerator;
 use reev_types::WalletContext;
 

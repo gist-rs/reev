@@ -2,7 +2,61 @@
 
 ---
 
+Transfer Process Flow (Revised)
+
+1. User query comes in through the API endpoint
+2. `execute_dynamic_flow` handler receives the request
+3. The query is passed to the `Planner` in `reev-core`
+4. `Planner::refine_and_plan()` processes the query
+5. `LanguageRefiner` refines the natural language
+6. `YmlGenerator` creates a structured flow with a transfer step
+7. The flow is executed by the agent, which calls the `sol_transfer` tool
+8. The transfer is performed on-chain
+
+## Implementation Plan
+
+### For Regular Transfers:
+- Prompt: "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+- LanguageRefiner normalizes "sol" to "SOL" but keeps the amount and recipient
+- YmlGenerator creates a transfer step with the specific amount
+- Tool executor handles the transfer with the specified amount
+
+### For "Send All SOL" Transfers:
+- Prompt: "send all sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+- LanguageRefiner normalizes "sol" to "SOL" but preserves "all"
+- YmlGenerator creates a transfer step with "all" as the amount
+- Tool executor queries the account balance to determine the actual amount
+- Calculate available balance = total_balance - gas_reserve (0.1 SOL)
+- Transfer the calculated amount
+
+## Current Issues to Address:
+
+1. The `execute_direct_sol_transfer` function has duplicated and malformed code that needs cleaning
+2. Balance calculation for "all" transfers needs to be fixed to properly reserve gas fees
+3. Ensure the amount from balance query is correctly parsed and used in the transfer
+
+## Implementation Steps:
+
+1. Clean up the `execute_direct_sol_transfer` function to remove duplications
+2. Fix the balance parsing logic to properly handle the JSON response from AccountBalanceTool
+3. Ensure the gas reserve is properly applied (0.1 SOL = 10,000,000 lamports)
+4. Test both regular and "all" transfers to verify they work correctly
+
+---
+
 i can see a lot tool name in string, do replace with enum (we already have that, try grep, dont create new)
+
+
+    // TODO
+    // User query comes in through the API endpoint
+    // call transfer_wallet_setup for airdrop for test
+    // 2. `execute_dynamic_flow` handler receives the request
+    // 3. The query is passed to the `Planner` in `reev-core`
+    // 4. `Planner::refine_and_plan()` processes the query
+    // 5. `LanguageRefiner` refines the natural language
+    // 6. `YmlGenerator` creates a structured flow with a swap step
+    // 7. The flow is executed by the agent, which calls the `jupiter_swap` tool
+    // 8. The swap is performed on-chain
 
 ---
 

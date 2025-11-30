@@ -1,6 +1,6 @@
 //! Tests for refiner module
 
-use reev_core::refiner::RefinedPrompt;
+use reev_core::prompt_processor::RefinedPrompt;
 
 #[tokio::test]
 async fn test_refined_prompt_creation() {

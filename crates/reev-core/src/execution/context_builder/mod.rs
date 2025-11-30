@@ -195,9 +195,15 @@ impl MinimalAiContext {
 
         // Add wallet information
         prompt.push_str(&format!(
-            "Wallet: {} with {} SOL lamports\n",
-            self.pubkey, self.sol_balance
+            "Wallet: {} with {} SOL lamports ({} SOL)\n",
+            self.pubkey,
+            self.sol_balance,
+            self.sol_balance / 1_000_000_000
         ));
+
+        // Add special instruction for "all" transfers
+        let all_amount = self.sol_balance / 1_000_000_000;
+        prompt.push_str(&format!("CRITICAL FOR \"all\" TRANSFERS: When user says \"send all SOL\" or \"transfer all SOL\", you MUST use the SOL balance shown above ({all_amount} SOL) as the amount to transfer, not the literal word \"all\".\n"));
 
         if !self.tokens.is_empty() {
             prompt.push_str("Token balances:\n");
@@ -259,8 +265,7 @@ impl MinimalAiContext {
                             .get(mint)
                             .and_then(|t| t.symbol.as_deref())
                             .unwrap_or("Unknown");
-                        prompt
-                            .push_str(&format!("    {amount} units of {symbol} ({mint})\n"));
+                        prompt.push_str(&format!("    {amount} units of {symbol} ({mint})\n"));
                     }
                 }
 

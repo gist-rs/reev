@@ -9,54 +9,111 @@ use serde::{Deserialize, Serialize};
 
 use tracing::{debug, error, info, instrument, warn};
 
-/// Language refiner for refining user prompts
-pub struct LanguageRefiner {
+// Import prompts
+use crate::prompts;
+use prompts::prompt_processor::PROMPT_PROCESSOR_SYSTEM_PROMPT;
+
+/// Prompt processor for refining user prompts and handling special cases
+pub struct PromptProcessor {
     /// API key for LLM service
     api_key: Option<String>,
     /// Model name for LLM
     model_name: String,
+    /// Owner wallet address
+    owner_wallet_address: Option<String>,
 }
 
-impl Default for LanguageRefiner {
+impl Default for PromptProcessor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl LanguageRefiner {
+impl PromptProcessor {
     /// Create a new language refiner
     pub fn new() -> Self {
-        let model_name =
-            std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
+        let model_name = std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4".to_string());
         let api_key = std::env::var("ZAI_API_KEY").ok();
 
         Self {
             api_key,
             model_name,
+            owner_wallet_address: None,
         }
     }
 
-    /// Create a language refiner with custom configuration
+    /// Create a prompt processor with custom configuration
     pub fn with_config(api_key: Option<String>, model_name: String) -> Self {
         Self {
             api_key,
             model_name,
+            owner_wallet_address: None,
         }
     }
 
-    /// Refine a user prompt using LLM
+    /// Process a user prompt using LLM with special handling for "all" keyword
     #[instrument(skip(self))]
-    pub async fn refine_prompt(&self, prompt: &str) -> Result<RefinedPrompt> {
-        info!("Refining prompt: {}", prompt);
+    pub async fn process_prompt(
+        &mut self,
+        prompt: &str,
+        owner_wallet_address: &str,
+    ) -> Result<RefinedPrompt> {
+        self.owner_wallet_address = Some(owner_wallet_address.to_string());
+        info!(
+            "Processing prompt: {}, sender: {:?}",
+            prompt, self.owner_wallet_address
+        );
 
         // If no API key is configured, return error as per V3 plan
         if self.api_key.is_none() {
             return Err(anyhow!("No API key configured for language refiner"));
         }
 
+        // Check if this is a transfer request with "all" keyword
+        let original_prompt = prompt.to_string();
+        let is_all_transfer = original_prompt.to_lowercase().contains("all")
+            && (original_prompt.to_lowercase().contains("transfer")
+                || original_prompt.to_lowercase().contains("send"));
+
+        let modified_prompt = if is_all_transfer {
+            // This is a transfer with "all" keyword, calculate maximum transferable amount
+            let owner_wallet_address = match &self.owner_wallet_address {
+                Some(owner_wallet_address) => owner_wallet_address,
+                None => panic!("Required owner_wallet_address"),
+            };
+
+            // Create wallet context to get balance
+            let wallet_context = create_wallet_context(owner_wallet_address).await?;
+
+            // Calculate gas reserve (0.001 SOL for now)
+            let gas_reserve = 1_000_000u64; // 0.001 SOL in lamports
+
+            // Calculate maximum transferable amount
+            let max_amount = crate::utils::transfer_utils::calculate_max_transferable_amount(
+                "", // Empty for SOL
+                wallet_context.sol_balance,
+                gas_reserve,
+            );
+
+            // Convert max_amount to SOL for display
+            let max_amount_sol = max_amount as f64 / 1_000_000_000.0;
+
+            info!(
+                "Detected 'all' keyword, calculated max transferable amount: {} SOL",
+                max_amount_sol
+            );
+
+            // Add calculated amount as context for the LLM to use
+            format!(
+                "Transferable amount: {max_amount_sol:.3} SOL. {original_prompt}"
+            )
+        } else {
+            original_prompt.clone()
+        };
+
         // Build LLM request for language refinement
         let request = LanguageRefineRequest {
-            prompt: prompt.to_string(),
+            prompt: modified_prompt,
         };
 
         // Send request to LLM
@@ -67,13 +124,47 @@ impl LanguageRefiner {
             Ok(response) => response,
             Err(e) => {
                 warn!("LLM request failed: {}", e);
+                // For "all" transfers, fallback to simple replacement
+                if is_all_transfer {
+                    let owner_wallet_address = match &self.owner_wallet_address {
+                        Some(owner_wallet_address) => owner_wallet_address,
+                        None => panic!("Required owner_wallet_address"),
+                    };
+
+                    // Create wallet context to get balance
+                    let wallet_context = create_wallet_context(owner_wallet_address).await?;
+
+                    // Calculate gas reserve (0.001 SOL for now)
+                    let gas_reserve = 1_000_000u64; // 0.001 SOL in lamports
+
+                    // Calculate maximum transferable amount
+                    let max_amount =
+                        crate::utils::transfer_utils::calculate_max_transferable_amount(
+                            "", // Empty for SOL
+                            wallet_context.sol_balance,
+                            gas_reserve,
+                        );
+
+                    // Convert max_amount to SOL for display
+                    let max_amount_sol = max_amount as f64 / 1_000_000_000.0;
+
+                    // Return refined prompt with calculated amount
+                    return Ok(RefinedPrompt::new_for_test(
+                        original_prompt.to_string(),
+                        original_prompt
+                            .to_lowercase()
+                            .replace("all", &format!("{max_amount_sol:.3}")),
+                        true,
+                    ));
+                }
+
                 return Err(anyhow!("LLM request failed: {e}"));
             }
         };
 
         // Parse response - response may already be a JSON string of LanguageRefineResponse
         // or a plain string that needs to be converted
-        let refined = if response.starts_with('{') {
+        let response_obj = if response.starts_with('{') {
             // Response is JSON, parse it directly
             match serde_json::from_str::<LanguageRefineResponse>(&response) {
                 Ok(r) => r,
@@ -84,7 +175,7 @@ impl LanguageRefiner {
             }
         } else {
             // Response is plain text, create a LanguageRefineResponse from it
-            let changed = response != prompt;
+            let changed = response != request.prompt;
             LanguageRefineResponse {
                 refined_prompt: response.clone(),
                 changes_detected: changed,
@@ -92,18 +183,21 @@ impl LanguageRefiner {
             }
         };
 
-        info!("Refined prompt: {}", refined.refined_prompt);
-        debug!(
-            "Original: {} -> Refined: {}",
-            prompt, refined.refined_prompt
+        // Create refined prompt object
+        let refined = RefinedPrompt::new_for_test(
+            prompt.to_string(),
+            response_obj.refined_prompt.clone(),
+            response_obj.changes_detected,
         );
+        info!("Processed prompt: {}", refined.refined);
+        debug!("Original: {} -> Refined: {}", prompt, refined.refined);
 
         // Log the raw response for debugging
         debug!("LLM raw response: {}", response);
 
         Ok(RefinedPrompt {
             original: prompt.to_string(),
-            refined: refined.refined_prompt,
+            refined: refined.refined,
             changes_detected: refined.changes_detected,
             confidence: refined.confidence,
         })
@@ -114,60 +208,8 @@ impl LanguageRefiner {
         let client = reqwest::Client::new();
         let url = "https://api.z.ai/api/coding/paas/v4/chat/completions";
 
-        // Build system prompt for language refinement
-        let system_prompt = r#"
-You are a language refinement assistant for a DeFi application. Your task is to refine user prompts by:
-
-1. Fixing typos and grammatical errors
-2. Normalizing cryptocurrency terminology (e.g., "usd coin" -> "USDC", "solana" -> "SOL")
-3. Making language clearer and more unambiguous
-4. Preserving original intent and meaning
-5. Keeping refined prompt concise and direct
-
-CRITICAL: PRESERVE THE EXACT OPERATION TYPE AND TOKENS:
-- If user says "swap 0.1 SOL for USDC", refined prompt MUST still be a "swap" operation
-- If user says "transfer 1 SOL to address", refined prompt MUST still be a "transfer" operation
-- If user says "lend 100 USDC", refined prompt MUST still be a "lend" operation
-- DO NOT add recipient addresses that weren't in the original prompt
-- DO NOT change the operation type (swap to transfer, transfer to send, etc.)
-- NEVER replace "swap" with "send" or "transfer" - this breaks the entire system
-- NEVER change token symbols (SOL must remain SOL, USDC must remain USDC)
-- NEVER change "swap" to "send" or "transfer" - this breaks the system
-- For swap operations, keep both tokens mentioned in the original prompt
-- For transfer operations, keep the recipient address exactly as provided
-
-CRITICAL FOR MULTI-STEP OPERATIONS:
-- If the prompt contains multiple operations connected by "then" or "and", preserve ALL operations
-- For multi-step prompts like "swap 0.1 SOL to USDC then lend 10 USDC", keep both operations
-- Do NOT split multi-step operations into separate prompts
-- Preserve the entire multi-step sequence in a single refined prompt
-- Do NOT add numbers or bullet points to multi-step operations
-
-Do NOT:
-- Extract intent or determine tools
-- Add information not present in the original prompt (especially recipient addresses)
-- Change action words (swap, transfer, send, lend) to other actions
-- Add explanations or additional context
-- Replace operation types (NEVER replace "swap" with "send" or "transfer")
-- Change token symbols or amounts
-- Assume operations based on incomplete information
-- Split multi-step operations into separate prompts
-- Add numbering or bullet points to multi-step operations
-
-IMPORTANT: You must respond with a valid JSON object. Do not include any explanations or additional text outside the JSON format.
-
-Respond with ONLY a JSON object with the following fields:
-- refined_prompt: The refined prompt
-- changes_detected: Boolean indicating if changes were made
-- confidence: Float from 0.0 to 1.0 indicating confidence in the refinement
-
-Example response format:
-{
-  "refined_prompt": "swap 0.1 SOL for USDC",
-  "changes_detected": false,
-  "confidence": 0.95
-}
-"#;
+        // Use system prompt from prompts module
+        let system_prompt = PROMPT_PROCESSOR_SYSTEM_PROMPT;
 
         // Use the correct model name for ZAI API
         let model_name = if self.model_name == "glm-4.6-coding" {
@@ -283,6 +325,42 @@ pub struct RefinedPrompt {
     pub changes_detected: bool,
     /// Confidence in the refinement (0.0-1.0)
     confidence: f32,
+}
+
+/// Create wallet context from wallet address
+async fn create_wallet_context(wallet_address: &str) -> Result<reev_types::flow::WalletContext> {
+    use reev_types::flow::WalletContext;
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_sdk::pubkey::Pubkey;
+    use std::str::FromStr;
+
+    info!("Creating wallet context for address: {}", wallet_address);
+
+    // Parse wallet address
+    let pubkey =
+        Pubkey::from_str(wallet_address).map_err(|e| anyhow!("Invalid wallet address: {e}"))?;
+
+    // Create RPC client to query balance
+    let client = RpcClient::new("http://localhost:8899".to_string());
+
+    // Get account balance
+    let balance = client.get_balance(&pubkey).await?;
+    info!(
+        "Retrieved balance: {} lamports for address: {}",
+        balance, wallet_address
+    );
+
+    // Create token balances map (empty for now)
+    let _token_balances: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+
+    // Create wallet context
+    Ok(WalletContext {
+        owner: wallet_address.to_string(),
+        sol_balance: balance,
+        token_balances: std::collections::HashMap::new(),
+        total_value_usd: balance as f64 / 1_000_000_000.0, // Simplified: 1 SOL = $1
+        token_prices: std::collections::HashMap::new(),
+    })
 }
 
 impl RefinedPrompt {

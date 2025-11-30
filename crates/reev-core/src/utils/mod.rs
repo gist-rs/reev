@@ -6,6 +6,7 @@
 
 pub mod flow_utils;
 pub mod result_utils;
+pub mod transfer_utils;
 pub mod yml_utils;
 
 // Re-export key utilities for convenience
@@ -18,6 +19,7 @@ pub use result_utils::{
     extract_error_messages, extract_metadata, extract_tool_results, extract_transaction_signature,
     is_execution_successful,
 };
+pub use transfer_utils::calculate_max_transferable_amount;
 pub use yml_utils::{
     create_complete_yml_with_ground_truth, create_ground_truth_yml, create_lend_step,
     create_subject_wallet_info_yml, create_swap_step, create_transfer_step, create_yml_prompt,

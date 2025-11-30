@@ -19,7 +19,7 @@ use anyhow::Result;
 use reev_types::flow::WalletContext;
 use tracing::{info, instrument};
 
-use crate::refiner::RefinedPrompt;
+use crate::prompt_processor::RefinedPrompt;
 use crate::yml_schema::YmlFlow;
 
 /// YML generator for creating structured flows from refined prompts

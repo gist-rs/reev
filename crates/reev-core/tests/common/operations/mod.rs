@@ -62,6 +62,19 @@ impl TransferOperation {
     }
 }
 
+/// Operation for transferring all available SOL
+pub struct TransferAllOperation {
+    pub to: String,
+}
+
+impl TransferAllOperation {
+    /// Create a new "transfer all" operation
+    #[allow(dead_code)]
+    pub fn new(to: &str) -> Self {
+        Self { to: to.to_string() }
+    }
+}
+
 impl TestOperation for TransferOperation {
     fn prompt(&self) -> String {
         format!("send {} SOL to {}", self.amount, self.to)
@@ -400,7 +413,58 @@ impl TestOperation for LendOperation {
     }
 }
 
-/// Execute a standardized test operation
+impl TestOperation for TransferAllOperation {
+    fn prompt(&self) -> String {
+        format!("send all SOL to {}", self.to)
+    }
+
+    fn token_balances(&self) -> HashMap<String, f64> {
+        HashMap::new() // No tokens for transfer
+    }
+
+    fn total_value_usd(&self, sol_balance: f64, usdc_balance: f64) -> f64 {
+        // Assuming SOL = $150
+        sol_balance * 150.0 + usdc_balance
+    }
+
+    async fn setup_wallet(
+        &self,
+        pubkey: &Pubkey,
+        surfpool_client: &jup_sdk::surfpool::SurfpoolClient,
+    ) -> Result<(f64, f64)> {
+        // Airdrop 5 SOL to account for transaction fees
+        info!("🔄 Airdropping 5 SOL to account for transaction fees...");
+        surfpool_client
+            .set_account(&pubkey.to_string(), 5_000_000_000)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to airdrop SOL: {e}"))?;
+
+        // Verify SOL balance
+        let rpc_client = RpcClient::new("http://localhost:8899".to_string());
+        let balance = rpc_client.get_balance(pubkey).await?;
+        let sol_balance = balance as f64 / 1_000_000_000.0_f64;
+
+        info!("✅ Account balance: {sol_balance} SOL");
+
+        Ok((sol_balance, 0.0)) // No USDC needed for transfer
+    }
+
+    async fn verify_operation(
+        &self,
+        _pubkey: &Pubkey,
+        signature: &str,
+        _initial_balances: (f64, f64),
+    ) -> Result<()> {
+        info!(
+            "\n✅ 'All Transfer' completed with signature: {}",
+            signature
+        );
+        check_transaction_status(signature).await?;
+        Ok(())
+    }
+}
+
+/// Execute a standardized operation
 #[allow(dead_code)]
 pub async fn execute_standardized_operation<T: TestOperation>(
     operation: &T,

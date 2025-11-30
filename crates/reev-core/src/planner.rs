@@ -4,10 +4,9 @@
 //! from user prompts. It handles language refinement, intent analysis, and creates
 //! structured YML flows with wallet context and steps.
 
-use crate::context::ContextResolver;
 use crate::llm::glm_client::init_glm_client;
-use crate::refiner::LanguageRefiner;
 use crate::yml_generator::YmlGenerator;
+use crate::{context::ContextResolver, prompt_processor::PromptProcessor};
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
 
@@ -19,7 +18,7 @@ pub struct Planner {
     /// Context resolver for wallet information
     context_resolver: ContextResolver,
     /// Language refiner for Phase 1 prompt refinement
-    language_refiner: LanguageRefiner,
+    prompt_processor: PromptProcessor,
     /// YML generator for Phase 1 structured YML generation
     yml_generator: YmlGenerator,
     /// LLM client for legacy flow generation (deprecated)
@@ -31,7 +30,7 @@ impl Planner {
     pub fn new(context_resolver: ContextResolver) -> Self {
         Self {
             context_resolver,
-            language_refiner: LanguageRefiner::new(),
+            prompt_processor: PromptProcessor::new(),
             yml_generator: YmlGenerator::new(),
             llm_client: None,
         }
@@ -42,7 +41,7 @@ impl Planner {
         let llm_client = init_glm_client()?;
         Ok(Self {
             context_resolver,
-            language_refiner: LanguageRefiner::new(),
+            prompt_processor: PromptProcessor::new(),
             yml_generator: YmlGenerator::new(),
             llm_client: Some(llm_client),
         })
@@ -57,7 +56,7 @@ impl Planner {
     /// Refine and plan: Phase 1 LLM integration for structured YML generation
     #[instrument(skip(self))]
     pub async fn refine_and_plan(
-        &self,
+        &mut self,
         prompt: &str,
         wallet_pubkey: &str,
     ) -> Result<crate::yml_schema::YmlFlow> {
@@ -69,7 +68,7 @@ impl Planner {
 
     /// V3 implementation of refine_and_plan using LanguageRefiner and YmlGenerator
     async fn refine_and_plan_v3(
-        &self,
+        &mut self,
         prompt: &str,
         wallet_pubkey: &str,
     ) -> Result<crate::yml_schema::YmlFlow> {
@@ -87,7 +86,10 @@ impl Planner {
 
         // Step 1: Language refinement using LLM
         info!("Step 1: Refining language with LLM");
-        let refined_prompt = self.language_refiner.refine_prompt(prompt).await?;
+        let refined_prompt = self
+            .prompt_processor
+            .process_prompt(prompt, wallet_pubkey)
+            .await?;
         debug!("Refined prompt: {}", refined_prompt.refined);
 
         if refined_prompt.changes_detected {
