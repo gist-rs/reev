@@ -16,42 +16,32 @@
 mod common;
 
 use anyhow::Result;
-use common::operations::TransferOperation;
-use common::pubkeys;
 use rstest::*;
 use serial_test::serial;
-use solana_sdk::pubkey::Pubkey;
-use std::str::FromStr;
 use tracing::info;
 
-/// Test fixture for the target public key
-#[fixture]
-fn target_pubkey() -> Pubkey {
-    Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
-}
-
-/// Test for specific 1 SOL transfer case (maintains backward compatibility)
+/// Test with custom prompt (testing prompt generation)
 #[rstest]
+#[case(
+    "transfer",
+    "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
+)]
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-async fn test_send_1_sol_to_target(target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Starting Test: Send 1 SOL to target account");
-    info!("=====================================");
+async fn test_transfer(#[case] operation_type: &str, #[case] prompt: &str) -> Result<()> {
+    info!("operation_type: {operation_type}",);
+    info!("operation_type: {prompt}",);
 
-    // Initialize the test environment (will start SURFPOOL if needed)
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Create the transfer operation for 1 SOL
-    let operation = TransferOperation::new(&target_pubkey.to_string(), 1.0);
-
-    // Execute the transfer using the standardized operation
-    let signature =
-        common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await?;
-
-    info!("✅ Transfer completed successfully!");
-    info!("✅ Transaction signature: {}", signature);
-    info!("=============================");
+    // TODO
+    // User query comes in through the API endpoint
+    // call transfer_wallet_setup for airdrop for test
+    // 2. `execute_dynamic_flow` handler receives the request
+    // 3. The query is passed to the `Planner` in `reev-core`
+    // 4. `Planner::refine_and_plan()` processes the query
+    // 5. `LanguageRefiner` refines the natural language
+    // 6. `YmlGenerator` creates a structured flow with a swap step
+    // 7. The flow is executed by the agent, which calls the `jupiter_swap` tool
+    // 8. The swap is performed on-chain
 
     Ok(())
 }

@@ -7,8 +7,13 @@ use anyhow::Result;
 use jup_sdk::surfpool::SurfpoolClient;
 use rstest::fixture;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::signer::{keypair::Keypair, Signer};
-use std::env;
+use solana_sdk::{
+    pubkey::Pubkey,
+    signer::{keypair::Keypair, Signer},
+};
+use std::{env, str::FromStr};
+
+use crate::common::pubkeys;
 
 /// Fixture that provides the default Solana keypair
 #[fixture]
@@ -31,6 +36,12 @@ pub async fn default_keypair() -> Keypair {
     let keypair = solana_sdk::signer::keypair::read_keypair_file(&keypair_path)
         .unwrap_or_else(|e| panic!("Failed to parse keypair: {e}"));
     keypair
+}
+
+/// Test fixture for the target public key
+#[fixture]
+pub fn target_pubkey() -> Pubkey {
+    Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
 }
 
 /// Fixture that provides the RPC client
