@@ -30,11 +30,7 @@ pub async fn is_surfpool_running() -> bool {
 /// Helper function to start surfpool and wait for it to be ready
 #[allow(dead_code)]
 pub async fn ensure_surfpool_running() -> Result<()> {
-    // Kill any existing surfpool process to ensure clean state
-    info!("🧹 Killing any existing surfpool processes...");
-    reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-
-    // First check if surfpool is already running
+    // Check if surfpool is already running
     let rpc_client = RpcClient::new("http://localhost:8899".to_string());
 
     match rpc_client.get_latest_blockhash().await {

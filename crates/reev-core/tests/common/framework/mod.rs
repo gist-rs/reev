@@ -55,27 +55,15 @@ impl TestRunner {
 
         info!("✅ ZAI_API_KEY is configured");
 
-        // Check if SURFPOOL is running
-        match solana_client::nonblocking::rpc_client::RpcClient::new(
-            "http://localhost:8899".to_string(),
-        )
-        .get_latest_blockhash()
-        .await
-        {
-            Ok(_) => {
-                info!("✅ SURFPOOL is running and ready");
-            }
-            Err(_) => {
-                // SURFPOOL is not running, try to start it
-                info!("⏳ SURFPOOL is not running, attempting to start it...");
-                reev_lib::server_utils::kill_existing_surfpool(8899).await?;
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        // Always kill existing surfpool process to ensure clean state for each test
+        info!("🧹 Killing existing surfpool process for clean test environment...");
+        reev_lib::server_utils::kill_existing_surfpool(8899).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-                // Use ensure_surfpool_running from helpers to start SURFPOOL
-                crate::common::helpers::ensure_surfpool_running().await?;
-                info!("✅ SURFPOOL is now running");
-            }
-        }
+        // Start a fresh surfpool instance
+        info!("🚀 Starting fresh surfpool instance...");
+        crate::common::helpers::ensure_surfpool_running().await?;
+        info!("✅ SURFPOOL is now running with clean state");
 
         self.initialized = true;
         Ok(())
