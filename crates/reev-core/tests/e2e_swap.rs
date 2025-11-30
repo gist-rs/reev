@@ -23,8 +23,9 @@
 mod common;
 
 use anyhow::Result;
-use common::operations::SwapOperation;
+
 use common::pubkeys;
+use reev_core::QueryHandler;
 use rstest::*;
 use serial_test::serial;
 use solana_sdk::pubkey::Pubkey;
@@ -43,65 +44,54 @@ async fn async_target_pubkey() -> Pubkey {
     Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
 }
 
-/// Test for specific 1 SOL swap case with better error handling
+/// Consolidated swap test that handles both specific amount and "all" keyword cases
+/// The QueryHandler's LLM-based planner should handle both scenarios appropriately
 #[rstest]
+#[case("swap 1 sol for usdc")]
+#[case("swap all sol for usdc")]
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-async fn test_swap_1_sol_for_usdc(_target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Starting Test: Swap 1 SOL for USDC");
+async fn test_swap(#[case] prompt: &str, _target_pubkey: Pubkey) -> Result<()> {
+    info!("Testing prompt: {prompt}");
     info!("=====================================");
 
-    // Initialize the test environment (will start SURFPOOL if needed)
+    // Initialize test runner
     let mut runner = common::framework::TestRunner::new()?;
     runner.initialize().await?;
 
-    // Create the swap operation for 1 SOL
-    let operation = SwapOperation::new("SOL", "USDC", "1");
+    // Initialize query handler
+    let mut query_handler = QueryHandler::new().await?;
 
-    // Execute the swap using the standardized operation
-    match common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await {
-        Ok(signature) => {
-            info!("✅ Swap completed successfully!");
-            info!("✅ Transaction signature: {}", signature);
-        }
-        Err(e) => {
-            tracing::warn!("⚠️ 1 SOL swap encountered an error: {}", e);
+    // Reset wallet balance to ensure we have enough SOL for tests
+    runner.reset_wallet_balance().await?;
+
+    // Process the query through QueryHandler's LLM-based pipeline
+    // The LLM will handle both specific amounts and "all" keyword cases
+    let result = query_handler.process_query(prompt, &runner.pubkey).await?;
+
+    // Verify the query was processed successfully
+    if result.success {
+        info!(
+            "✅ Swap completed successfully with signature: {:?}",
+            result.transaction_signature
+        );
+    } else {
+        // Handle the case where the swap failed
+        let error_msg = result.error_message.unwrap_or("Unknown error".to_string());
+
+        // For 1 SOL swaps, we'll allow it to pass with a warning
+        // since it's a smaller amount and might fail due to market conditions
+        if prompt.contains("1 sol") {
+            tracing::warn!("⚠️ Swap with 1 SOL encountered an error: {}", error_msg);
             tracing::info!("ℹ️ This might be due to insufficient funds or market conditions");
-            // For 1 SOL test, we'll allow it to pass with a warning since it's a smaller amount
             return Ok(()); // Don't fail the test for 1 SOL
+        } else {
+            // For "all SOL" swaps, we expect them to succeed
+            tracing::error!("❌ Swap encountered an error: {}", error_msg);
+            return Err(anyhow::anyhow!("Swap failed: {error_msg}"));
         }
     }
-    info!("=============================");
 
-    Ok(())
-}
-
-/// Test for "sell all SOL" swap case with better error handling
-#[rstest]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_sell_all_sol_for_usdc(_target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Starting Test: Sell all SOL for USDC");
-    info!("=====================================");
-
-    // Initialize the test environment (will start SURFPOOL if needed)
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Create the swap operation for all SOL
-    let operation = SwapOperation::new("SOL", "USDC", "all");
-
-    // Execute the swap using the standardized operation
-    match common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await {
-        Ok(signature) => {
-            info!("✅ Swap completed successfully!");
-            info!("✅ Transaction signature: {}", signature);
-        }
-        Err(e) => {
-            tracing::error!("❌ Sell all SOL swap encountered an error: {}", e);
-            return Err(e);
-        }
-    }
     info!("=============================");
 
     Ok(())
