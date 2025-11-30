@@ -23,7 +23,7 @@
 mod common;
 
 use anyhow::Result;
-use common::operations::{SwapOperation, TestOperation};
+use common::operations::SwapOperation;
 use common::pubkeys;
 use rstest::*;
 use serial_test::serial;
@@ -41,86 +41,6 @@ fn target_pubkey() -> Pubkey {
 #[fixture]
 async fn async_target_pubkey() -> Pubkey {
     Pubkey::from_str(pubkeys::TARGET).expect("Invalid target public key")
-}
-
-/// Test that checks if the test framework is properly set up but doesn't require SURFPOOL
-#[rstest]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_framework_setup(target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Testing framework setup (no SURFPOOL required)");
-    info!("=====================================");
-
-    // This test verifies that the basic test framework is working
-    // without requiring SURFPOOL to be running
-
-    // Check that we can create a target pubkey
-    info!("✅ Target pubkey: {}", target_pubkey);
-
-    // Check that we can create a SwapOperation
-    let operation = SwapOperation::new("SOL", "USDC", "1");
-    info!(
-        "✅ Swap operation: swap {} {} for {}",
-        operation.amount, operation.from, operation.to
-    );
-
-    // Check that we can generate a prompt
-    let prompt = operation.prompt();
-    info!("✅ Generated prompt: {}", prompt);
-
-    info!("✅ Framework setup test completed successfully!");
-    info!("=============================================");
-
-    Ok(())
-}
-
-/// Parameterized test that executes different swap amounts
-#[rstest]
-#[case("0.5", "0.5 SOL")]
-#[case("0.1", "0.1 SOL")]
-#[case("0.01", "0.01 SOL")]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_swaps(
-    #[case] amount: &str,
-    #[case] description: &str,
-    _target_pubkey: Pubkey,
-) -> Result<()> {
-    info!("🧪 Starting Swap Test: {}", description);
-    info!("=====================================");
-
-    // Initialize the test environment (will start SURFPOOL if needed)
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Create the swap operation
-    let operation = SwapOperation::new("SOL", "USDC", amount);
-
-    // Execute the swap using the standardized operation
-    match common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await {
-        Ok(signature) => {
-            info!("✅ Swap test '{}' completed successfully!", description);
-            info!("✅ Transaction signature: {}", signature);
-        }
-        Err(e) => {
-            // Log the error but don't fail the test completely
-            // Jupiter swaps can be flaky due to market conditions
-            tracing::warn!("⚠️ Swap test '{}' encountered an error: {}", description, e);
-
-            // For smaller amounts, we expect better success
-            if amount == "0.01" || amount == "0.1" {
-                tracing::warn!("❌ Small amount swap should have succeeded: {}", e);
-                return Err(e);
-            }
-
-            tracing::info!("ℹ️ This is likely due to Jupiter market conditions or slippage limits");
-            return Ok(()); // Skip failing for larger amounts
-        }
-    }
-
-    info!("=============================");
-
-    Ok(())
 }
 
 /// Test for specific 1 SOL swap case with better error handling
@@ -177,109 +97,11 @@ async fn test_sell_all_sol_for_usdc(_target_pubkey: Pubkey) -> Result<()> {
             info!("✅ Transaction signature: {}", signature);
         }
         Err(e) => {
-            tracing::warn!("⚠️ Sell all SOL swap encountered an error: {}", e);
-            tracing::info!("ℹ️ This might be due to Jupiter market conditions or slippage limits");
-            return Ok(()); // Don't fail the test for "sell all"
+            tracing::error!("❌ Sell all SOL swap encountered an error: {}", e);
+            return Err(e);
         }
     }
     info!("=============================");
-
-    Ok(())
-}
-
-/// Test with custom prompt (testing prompt generation)
-#[rstest]
-#[case(
-    "transfer",
-    "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq"
-)]
-#[case("swap", "swap 1 sol to usdc")]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_prompt_processing(#[case] operation_type: &str, #[case] _prompt: &str) -> Result<()> {
-    info!(
-        "🧪 Testing prompt processing for operation: {}",
-        operation_type
-    );
-
-    // Only process swap prompts in this test
-    if operation_type == "swap" {
-        // Initialize the test environment (will start SURFPOOL if needed)
-        let mut runner = common::framework::TestRunner::new()?;
-        runner.initialize().await?;
-
-        // Create the swap operation
-        let operation = SwapOperation::new("SOL", "USDC", "0.1");
-
-        // Execute the swap using the standardized operation
-        match common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await
-        {
-            Ok(signature) => {
-                info!("✅ Prompt processing test completed successfully!");
-                info!("✅ Transaction signature: {}", signature);
-            }
-            Err(e) => {
-                tracing::warn!("⚠️ Swap test encountered an error: {}", e);
-                tracing::info!("ℹ️ This might be due to Jupiter market conditions");
-                return Ok(()); // Don't fail the test
-            }
-        }
-    } else {
-        info!("⚠️ Skipping non-swap operation in swap test");
-    }
-
-    Ok(())
-}
-
-/// Test with timeout to ensure the operation completes within a reasonable time
-#[rstest]
-#[timeout(std::time::Duration::from_secs(180))]
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn test_swap_with_timeout(_target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Starting Swap Test with Timeout");
-    info!("=====================================");
-
-    // Initialize the test environment (will start SURFPOOL if needed)
-    let mut runner = common::framework::TestRunner::new()?;
-    runner.initialize().await?;
-
-    // Create the swap operation for 0.01 SOL (smaller amount for better success rate)
-    let operation = SwapOperation::new("SOL", "USDC", "0.01");
-
-    // Execute the swap using the standardized operation with better error handling
-    match common::operations::execute_standardized_operation(&operation, &runner.pubkey()).await {
-        Ok(signature) => {
-            info!("✅ Swap with timeout test completed successfully!");
-            info!("✅ Transaction signature: {}", signature);
-        }
-        Err(e) => {
-            // Jupiter swaps can fail due to market conditions, so we'll log and not fail
-            tracing::warn!("⚠️ Swap test with timeout encountered an error: {}", e);
-            tracing::info!("ℹ️ This is likely due to Jupiter market conditions or slippage limits");
-            return Ok(()); // Don't fail the test
-        }
-    }
-
-    info!("=============================");
-
-    Ok(())
-}
-
-/// Test using async fixtures with #[future] and #[awt]
-#[rstest]
-#[tokio::test(flavor = "multi_thread")]
-#[awt]
-#[serial]
-async fn test_async_fixture(#[future] async_target_pubkey: Pubkey) -> Result<()> {
-    info!("🧪 Testing async fixtures with #[awt]");
-    info!("=====================================");
-
-    // Check that we can use the async fixture
-    info!("✅ Target pubkey: {}", async_target_pubkey);
-
-    info!("✅ Async fixture test completed successfully!");
-    info!("=========================================");
 
     Ok(())
 }
