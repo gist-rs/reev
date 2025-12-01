@@ -70,14 +70,12 @@ impl PromptProcessor {
             return Err(anyhow!("No API key configured for language refiner"));
         }
 
-        // Check if this is a transfer request with "all" keyword
+        // Check if this is a request with "all" keyword for any operation type
         let original_prompt = prompt.to_string();
-        let is_all_transfer = original_prompt.to_lowercase().contains("all")
-            && (original_prompt.to_lowercase().contains("transfer")
-                || original_prompt.to_lowercase().contains("send"));
+        let is_all_keyword = original_prompt.to_lowercase().contains("all");
 
         // Build LLM request for language refinement
-        let request = if is_all_transfer {
+        let (request, max_amount_decimal) = if is_all_keyword {
             // This is a transfer with "all" keyword, calculate maximum transferable amount
             let owner_wallet_address = match &self.owner_wallet_address {
                 Some(owner_wallet_address) => owner_wallet_address,
@@ -97,26 +95,30 @@ impl PromptProcessor {
                 gas_reserve,
             );
 
-            // Convert max_amount to SOL for display
-            let max_amount_sol = max_amount as f64 / 1_000_000_000.0;
+            // Convert max_amount to token units for display
+            let max_amount_decimal = max_amount as f64 / 1_000_000_000.0;
 
             info!(
-                "Detected 'all' keyword, calculated max transferable amount: {} SOL",
-                max_amount_sol
+                "Detected 'all' keyword, calculated max transferable amount: {}",
+                max_amount_decimal
             );
 
             // Create structured prompt for LLM using template approach
-            let structured_prompt = build_refinement_prompt(&original_prompt, max_amount_sol);
+            let structured_prompt = build_refinement_prompt(&original_prompt, max_amount_decimal);
 
             // Build LLM request for language refinement
-            LanguageRefineRequest {
+            let request = LanguageRefineRequest {
                 prompt: structured_prompt,
-            }
+            };
+
+            (request, Some(max_amount_decimal))
         } else {
             // No "all" keyword, use original prompt directly
-            LanguageRefineRequest {
-                prompt: original_prompt.clone(),
-            }
+            let request = LanguageRefineRequest {
+                prompt: original_prompt,
+            };
+
+            (request, None)
         };
 
         // Send request to LLM
@@ -143,7 +145,7 @@ impl PromptProcessor {
                         response.clone()
                     };
 
-                    // Try parsing the cleaned response
+                    // Try parsing of cleaned response
                     match serde_json::from_str::<LanguageRefineResponse>(&cleaned_response) {
                         Ok(r) => r,
                         Err(e2) => {
@@ -170,11 +172,28 @@ impl PromptProcessor {
         };
 
         // Create refined prompt object
-        let refined = RefinedPrompt::new_for_test(
-            prompt.to_string(),
-            response_obj.refined_prompt.clone(),
-            response_obj.changes_detected,
-        );
+        let refined = if is_all_keyword {
+            if let Some(amount) = max_amount_decimal {
+                RefinedPrompt::new_for_test_with_amount(
+                    prompt.to_string(),
+                    response_obj.refined_prompt.clone(),
+                    response_obj.changes_detected,
+                    amount,
+                )
+            } else {
+                RefinedPrompt::new_for_test(
+                    prompt.to_string(),
+                    response_obj.refined_prompt.clone(),
+                    response_obj.changes_detected,
+                )
+            }
+        } else {
+            RefinedPrompt::new_for_test(
+                prompt.to_string(),
+                response_obj.refined_prompt.clone(),
+                response_obj.changes_detected,
+            )
+        };
         info!("Processed prompt: {}", refined.refined);
         debug!("Original: {} -> Refined: {}", prompt, refined.refined);
 
@@ -186,6 +205,7 @@ impl PromptProcessor {
             refined: refined.refined,
             changes_detected: refined.changes_detected,
             confidence: refined.confidence,
+            usable_amount: max_amount_decimal,
         })
     }
 
@@ -349,6 +369,8 @@ pub struct RefinedPrompt {
     pub changes_detected: bool,
     /// Confidence in the refinement (0.0-1.0)
     confidence: f32,
+    /// Usable amount for transfers (when "all" keyword was used)
+    pub usable_amount: Option<f64>,
 }
 
 /// Create wallet context from wallet address
@@ -395,21 +417,38 @@ impl RefinedPrompt {
             refined,
             changes_detected,
             confidence: 0.8, // Default confidence for testing
+            usable_amount: None,
         }
     }
 
-    /// Get confidence of the refinement
+    /// Create a new refined prompt with usable amount (for testing "all" keyword)
+    pub fn new_for_test_with_amount(
+        original: String,
+        refined: String,
+        changes_detected: bool,
+        usable_amount: f64,
+    ) -> Self {
+        Self {
+            original,
+            refined,
+            changes_detected,
+            confidence: 0.8, // Default confidence for testing
+            usable_amount: Some(usable_amount),
+        }
+    }
+
+    /// Get the confidence level of refinement
     pub fn get_confidence(&self) -> f32 {
         self.confidence
     }
 }
 
-/// Structured YML prompt for LLM to refine transfer amounts
+/// Structured YML prompt for LLM to refine amounts when "all" keyword is used
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferAmountRefinementRequest {
     /// The original user prompt
     pub original_prompt: String,
-    /// Maximum transferable amount in SOL (after gas reserve)
+    /// Maximum usable amount in token units (after gas reserve)
     pub usable_amount: f64,
     /// Instruction for the LLM
     pub instruction: String,
@@ -421,7 +460,7 @@ impl TransferAmountRefinementRequest {
         Self {
             original_prompt,
             usable_amount,
-            instruction: "Replace 'all' with the usable_amount in the prompt. You MUST respond with valid JSON: {\"refined_prompt\": \"your refined prompt here\"}".to_string(),
+            instruction: "Replace 'all' with the usable amount in the prompt. You MUST respond with valid JSON: {\"refined_prompt\": \"your refined prompt here\"}".to_string(),
         }
     }
 
@@ -432,15 +471,15 @@ impl TransferAmountRefinementRequest {
     }
 }
 
-/// Build a structured prompt for transfer amount refinement
+/// Build a structured prompt for amount refinement when "all" keyword is used
 pub fn build_refinement_prompt(original_prompt: &str, usable_amount: f64) -> String {
     format!(
-        r#"You are a DeFi assistant that refines transfer prompts.
+        r#"You are a DeFi assistant that refines prompts with "all" keyword.
 
-Replace "all" with the usable_amount in the transfer prompt below.
+Replace "all" with the usable amount in the prompt below.
 
 Original Prompt: "{original_prompt}"
-Usable Amount: {usable_amount} SOL
+Usable Amount: {usable_amount}
 
 Respond with valid JSON ONLY:
 {{
@@ -448,74 +487,22 @@ Respond with valid JSON ONLY:
 }}
 
 Example:
-Original Prompt: "transfer all SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
-Usable Amount: 4.999 SOL
+Original Prompt: "swap all SOL for USDC"
+Usable Amount: 4.999
 Response: {{
-"refined_prompt": "transfer 4.999 SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+"refined_prompt": "swap 4.999 SOL for USDC"
 }}"#
     )
 }
 
-/// Extract the refined prompt from GLM reasoning content
+/// Extract the refined prompt from LLM response
+/// This function prioritizes JSON responses and falls back to pattern matching
 fn extract_refined_prompt_from_reasoning(reasoning: &str, original_prompt: &str) -> String {
-    // The GLM reasoning content contains analysis in Chinese
-    // We need to properly extract refined prompt based on the JSON response format
-
     // First, check if the reasoning contains JSON that we can parse directly
     if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(reasoning) {
         // If the entire reasoning is valid JSON, check if it has refined_prompt field
         if let Some(refined_prompt) = json_value.get("refined_prompt").and_then(|v| v.as_str()) {
             return refined_prompt.to_string();
-        }
-    }
-
-    // Look for specific patterns from GLM responses
-    if reasoning.contains("The refined prompt should be:") {
-        // Extract the refined prompt after "The refined prompt should be:"
-        if let Some(start) = reasoning.find("The refined prompt should be:") {
-            let after_phrase = &reasoning[start + "The refined prompt should be:".len()..];
-            if let Some(start_quote) = after_phrase.find('"') {
-                let after_start_quote = &after_phrase[start_quote + 1..];
-                if let Some(end_quote) = after_start_quote.find('"') {
-                    let refined = after_start_quote[..end_quote].to_string();
-                    // Check if it looks like a valid prompt
-                    if refined.len() > 5
-                        && (refined.contains("swap")
-                            || refined.contains("transfer")
-                            || refined.contains("lend")
-                            || refined.contains("send"))
-                    {
-                        return refined;
-                    }
-                }
-            }
-        }
-    }
-
-    // Look for "The refined prompt should be:" pattern without colon
-    if reasoning.contains("The refined prompt should be") {
-        // Extract the refined prompt after "The refined prompt should be"
-        if let Some(start) = reasoning.find("The refined prompt should be") {
-            let after_phrase = &reasoning[start + "The refined prompt should be".len()..];
-            // Look for the next colon and quote
-            if let Some(colon_pos) = after_phrase.find(':') {
-                let after_colon = &after_phrase[colon_pos + 1..];
-                if let Some(start_quote) = after_colon.find('"') {
-                    let after_start_quote = &after_colon[start_quote + 1..];
-                    if let Some(end_quote) = after_start_quote.find('"') {
-                        let refined = after_start_quote[..end_quote].to_string();
-                        // Check if it looks like a valid prompt
-                        if refined.len() > 5
-                            && (refined.contains("swap")
-                                || refined.contains("transfer")
-                                || refined.contains("lend")
-                                || refined.contains("send"))
-                        {
-                            return refined;
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -562,46 +549,6 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str, original_prompt: &str)
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // Check for common problematic patterns from GLM responses
-    if reasoning.contains("The user wants me to refine the prompt") {
-        // Extract the original prompt from the GLM response
-        if let Some(start) = reasoning.find('"') {
-            if let Some(end) = reasoning.rfind('"') {
-                if end > start {
-                    let original = reasoning[start + 1..end].to_string();
-                    // Remove "The user wants me to refine prompt: " prefix if present
-                    if let Some(stripped) =
-                        original.strip_prefix("The user wants me to refine prompt: ")
-                    {
-                        return stripped.to_string();
-                    }
-                    return original;
-                }
-            }
-        }
-    }
-
-    // If all else fails, check for any English text that looks like a prompt
-    // Avoid returning the GLM analysis itself
-    for line in lines {
-        // If a line contains only ASCII characters and operation words
-        if line.is_ascii() && line.len() > 10 {
-            let trimmed = line.trim().trim_matches('"');
-            // Check if it contains operation words and doesn't look like analysis
-            if !trimmed.is_empty()
-                && (trimmed.contains("swap")
-                    || trimmed.contains("transfer")
-                    || trimmed.contains("lend")
-                    || trimmed.contains("send"))
-                && !trimmed.contains("The user wants me")
-                && !trimmed.contains("I should")
-                && !trimmed.contains("This prompt")
-            {
-                return trimmed.to_string();
             }
         }
     }
