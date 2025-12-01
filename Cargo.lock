@@ -3840,6 +3840,7 @@ dependencies = [
  "async-trait",
  "bs58",
  "chrono",
+ "clap",
  "dotenvy",
  "ed25519-dalek 2.2.0",
  "jup-sdk",

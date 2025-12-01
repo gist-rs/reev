@@ -18,6 +18,12 @@ pub struct JupiterProtocol {
     // For now, we'll use placeholder types
 }
 
+impl Default for JupiterProtocol {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JupiterProtocol {
     /// Create a new Jupiter protocol wrapper
     ///

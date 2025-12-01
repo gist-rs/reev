@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 // Mock protocol implementation for testing
 struct MockProtocol {
-    name: String,
+    _name: String,
 }
 
 #[async_trait::async_trait]
@@ -98,7 +98,7 @@ impl ProtocolExecutor for MockProtocol {
 #[tokio::test]
 async fn test_protocol_executor_trait() {
     let protocol = MockProtocol {
-        name: "TestProtocol".to_string(),
+        _name: "TestProtocol".to_string(),
     };
 
     // Test swap operation
@@ -226,7 +226,7 @@ async fn test_protocol_registry() {
 
     // Register a protocol
     let protocol = MockProtocol {
-        name: "TestProtocol".to_string(),
+        _name: "TestProtocol".to_string(),
     };
 
     registry

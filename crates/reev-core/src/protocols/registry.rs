@@ -142,12 +142,10 @@ impl ProtocolRegistry {
 mod tests {
     use super::*;
     use crate::protocols::executor::{JupiterResult, JupiterSwapResult, OperationType};
-    use async_trait::async_trait;
-    use serde_json::json;
 
     // Mock protocol for testing
     struct MockProtocol {
-        name: String,
+        _name: String,
     }
 
     #[async_trait::async_trait]
@@ -183,7 +181,7 @@ mod tests {
 
         // Register a protocol
         let protocol = MockProtocol {
-            name: "TestProtocol".to_string(),
+            _name: "TestProtocol".to_string(),
         };
 
         registry

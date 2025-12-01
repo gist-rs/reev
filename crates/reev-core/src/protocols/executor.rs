@@ -77,7 +77,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Earn => write!(f, "Earn"),
             OperationType::Stake => write!(f, "Stake"),
             OperationType::Transfer => write!(f, "Transfer"),
-            OperationType::Custom(name) => write!(f, "Custom({})", name),
+            OperationType::Custom(name) => write!(f, "Custom({name})"),
         }
     }
 }
@@ -121,7 +121,7 @@ impl From<anyhow::Error> for ProtocolError {
 
 impl From<solana_sdk::transaction::TransactionError> for ProtocolError {
     fn from(err: solana_sdk::transaction::TransactionError) -> Self {
-        ProtocolError::TransactionFailed(format!("{:?}", err))
+        ProtocolError::TransactionFailed(format!("{err:?}"))
     }
 }
 
