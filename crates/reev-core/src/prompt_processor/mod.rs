@@ -76,7 +76,8 @@ impl PromptProcessor {
             && (original_prompt.to_lowercase().contains("transfer")
                 || original_prompt.to_lowercase().contains("send"));
 
-        let modified_prompt = if is_all_transfer {
+        // Build LLM request for language refinement
+        let request = if is_all_transfer {
             // This is a transfer with "all" keyword, calculate maximum transferable amount
             let owner_wallet_address = match &self.owner_wallet_address {
                 Some(owner_wallet_address) => owner_wallet_address,
@@ -104,63 +105,25 @@ impl PromptProcessor {
                 max_amount_sol
             );
 
-            // Add calculated amount as context for the LLM to use
-            format!("Transferable amount: {max_amount_sol:.3} SOL. {original_prompt}")
-        } else {
-            original_prompt.clone()
-        };
+            // Create structured prompt for LLM using template approach
+            let structured_prompt = build_refinement_prompt(&original_prompt, max_amount_sol);
 
-        // Build LLM request for language refinement
-        let request = LanguageRefineRequest {
-            prompt: modified_prompt,
+            // Build LLM request for language refinement
+            LanguageRefineRequest {
+                prompt: structured_prompt,
+            }
+        } else {
+            // No "all" keyword, use original prompt directly
+            LanguageRefineRequest {
+                prompt: original_prompt.clone(),
+            }
         };
 
         // Send request to LLM
         let response = self.send_refine_request(&request).await;
 
-        // Handle LLM request failure
-        let response = match response {
-            Ok(response) => response,
-            Err(e) => {
-                warn!("LLM request failed: {}", e);
-                // For "all" transfers, fallback to simple replacement
-                if is_all_transfer {
-                    let owner_wallet_address = match &self.owner_wallet_address {
-                        Some(owner_wallet_address) => owner_wallet_address,
-                        None => panic!("Required owner_wallet_address"),
-                    };
-
-                    // Create wallet context to get balance
-                    let wallet_context = create_wallet_context(owner_wallet_address).await?;
-
-                    // Calculate gas reserve (0.001 SOL for now)
-                    let gas_reserve = 1_000_000u64; // 0.001 SOL in lamports
-
-                    // Calculate maximum transferable amount
-                    let max_amount =
-                        crate::utils::transfer_utils::calculate_max_transferable_amount(
-                            "", // Empty for SOL
-                            wallet_context.sol_balance,
-                            gas_reserve,
-                        );
-
-                    // Convert max_amount to SOL for display
-                    let max_amount_sol = max_amount as f64 / 1_000_000_000.0;
-
-                    // Return refined prompt with calculated amount
-                    return Ok(RefinedPrompt::new_for_test(
-                        original_prompt.to_string(),
-                        original_prompt
-                            .to_lowercase()
-                            .replace("all", &format!("{max_amount_sol:.3}")),
-                        true,
-                    ));
-                }
-
-                return Err(anyhow!("LLM request failed: {e}"));
-            }
-        };
-
+        // Just return the response or error directly
+        let response = response?;
         // Parse response - response may already be a JSON string of LanguageRefineResponse
         // or a plain string that needs to be converted
         let response_obj = if response.starts_with('{') {
@@ -169,7 +132,31 @@ impl PromptProcessor {
                 Ok(r) => r,
                 Err(e) => {
                     warn!("Failed to parse LLM JSON response: {}", e);
-                    return Err(anyhow!("Failed to parse LLM response: {e}"));
+
+                    // Try to extract JSON from the response if it contains additional text
+                    let cleaned_response = if response.contains('{') && response.contains('}') {
+                        // Extract JSON portion if there's extra text
+                        let start = response.find('{').unwrap_or(0);
+                        let end = response.rfind('}').map(|i| i + 1).unwrap_or(response.len());
+                        response[start..end].to_string()
+                    } else {
+                        response.clone()
+                    };
+
+                    // Try parsing the cleaned response
+                    match serde_json::from_str::<LanguageRefineResponse>(&cleaned_response) {
+                        Ok(r) => r,
+                        Err(e2) => {
+                            error!("Failed to parse cleaned LLM JSON response: {}", e2);
+                            // Fall back to plain text response
+                            let changed = response != request.prompt;
+                            LanguageRefineResponse {
+                                refined_prompt: response.clone(),
+                                changes_detected: changed,
+                                confidence: if changed { 0.8 } else { 0.95 },
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -224,8 +211,7 @@ impl PromptProcessor {
                 {"role": "user", "content": format!("Refine this prompt: {}", request.prompt)}
             ],
             "temperature": 0.1,
-            "max_tokens": 200,
-            "response_format": {"type": "json_object"}
+            "max_tokens": 500
         });
 
         let response = client
@@ -268,15 +254,66 @@ impl PromptProcessor {
                 anyhow!("Failed to parse JSON: {e}")
             })?;
 
-        // Try to get reasoning_content first (for GLM model), then content
-        if let Some(reasoning_content) = response_json
+        // Try to get content first, then reasoning_content (for GLM model)
+        if let Some(content) = response_json
+            .get("choices")
+            .and_then(|c| c.get(0))
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+        {
+            // Check if the content is valid JSON for our LanguageRefineResponse
+            // Try to parse the content as JSON for our LanguageRefineResponse
+            if let Ok(_lang_response) = serde_json::from_str::<LanguageRefineResponse>(content) {
+                // Valid JSON response, use it directly
+                debug!("Valid JSON response from LLM: {}", content);
+                Ok(content.to_string())
+            } else if content.contains('{') && content.contains('}') {
+                // Try to extract JSON from content if there's additional text
+                let start = content.find('{').unwrap_or(0);
+                let end = content.rfind('}').map(|i| i + 1).unwrap_or(content.len());
+                let json_content = &content[start..end];
+
+                debug!("Extracted JSON from content: {}", json_content);
+
+                // Check if this is a partial response with just refined_prompt
+                if let Ok(partial) = serde_json::from_str::<serde_json::Value>(json_content) {
+                    if let Some(refined_prompt) =
+                        partial.get("refined_prompt").and_then(|v| v.as_str())
+                    {
+                        // Create a complete LanguageRefineResponse from the partial
+                        let response = LanguageRefineResponse {
+                            refined_prompt: refined_prompt.to_string(),
+                            changes_detected: true, // Changed because "all" was replaced
+                            confidence: 0.9,
+                        };
+                        return serde_json::to_string(&response)
+                            .map_err(|e| anyhow!("Failed to serialize response: {e}"));
+                    }
+                }
+
+                Ok(json_content.to_string())
+            } else {
+                // Not JSON, treat as plain text response
+                debug!("Plain text response from LLM: {}", content);
+
+                // Create a valid LanguageRefineResponse from the content
+                let response = LanguageRefineResponse {
+                    refined_prompt: content.to_string(),
+                    changes_detected: content != request.prompt,
+                    confidence: if content != request.prompt { 0.8 } else { 0.95 },
+                };
+
+                serde_json::to_string(&response)
+                    .map_err(|e| anyhow!("Failed to serialize response: {e}"))
+            }
+        } else if let Some(reasoning_content) = response_json
             .get("choices")
             .and_then(|c| c.get(0))
             .and_then(|c| c.get("message"))
             .and_then(|m| m.get("reasoning_content"))
             .and_then(|c| c.as_str())
         {
-            debug!("Found reasoning_content from GLM, extracting refined prompt");
             // Extract the refined prompt from reasoning content
             // The GLM response contains analysis in Chinese, but the refined prompt should be in English
             // We need to extract the actual refined prompt from the reasoning text
@@ -284,26 +321,14 @@ impl PromptProcessor {
             debug!("Extracted refined prompt: {}", refined);
 
             // Create a valid LanguageRefineResponse from the extracted prompt
-            Ok(serde_json::to_string(&LanguageRefineResponse {
+            let response = LanguageRefineResponse {
                 refined_prompt: refined,
                 changes_detected: true,
                 confidence: 0.9,
-            })
-            .unwrap())
-        } else if let Some(content) = response_json
-            .get("choices")
-            .and_then(|c| c.get(0))
-            .and_then(|c| c.get("message"))
-            .and_then(|m| m.get("content"))
-            .and_then(|c| c.as_str())
-        {
-            // Create a valid LanguageRefineResponse from the content
-            Ok(serde_json::to_string(&LanguageRefineResponse {
-                refined_prompt: content.to_string(),
-                changes_detected: false,
-                confidence: 0.95,
-            })
-            .unwrap())
+            };
+
+            serde_json::to_string(&response)
+                .map_err(|e| anyhow!("Failed to serialize response: {e}"))
         } else {
             Err(anyhow!("Invalid LLM response format"))
         }
@@ -379,6 +404,58 @@ impl RefinedPrompt {
     }
 }
 
+/// Structured YML prompt for LLM to refine transfer amounts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferAmountRefinementRequest {
+    /// The original user prompt
+    pub original_prompt: String,
+    /// Maximum transferable amount in SOL (after gas reserve)
+    pub usable_amount: f64,
+    /// Instruction for the LLM
+    pub instruction: String,
+}
+
+impl TransferAmountRefinementRequest {
+    /// Create a new refinement request
+    pub fn new(original_prompt: String, usable_amount: f64) -> Self {
+        Self {
+            original_prompt,
+            usable_amount,
+            instruction: "Replace 'all' with the usable_amount in the prompt. You MUST respond with valid JSON: {\"refined_prompt\": \"your refined prompt here\"}".to_string(),
+        }
+    }
+
+    /// Convert to YAML string for LLM
+    pub fn to_yaml(&self) -> Result<String> {
+        serde_yaml::to_string(self)
+            .map_err(|e| anyhow!("Failed to serialize refinement request: {e}"))
+    }
+}
+
+/// Build a structured prompt for transfer amount refinement
+pub fn build_refinement_prompt(original_prompt: &str, usable_amount: f64) -> String {
+    format!(
+        r#"You are a DeFi assistant that refines transfer prompts.
+
+Replace "all" with the usable_amount in the transfer prompt below.
+
+Original Prompt: "{original_prompt}"
+Usable Amount: {usable_amount} SOL
+
+Respond with valid JSON ONLY:
+{{
+"refined_prompt": "replace 'all' with the usable amount"
+}}
+
+Example:
+Original Prompt: "transfer all SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+Usable Amount: 4.999 SOL
+Response: {{
+"refined_prompt": "transfer 4.999 SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+}}"#
+    )
+}
+
 /// Extract the refined prompt from GLM reasoning content
 fn extract_refined_prompt_from_reasoning(reasoning: &str, original_prompt: &str) -> String {
     // The GLM reasoning content contains analysis in Chinese
@@ -392,12 +469,62 @@ fn extract_refined_prompt_from_reasoning(reasoning: &str, original_prompt: &str)
         }
     }
 
+    // Look for specific patterns from GLM responses
+    if reasoning.contains("The refined prompt should be:") {
+        // Extract the refined prompt after "The refined prompt should be:"
+        if let Some(start) = reasoning.find("The refined prompt should be:") {
+            let after_phrase = &reasoning[start + "The refined prompt should be:".len()..];
+            if let Some(start_quote) = after_phrase.find('"') {
+                let after_start_quote = &after_phrase[start_quote + 1..];
+                if let Some(end_quote) = after_start_quote.find('"') {
+                    let refined = after_start_quote[..end_quote].to_string();
+                    // Check if it looks like a valid prompt
+                    if refined.len() > 5
+                        && (refined.contains("swap")
+                            || refined.contains("transfer")
+                            || refined.contains("lend")
+                            || refined.contains("send"))
+                    {
+                        return refined;
+                    }
+                }
+            }
+        }
+    }
+
+    // Look for "The refined prompt should be:" pattern without colon
+    if reasoning.contains("The refined prompt should be") {
+        // Extract the refined prompt after "The refined prompt should be"
+        if let Some(start) = reasoning.find("The refined prompt should be") {
+            let after_phrase = &reasoning[start + "The refined prompt should be".len()..];
+            // Look for the next colon and quote
+            if let Some(colon_pos) = after_phrase.find(':') {
+                let after_colon = &after_phrase[colon_pos + 1..];
+                if let Some(start_quote) = after_colon.find('"') {
+                    let after_start_quote = &after_colon[start_quote + 1..];
+                    if let Some(end_quote) = after_start_quote.find('"') {
+                        let refined = after_start_quote[..end_quote].to_string();
+                        // Check if it looks like a valid prompt
+                        if refined.len() > 5
+                            && (refined.contains("swap")
+                                || refined.contains("transfer")
+                                || refined.contains("lend")
+                                || refined.contains("send"))
+                        {
+                            return refined;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // If not direct JSON, try to extract from text
     // Look for "refined_prompt" key in the reasoning
     if let Some(start) = reasoning.find("\"refined_prompt\":") {
-        let after_key = &reasoning[start + "\"refined_prompt\":".len()..];
-        if let Some(start_quote) = after_key.find('"') {
-            let after_start_quote = &after_key[start_quote + 1..];
+        let after_keyword = &reasoning[start + "\"refined_prompt\":".len()..];
+        if let Some(start_quote) = after_keyword.find('"') {
+            let after_start_quote = &after_keyword[start_quote + 1..];
             if let Some(end_quote) = after_start_quote.find('"') {
                 let refined = after_start_quote[..end_quote].to_string();
                 // Check if it looks like a valid prompt
@@ -492,11 +619,11 @@ struct LanguageRefineRequest {
 
 /// Response from language refinement
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct LanguageRefineResponse {
+pub struct LanguageRefineResponse {
     /// Refined prompt
-    refined_prompt: String,
+    pub refined_prompt: String,
     /// Whether changes were detected
-    changes_detected: bool,
-    /// Confidence in the refinement
-    confidence: f32,
+    pub changes_detected: bool,
+    /// Confidence in the refinement (0.0-1.0)
+    pub confidence: f32,
 }
