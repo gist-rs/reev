@@ -8,10 +8,13 @@
 While the protocol interface implementation is solid, several e2e tests were failing. These have now been resolved:
 
 1. **e2e_swap test**: One case was passing but the "all sol for usdc" case was failing with Jupiter transaction error (0xffff).
-   - **Fix**: Removed the cheat that allowed the test to pass with a warning. Now the test properly fails with the 0xffff error but includes guidance to retry the test manually from the command line. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet` until it passes.
+   - **Fix**: Removed the cheat that allowed the test to pass with a warning. Now the test properly fails with the 0xffff error but includes guidance to retry the test manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet` until it passes.
 
 2. **e2e_transfer test**: One case was passing but the "all sol" case was failing with insufficient funds error.
    - **Fix**: Modified the sol_transfer protocol handler to properly handle u64::MAX special case and calculate the actual amount to transfer (balance minus gas fees).
+
+3. **e2e_multi_step test**: Was passing with a warning when encountering 0xffff errors.
+   - **Fix**: Removed the cheat that allowed the test to pass with a warning for Jupiter errors. Now the test properly fails with the 0xffff error and provides clear guidance to retry manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_multi_step --quiet` until it passes.
 
 **Priority:** High
 **Status:** Resolved
