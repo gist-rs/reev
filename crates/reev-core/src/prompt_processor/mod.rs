@@ -85,8 +85,15 @@ impl PromptProcessor {
             // Create wallet context to get balance
             let wallet_context = create_wallet_context(owner_wallet_address).await?;
 
-            // Calculate gas reserve (0.001 SOL for now)
-            let gas_reserve = 1_000_000u64; // 0.001 SOL in lamports
+            // Calculate gas reserve based on operation type
+            // For Jupiter swaps, we need more reserve due to account creation fees
+            let is_swap_operation = original_prompt.to_lowercase().contains("swap");
+            let gas_reserve = if is_swap_operation {
+                reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE
+            // 0.01 SOL for Jupiter swaps (account creation fees)
+            } else {
+                reev_lib::constants::amounts::tokens::sol::ONE_MILLI // 0.001 SOL for transfers
+            };
 
             // Calculate maximum transferable amount
             let max_amount = crate::utils::transfer_utils::calculate_max_transferable_amount(

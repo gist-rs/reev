@@ -302,7 +302,10 @@ where
         // Use full balance if amount is "all", otherwise use specified amount
         let final_amount_lamports = if is_all_amount {
             // Reserve 0.01 SOL for gas fees
-            wallet_context.sol_balance.saturating_sub(10_000_000) // Reserve 0.01 SOL for fees
+            wallet_context
+                .sol_balance
+                .saturating_sub(reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE)
+        // Reserve 0.01 SOL for fees
         } else {
             amount_lamports
         };

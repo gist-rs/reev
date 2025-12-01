@@ -28,6 +28,9 @@ pub mod tokens {
         /// 0.01 SOL in lamports (10,000,000)
         pub const ONE_CENTI: u64 = 10_000_000;
 
+        /// Fee reserve for Jupiter swaps (0.01 SOL)
+        pub const JUPITER_SWAP_FEE_RESERVE: u64 = 10_000_000;
+
         /// 0.1 SOL in lamports (100,000,000)
         pub const ONE_DECI: u64 = 100_000_000;
 

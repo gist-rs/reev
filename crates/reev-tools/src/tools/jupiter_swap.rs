@@ -210,7 +210,7 @@ impl Tool for JupiterSwapTool {
         let (actual_swap_amount, validation_amount) = if input_mint == sol_mint() {
             // Reserve 0.01 SOL (10,000,000 lamports) for transaction fees
             // This should be enough to cover account creation and transfer fees
-            let fee_reserve = 10_000_000; // 0.01 SOL in lamports
+            let fee_reserve = reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE; // 0.01 SOL in lamports
 
             // Get the actual SOL balance
             let available_balance = balance_validator
