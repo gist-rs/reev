@@ -11,13 +11,73 @@ While the protocol interface implementation is solid, several e2e tests were fai
    - **Fix**: Removed the cheat that allowed the test to pass with a warning. Now the test properly fails with the 0xffff error but includes guidance to retry the test manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet` until it passes.
 
 2. **e2e_transfer test**: One case was passing but the "all sol" case was failing with insufficient funds error.
-   - **Fix**: Modified the sol_transfer protocol handler to properly handle u64::MAX special case and calculate the actual amount to transfer (balance minus gas fees).
+   - **Fix**: Reverted to LLM-based approach for handling "all" keyword instead of rule-based u64::MAX approach. The prompt processor now correctly calculates the max transferable amount and provides it to the LLM, which then generates a prompt with the specific amount (e.g., "send 4.999 SOL" instead of "send all SOL"). This approach also handles typos like "alll" or "allll" properly, which rule-based detection couldn't handle.
 
 3. **e2e_multi_step test**: Was passing with a warning when encountering 0xffff errors.
    - **Fix**: Removed the cheat that allowed the test to pass with a warning for Jupiter errors. Now the test properly fails with the 0xffff error and provides clear guidance to retry manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_multi_step --quiet` until it passes.
 
+### Issue 304: LLM Not Properly Handling "all" Transfers
+
+**Description:**
+LLM is receiving wallet balance context but not properly converting "all" to calculated transferable amount (balance minus gas fees). This causes transfers to fail with insufficient funds errors.
+
+**Current Behavior:**
+- LLM receives: "Wallet balance: 5.000 SOL. send all sol to address"
+- LLM outputs: "Wallet balance: 5.000 SOL. send all sol to address"
+- Transfer tries to send 5 SOL but needs to reserve ~0.001 SOL for gas fees
+- Result: "Transfer: insufficient lamports 4999995000, need 5000000000"
+
+**Root Cause:**
+LLM system prompt instructs it to replace "all" with transferable amount, but the wallet balance context only provides full balance, not the calculated transferable amount (balance minus gas fees).
+
+**Steps to Reproduce:**
+1. Run test: `RUST_LOG=info cargo test -p reev-core --test e2e_transfer -- --nocapture`
+2. Check logs for "send all sol" case
+3. Observe that LLM is not replacing "all" with calculated amount
+
+**Priority:** High
+**Status:** Open
+**Assigned:** Unassigned
+
+**Potential Solutions:**
+1. Calculate transferable amount (balance minus gas fees) before providing context to LLM
+2. Modify LLM system prompt to explicitly calculate transferable amount
+3. Ensure LLM is properly parsing and processing the transferable amount context
+
+**Note:** This is a regression from the working LLM-based approach that properly handled "all" transfers and variations like "alll", "allll", and even different languages.
+
 **Priority:** High
 **Status:** Resolved
+
+### Issue 304: LLM Not Properly Handling "all" Transfers
+
+**Description:**
+LLM is receiving wallet balance context but not properly converting "all" to calculated transferable amount (balance minus gas fees). This causes transfers to fail with insufficient funds errors.
+
+**Current Behavior:**
+- LLM receives: "Wallet balance: 5.000 SOL. send all sol to address"
+- LLM outputs: "Wallet balance: 5.000 SOL. send all sol to address"
+- Transfer tries to send 5 SOL but needs to reserve ~0.001 SOL for gas fees
+- Result: "Transfer: insufficient lamports 4999995000, need 5000000000"
+
+**Root Cause:**
+LLM system prompt instructs it to replace "all" with transferable amount, but wallet balance context only provides full balance, not calculated transferable amount (balance minus gas fees).
+
+**Steps to Reproduce:**
+1. Run test: `RUST_LOG=info cargo test -p reev-core --test e2e_transfer -- --nocapture`
+2. Check logs for "send all sol" case
+3. Observe that LLM is not replacing "all" with calculated amount
+
+**Priority:** High
+**Status:** Open
+**Assigned:** Unassigned
+
+**Potential Solutions:**
+1. Calculate transferable amount (balance minus gas fees) before providing context to LLM
+2. Modify LLM system prompt to explicitly calculate transferable amount
+3. Ensure LLM is properly parsing and processing transferable amount context
+
+**Note:** This is a regression from the working LLM-based approach that properly handled "all" transfers and variations like "alll", "allll", and even different languages.
 **Assigned:** Unassigned
 
 1. **e2e_swap test**: One case passes but the "all sol for usdc" case fails with Jupiter transaction error:
