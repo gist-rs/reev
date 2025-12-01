@@ -2,6 +2,10 @@
 
 ---
 
+i think we have this yml format ready for validatelater before (prompt use to be send to llm as yml before refactor that's why we have WalletContext ready to use as serde yml), why we back to square one again?
+
+---
+
 Transfer Process Flow (Revised)
 
 1. User query comes in through the API endpoint
