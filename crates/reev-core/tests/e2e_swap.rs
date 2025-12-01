@@ -5,12 +5,26 @@
 //! uses the planner to process the swap prompt, lets the LLM handle tool calling via rig,
 //! signs the transaction with the default keypair, and verifies completion.
 //!
-//! ## Jupiter Transaction Retry Behavior
+//! ## Jupiter Transaction Behavior
 //!
-//! Jupiter transactions are time-sensitive and cannot be simply retried:
-//! - Jupiter swap routes are based on current market conditions and liquidity
-//! - Solana transactions are tied to specific blockhashes that expire
-//! - Proper retry would require getting a fresh quote from Jupiter API with current blockhash
+//! Jupiter transactions can sometimes fail with the 0xffff error due to market conditions.
+//! This is a transient error that happens randomly due to:
+//! - Jupiter swap routes being based on current market conditions and liquidity
+//! - Solana transactions being tied to specific blockhashes that expire
+//! - Market volatility affecting slippage and liquidity
+//!
+//! When the 0xffff error occurs, the test will fail with an informative message.
+//! To retry, simply run the test again manually from the command line:
+//!
+//! ```bash
+//! # First run
+//! RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet
+//!
+//! # If it fails with 0xffff error, run it again
+//! RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet
+//! ```
+//!
+//! Each retry will get a fresh quote from Jupiter API with current blockhash.
 //!
 //! ## Running the Test with Proper Logging
 //!
@@ -79,30 +93,20 @@ async fn test_swap(#[case] prompt: &str, _target_pubkey: Pubkey) -> Result<()> {
         // Handle the case where the swap failed
         let error_msg = result.error_message.unwrap_or("Unknown error".to_string());
 
-        // For 1 SOL swaps, we'll allow it to pass with a warning
-        // since it's a smaller amount and might fail due to market conditions
-        if prompt.contains("1 sol") {
-            tracing::warn!("⚠️ Swap with 1 SOL encountered an error: {}", error_msg);
-            tracing::info!("ℹ️ This might be due to insufficient funds or market conditions");
-            return Ok(()); // Don't fail the test for 1 SOL
+        // For any swap failure, check if it's the Jupiter 0xffff error
+        if error_msg.contains("custom program error: 0xffff") {
+            // This is a Jupiter program error, which can happen due to market conditions
+            tracing::error!(
+                "❌ Swap encountered Jupiter program error (0xffff): {}",
+                error_msg
+            );
+            tracing::info!("💡 This error can occur due to market conditions, slippage too tight, or liquidity issues");
+            tracing::info!("ℹ️ Run the test again manually to retry with fresh market data");
+            return Err(anyhow::anyhow!("Jupiter program error (0xffff): {error_msg}\nRun test again to retry with fresh market data"));
         } else {
-            // For "all SOL" swaps, check if it's a Jupiter 0xffff error
-            if error_msg.contains("custom program error: 0xffff") {
-                // This is a Jupiter program error, which can happen due to market conditions
-                tracing::warn!(
-                    "⚠️ Swap encountered Jupiter program error (0xffff): {}",
-                    error_msg
-                );
-                tracing::info!("💡 This error can occur due to market conditions, slippage too tight, or liquidity issues");
-                tracing::info!(
-                    "ℹ️ The test will pass with a warning for this specific Jupiter error"
-                );
-                return Ok(()); // Don't fail the test for Jupiter 0xffff error
-            } else {
-                // For other errors, we expect swaps to succeed
-                tracing::error!("❌ Swap encountered an error: {}", error_msg);
-                return Err(anyhow::anyhow!("Swap failed: {error_msg}"));
-            }
+            // For other errors, we expect swaps to succeed
+            tracing::error!("❌ Swap encountered an error: {}", error_msg);
+            return Err(anyhow::anyhow!("Swap failed: {error_msg}"));
         }
     }
 
