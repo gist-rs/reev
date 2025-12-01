@@ -28,7 +28,7 @@ pub async fn handle_sol_transfer(
         let current_balance = match balance_validator.get_sol_balance(&from_pubkey.to_string()) {
             Ok(balance) => balance,
             Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get balance: {}", e.to_string()));
+                return Err(anyhow::anyhow!("Failed to get balance: {e}"));
             }
         };
 
@@ -44,10 +44,10 @@ pub async fn handle_sol_transfer(
             ));
         }
 
-        let max_transferable = current_balance - gas_reserve;
+        
 
         // Return the calculated amount
-        max_transferable
+        current_balance - gas_reserve
     } else {
         // Use the provided amount directly
         lamports
