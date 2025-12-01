@@ -8,6 +8,30 @@ This document outlines the remaining work to fully implement the benchmark requi
 **Priority**: High
 **Estimated Effort**: 4-5 days
 
+#### 1.1 Jupiter Swap Fee Fix - COMPLETED ✅
+**File**: `crates/reev-lib/src/constants/amounts.rs`
+**Description**: Fixed mismatch between Jupiter swap fee reserve and PromptProcessor calculations
+**Acceptance Criteria**:
+- [x] Added new constant `JUPITER_SWAP_FEE_RESERVE` (0.01 SOL)
+- [x] Updated PromptProcessor to use 0.001 SOL fee for transfers and 0.01 SOL for swaps
+- [x] Updated all Jupiter swap implementations to use centralized constant
+- [x] Resolved transient Jupiter errors (0x6) in "swap all sol" test
+
+**Test Cases**:
+```rust
+#[tokio::test]
+async fn test_jupiter_swap_fee_consistency() {
+    // Verify that Jupiter swap fee reserve is consistent across all implementations
+}
+```
+
+**Files Modified**:
+- `/reev/crates/reev-lib/src/constants/amounts.rs` - Added JUPITER_SWAP_FEE_RESERVE constant
+- `/reev/crates/reev-core/src/prompt_processor/mod.rs` - Updated to use different fees for different operations
+- `/reev/crates/reev-core/src/execution/handlers/swap/jupiter_swap.rs` - Updated to use centralized constant
+- `/reev/crates/reev-core/src/execution/rig_agent/tool_execution.rs` - Updated to use centralized constant
+- `/reev/crates/reev-tools/src/tools/jupiter_swap.rs` - Updated to use centralized constant
+
 #### 1.1 Core Protocol Interface
 **File**: `crates/reev-core/src/protocols/executor.rs`
 **Description**: Implement minimal protocol interface for immediate needs
@@ -78,6 +102,18 @@ async fn test_protocol_selection() {
     // Test protocol selection by operation type
 }
 ```
+
+#### 1.2 Core Protocol Interface
+**Priority**: High
+**Estimated Effort**: 4-5 days
+
+#### 1.3 Jupiter Protocol Wrapper
+**Priority**: High
+**Estimated Effort**: 4-5 days
+
+#### 1.4 Protocol Registry
+**Priority**: High
+**Estimated Effort**: 4-5 days
 
 ### 2. Enhanced Validation Framework
 **Priority**: High
@@ -455,13 +491,18 @@ def generate_dashboard(results_file):
 
 ## 🚀 Implementation Sequence
 
-### Week 1: Stage 1 Protocol Foundation (High Priority)
-1. Core Protocol Interface
+### Week 1: Stage 1 Protocol Foundation (High Priority) - PARTIALLY COMPLETED ✅
+1. Jupiter Swap Fee Fix - COMPLETED ✅
+   - Added JUPITER_SWAP_FEE_RESERVE constant
+   - Updated PromptProcessor to use different fees
+   - Fixed transient Jupiter errors in swap tests
+
+2. Core Protocol Interface
    - ProtocolExecutor trait
    - ProtocolOperation and OperationType
    - Protocol error types
 
-2. Jupiter Protocol Wrapper
+3. Jupiter Protocol Wrapper
    - JupiterProtocol struct
    - Handler wrapping for swap, lend, earn
    - Parameter format conversion

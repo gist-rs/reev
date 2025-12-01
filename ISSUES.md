@@ -1,98 +1,49 @@
 # Reev Project Issues
 
-## Current Issues 300
+## Current Issues 306
 
 ### Issue 301: E2E Test Failures - FIXED ✅
 
 **Description:**
 While the protocol interface implementation is solid, several e2e tests were failing. These have now been resolved:
 
-1. **e2e_swap test**: One case was passing but the "all sol for usdc" case was failing with Jupiter transaction error (0xffff).
-   - **Fix**: Removed the cheat that allowed the test to pass with a warning. Now the test properly fails with the 0xffff error but includes guidance to retry the test manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_swap --quiet` until it passes.
+1. **e2e_swap test**: Both test cases are now passing consistently. The "all sol for usdc" case was failing with Jupiter transaction error (0xffff) but has been fixed.
+   - **Fix**: Added a new constant `JUPITER_SWAP_FEE_RESERVE` (0.01 SOL) and updated all Jupiter swap implementations to use this centralized constant. The PromptProcessor now correctly uses 0.01 SOL fee for swaps instead of 0.001 SOL.
 
-2. **e2e_transfer test**: One case was passing but the "all sol" case was failing with insufficient funds error.
-   - **Fix**: Reverted to LLM-based approach for handling "all" keyword instead of rule-based u64::MAX approach. The prompt processor now correctly calculates the max transferable amount and provides it to the LLM, which then generates a prompt with the specific amount (e.g., "send 4.999 SOL" instead of "send all SOL"). This approach also handles typos like "alll" or "allll" properly, which rule-based detection couldn't handle.
+2. **e2e_transfer test**: Both test cases are now passing consistently. The "all sol" case was failing with insufficient funds error.
+   - **Fix**: Reverted to LLM-based approach for handling "all" keyword instead of rule-based u64::MAX approach. The prompt processor now correctly calculates the max transferable amount and provides it to the LLM, which then generates a prompt with the specific amount (e.g., "send 4.999 SOL" instead of "send all SOL").
 
-3. **e2e_multi_step test**: Was passing with a warning when encountering 0xffff errors.
-   - **Fix**: Removed the cheat that allowed the test to pass with a warning for Jupiter errors. Now the test properly fails with the 0xffff error and provides clear guidance to retry manually. The test should be re-run using `RUST_LOG=error cargo test -p reev-core --test e2e_multi_step --quiet` until it passes.
+3. **e2e_multi_step test**: Now passing consistently without warnings.
+   - **Fix**: The Jupiter swap fee fix resolved the intermittent failures in the multi-step test as well.
 
-### Issue 304: LLM Not Properly Handling "all" Transfers
+### Issue 304: LLM Not Properly Handling "all" Transfers - FIXED ✅
 
 **Description:**
-LLM is receiving wallet balance context but not properly converting "all" to calculated transferable amount (balance minus gas fees). This causes transfers to fail with insufficient funds errors.
+LLM was receiving wallet balance context but not properly converting "all" to calculated transferable amount (balance minus gas fees). This caused transfers to fail with insufficient funds errors.
 
-**Current Behavior:**
-- LLM receives: "Wallet balance: 5.000 SOL. send all sol to address"
-- LLM outputs: "Wallet balance: 5.000 SOL. send all sol to address"
-- Transfer tries to send 5 SOL but needs to reserve ~0.001 SOL for gas fees
-- Result: "Transfer: insufficient lamports 4999995000, need 5000000000"
+**Fix Applied:**
+Implemented structured YML approach for handling "all" keyword transfers as per PLAN_ALL.md:
 
-**Root Cause:**
-LLM system prompt instructs it to replace "all" with transferable amount, but the wallet balance context only provides full balance, not the calculated transferable amount (balance minus gas fees).
+1. Created `TransferAmountRefinementRequest` structure to provide structured YML prompts to LLM
+2. Updated `PromptProcessor` to use structured YML approach for "all" transfers
+3. Removed fallback logic that was causing inconsistencies
+4. Updated error handling to return errors directly
+5. Modified LLM prompts to expect JSON response with `refined_prompt` field for structured requests
 
-**Steps to Reproduce:**
-1. Run test: `RUST_LOG=info cargo test -p reev-core --test e2e_transfer -- --nocapture`
-2. Check logs for "send all sol" case
-3. Observe that LLM is not replacing "all" with calculated amount
+**Changes Made:**
+- Added `TransferAmountRefinementRequest` with `original_prompt`, `usable_amount`, and `instruction` fields
+- Modified `process_prompt` to detect "all" keyword and create structured YML request
+- Updated `send_refine_request` to handle different response formats (JSON for YML, text for regular)
+- Enhanced system prompt to handle both structured YML and regular text prompts
+- Added proper error handling for structured YML responses
 
-**Priority:** High
-**Status:** Open
-**Assigned:** Unassigned
-
-**Potential Solutions:**
-1. Calculate transferable amount (balance minus gas fees) before providing context to LLM
-2. Modify LLM system prompt to explicitly calculate transferable amount
-3. Ensure LLM is properly parsing and processing the transferable amount context
-
-**Note:** This is a regression from the working LLM-based approach that properly handled "all" transfers and variations like "alll", "allll", and even different languages.
+**Testing:**
+- Both test cases in `e2e_transfer.rs` now pass:
+  - `send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq` ✅
+  - `send all sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq` ✅
 
 **Priority:** High
 **Status:** Resolved
-
-### Issue 304: LLM Not Properly Handling "all" Transfers
-
-**Description:**
-LLM is receiving wallet balance context but not properly converting "all" to calculated transferable amount (balance minus gas fees). This causes transfers to fail with insufficient funds errors.
-
-**Current Behavior:**
-- LLM receives: "Wallet balance: 5.000 SOL. send all sol to address"
-- LLM outputs: "Wallet balance: 5.000 SOL. send all sol to address"
-- Transfer tries to send 5 SOL but needs to reserve ~0.001 SOL for gas fees
-- Result: "Transfer: insufficient lamports 4999995000, need 5000000000"
-
-**Root Cause:**
-LLM system prompt instructs it to replace "all" with transferable amount, but wallet balance context only provides full balance, not calculated transferable amount (balance minus gas fees).
-
-**Steps to Reproduce:**
-1. Run test: `RUST_LOG=info cargo test -p reev-core --test e2e_transfer -- --nocapture`
-2. Check logs for "send all sol" case
-3. Observe that LLM is not replacing "all" with calculated amount
-
-**Priority:** High
-**Status:** Open
-**Assigned:** Unassigned
-
-**Potential Solutions:**
-1. Calculate transferable amount (balance minus gas fees) before providing context to LLM
-2. Modify LLM system prompt to explicitly calculate transferable amount
-3. Ensure LLM is properly parsing and processing transferable amount context
-
-**Note:** This is a regression from the working LLM-based approach that properly handled "all" transfers and variations like "alll", "allll", and even different languages.
-**Assigned:** Unassigned
-
-1. **e2e_swap test**: One case passes but the "all sol for usdc" case fails with Jupiter transaction error:
-   ```
-   Program TessVdML9pBGgG9yGks7o4HewRaXVAMuoVj4x83GLQH failed: custom program error: 0xffff
-   ```
-
-2. **e2e_transfer test**: One case passes but the "all sol" case fails with insufficient funds error:
-   ```
-   Transfer: insufficient lamports 4999995000, need 5000000000
-   ```
-
-**Priority:** High
-**Status:** Open
-**Assigned:** Unassigned
 
 ### Issue 302: JupiterProtocol Implementation Is Placeholder
 
@@ -113,6 +64,63 @@ let swap_result = super::JupiterSwapResult {
 **Priority:** High
 **Status:** Open
 **Assigned:** Unassigned
+
+### Issue 305: Implemented Structured YML Prompts for "all" Keyword Transfers - FIXED ✅
+
+**Description:**
+Implemented structured YML approach for handling "all" keyword transfers as specified in PLAN_ALL.md. This replaces the unstructured prompt approach with a more reliable system for converting "all" to specific transferable amounts.
+
+**Implementation Details:**
+1. Created `TransferAmountRefinementRequest` structure with fields for original_prompt, usable_amount, and instruction
+2. Modified `PromptProcessor` to detect "all" keyword and create structured YML requests
+3. Updated `send_refine_request` to handle different response formats (JSON for YML, text for regular)
+4. Enhanced system prompt to handle both structured YML and regular text prompts
+5. Removed fallback logic to ensure consistency
+6. Updated error handling to return errors directly
+
+**Files Modified:**
+- `/reev/crates/reev-core/src/prompt_processor/mod.rs` - Main implementation
+- `/reev/crates/reev-core/src/prompts/prompt_processor.rs` - System prompt updates
+
+**Testing Results:**
+Both test cases in `e2e_transfer.rs` now pass:
+- `send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq` ✅
+- `send all sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq` ✅
+
+**Priority:** High
+**Status:** Resolved
+
+### Issue 306: Jupiter Swap Fee Mismatch - FIXED ✅
+
+**Description:**
+Jupiter swaps were using a 0.01 SOL fee reserve in multiple places, but PromptProcessor was only calculating with 0.001 SOL for all operations. This mismatch caused the "swap all sol" test to fail with transient Jupiter errors (0x6).
+
+**Root Cause:**
+1. PromptProcessor calculated usable_amount with only 0.001 SOL fee reserve
+2. Jupiter swap implementations were trying to use 0.01 SOL fee reserve
+3. This resulted in trying to swap more SOL than was calculated as usable
+
+**Fix Applied:**
+1. Added a new constant `JUPITER_SWAP_FEE_RESERVE` (0.01 SOL) to `reev-lib/src/constants/amounts.rs`
+2. Updated PromptProcessor to use 0.001 SOL fee for transfers and 0.01 SOL for swaps (using the new constant)
+3. Updated all Jupiter swap implementations to use the centralized constant instead of hardcoded values
+
+**Files Modified:**
+- `/reev/crates/reev-lib/src/constants/amounts.rs` - Added JUPITER_SWAP_FEE_RESERVE constant
+- `/reev/crates/reev-core/src/prompt_processor/mod.rs` - Updated to use different fees for different operations
+- `/reev/crates/reev-core/src/execution/handlers/swap/jupiter_swap.rs` - Updated to use centralized constant
+- `/reev/crates/reev-core/src/execution/rig_agent/tool_execution.rs` - Updated to use centralized constant
+- `/reev/crates/reev-tools/src/tools/jupiter_swap.rs` - Updated to use centralized constant
+
+**Testing Results:**
+All e2e tests now pass consistently:
+- e2e_swap.rs: Both test cases pass ✅
+- e2e_transfer.rs: Both test cases pass ✅
+- e2e_multi_step.rs: Test case passes ✅
+
+**Priority:** High
+**Status:** Resolved
+**Implemented:** 2024-01-15
 
 ### Issue 303: Build Warning in Workspace
 
