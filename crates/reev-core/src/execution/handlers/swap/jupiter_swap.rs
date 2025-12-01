@@ -386,9 +386,17 @@ async fn process_transaction_with_instructions(
                 }
                 Err(e) => {
                     error!("Transaction execution failed: {}", e);
+
+                    // Check for Jupiter program error 0xffff and provide more context
+                    let error_msg = if e.to_string().contains("custom program error: 0xffff") {
+                        "Jupiter program error (0xffff): This typically indicates insufficient liquidity, slippage too tight, or other market conditions. Try again with a smaller amount or higher slippage."
+                    } else {
+                        &format!("Transaction execution failed: {e}")
+                    };
+
                     Ok(json!({
                         "tool_name": tool_name,
-                        "error": format!("Transaction execution failed: {e}"),
+                        "error": error_msg,
                         "response": response
                     }))
                 }
