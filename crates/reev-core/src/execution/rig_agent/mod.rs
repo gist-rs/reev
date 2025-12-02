@@ -19,13 +19,13 @@ use crate::yml_schema::YmlStep;
 // Import modules
 mod context;
 mod prompting;
-mod tool_execution;
+mod tools;
 mod types;
 
 // Re-export types and traits
 pub use context::ContextProvider;
 pub use prompting::{HttpProvider, MultiStepHandler, PromptProvider};
-pub use tool_execution::{AgentProvider, AgentToolHelper, ToolExecutor};
+pub use tools::{AgentProvider, AgentToolHelper, ToolExecutor};
 pub use types::*;
 
 /// RigAgent for LLM-driven tool selection and parameter extraction
