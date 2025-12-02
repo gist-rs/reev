@@ -4,7 +4,6 @@
 //! and transaction processing.
 
 pub mod context_builder;
-pub mod handlers;
 pub mod rig_agent;
 pub mod tool_executor;
 pub mod trait_def;
