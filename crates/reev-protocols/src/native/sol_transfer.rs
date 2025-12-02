@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use reev_lib::agent::{RawAccountMeta, RawInstruction};
-use reev_lib::{balance_validation::BalanceValidator, get_keypair};
+use reev_lib::balance_validation::BalanceValidator;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use std::collections::HashMap;
 
@@ -14,13 +14,9 @@ pub async fn handle_sol_transfer(
     from_pubkey: Pubkey,
     to_pubkey: Pubkey,
     lamports: u64,
-    _key_map: &HashMap<String, String>,
 ) -> Result<Vec<RawInstruction>> {
     // Check if this is a special case for "all" sol transfer (u64::MAX)
     let actual_amount = if lamports == u64::MAX {
-        // Get the keypair to access wallet balance
-        let _keypair = get_keypair()?;
-
         // Create balance validator with empty key_map
         let balance_validator = BalanceValidator::new(HashMap::new());
 
@@ -43,8 +39,6 @@ pub async fn handle_sol_transfer(
                 gas_reserve as f64 / 1_000_000_000.0
             ));
         }
-
-        
 
         // Return the calculated amount
         current_balance - gas_reserve

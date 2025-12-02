@@ -230,14 +230,11 @@ impl Tool for SolTransferTool {
 
         // Only handle SOL transfers - SPL transfers use separate SplTransferTool
         let raw_instructions = match args.operation {
-            NativeTransferOperation::Sol => handle_sol_transfer(
-                user_pubkey_parsed,
-                recipient_pubkey_parsed,
-                args.amount,
-                &self.key_map,
-            )
-            .await
-            .map_err(NativeTransferError::ProtocolCall)?,
+            NativeTransferOperation::Sol => {
+                handle_sol_transfer(user_pubkey_parsed, recipient_pubkey_parsed, args.amount)
+                    .await
+                    .map_err(NativeTransferError::ProtocolCall)?
+            }
             NativeTransferOperation::Spl => {
                 // SPL transfers should use SplTransferTool, not SolTransferTool
                 return Err(NativeTransferError::MintAddressRequired);

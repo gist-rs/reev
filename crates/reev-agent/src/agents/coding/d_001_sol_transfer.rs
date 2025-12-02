@@ -36,7 +36,7 @@ pub(crate) async fn handle_sol_transfer(
     // Execute tool logic with inline error handling
     let result = async {
         // Call the protocol handler
-        protocol_handle_sol_transfer(from, to, lamports, key_map).await
+        protocol_handle_sol_transfer(from, to, lamports).await
     }
     .await;
 
