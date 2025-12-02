@@ -4,14 +4,16 @@
 
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
+use reev_protocols::native::handle_sol_transfer;
 use reev_types::flow::WalletContext;
 use serde_json::json;
+use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use super::prompting::HttpProvider;
-use crate::execution::handlers::transfer::sol_transfer;
 use rig::tool::Tool;
 
 /// Trait for tool execution operations
@@ -190,64 +192,40 @@ where
                 .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?
         };
 
-        let amount_lamports = if amount_str.to_lowercase() == "all" {
-            // For "all" keyword, use calculated amount
-            (amount * 1_000_000_000.0) as u64
+        // Parse recipient and sender pubkeys
+        let recipient_pubkey =
+            Pubkey::from_str(recipient).map_err(|e| anyhow!("Invalid recipient address: {e}"))?;
+        let sender_pubkey = Pubkey::from_str(&wallet_context.owner)
+            .map_err(|e| anyhow!("Invalid sender address: {e}"))?;
+
+        // Convert amount to lamports for the protocol handler
+        let amount_lamports = (amount * 1_000_000_000.0) as u64;
+
+        // For "all" keyword, pass u64::MAX to let the protocol handler calculate the amount
+        let transfer_amount = if amount_str.to_lowercase() == "all" {
+            u64::MAX
         } else {
-            // For specific amounts, use the parsed amount
-            (amount * 1_000_000_000.0) as u64
+            amount_lamports
         };
 
-        // For "all" keyword, we've already checked balance above
-        if amount_str.to_lowercase() != "all" {
-            // Only check balance for specific amounts
-            let amount_lamports = (amount * 1_000_000_000.0) as u64;
+        // Use the newer protocol handler from reev-protocols
+        let instructions =
+            handle_sol_transfer(sender_pubkey, recipient_pubkey, transfer_amount).await?;
 
-            if wallet_context.sol_balance < amount_lamports {
-                return Err(anyhow!(
-                    "Insufficient balance. Available: {} SOL, Required: {} SOL",
-                    wallet_context.sol_balance / 1_000_000_000,
-                    amount
-                ));
-            }
-        }
+        // Get the default keypair for signing
+        let keypair = reev_lib::get_keypair().map_err(|e| anyhow!("Failed to get keypair: {e}"))?;
 
-        // Use the existing AgentTools if available, otherwise create a new one
-        let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
+        // Execute the transaction
+        let transaction_signature =
+            reev_lib::execute_transaction(instructions, sender_pubkey, &keypair)
+                .await
+                .map_err(|e| anyhow!("Failed to execute transaction: {e}"))?;
 
-        // Use the existing execute_direct_sol_transfer function from handlers
-        // This will handle the actual blockchain transaction
-        let transaction_result = sol_transfer::execute_direct_sol_transfer(
-            &agent_tools,
-            &format!("send {amount} sol to {recipient}"),
-            &wallet_context.owner,
-        )
-        .await?;
-
-        // Extract the transaction signature from the result
-        let transaction_signature = if transaction_result.success {
-            if let Some(output) = transaction_result.output.get("sol_transfer") {
-                if let Some(sig) = output.get("transaction_signature") {
-                    sig.as_str().unwrap_or("").to_string()
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
-
-        // If we got a signature, return it directly, otherwise return the error
-        if transaction_signature.is_empty() && !transaction_result.success {
-            return Err(anyhow!(
-                "SOL transfer failed: {:?}",
-                transaction_result
-                    .error_message
-                    .unwrap_or("Unknown error".to_string())
-            ));
-        }
+        // Log the successful transaction
+        info!(
+            "SOL transfer executed with signature: {}",
+            transaction_signature
+        );
 
         Ok(json!({
             "tool_name": "sol_transfer",
@@ -258,7 +236,7 @@ where
                 "wallet": wallet_context.owner
             },
             "transaction_signature": transaction_signature,
-            "success": transaction_result.success
+            "success": true
         }))
     }
 
@@ -296,8 +274,15 @@ where
         // Convert amount to lamports (1 SOL = 1,000,000,000 lamports)
         let amount_lamports = (amount * 1_000_000_000.0) as u64;
 
-        // Create AgentTools for Jupiter swap execution
-        let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
+        // Parse the mint addresses
+        let input_mint_pubkey =
+            Pubkey::from_str(input_mint).map_err(|e| anyhow!("Invalid input mint: {e}"))?;
+        let output_mint_pubkey =
+            Pubkey::from_str(output_mint).map_err(|e| anyhow!("Invalid output mint: {e}"))?;
+
+        // Parse user pubkey
+        let user_pubkey = Pubkey::from_str(&wallet_context.owner)
+            .map_err(|e| anyhow!("Invalid user pubkey: {e}"))?;
 
         // Use full balance if amount is "all", otherwise use specified amount
         let final_amount_lamports = if is_all_amount {
@@ -310,151 +295,40 @@ where
             amount_lamports
         };
 
-        let swap_args = reev_tools::tools::jupiter_swap::JupiterSwapArgs {
-            user_pubkey: wallet_context.owner.clone(),
-            input_mint: input_mint.to_string(),
-            output_mint: output_mint.to_string(),
-            amount: final_amount_lamports,
-            slippage_bps: Some(100), // Default 1% slippage
-        };
+        // Use the newer protocol handler from reev-protocols
+        let instructions = reev_protocols::jupiter::swap::handle_jupiter_swap(
+            user_pubkey,
+            input_mint_pubkey,
+            output_mint_pubkey,
+            final_amount_lamports,
+            100, // Default 1% slippage
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to prepare swap transaction: {e}"))?;
 
-        let result = agent_tools
-            .jupiter_swap_tool
-            .call(swap_args)
-            .await
-            .map_err(|e| anyhow!("Jupiter swap execution failed: {e}"))?;
+        // Get the default keypair for signing
+        let keypair = reev_lib::get_keypair().map_err(|e| anyhow!("Failed to get keypair: {e}"))?;
 
-        // Parse the response to extract instructions and execute transaction
-        info!("Jupiter swap tool returned result: {}", &result);
-        if let Ok(response) = serde_json::from_str::<serde_json::Value>(&result) {
-            debug!("Parsed response: {:#?}", response);
-            if let Some(instructions) = response.get("instructions") {
-                info!(
-                    "Found {} instructions in Jupiter response",
-                    instructions.as_array().unwrap_or(&vec![]).len()
-                );
-                debug!("Instructions value: {:#?}", instructions);
+        // Execute the transaction
+        let transaction_signature =
+            reev_lib::execute_transaction(instructions, user_pubkey, &keypair)
+                .await
+                .map_err(|e| anyhow!("Failed to execute transaction: {e}"))?;
 
-                // Convert instructions to RawInstruction format
-                let raw_instructions: Result<Vec<reev_lib::agent::RawInstruction>> = instructions
-                    .as_array()
-                    .unwrap_or(&vec![])
-                    .iter()
-                    .map(|inst| {
-                        let program_id = inst
-                            .get("program_id")
-                            .and_then(|v| v.as_str())
-                            .ok_or_else(|| anyhow!("Missing program_id"))?
-                            .to_string();
+        info!(
+            "Jupiter swap executed with signature: {}",
+            transaction_signature
+        );
 
-                        let accounts = inst
-                            .get("accounts")
-                            .and_then(|v| v.as_array())
-                            .ok_or_else(|| anyhow!("Missing accounts"))?
-                            .iter()
-                            .map(|acc| {
-                                Ok(reev_lib::agent::RawAccountMeta {
-                                    pubkey: acc
-                                        .get("pubkey")
-                                        .and_then(|v| v.as_str())
-                                        .ok_or_else(|| anyhow!("Missing pubkey"))?
-                                        .to_string(),
-                                    is_signer: acc
-                                        .get("is_signer")
-                                        .and_then(|v| v.as_bool())
-                                        .unwrap_or(false),
-                                    is_writable: acc
-                                        .get("is_writable")
-                                        .and_then(|v| v.as_bool())
-                                        .unwrap_or(false),
-                                })
-                            })
-                            .collect::<Result<Vec<_>>>()?;
-
-                        let data = inst
-                            .get("data")
-                            .and_then(|v| v.as_str())
-                            .ok_or_else(|| anyhow!("Missing data"))?
-                            .to_string();
-
-                        Ok(reev_lib::agent::RawInstruction {
-                            program_id,
-                            accounts,
-                            data,
-                        })
-                    })
-                    .collect();
-
-                // Execute the transaction with the instructions
-                match raw_instructions {
-                    Ok(instructions) => {
-                        let keypair = reev_lib::get_keypair()
-                            .map_err(|e| anyhow!("Failed to load keypair: {e}"))?;
-                        let user_pubkey = solana_sdk::signer::Signer::pubkey(&keypair);
-
-                        // Check if we have any instructions before executing
-                        if instructions.is_empty() {
-                            tracing::warn!("DEBUG: No instructions to execute for Jupiter swap!");
-                        }
-
-                        match reev_lib::utils::execute_transaction(
-                            instructions,
-                            user_pubkey,
-                            &keypair,
-                        )
-                        .await
-                        {
-                            Ok(signature) => {
-                                info!(
-                                    "Jupiter swap transaction executed with signature: {}",
-                                    signature
-                                );
-                                Ok(json!({
-                                    "tool_name": "jupiter_swap",
-                                    "input_mint": input_mint,
-                                    "output_mint": output_mint,
-                                    "input_amount": amount,
-                                    "input_amount_lamports": amount_lamports,
-                                    "wallet": wallet_context.owner,
-                                    "transaction_signature": signature,
-                                    "success": true
-                                }))
-                            }
-                            Err(e) => {
-                                error!("Failed to execute Jupiter swap transaction: {}", e);
-                                debug!("Transaction execution error details: {:#?}", e);
-                                debug!("Failed at execute_transaction call");
-                                Ok(json!({
-                                    "tool_name": "jupiter_swap",
-                                    "error": format!("Transaction execution failed: {e}"),
-                                    "raw_response": result
-                                }))
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to parse instructions: {}", e);
-                        Ok(json!({
-                            "tool_name": "jupiter_swap",
-                            "error": format!("Failed to parse instructions: {e}"),
-                            "raw_response": result
-                        }))
-                    }
-                }
-            } else {
-                Ok(json!({
-                    "tool_name": "jupiter_swap",
-                    "error": "No instructions found in response",
-                    "raw_response": result
-                }))
-            }
-        } else {
-            Ok(json!({
-                "tool_name": "jupiter_swap",
-                "error": "Failed to parse Jupiter response",
-                "raw_response": result
-            }))
-        }
+        Ok(json!({
+            "tool_name": "jupiter_swap",
+            "input_mint": input_mint,
+            "output_mint": output_mint,
+            "amount": final_amount_lamports,
+            "wallet": wallet_context.owner,
+            "transaction_signature": transaction_signature,
+            "success": true
+        }))
     }
 
     /// Execute Jupiter lend/earn deposit
