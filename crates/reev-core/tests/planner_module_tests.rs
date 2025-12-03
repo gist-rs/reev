@@ -43,7 +43,7 @@ async fn test_refine_and_plan() {
     wallet_context.sol_balance = 5_000_000_000; // 5 SOL
 
     let refined_prompt =
-        RefinedPrompt::new_for_test("test prompt".to_string(), "test prompt".to_string(), false);
+        RefinedPrompt::new_for_test("test prompt".to_string(), "test prompt".to_string());
 
     let yml_generator = YmlGenerator::new();
     let result = yml_generator

@@ -5,7 +5,7 @@
 //! The tests focus on the prompt processing logic without making surfpool calls.
 
 use anyhow::{anyhow, Result};
-use reev_core::prompt_processor::PromptProcessor;
+use reev_core::prompt_processor::{PromptAction, PromptProcessor};
 
 use rstest::*;
 use serial_test::serial;
@@ -109,7 +109,6 @@ async fn test_basic_prompt_processing(#[case] prompt: &str) -> Result<()> {
     info!("Original: {}", result.original);
     info!("Refined: {}", result.refined);
     info!("Refined amount: {}", refined_amount);
-    info!("Changes detected: {}", result.changes_detected);
     info!("Confidence: {}", result.get_confidence());
 
     Ok(())
@@ -177,7 +176,6 @@ async fn test_all_keyword_processing(#[case] prompt: &str) -> Result<()> {
     info!("Refined: {}", result.refined);
     info!("Usable amount: {}", usable_amount);
     info!("Refined amount: {}", refined_amount);
-    info!("Changes detected: {}", result.changes_detected);
     info!("Confidence: {}", result.get_confidence());
 
     // Log full refined prompt for debugging
@@ -234,15 +232,237 @@ async fn test_typo_correction(#[case] prompt: &str) -> Result<()> {
     info!("Original: {}", result.original);
     info!("Refined: {}", result.refined);
     info!("Refined amount: {}", refined_amount);
-    info!("Changes detected: {}", result.changes_detected);
     info!("Confidence: {}", result.get_confidence());
 
     // For typo correction, changes may or may not be detected depending on LLM behavior
     // We just verify the prompt was processed without errors
-    info!(
-        "Typo correction test completed, changes detected: {}",
-        result.changes_detected
+
+    Ok(())
+}
+
+/// Test structured response system for various prompt types
+#[rstest]
+#[case(
+    "transfer 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    PromptAction::Transfer
+)]
+#[case("swap 0.5 SOL to USDC", PromptAction::Swap)]
+#[tokio::test]
+#[serial]
+async fn test_structured_response(
+    #[case] prompt: &str,
+    #[case] expected_action: PromptAction,
+) -> Result<()> {
+    // Initialize tracing
+    init_tracing();
+
+    // Load environment variables
+    setup_env();
+
+    // Skip test if ZAI_API_KEY is not set
+    if env::var("ZAI_API_KEY").is_err() {
+        info!("Skipping test: ZAI_API_KEY not set");
+        return Ok(());
+    }
+
+    let mut processor = PromptProcessor::new();
+    let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
+
+    info!("Testing structured response for prompt: {}", prompt);
+    let result = processor
+        .process_prompt_structured(prompt, test_address)
+        .await?;
+
+    // Verify the prompt was processed
+    assert!(
+        !result.refined_prompt.is_empty(),
+        "Refined prompt should not be empty"
     );
+    assert_eq!(
+        result.original_prompt, prompt,
+        "Original prompt should match input"
+    );
+
+    // Verify action was detected correctly
+    assert_eq!(
+        result.action, expected_action,
+        "Detected action {:?} should match expected {:?}",
+        result.action, expected_action
+    );
+
+    // Verify subject_pubkey is set to the owner wallet address
+    assert_eq!(
+        result.subject_pubkey,
+        Some(test_address.to_string()),
+        "Subject pubkey should be set to owner wallet address"
+    );
+
+    // Verify confidence is reasonable (>0.5)
+    assert!(
+        result.confidence > 0.5,
+        "Confidence should be greater than 0.5, got {}",
+        result.confidence
+    );
+
+    // Log results for inspection
+    info!("Original: {}", result.original_prompt);
+    info!("Refined: {}", result.refined_prompt);
+    info!("Action: {:?}", result.action);
+    info!("Subject pubkey: {:?}", result.subject_pubkey);
+    info!("Target pubkey: {:?}", result.target_pubkey);
+    info!("Parameters: {:?}", result.parameters);
+    info!("Confidence: {}", result.confidence);
+
+    Ok(())
+}
+
+/// Test structured response system with "all" keyword
+#[rstest]
+#[case("transfer all SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[case("send all sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[case("swap all SOL for USDC")]
+#[tokio::test]
+#[serial]
+async fn test_structured_response_all_keyword(#[case] prompt: &str) -> Result<()> {
+    // Initialize tracing
+    init_tracing();
+
+    // Load environment variables
+    setup_env();
+
+    // Skip test if ZAI_API_KEY is not set
+    if env::var("ZAI_API_KEY").is_err() {
+        info!("Skipping test: ZAI_API_KEY not set");
+        return Ok(());
+    }
+
+    let mut processor = PromptProcessor::new();
+    let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
+
+    info!(
+        "Testing structured response with 'all' keyword for prompt: {}",
+        prompt
+    );
+    let result = processor
+        .process_prompt_structured(prompt, test_address)
+        .await?;
+
+    // Verify the prompt was processed
+    assert!(
+        !result.refined_prompt.is_empty(),
+        "Refined prompt should not be empty"
+    );
+    assert_eq!(
+        result.original_prompt, prompt,
+        "Original prompt should match input"
+    );
+
+    // For "all" keyword prompts, usable_amount should be Some
+    assert!(
+        result.usable_amount.is_some(),
+        "usable_amount should be Some for 'all' keyword prompts"
+    );
+
+    let usable_amount = result.usable_amount.unwrap();
+    assert!(
+        usable_amount > 0.0,
+        "usable_amount should be positive for 'all' keyword prompts"
+    );
+
+    // Verify action was detected
+    assert_ne!(
+        result.action,
+        PromptAction::Unknown,
+        "Action should be detected for 'all' keyword prompts"
+    );
+
+    // Log results for inspection
+    info!("Original: {}", result.original_prompt);
+    info!("Refined: {}", result.refined_prompt);
+    info!("Action: {:?}", result.action);
+    info!("Subject pubkey: {:?}", result.subject_pubkey);
+    info!("Target pubkey: {:?}", result.target_pubkey);
+    info!("Parameters: {:?}", result.parameters);
+    info!("Usable amount: {}", usable_amount);
+    info!("Confidence: {}", result.confidence);
+
+    Ok(())
+}
+
+/// Test structured response system with typos
+#[rstest]
+#[case(
+    "trasnfer 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    PromptAction::Transfer
+)]
+#[case("swp 0.5 SOL to USDC", PromptAction::Swap)]
+#[tokio::test]
+#[serial]
+async fn test_structured_response_typos(
+    #[case] prompt: &str,
+    #[case] expected_action: PromptAction,
+) -> Result<()> {
+    // Initialize tracing
+    init_tracing();
+
+    // Load environment variables
+    setup_env();
+
+    // Skip test if ZAI_API_KEY is not set
+    if env::var("ZAI_API_KEY").is_err() {
+        info!("Skipping test: ZAI_API_KEY not set");
+        return Ok(());
+    }
+
+    let mut processor = PromptProcessor::new();
+    let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
+
+    info!(
+        "Testing structured response with typos for prompt: {}",
+        prompt
+    );
+    let result = processor
+        .process_prompt_structured(prompt, test_address)
+        .await?;
+
+    // Verify the prompt was processed
+    assert!(
+        !result.refined_prompt.is_empty(),
+        "Refined prompt should not be empty"
+    );
+    assert_eq!(
+        result.original_prompt, prompt,
+        "Original prompt should match input"
+    );
+
+    // Verify action was detected correctly despite typos
+    assert_eq!(
+        result.action, expected_action,
+        "Detected action {:?} should match expected {:?}",
+        result.action, expected_action
+    );
+
+    // For typo prompts, changes should be detected
+    assert!(
+        result.original_prompt != result.refined_prompt,
+        "Changes should be detected for typo prompts"
+    );
+
+    // Verify confidence is reasonable (>0.5 but maybe lower than for correct prompts)
+    assert!(
+        result.confidence > 0.4,
+        "Confidence should be greater than 0.4 for typo prompts, got {}",
+        result.confidence
+    );
+
+    // Log results for inspection
+    info!("Original: {}", result.original_prompt);
+    info!("Refined: {}", result.refined_prompt);
+    info!("Action: {:?}", result.action);
+    info!("Subject pubkey: {:?}", result.subject_pubkey);
+    info!("Target pubkey: {:?}", result.target_pubkey);
+    info!("Parameters: {:?}", result.parameters);
+    info!("Confidence: {}", result.confidence);
 
     Ok(())
 }
@@ -311,7 +531,6 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
     info!("Refined: {}", result.refined);
     info!("Usable amount: {}", usable_amount);
     info!("Refined amount: {}", refined_amount);
-    info!("Changes detected: {}", result.changes_detected);
     info!("Confidence: {}", result.get_confidence());
 
     // Log full refined prompt for debugging

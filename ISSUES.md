@@ -1,6 +1,75 @@
 # Reev Project Issues
 
-## Current Issues 306
+## Current Issues 307
+
+### Issue 307: Structured LLM Response System Implementation - IN PROGRESS 🔄
+
+**Description:**
+Implemented Phase 1-3 of structured LLM response system as specified in TASKS.md. The system can now extract structured data from LLM responses including action types, parameters, and confidence scores.
+
+**Status:**
+- 9 out of 16 tests in `prompt_processor_tests.rs` are passing
+- Basic prompt processing works correctly
+- "All" keyword processing works for most cases
+- Structured response system successfully extracts actions and parameters
+
+**Implemented Components:**
+1. **Data Structures** (`/crates/reev-core/src/prompt_processor/types.rs`):
+   - `StructuredRefinedPrompt` struct with refined prompt, action, pubkeys, parameters, confidence
+   - `PromptAction` enum with Transfer, Swap, Lend, Earn, Borrow, Unknown variants
+   - `PromptParameters` struct with amount, input_mint, output_mint, and additional parameters
+   - `StructuredRefineRequest` and `StructuredRefineResponse` for LLM communication
+
+2. **Prompt Processing** (`/crates/reev-core/src/prompt_processor/mod.rs`):
+   - `process_prompt_structured()` method to get structured responses from LLM
+   - Fallback to legacy `process_prompt()` when structured processing fails
+   - Helper functions for extracting action, target pubkey, and parameters from prompts
+   - Robust JSON parsing with fallbacks for malformed responses
+
+3. **Validation Logic** (`/crates/reev-core/src/prompt_processor/validation.rs`):
+   - `validate_structured_response()` function to verify extracted data
+   - `calculate_confidence_score()` function for confidence scoring
+   - Validation for action matching, parameter consistency, and pubkey validity
+
+4. **Tests** (`/crates/reev-core/tests/prompt_processor_tests.rs`):
+   - Added tests for structured response system
+   - Tests for action detection, "all" keyword handling, and typo correction
+
+**Debugging Method for Current Issues:**
+1. **Typo Detection**: Some action detection is failing for typos like "trasnfer" and "swp"
+   - Debug by adding logging of action detection logic
+   - Check if regex patterns match expected typos
+   - Verify prompt case handling in extract_action_from_prompt()
+
+2. **"All" Keyword Handling**: Some "all" keyword tests are failing with usable_amount
+   - Debug by logging wallet context creation and balance retrieval
+   - Check if max_amount is being calculated correctly for swap vs transfer
+   - Verify if the amount is being extracted from refined prompt
+
+3. **Amount Extraction**: Some tests fail to extract amounts from refined prompts with typos
+   - Debug by logging regex patterns and matches
+   - Check if extract_amount_from_refined_prompt() in tests handles all patterns
+   - Verify refined prompt format includes expected amounts
+
+**Remaining Issues:**
+1. Typo detection for some specific cases ("trasnfer", "swp")
+2. "All" keyword handling in some edge cases
+3. Amount extraction from prompts with typos
+
+**Next Steps:**
+1. Complete Phase 4-7 of implementation:
+   - Update execution flow to use structured fields directly
+   - Update FlowStep and YmlStep to include structured data
+   - Add property-based tests for validation logic
+   - Add structured logging for debugging
+   - Add metrics for success rate and fallback frequency
+
+2. Fix remaining test issues for better coverage
+3. Implement monitoring for production deployment
+
+**Priority:** High
+**Status:** In Progress
+**Last Updated:** 2025-01-03
 
 ### Issue 301: E2E Test Failures - FIXED ✅
 

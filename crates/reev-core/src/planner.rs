@@ -92,10 +92,6 @@ impl Planner {
             .await?;
         debug!("Refined prompt: {}", refined_prompt.refined);
 
-        if refined_prompt.changes_detected {
-            info!("Language refinement applied changes");
-        }
-
         // Step 2: Generate YML structure using rule-based templates
         info!("Step 2: Generating YML structure with rule-based templates");
         let yml_flow = self

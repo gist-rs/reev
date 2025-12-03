@@ -46,7 +46,6 @@ impl TestRunner {
 
         // Initialize test environment
         dotenvy::dotenv().ok();
-        env::set_var("REEV_ENHANCED_OTEL", "0");
 
         // Check for ZAI_API_KEY
         let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {

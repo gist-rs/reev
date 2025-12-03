@@ -29,7 +29,6 @@ The proposed solution is to have the LLM return structured data that includes:
    - `subject_pubkey`: Option<String>
    - `target_pubkey`: Option<String>
    - `parameters`: `PromptParameters` struct
-   - `changes_detected`: bool
    - `confidence`: f32
 
 2. Create `PromptAction` enum with variants:
@@ -149,8 +148,7 @@ Please analyze the user prompt and respond with structured JSON containing:
    input_mint: The input token mint address,
    output_mint: The output token mint address
 }
-6. changes_detected: boolean indicating if you changed the prompt
-7. confidence: Your confidence in this extraction (0.0-1.0)
+6. confidence: Your confidence in this extraction (0.0-1.0)
 
 Example response:
 {
@@ -162,7 +160,6 @@ Example response:
     "amount": "1",
     "input_mint": "So11111111111111111111111111111111111111112"
   },
-  "changes_detected": true,
   "confidence": 0.95
 }
 ```
