@@ -597,3 +597,106 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
 
     Ok(())
 }
+
+/// Test SPL token extraction from prompts
+#[rstest]
+#[case(
+    "send 1 usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    "USDC",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "1"
+)]
+#[case(
+    "transfer 10 usdt to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    "USDT",
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "10"
+)]
+#[case(
+    "swap 0.5 sol for usdc",
+    "RAY",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "0.5"
+)]
+#[case(
+    "send all usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+    "USDC",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "all"
+)]
+#[tokio::test]
+#[serial]
+async fn test_spl_token_extraction(
+    #[case] prompt: &str,
+    #[case] expected_symbol: &str,
+    #[case] expected_mint: &str,
+    #[case] expected_amount: &str,
+) -> Result<()> {
+    // Initialize tracing
+    init_tracing();
+
+    // Skip test if ZAI_API_KEY is not set
+    if env::var("ZAI_API_KEY").is_err() {
+        info!("Skipping test: ZAI_API_KEY not set");
+        return Ok(());
+    }
+
+    let mut processor = PromptProcessor::new();
+    let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
+
+    info!("Testing SPL token extraction for prompt: {}", prompt);
+    let result = processor
+        .process_prompt_structured(prompt, test_address)
+        .await?;
+
+    // Verify prompt was processed
+    assert!(
+        !result.refined_prompt.is_empty(),
+        "Refined prompt should not be empty"
+    );
+
+    // Verify action is detected as transfer or swap
+    assert!(
+        matches!(result.action, PromptAction::Transfer | PromptAction::Swap),
+        "Detected action should be Transfer or Swap"
+    );
+
+    // Verify input_mint is set correctly
+    assert_eq!(
+        result.parameters.input_mint,
+        Some(expected_mint.to_string()),
+        "Input mint should match expected mint"
+    );
+
+    // Verify amount is extracted correctly
+    assert_eq!(
+        result.parameters.amount,
+        Some(expected_amount.to_string()),
+        "Amount should match expected amount"
+    );
+
+    // Verify target pubkey is extracted
+    assert_eq!(
+        result.target_pubkey,
+        Some(test_address.to_string()),
+        "Target pubkey should match provided address"
+    );
+
+    // Verify confidence is reasonable (>0.5)
+    assert!(
+        result.confidence > 0.5,
+        "Confidence should be greater than 0.5, got {}",
+        result.confidence
+    );
+
+    // Log results for inspection
+    info!("Original: {}", result.original_prompt);
+    info!("Refined: {}", result.refined_prompt);
+    info!("Action: {:?}", result.action);
+    info!("Input mint: {:?}", result.parameters.input_mint);
+    info!("Amount: {:?}", result.parameters.amount);
+    info!("Target pubkey: {:?}", result.target_pubkey);
+    info!("Confidence: {}", result.confidence);
+
+    Ok(())
+}

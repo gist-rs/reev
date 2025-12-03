@@ -397,7 +397,7 @@ impl PromptProcessor {
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
-                    let parameters = json_value
+                    let parameters: PromptParameters = json_value
                         .get("parameters")
                         .and_then(|v| serde_json::from_value(v.clone()).ok())
                         .unwrap_or_default();
@@ -412,6 +412,13 @@ impl PromptProcessor {
                         Self::extract_action_from_prompt(&refined_prompt)
                     } else {
                         action
+                    };
+
+                    // If parameters is empty, try to extract from refined_prompt
+                    let parameters = if parameters.amount.is_none() {
+                        Self::extract_parameters_from_prompt(&refined_prompt)
+                    } else {
+                        parameters
                     };
 
                     StructuredRefineResponse {
@@ -450,12 +457,14 @@ impl PromptProcessor {
                 response.clone()
             };
             let action = Self::extract_action_from_prompt(&refined_prompt);
+            let target_pubkey = Self::extract_target_pubkey_from_prompt(&refined_prompt);
+            let parameters = Self::extract_parameters_from_prompt(&refined_prompt);
             StructuredRefineResponse {
                 refined_prompt,
                 action,
                 subject_pubkey: Some(owner_wallet_address.to_string()),
-                target_pubkey: Self::extract_target_pubkey_from_prompt(&request.prompt),
-                parameters: Self::extract_parameters_from_prompt(&request.prompt),
+                target_pubkey,
+                parameters,
                 confidence: 0.5, // Low confidence for fallback
             }
         };
@@ -523,8 +532,8 @@ impl PromptProcessor {
         use regex::Regex;
         let mut parameters = PromptParameters::default();
 
-        // Extract amount
-        if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)\s+[Ss][Oo][Ll]")
+        // Extract amount for all tokens
+        if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)(?=\s+[a-zA-Z]+|\s*$)")
             .ok()
             .and_then(|re| re.find(prompt))
         {
@@ -538,28 +547,19 @@ impl PromptProcessor {
             );
         } else if prompt.to_lowercase().contains("all") {
             parameters.amount = Some("all".to_string());
-        } else if prompt.to_lowercase().contains("trasnfer")
-            || prompt.to_lowercase().contains("trasnfer")
-        {
-            // Try to extract number after typo for "transfer"
-            if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)\s+[Ss][Oo][Ll]")
-                .ok()
-                .and_then(|re| re.find(prompt))
-            {
-                parameters.amount = Some(
-                    amount_match
-                        .as_str()
-                        .split_whitespace()
-                        .next()
-                        .unwrap()
-                        .to_string(),
-                );
-            } else {
-                // If we can't extract number, default to "all" for "trasnfer all" prompts
-                if prompt.to_lowercase().contains("all") {
-                    parameters.amount = Some("all".to_string());
-                }
-            }
+        }
+
+        // Extract input mint for transfers based on token symbols
+        let prompt_lower = prompt.to_lowercase();
+        if prompt_lower.contains("usdc") {
+            parameters.input_mint =
+                Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string());
+        } else if prompt_lower.contains("usdt") {
+            parameters.input_mint =
+                Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string());
+        } else if prompt_lower.contains("sol") {
+            parameters.input_mint =
+                Some("So11111111111111111111111111111111111111111112".to_string());
         }
 
         // Extract input and output mints for swaps

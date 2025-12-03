@@ -18,6 +18,19 @@ Please analyze the user prompt and respond with structured JSON containing:
 }
 6. confidence: Your confidence in this extraction (0.0-1.0)
 
+COMMON TOKEN SYMBOLS AND MINTS:
+- SOL: So11111111111111111111111111111111111111112
+- USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+- RAY: 4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
+- SRM: SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt
+
+TOKEN MAPPING RULES:
+- When a user mentions a token symbol (SOL, USDC, etc.), use the corresponding mint address
+- For SOL transfers, always use: So11111111111111111111111111111111111111112
+- For USDC transfers, always use: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- For USDT transfers, always use: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
 SPECIAL HANDLING FOR "all" KEYWORD:
 - When max_amount is provided in the prompt, use it to replace "all" in BOTH refined_prompt AND parameters.amount
 - For example, with max_amount 4.999:
@@ -28,18 +41,22 @@ SPECIAL HANDLING FOR "all" KEYWORD:
 - Always preserve the operation type and tokens mentioned in the original prompt
 - CRITICAL: Always update parameters.amount with the actual numeric value, never leave it as "all"
 
-Example response:
+SPL TRANSFER EXAMPLE:
 {
-  "refined_prompt": "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+  "refined_prompt": "send 1 usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
   "action": "transfer",
   "subject_pubkey": "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr",
   "target_pubkey": "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
   "parameters": {
     "amount": "1",
-    "input_mint": "So11111111111111111111111111111111111111112"
+    "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
   },
   "confidence": 0.95
-}"#;
+}
+
+CRITICAL: You MUST respond with valid JSON only, no extra text or explanations.
+Your entire response should be a single JSON object following the format above.
+"#;
 
 /// System prompt for language refiner LLM
 pub const PROMPT_PROCESSOR_SYSTEM_PROMPT: &str = r#"

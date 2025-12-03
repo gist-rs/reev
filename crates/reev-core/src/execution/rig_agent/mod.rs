@@ -236,8 +236,16 @@ impl RigAgent {
                 if let (Some(amount), Some(input_mint)) =
                     (&parameters.amount, &parameters.input_mint)
                 {
+                    // Select tool based on token type
+                    let tool_name =
+                        if input_mint == "So11111111111111111111111111111111111111111112" {
+                            "sol_transfer".to_string()
+                        } else {
+                            "spl_transfer".to_string()
+                        };
+
                     tool_calls.insert(
-                        "sol_transfer".to_string(),
+                        tool_name,
                         json!({
                             "amount": amount,
                             "mint": input_mint,

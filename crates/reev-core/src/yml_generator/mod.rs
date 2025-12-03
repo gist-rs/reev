@@ -186,12 +186,17 @@ impl YmlGenerator {
             crate::prompt_processor::PromptAction::Transfer => {
                 if let Some(amount) = &structured_prompt.parameters.amount {
                     if let Some(input_mint) = &structured_prompt.parameters.input_mint {
-                        let mut tool_call = crate::yml_schema::YmlToolCall::new(
-                            reev_types::tools::ToolName::SolTransfer,
-                            true,
-                        )
-                        .with_parameter_str("amount".to_string(), amount.clone())
-                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+                        // Select tool based on token type
+                        let tool_name =
+                            if input_mint == "So11111111111111111111111111111111111111112" {
+                                reev_types::tools::ToolName::SolTransfer
+                            } else {
+                                reev_types::tools::ToolName::SplTransfer
+                            };
+
+                        let mut tool_call = crate::yml_schema::YmlToolCall::new(tool_name, true)
+                            .with_parameter_str("amount".to_string(), amount.clone())
+                            .with_parameter_str("mint".to_string(), input_mint.to_string());
 
                         // Add recipient if available
                         if let Some(recipient) = &structured_prompt.target_pubkey {
@@ -279,6 +284,20 @@ impl YmlGenerator {
 fn determine_expected_tools(refined_prompt: &str) -> Option<Vec<ToolName>> {
     let prompt_lower = refined_prompt.to_lowercase();
 
+    // Check for transfer operations
+    if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
+        // Check if it's an SPL token transfer
+        if prompt_lower.contains("usdc")
+            || prompt_lower.contains("usdt")
+            || prompt_lower.contains("ray")
+            || prompt_lower.contains("srm")
+        {
+            return Some(vec![ToolName::SplTransfer]);
+        }
+        // Default to SOL transfer
+        return Some(vec![ToolName::SolTransfer]);
+    }
+
     // Check for swap operations
     if prompt_lower.contains("swap") {
         return Some(vec![ToolName::JupiterSwap]);
@@ -320,7 +339,7 @@ fn generate_comprehensive_ground_truth(
     } else if prompt_lower.contains("lend") || prompt_lower.contains("deposit") {
         ground_truth = add_lend_assertions(ground_truth, &wallet_context.owner);
     } else if prompt_lower.contains("transfer") || prompt_lower.contains("send") {
-        ground_truth = add_transfer_assertions(ground_truth, &wallet_context.owner);
+        ground_truth = add_transfer_assertions(ground_truth, &wallet_context.owner, refined_prompt);
     }
 
     // Add success criteria
@@ -380,21 +399,60 @@ fn add_lend_assertions(
 fn add_transfer_assertions(
     mut ground_truth: crate::yml_schema::YmlGroundTruth,
     _owner: &str,
+    refined_prompt: &str,
 ) -> crate::yml_schema::YmlGroundTruth {
-    // Account for transfer amount + transaction fees
-    ground_truth = ground_truth.with_assertion(
-        crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
-            .with_pubkey(_owner.to_string())
-            .with_expected_change_lte(-1_100_000_000.0), // 1.1 SOL max (transfer + fees)
-    );
+    let prompt_lower = refined_prompt.to_lowercase();
+    let is_spl_transfer = prompt_lower.contains("usdc")
+        || prompt_lower.contains("usdt")
+        || prompt_lower.contains("ray")
+        || prompt_lower.contains("srm");
 
-    // Add expected tool call
-    ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
-        reev_types::tools::ToolName::SolTransfer,
-        true, // critical
-    ));
+    if is_spl_transfer {
+        // Add SPL token balance change assertion
+        let token_symbol = extract_token_symbol_from_prompt(refined_prompt);
+        ground_truth = ground_truth.with_assertion(
+            crate::yml_schema::YmlAssertion::new(format!("{token_symbol}BalanceChange"))
+                .with_pubkey(_owner.to_string())
+                .with_expected_change_lte(-1_100_000.0), // 1.1 USDC/USDT max (transfer + fees)
+        );
+
+        // Add expected tool call for SPL transfer
+        ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
+            ToolName::SplTransfer,
+            true, // critical
+        ));
+    } else {
+        // Account for transfer amount + transaction fees
+        ground_truth = ground_truth.with_assertion(
+            crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
+                .with_pubkey(_owner.to_string())
+                .with_expected_change_lte(-1_100_000_000.0), // 1.1 SOL max (transfer + fees)
+        );
+
+        // Add expected tool call for SOL transfer
+        ground_truth = ground_truth.with_tool_call(crate::yml_schema::YmlToolCall::new(
+            ToolName::SolTransfer,
+            true, // critical
+        ));
+    }
 
     ground_truth
+}
+
+/// Helper function to extract token symbol from prompt
+fn extract_token_symbol_from_prompt(prompt: &str) -> String {
+    let prompt_lower = prompt.to_lowercase();
+    if prompt_lower.contains("usdc") {
+        "Usdc".to_string()
+    } else if prompt_lower.contains("usdt") {
+        "Usdt".to_string()
+    } else if prompt_lower.contains("ray") {
+        "Ray".to_string()
+    } else if prompt_lower.contains("srm") {
+        "Srm".to_string()
+    } else {
+        "Unknown".to_string()
+    }
 }
 
 /// Add success criteria based on operation type

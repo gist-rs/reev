@@ -214,6 +214,20 @@ impl ContextResolver {
             "So11111111111111111111111111111111111111112" => Some("SOL".to_string()),
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Some("USDC".to_string()),
             "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Some("USDT".to_string()),
+            "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R" => Some("RAY".to_string()),
+            "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt" => Some("SRM".to_string()),
+            _ => None,
+        }
+    }
+
+    /// Get token mint address from symbol
+    pub fn get_token_mint(&self, symbol: &str) -> Option<String> {
+        match symbol.to_uppercase().as_str() {
+            "SOL" => Some("So11111111111111111111111111111111111111112".to_string()),
+            "USDC" => Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
+            "USDT" => Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string()),
+            "RAY" => Some("4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R".to_string()),
+            "SRM" => Some("SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt".to_string()),
             _ => None,
         }
     }

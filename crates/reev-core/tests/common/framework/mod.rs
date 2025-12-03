@@ -100,6 +100,36 @@ impl TestRunner {
         info!("✅ Wallet balance reset to 5 SOL");
         Ok(())
     }
+
+    /// Set token balance for testing
+    #[allow(dead_code)]
+    pub async fn set_token_balance(&mut self, mint: &str, amount: u64) -> Result<()> {
+        // In a real implementation, this would interact with the blockchain
+        // For testing, we'll just log the token balance setup
+        let symbol = match mint {
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => "USDC",
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => "USDT",
+            "So11111111111111111111111111111111111111112" => "SOL",
+            _ => return Err(anyhow::anyhow!("Unknown token mint: {mint}")),
+        };
+
+        // Determine decimals based on token
+        let decimals = match symbol {
+            "SOL" => 9,
+            _ => 6, // Most SPL tokens use 6 decimals
+        };
+
+        info!(
+            "Setting {} balance to {} ({:.6} tokens)",
+            symbol,
+            amount,
+            amount as f64 / 10_f64.powi(decimals as i32)
+        );
+
+        // In a real implementation, this would interact with the test blockchain
+        // For now, we just log the setup
+        Ok(())
+    }
 }
 
 /// Macro to simplify writing parameterized tests
