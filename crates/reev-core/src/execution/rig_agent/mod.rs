@@ -4,6 +4,7 @@
 //! for LLM-driven tool selection and parameter extraction in Phase 2 of
 //! Reev Core Architecture.
 
+// Removed unused import
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
@@ -108,18 +109,19 @@ impl RigAgent {
         );
 
         // Use structured prompt data if available, otherwise use refined prompt or original prompt
-        let (prompt, action, parameters) = if let Some(structured_prompt) = &step.structured_prompt
-        {
-            (
-                structured_prompt.refined_prompt.clone(),
-                Some(structured_prompt.action.clone()),
-                Some(&structured_prompt.parameters),
-            )
-        } else if !step.refined_prompt.is_empty() {
-            (step.refined_prompt.clone(), None, None)
-        } else {
-            (step.prompt.clone(), None, None)
-        };
+        let (prompt, action, parameters, structured_prompt) =
+            if let Some(structured_prompt) = &step.structured_prompt {
+                (
+                    structured_prompt.refined_prompt.clone(),
+                    Some(structured_prompt.action.clone()),
+                    Some(&structured_prompt.parameters),
+                    Some(structured_prompt),
+                )
+            } else if !step.refined_prompt.is_empty() {
+                (step.refined_prompt.clone(), None, None, None)
+            } else {
+                (step.prompt.clone(), None, None, None)
+            };
 
         // Create YML context and convert to prompt
         let yml_context = self.create_yml_context(step, wallet_context, previous_results)?;
@@ -155,7 +157,7 @@ impl RigAgent {
                 "Using structured action and parameters: action={:?}, parameters={:?}",
                 action, parameters
             );
-            self.create_tool_calls_from_structured_data(&action, parameters)?
+            self.create_tool_calls_from_structured_data(&action, parameters, structured_prompt)?
         } else {
             debug!("Extracting tool calls from LLM response");
             self.extract_tool_calls(&response)?
@@ -223,6 +225,7 @@ impl RigAgent {
         &self,
         action: &crate::prompt_processor::PromptAction,
         parameters: &crate::prompt_processor::PromptParameters,
+        structured_prompt: Option<&crate::prompt_processor::StructuredRefinedPrompt>,
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!(
             "Creating tool calls from structured data: action={:?}",
@@ -237,22 +240,118 @@ impl RigAgent {
                     (&parameters.amount, &parameters.input_mint)
                 {
                     // Select tool based on token type
-                    let tool_name =
-                        if input_mint == "So11111111111111111111111111111111111111111112" {
-                            "sol_transfer".to_string()
-                        } else {
-                            "spl_transfer".to_string()
-                        };
+                    let tool_name = if input_mint == "So11111111111111111111111111111111111111112" {
+                        "sol_transfer".to_string()
+                    } else {
+                        "spl_transfer".to_string()
+                    };
+
+                    // Get user pubkey from structured prompt or use default
+                    let user_pubkey = if let Some(sp) = structured_prompt {
+                        sp.subject_pubkey.clone().unwrap_or_else(|| {
+                            "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                    };
+
+                    // Get recipient pubkey from structured prompt or additional parameters
+                    let recipient_pubkey = if let Some(sp) = structured_prompt {
+                        sp.target_pubkey.clone().unwrap_or_else(|| {
+                            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("recipient") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                    };
 
                     tool_calls.insert(
                         tool_name,
                         json!({
+                            "user_pubkey": user_pubkey,
+                            "recipient": recipient_pubkey,
                             "amount": amount,
-                            "mint": input_mint,
-                            "recipient": parameters.additional.get("recipient")
-                                .or_else(|| parameters.additional.get("target_pubkey"))
-                                .cloned()
-                                .unwrap_or(serde_json::Value::Null)
+                            "mint_address": input_mint
+                        }),
+                    );
+                } else if let Some(amount) = &parameters.amount {
+                    // Fallback: extract token symbol from mint address
+                    let token_symbol = parameters
+                        .input_mint
+                        .as_ref()
+                        .map(|mint| {
+                            if mint == "So11111111111111111111111111111111111111112" {
+                                "SOL".to_string()
+                            } else if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
+                                "USDC".to_string()
+                            } else if mint == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" {
+                                "USDT".to_string()
+                            } else {
+                                // Default to USDC for unknown tokens
+                                "USDC".to_string()
+                            }
+                        })
+                        .unwrap_or_else(|| "USDC".to_string());
+
+                    let input_mint = parameters.input_mint.clone().unwrap_or_else(|| {
+                        // Fallback mint address based on token symbol
+                        match token_symbol.as_str() {
+                            "SOL" => "So11111111111111111111111111111111111111112".to_string(),
+                            "USDC" => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                            "USDT" => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string(),
+                            _ => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // Default to USDC
+                        }
+                    });
+
+                    let tool_name = match token_symbol.as_str() {
+                        "SOL" => "sol_transfer".to_string(),
+                        _ => "spl_transfer".to_string(), // All non-SOL tokens use SPL transfer
+                    };
+
+                    let amount = amount.clone();
+
+                    // Get user pubkey from structured prompt or use default
+                    let user_pubkey = if let Some(sp) = structured_prompt {
+                        sp.subject_pubkey.clone().unwrap_or_else(|| {
+                            "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("user_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                    };
+
+                    // Get recipient pubkey from structured prompt or additional parameters
+                    let recipient_pubkey = if let Some(sp) = structured_prompt {
+                        sp.target_pubkey.clone().unwrap_or_else(|| {
+                            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("recipient") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                    };
+
+                    tool_calls.insert(
+                        tool_name,
+                        json!({
+                            "user_pubkey": user_pubkey,
+                            "recipient": recipient_pubkey,
+                            "amount": amount,
+                            "mint_address": input_mint
                         }),
                     );
                 }

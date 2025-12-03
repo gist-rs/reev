@@ -1,0 +1,130 @@
+//! SPL Token Transfer Tool Implementation
+//!
+//! This module contains the implementation of the SPL token transfer tool.
+
+use anyhow::{anyhow, Result};
+use reev_protocols::native::handle_spl_transfer;
+use reev_types::flow::WalletContext;
+use serde_json::json;
+use solana_sdk::pubkey::Pubkey;
+use spl_associated_token_account::get_associated_token_address;
+use std::collections::HashMap;
+use std::str::FromStr;
+use tracing::info;
+
+/// Execute SPL token transfer
+pub async fn execute_spl_transfer(
+    params: &HashMap<String, String>,
+    wallet_context: &WalletContext,
+) -> Result<serde_json::Value> {
+    let recipient = params
+        .get("recipient")
+        .ok_or_else(|| anyhow!("recipient parameter is required"))?;
+
+    let amount_str = params
+        .get("amount")
+        .ok_or_else(|| anyhow!("amount parameter is required"))?;
+
+    // Get mint address from parameters (accept both token and mint_address)
+    let mint_address = params
+        .get("mint_address")
+        .or_else(|| params.get("token"))
+        .ok_or_else(|| anyhow!("mint_address parameter is required"))?;
+
+    // Convert mint address string to Pubkey
+    let token_mint =
+        Pubkey::from_str(mint_address).map_err(|e| anyhow!("Invalid mint address: {e}"))?;
+
+    // Parse amount (convert to token units)
+    let amount = if amount_str.to_lowercase() == "all" {
+        // For "all" keyword, we'll transfer the entire balance
+        u64::MAX
+    } else {
+        // Parse the amount and convert to token units based on decimals
+        let amount_value: f64 = amount_str
+            .parse()
+            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
+
+        // Get decimals for token (default to 6 for common SPL tokens)
+        let decimals = get_token_decimals_from_mint(mint_address);
+
+        (amount_value * 10_f64.powi(decimals)) as u64
+    };
+
+    // Parse recipient and sender pubkeys
+    let recipient_pubkey =
+        Pubkey::from_str(recipient).map_err(|e| anyhow!("Invalid recipient address: {e}"))?;
+    let sender_pubkey = Pubkey::from_str(&wallet_context.owner)
+        .map_err(|e| anyhow!("Invalid sender address: {e}"))?;
+
+    // Get or create associated token accounts
+    let (source_ata, destination_ata) =
+        get_or_create_token_accounts(sender_pubkey, recipient_pubkey, token_mint).await?;
+
+    // Use the protocol handler to create the transfer instruction
+    let instructions = handle_spl_transfer(
+        source_ata,
+        destination_ata,
+        sender_pubkey, // Authority is the wallet owner
+        amount,
+        &HashMap::new(), // Empty key_map for now
+    )
+    .await?;
+
+    // Get the default keypair for signing
+    let keypair = reev_lib::get_keypair().map_err(|e| anyhow!("Failed to get keypair: {e}"))?;
+
+    // Execute the transaction
+    let transaction_signature =
+        reev_lib::execute_transaction(instructions, sender_pubkey, &keypair)
+            .await
+            .map_err(|e| anyhow!("Failed to execute transaction: {e}"))?;
+
+    // Log the successful transaction
+    info!(
+        "SPL transfer executed with signature: {}",
+        transaction_signature
+    );
+
+    Ok(json!({
+        "tool_name": "spl_transfer",
+        "params": {
+            "recipient": recipient,
+            "amount": amount_str,
+            "mint_address": mint_address.to_string(),
+            "token_mint": token_mint.to_string(),
+            "wallet": wallet_context.owner
+        },
+        "transaction_signature": transaction_signature,
+        "success": true
+    }))
+}
+
+/// Get decimals for token
+// get_token_decimals is now unused since we handle decimals from mint addresses
+fn get_token_decimals_from_mint(mint_address: &str) -> i32 {
+    match mint_address {
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => 6, // USDC
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => 6, // USDT
+        _ => 6,                                              // Default to 6 decimals
+    }
+}
+
+/// Get or create associated token accounts for sender and recipient
+async fn get_or_create_token_accounts(
+    sender: Pubkey,
+    recipient: Pubkey,
+    token_mint: Pubkey,
+) -> Result<(Pubkey, Pubkey)> {
+    // Get sender's ATA (Associated Token Account)
+    let sender_ata = get_associated_token_address(&sender, &token_mint);
+
+    // Get recipient's ATA
+    let recipient_ata = get_associated_token_address(&recipient, &token_mint);
+
+    // Check if recipient's ATA exists, if not create it
+    // Note: In a real implementation, we would check if the account exists and create it if needed
+    // For simplicity, we'll just return the addresses and let the protocol handler deal with account creation
+
+    Ok((sender_ata, recipient_ata))
+}

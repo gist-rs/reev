@@ -196,7 +196,7 @@ impl YmlGenerator {
 
                         let mut tool_call = crate::yml_schema::YmlToolCall::new(tool_name, true)
                             .with_parameter_str("amount".to_string(), amount.clone())
-                            .with_parameter_str("mint".to_string(), input_mint.to_string());
+                            .with_parameter_str("mint_address".to_string(), input_mint.to_string());
 
                         // Add recipient if available
                         if let Some(recipient) = &structured_prompt.target_pubkey {
@@ -409,9 +409,9 @@ fn add_transfer_assertions(
 
     if is_spl_transfer {
         // Add SPL token balance change assertion
-        let token_symbol = extract_token_symbol_from_prompt(refined_prompt);
+        let _token_symbol = extract_token_symbol_from_prompt(refined_prompt);
         ground_truth = ground_truth.with_assertion(
-            crate::yml_schema::YmlAssertion::new(format!("{token_symbol}BalanceChange"))
+            crate::yml_schema::YmlAssertion::new("TokenBalanceChange".to_string())
                 .with_pubkey(_owner.to_string())
                 .with_expected_change_lte(-1_100_000.0), // 1.1 USDC/USDT max (transfer + fees)
         );

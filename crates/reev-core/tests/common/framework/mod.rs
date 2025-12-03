@@ -104,8 +104,6 @@ impl TestRunner {
     /// Set token balance for testing
     #[allow(dead_code)]
     pub async fn set_token_balance(&mut self, mint: &str, amount: u64) -> Result<()> {
-        // In a real implementation, this would interact with the blockchain
-        // For testing, we'll just log the token balance setup
         let symbol = match mint {
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => "USDC",
             "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => "USDT",
@@ -126,8 +124,19 @@ impl TestRunner {
             amount as f64 / 10_f64.powi(decimals as i32)
         );
 
-        // In a real implementation, this would interact with the test blockchain
-        // For now, we just log the setup
+        // For SPL tokens, we need to set up the token balance in the test blockchain
+        if mint != "So11111111111111111111111111111111111111112" {
+            let surfpool_client = SurfpoolClient::new("http://localhost:8899");
+
+            // Set the token account with the specified amount
+            surfpool_client
+                .set_token_account(&self.pubkey.to_string(), mint, amount)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to set token account: {e}"))?;
+
+            info!("✅ Set {} token balance to {}", symbol, amount);
+        }
+
         Ok(())
     }
 }

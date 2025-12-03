@@ -54,6 +54,13 @@ pub trait ToolExecutor {
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<Value>;
+
+    /// Execute SPL transfer
+    async fn execute_spl_transfer(
+        &self,
+        params: &HashMap<String, String>,
+        wallet_context: &WalletContext,
+    ) -> Result<Value>;
 }
 
 /// Trait for accessing agent tools and HTTP client

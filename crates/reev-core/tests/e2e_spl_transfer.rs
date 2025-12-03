@@ -64,6 +64,9 @@ async fn test_spl_transfer(#[case] prompt: &str) -> Result<()> {
     // The LLM will handle both specific amounts and "all" keyword cases
     let result = query_handler.process_query(prompt, &runner.pubkey).await?;
 
+    // Debug output
+    println!("Query result: {result:?}");
+
     // Verify the query was processed successfully
     assert!(
         result.success,

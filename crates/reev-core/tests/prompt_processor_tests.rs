@@ -628,7 +628,7 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
 #[serial]
 async fn test_spl_token_extraction(
     #[case] prompt: &str,
-    #[case] expected_symbol: &str,
+    #[case] _expected_symbol: &str,
     #[case] expected_mint: &str,
     #[case] expected_amount: &str,
 ) -> Result<()> {

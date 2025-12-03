@@ -8,6 +8,7 @@ pub mod implementation;
 pub mod jupiter_lend;
 pub mod jupiter_swap;
 pub mod sol_transfer;
+pub mod spl_transfer;
 pub mod traits;
 
 // Re-export the traits for convenience

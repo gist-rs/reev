@@ -153,6 +153,14 @@ fn is_valid_pubkey(pubkey: &str) -> bool {
         }
     }
 
+    // Additional check for known mint addresses
+    match pubkey {
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => return true, // USDC
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => return true, // USDT
+        "So11111111111111111111111111111111111111112" => return true,  // SOL
+        _ => {}                                                        // Continue with other checks
+    }
+
     true
 }
 

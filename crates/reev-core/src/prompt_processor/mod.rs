@@ -533,18 +533,12 @@ impl PromptProcessor {
         let mut parameters = PromptParameters::default();
 
         // Extract amount for all tokens
-        if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)(?=\s+[a-zA-Z]+|\s*$)")
+        if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)(?:\s+[a-zA-Z]+|$)")
             .ok()
-            .and_then(|re| re.find(prompt))
+            .and_then(|re| re.captures(prompt))
+            .and_then(|caps| caps.get(1))
         {
-            parameters.amount = Some(
-                amount_match
-                    .as_str()
-                    .split_whitespace()
-                    .next()
-                    .unwrap()
-                    .to_string(),
-            );
+            parameters.amount = Some(amount_match.as_str().to_string());
         } else if prompt.to_lowercase().contains("all") {
             parameters.amount = Some("all".to_string());
         }
@@ -658,13 +652,27 @@ impl PromptProcessor {
             .and_then(|content| content.as_str())
             .ok_or_else(|| anyhow!("Invalid response format from LLM"))?;
 
+        // Debug output
+        info!("LLM response: {}", content);
+
+        // Parse JSON response
+        let json_result = serde_json::from_str::<serde_json::Value>(content);
+        match json_result {
+            Ok(json) => {
+                info!("Parsed JSON response: {:?}", json);
+            }
+            Err(e) => {
+                info!("Failed to parse JSON: {}, response was: {}", e, content);
+            }
+        }
+
         Ok(content.to_string())
     }
 
     /// Build structured system prompt for LLM
     fn build_structured_system_prompt(&self) -> String {
-        // Use the same system prompt as the working implementation
-        PROMPT_PROCESSOR_SYSTEM_PROMPT.to_string()
+        // Use structured prompt system prompt
+        crate::prompts::prompt_processor::STRUCTURED_PROMPT_SYSTEM_PROMPT.to_string()
     }
 
     /// Send request to LLM for language refinement

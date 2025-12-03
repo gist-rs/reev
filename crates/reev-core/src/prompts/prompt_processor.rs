@@ -4,58 +4,32 @@
 
 /// System prompt for structured LLM responses
 pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"
-You are an expert at analyzing blockchain operation prompts.
-Please analyze the user prompt and respond with structured JSON containing:
+You are analyzing a blockchain operation prompt.
 
-1. refined_prompt: A clearer version of the original prompt
-2. action: The blockchain operation type (transfer, swap, lend, earn, borrow)
-3. subject_pubkey: The wallet performing the action (from context if not in prompt)
-4. target_pubkey: The destination address (for transfers/operations to others)
-5. parameters: {
-   amount: The amount to transfer/swap/lend,
-   input_mint: The input token mint address,
-   output_mint: The output token mint address
-}
-6. confidence: Your confidence in this extraction (0.0-1.0)
-
-COMMON TOKEN SYMBOLS AND MINTS:
-- SOL: So11111111111111111111111111111111111111112
-- USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-- USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
-- RAY: 4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
-- SRM: SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt
-
-TOKEN MAPPING RULES:
-- When a user mentions a token symbol (SOL, USDC, etc.), use the corresponding mint address
-- For SOL transfers, always use: So11111111111111111111111111111111111111112
-- For USDC transfers, always use: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-- For USDT transfers, always use: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
-
-SPECIAL HANDLING FOR "all" KEYWORD:
-- When max_amount is provided in the prompt, use it to replace "all" in BOTH refined_prompt AND parameters.amount
-- For example, with max_amount 4.999:
-  - "swap all sol for usdc" becomes refined_prompt: "swap 4.999 sol for usdc"
-  - parameters.amount should be "4.999" (not "all")
-  - "transfer all sol to..." becomes refined_prompt: "transfer 4.999 sol to..."
-  - parameters.amount should be "4.999" (not "all")
-- Always preserve the operation type and tokens mentioned in the original prompt
-- CRITICAL: Always update parameters.amount with the actual numeric value, never leave it as "all"
-
-SPL TRANSFER EXAMPLE:
+ALWAYS return a complete JSON response with ALL these fields:
 {
-  "refined_prompt": "send 1 usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
-  "action": "transfer",
-  "subject_pubkey": "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr",
-  "target_pubkey": "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+  "refined_prompt": "clearer version of original prompt",
+  "action": "transfer|swap|lend|earn|borrow",
+  "subject_pubkey": "wallet address or null",
+  "target_pubkey": "recipient address or null",
   "parameters": {
-    "amount": "1",
-    "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+    "amount": "numeric amount",
+    "input_mint": "token mint address"
   },
   "confidence": 0.95
 }
 
-CRITICAL: You MUST respond with valid JSON only, no extra text or explanations.
-Your entire response should be a single JSON object following the format above.
+TOKEN MAPPING:
+- SOL → So11111111111111111111111111111111111111112
+- USDC → EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+- USDT → Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+
+For transfers: Include input_mint based on token symbol in prompt.
+For swaps: Include both input_mint and output_mint.
+
+RESPOND WITH COMPLETE JSON ONLY - NO EXTRA TEXT.
+DO NOT TRUNCATE YOUR RESPONSE.
+ENSURE YOUR JSON IS COMPLETE WITH ALL FIELDS.
 "#;
 
 /// System prompt for language refiner LLM

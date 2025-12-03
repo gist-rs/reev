@@ -110,7 +110,8 @@ Respond with valid JSON in the following format:
 
 Available tools:
 - sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string, required), amount (number in SOL, required), wallet (string, optional)
-- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
+- spl_transfer: Transfer SPL tokens from one account to another. Parameters: recipient (string, required), amount (number in tokens, required), mint_address (string, required), wallet (string, optional)
+- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., 'So11111111111111111111111111111111111112' for SOL), output_mint (string, required, e.g., 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
 - jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required, already in smallest denomination, e.g., 1,000,000 for 1 USDC), wallet (string, optional)
 - get_account_balance: Get account balance. Parameters: account (string, required), mint (string, optional, defaults to SOL)
 

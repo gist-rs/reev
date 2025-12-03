@@ -15,6 +15,7 @@ use super::traits::{AgentProvider, AgentToolHelper, ToolExecutor};
 use super::{
     account_balance::execute_get_account_balance, jupiter_lend::execute_jupiter_lend_deposit,
     jupiter_swap::execute_jupiter_swap, sol_transfer::execute_sol_transfer,
+    spl_transfer::execute_spl_transfer,
 };
 
 /// Implementation for any struct with agent_tools field
@@ -89,6 +90,7 @@ where
         // Execute the tool based on its name
         match tool_name {
             "sol_transfer" => execute_sol_transfer(&params_map, wallet_context).await,
+            "spl_transfer" => execute_spl_transfer(&params_map, wallet_context).await,
             "jupiter_swap" => execute_jupiter_swap(&params_map, wallet_context).await,
             "jupiter_lend_earn_deposit" => {
                 let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
@@ -138,6 +140,15 @@ where
         wallet_context: &WalletContext,
     ) -> Result<Value> {
         execute_get_account_balance(params, wallet_context).await
+    }
+
+    /// Execute SPL transfer
+    async fn execute_spl_transfer(
+        &self,
+        params: &HashMap<String, String>,
+        wallet_context: &WalletContext,
+    ) -> Result<Value> {
+        execute_spl_transfer(params, wallet_context).await
     }
 }
 
