@@ -56,27 +56,9 @@ pub enum ValidationResult {
 }
 
 impl StructuredRefinedPrompt {
-    /// Create a new structured refined prompt using a builder pattern
-    pub fn new(
-        refined_prompt: String,
-        action: PromptAction,
-        subject_pubkey: Option<String>,
-        target_pubkey: Option<String>,
-        parameters: PromptParameters,
-        confidence: f32,
-        original_prompt: String,
-        usable_amount: Option<f64>,
-    ) -> Self {
-        Self {
-            refined_prompt,
-            action,
-            subject_pubkey,
-            target_pubkey,
-            parameters,
-            confidence,
-            original_prompt,
-            usable_amount,
-        }
+    /// Create a builder for StructuredRefinedPrompt
+    pub fn builder() -> StructuredRefinedPromptBuilder {
+        StructuredRefinedPromptBuilder::new()
     }
 
     /// Create a new structured refined prompt with minimal arguments
@@ -84,10 +66,28 @@ impl StructuredRefinedPrompt {
         refined_prompt: String,
         action: PromptAction,
         original_prompt: String,
+    ) -> Self {
+        Self {
+            refined_prompt,
+            action,
+            subject_pubkey: None,
+            target_pubkey: None,
+            parameters: PromptParameters::default(),
+            confidence: 0.8,
+            original_prompt,
+            usable_amount: None,
+        }
+    }
+
+    /// Create a new structured refined prompt with minimal arguments and usable amount
+    pub fn with_defaults_and_amount(
+        refined_prompt: String,
+        action: PromptAction,
+        original_prompt: String,
         usable_amount: Option<f64>,
     ) -> Self {
         Self {
-            refined_prompt: refined_prompt.clone(),
+            refined_prompt,
             action,
             subject_pubkey: None,
             target_pubkey: None,
@@ -144,15 +144,101 @@ impl StructuredRefineResponse {
             _ => PromptAction::Unknown,
         };
 
-        Ok(StructuredRefinedPrompt::new(
-            self.refined_prompt,
-            action,
-            self.subject_pubkey,
-            self.target_pubkey,
-            self.parameters,
-            self.confidence as f32,
-            original_prompt,
-            usable_amount,
-        ))
+        Ok(StructuredRefinedPrompt::builder()
+            .refined_prompt(self.refined_prompt)
+            .action(action)
+            .subject_pubkey(self.subject_pubkey)
+            .target_pubkey(self.target_pubkey)
+            .parameters(self.parameters)
+            .confidence(self.confidence as f32)
+            .original_prompt(original_prompt)
+            .usable_amount(usable_amount)
+            .build())
+    }
+}
+
+/// Builder for StructuredRefinedPrompt
+pub struct StructuredRefinedPromptBuilder {
+    refined_prompt: Option<String>,
+    action: Option<PromptAction>,
+    subject_pubkey: Option<String>,
+    target_pubkey: Option<String>,
+    parameters: Option<PromptParameters>,
+    confidence: Option<f32>,
+    original_prompt: Option<String>,
+    usable_amount: Option<f64>,
+}
+
+impl Default for StructuredRefinedPromptBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StructuredRefinedPromptBuilder {
+    pub fn new() -> Self {
+        Self {
+            refined_prompt: None,
+            action: None,
+            subject_pubkey: None,
+            target_pubkey: None,
+            parameters: None,
+            confidence: None,
+            original_prompt: None,
+            usable_amount: None,
+        }
+    }
+
+    pub fn refined_prompt(mut self, refined_prompt: String) -> Self {
+        self.refined_prompt = Some(refined_prompt);
+        self
+    }
+
+    pub fn action(mut self, action: PromptAction) -> Self {
+        self.action = Some(action);
+        self
+    }
+
+    pub fn subject_pubkey(mut self, subject_pubkey: Option<String>) -> Self {
+        self.subject_pubkey = subject_pubkey;
+        self
+    }
+
+    pub fn target_pubkey(mut self, target_pubkey: Option<String>) -> Self {
+        self.target_pubkey = target_pubkey;
+        self
+    }
+
+    pub fn parameters(mut self, parameters: PromptParameters) -> Self {
+        self.parameters = Some(parameters);
+        self
+    }
+
+    pub fn confidence(mut self, confidence: f32) -> Self {
+        self.confidence = Some(confidence);
+        self
+    }
+
+    pub fn original_prompt(mut self, original_prompt: String) -> Self {
+        self.original_prompt = Some(original_prompt);
+        self
+    }
+
+    pub fn usable_amount(mut self, usable_amount: Option<f64>) -> Self {
+        self.usable_amount = usable_amount;
+        self
+    }
+
+    pub fn build(self) -> StructuredRefinedPrompt {
+        StructuredRefinedPrompt {
+            refined_prompt: self.refined_prompt.unwrap_or_default(),
+            action: self.action.unwrap_or(PromptAction::Unknown),
+            subject_pubkey: self.subject_pubkey,
+            target_pubkey: self.target_pubkey,
+            parameters: self.parameters.unwrap_or_default(),
+            confidence: self.confidence.unwrap_or(0.8),
+            original_prompt: self.original_prompt.unwrap_or_default(),
+            usable_amount: self.usable_amount,
+        }
     }
 }
