@@ -242,17 +242,19 @@ impl PromptProcessor {
 
         // Create refined prompt object
         let refined = if is_all_keyword {
-            if let Some(amount) = max_amount_decimal {
-                RefinedPrompt::new_for_test_with_amount(
-                    prompt.to_string(),
-                    response_obj.refined_prompt.clone(),
-                    amount,
-                )
-            } else {
-                RefinedPrompt::new_for_test(prompt.to_string(), response_obj.refined_prompt.clone())
+            RefinedPrompt {
+                original: prompt.to_string(),
+                refined: response_obj.refined_prompt.clone(),
+                confidence: response_obj.confidence,
+                usable_amount: max_amount_decimal,
             }
         } else {
-            RefinedPrompt::new_for_test(prompt.to_string(), response_obj.refined_prompt.clone())
+            RefinedPrompt {
+                original: prompt.to_string(),
+                refined: response_obj.refined_prompt.clone(),
+                confidence: response_obj.confidence,
+                usable_amount: None,
+            }
         };
         info!("Processed prompt: {}", refined.refined);
         debug!("Original: {} -> Refined: {}", prompt, refined.refined);
@@ -836,7 +838,7 @@ pub struct RefinedPrompt {
     /// Refined prompt
     pub refined: String,
     /// Confidence in the refinement (0.0-1.0)
-    confidence: f32,
+    pub confidence: f32,
     /// Usable amount for transfers (when "all" keyword was used)
     pub usable_amount: Option<f64>,
 }
@@ -890,7 +892,10 @@ async fn create_wallet_context(wallet_address: &str) -> Result<reev_types::flow:
 }
 
 impl RefinedPrompt {
-    /// Create a new refined prompt (for testing)
+    /// Create a new refined prompt with default values for testing
+    ///
+    /// This constructor should only be used in tests.
+    /// Production code should use the full struct initialization.
     pub fn new_for_test(original: String, refined: String) -> Self {
         Self {
             original,
@@ -900,7 +905,10 @@ impl RefinedPrompt {
         }
     }
 
-    /// Create a new refined prompt with usable amount (for testing "all" keyword)
+    /// Create a new refined prompt with usable amount for testing
+    ///
+    /// This constructor should only be used in tests.
+    /// Production code should use the full struct initialization.
     pub fn new_for_test_with_amount(original: String, refined: String, usable_amount: f64) -> Self {
         Self {
             original,
