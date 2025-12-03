@@ -9,6 +9,7 @@ use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
 use rig::tool::ToolSet;
 use serde_json::json;
+use std::collections::HashMap;
 
 use std::string::String;
 use std::sync::Arc;
@@ -106,11 +107,18 @@ impl RigAgent {
                 .map(|t| t.balance)
         );
 
-        // Use the refined prompt if available, otherwise use the original prompt
-        let prompt = if !step.refined_prompt.is_empty() {
-            step.refined_prompt.clone()
+        // Use structured prompt data if available, otherwise use refined prompt or original prompt
+        let (prompt, action, parameters) = if let Some(structured_prompt) = &step.structured_prompt
+        {
+            (
+                structured_prompt.refined_prompt.clone(),
+                Some(structured_prompt.action.clone()),
+                Some(&structured_prompt.parameters),
+            )
+        } else if !step.refined_prompt.is_empty() {
+            (step.refined_prompt.clone(), None, None)
         } else {
-            step.prompt.clone()
+            (step.prompt.clone(), None, None)
         };
 
         // Create YML context and convert to prompt
@@ -140,8 +148,18 @@ impl RigAgent {
 
         debug!("Parsing tool calls from LLM response");
 
-        // Extract tool calls from the response
-        let tool_calls = self.extract_tool_calls(&response)?;
+        // If we have structured data with action and parameters, use them directly
+        // Otherwise, extract tool calls from the LLM response
+        let tool_calls = if let (Some(action), Some(parameters)) = (action, parameters) {
+            debug!(
+                "Using structured action and parameters: action={:?}, parameters={:?}",
+                action, parameters
+            );
+            self.create_tool_calls_from_structured_data(&action, parameters)?
+        } else {
+            debug!("Extracting tool calls from LLM response");
+            self.extract_tool_calls(&response)?
+        };
 
         // Check if this is a multi-step prompt and we have multiple operations
         let prompt_lower = prompt.to_lowercase();
@@ -197,6 +215,100 @@ impl RigAgent {
         let tool_set = ToolSet::default();
 
         Ok(tool_set)
+    }
+
+    /// Create tool calls directly from structured prompt data
+    /// This method implements Phase 4 of the structured LLM response system
+    fn create_tool_calls_from_structured_data(
+        &self,
+        action: &crate::prompt_processor::PromptAction,
+        parameters: &crate::prompt_processor::PromptParameters,
+    ) -> Result<HashMap<String, serde_json::Value>> {
+        debug!(
+            "Creating tool calls from structured data: action={:?}",
+            action
+        );
+
+        let mut tool_calls = HashMap::new();
+
+        match action {
+            crate::prompt_processor::PromptAction::Transfer => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    tool_calls.insert(
+                        "sol_transfer".to_string(),
+                        json!({
+                            "amount": amount,
+                            "mint": input_mint,
+                            "recipient": parameters.additional.get("recipient")
+                                .or_else(|| parameters.additional.get("target_pubkey"))
+                                .cloned()
+                                .unwrap_or_else(|| serde_json::Value::Null)
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Swap => {
+                if let (Some(amount), Some(input_mint), Some(output_mint)) = (
+                    &parameters.amount,
+                    &parameters.input_mint,
+                    &parameters.output_mint,
+                ) {
+                    tool_calls.insert(
+                        "jupiter_swap".to_string(),
+                        json!({
+                            "input_amount": amount,
+                            "input_mint": input_mint,
+                            "output_mint": output_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Lend => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    tool_calls.insert(
+                        "jupiter_lend".to_string(),
+                        json!({
+                            "amount": amount,
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Earn => {
+                if let Some(input_mint) = &parameters.input_mint {
+                    tool_calls.insert(
+                        "jupiter_earn".to_string(),
+                        json!({
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Borrow => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    tool_calls.insert(
+                        "jupiter_borrow".to_string(),
+                        json!({
+                            "amount": amount,
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Unknown => {
+                // For unknown actions, we can't create specific tool calls
+                debug!("Unknown action type, cannot create tool calls");
+            }
+        }
+
+        debug!("Created tool calls from structured data: {:?}", tool_calls);
+        Ok(tool_calls)
     }
 }
 

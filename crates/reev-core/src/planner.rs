@@ -84,19 +84,24 @@ impl Planner {
             .await?;
         debug!("Resolved wallet context for {}", wallet_pubkey);
 
-        // Step 1: Language refinement using LLM
-        info!("Step 1: Refining language with LLM");
-        let refined_prompt = self
+        // Step 1: Language refinement using LLM with structured response
+        info!("Step 1: Refining language with LLM (structured)");
+        let structured_prompt = self
             .prompt_processor
-            .process_prompt(prompt, wallet_pubkey)
+            .process_prompt_structured(prompt, wallet_pubkey)
             .await?;
-        debug!("Refined prompt: {}", refined_prompt.refined);
+        debug!(
+            "Structured refined prompt: {}",
+            structured_prompt.refined_prompt
+        );
 
-        // Step 2: Generate YML structure using rule-based templates
+        // Using structured response directly - no backward compatibility needed
+
+        // Step 2: Generate YML structure using rule-based templates with parameters
         info!("Step 2: Generating YML structure with rule-based templates");
         let yml_flow = self
             .yml_generator
-            .generate_flow(&refined_prompt, &wallet_context)
+            .generate_flow_from_structured_prompt(&structured_prompt, &wallet_context)
             .await?;
         debug!("Generated YML flow: {}", yml_flow.flow_id);
 

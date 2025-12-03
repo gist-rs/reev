@@ -53,6 +53,7 @@ impl UnifiedFlowBuilder {
             prompt: refined_prompt.original.clone(),
             refined_prompt: refined_prompt.refined.clone(),
             context: format!("User request: {}", refined_prompt.original),
+            structured_prompt: None,
             expected_tool_calls: None, // Let RigAgent determine tools
             expected_tools: None,      // Will be determined by RigAgent
             critical: Some(true),

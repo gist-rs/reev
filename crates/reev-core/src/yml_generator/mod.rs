@@ -61,7 +61,7 @@ impl YmlGenerator {
             refined_prompt.refined
         );
 
-        // Create a flow with potentially multiple steps based on the refined prompt
+        // Create a flow with potentially multiple steps based on refined prompt
         // Following V3 plan, each operation should be a separate step
         let flow_id = uuid::Uuid::new_v4().to_string();
 
@@ -99,36 +99,171 @@ impl YmlGenerator {
                 .into_iter()
                 .enumerate()
                 .map(|(i, operation)| {
-                    let step_id = uuid::Uuid::new_v4().to_string();
                     let expected_tools = determine_expected_tools(&operation).unwrap_or_default();
-
                     crate::yml_schema::YmlStep::new(
-                        step_id,
+                        uuid::Uuid::new_v4().to_string(),
                         operation.clone(),
                         format!("Step {}: {}", i + 1, operation),
                     )
-                    .with_refined_prompt(operation)
+                    .with_refined_prompt(operation.clone())
                     .with_expected_tools(expected_tools)
                 })
                 .collect()
         };
 
         // Create the flow
-        let mut flow = crate::yml_schema::YmlFlow::new(
-            flow_id,
-            refined_prompt.original.clone(),
-            final_wallet_info,
-        )
-        .with_refined_prompt(refined_prompt.refined.clone());
+        let flow = YmlFlow::new(flow_id, refined_prompt.original.clone(), final_wallet_info)
+            .with_steps(steps)
+            .with_refined_prompt(refined_prompt.refined.clone());
 
-        // Add all steps to the flow
-        for step in steps {
-            flow = flow.with_step(step);
+        Ok(flow)
+    }
+
+    /// Generate a YML flow from a structured refined prompt and wallet context
+    /// This method uses the structured response directly with extracted parameters
+    #[instrument(skip(self, structured_prompt, wallet_context))]
+    pub async fn generate_flow_from_structured_prompt(
+        &self,
+        structured_prompt: &crate::prompt_processor::StructuredRefinedPrompt,
+        wallet_context: &WalletContext,
+    ) -> Result<YmlFlow> {
+        info!(
+            "Generating YML flow from structured prompt: {}",
+            structured_prompt.refined_prompt
+        );
+
+        // Create a flow with potentially multiple steps based on structured prompt
+        // Following V3 plan, each operation should be a separate step
+        let flow_id = uuid::Uuid::new_v4().to_string();
+
+        // Create wallet info from context
+        let wallet_info = crate::yml_schema::YmlWalletInfo::new(
+            wallet_context.owner.clone(),
+            wallet_context.sol_balance,
+        )
+        .with_total_value(wallet_context.total_value_usd);
+
+        // Add tokens to wallet info
+        let mut final_wallet_info = wallet_info;
+        for token in wallet_context.token_balances.values() {
+            final_wallet_info = final_wallet_info.with_token(token.clone());
         }
 
+        // Create a single step with the refined prompt and extracted parameters
+        // For structured prompts, we use the refined_prompt directly
+        let expected_tools =
+            determine_expected_tools(&structured_prompt.refined_prompt).unwrap_or_default();
+
+        // Create YML step with expected tool calls based on the structured response
+        let mut step = crate::yml_schema::YmlStep::new(
+            uuid::Uuid::new_v4().to_string(),
+            structured_prompt.refined_prompt.clone(),
+            format!("Executing: {}", structured_prompt.original_prompt),
+        )
+        .with_refined_prompt(structured_prompt.refined_prompt.clone())
+        .with_expected_tools(expected_tools)
+        .with_structured_prompt(structured_prompt.clone());
+
+        // Add expected tool calls based on the structured response parameters
+        match structured_prompt.action {
+            crate::prompt_processor::PromptAction::Swap => {
+                if let Some(amount) = &structured_prompt.parameters.amount {
+                    if let Some(input_mint) = &structured_prompt.parameters.input_mint {
+                        if let Some(output_mint) = &structured_prompt.parameters.output_mint {
+                            let tool_call = crate::yml_schema::YmlToolCall::new(
+                                reev_types::tools::ToolName::JupiterSwap,
+                                true,
+                            )
+                            .with_parameter_str("input_mint".to_string(), input_mint.to_string())
+                            .with_parameter_str("output_mint".to_string(), output_mint.to_string())
+                            .with_parameter_str("input_amount".to_string(), amount.clone());
+
+                            step = step.with_tool_call(tool_call);
+                        }
+                    }
+                }
+            }
+            crate::prompt_processor::PromptAction::Transfer => {
+                if let Some(amount) = &structured_prompt.parameters.amount {
+                    if let Some(input_mint) = &structured_prompt.parameters.input_mint {
+                        let mut tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::SolTransfer,
+                            true,
+                        )
+                        .with_parameter_str("amount".to_string(), amount.clone())
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        // Add recipient if available
+                        if let Some(recipient) = &structured_prompt.target_pubkey {
+                            tool_call = tool_call
+                                .with_parameter_str("recipient".to_string(), recipient.to_string());
+                        }
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+            }
+            crate::prompt_processor::PromptAction::Lend => {
+                if let Some(amount) = &structured_prompt.parameters.amount {
+                    if let Some(input_mint) = &structured_prompt.parameters.input_mint {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                            true,
+                        )
+                        .with_parameter_str("amount".to_string(), amount.clone())
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+            }
+            crate::prompt_processor::PromptAction::Earn => {
+                if let Some(input_mint) = &structured_prompt.parameters.input_mint {
+                    let tool_call = crate::yml_schema::YmlToolCall::new(
+                        reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                        true,
+                    )
+                    .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                    step = step.with_tool_call(tool_call);
+                }
+            }
+            crate::prompt_processor::PromptAction::Borrow => {
+                if let Some(amount) = &structured_prompt.parameters.amount {
+                    if let Some(input_mint) = &structured_prompt.parameters.input_mint {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterLendEarnWithdraw,
+                            true,
+                        )
+                        .with_parameter_str("amount".to_string(), amount.clone())
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+            }
+            crate::prompt_processor::PromptAction::Unknown => {
+                // For unknown actions, we don't add any specific tool calls
+            }
+        }
+
+        let steps = vec![step];
+
+        // Create the flow
+        let mut flow = YmlFlow::new(
+            flow_id,
+            structured_prompt.original_prompt.clone(),
+            final_wallet_info,
+        )
+        .with_steps(steps)
+        .with_refined_prompt(structured_prompt.refined_prompt.clone());
+
         // Generate comprehensive ground truth for benchmarking
-        let ground_truth =
-            generate_comprehensive_ground_truth(&flow, &refined_prompt.refined, wallet_context);
+        let ground_truth = generate_comprehensive_ground_truth(
+            &flow,
+            &structured_prompt.refined_prompt,
+            wallet_context,
+        );
         flow = flow.with_ground_truth(ground_truth);
 
         info!(

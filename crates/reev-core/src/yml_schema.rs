@@ -147,6 +147,8 @@ pub struct YmlStep {
     pub refined_prompt: String,
     /// Additional context for this step
     pub context: String,
+    /// Structured prompt data from the prompt processor
+    pub structured_prompt: Option<crate::prompt_processor::StructuredRefinedPrompt>,
     /// Expected tool calls for this step
     pub expected_tool_calls: Option<Vec<YmlToolCall>>,
     /// Expected tools list (hints for rig agent)
@@ -165,10 +167,11 @@ impl YmlStep {
             prompt: prompt.clone(),
             refined_prompt: prompt.clone(), // Default to original prompt
             context,
+            structured_prompt: None,
             expected_tool_calls: None,
             expected_tools: None,
             critical: Some(true), // Critical by default
-            estimated_time_seconds: Some(30),
+            estimated_time_seconds: None,
         }
     }
 
@@ -195,6 +198,15 @@ impl YmlStep {
     /// Set refined prompt and return self for chaining
     pub fn with_refined_prompt(mut self, refined_prompt: String) -> Self {
         self.refined_prompt = refined_prompt;
+        self
+    }
+
+    /// Set structured prompt data and return self for chaining
+    pub fn with_structured_prompt(
+        mut self,
+        structured_prompt: crate::prompt_processor::StructuredRefinedPrompt,
+    ) -> Self {
+        self.structured_prompt = Some(structured_prompt);
         self
     }
 
@@ -257,8 +269,22 @@ impl YmlToolCall {
     /// Add expected parameter and return self for chaining
     pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
         self.expected_parameters
-            .get_or_insert_with(HashMap::new)
+            .get_or_insert_with(|| HashMap::new())
             .insert(key, value);
+        self
+    }
+
+    /// Add expected parameter from string and return self for chaining
+    pub fn with_parameter_str(mut self, key: String, value: String) -> Self {
+        self.expected_parameters
+            .get_or_insert_with(|| HashMap::new())
+            .insert(key, serde_json::Value::String(value));
+        self
+    }
+
+    /// Set critical and return self for chaining
+    pub fn with_critical(mut self, critical: bool) -> Self {
+        self.critical = critical;
         self
     }
 }

@@ -2,7 +2,46 @@
 //!
 //! This module contains prompts used by the language refiner to refine user inputs.
 
-/// System prompt for the language refiner LLM
+/// System prompt for structured LLM responses
+pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"
+You are an expert at analyzing blockchain operation prompts.
+Please analyze the user prompt and respond with structured JSON containing:
+
+1. refined_prompt: A clearer version of the original prompt
+2. action: The blockchain operation type (transfer, swap, lend, earn, borrow)
+3. subject_pubkey: The wallet performing the action (from context if not in prompt)
+4. target_pubkey: The destination address (for transfers/operations to others)
+5. parameters: {
+   amount: The amount to transfer/swap/lend,
+   input_mint: The input token mint address,
+   output_mint: The output token mint address
+}
+6. confidence: Your confidence in this extraction (0.0-1.0)
+
+SPECIAL HANDLING FOR "all" KEYWORD:
+- When max_amount is provided in the prompt, use it to replace "all" in BOTH refined_prompt AND parameters.amount
+- For example, with max_amount 4.999:
+  - "swap all sol for usdc" becomes refined_prompt: "swap 4.999 sol for usdc"
+  - parameters.amount should be "4.999" (not "all")
+  - "transfer all sol to..." becomes refined_prompt: "transfer 4.999 sol to..."
+  - parameters.amount should be "4.999" (not "all")
+- Always preserve the operation type and tokens mentioned in the original prompt
+- CRITICAL: Always update parameters.amount with the actual numeric value, never leave it as "all"
+
+Example response:
+{
+  "refined_prompt": "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+  "action": "transfer",
+  "subject_pubkey": "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr",
+  "target_pubkey": "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+  "parameters": {
+    "amount": "1",
+    "input_mint": "So11111111111111111111111111111111111111112"
+  },
+  "confidence": 0.95
+}"#;
+
+/// System prompt for language refiner LLM
 pub const PROMPT_PROCESSOR_SYSTEM_PROMPT: &str = r#"
 You are a language refinement assistant for a DeFi application. Your task is to refine user prompts by:
 

@@ -28,20 +28,21 @@ pub async fn execute_jupiter_swap(
         .or_else(|| params.get("amount"))
         .ok_or_else(|| anyhow!("input_amount parameter is required"))?;
 
-    // Check if amount is "all" before parsing to float
-    let is_all_amount = amount_str.to_lowercase() == "all";
+    // Parse the amount directly from parameters
+    // The structured response should have already replaced "all" with the calculated amount
+    let amount: f64 = amount_str
+        .parse()
+        .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?;
 
-    let amount: f64 = if is_all_amount {
-        // For "all", use the SOL balance directly
-        wallet_context.sol_balance as f64 / 1_000_000_000.0
-    } else {
-        amount_str
-            .parse()
-            .map_err(|_| anyhow!("Invalid amount: {amount_str}"))?
-    };
+    // Debug logging to track amount values
+    let is_all_amount = amount_str.to_lowercase() == "all";
+    info!(
+        "Jupiter swap: amount_str='{}', is_all_amount={}, parsed_amount={}",
+        amount_str, is_all_amount, amount
+    );
 
     // Convert amount to lamports (1 SOL = 1,000,000,000 lamports)
-    let amount_lamports = (amount * 1_000_000_000.0) as u64;
+    let _amount_lamports = (amount * 1_000_000_000.0) as u64;
 
     // Parse the mint addresses
     let input_mint_pubkey =
@@ -53,16 +54,8 @@ pub async fn execute_jupiter_swap(
     let user_pubkey =
         Pubkey::from_str(&wallet_context.owner).map_err(|e| anyhow!("Invalid user pubkey: {e}"))?;
 
-    // Use full balance if amount is "all", otherwise use specified amount
-    let final_amount_lamports = if is_all_amount {
-        // Reserve 0.01 SOL for gas fees
-        wallet_context
-            .sol_balance
-            .saturating_sub(reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE)
-        // Reserve 0.01 SOL for fees
-    } else {
-        amount_lamports
-    };
+    // Convert amount to lamports
+    let final_amount_lamports = (amount * 1_000_000_000.0) as u64;
 
     // Use the newer protocol handler from reev-protocols
     let instructions = reev_protocols::jupiter::swap::handle_jupiter_swap(

@@ -81,9 +81,14 @@ impl PromptProcessor {
                     "Structured refined prompt: {}",
                     structured_prompt.refined_prompt
                 );
-                // Convert StructuredRefinedPrompt to RefinedPrompt for backward compatibility
-                let refined_prompt = self.structured_to_refined(structured_prompt)?;
-                info!("Converted refined prompt: {}", refined_prompt.refined);
+                // Convert StructuredRefinedPrompt to RefinedPrompt for fallback
+                let refined_prompt = RefinedPrompt {
+                    original: structured_prompt.original_prompt.clone(),
+                    refined: structured_prompt.refined_prompt.clone(),
+                    confidence: structured_prompt.confidence,
+                    usable_amount: structured_prompt.usable_amount,
+                };
+                info!("Created refined prompt: {}", refined_prompt.refined);
                 Ok(refined_prompt)
             }
             Err(e) => {
@@ -268,28 +273,6 @@ impl PromptProcessor {
             confidence: refined.confidence,
             usable_amount: max_amount_decimal,
         })
-    }
-
-    /// Convert StructuredRefinedPrompt to RefinedPrompt for backward compatibility
-    fn structured_to_refined(
-        &self,
-        structured_prompt: StructuredRefinedPrompt,
-    ) -> Result<RefinedPrompt> {
-        info!("Converting structured to refined");
-        info!("  Original: {}", structured_prompt.original_prompt);
-        info!("  Refined: {}", structured_prompt.refined_prompt);
-        info!("  Action: {:?}", structured_prompt.action);
-        info!("  Usable amount: {:?}", structured_prompt.usable_amount);
-
-        let refined = RefinedPrompt {
-            original: structured_prompt.original_prompt,
-            refined: structured_prompt.refined_prompt,
-            confidence: structured_prompt.confidence,
-            usable_amount: structured_prompt.usable_amount,
-        };
-
-        info!("Converted RefinedPrompt: {:?}", refined);
-        Ok(refined)
     }
 
     /// Process prompt with structured LLM response
