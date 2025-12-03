@@ -2,6 +2,30 @@
 
 ## Current Issues
 
+### Issue #311: SPL Lending Tests Implementation
+**Status**: Completed  
+**Priority**: Medium  
+**Description**: End-to-end lending tests were only covering native SOL deposits/withdrawals. We needed to add comprehensive SPL token lending tests to ensure the system works correctly with Jupiter's lending protocol for SPL tokens.
+
+**Solution Implemented**:
+1. Added a new test function `test_spl_lend` to `crates/reev-core/tests/e2e_lend.rs`
+2. The test covers both deposit and withdraw operations with USDC tokens
+3. Implemented proper token balance setup using `set_token_balance` with USDC mint address
+4. For withdraw tests, added logic to deposit first to ensure sufficient lending balance
+5. Added comprehensive error handling similar to the existing SOL lending tests
+6. Included detailed logging for debugging and monitoring
+
+**Files Modified**:
+- `crates/reev-core/tests/e2e_lend.rs` - Added `test_spl_lend` function for USDC lending tests
+
+**Testing**:
+- All tests pass successfully with "4 passed; 0 failed"
+- Tests cover both "deposit 50 usdc to jupiter lend" and "withdraw 25 usdc from jupiter lend"
+- Verified proper token balance setup before operations
+- Confirmed error handling works correctly for both successful and failed operations
+
+**Result**: SPL token lending operations are now fully tested with proper end-to-end coverage. This ensures the system correctly handles Jupiter lending protocol operations for SPL tokens, not just native SOL.
+
 ### Issue #310: Missing ATA Creation for Recipient in SPL Transfer
 **Status**: Fixed  
 **Priority**: High  
