@@ -79,10 +79,9 @@ async fn test_basic_prompt_processing(#[case] prompt: &str) -> Result<()> {
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -133,10 +132,9 @@ async fn test_all_keyword_processing(#[case] prompt: &str) -> Result<()> {
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -220,10 +218,9 @@ async fn test_typo_correction(#[case] prompt: &str) -> Result<()> {
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -282,10 +279,9 @@ async fn test_structured_response(
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -353,10 +349,9 @@ async fn test_structured_response_all_keyword(#[case] prompt: &str) -> Result<()
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -449,10 +444,9 @@ async fn test_structured_response_typos(
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -521,10 +515,9 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
     // Load environment variables
     setup_env();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
@@ -613,16 +606,16 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
     "10"
 )]
 #[case(
-    "swap 0.5 sol for usdc",
-    "RAY",
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    "0.5"
-)]
-#[case(
     "send all usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
     "USDC",
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "all"
+)]
+#[case(
+    "swap 0.5 sol for usdc",
+    "USDC",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "0.5"
 )]
 #[tokio::test]
 #[serial]
@@ -635,10 +628,12 @@ async fn test_spl_token_extraction(
     // Initialize tracing
     init_tracing();
 
-    // Skip test if ZAI_API_KEY is not set
+    // Load environment variables
+    setup_env();
+
+    // Check for ZAI_API_KEY
     if env::var("ZAI_API_KEY").is_err() {
-        info!("Skipping test: ZAI_API_KEY not set");
-        return Ok(());
+        panic!("ZAI_API_KEY not set");
     }
 
     let mut processor = PromptProcessor::new();
