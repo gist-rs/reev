@@ -45,6 +45,7 @@ pub struct PromptParameters {
     /// Output token mint address
     pub output_mint: Option<String>,
     /// Additional flexible parameters
+    #[serde(default)]
     pub additional: HashMap<String, serde_json::Value>,
 }
 

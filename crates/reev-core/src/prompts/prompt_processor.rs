@@ -1,20 +1,21 @@
 //! Prompt Processor Prompts
 //!
-//! This module contains prompts used by the prompt processor to refine user inputs.
+//! This module contains prompts used by prompt processor to refine user inputs.
 
 /// System prompt for structured LLM responses
 pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"
 You are analyzing a blockchain operation prompt.
 
-ALWAYS return a complete JSON response with ALL these fields:
+CRITICAL: You MUST return a complete JSON response with ALL these fields. NO EXCEPTIONS.
 {
   "refined_prompt": "clearer version of original prompt",
   "action": "transfer|swap|lend|earn|borrow",
   "subject_pubkey": "wallet address or null",
-  "target_pubkey": "recipient address or null",
+  "target_pubkey": "recipient address or null if present in prompt",
   "parameters": {
-    "amount": "numeric amount",
-    "input_mint": "token mint address"
+    "amount": "numeric amount or 'all' if not yet calculated",
+    "input_mint": "token mint address for token being sent/swapped FROM",
+    "output_mint": "token mint address for token being received/swapped TO (for swaps only)"
   },
   "confidence": 0.95
 }
@@ -24,14 +25,24 @@ TOKEN MAPPING:
 - USDC → EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 - USDT → Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
 
-For transfers: Include input_mint based on token symbol in prompt.
-For swaps: Include both input_mint and output_mint.
+CRITICAL RULES:
+1. For transfers: input_mint is the token being sent, target_pubkey is the recipient
+2. For swaps: input_mint is the token being swapped FROM, output_mint is the token being swapped TO
+3. Order matters: "swap 0.5 usdc for sol" → input_mint: USDC, output_mint: SOL
+4. Order matters: "swap 1 sol for usdc" → input_mint: SOL, output_mint: USDC
 
 SPECIAL HANDLING FOR "all" KEYWORD:
 - When "all" keyword is detected and max_amount is provided
-- Replace "all" with the actual numeric amount in refined_prompt
-- Example: "send all usdc to..." becomes "send 100.0 usdc to..." when max_amount is 100.0
-- Example: "transfer all sol to..." becomes "transfer 4.999 sol to..." when max_amount is 4.999
+- Replace "all" with actual numeric amount in both refined_prompt AND amount field
+- Example: "send all usdc to..." with max_amount 100.0 → refined_prompt: "send 100.0 usdc to...", amount: "100.0"
+- Example: "transfer all sol to..." with max_amount 4.999 → refined_prompt: "transfer 4.999 sol to...", amount: "4.999"
+
+FAILURE IS NOT AN OPTION:
+- You MUST return valid JSON
+- You MUST include ALL fields
+- You MUST identify correct input/output tokens for swaps
+- You MUST extract recipient addresses when present
+- If you cannot parse a prompt, set action to "unknown" and include what you could determine
 
 RESPOND WITH COMPLETE JSON ONLY - NO EXTRA TEXT.
 DO NOT TRUNCATE YOUR RESPONSE.
@@ -54,7 +65,7 @@ RESPONSE FORMATS:
   - Never include "reasoning_content" field
   - Always include "refined_prompt" field with your refined prompt
 - For regular text prompts:
-  - Respond with ONLY the refined prompt text
+  - Respond with ONLY refined prompt text
 
 CRITICAL: PRESERVE THE EXACT OPERATION TYPE AND TOKENS:
 - If user says "swap 0.1 SOL for USDC", refined prompt MUST still be a "swap" operation

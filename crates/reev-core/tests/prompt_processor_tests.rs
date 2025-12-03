@@ -609,10 +609,10 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
     "send all usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
     "USDC",
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    "all"
+    "0.03"
 )]
 #[case(
-    "swap 0.5 sol for usdc",
+    "swap 0.5 usdc for sol",
     "USDC",
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "0.5"
@@ -670,12 +670,23 @@ async fn test_spl_token_extraction(
         "Amount should match expected amount"
     );
 
-    // Verify target pubkey is extracted
-    assert_eq!(
-        result.target_pubkey,
-        Some(test_address.to_string()),
-        "Target pubkey should match provided address"
-    );
+    // Verify target pubkey is extracted (for transfer operations) or null (for swap operations)
+    match result.action {
+        PromptAction::Transfer => {
+            assert_eq!(
+                result.target_pubkey,
+                Some(test_address.to_string()),
+                "Target pubkey should match provided address for transfer operations"
+            );
+        }
+        PromptAction::Swap => {
+            assert_eq!(
+                result.target_pubkey, None,
+                "Target pubkey should be None for swap operations"
+            );
+        }
+        _ => {}
+    }
 
     // Verify confidence is reasonable (>0.5)
     assert!(

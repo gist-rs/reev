@@ -423,10 +423,25 @@ impl PromptProcessor {
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
-                    let parameters: PromptParameters = json_value
-                        .get("parameters")
-                        .and_then(|v| serde_json::from_value(v.clone()).ok())
-                        .unwrap_or_default();
+                    let param_json = json_value.get("parameters");
+
+                    let parameters = if let Some(param_value) = param_json {
+                        match serde_json::from_value::<PromptParameters>(param_value.clone()) {
+                            Ok(params) => {
+                                debug!("Successfully parsed PromptParameters: {:?}", params);
+                                params
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to parse PromptParameters: {e}. LLM response: {param_value}"
+                                );
+                                return Err(anyhow!("Invalid parameters in LLM response: {e}"));
+                            }
+                        }
+                    } else {
+                        error!("No parameters field found in LLM response");
+                        return Err(anyhow!("Missing parameters field in LLM response"));
+                    };
 
                     let confidence = json_value
                         .get("confidence")
@@ -440,13 +455,6 @@ impl PromptProcessor {
                         action
                     };
 
-                    // If parameters is empty, try to extract from refined_prompt
-                    let parameters = if parameters.amount.is_none() {
-                        Self::extract_parameters_from_prompt(&refined_prompt)
-                    } else {
-                        parameters
-                    };
-
                     StructuredRefineResponse {
                         refined_prompt,
                         action,
@@ -457,42 +465,17 @@ impl PromptProcessor {
                     }
                 }
                 Err(_) => {
-                    // Fallback to plain text
-                    warn!("LLM response is not valid JSON, using fallback");
-                    debug!("Plain text response: {}", response);
-                    let refined_prompt =
-                        extract_refined_prompt_from_reasoning(&response, &request.prompt);
-                    let action = Self::extract_action_from_prompt(&refined_prompt);
-                    StructuredRefineResponse {
-                        refined_prompt,
-                        action,
-                        subject_pubkey: Some(owner_wallet_address.to_string()),
-                        target_pubkey: Self::extract_target_pubkey_from_prompt(&request.prompt),
-                        parameters: Self::extract_parameters_from_prompt(&request.prompt),
-                        confidence: 0.5, // Low confidence for fallback
-                    }
+                    // No fallback - return error if LLM response is invalid
+                    return Err(anyhow!(
+                        "LLM returned invalid JSON response: {response}. Please try again."
+                    ));
                 }
             }
         } else {
-            // Response is plain text, treat as refined prompt
-            warn!("LLM response is not JSON, using fallback");
-            debug!("Plain text response: {}", response);
-            let refined_prompt = if response.is_empty() {
-                request.prompt.clone()
-            } else {
-                response.clone()
-            };
-            let action = Self::extract_action_from_prompt(&refined_prompt);
-            let target_pubkey = Self::extract_target_pubkey_from_prompt(&refined_prompt);
-            let parameters = Self::extract_parameters_from_prompt(&refined_prompt);
-            StructuredRefineResponse {
-                refined_prompt,
-                action,
-                subject_pubkey: Some(owner_wallet_address.to_string()),
-                target_pubkey,
-                parameters,
-                confidence: 0.5, // Low confidence for fallback
-            }
+            // No fallback for plain text - require valid JSON
+            return Err(anyhow!(
+                "LLM did not return valid JSON response: {response}. Please try again."
+            ));
         };
 
         // Convert to StructuredRefinedPrompt
@@ -545,56 +528,9 @@ impl PromptProcessor {
         }
     }
 
-    /// Extract target pubkey from prompt
-    fn extract_target_pubkey_from_prompt(prompt: &str) -> Option<String> {
-        // Simple regex to extract Solana address from prompt
-        use regex::Regex;
-        let re = Regex::new(r"[1-9A-HJ-NP-Za-km-z]{32,44}").ok()?;
-        re.find(prompt).map(|m| m.as_str().to_string())
-    }
+    // REMOVED: extract_target_pubkey_from_prompt - LLM should always extract pubkeys
 
-    /// Extract parameters from prompt
-    fn extract_parameters_from_prompt(prompt: &str) -> PromptParameters {
-        use regex::Regex;
-        let mut parameters = PromptParameters::default();
-
-        // Extract amount for all tokens
-        if let Some(amount_match) = Regex::new(r"(\d+(?:\.\d+)?)(?:\s+[a-zA-Z]+|$)")
-            .ok()
-            .and_then(|re| re.captures(prompt))
-            .and_then(|caps| caps.get(1))
-        {
-            parameters.amount = Some(amount_match.as_str().to_string());
-        } else if prompt.to_lowercase().contains("all") {
-            parameters.amount = Some("all".to_string());
-        }
-
-        // Extract input mint for transfers based on token symbols
-        let prompt_lower = prompt.to_lowercase();
-        if prompt_lower.contains("usdc") {
-            parameters.input_mint =
-                Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string());
-        } else if prompt_lower.contains("usdt") {
-            parameters.input_mint =
-                Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string());
-        } else if prompt_lower.contains("sol") {
-            parameters.input_mint =
-                Some("So11111111111111111111111111111111111111111112".to_string());
-        }
-
-        // Extract input and output mints for swaps
-        if prompt.to_lowercase().contains("swap") {
-            // Simple extraction - in a real implementation, this would be more sophisticated
-            if prompt.to_lowercase().contains("sol") && prompt.to_lowercase().contains("usdc") {
-                parameters.input_mint =
-                    Some("So11111111111111111111111111111111111111111112".to_string());
-                parameters.output_mint =
-                    Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkDwy".to_string());
-            }
-        }
-
-        parameters
-    }
+    // REMOVED: extract_parameters_from_prompt - LLM should always extract parameters
 
     /// Send structured refine request to LLM
     #[instrument(skip(self))]
