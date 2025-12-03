@@ -3882,6 +3882,7 @@ dependencies = [
  "solana-client",
  "solana-sdk",
  "spl-associated-token-account 7.0.0",
+ "spl-token 8.0.0",
  "strum",
  "tempfile",
  "thiserror 1.0.69",

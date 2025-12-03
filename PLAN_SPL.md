@@ -162,6 +162,42 @@ File: `crates/reev-core/tests/common/framework.rs`
 3. **Slippage Protection**: Add slippage parameters for better UX
 4. **Multi-Token Transfers**: Support transferring multiple tokens in one transaction
 
+## Implementation Plan for E2E Lend Test
+
+### Phase 1: Test Case Design
+- Create e2e_lend.rs test file in crates/reev-core/tests/
+- Test different lend scenarios:
+  - Lend USDC with specific amount (e.g., "lend 50 usdc")
+  - Lend USDT with specific amount (e.g., "lend 25 usdt")
+  - Lend SOL with specific amount (e.g., "lend 1 sol")
+- Verify that:
+  - Correct protocol is selected
+  - Correct amount is calculated
+  - Transaction executes successfully
+  - User balance is updated correctly
+
+### Phase 2: Protocol Integration
+- Identify which lend protocol to use (Jupiter Lend or native Solana lending)
+- Add lend tool to the rig agent tool set if not already present
+- Ensure proper error handling for:
+  - Insufficient balance
+  - Invalid token mint
+  - Network errors
+  - Protocol-specific errors
+
+### Phase 3: Account Creation
+- Handle creation of necessary accounts:
+  - ATA for input tokens if needed
+  - Reserve account if required by protocol
+  - Any protocol-specific accounts
+- Add verification steps to ensure accounts exist before transaction
+
+### Phase 4: Amount Calculation
+- Ensure max transferable amount is calculated correctly:
+  - For SOL: Reserve gas fees
+  - For SPL tokens: Use full balance (gas paid in SOL)
+  - Consider any protocol-specific fees
+
 ## Success Criteria
 
 1. Users can transfer USDC, USDT, and other common SPL tokens
@@ -169,6 +205,7 @@ File: `crates/reev-core/tests/common/framework.rs`
 3. Error handling is clear and helpful
 4. Performance impact is minimal
 5. Documentation is comprehensive
+6. E2E lend tests pass for all supported tokens
 
 ## Related Documents
 

@@ -116,15 +116,44 @@ async fn get_or_create_token_accounts(
     recipient: Pubkey,
     token_mint: Pubkey,
 ) -> Result<(Pubkey, Pubkey)> {
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_sdk::signature::Signer;
+    use spl_associated_token_account::instruction::create_associated_token_account;
+
     // Get sender's ATA (Associated Token Account)
     let sender_ata = get_associated_token_address(&sender, &token_mint);
 
     // Get recipient's ATA
     let recipient_ata = get_associated_token_address(&recipient, &token_mint);
 
-    // Check if recipient's ATA exists, if not create it
-    // Note: In a real implementation, we would check if the account exists and create it if needed
-    // For simplicity, we'll just return the addresses and let the protocol handler deal with account creation
+    // Create RPC client to check if recipient's ATA exists
+    let rpc_client = RpcClient::new("http://localhost:8899".to_string());
+
+    // Check if recipient's ATA exists
+    let account_exists = rpc_client.get_account(&recipient_ata).await.is_ok();
+
+    if !account_exists {
+        // Create recipient's ATA
+        info!("Creating recipient ATA: {}", recipient_ata);
+
+        // Get keypair for signing
+        let keypair = reev_lib::get_keypair().map_err(|e| anyhow!("Failed to get keypair: {e}"))?;
+
+        // Create instruction to create ATA
+        let create_ata_ix = create_associated_token_account(
+            &keypair.pubkey(),
+            &recipient,
+            &token_mint,
+            &spl_token::id(),
+        );
+
+        // Execute creation instruction
+        reev_lib::execute_transaction(vec![create_ata_ix.into()], keypair.pubkey(), &keypair)
+            .await
+            .map_err(|e| anyhow!("Failed to create recipient ATA: {e}"))?;
+
+        info!("✅ Successfully created recipient ATA: {}", recipient_ata);
+    }
 
     Ok((sender_ata, recipient_ata))
 }
