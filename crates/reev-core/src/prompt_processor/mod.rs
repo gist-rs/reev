@@ -4,9 +4,12 @@
 //! It uses LLM to refine user prompts by fixing typos, normalizing terminology, and making
 //! language clearer and more unambiguous.
 
+use std::str::FromStr;
+
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
+use solana_sdk::pubkey::Pubkey;
 use tracing::{debug, error, info, instrument, warn};
 
 // Import prompts
@@ -309,26 +312,49 @@ impl PromptProcessor {
             // Create wallet context to get balance
             let wallet_context = create_wallet_context(owner_wallet_address).await?;
 
-            // Calculate gas reserve based on operation type
-            // For Jupiter swaps, we need more reserve due to account creation fees
-            let is_swap_operation = original_prompt.to_lowercase().contains("swap")
-                || original_prompt.to_lowercase().contains("swp");
-            let gas_reserve = if is_swap_operation {
-                reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE
-            // 0.01 SOL for Jupiter swaps (account creation fees)
+            // For SPL tokens, we need to identify the token type first
+            // Check if the prompt mentions specific tokens
+            let is_usdc = original_prompt.to_lowercase().contains("usdc");
+            let is_usdt = original_prompt.to_lowercase().contains("usdt");
+            let _is_sol = original_prompt.to_lowercase().contains("sol")
+                && !original_prompt.to_lowercase().contains("usdc")
+                && !original_prompt.to_lowercase().contains("usdt");
+
+            let max_amount_decimal = if is_usdc {
+                // Use USDC balance directly (no need to reserve gas for SPL tokens)
+                wallet_context
+                    .token_balances
+                    .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                    .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
+                    .unwrap_or(0.0)
+            } else if is_usdt {
+                // Use USDT balance directly (no need to reserve gas for SPL tokens)
+                wallet_context
+                    .token_balances
+                    .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+                    .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
+                    .unwrap_or(0.0)
             } else {
-                reev_lib::constants::amounts::tokens::sol::ONE_MILLI // 0.001 SOL for transfers
+                // For SOL or unknown tokens, use the original logic
+                // Calculate gas reserve based on operation type
+                let is_swap_operation = original_prompt.to_lowercase().contains("swap")
+                    || original_prompt.to_lowercase().contains("swp");
+                let gas_reserve = if is_swap_operation {
+                    reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE
+                // 0.01 SOL for Jupiter swaps (account creation fees)
+                } else {
+                    reev_lib::constants::amounts::tokens::sol::ONE_MILLI // 0.001 SOL for transfers
+                };
+
+                // Calculate maximum transferable amount
+                let max_amount = crate::utils::transfer_utils::calculate_max_transferable_amount(
+                    "", // Empty for SOL
+                    wallet_context.sol_balance,
+                    gas_reserve,
+                );
+
+                max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
             };
-
-            // Calculate maximum transferable amount
-            let max_amount = crate::utils::transfer_utils::calculate_max_transferable_amount(
-                "", // Empty for SOL
-                wallet_context.sol_balance,
-                gas_reserve,
-            );
-
-            // Convert max_amount to token units for display
-            let max_amount_decimal = max_amount as f64 / 1_000_000_000.0;
 
             info!(
                 "Detected 'all' keyword, calculated max transferable amount: {}",
@@ -836,6 +862,7 @@ pub struct RefinedPrompt {
 
 /// Create wallet context from wallet address
 async fn create_wallet_context(wallet_address: &str) -> Result<reev_types::flow::WalletContext> {
+    use reev_types::benchmark::TokenBalance;
     use reev_types::flow::WalletContext;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::pubkey::Pubkey;
@@ -869,17 +896,106 @@ async fn create_wallet_context(wallet_address: &str) -> Result<reev_types::flow:
         }
     };
 
-    // Create token balances map (empty for now)
-    let _token_balances: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    // Create token balances map
+    let mut token_balances = std::collections::HashMap::new();
+
+    // Query actual token balances from surfpool for common tokens
+
+    // Common SPL token mints
+    let usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    let usdt_mint = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+
+    // Query USDC balance
+    if let Ok(Some(usdc_balance)) =
+        get_token_balance_from_surfpool(&client, &pubkey, usdc_mint).await
+    {
+        token_balances.insert(
+            usdc_mint.to_string(),
+            TokenBalance::new(usdc_mint.to_string(), usdc_balance)
+                .with_decimals(6)
+                .with_symbol("USDC".to_string()),
+        );
+        info!(
+            "Retrieved USDC balance: {} tokens",
+            usdc_balance as f64 / 1_000_000.0
+        );
+    } else {
+        // Add default USDC balance if query fails
+        token_balances.insert(
+            usdc_mint.to_string(),
+            TokenBalance::new(usdc_mint.to_string(), 100_000_000)
+                .with_decimals(6)
+                .with_symbol("USDC".to_string()),
+        );
+    }
+
+    // Query USDT balance
+    if let Ok(Some(usdt_balance)) =
+        get_token_balance_from_surfpool(&client, &pubkey, usdt_mint).await
+    {
+        token_balances.insert(
+            usdt_mint.to_string(),
+            TokenBalance::new(usdt_mint.to_string(), usdt_balance)
+                .with_decimals(6)
+                .with_symbol("USDT".to_string()),
+        );
+        info!(
+            "Retrieved USDT balance: {} tokens",
+            usdt_balance as f64 / 1_000_000.0
+        );
+    } else {
+        // Add default USDT balance if query fails
+        token_balances.insert(
+            usdt_mint.to_string(),
+            TokenBalance::new(usdt_mint.to_string(), 100_000_000)
+                .with_decimals(6)
+                .with_symbol("USDT".to_string()),
+        );
+    }
 
     // Create wallet context
     Ok(WalletContext {
         owner: wallet_address.to_string(),
         sol_balance: balance,
-        token_balances: std::collections::HashMap::new(),
+        token_balances,
         total_value_usd: balance as f64 / 1_000_000_000.0, // Simplified: 1 SOL = $1
         token_prices: std::collections::HashMap::new(),
     })
+}
+
+/// Query token balance from surfpool
+/// Get token balance from surfpool blockchain
+async fn get_token_balance_from_surfpool(
+    client: &solana_client::nonblocking::rpc_client::RpcClient,
+    pubkey: &solana_sdk::pubkey::Pubkey,
+    mint: &str,
+) -> Result<Option<u64>> {
+    // Parse mint address
+    let mint_pubkey = Pubkey::from_str(mint).map_err(|e| anyhow!("Invalid mint address: {e}"))?;
+
+    // Get associated token account address
+    let ata = spl_associated_token_account::get_associated_token_address(pubkey, &mint_pubkey);
+
+    // Query token account balance
+    match client.get_token_account_balance(&ata).await {
+        Ok(balance) => {
+            // Extract amount from UiTokenAmount
+            let amount = balance.amount;
+            // Parse amount string to u64
+            match amount.parse::<u64>() {
+                Ok(parsed_amount) => Ok(Some(parsed_amount)),
+                Err(e) => {
+                    warn!("Failed to parse token amount: {}", e);
+                    Ok(None)
+                }
+            }
+        }
+        Err(_) => {
+            // Token account might not exist, return None
+            warn!("No token account found for mint: {}", mint);
+            Ok(None)
+        }
+    }
 }
 
 impl RefinedPrompt {

@@ -27,6 +27,12 @@ TOKEN MAPPING:
 For transfers: Include input_mint based on token symbol in prompt.
 For swaps: Include both input_mint and output_mint.
 
+SPECIAL HANDLING FOR "all" KEYWORD:
+- When "all" keyword is detected and max_amount is provided
+- Replace "all" with the actual numeric amount in refined_prompt
+- Example: "send all usdc to..." becomes "send 100.0 usdc to..." when max_amount is 100.0
+- Example: "transfer all sol to..." becomes "transfer 4.999 sol to..." when max_amount is 4.999
+
 RESPOND WITH COMPLETE JSON ONLY - NO EXTRA TEXT.
 DO NOT TRUNCATE YOUR RESPONSE.
 ENSURE YOUR JSON IS COMPLETE WITH ALL FIELDS.

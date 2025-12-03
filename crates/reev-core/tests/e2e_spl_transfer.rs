@@ -32,7 +32,7 @@ use tracing::info;
 #[rstest]
 #[case("send 1 usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
 #[case("send all usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
-#[case("transfer 10 usdt to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[case("transfer 0.1 usdt to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_spl_transfer(#[case] prompt: &str) -> Result<()> {

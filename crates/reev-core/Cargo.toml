@@ -56,6 +56,7 @@ rig-core = { workspace = true }
 # OpenTelemetry
 opentelemetry.workspace = true
 tracing-opentelemetry.workspace = true
+solana-account-decoder-client-types = "3.1.3"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -52,11 +52,9 @@ pub fn calculate_max_transferable_amount(
         return current_amount - gas_amount_lamport;
     }
 
-    // TODO: Implement SPL token logic
-    // For now, use same logic as SOL for all tokens
-    if current_amount <= gas_amount_lamport {
-        return 0;
-    }
-
-    current_amount - gas_amount_lamport
+    // For SPL tokens, gas is paid in SOL, not the token itself
+    // So we can transfer the entire balance (except for minimum rent exemption if needed)
+    // For now, we'll just return the current amount as is
+    // TODO: Consider minimum balance for token accounts if needed
+    current_amount
 }
