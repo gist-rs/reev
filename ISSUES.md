@@ -2,53 +2,75 @@
 
 ## Current Issues
 
-### Issue #311: SPL Lending Tests Implementation
-**Status**: Completed  
-**Priority**: Medium  
-**Description**: End-to-end lending tests were only covering native SOL deposits/withdrawals. We needed to add comprehensive SPL token lending tests to ensure the system works correctly with Jupiter's lending protocol for SPL tokens.
-
-**Solution Implemented**:
-1. Added a new test function `test_spl_lend` to `crates/reev-core/tests/e2e_lend.rs`
-2. The test covers both deposit and withdraw operations with USDC tokens
-3. Implemented proper token balance setup using `set_token_balance` with USDC mint address
-4. For withdraw tests, added logic to deposit first to ensure sufficient lending balance
-5. Added comprehensive error handling similar to the existing SOL lending tests
-6. Included detailed logging for debugging and monitoring
-
-**Files Modified**:
-- `crates/reev-core/tests/e2e_lend.rs` - Added `test_spl_lend` function for USDC lending tests
-
-**Testing**:
-- All tests pass successfully with "4 passed; 0 failed"
-- Tests cover both "deposit 50 usdc to jupiter lend" and "withdraw 25 usdc from jupiter lend"
-- Verified proper token balance setup before operations
-- Confirmed error handling works correctly for both successful and failed operations
-
-**Result**: SPL token lending operations are now fully tested with proper end-to-end coverage. This ensures the system correctly handles Jupiter lending protocol operations for SPL tokens, not just native SOL.
-
-### Issue #310: Missing ATA Creation for Recipient in SPL Transfer
-**Status**: Fixed  
+### Issue #312: Structured LLM Response System - Implementation Gaps and Issues
+**Status**: In Progress  
 **Priority**: High  
-**Description**: When transferring SPL tokens (like USDT) to a recipient address that doesn't have an associated token account (ATA), the system was failing with an "InvalidAccountData" error. This was happening because the system was trying to transfer to an ATA that didn't exist.
+**Description**: Analysis of the current implementation against PLAN_ALL.md and TASKS.md reveals significant gaps between planned and implemented structured LLM response system.
 
-**Root Cause**: The `get_or_create_token_accounts` function in `crates/reev-core/src/execution/rig_agent/tools/spl_transfer.rs` was only calculating the recipient's ATA address but not actually creating it if it didn't exist. This worked for USDC transfers because the recipient's ATA had already been created in previous tests, but failed for new recipients like in the USDT test case.
+**What's Implemented (Phases 1-4 mostly complete):**
 
-**Solution Implemented**:
-1. Added logic to check if the recipient's ATA exists using `rpc_client.get_account(&recipient_ata).await.is_ok()`
-2. If the ATA doesn't exist, create it using:
-   - `spl_associated_token_account::instruction::create_associated_token_account`
-   - Execute the instruction with `reev_lib::execute_transaction(vec![create_ata_ix], keypair.pubkey(), &keypair)`
-3. Fixed type conversion issues between `Instruction` and `RawInstruction` by using `.into()`
-4. Added the `spl-token` dependency to the `Cargo.toml` file for `reev-core`
+1. **Phase 1: Structured Data Types** - FULLY IMPLEMENTED
+   - Location: `crates/reev-core/src/prompt_processor/types.rs`
+   - `StructuredRefinedPrompt` struct with all required fields
+   - `PromptAction` enum with all required variants
+   - `PromptParameters` struct with required fields
 
-**Files Modified**:
-- `crates/reev-core/src/execution/rig_agent/tools/spl_transfer.rs` - Added ATA creation logic
-- `crates/reev-core/Cargo.toml` - Added `spl-token` dependency
+2. **Phase 2: Prompt Processing** - MOSTLY IMPLEMENTED
+   - Location: `crates/reev-core/src/prompt_processor/mod.rs`
+   - Structured system prompt implemented
+   - `process_prompt_structured` method implemented
+   - "All" keyword handling implemented
 
-**Testing**:
-- Verified that "send 1 usdc to [address]" works correctly
-- Verified that "send all usdc to [address]" works correctly
-- Verified that "transfer 0.1 usdt to [address]" now works correctly after creating the recipient's ATA
-- All tests are now passing
+3. **Phase 3: Execution Flow** - PARTIALLY IMPLEMENTED
+   - Location: `crates/reev-core/src/execution/rig_agent/mod.rs`
+   - `execute_step_with_rig_and_history` uses structured fields when available
+   - `create_tool_calls_from_structured_data` method implemented
 
-**Result**: SPL transfers now work correctly for any recipient address, automatically creating the necessary ATA if it doesn't exist. This ensures a smooth user experience without requiring manual ATA creation steps.
+4. **Phase 4: YML Generation** - MOSTLY IMPLEMENTED
+   - Location: `crates/reev-core/src/yml_generator/mod.rs`
+   - `generate_flow_from_structured_prompt` implemented
+   - Handles all action types (Transfer, Swap, Lend, Earn, Borrow)
+   - `YmlStep` includes `structured_prompt` field
+
+**Critical Issues (Why they matter):**
+
+1. **Missing Phase 5 Implementation**:
+   - What's missing: Comprehensive test coverage for structured responses
+   - Why it matters: Without tests, we can't ensure reliability of the system
+   - Where: Missing `structured_llm_test.rs` file mentioned in TASKS.md
+
+2. **Fallback Mechanism Violates "No Fallback" Principle**:
+   - What's wrong: System falls back to rule-based parsing when structured response fails
+   - Why it's cheating: PLAN_ALL.md specifically states "no fallback, aim for LLM as a plan"
+   - Where: `process_prompt_structured` in `prompt_processor/mod.rs` lines 320-350
+
+3. **Incomplete Validation Logic**:
+   - What's wrong: Validation relies on simple keyword matching rather than parameter consistency
+   - Why it's risky: Invalid responses could pass validation by containing right keywords
+   - Where: `validate_structured_response` in `prompt_processor/validation.rs`
+
+4. **Double Gas Deduction Not Fully Fixed**:
+   - What's wrong: Gas reserve is calculated in multiple places
+   - Why it's problematic: PLAN_ALL.md highlights this as a key issue to solve
+   - Where: `process_prompt_structured` and various tool implementations
+
+5. **Incomplete Direct Parameter Extraction**:
+   - What's wrong: Execution sometimes still falls back to parsing text
+   - Why it's not pure: Violates the goal of using structured data directly
+   - Where: Mixed approach in `execute_step_with_rig_and_history`
+
+**Immediate Action Items:**
+
+1. Remove fallback mechanisms to fully implement "LLM as a plan"
+2. Enhance validation logic to check parameter consistency, not just keywords
+3. Create comprehensive test suite for structured responses
+4. Fix double gas deduction by centralizing gas reserve calculation
+5. Ensure all tool execution uses structured parameters directly
+
+**Success Criteria Yet to Meet:**
+
+1. Eliminate ALL fallbacks to rule-based parsing
+2. Implement robust validation that ensures parameter consistency
+3. Achieve >90% test coverage for structured response system
+4. Fix double gas deduction completely
+

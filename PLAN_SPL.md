@@ -218,7 +218,7 @@ Now that I've created the PLAN_SPL.md file, let's start implementing the first p
 ```reev/crates/reev-core/src/prompts/prompt_processor.rs#L1-50
 //! Language Refiner Prompts
 //!
-//! This module contains prompts used by the language refiner to refine user inputs.
+//! This module contains prompts used by the prompt processor to refine user inputs.
 
 /// System prompt for structured LLM responses
 pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"
@@ -264,7 +264,7 @@ Let me update the STRUCTURED_PROMPT_SYSTEM_PROMPT to include token symbol recogn
 ```reev/crates/reev-core/src/prompts/prompt_processor.rs#L1-60
 //! Language Refiner Prompts
 //!
-//! This module contains prompts used by the language refiner to refine user inputs.
+//! This module contains prompts used by the prompt processor to refine user inputs.
 
 /// System prompt for structured LLM responses
 pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"

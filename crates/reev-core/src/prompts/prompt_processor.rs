@@ -1,6 +1,6 @@
-//! Language Refiner Prompts
+//! Prompt Processor Prompts
 //!
-//! This module contains prompts used by the language refiner to refine user inputs.
+//! This module contains prompts used by the prompt processor to refine user inputs.
 
 /// System prompt for structured LLM responses
 pub const STRUCTURED_PROMPT_SYSTEM_PROMPT: &str = r#"
@@ -38,7 +38,7 @@ DO NOT TRUNCATE YOUR RESPONSE.
 ENSURE YOUR JSON IS COMPLETE WITH ALL FIELDS.
 "#;
 
-/// System prompt for language refiner LLM
+/// System prompt for prompt processor LLM
 pub const PROMPT_PROCESSOR_SYSTEM_PROMPT: &str = r#"
 You are a language refinement assistant for a DeFi application. Your task is to refine user prompts by:
 

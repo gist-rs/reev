@@ -1,4 +1,4 @@
-//! Language Refiner for Phase 1 of V3 Plan
+//! Prompt Processor for Phase 1 of V3 Plan
 //!
 //! This module implements language refinement functionality in Phase 1 of V3 plan.
 //! It uses LLM to refine user prompts by fixing typos, normalizing terminology, and making
@@ -44,7 +44,7 @@ impl Default for PromptProcessor {
 }
 
 impl PromptProcessor {
-    /// Create a new language refiner
+    /// Create a new prompt processor
     pub fn new() -> Self {
         let model_name =
             std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
@@ -120,7 +120,7 @@ impl PromptProcessor {
 
         // If no API key is configured, return error as per V3 plan
         if self.api_key.is_none() {
-            return Err(anyhow!("No API key configured for language refiner"));
+            return Err(anyhow!("No API key configured for prompt processor"));
         }
 
         info!(
@@ -294,7 +294,7 @@ impl PromptProcessor {
 
         // If no API key is configured, return error as per V3 plan
         if self.api_key.is_none() {
-            return Err(anyhow!("No API key configured for language refiner"));
+            return Err(anyhow!("No API key configured for prompt processor"));
         }
 
         // Check if this is a request with "all" keyword for any operation type
