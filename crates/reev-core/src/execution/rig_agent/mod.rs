@@ -244,7 +244,7 @@ impl RigAgent {
                             "recipient": parameters.additional.get("recipient")
                                 .or_else(|| parameters.additional.get("target_pubkey"))
                                 .cloned()
-                                .unwrap_or_else(|| serde_json::Value::Null)
+                                .unwrap_or(serde_json::Value::Null)
                         }),
                     );
                 }

@@ -15,6 +15,7 @@ async fn test_mock_tool_executor() {
         prompt: "Swap 1 SOL to USDC".to_string(),
         refined_prompt: "Swap 1 SOL to USDC".to_string(),
         context: "Test context".to_string(),
+        structured_prompt: None,
         critical: Some(true),
         estimated_time_seconds: Some(30),
         expected_tool_calls: Some(vec![reev_core::yml_schema::YmlToolCall {
@@ -52,6 +53,7 @@ async fn test_mock_tool_executor_failure() {
         prompt: "Swap 1 SOL to USDC".to_string(),
         refined_prompt: "Swap 1 SOL to USDC".to_string(),
         context: "Test context".to_string(),
+        structured_prompt: None,
         critical: Some(true),
         estimated_time_seconds: Some(30),
         expected_tool_calls: Some(vec![reev_core::yml_schema::YmlToolCall {

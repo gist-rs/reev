@@ -269,7 +269,7 @@ impl YmlToolCall {
     /// Add expected parameter and return self for chaining
     pub fn with_parameter(mut self, key: String, value: serde_json::Value) -> Self {
         self.expected_parameters
-            .get_or_insert_with(|| HashMap::new())
+            .get_or_insert_with(HashMap::new)
             .insert(key, value);
         self
     }
@@ -277,7 +277,7 @@ impl YmlToolCall {
     /// Add expected parameter from string and return self for chaining
     pub fn with_parameter_str(mut self, key: String, value: String) -> Self {
         self.expected_parameters
-            .get_or_insert_with(|| HashMap::new())
+            .get_or_insert_with(HashMap::new)
             .insert(key, serde_json::Value::String(value));
         self
     }
