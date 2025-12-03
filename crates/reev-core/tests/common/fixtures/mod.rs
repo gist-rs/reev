@@ -69,9 +69,6 @@ pub async fn configured_env() -> Result<()> {
 
     tracing::info!("✅ ZAI_API_KEY is configured");
 
-    // Disable enhanced OTEL logging to reduce verbosity
-    env::set_var("REEV_ENHANCED_OTEL", "0");
-
     Ok(())
 }
 
