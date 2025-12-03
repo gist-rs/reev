@@ -76,3 +76,63 @@ async fn test_transfer(#[case] prompt: &str) -> Result<()> {
 
     Ok(())
 }
+
+/// Consolidated SPL transfer test that handles both specific amount and "all" keyword cases
+/// The QueryHandler's LLM-based planner should handle both scenarios appropriately
+#[rstest]
+#[case("send 1 usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[case("send all usdc to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[case("transfer 0.1 usdt to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_spl_transfer(#[case] prompt: &str) -> Result<()> {
+    info!("Testing SPL transfer prompt: {prompt}");
+
+    // Initialize test runner
+    let mut runner = common::framework::TestRunner::new()?;
+    runner.initialize().await?;
+
+    // Initialize query handler
+    let mut query_handler = QueryHandler::new().await?;
+
+    // Set up token balances for testing (need to ensure wallet has tokens)
+    runner
+        .set_token_balance(
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+            100_000_000,                                    // 100 USDC
+        )
+        .await?;
+
+    runner
+        .set_token_balance(
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT
+            100_000_000,                                    // 100 USDT
+        )
+        .await?;
+
+    // Process the query through QueryHandler's LLM-based pipeline
+    // The LLM will handle both specific amounts and "all" keyword cases
+    let result = query_handler.process_query(prompt, &runner.pubkey).await?;
+
+    // Debug output
+    println!("Query result: {result:?}");
+
+    // Verify the query was processed successfully
+    assert!(
+        result.success,
+        "Query processing failed: {:?}",
+        result.error_message
+    );
+    assert!(
+        result.transaction_signature.is_some(),
+        "No transaction signature returned"
+    );
+
+    // Verify transfer was successful
+    info!(
+        "✅ SPL transfer completed with signature: {:?}",
+        result.transaction_signature
+    );
+
+    Ok(())
+}
