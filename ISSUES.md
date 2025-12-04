@@ -61,10 +61,10 @@
    - Why it's risky: Invalid responses could pass validation by containing right keywords
    - Where: `validate_structured_response` in `prompt_processor/validation.rs`
 
-5. **No Fallback Mechanism**:
-   - What's wrong: No fallback when structured response fails
-   - Why it's problematic: Could result in system failure
-   - Where: `process_prompt_structured` returns error when validation fails
+5. **Fallback Mechanism with mock data**:
+   - What's wrong: Fallback when structured response fails
+   - Why it's problematic: Could result in mislead, wrong data
+   - Where: `process_prompt_structured` returns error when validation fails? if so it's good nvm just re-check.
 
 **Immediate Action Items:**
 
