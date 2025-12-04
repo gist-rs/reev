@@ -42,12 +42,18 @@ pub struct MaxAmountCalculator {
 impl Default for MaxAmountCalculator {
     fn default() -> Self {
         let mut fees = HashMap::new();
-        // Set default fees for each action type (in lamports)
-        fees.insert(PromptAction::Transfer, 1_000_000); // 0.001 SOL for transfer
-        fees.insert(PromptAction::Swap, 5_000_000); // 0.005 SOL for Jupiter swap
-        fees.insert(PromptAction::Lend, 2_000_000); // 0.002 SOL for lending
-        fees.insert(PromptAction::Borrow, 2_000_000); // 0.002 SOL for borrowing
-        fees.insert(PromptAction::Earn, 2_000_000); // 0.002 SOL for earning
+        // Use standardized gas reserve values from gas_reserve module
+        fees.insert(
+            PromptAction::Transfer,
+            crate::gas_reserve::TRANSFER_GAS_RESERVE,
+        );
+        fees.insert(PromptAction::Swap, crate::gas_reserve::SWAP_GAS_RESERVE);
+        fees.insert(PromptAction::Lend, crate::gas_reserve::DEFAULT_GAS_RESERVE);
+        fees.insert(
+            PromptAction::Borrow,
+            crate::gas_reserve::DEFAULT_GAS_RESERVE,
+        );
+        fees.insert(PromptAction::Earn, crate::gas_reserve::DEFAULT_GAS_RESERVE);
 
         let mut token_mints = HashMap::new();
         token_mints.insert(

@@ -26,19 +26,18 @@ pub async fn execute_sol_transfer(
 
     // Handle "all" keyword case
     let amount: f64 = if amount_str.to_lowercase() == "all" {
-        // Calculate transfer amount as wallet balance minus gas reserve
-        // Reserve 0.05 SOL for transaction fees (5,000,000 lamports)
-        let gas_reserve = 5_000_000u64;
+        // Calculate transfer amount using standardized gas reserve
+        let gas_reserve = crate::gas_reserve::get_gas_reserve_for_action(
+            crate::prompt_processor::types::PromptAction::Transfer,
+        );
 
-        // Ensure we don't try to transfer more than available
-        let available_balance = if wallet_context.sol_balance > gas_reserve {
-            wallet_context.sol_balance - gas_reserve
-        } else {
-            // If balance is less than or equal to gas reserve, transfer half
-            wallet_context.sol_balance / 2
-        };
+        // Use the standardized function to calculate max transferable amount
+        let max_transferable = crate::gas_reserve::calculate_max_sol_transferable(
+            wallet_context.sol_balance,
+            Some(gas_reserve),
+        );
 
-        available_balance as f64 / 1_000_000_000.0
+        max_transferable as f64 / 1_000_000_000.0
     } else {
         amount_str
             .parse()

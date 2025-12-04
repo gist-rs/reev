@@ -7,6 +7,7 @@ pub mod benchmark;
 pub mod context;
 pub mod execution;
 pub mod executor;
+pub mod gas_reserve;
 pub mod llm;
 pub mod planner;
 pub mod prompt_processor;

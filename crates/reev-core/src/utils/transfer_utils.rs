@@ -7,7 +7,8 @@
 ///
 /// This function determines how much of a token balance can be transferred while
 /// ensuring enough lamports remain for transaction fees and potential account
-/// creation costs.
+/// creation costs. It uses the standardized gas reserve calculations from the
+/// gas_reserve module for consistency across the system.
 ///
 /// # Parameters
 ///
@@ -41,20 +42,14 @@ pub fn calculate_max_transferable_amount(
     current_amount: u64,
     gas_amount_lamport: u64,
 ) -> u64 {
-    // For SOL (native token)
+    // Use the standardized gas reserve calculation for SOL
     if mint_address.is_empty() || mint_address == "So11111111111111111111111111111111112" {
-        // Return 0 if balance is less than or equal to gas reserve
-        if current_amount <= gas_amount_lamport {
-            return 0;
-        }
-
-        // Return balance minus gas reserve
-        return current_amount - gas_amount_lamport;
+        return crate::gas_reserve::calculate_max_sol_transferable(
+            current_amount,
+            Some(gas_amount_lamport),
+        );
     }
 
-    // For SPL tokens, gas is paid in SOL, not the token itself
-    // So we can transfer the entire balance (except for minimum rent exemption if needed)
-    // For now, we'll just return the current amount as is
-    // TODO: Consider minimum balance for token accounts if needed
-    current_amount
+    // Use the standardized gas reserve calculation for SPL tokens
+    crate::gas_reserve::calculate_max_spl_transferable(current_amount, Some(gas_amount_lamport))
 }

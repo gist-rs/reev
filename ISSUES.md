@@ -51,10 +51,12 @@
    - Why it's not pure: Violates the goal of using structured data directly
    - Where: `execute_step_with_rig_and_history` and `extract_multi_step_tool_calls`
 
-3. **Inconsistent Gas Reserve Calculation**:
-   - What's wrong: Gas reserve is calculated in multiple places with different values
-   - Why it's problematic: PLAN_ALL.md highlights this as a key issue to solve
-   - Where: `MaxAmountCalculator`, various tool implementations (0.001-0.05 SOL)
+4. **Inconsistent Gas Reserve Calculation**: ✅ COMPLETED
+   - What was done: Created centralized gas reserve module with standardized constants
+   - Where implemented: `crates/reev-core/src/gas_reserve/mod.rs`
+   - Key features: Constants for different action types, utility functions, comprehensive tests
+   - Components updated: MaxAmountCalculator, sol_transfer tools, planner, flow_builders, query_handler
+   - Test coverage: `crates/reev-core/tests/gas_reserve_tests.rs` with 9 comprehensive tests
 
 4. **Validation Logic Relies on Keyword Matching**:
    - What's wrong: Validation relies on simple keyword matching rather than parameter consistency
@@ -72,9 +74,11 @@
    - Focus: `extract_multi_step_tool_calls` in `rig_agent/mod.rs`
    - Target: Remove all regex parsing when structured data is available
 
-2. Standardize gas reserve calculation across components
-   - Focus: Consolidate gas calculation in `MaxAmountCalculator`
-   - Target: Replace hard-coded values in tool implementations
+2. Standardize gas reserve calculation across components ✅ COMPLETED
+   - Implemented centralized module: `crates/reev-core/src/gas_reserve/mod.rs`
+   - Updated all components to use standardized values
+   - Added comprehensive test suite: `crates/reev-core/tests/gas_reserve_tests.rs`
+   - Fixed hard-coded values in: MaxAmountCalculator, sol_transfer tools, planner, flow_builders
 
 3. Enhance validation logic to check parameter consistency
    - Focus: Add parameter validation beyond keyword matching
@@ -102,9 +106,11 @@
    - Location: `crates/reev-core/src/prompt_processor/validation.rs`
    - Target: Add parameter value validation
 
-4. 🔄 Standardize gas reserve calculation across all components (IN PROGRESS)
-   - Location: `crates/reev-core/src/prompt_processor/max_amount_calculator.rs`
-   - Target: Replace hard-coded values in tool implementations
+4. ✅ Standardize gas reserve calculation across all components (COMPLETED)
+   - Created: `crates/reev-core/src/gas_reserve/mod.rs` with centralized logic
+   - Updated: MaxAmountCalculator, execution tools, planner, flow_builders, query_handler
+   - Added: Comprehensive test suite with 9 tests covering all scenarios
+   - Constants: TRANSFER_GAS_RESERVE (0.001 SOL), SWAP_GAS_RESERVE (0.005 SOL), DEFAULT_GAS_RESERVE (0.002 SOL)
 
 5. 🔄 Fix planner_test blocking issue (COMPLETED)
    - Solution: Added `#[tokio::test(flavor = "multi_thread")]` attribute

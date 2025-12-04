@@ -28,16 +28,16 @@ pub async fn handle_sol_transfer(
             }
         };
 
-        // Calculate gas reserve (0.001 SOL for now)
-        let gas_reserve = 1_000_000u64; // 0.001 SOL in lamports
+        // Use standardized gas reserve (0.001 SOL for transfers)
+        let gas_reserve = 1_000_000u64; // TRANSFER_GAS_RESERVE from reev-core
 
         // Calculate maximum transferable amount
         if current_balance <= gas_reserve {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow::anyhow!(anyhow::anyhow!(
                 "Insufficient balance for transfer. Balance: {} SOL, required reserve: {} SOL",
                 current_balance as f64 / 1_000_000_000.0,
                 gas_reserve as f64 / 1_000_000_000.0
-            ));
+            )));
         }
 
         // Return the calculated amount

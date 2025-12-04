@@ -31,7 +31,9 @@ pub async fn build_swap_flow(
     // Calculate amount in SOL for display
     let amount_sol = if params.from_token == "SOL" {
         // Account for gas reserve when calculating display amount
-        let gas_reserve_lamports = 50_000_000u64; // 0.05 SOL
+        let gas_reserve_lamports = crate::gas_reserve::get_gas_reserve_for_action(
+            crate::prompt_processor::types::PromptAction::Swap,
+        );
         let amount_in_lamports = params.amount * 1_000_000_000.0;
         let display_amount = if amount_in_lamports > gas_reserve_lamports as f64 {
             amount_in_lamports - gas_reserve_lamports as f64
@@ -74,7 +76,11 @@ pub async fn build_swap_flow(
             YmlAssertion::new("SolBalanceChange".to_string())
                 .with_pubkey(wallet_context.owner.clone())
                 .with_expected_change_gte(
-                    -(amount_sol * 1_000_000_000.0 + 50_000_000.0 + 10_000_000.0),
+                    -(amount_sol * 1_000_000_000.0
+                        + crate::gas_reserve::get_gas_reserve_for_action(
+                            crate::prompt_processor::types::PromptAction::Swap,
+                        ) as f64
+                        + 10_000_000.0),
                 ),
         ) // Account for swap amount + gas reserve + transaction fees
         .with_tool_call(YmlToolCall::new(ToolName::JupiterSwap, true))
@@ -125,7 +131,12 @@ pub async fn build_transfer_flow(
         .with_assertion(
             YmlAssertion::new("SolBalanceChange".to_string())
                 .with_pubkey(wallet_context.owner.clone())
-                .with_expected_change_lte(-(params.amount * 1_000_000_000.0 + 5_000_000.0)), // Account for fees
+                .with_expected_change_lte(
+                    -(params.amount * 1_000_000_000.0
+                        + crate::gas_reserve::get_gas_reserve_for_action(
+                            crate::prompt_processor::types::PromptAction::Transfer,
+                        ) as f64),
+                ), // Account for fees
         )
         .with_tool_call(YmlToolCall::new(ToolName::SolTransfer, true))
         .with_error_tolerance(0.01);

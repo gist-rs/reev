@@ -261,7 +261,9 @@ fn create_swap_flow(
     // Convert amount from SOL to display value if needed
     let amount_sol = if from == "SOL" {
         // Account for gas reserve when calculating display amount
-        let gas_reserve_lamports = 50_000_000u64; // 0.05 SOL
+        let gas_reserve_lamports = crate::gas_reserve::get_gas_reserve_for_action(
+            crate::prompt_processor::types::PromptAction::Swap,
+        );
         let amount_in_lamports = amount * 1_000_000_000.0;
         let display_amount = if amount_in_lamports > gas_reserve_lamports as f64 {
             amount_in_lamports - gas_reserve_lamports as f64
@@ -290,7 +292,11 @@ fn create_swap_flow(
             crate::yml_schema::YmlAssertion::new("SolBalanceChange".to_string())
                 .with_pubkey(wallet_context.owner.clone())
                 .with_expected_change_gte(
-                    -(amount_sol * 1_000_000_000.0 + 50_000_000.0 + 10_000_000.0),
+                    -(amount_sol * 1_000_000_000.0
+                        + crate::gas_reserve::get_gas_reserve_for_action(
+                            crate::prompt_processor::types::PromptAction::Swap,
+                        ) as f64
+                        + 10_000_000.0),
                 ),
         ) // Account for swap amount + gas reserve + transaction fees
         .with_tool_call(crate::yml_schema::YmlToolCall::new(

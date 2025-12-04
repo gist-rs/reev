@@ -376,7 +376,7 @@ impl QueryHandler {
             .resolve_wallet_context(&wallet_pubkey.to_string())
             .await?;
 
-        let gas_reserve = gas_reserve.unwrap_or(1_000_000); // Default 0.001 SOL
+        let gas_reserve = gas_reserve.unwrap_or(crate::gas_reserve::TRANSFER_GAS_RESERVE);
 
         Ok(
             crate::utils::transfer_utils::calculate_max_transferable_amount(
