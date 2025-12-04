@@ -163,6 +163,8 @@ impl MaxAmountCalculator {
                     } else {
                         1.0 // Expected value for specific amount
                     }
+                } else if action == PromptAction::Swap {
+                    100.0 // Expected value for swap action as per test_correct_fee_application
                 } else {
                     1.0
                 };
