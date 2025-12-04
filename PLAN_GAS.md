@@ -64,9 +64,7 @@ This document outlines a comprehensive plan to standardize gas reserve calculati
    ```rust
    pub const TRANSFER_GAS_RESERVE: u64 = 1_000_000; // 0.001 SOL
    pub const SWAP_GAS_RESERVE: u64 = 5_000_000; // 0.005 SOL
-   pub const LEND_GAS_RESERVE: u64 = 2_000_000; // 0.002 SOL
-   pub const BORROW_GAS_RESERVE: u64 = 2_000_000; // 0.002 SOL
-   pub const EARN_GAS_RESERVE: u64 = 2_000_000; // 0.002 SOL
+   pub const DEFAULT_GAS_RESERVE: u64 = 2_000_000; // 0.003 SOL
    ```
 
 2. **Create utility functions**:
