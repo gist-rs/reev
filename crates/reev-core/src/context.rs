@@ -1,7 +1,7 @@
 //! Context Resolution for Verifiable AI-Generated DeFi Flows
 //!
 //! This module provides context resolution for wallet information in both production
-//! and benchmark modes, with support for SURFPOOL integration in benchmark mode.
+//! and benchmark modes, with support for SURFPOOL integration to fetch real wallet data.
 
 use reev_types::flow::WalletContext;
 
@@ -23,6 +23,7 @@ impl Default for SolanaEnvironment {
 }
 use anyhow::Result;
 use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::{debug, info, instrument};
 
 /// Context resolver for wallet information in different modes
@@ -87,43 +88,107 @@ impl ContextResolver {
         // Create a basic wallet context with available information
         let mut context = WalletContext::new(pubkey.to_string());
 
-        // For tests, we'll use a simple mock implementation
-        // In a real implementation, this would fetch actual wallet data
-        context.sol_balance = 5_000_000_000; // 5 SOL for testing
-        context.total_value_usd = 750.0; // $750 for testing
+        // Try to connect to SURFPOOL to get real wallet data
+        let surfpool_url = std::env::var("SURFPOOL_RPC_URL")
+            .unwrap_or_else(|_| "http://localhost:8899".to_string());
 
-        // Add some common tokens for testing
-        context.add_token_balance(
-            "So11111111111111111111111111111111111111111112".to_string(),
-            reev_types::benchmark::TokenBalance::new(
-                "So11111111111111111111111111111111111111111112".to_string(),
-                5_000_000_000, // 5 SOL
-            )
-            .with_decimals(9)
-            .with_symbol("SOL".to_string()),
+        // Create an RPC client to fetch data from SURFPOOL
+        let rpc_client = solana_client::rpc_client::RpcClient::new(&surfpool_url);
+
+        // Get the SOL balance
+        let pubkey_obj = solana_sdk::pubkey::Pubkey::from_str(pubkey)
+            .map_err(|e| anyhow::anyhow!("Invalid pubkey: {e}"))?;
+
+        match rpc_client.get_account(&pubkey_obj) {
+            Ok(account) => {
+                context.sol_balance = account.lamports;
+                info!(
+                    "✅ Fetched SOL balance from SURFPOOL: {} lamports",
+                    account.lamports
+                );
+            }
+            Err(e) => {
+                info!(
+                    "⚠️ Failed to fetch SOL balance from SURFPOOL: {}. Using fallback values.",
+                    e
+                );
+                // Fallback to mock values if SURFPOOL is not available
+                context.sol_balance = 5_000_000_000; // 5 SOL fallback
+            }
+        }
+
+        // Fetch common token balances (USDC, USDT, etc.)
+        let common_tokens = vec![
+            ("USDC", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 6),
+            ("USDT", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", 6),
+            ("RAY", "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R", 6),
+            ("SRM", "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt", 6),
+        ];
+
+        let mut total_value_usd = 0.0;
+
+        // Get token prices (in a real implementation, these would come from a price oracle)
+        let token_prices = std::collections::HashMap::from([
+            ("USDC", 1.0),  // $1 per USDC
+            ("USDT", 1.0),  // $1 per USDT
+            ("SOL", 150.0), // $150 per SOL (example price)
+            ("RAY", 0.25),  // $0.25 per RAY (example price)
+            ("SRM", 0.1),   // $0.1 per SRM (example price)
+        ]);
+
+        // Add SOL value to total
+        total_value_usd += (context.sol_balance as f64 / 10_f64.powi(9))
+            * token_prices.get("SOL").unwrap_or(&150.0);
+
+        // For each common token, try to fetch the balance
+        for (symbol, mint, decimals) in common_tokens {
+            let mint_pubkey = solana_sdk::pubkey::Pubkey::from_str(mint)
+                .map_err(|e| anyhow::anyhow!("Invalid mint address {mint}: {e}"))?;
+
+            // Get the associated token account address
+            let ata = spl_associated_token_account::get_associated_token_address(
+                &pubkey_obj,
+                &mint_pubkey,
+            );
+
+            match rpc_client.get_token_account_balance(&ata) {
+                Ok(balance) => {
+                    let amount = balance.amount.parse::<u64>().unwrap_or(0);
+                    if amount > 0 {
+                        context.add_token_balance(
+                            mint.to_string(),
+                            reev_types::benchmark::TokenBalance::new(mint.to_string(), amount)
+                                .with_decimals(decimals)
+                                .with_symbol(symbol.to_string()),
+                        );
+
+                        // Add to total USD value
+                        let token_value = (amount as f64 / 10_f64.powi(decimals as i32))
+                            * token_prices.get(symbol).unwrap_or(&1.0);
+                        total_value_usd += token_value;
+
+                        info!(
+                            "✅ Fetched {} balance from SURFPOOL: {} (raw: {})",
+                            symbol, balance.ui_amount_string, amount
+                        );
+                    }
+                }
+                Err(e) => {
+                    debug!("⚠️ Failed to fetch {} balance: {}", symbol, e);
+                    // Not all accounts will have all tokens, so this is expected
+                }
+            }
+
+            // Add token price to context
+            context.add_token_price(mint.to_string(), *token_prices.get(symbol).unwrap_or(&1.0));
+        }
+
+        context.total_value_usd = total_value_usd;
+
+        info!(
+            "✅ Resolved wallet context with total value: ${:.2}",
+            context.total_value_usd
         );
-
-        context.add_token_balance(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            reev_types::benchmark::TokenBalance::new(
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-                200_000_000, // 200 USDC
-            )
-            .with_decimals(6)
-            .with_symbol("USDC".to_string()),
-        );
-
-        context.add_token_price(
-            "So11111111111111111111111111111111111111111112".to_string(),
-            150.0, // $150 SOL
-        );
-
-        context.add_token_price(
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
-            1.0, // $1 USDC
-        );
-
-        context.calculate_total_value();
         Ok(context)
     }
 
