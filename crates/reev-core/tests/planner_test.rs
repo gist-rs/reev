@@ -44,8 +44,12 @@ async fn test_simple_planning() {
     let _wallet_context = WalletContext::new("test_wallet".to_string());
 
     // The refine_and_plan method expects wallet_pubkey as string, not WalletContext
+    // Use a valid Base58 address for the test
     let result = planner
-        .refine_and_plan("swap 1 SOL to USDC", "test_wallet")
+        .refine_and_plan(
+            "swap 1 SOL to USDC",
+            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
+        )
         .await;
 
     assert!(
