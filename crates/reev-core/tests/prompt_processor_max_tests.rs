@@ -32,6 +32,18 @@ fn setup_env() {
 
 /// Extract amount from a refined prompt for verification
 fn extract_amount_from_refined_prompt(refined: &str) -> Result<f64> {
+    // First try to find "X.0 sol" pattern specifically (common in our test cases)
+    if let Some(start) = refined.find("sol") {
+        // Look for number before "sol"
+        let before_sol = &refined[..start].trim();
+        // Split by space to get the amount
+        if let Some(amount_str) = before_sol.split_whitespace().last() {
+            if let Ok(amount) = amount_str.parse::<f64>() {
+                return Ok(amount);
+            }
+        }
+    }
+
     // Try to find any number followed by a space and then a token name
     let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+(SOL|USDC|USDT)")?;
     if let Some(captures) = re.captures(refined) {

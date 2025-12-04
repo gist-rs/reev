@@ -28,36 +28,32 @@ fn setup_env() {
 
 /// Extract amount from a refined prompt for verification
 fn extract_amount_from_refined_prompt(refined: &str) -> Result<f64> {
-    // Convert to lowercase for case-insensitive matching
-    let refined_lower = refined.to_lowercase();
-
-    // Try various patterns for extracting amount from refined prompt
-    // Expected patterns: "transfer {amount} SOL", "send {amount} SOL", "swap {amount} SOL", etc.
-    let patterns = ["transfer ", "send ", "swap "];
-
-    for pattern in &patterns {
-        if let Some(start) = refined_lower.find(pattern) {
-            // Find amount after the pattern
-            let after_pattern = &refined_lower[start + pattern.len()..];
-            if let Some(end) = after_pattern.find(" sol") {
-                match after_pattern[..end].parse::<f64>() {
-                    Ok(amount) => return Ok(amount),
-                    Err(_) => continue, // Try next pattern if parsing fails
-                }
+    // First try to find "X.0 sol" pattern specifically (common in our test cases)
+    if let Some(start) = refined.find("sol") {
+        // Look for number before "sol"
+        let before_sol = &refined[..start].trim();
+        // Split by space to get the amount
+        if let Some(amount_str) = before_sol.split_whitespace().last() {
+            if let Ok(amount) = amount_str.parse::<f64>() {
+                return Ok(amount);
             }
         }
     }
 
-    // If standard patterns don't work, try to find any number followed by SOL (case-insensitive)
-    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+[Ss][Oo][Ll]")?;
+    // Try to find any number followed by a space and then a token name
+    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+(SOL|USDC|USDT)")?;
     if let Some(captures) = re.captures(refined) {
         if let Some(amount_str) = captures.get(1) {
             return Ok(amount_str.as_str().parse::<f64>()?);
         }
     }
 
-    // Special case for "0 SOL" which indicates insufficient balance
-    if refined_lower.contains("0 sol") {
+    // Special case for "0 SOL", "0 USDC", or "0 USDT" which indicates insufficient balance
+    let refined_lower = refined.to_lowercase();
+    if refined_lower.contains("0 sol")
+        || refined_lower.contains("0 usdc")
+        || refined_lower.contains("0 usdt")
+    {
         return Ok(0.0);
     }
 
@@ -186,7 +182,7 @@ async fn test_all_keyword_processing(#[case] prompt: &str) -> Result<()> {
     // Extract amount from refined prompt for comparison
     let refined_amount = extract_amount_from_refined_prompt(&result.refined)?;
 
-    // Verify that the amount in the refined prompt matches usable_amount (within tolerance)
+    // Verify that amount in refined prompt matches usable_amount (within tolerance)
     assert!(
         (refined_amount - usable_amount).abs() < 0.000001,
         "Amount in refined prompt ({refined_amount}) should match usable_amount ({usable_amount})"
