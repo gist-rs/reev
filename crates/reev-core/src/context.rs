@@ -121,8 +121,6 @@ impl ContextResolver {
         let common_tokens = vec![
             ("USDC", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 6),
             ("USDT", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", 6),
-            ("RAY", "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R", 6),
-            ("SRM", "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt", 6),
         ];
 
         let mut total_value_usd = 0.0;
@@ -132,8 +130,6 @@ impl ContextResolver {
             ("USDC", 1.0),  // $1 per USDC
             ("USDT", 1.0),  // $1 per USDT
             ("SOL", 150.0), // $150 per SOL (example price)
-            ("RAY", 0.25),  // $0.25 per RAY (example price)
-            ("SRM", 0.1),   // $0.1 per SRM (example price)
         ]);
 
         // Add SOL value to total
@@ -279,8 +275,6 @@ impl ContextResolver {
             "So11111111111111111111111111111111111111112" => Some("SOL".to_string()),
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Some("USDC".to_string()),
             "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Some("USDT".to_string()),
-            "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R" => Some("RAY".to_string()),
-            "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt" => Some("SRM".to_string()),
             _ => None,
         }
     }
@@ -291,8 +285,6 @@ impl ContextResolver {
             "SOL" => Some("So11111111111111111111111111111111111111112".to_string()),
             "USDC" => Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
             "USDT" => Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string()),
-            "RAY" => Some("4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R".to_string()),
-            "SRM" => Some("SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt".to_string()),
             _ => None,
         }
     }

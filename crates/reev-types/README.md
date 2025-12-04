@@ -442,7 +442,7 @@ impl ProtocolType for JupiterProtocol {
     
     fn protocol_name() -> &'static str { "jupiter" }
     fn supported_tokens() -> Vec<&'static str> { 
-        vec!["SOL", "USDC", "USDT", "RAY"] 
+        vec!["SOL", "USDC", "USDT"] 
     }
 }
 ```

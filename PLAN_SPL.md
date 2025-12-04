@@ -54,7 +54,7 @@ File: `crates/reev-core/src/context.rs`
 
 - Extend `get_token_symbol` method with more tokens
 - Add a `get_token_mint` method for reverse lookup
-- Include common Solana tokens (USDC, USDT, RAY, etc.)
+- Include common Solana tokens (USDC, USDT, etc.)
 
 ### Phase 2: YML Generator Updates
 
@@ -286,8 +286,6 @@ COMMON TOKEN SYMBOLS AND MINTS:
 - SOL: So11111111111111111111111111111111111111112
 - USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 - USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
-- RAY: 4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R
-- SRM: SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt
 
 TOKEN MAPPING RULES:
 - When a user mentions a token symbol (SOL, USDC, etc.), use the corresponding mint address
@@ -337,8 +335,6 @@ Now let's update the ContextResolver to add more token mappings and a reverse lo
             "SOL" => Some("So11111111111111111111111111111111111111112".to_string()),
             "USDC" => Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
             "USDT" => Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string()),
-            "RAY" => Some("4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R".to_string()),
-            "SRM" => Some("SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt".to_string()),
             _ => None,
         }
     }
