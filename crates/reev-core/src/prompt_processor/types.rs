@@ -25,7 +25,7 @@ pub struct StructuredRefinedPrompt {
 }
 
 /// Action types that can be detected in prompts
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub enum PromptAction {
     Transfer,
     Swap,
@@ -109,6 +109,8 @@ pub struct StructuredRefineRequest {
     pub owner_wallet_address: Option<String>,
     /// Maximum amount that can be transferred (for "all" keyword)
     pub max_amount: Option<f64>,
+    /// YML-formatted max amounts for all action types
+    pub max_amounts_yml: Option<String>,
 }
 
 /// Response from LLM with structured data

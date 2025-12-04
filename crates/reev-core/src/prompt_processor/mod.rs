@@ -7,6 +7,7 @@
 use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
+// Removed unused regex import
 use serde::{Deserialize, Serialize};
 
 use solana_sdk::pubkey::Pubkey;
@@ -17,10 +18,12 @@ use crate::prompts;
 use prompts::prompt_processor::PROMPT_PROCESSOR_SYSTEM_PROMPT;
 
 // Import modules
+pub mod max_amount_calculator;
 pub mod types;
 pub mod validation;
 
 // Re-export types
+pub use max_amount_calculator::{MaxAmountCalculation, MaxAmountCalculator};
 pub use types::{
     PromptAction, PromptParameters, StructuredRefineRequest, StructuredRefineResponse,
     StructuredRefinedPrompt, ValidationResult,
@@ -299,169 +302,34 @@ impl PromptProcessor {
 
         // Check if this is a request with "all" keyword for any operation type
         let original_prompt = prompt.to_string();
-        let is_all_keyword = original_prompt.to_lowercase().contains("all");
+        let _is_all_keyword = original_prompt.to_lowercase().contains("all");
+
+        // Calculate max amounts for all action types using MaxAmountCalculator
+        let owner_wallet_address = match &self.owner_wallet_address {
+            Some(owner_wallet_address) => owner_wallet_address,
+            None => panic!("Required owner_wallet_address"),
+        };
+
+        let max_amounts =
+            MaxAmountCalculator::calculate_all_max_amounts(owner_wallet_address).await?;
+        let max_amounts_yml = MaxAmountCalculator::format_as_yml_prompt(&max_amounts)?;
+
+        info!("Calculated max amounts for all action types");
+        debug!("Max amounts YML: {}", max_amounts_yml);
 
         // Build structured LLM request
-        let (request, max_amount_decimal) = if is_all_keyword {
-            // This is a request with "all" keyword, calculate maximum transferable amount
-            let owner_wallet_address = match &self.owner_wallet_address {
-                Some(owner_wallet_address) => owner_wallet_address,
-                None => panic!("Required owner_wallet_address"),
-            };
-
-            // Create wallet context to get balance
-            let wallet_context = create_wallet_context(owner_wallet_address).await?;
-
-            debug!(
-                "Wallet context created: balance {} lamports, SOL tokens: {}",
-                wallet_context.sol_balance,
-                wallet_context
-                    .token_balances
-                    .contains_key("So11111111111111111111111111111111111111111112")
-            );
-
-            // For swap operations, we need to identify the input token (the one being swapped FROM)
-            // For transfer operations, we need to identify the token being transferred
-            let is_swap_operation = original_prompt.to_lowercase().contains("swap")
-                || original_prompt.to_lowercase().contains("swp");
-
-            let prompt_lower = original_prompt.to_lowercase();
-
-            // Determine the input token based on the operation type and prompt content
-            let max_amount_decimal = if is_swap_operation {
-                // For swap operations, determine the input token (what's being swapped FROM)
-                // Look for patterns like "swap X for Y" where X is the input
-                if prompt_lower.contains("swap all sol")
-                    || (prompt_lower.contains("swap")
-                        && prompt_lower.contains("all")
-                        && prompt_lower.contains("sol")
-                        && (!prompt_lower.contains("swap usdc")
-                            || prompt_lower.contains("swap sol")))
-                {
-                    // SOL is the input token
-                    let gas_reserve =
-                        reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE;
-
-                    debug!(
-                        "Swap operation detected: SOL is input token. Wallet balance: {} lamports, gas reserve: {} lamports",
-                        wallet_context.sol_balance, gas_reserve
-                    );
-
-                    // Calculate maximum transferable amount for SOL
-                    let max_amount =
-                        crate::utils::transfer_utils::calculate_max_transferable_amount(
-                            "", // Empty for SOL
-                            wallet_context.sol_balance,
-                            gas_reserve,
-                        );
-
-                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
-                } else if prompt_lower.contains("swap all usdc")
-                    || (prompt_lower.contains("swap")
-                        && prompt_lower.contains("all")
-                        && prompt_lower.contains("usdc")
-                        && !prompt_lower.contains("swap sol"))
-                {
-                    // USDC is the input token
-                    wallet_context
-                        .token_balances
-                        .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
-                        .unwrap_or(0.0)
-                } else if prompt_lower.contains("swap all usdt")
-                    || (prompt_lower.contains("swap")
-                        && prompt_lower.contains("all")
-                        && prompt_lower.contains("usdt")
-                        && !prompt_lower.contains("swap sol"))
-                {
-                    // USDT is the input token
-                    wallet_context
-                        .token_balances
-                        .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
-                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
-                        .unwrap_or(0.0)
-                } else {
-                    // Default to SOL if we can't determine the input token
-                    let gas_reserve =
-                        reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE;
-
-                    debug!(
-                        "Swap operation with ambiguous input, defaulting to SOL. Wallet balance: {} lamports, gas reserve: {} lamports",
-                        wallet_context.sol_balance, gas_reserve
-                    );
-
-                    let max_amount =
-                        crate::utils::transfer_utils::calculate_max_transferable_amount(
-                            "", // Empty for SOL
-                            wallet_context.sol_balance,
-                            gas_reserve,
-                        );
-
-                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
-                }
-            } else {
-                // For transfer operations, determine the token being transferred
-                if prompt_lower.contains("all usdc") {
-                    // USDC is being transferred
-                    wallet_context
-                        .token_balances
-                        .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
-                        .unwrap_or(0.0)
-                } else if prompt_lower.contains("all usdt") {
-                    // USDT is being transferred
-                    wallet_context
-                        .token_balances
-                        .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
-                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
-                        .unwrap_or(0.0)
-                } else {
-                    // Default to SOL for transfers
-                    let gas_reserve = reev_lib::constants::amounts::tokens::sol::ONE_MILLI; // 0.001 SOL for transfers
-
-                    debug!(
-                        "Transfer operation: SOL is the token. Wallet balance: {} lamports, gas reserve: {} lamports",
-                        wallet_context.sol_balance, gas_reserve
-                    );
-
-                    let max_amount =
-                        crate::utils::transfer_utils::calculate_max_transferable_amount(
-                            "", // Empty for SOL
-                            wallet_context.sol_balance,
-                            gas_reserve,
-                        );
-
-                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
-                }
-            };
-
-            info!(
-                "Detected 'all' keyword, calculated max transferable amount: {}",
-                max_amount_decimal
-            );
-
-            // Create structured request for LLM
-            let request = StructuredRefineRequest {
-                prompt: original_prompt,
-                owner_wallet_address: Some(owner_wallet_address.to_string()),
-                max_amount: Some(max_amount_decimal),
-            };
-
-            (request, Some(max_amount_decimal))
-        } else {
-            // No "all" keyword, use original prompt directly
-            let request = StructuredRefineRequest {
-                prompt: original_prompt,
-                owner_wallet_address: Some(owner_wallet_address.to_string()),
-                max_amount: None,
-            };
-
-            (request, None)
+        let request = StructuredRefineRequest {
+            prompt: original_prompt,
+            owner_wallet_address: Some(owner_wallet_address.to_string()),
+            max_amount: None, // We'll provide all max amounts in the prompt
+            max_amounts_yml: Some(max_amounts_yml.clone()),
         };
 
         // Send request to LLM
         info!("Sending structured refine request to LLM");
-        let response = self.send_structured_refine_request(&request).await;
+        let response = self
+            .send_structured_refine_request(&request, &max_amounts_yml)
+            .await;
 
         // Just return the response or error directly
         let response = response?;
@@ -557,9 +425,29 @@ impl PromptProcessor {
             ));
         };
 
+        // Check if LLM detected "all" keyword and extracted a usable amount
+        let usable_amount = if prompt.to_lowercase().contains("all")
+            && response_obj.parameters.amount.is_some()
+            && response_obj
+                .parameters
+                .amount
+                .as_ref()
+                .unwrap_or(&"0".to_string())
+                != "all"
+        {
+            // LLM has calculated a usable amount from max_amounts
+            response_obj
+                .parameters
+                .amount
+                .as_ref()
+                .and_then(|a| a.parse::<f64>().ok())
+        } else {
+            None
+        };
+
         // Convert to StructuredRefinedPrompt
         let mut structured_prompt = response_obj
-            .to_structured_prompt(prompt.to_string(), max_amount_decimal)
+            .to_structured_prompt(prompt.to_string(), usable_amount)
             .map_err(|e| anyhow!("Failed to convert structured response: {e}"))?;
 
         // Validate response
@@ -616,6 +504,7 @@ impl PromptProcessor {
     async fn send_structured_refine_request(
         &self,
         request: &StructuredRefineRequest,
+        max_amounts_yml: &str,
     ) -> Result<String> {
         info!("Sending structured refine request to LLM");
         let client = reqwest::Client::new();
@@ -623,11 +512,12 @@ impl PromptProcessor {
         // Build the structured system prompt
         let system_prompt = self.build_structured_system_prompt();
 
-        // Build user prompt
+        // Build user prompt with max amounts YML
         let user_prompt = serde_json::json!({
             "prompt": request.prompt,
             "owner_wallet_address": request.owner_wallet_address,
-            "max_amount": request.max_amount
+            "max_amount": request.max_amount,
+            "max_amounts_yml": max_amounts_yml
         })
         .to_string();
 

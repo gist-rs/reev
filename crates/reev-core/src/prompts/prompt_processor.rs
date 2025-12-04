@@ -32,16 +32,44 @@ CRITICAL RULES:
 4. Order matters: "swap 1 sol for usdc" → input_mint: SOL, output_mint: USDC
 
 SPECIAL HANDLING FOR "all" KEYWORD:
-- When "all" keyword is detected and max_amount is provided
+- When "all" keyword is detected in the prompt
+- Use max_amounts_yml to get the appropriate max amount for the action type
 - Replace "all" with actual numeric amount in both refined_prompt AND amount field
-- Example: "send all usdc to..." with max_amount 100.0 → refined_prompt: "send 100.0 usdc to...", amount: "100.0"
-- Example: "transfer all sol to..." with max_amount 4.999 → refined_prompt: "transfer 4.999 sol to...", amount: "4.999"
+- Example: "send all usdc to..." with max_amounts.transfer.USDC 100.0 → refined_prompt: "send 100.0 usdc to...", amount: "100.0"
+- Example: "swap all sol for usdc" with max_amounts.swap.SOL 4.999 → refined_prompt: "swap 4.999 sol for usdc", amount: "4.999"
+
+MAX_AMOUNTS STRUCTURE:
+You will receive max_amounts_yml in this format:
+max_amounts:
+  transfer:
+    SOL: 10.5
+    USDC: 1000.0
+    USDT: 1000.0
+  swap:
+    SOL: 10.3
+    USDC: 1000.0
+    USDT: 1000.0
+  lend:
+    SOL: 10.4
+    USDC: 1000.0
+    USDT: 1000.0
+  borrow:
+    SOL: 10.2
+    USDC: 1000.0
+    USDT: 1000.0
+
+When handling "all" keyword:
+1. Identify the action type from the prompt
+2. Identify the token being transferred/swapped
+3. Look up the max amount in max_amounts.{action}.{token}
+4. Use that value to replace "all" in both refined_prompt and amount field
 
 FAILURE IS NOT AN OPTION:
 - You MUST return valid JSON
 - You MUST include ALL fields
 - You MUST identify correct input/output tokens for swaps
 - You MUST extract recipient addresses when present
+- You MUST use max_amounts_yml when "all" keyword is detected
 - If you cannot parse a prompt, set action to "unknown" and include what you could determine
 
 RESPOND WITH COMPLETE JSON ONLY - NO EXTRA TEXT.
