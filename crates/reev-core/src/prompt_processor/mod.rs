@@ -312,48 +312,127 @@ impl PromptProcessor {
             // Create wallet context to get balance
             let wallet_context = create_wallet_context(owner_wallet_address).await?;
 
-            // For SPL tokens, we need to identify the token type first
-            // Check if the prompt mentions specific tokens
-            let is_usdc = original_prompt.to_lowercase().contains("usdc");
-            let is_usdt = original_prompt.to_lowercase().contains("usdt");
-            let _is_sol = original_prompt.to_lowercase().contains("sol")
-                && !original_prompt.to_lowercase().contains("usdc")
-                && !original_prompt.to_lowercase().contains("usdt");
+            debug!(
+                "Wallet context created: balance {} lamports, SOL tokens: {}",
+                wallet_context.sol_balance,
+                wallet_context
+                    .token_balances
+                    .contains_key("So11111111111111111111111111111111111111111112")
+            );
 
-            let max_amount_decimal = if is_usdc {
-                // Use USDC balance directly (no need to reserve gas for SPL tokens)
-                wallet_context
-                    .token_balances
-                    .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
-                    .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
-                    .unwrap_or(0.0)
-            } else if is_usdt {
-                // Use USDT balance directly (no need to reserve gas for SPL tokens)
-                wallet_context
-                    .token_balances
-                    .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
-                    .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
-                    .unwrap_or(0.0)
-            } else {
-                // For SOL or unknown tokens, use the original logic
-                // Calculate gas reserve based on operation type
-                let is_swap_operation = original_prompt.to_lowercase().contains("swap")
-                    || original_prompt.to_lowercase().contains("swp");
-                let gas_reserve = if is_swap_operation {
-                    reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE
-                // 0.01 SOL for Jupiter swaps (account creation fees)
+            // For swap operations, we need to identify the input token (the one being swapped FROM)
+            // For transfer operations, we need to identify the token being transferred
+            let is_swap_operation = original_prompt.to_lowercase().contains("swap")
+                || original_prompt.to_lowercase().contains("swp");
+
+            let prompt_lower = original_prompt.to_lowercase();
+
+            // Determine the input token based on the operation type and prompt content
+            let max_amount_decimal = if is_swap_operation {
+                // For swap operations, determine the input token (what's being swapped FROM)
+                // Look for patterns like "swap X for Y" where X is the input
+                if prompt_lower.contains("swap all sol")
+                    || (prompt_lower.contains("swap")
+                        && prompt_lower.contains("all")
+                        && prompt_lower.contains("sol")
+                        && (!prompt_lower.contains("swap usdc")
+                            || prompt_lower.contains("swap sol")))
+                {
+                    // SOL is the input token
+                    let gas_reserve =
+                        reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE;
+
+                    debug!(
+                        "Swap operation detected: SOL is input token. Wallet balance: {} lamports, gas reserve: {} lamports",
+                        wallet_context.sol_balance, gas_reserve
+                    );
+
+                    // Calculate maximum transferable amount for SOL
+                    let max_amount =
+                        crate::utils::transfer_utils::calculate_max_transferable_amount(
+                            "", // Empty for SOL
+                            wallet_context.sol_balance,
+                            gas_reserve,
+                        );
+
+                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
+                } else if prompt_lower.contains("swap all usdc")
+                    || (prompt_lower.contains("swap")
+                        && prompt_lower.contains("all")
+                        && prompt_lower.contains("usdc")
+                        && !prompt_lower.contains("swap sol"))
+                {
+                    // USDC is the input token
+                    wallet_context
+                        .token_balances
+                        .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
+                        .unwrap_or(0.0)
+                } else if prompt_lower.contains("swap all usdt")
+                    || (prompt_lower.contains("swap")
+                        && prompt_lower.contains("all")
+                        && prompt_lower.contains("usdt")
+                        && !prompt_lower.contains("swap sol"))
+                {
+                    // USDT is the input token
+                    wallet_context
+                        .token_balances
+                        .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
+                        .unwrap_or(0.0)
                 } else {
-                    reev_lib::constants::amounts::tokens::sol::ONE_MILLI // 0.001 SOL for transfers
-                };
+                    // Default to SOL if we can't determine the input token
+                    let gas_reserve =
+                        reev_lib::constants::amounts::tokens::sol::JUPITER_SWAP_FEE_RESERVE;
 
-                // Calculate maximum transferable amount
-                let max_amount = crate::utils::transfer_utils::calculate_max_transferable_amount(
-                    "", // Empty for SOL
-                    wallet_context.sol_balance,
-                    gas_reserve,
-                );
+                    debug!(
+                        "Swap operation with ambiguous input, defaulting to SOL. Wallet balance: {} lamports, gas reserve: {} lamports",
+                        wallet_context.sol_balance, gas_reserve
+                    );
 
-                max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
+                    let max_amount =
+                        crate::utils::transfer_utils::calculate_max_transferable_amount(
+                            "", // Empty for SOL
+                            wallet_context.sol_balance,
+                            gas_reserve,
+                        );
+
+                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
+                }
+            } else {
+                // For transfer operations, determine the token being transferred
+                if prompt_lower.contains("all usdc") {
+                    // USDC is being transferred
+                    wallet_context
+                        .token_balances
+                        .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDC has 6 decimals
+                        .unwrap_or(0.0)
+                } else if prompt_lower.contains("all usdt") {
+                    // USDT is being transferred
+                    wallet_context
+                        .token_balances
+                        .get("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+                        .map(|balance| balance.balance as f64 / 1_000_000.0) // USDT has 6 decimals
+                        .unwrap_or(0.0)
+                } else {
+                    // Default to SOL for transfers
+                    let gas_reserve = reev_lib::constants::amounts::tokens::sol::ONE_MILLI; // 0.001 SOL for transfers
+
+                    debug!(
+                        "Transfer operation: SOL is the token. Wallet balance: {} lamports, gas reserve: {} lamports",
+                        wallet_context.sol_balance, gas_reserve
+                    );
+
+                    let max_amount =
+                        crate::utils::transfer_utils::calculate_max_transferable_amount(
+                            "", // Empty for SOL
+                            wallet_context.sol_balance,
+                            gas_reserve,
+                        );
+
+                    max_amount as f64 / 1_000_000_000.0 // SOL has 9 decimals
+                }
             };
 
             info!(
