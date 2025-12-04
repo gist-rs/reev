@@ -31,32 +31,41 @@ pub fn validate_structured_response_with_max_amounts(
         }
     }
 
-    // Check if action matches prompt intent
+    // Check if action matches prompt intent (more relaxed validation)
+    // Check if action matches prompt intent (using refined_prompt since it should have corrected typos)
     match response.action {
         PromptAction::Transfer => {
-            if !original_prompt.to_lowercase().contains("transfer")
-                && !original_prompt.to_lowercase().contains("send")
+            if !response.refined_prompt.to_lowercase().contains("transfer")
+                && !response.refined_prompt.to_lowercase().contains("send")
             {
                 issues.push("Action 'transfer' doesn't match prompt intent".to_string());
             }
         }
         PromptAction::Swap => {
-            if !original_prompt.to_lowercase().contains("swap") {
+            if !response.refined_prompt.to_lowercase().contains("swap")
+                && !response.refined_prompt.to_lowercase().contains("exchange")
+            {
                 issues.push("Action 'swap' doesn't match prompt intent".to_string());
             }
         }
         PromptAction::Lend => {
-            if !original_prompt.to_lowercase().contains("lend") {
+            if !response.refined_prompt.to_lowercase().contains("lend")
+                && !response.refined_prompt.to_lowercase().contains("deposit")
+            {
                 issues.push("Action 'lend' doesn't match prompt intent".to_string());
             }
         }
         PromptAction::Earn => {
-            if !original_prompt.to_lowercase().contains("earn") {
+            if !response.refined_prompt.to_lowercase().contains("earn")
+                && !response.refined_prompt.to_lowercase().contains("stake")
+            {
                 issues.push("Action 'earn' doesn't match prompt intent".to_string());
             }
         }
         PromptAction::Borrow => {
-            if !original_prompt.to_lowercase().contains("borrow") {
+            if !response.refined_prompt.to_lowercase().contains("borrow")
+                && !response.refined_prompt.to_lowercase().contains("loan")
+            {
                 issues.push("Action 'borrow' doesn't match prompt intent".to_string());
             }
         }

@@ -61,9 +61,12 @@ impl StructuredProcessor {
             prompt, owner_wallet_address
         );
 
-        // Calculate max amounts for all action types using MaxAmountCalculator
-        let max_amounts =
-            MaxAmountCalculator::calculate_all_max_amounts(owner_wallet_address).await?;
+        // Calculate max amounts for all action types using MaxAmountCalculator with prompt context
+        let max_amounts = MaxAmountCalculator::calculate_all_max_amounts_with_context(
+            owner_wallet_address,
+            prompt,
+        )
+        .await?;
         let max_amounts_yml = MaxAmountCalculator::format_as_yml_prompt(&max_amounts)?;
 
         info!("Calculated max amounts for all action types");
@@ -114,9 +117,14 @@ impl StructuredProcessor {
         };
 
         // Convert to StructuredRefinedPrompt
-        let structured_prompt = response_obj
+        let mut structured_prompt = response_obj
             .to_structured_prompt(prompt.to_string(), usable_amount)
             .map_err(|e| anyhow!("Failed to convert structured response: {e}"))?;
+
+        // Ensure subject_pubkey is set to owner wallet address
+        if structured_prompt.subject_pubkey.is_none() {
+            structured_prompt.subject_pubkey = Some(owner_wallet_address.to_string());
+        }
 
         // Validate response with max amounts
         let validation_result = validate_structured_response_with_max_amounts(
