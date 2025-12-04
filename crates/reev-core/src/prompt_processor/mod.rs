@@ -28,7 +28,10 @@ pub use types::{
     PromptAction, PromptParameters, StructuredRefineRequest, StructuredRefineResponse,
     StructuredRefinedPrompt, ValidationResult,
 };
-pub use validation::{calculate_confidence_score, validate_structured_response};
+pub use validation::{
+    calculate_confidence_score, validate_structured_response,
+    validate_structured_response_with_max_amounts,
+};
 
 /// Prompt processor for refining user prompts and handling special cases
 pub struct PromptProcessor {
@@ -450,8 +453,12 @@ impl PromptProcessor {
             .to_structured_prompt(prompt.to_string(), usable_amount)
             .map_err(|e| anyhow!("Failed to convert structured response: {e}"))?;
 
-        // Validate response
-        let validation_result = validate_structured_response(&structured_prompt, prompt);
+        // Validate response with max amounts
+        let validation_result = validate_structured_response_with_max_amounts(
+            &structured_prompt,
+            prompt,
+            &max_amounts_yml,
+        );
         match validation_result {
             ValidationResult::Valid => {
                 info!("Structured response validation passed");
