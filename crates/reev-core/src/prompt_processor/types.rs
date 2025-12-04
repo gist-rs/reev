@@ -101,7 +101,7 @@ impl StructuredRefinedPrompt {
 }
 
 /// Request to LLM for structured response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StructuredRefineRequest {
     /// The prompt to refine
     pub prompt: String,
