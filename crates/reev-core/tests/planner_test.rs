@@ -32,7 +32,7 @@ async fn test_planner_with_glm() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_simple_planning() {
     // Load environment variables for tests
     dotenvy::dotenv().ok();
