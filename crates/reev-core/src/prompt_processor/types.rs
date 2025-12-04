@@ -25,7 +25,9 @@ pub struct StructuredRefinedPrompt {
 }
 
 /// Action types that can be detected in prompts
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq, strum::Display, strum::EnumString,
+)]
 pub enum PromptAction {
     Transfer,
     Swap,

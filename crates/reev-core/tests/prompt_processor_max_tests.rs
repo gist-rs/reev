@@ -1,10 +1,14 @@
-//! Comprehensive tests for max amount calculation system
+//! Tests for Max Amount Calculator module
+//!
+//! These tests verify that MaxAmountCalculator correctly calculates max amounts
+//! for all action types and handles structured prompts with "all" keyword.
+//! The tests focus on max amount calculation logic without making surfpool calls.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use reev_core::prompt_processor::max_amount_calculator::{MaxAmounts, TokenAmounts};
 use reev_core::prompt_processor::{
     MaxAmountCalculator, PromptAction, PromptParameters, StructuredProcessor,
-    StructuredRefineRequest, StructuredRefinedPrompt,
+    StructuredRefineRequest, StructuredRefineResponse,
 };
 use rstest::*;
 use serial_test::serial;
@@ -12,18 +16,63 @@ use std::collections::HashMap;
 use std::env;
 use tracing::info;
 
-// Initialize tracing for all tests
+// Initialize tracing for all tests (runs only once)
+#[serial]
 fn init_tracing() {
+    // Use serial_test to ensure this runs only once per test run
     let _ = tracing_subscriber::fmt::try_init();
 }
 
 // Load environment variables from .env file
+#[serial]
 fn setup_env() {
+    // Use serial_test to ensure this runs only once per test run
     dotenvy::dotenv().ok();
 }
 
+/// Extract amount from a refined prompt for verification
+fn extract_amount_from_refined_prompt(refined: &str) -> Result<f64> {
+    // Convert to lowercase for case-insensitive matching
+    let refined_lower = refined.to_lowercase();
+
+    // Try various patterns for extracting amount from refined prompt
+    // Expected patterns: "transfer {amount} SOL", "send {amount} SOL", "swap {amount} SOL", etc.
+    let patterns = ["transfer ", "send ", "swap "];
+
+    for pattern in &patterns {
+        if let Some(start) = refined_lower.find(pattern) {
+            // Find amount after pattern
+            let after_pattern = &refined_lower[start + pattern.len()..];
+            if let Some(end) = after_pattern.find(" sol") {
+                match after_pattern[..end].parse::<f64>() {
+                    Ok(amount) => return Ok(amount),
+                    Err(_) => continue, // Try next pattern if parsing fails
+                }
+            }
+        }
+    }
+
+    // If standard patterns don't work, try to find any number followed by SOL (case-insensitive)
+    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+[Ss][Oo][Ll]")?;
+    if let Some(captures) = re.captures(refined) {
+        if let Some(amount_str) = captures.get(1) {
+            return Ok(amount_str.as_str().parse::<f64>()?);
+        }
+    }
+
+    // Special case for "0 SOL" which indicates insufficient balance
+    if refined_lower.contains("0 sol") {
+        return Ok(0.0);
+    }
+
+    Err(anyhow!(
+        "Could not extract amount from refined prompt: {refined}"
+    ))
+}
+
+/// Test max amounts serialization and deserialization
 #[test]
-fn test_max_amounts_serialization() {
+fn test_max_amounts_serialization() -> Result<()> {
     // Create test max amounts
     let mut max_amounts_map = HashMap::new();
     let mut sol_amounts = HashMap::new();
@@ -48,10 +97,13 @@ fn test_max_amounts_serialization() {
     let parsed = serde_yaml::from_str::<MaxAmounts>(&yml_str).unwrap();
 
     assert_eq!(max_amounts, parsed);
+
+    Ok(())
 }
 
+/// Test getting max amount for a specific action and token
 #[test]
-fn test_get_max_amount_for_action_token() {
+fn test_get_max_amount_for_action_token() -> Result<()> {
     let mut max_amounts_map = HashMap::new();
     let mut sol_amounts = HashMap::new();
     sol_amounts.insert("SOL".to_string(), 10.5);
@@ -80,10 +132,13 @@ fn test_get_max_amount_for_action_token() {
         MaxAmountCalculator::get_max_amount_for_action_token(&max_amounts, "swap", "SOL"),
         None
     );
+
+    Ok(())
 }
 
+/// Test validation of amounts against max limits
 #[test]
-fn test_validate_amount_for_action() {
+fn test_validate_amount_for_action() -> Result<()> {
     let mut max_amounts_map = HashMap::new();
     let mut sol_amounts = HashMap::new();
     sol_amounts.insert("SOL".to_string(), 10.5);
@@ -122,10 +177,13 @@ fn test_validate_amount_for_action() {
         MaxAmountCalculator::validate_amount_for_action(&max_amounts, "transfer", "USDC", 5.0)
             .is_err()
     );
+
+    Ok(())
 }
 
+/// Test max amount calculator fees
 #[test]
-fn test_max_amount_calculator_fees() {
+fn test_max_amount_calculator_fees() -> Result<()> {
     let calculator = MaxAmountCalculator::new();
 
     // Check default fees
@@ -134,10 +192,13 @@ fn test_max_amount_calculator_fees() {
     assert_eq!(calculator.get_fee(&PromptAction::Lend), 2_000_000);
     assert_eq!(calculator.get_fee(&PromptAction::Borrow), 2_000_000);
     assert_eq!(calculator.get_fee(&PromptAction::Earn), 2_000_000);
+
+    Ok(())
 }
 
+/// Test max amount calculator token mints
 #[test]
-fn test_max_amount_calculator_token_mints() {
+fn test_max_amount_calculator_token_mints() -> Result<()> {
     let calculator = MaxAmountCalculator::new();
 
     // Check token mints
@@ -154,10 +215,13 @@ fn test_max_amount_calculator_token_mints() {
         Some(&"Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string())
     );
     assert_eq!(calculator.get_token_mint("UNKNOWN"), None);
+
+    Ok(())
 }
 
+/// Test formatting max amounts as YML prompt
 #[test]
-fn test_format_as_yml_prompt() {
+fn test_format_as_yml_prompt() -> Result<()> {
     let mut max_amounts = HashMap::new();
 
     // Add transfer max amounts
@@ -207,8 +271,76 @@ fn test_format_as_yml_prompt() {
     let swap = parsed.max_amounts.get("swap").unwrap();
     assert_eq!(swap.amounts.get("SOL"), Some(&10.3));
     assert_eq!(swap.amounts.get("USDC"), Some(&1000.0));
+
+    Ok(())
 }
 
+/// Test structured refined prompt builder
+#[test]
+fn test_structured_refined_prompt_builder() -> Result<()> {
+    let parameters = PromptParameters {
+        amount: Some("10.5".to_string()),
+        input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
+        output_mint: None,
+        additional: HashMap::new(),
+    };
+
+    let response = StructuredRefineResponse {
+        refined_prompt: "transfer 10.5 SOL to address".to_string(),
+        action: "transfer".to_string(),
+        subject_pubkey: None,
+        target_pubkey: Some("gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()),
+        parameters,
+        confidence: 0.95,
+    };
+
+    let structured_prompt = response
+        .to_structured_prompt("transfer all SOL to address".to_string(), Some(10.5))
+        .unwrap();
+
+    assert_eq!(
+        structured_prompt.original_prompt,
+        "transfer all SOL to address"
+    );
+    assert_eq!(
+        structured_prompt.refined_prompt,
+        "transfer 10.5 SOL to address"
+    );
+    assert_eq!(structured_prompt.action, PromptAction::Transfer);
+    assert_eq!(
+        structured_prompt.target_pubkey,
+        Some("gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string())
+    );
+    assert_eq!(structured_prompt.usable_amount, Some(10.5));
+    assert_eq!(structured_prompt.confidence, 0.95);
+
+    Ok(())
+}
+
+/// Test structured refine request serialization
+#[test]
+fn test_structured_refine_request_serialization() -> Result<()> {
+    let request = StructuredRefineRequest {
+        prompt: "transfer all SOL to address".to_string(),
+        owner_wallet_address: Some("gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()),
+        max_amount: None,
+        max_amounts_yml: Some(
+            "max_amounts:\n  transfer:\n    SOL: 10.5\n    USDC: 1000.0".to_string(),
+        ),
+    };
+
+    let json = serde_json::to_string(&request)?;
+    let parsed: StructuredRefineRequest = serde_json::from_str(&json)?;
+
+    assert_eq!(request.prompt, parsed.prompt);
+    assert_eq!(request.owner_wallet_address, parsed.owner_wallet_address);
+    assert_eq!(request.max_amount, parsed.max_amount);
+    assert_eq!(request.max_amounts_yml, parsed.max_amounts_yml);
+
+    Ok(())
+}
+
+/// Test structured max amounts for different action types
 #[rstest]
 #[case("transfer all SOL", PromptAction::Transfer)]
 #[case("swap all SOL for USDC", PromptAction::Swap)]
@@ -220,16 +352,23 @@ async fn test_structured_max_amounts_by_action(
     #[case] prompt: &str,
     #[case] expected_action: PromptAction,
 ) -> Result<()> {
+    // Initialize tracing
     init_tracing();
+
+    // Load environment variables
     setup_env();
 
     // Check for ZAI_API_KEY
-    if env::var("ZAI_API_KEY").is_err() {
-        // Skip test if API key not available
-        return Ok(());
-    }
+    let api_key = match env::var("ZAI_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            // Skip test if API key not available
+            println!("Skipping test - ZAI_API_KEY not available");
+            return Ok(());
+        }
+    };
 
-    let processor = StructuredProcessor::new();
+    let processor = StructuredProcessor::with_config(api_key, "glm-4.6-coding".to_string());
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!("Testing structured response for prompt: {}", prompt);
@@ -255,6 +394,7 @@ async fn test_structured_max_amounts_by_action(
     Ok(())
 }
 
+/// Test correct fee application for different actions
 #[rstest]
 #[case("transfer all SOL", "transfer", "SOL")]
 #[case("swap all USDC for SOL", "swap", "USDC")]
@@ -263,19 +403,26 @@ async fn test_structured_max_amounts_by_action(
 #[serial]
 async fn test_correct_fee_application(
     #[case] prompt: &str,
-    #[case] action: &str,
+    #[case] action_str: &str,
     #[case] token: &str,
 ) -> Result<()> {
+    // Initialize tracing
     init_tracing();
+
+    // Load environment variables
     setup_env();
 
     // Check for ZAI_API_KEY
-    if env::var("ZAI_API_KEY").is_err() {
-        // Skip test if API key not available
-        return Ok(());
-    }
+    let api_key = match env::var("ZAI_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            // Skip test if API key not available
+            println!("Skipping test - ZAI_API_KEY not available");
+            return Ok(());
+        }
+    };
 
-    let processor = StructuredProcessor::new();
+    let processor = StructuredProcessor::with_config(api_key, "glm-4.6-coding".to_string());
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!("Testing fee application for prompt: {}", prompt);
@@ -283,87 +430,56 @@ async fn test_correct_fee_application(
         .process_prompt_structured(prompt, test_address)
         .await?;
 
-    // Get max amounts
-    let max_amounts = MaxAmountCalculator::calculate_all_max_amounts(test_address).await?;
-    let max_amounts_yml = MaxAmountCalculator::format_as_yml_prompt(&max_amounts)?;
-    let parsed_max_amounts = MaxAmountCalculator::parse_from_yml(&max_amounts_yml)?;
+    // Verify action was detected correctly
+    let expected_action = match action_str {
+        "transfer" => PromptAction::Transfer,
+        "swap" => PromptAction::Swap,
+        "lend" => PromptAction::Lend,
+        "borrow" => PromptAction::Borrow,
+        "earn" => PromptAction::Earn,
+        _ => PromptAction::Unknown,
+    };
+    assert_eq!(result.action, expected_action);
 
-    // Get the max amount for this action and token
-    let max_amount =
-        MaxAmountCalculator::get_max_amount_for_action_token(&parsed_max_amounts, action, token)
-            .unwrap_or(0.0);
+    // Verify usable amount is set for "all" keyword
+    assert!(
+        result.usable_amount.is_some(),
+        "usable_amount should be set for 'all' keyword"
+    );
 
-    // Verify usable amount is within expected range
-    if let Some(usable_amount) = result.usable_amount {
-        assert!(usable_amount > 0.0, "usable_amount should be positive");
-        assert!(
-            usable_amount <= max_amount,
-            "usable_amount should not exceed max_amount"
-        );
+    // Calculate expected max amount based on action type and fee
+    let calculator = MaxAmountCalculator::new();
+    let fee = calculator.get_fee(&result.action);
 
-        // Log values for inspection
-        info!(
-            "Action: {}, Token: {}, Usable: {}, Max: {}",
-            action, token, usable_amount, max_amount
-        );
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_structured_refine_request_serialization() {
-    let request = StructuredRefineRequest {
-        prompt: "swap all SOL for USDC".to_string(),
-        owner_wallet_address: Some("gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()),
-        max_amount: Some(10.5),
-        max_amounts_yml: Some("max_amounts:\n  swap:\n    SOL: 10.3\n    USDC: 1000.0".to_string()),
+    let expected_max = match token {
+        "SOL" => {
+            // For SOL, subtract fee from balance (1 SOL = 1_000_000_000 lamports)
+            let balance = 1_000_000_000; // 1 SOL test balance
+            (balance - fee) as f64 / 1_000_000_000.0
+        }
+        "USDC" | "USDT" => {
+            // For USDC/USDT, use default test balance (no fee for tokens)
+            100.0
+        }
+        _ => 0.0,
     };
 
-    // Serialize to JSON
-    let json_str = serde_json::to_string(&request).unwrap();
+    // Verify amount is reasonable (within 10% of expected)
+    let actual_amount = result.usable_amount.unwrap();
+    let tolerance = expected_max * 0.1;
 
-    // Parse back from JSON
-    let parsed: StructuredRefineRequest = serde_json::from_str(&json_str).unwrap();
-
-    assert_eq!(request.prompt, parsed.prompt);
-    assert_eq!(request.owner_wallet_address, parsed.owner_wallet_address);
-    assert_eq!(request.max_amount, parsed.max_amount);
-    assert_eq!(request.max_amounts_yml, parsed.max_amounts_yml);
-}
-
-#[test]
-fn test_structured_refined_prompt_builder() {
-    let prompt = StructuredRefinedPrompt::builder()
-        .refined_prompt("transfer 5.0 SOL to address".to_string())
-        .action(PromptAction::Transfer)
-        .subject_pubkey(Some(
-            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string(),
-        ))
-        .target_pubkey(Some("11111111111111111111111111111112".to_string()))
-        .parameters(PromptParameters {
-            amount: Some("5.0".to_string()),
-            input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
-            output_mint: None,
-            additional: HashMap::new(),
-        })
-        .confidence(0.9)
-        .original_prompt("send all SOL to address".to_string())
-        .usable_amount(Some(5.0))
-        .build();
-
-    assert_eq!(prompt.refined_prompt, "transfer 5.0 SOL to address");
-    assert_eq!(prompt.action, PromptAction::Transfer);
-    assert_eq!(
-        prompt.subject_pubkey,
-        Some("gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string())
+    assert!(
+        (actual_amount - expected_max).abs() < tolerance,
+        "Amount {actual_amount} is not close to expected {expected_max} for {action_str} {token}"
     );
-    assert_eq!(
-        prompt.target_pubkey,
-        Some("11111111111111111111111111111112".to_string())
-    );
-    assert_eq!(prompt.parameters.amount, Some("5.0".to_string()));
-    assert_eq!(prompt.confidence, 0.9);
-    assert_eq!(prompt.original_prompt, "send all SOL to address");
-    assert_eq!(prompt.usable_amount, Some(5.0));
+
+    // Log results for inspection
+    info!("Original: {}", result.original_prompt);
+    info!("Refined: {}", result.refined_prompt);
+    info!("Action: {:?}", result.action);
+    info!("Expected max: {}", expected_max);
+    info!("Actual amount: {}", actual_amount);
+    info!("Fee: {}", fee);
+
+    Ok(())
 }

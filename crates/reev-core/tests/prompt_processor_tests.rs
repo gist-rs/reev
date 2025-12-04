@@ -84,7 +84,7 @@ async fn test_basic_prompt_processing(#[case] prompt: &str) -> Result<()> {
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     let result = processor.process_prompt(prompt, test_address).await?;
@@ -137,7 +137,7 @@ async fn test_all_keyword_processing(#[case] prompt: &str) -> Result<()> {
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!("Starting prompt processing for: {}", prompt);
@@ -223,7 +223,7 @@ async fn test_typo_correction(#[case] prompt: &str) -> Result<()> {
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     let result = processor.process_prompt(prompt, test_address).await?;
@@ -284,7 +284,7 @@ async fn test_structured_response(
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!("Testing structured response for prompt: {}", prompt);
@@ -354,7 +354,7 @@ async fn test_structured_response_all_keyword(#[case] prompt: &str) -> Result<()
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!(
@@ -449,7 +449,7 @@ async fn test_structured_response_typos(
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!(
@@ -520,7 +520,7 @@ async fn test_all_keyword_with_typos(#[case] prompt: &str) -> Result<()> {
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!(
@@ -636,7 +636,7 @@ async fn test_spl_token_extraction(
         panic!("ZAI_API_KEY not set");
     }
 
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let test_address = "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq";
 
     info!("Testing SPL token extraction for prompt: {}", prompt);

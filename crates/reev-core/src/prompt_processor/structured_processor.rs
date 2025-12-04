@@ -170,12 +170,29 @@ impl StructuredProcessor {
             serde_json::to_string_pretty(&payload)?
         );
 
+        // Use correct API endpoint and model name for ZAI API
+        let api_endpoint = "https://api.z.ai/api/coding/paas/v4/chat/completions";
+        let model_name = if self.model_name == "glm-4.6-coding" {
+            "glm-4.6"
+        } else {
+            &self.model_name
+        };
+
+        // Update the model in the payload
+        let mut fixed_payload = payload.clone();
+        if let Some(obj) = fixed_payload.as_object_mut() {
+            obj.insert(
+                "model".to_string(),
+                serde_json::Value::String(model_name.to_string()),
+            );
+        }
+
         // Send request to LLM
         let response = client
-            .post("https://api.zhipu.ai/v4/chat/completions")
+            .post(api_endpoint)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .json(&payload)
+            .json(&fixed_payload)
             .send()
             .await
             .map_err(|e| anyhow!("Failed to send request to LLM: {e}"))?;

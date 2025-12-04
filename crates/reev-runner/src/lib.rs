@@ -843,7 +843,7 @@ pub async fn run_recovery_flow(
     let wallet_context = reev_types::flow::WalletContext::new(wallet.to_string());
 
     // Generate refined prompt using reev-core's PromptProcessor
-    let mut processor = PromptProcessor::new();
+    let processor = PromptProcessor::new();
     let refined_prompt = processor
         .process_prompt(prompt, wallet)
         .await
