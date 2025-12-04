@@ -32,36 +32,20 @@ fn setup_env() {
 
 /// Extract amount from a refined prompt for verification
 fn extract_amount_from_refined_prompt(refined: &str) -> Result<f64> {
-    // Convert to lowercase for case-insensitive matching
-    let refined_lower = refined.to_lowercase();
-
-    // Try various patterns for extracting amount from refined prompt
-    // Expected patterns: "transfer {amount} SOL", "send {amount} SOL", "swap {amount} SOL", etc.
-    let patterns = ["transfer ", "send ", "swap "];
-
-    for pattern in &patterns {
-        if let Some(start) = refined_lower.find(pattern) {
-            // Find amount after pattern
-            let after_pattern = &refined_lower[start + pattern.len()..];
-            if let Some(end) = after_pattern.find(" sol") {
-                match after_pattern[..end].parse::<f64>() {
-                    Ok(amount) => return Ok(amount),
-                    Err(_) => continue, // Try next pattern if parsing fails
-                }
-            }
-        }
-    }
-
-    // If standard patterns don't work, try to find any number followed by SOL (case-insensitive)
-    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+[Ss][Oo][Ll]")?;
+    // Try to find any number followed by a space and then a token name
+    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)\s+(SOL|USDC|USDT)")?;
     if let Some(captures) = re.captures(refined) {
         if let Some(amount_str) = captures.get(1) {
             return Ok(amount_str.as_str().parse::<f64>()?);
         }
     }
 
-    // Special case for "0 SOL" which indicates insufficient balance
-    if refined_lower.contains("0 sol") {
+    // Special case for "0 SOL", "0 USDC", or "0 USDT" which indicates insufficient balance
+    let refined_lower = refined.to_lowercase();
+    if refined_lower.contains("0 sol")
+        || refined_lower.contains("0 usdc")
+        || refined_lower.contains("0 usdt")
+    {
         return Ok(0.0);
     }
 
@@ -385,11 +369,23 @@ async fn test_structured_max_amounts_by_action(
         "usable_amount should be set for 'all' keyword"
     );
 
+    // Extract amount from refined prompt for verification
+    let refined_amount = extract_amount_from_refined_prompt(&result.refined_prompt)?;
+
+    // Verify amount in refined prompt matches usable_amount
+    if let Some(usable_amount) = result.usable_amount {
+        assert!(
+            (refined_amount - usable_amount).abs() < 0.000001,
+            "Amount in refined prompt ({refined_amount}) should match usable_amount ({usable_amount})"
+        );
+    }
+
     // Log results for inspection
     info!("Original: {}", result.original_prompt);
     info!("Refined: {}", result.refined_prompt);
     info!("Action: {:?}", result.action);
     info!("Usable amount: {:?}", result.usable_amount);
+    info!("Refined amount: {}", refined_amount);
 
     Ok(())
 }
@@ -464,10 +460,20 @@ async fn test_correct_fee_application(
         _ => 0.0,
     };
 
-    // Verify amount is reasonable (within 10% of expected)
-    let actual_amount = result.usable_amount.unwrap();
-    let tolerance = expected_max * 0.1;
+    // Extract amount from refined prompt for verification
+    let refined_amount = extract_amount_from_refined_prompt(&result.refined_prompt)?;
 
+    // Verify amount in refined prompt matches usable_amount
+    if let Some(usable_amount) = result.usable_amount {
+        assert!(
+            (refined_amount - usable_amount).abs() < 0.000001,
+            "Amount in refined prompt ({refined_amount}) should match usable_amount ({usable_amount})"
+        );
+    }
+
+    // Verify amount is reasonable (within 10% of expected)
+    let actual_amount = result.usable_amount.unwrap_or(0.0);
+    let tolerance = expected_max * 0.1;
     assert!(
         (actual_amount - expected_max).abs() < tolerance,
         "Amount {actual_amount} is not close to expected {expected_max} for {action_str} {token}"
@@ -479,6 +485,7 @@ async fn test_correct_fee_application(
     info!("Action: {:?}", result.action);
     info!("Expected max: {}", expected_max);
     info!("Actual amount: {}", actual_amount);
+    info!("Refined amount: {}", refined_amount);
     info!("Fee: {}", fee);
 
     Ok(())

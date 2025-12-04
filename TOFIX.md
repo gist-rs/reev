@@ -16,3 +16,9 @@ action must be enum, strum, no string allow
             "earn" => PromptAction::Earn,
             _ => PromptAction::Unknown,
         }
+
+
+why extract_amount_from_refined_prompt fn is not same as [@prompt_processor_tests.rs](file:///Users/katopz/git/gist/reev/crates/reev-core/tests/prompt_processor_tests.rs) ?
+we should dry to have only one buggable to crates/reev-core/tests/common
+
+which one is correct btw?
