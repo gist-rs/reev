@@ -5,6 +5,10 @@
 
 use reev_types::flow::WalletContext;
 
+// Import jup-sdk for token price fetching
+use jup_sdk::api::tokens::search_tokens;
+use jup_sdk::models::{TokenInfo, TokenSearchParams};
+
 // Define SolanaEnvironment locally as it's not available in reev-types
 #[derive(Debug, Clone)]
 pub struct SolanaEnvironment {
@@ -99,47 +103,73 @@ impl ContextResolver {
         let pubkey_obj = solana_sdk::pubkey::Pubkey::from_str(pubkey)
             .map_err(|e| anyhow::anyhow!("Invalid pubkey: {e}"))?;
 
-        match rpc_client.get_account(&pubkey_obj) {
-            Ok(account) => {
-                context.sol_balance = account.lamports;
-                info!(
-                    "✅ Fetched SOL balance from SURFPOOL: {} lamports",
-                    account.lamports
-                );
-            }
-            Err(e) => {
-                info!(
-                    "⚠️ Failed to fetch SOL balance from SURFPOOL: {}. Using fallback values.",
-                    e
-                );
-                // Fallback to mock values if SURFPOOL is not available
-                context.sol_balance = 5_000_000_000; // 5 SOL fallback
-            }
-        }
+        // Fetch SOL balance from SURFPOOL
+        let account = rpc_client
+            .get_account(&pubkey_obj)
+            .map_err(|e| anyhow::anyhow!("Failed to fetch SOL balance from SURFPOOL: {e}"))?;
 
-        // Fetch common token balances (USDC, USDT, etc.)
-        let common_tokens = vec![
-            ("USDC", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 6),
-            ("USDT", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", 6),
-        ];
+        context.sol_balance = account.lamports;
+        info!(
+            "✅ Fetched SOL balance from SURFPOOL: {} lamports",
+            account.lamports
+        );
 
         let mut total_value_usd = 0.0;
 
-        // Get token prices (in a real implementation, these would come from a price oracle)
-        let token_prices = std::collections::HashMap::from([
-            ("USDC", 1.0),  // $1 per USDC
-            ("USDT", 1.0),  // $1 per USDT
-            ("SOL", 150.0), // $150 per SOL (example price)
-        ]);
+        // Fetch token information including prices from Jupiter API
+        // Create a comma-separated list of mint addresses to query
+        let token_mints = [
+            "So11111111111111111111111111111111111111112",  // SOL
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT
+        ]
+        .join(",");
 
-        // Add SOL value to total
-        total_value_usd += (context.sol_balance as f64 / 10_f64.powi(9))
-            * token_prices.get("SOL").unwrap_or(&150.0);
+        // Create the search parameters
+        let params = TokenSearchParams { query: token_mints };
 
-        // For each common token, try to fetch the balance
-        for (symbol, mint, decimals) in common_tokens {
-            let mint_pubkey = solana_sdk::pubkey::Pubkey::from_str(mint)
-                .map_err(|e| anyhow::anyhow!("Invalid mint address {mint}: {e}"))?;
+        // Fetch token information from Jupiter API
+        let tokens = search_tokens(&params).await.map_err(|e| {
+            anyhow::anyhow!("Failed to fetch token information from Jupiter API: {e}")
+        })?;
+
+        info!("✅ Fetched {} tokens from Jupiter API", tokens.len());
+
+        // Create a map of mint -> token info for easier lookup
+        let mut token_info_map = std::collections::HashMap::<String, &TokenInfo>::new();
+        for token in &tokens {
+            token_info_map.insert(token.id.clone(), token);
+        }
+
+        // Calculate SOL value
+        if let Some(sol_token) = token_info_map.get("So11111111111111111111111111111111111111112") {
+            if let Some(sol_price) = sol_token.usd_price {
+                let sol_value = (context.sol_balance as f64 / 10_f64.powi(9)) * sol_price;
+                total_value_usd += sol_value;
+                info!(
+                    "✅ SOL value: ${:.2} ({} SOL @ ${:.2}/SOL)",
+                    sol_value,
+                    context.sol_balance / 1_000_000_000,
+                    sol_price
+                );
+            } else {
+                return Err(anyhow::anyhow!("SOL price not available from Jupiter API"));
+            }
+        } else {
+            return Err(anyhow::anyhow!(
+                "SOL token information not found from Jupiter API"
+            ));
+        }
+
+        // Fetch token balances and calculate their values
+        for token in &tokens {
+            // Skip SOL which we've already processed
+            if token.id == "So11111111111111111111111111111111111111112" {
+                continue;
+            }
+
+            let mint_pubkey = solana_sdk::pubkey::Pubkey::from_str(&token.id)
+                .map_err(|e| anyhow::anyhow!("Invalid mint address {}: {}", token.id, e))?;
 
             // Get the associated token account address
             let ata = spl_associated_token_account::get_associated_token_address(
@@ -152,31 +182,42 @@ impl ContextResolver {
                     let amount = balance.amount.parse::<u64>().unwrap_or(0);
                     if amount > 0 {
                         context.add_token_balance(
-                            mint.to_string(),
-                            reev_types::benchmark::TokenBalance::new(mint.to_string(), amount)
-                                .with_decimals(decimals)
-                                .with_symbol(symbol.to_string()),
+                            token.id.clone(),
+                            reev_types::benchmark::TokenBalance::new(token.id.clone(), amount)
+                                .with_decimals(token.decimals)
+                                .with_symbol(token.symbol.clone()),
                         );
 
-                        // Add to total USD value
-                        let token_value = (amount as f64 / 10_f64.powi(decimals as i32))
-                            * token_prices.get(symbol).unwrap_or(&1.0);
-                        total_value_usd += token_value;
+                        // Add token price to context if available
+                        if let Some(price) = token.usd_price {
+                            context.add_token_price(token.id.clone(), price);
 
-                        info!(
-                            "✅ Fetched {} balance from SURFPOOL: {} (raw: {})",
-                            symbol, balance.ui_amount_string, amount
-                        );
+                            // Add to total USD value
+                            let token_value =
+                                (amount as f64 / 10_f64.powi(token.decimals as i32)) * price;
+                            total_value_usd += token_value;
+
+                            info!(
+                                "✅ {} value: ${:.2} ({} {} @ ${:.6})",
+                                token.symbol,
+                                token_value,
+                                amount as f64 / 10_f64.powi(token.decimals as i32),
+                                token.symbol,
+                                price
+                            );
+                        } else {
+                            return Err(anyhow::anyhow!(
+                                "Price not available for token: {}",
+                                token.symbol
+                            ));
+                        }
                     }
                 }
                 Err(e) => {
-                    debug!("⚠️ Failed to fetch {} balance: {}", symbol, e);
+                    debug!("⚠️ Failed to fetch {} balance: {}", token.symbol, e);
                     // Not all accounts will have all tokens, so this is expected
                 }
             }
-
-            // Add token price to context
-            context.add_token_price(mint.to_string(), *token_prices.get(symbol).unwrap_or(&1.0));
         }
 
         context.total_value_usd = total_value_usd;

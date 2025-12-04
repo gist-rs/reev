@@ -36,6 +36,9 @@ bs58 = "0.5"
 ed25519-dalek = "2.0"
 spl-associated-token-account = { workspace = true }
 
+# Jupiter SDK for token price fetching
+jup-sdk = { path = "../../protocols/jupiter/jup-sdk" }
+
 # Additional required dependencies
 # Additional dependencies
 solana-client.workspace = true
