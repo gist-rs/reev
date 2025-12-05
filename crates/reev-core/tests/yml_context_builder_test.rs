@@ -63,7 +63,14 @@ fn create_swap_step_result() -> StepResult {
                     "input_mint": "So11111111111111111111111111111111111111112", // SOL
                     "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
                     "input_amount": 1000000000,
-                    "output_amount": 1000000000
+                    "output_amount": 1000000000,
+                    "slippage_bps": 100,
+                    "instruction_count": 5,
+                    "operation_type": "swap",
+                    "status": "success",
+                    "completed": true,
+                    "transaction_signature": "5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5",
+                    "message": "Successfully swapped 1 SOL for 1000 USDC"
                 }
             }
         ]),
@@ -88,7 +95,13 @@ fn create_lend_step_result() -> StepResult {
             {
                 "jupiter_lend": {
                     "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                    "amount": 950000000 // 950 USDC
+                    "amount": 950000000, // 950 USDC
+                    "protocol": Some("Mango".to_string()),
+                    "operation_type": "lend".to_string(),
+                    "status": "success".to_string(),
+                    "completed": true,
+                    "transaction_signature": Some("5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5".to_string()),
+                    "message": "Successfully lent 950 USDC".to_string()
                 }
             }
         ]),

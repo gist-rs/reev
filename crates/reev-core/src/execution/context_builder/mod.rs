@@ -281,7 +281,7 @@ impl MinimalAiContext {
                 }
 
                 // Add extracted key info using typed KeyInfo enum
-                for (_key, value) in &result.key_info {
+                for value in result.key_info.values() {
                     // Try to deserialize into KeyInfo enum
                     if let Ok(key_info) = serde_json::from_value::<
                         crate::execution::context_builder::types::KeyInfo,
@@ -343,7 +343,7 @@ impl YmlContextBuilder {
 
         // Extract key information based on tool calls using typed deserialization
         if result.success {
-            if let Some(tool_results) = result.get_tool_results().map(|v| serde_json::Value::Array(v)) {
+            if let Some(tool_results) = result.get_tool_results().map(serde_json::Value::Array) {
                 if let Some(results_array) = tool_results.as_array() {
                     for tool_result in results_array {
                         // Try to deserialize tool result into typed structs
@@ -385,6 +385,15 @@ impl YmlContextBuilder {
                             if let Ok(lend_result) =
                                 serde_json::from_value::<JupiterLendResult>(jupiter_lend.clone())
                             {
+                                // Create typed wrapper for tool result
+                                let _tool_wrapper = ToolResultWrapper {
+                                    tool_name: "jupiter_lend".to_string(),
+                                    success: true,
+                                    data: jupiter_lend.clone(),
+                                    error: None,
+                                    execution_time_ms: None,
+                                    metadata: HashMap::new(),
+                                };
                                 // Extract key information using the trait implementation
                                 let lend_key_info = lend_result.extract_key_info();
                                 key_info.extend(lend_key_info);
@@ -432,6 +441,16 @@ impl YmlContextBuilder {
                                 "operation".to_string(),
                                 serde_json::to_value(KeyInfo::Operation(op_info)).unwrap(),
                             );
+
+                            // Create typed wrapper for generic operation result
+                            let _tool_wrapper = ToolResultWrapper {
+                                tool_name: operation_type.to_string(),
+                                success: true,
+                                data: tool_result.clone(),
+                                error: None,
+                                execution_time_ms: None,
+                                metadata: HashMap::new(),
+                            };
                         }
                     }
                 }
