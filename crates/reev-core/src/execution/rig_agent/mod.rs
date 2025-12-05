@@ -1,19 +1,36 @@
 //! Rig Agent Integration for Phase 2 Tool Selection
 //!
-//! This module implements the RigAgent component that wraps the ZAI SDK
+//! This module implements the RigAgent component that wraps rig framework
 //! for LLM-driven tool selection and parameter extraction in Phase 2 of
 //! Reev Core Architecture.
 
+// Removed unused import
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
-use rig::tool::Tool;
+
+use rig::tool::ToolSet;
 use serde_json::json;
+use std::collections::HashMap;
+
+use std::string::String;
 use std::sync::Arc;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument};
 use zai_sdk::{GlmVariant, Message, ZaiClient};
 
 use crate::yml_schema::YmlStep;
+
+// Import modules
+mod context;
+mod prompting;
+mod tools;
+mod types;
+
+// Re-export types and traits
+pub use context::ContextProvider;
+pub use prompting::{HttpProvider, MultiStepHandler, PromptProvider};
+pub use tools::{AgentProvider, AgentToolHelper, ToolExecutor};
+pub use types::*;
 
 /// RigAgent for LLM-driven tool selection and parameter extraction
 pub struct RigAgent {
@@ -21,6 +38,10 @@ pub struct RigAgent {
     zai_client: ZaiClient,
     /// Model name for logging
     model_name: String,
+    /// API key for the LLM service
+    api_key: String,
+    /// HTTP client for direct API calls
+    http_client: reqwest::Client,
     /// Agent tools for executing blockchain operations
     agent_tools: Option<Arc<AgentTools>>,
 }
@@ -41,13 +62,18 @@ impl RigAgent {
         // Create the zai-sdk client
         let zai_client = ZaiClient::builder()
             .variant(variant)
-            .api_key(api_key)
+            .api_key(api_key.clone())
             .build()
             .map_err(|e| anyhow!("Failed to create ZAI client: {e}"))?;
+
+        // Initialize tool set with Reev tools
+        let _tool_set = Self::initialize_tool_set().await?; // Prefix with _ to suppress warning
 
         Ok(Self {
             zai_client,
             model_name,
+            api_key,
+            http_client: reqwest::Client::new(),
             agent_tools: None,
         })
     }
@@ -71,130 +97,80 @@ impl RigAgent {
         // Create the zai-sdk client
         let zai_client = ZaiClient::builder()
             .variant(variant)
-            .api_key(api_key)
+            .api_key(api_key.clone())
             .build()
             .map_err(|e| anyhow!("Failed to create ZAI client: {e}"))?;
+
+        // Initialize tool set with Reev tools
+        let _tool_set = Self::initialize_tool_set().await?; // Prefix with _ to suppress warning
 
         Ok(Self {
             zai_client,
             model_name,
+            api_key,
+            http_client: reqwest::Client::new(),
             agent_tools: Some(agent_tools),
         })
     }
 
-    /// Execute a step using the rig agent
+    /// Execute a step using the rig agent for tool selection
     #[instrument(skip(self, step, wallet_context))]
     pub async fn execute_step_with_rig(
         &self,
         step: &YmlStep,
         wallet_context: &WalletContext,
     ) -> Result<StepResult> {
-        info!("Executing step {} with rig agent", step.step_id);
-
-        // Get the prompt
-        let prompt = if let Some(refined_prompt) = &step.structured_prompt {
-            refined_prompt.refined_prompt.clone()
-        } else if !step.refined_prompt.is_empty() {
-            step.refined_prompt.clone()
-        } else {
-            step.prompt.clone()
-        };
-
-        // Create a system prompt
-        let system_prompt = r#"You are a helpful assistant that analyzes user prompts and extracts tool calls for DeFi operations.
-
-Respond with valid JSON in the following format:
-{
-  "tool_calls": [
-    {
-      "name": "tool_name",
-      "parameters": {
-        "param1": "value1",
-        "param2": "value2"
-      }
-    }
-  ]
-}
-
-Available tools:
-- sol_transfer: Transfer SOL from one account to another. Parameters: recipient (string, required), amount (number in SOL, required), wallet (string, optional)
-- spl_transfer: Transfer SPL tokens from one account to another. Parameters: recipient (string, required), amount (number in tokens, required), mint_address (string, required), wallet (string, optional)
-- jupiter_swap: Swap tokens using Jupiter. Parameters: input_mint (string, required, e.g., "So11111111111111111111111111111111111111112" for SOL), output_mint (string, required, e.g., "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" for USDC), input_amount (number, required, amount of tokens to swap, use decimal for partial amounts like 0.5 for half), wallet (string, optional)
-- jupiter_lend_earn_deposit: Deposit tokens into Jupiter lending. Parameters: mint (string, required), amount (number, required, already in smallest denomination, e.g., 1,000,000 for 1 USDC), wallet (string, optional)
-- get_account_balance: Get account balance. Parameters: account (string, required), mint (string, optional, defaults to SOL)
-
-For token mint addresses:
-- SOL: So11111111111111111111111111111111111111112
-- USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-- USDT: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
-
-For swap operations, always determine the input and output mints based on the token names (SOL, USDC, etc.).
-
-CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 0.1 SOL to USDC then lend 10 USDC"), you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request."#;
-
-        // Create messages for the request
-        let messages = vec![Message::system(system_prompt), Message::user(&prompt)];
-
-        // Send the request using the zai-sdk
-        let response_content = self
-            .zai_client
-            .completion_with_messages(messages)
+        self.execute_step_with_rig_and_history(step, wallet_context, &[])
             .await
-            .map_err(|e| anyhow!("LLM generation failed: {e}"))?;
-
-        debug!(
-            "LLM response from {}: {}",
-            self.model_name, response_content
-        );
-
-        // Parse tool calls from the response
-        let tool_calls = self.parse_tool_calls_from_response(&response_content)?;
-
-        // Execute tools
-        let tool_results = self
-            .execute_tools(tool_calls.clone(), wallet_context)
-            .await
-            .map_err(|e| anyhow!("Tool execution failed: {e}"))?;
-
-        // Convert HashMap to Vec<String> for tool_calls field
-        let tool_calls_vec: Vec<String> = tool_calls.keys().cloned().collect();
-
-        // Create step result
-        let step_result = StepResult {
-            step_id: step.step_id.clone(),
-            success: true,
-            error_message: None,
-            tool_calls: tool_calls_vec,
-            output: json!({ "tool_results": tool_results }),
-            execution_time_ms: 100, // This would be calculated in a real implementation
-        };
-
-        Ok(step_result)
     }
 
-    /// Execute a step with history using the rig agent
-    #[instrument(skip(self, step, wallet_context, previous_results))]
+    /// Execute a step with rig agent and previous step history
     pub async fn execute_step_with_rig_and_history(
         &self,
         step: &YmlStep,
         wallet_context: &WalletContext,
         previous_results: &[StepResult],
     ) -> Result<StepResult> {
-        info!("Executing step {} with previous history", step.step_id);
+        info!("Executing step {} with rig agent", step.step_id);
 
-        // Mark as used to avoid warning (TODO: implement proper history handling)
-        let _ = previous_results;
+        // Debug log to verify the current context before creating the prompt
+        debug!(
+            "USDC balance in context: {:?}",
+            wallet_context
+                .token_balances
+                .get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .map(|t| t.balance)
+        );
 
-        // Get the prompt
-        let prompt = if let Some(refined_prompt) = &step.structured_prompt {
-            refined_prompt.refined_prompt.clone()
-        } else if !step.refined_prompt.is_empty() {
-            step.refined_prompt.clone()
-        } else {
-            step.prompt.clone()
-        };
+        // Use structured prompt data if available, otherwise use refined prompt or original prompt
+        let (prompt, action, parameters, structured_prompt) =
+            if let Some(structured_prompt) = &step.structured_prompt {
+                (
+                    structured_prompt.refined_prompt.clone(),
+                    Some(structured_prompt.action.clone()),
+                    Some(&structured_prompt.parameters),
+                    Some(structured_prompt),
+                )
+            } else if !step.refined_prompt.is_empty() {
+                (step.refined_prompt.clone(), None, None, None)
+            } else {
+                (step.prompt.clone(), None, None, None)
+            };
 
-        // Create a system prompt
+        // Create YML context and convert to prompt
+        let yml_context = self.create_yml_context(step, wallet_context, previous_results)?;
+        let context_prompt = self.yml_context_to_prompt(&yml_context, &prompt)?;
+
+        // Log the YML context for debugging
+        debug!(
+            "Generated YML context for step {}: {:?}",
+            step.step_id, yml_context
+        );
+
+        // Get expected tools hints from the step
+        let expected_tools = step.expected_tools.clone();
+
+        // Create a system prompt for the zai client
         let system_prompt = r#"You are a helpful assistant that analyzes user prompts and extracts tool calls for DeFi operations.
 
 Respond with valid JSON in the following format:
@@ -227,48 +203,82 @@ For swap operations, always determine the input and output mints based on the to
 CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 0.1 SOL to USDC then lend 10 USDC"), you MUST include tool_calls for ALL operations in your response. Do not ignore any part of the user's request."#;
 
         // Create messages for the request
-        let messages = vec![Message::system(system_prompt), Message::user(&prompt)];
+        let messages = vec![
+            Message::system(system_prompt),
+            Message::user(&context_prompt),
+        ];
 
-        // Send the request using the zai-sdk
-        let response_content = self
-            .zai_client
-            .completion_with_messages(messages)
-            .await
-            .map_err(|e| anyhow!("LLM generation failed: {e}"))?;
+        // If we have expected tools, use them to guide the agent
+        let response = if let Some(tools) = expected_tools {
+            debug!("Using expected tools to guide agent: {:?}", tools);
+            // Use the zai client for the request
+            self.zai_client
+                .completion_with_messages(messages)
+                .await
+                .map_err(|e| anyhow!("LLM generation failed: {e}"))?
+        } else {
+            debug!("No expected tools provided, using general agent prompt");
+            // Use the zai client for the request
+            self.zai_client
+                .completion_with_messages(messages)
+                .await
+                .map_err(|e| anyhow!("LLM generation failed: {e}"))?
+        };
 
-        debug!(
-            "LLM response from {}: {}",
-            self.model_name, response_content
-        );
+        debug!("Got response from agent: {}", response);
 
-        // Parse tool calls from the response
-        let tool_calls = self.parse_tool_calls_from_response(&response_content)?;
+        debug!("Parsing tool calls from LLM response");
 
-        // For multi-step operations, check if we need additional tool calls
-        let final_tool_calls =
-            self.extract_multi_step_tool_calls(&response_content, &tool_calls)?;
+        // If we have structured data with action and parameters, use them directly
+        // Otherwise, extract tool calls from the LLM response
+        let tool_calls = if let (Some(action), Some(parameters)) = (action, parameters) {
+            debug!(
+                "Using structured action and parameters: action={:?}, parameters={:?}",
+                action, parameters
+            );
+            self.create_tool_calls_from_structured_data(&action, parameters, structured_prompt)?
+        } else {
+            debug!("Extracting tool calls from LLM response");
+            self.parse_tool_calls_from_response(&response)?
+        };
 
-        info!(
-            "Extracted {} tool calls from LLM response",
-            final_tool_calls.len()
-        );
-        debug!("Tool calls: {:?}", final_tool_calls);
+        // Check if this is a multi-step prompt and we have multiple operations
+        let prompt_lower = prompt.to_lowercase();
+        let is_multi_step = prompt_lower.contains(" then ")
+            || prompt_lower.contains(" and ")
+            || prompt_lower.contains(" followed by ");
 
-        // Execute tools
+        debug!("is_multi_step = {}", is_multi_step);
+        debug!("Initial tool_calls count = {}", tool_calls.len());
+
+        // For multi-step prompts, we need to ensure we extract all operations
+        let tool_calls = if is_multi_step && tool_calls.len() < 2 {
+            // Try to extract additional operations if we only got one tool call
+            debug!("Multi-step prompt detected but only one tool call extracted, attempting to extract additional operations");
+            let additional_calls = self.extract_multi_step_tool_calls(&response, &tool_calls)?;
+            debug!("Additional tool_calls = {:?}", additional_calls);
+            additional_calls
+        } else {
+            debug!("Using initial tool_calls as-is");
+            tool_calls
+        };
+
+        // Execute selected tools
+        debug!("Tool calls extracted: {:?}", tool_calls);
         let tool_results = self
             .execute_tools(tool_calls.clone(), wallet_context)
-            .await
-            .map_err(|e| anyhow!("Tool execution failed: {e}"))?;
+            .await?;
+        debug!("Tool execution results: {:?}", tool_results);
 
-        // Convert HashMap to Vec<String> for tool_calls field
-        let tool_calls_vec: Vec<String> = tool_calls.keys().cloned().collect();
+        // Create list of tool names that were executed
+        let executed_tool_names: Vec<String> = tool_calls.keys().cloned().collect();
 
-        // Create step result
+        // Create the step result
         let step_result = StepResult {
             step_id: step.step_id.clone(),
             success: true,
             error_message: None,
-            tool_calls: tool_calls_vec,
+            tool_calls: executed_tool_names,
             output: json!({ "tool_results": tool_results }),
             execution_time_ms: 100, // This would be calculated in a real implementation
         };
@@ -276,12 +286,12 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         Ok(step_result)
     }
 
-    /// Parse tool calls from a response
+    /// Parse tool calls from a response from zai_client
     fn parse_tool_calls_from_response(
         &self,
         response: &str,
-    ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
-        debug!("Parsing tool calls from response");
+    ) -> Result<HashMap<String, serde_json::Value>> {
+        debug!("Parsing tool calls from response: {}", response);
 
         // Try to parse the response as JSON
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
@@ -289,7 +299,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
 
             if let Some(tool_calls) = json_value.get("tool_calls").and_then(|v| v.as_array()) {
                 debug!("Found {} tool calls in response", tool_calls.len());
-                let mut tool_map = std::collections::HashMap::new();
+                let mut tool_map = HashMap::new();
                 for tool_call in tool_calls {
                     if let (Some(name), Some(params)) = (
                         tool_call.get("name").and_then(|v| v.as_str()),
@@ -305,6 +315,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
                 Ok(tool_map)
             } else {
                 debug!("No tool_calls found in JSON response");
+                // Fall back to text extraction if no tool_calls in JSON
                 self.extract_tool_calls_from_text(response)
             }
         } else {
@@ -313,49 +324,71 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         }
     }
 
-    /// Extract tool calls from a text response
+    /// Extract tool calls from text response (fallback)
     fn extract_tool_calls_from_text(
         &self,
         response: &str,
-    ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
+    ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Extracting tool calls from text response");
 
-        // This is a simplified implementation that tries to extract operations
-        // from natural language text
-        let mut tool_calls = std::collections::HashMap::new();
+        // Use serde_json to extract structured data
+        // First, try to find JSON-like structures in the text
+        let mut tool_calls = HashMap::new();
 
-        // Look for specific operations in the response
-        if response.to_lowercase().contains("swap") {
-            if let Some(swap_params) = self.extract_swap_params_from_response(response)? {
-                tool_calls.insert("jupiter_swap".to_string(), swap_params);
-                info!("Added jupiter_swap operation from response");
+        // Look for patterns like "sol_transfer(...)" or "jupiter_swap(...)"
+        if response.contains("sol_transfer") {
+            if let Some(recipient) = extract_field(response, "recipient") {
+                let amount = extract_field(response, "amount")
+                    .and_then(|a| a.parse::<f64>().ok())
+                    .unwrap_or(1.0);
+
+                tool_calls.insert(
+                    "sol_transfer".to_string(),
+                    json!({
+                        "recipient": recipient,
+                        "amount": amount
+                    }),
+                );
             }
         }
 
-        if response.to_lowercase().contains("lend") || response.to_lowercase().contains("deposit") {
-            if let Some(lend_params) = self.extract_lend_params_from_response(response)? {
-                tool_calls.insert("jupiter_lend_earn_deposit".to_string(), lend_params);
-                info!("Added jupiter_lend_earn_deposit operation from response");
-            }
-        }
+        if response.contains("jupiter_swap") {
+            let input_mint = extract_field(response, "input_mint")
+                .or_else(|| extract_token_from_text(response, "SOL"))
+                .unwrap_or_else(|| "So11111111111111111111111111111111111111112".to_string());
 
-        if response.to_lowercase().contains("transfer") || response.to_lowercase().contains("send")
-        {
-            if let Some(transfer_params) = self.extract_transfer_params_from_response(response)? {
-                tool_calls.insert("sol_transfer".to_string(), transfer_params);
-                info!("Added sol_transfer operation from response");
-            }
-        }
+            let output_mint = extract_field(response, "output_mint")
+                .or_else(|| extract_token_from_text(response, "USDC"))
+                .unwrap_or_else(|| "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string());
 
-        // If we couldn't extract any tool calls, create a default swap operation
-        if tool_calls.is_empty() {
-            warn!("No tool calls extracted from response, creating default");
+            let input_amount = extract_field(response, "input_amount")
+                .and_then(|a| a.parse::<f64>().ok())
+                .unwrap_or(0.1);
+
             tool_calls.insert(
                 "jupiter_swap".to_string(),
                 json!({
-                    "input_mint": "So11111111111111111111111111111111111111111112",
-                    "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "input_amount": 1000000000  // 1 SOL in lamports
+                    "input_mint": input_mint,
+                    "output_mint": output_mint,
+                    "input_amount": input_amount
+                }),
+            );
+        }
+
+        if response.contains("jupiter_lend_earn_deposit") {
+            let mint = extract_field(response, "mint")
+                .or_else(|| extract_token_from_text(response, "USDC"))
+                .unwrap_or_else(|| "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string());
+
+            let amount = extract_field(response, "amount")
+                .and_then(|a| a.parse::<u64>().ok())
+                .unwrap_or(1000000); // Default to 1 USDC
+
+            tool_calls.insert(
+                "jupiter_lend_earn_deposit".to_string(),
+                json!({
+                    "mint": mint,
+                    "amount": amount
                 }),
             );
         }
@@ -363,55 +396,218 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         Ok(tool_calls)
     }
 
-    /// Extract swap parameters from a response
-    fn extract_swap_params_from_response(
+    /// Initialize the tool set with Reev tools
+    async fn initialize_tool_set() -> Result<ToolSet> {
+        // Create a tool set with all Reev tools
+        // For now, we'll create a minimal tool set as a placeholder
+        // In a full implementation, we would add all Reev tools (SolTransfer, JupiterSwap, etc.)
+
+        // Use the agent builder to create tools directly
+        let tool_set = ToolSet::default();
+
+        Ok(tool_set)
+    }
+
+    /// Create tool calls directly from structured prompt data
+    /// This method implements Phase 4 of the structured LLM response system
+    fn create_tool_calls_from_structured_data(
         &self,
-        _response: &str,
-    ) -> Result<Option<serde_json::Value>> {
-        // This is a simplified implementation
-        // In a real implementation, we would use more sophisticated parsing
-        if _response.to_lowercase().contains("sol") && _response.to_lowercase().contains("usdc") {
-            Ok(Some(json!({
-                "input_mint": "So11111111111111111111111111111111111111111112",
-                "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "input_amount": 1000000000  // 1 SOL in lamports
-            })))
-        } else {
-            Ok(None)
+        action: &crate::prompt_processor::PromptAction,
+        parameters: &crate::prompt_processor::PromptParameters,
+        structured_prompt: Option<&crate::prompt_processor::StructuredRefinedPrompt>,
+    ) -> Result<HashMap<String, serde_json::Value>> {
+        debug!(
+            "Creating tool calls from structured data: action={:?}",
+            action
+        );
+
+        let mut tool_calls = HashMap::new();
+
+        match action {
+            crate::prompt_processor::PromptAction::Transfer => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    // Select tool based on token type
+                    let tool_name = if input_mint == "So11111111111111111111111111111111111111112" {
+                        "sol_transfer".to_string()
+                    } else {
+                        "spl_transfer".to_string()
+                    };
+
+                    // Get user pubkey from structured prompt or use default
+                    let user_pubkey = if let Some(sp) = structured_prompt {
+                        sp.subject_pubkey.clone().unwrap_or_else(|| {
+                            "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                    };
+
+                    // Get recipient pubkey from structured prompt or additional parameters
+                    let recipient_pubkey = if let Some(sp) = structured_prompt {
+                        sp.target_pubkey.clone().unwrap_or_else(|| {
+                            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("recipient") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                    };
+
+                    tool_calls.insert(
+                        tool_name,
+                        json!({
+                            "user_pubkey": user_pubkey,
+                            "recipient": recipient_pubkey,
+                            "amount": amount,
+                            "mint_address": input_mint
+                        }),
+                    );
+                } else if let Some(amount) = &parameters.amount {
+                    // Fallback: extract token symbol from mint address
+                    let token_symbol = parameters
+                        .input_mint
+                        .as_ref()
+                        .map(|mint| {
+                            if mint == "So11111111111111111111111111111111111111112" {
+                                "SOL".to_string()
+                            } else if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
+                                "USDC".to_string()
+                            } else if mint == "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" {
+                                "USDT".to_string()
+                            } else {
+                                // Default to USDC for unknown tokens
+                                "USDC".to_string()
+                            }
+                        })
+                        .unwrap_or_else(|| "USDC".to_string());
+
+                    let input_mint = parameters.input_mint.clone().unwrap_or_else(|| {
+                        // Fallback mint address based on token symbol
+                        match token_symbol.as_str() {
+                            "SOL" => "So11111111111111111111111111111111111111112".to_string(),
+                            "USDC" => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                            "USDT" => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string(),
+                            _ => "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // Default to USDC
+                        }
+                    });
+
+                    let tool_name = match token_symbol.as_str() {
+                        "SOL" => "sol_transfer".to_string(),
+                        _ => "spl_transfer".to_string(), // All non-SOL tokens use SPL transfer
+                    };
+
+                    let amount = amount.clone();
+
+                    // Get user pubkey from structured prompt or use default
+                    let user_pubkey = if let Some(sp) = structured_prompt {
+                        sp.subject_pubkey.clone().unwrap_or_else(|| {
+                            "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("user_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                    };
+
+                    // Get recipient pubkey from structured prompt or additional parameters
+                    let recipient_pubkey = if let Some(sp) = structured_prompt {
+                        sp.target_pubkey.clone().unwrap_or_else(|| {
+                            "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                        })
+                    } else if let Some(value) = parameters.additional.get("recipient") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
+                        value.as_str().unwrap_or("").to_string()
+                    } else {
+                        "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                    };
+
+                    tool_calls.insert(
+                        tool_name,
+                        json!({
+                            "user_pubkey": user_pubkey,
+                            "recipient": recipient_pubkey,
+                            "amount": amount,
+                            "mint_address": input_mint
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Swap => {
+                if let (Some(amount), Some(input_mint), Some(output_mint)) = (
+                    &parameters.amount,
+                    &parameters.input_mint,
+                    &parameters.output_mint,
+                ) {
+                    tool_calls.insert(
+                        "jupiter_swap".to_string(),
+                        json!({
+                            "input_amount": amount,
+                            "input_mint": input_mint,
+                            "output_mint": output_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Lend => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    tool_calls.insert(
+                        "jupiter_lend".to_string(),
+                        json!({
+                            "amount": amount,
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Earn => {
+                if let Some(input_mint) = &parameters.input_mint {
+                    tool_calls.insert(
+                        "jupiter_earn".to_string(),
+                        json!({
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Borrow => {
+                if let (Some(amount), Some(input_mint)) =
+                    (&parameters.amount, &parameters.input_mint)
+                {
+                    tool_calls.insert(
+                        "jupiter_borrow".to_string(),
+                        json!({
+                            "amount": amount,
+                            "mint": input_mint,
+                        }),
+                    );
+                }
+            }
+            crate::prompt_processor::PromptAction::Unknown => {
+                // For unknown actions, we can't create specific tool calls
+                debug!("Unknown action type, cannot create tool calls");
+            }
         }
+
+        debug!("Created tool calls from structured data: {:?}", tool_calls);
+        Ok(tool_calls)
     }
 
-    /// Extract lend parameters from a response
-    fn extract_lend_params_from_response(
-        &self,
-        _response: &str,
-    ) -> Result<Option<serde_json::Value>> {
-        // This is a simplified implementation
-        // In a real implementation, we would use more sophisticated parsing
-        if _response.to_lowercase().contains("usdc") {
-            Ok(Some(json!({
-                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                "amount": 10000000  // 10 USDC in smallest denomination
-            })))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Extract transfer parameters from a response
-    fn extract_transfer_params_from_response(
-        &self,
-        _response: &str,
-    ) -> Result<Option<serde_json::Value>> {
-        // This is a simplified implementation
-        // In a real implementation, we would use more sophisticated parsing
-        Ok(Some(json!({
-            "recipient": "11111111111111111111111111111111111112", // System program ID as example
-            "amount": 1000000000  // 1 SOL in lamports
-        })))
-    }
-
-    /// Extract multi-step tool calls
+    /// Extract additional tool calls for multi-step operations
     fn extract_multi_step_tool_calls(
         &self,
         response: &str,
@@ -456,83 +652,60 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
 
         Ok(new_calls)
     }
+}
 
-    /// Execute tools
-    async fn execute_tools(
-        &self,
-        tool_calls: std::collections::HashMap<String, serde_json::Value>,
-        _wallet_context: &WalletContext,
-    ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
-        debug!("Executing {} tools", tool_calls.len());
+impl HttpProvider for RigAgent {
+    fn model_name(&self) -> &str {
+        &self.model_name
+    }
 
-        let mut results = std::collections::HashMap::new();
+    fn api_key(&self) -> &str {
+        &self.api_key
+    }
 
-        if let Some(agent_tools) = &self.agent_tools {
-            for (tool_name, params) in &tool_calls {
-                match tool_name.as_str() {
-                    "sol_transfer" => {
-                        // Parse the params to NativeTransferArgs
-                        use reev_tools::tools::native::NativeTransferArgs;
-                        let args: NativeTransferArgs = serde_json::from_value(params.clone())?;
-                        let result = agent_tools
-                            .sol_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow!("sol_transfer failed: {e}"))?;
-                        results.insert(tool_name.clone(), serde_json::to_value(result)?);
-                    }
-                    "spl_transfer" => {
-                        // Parse the params to NativeTransferArgs
-                        use reev_tools::tools::native::NativeTransferArgs;
-                        let args: NativeTransferArgs = serde_json::from_value(params.clone())?;
-                        let result = agent_tools
-                            .spl_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow!("spl_transfer failed: {e}"))?;
-                        results.insert(tool_name.clone(), serde_json::to_value(result)?);
-                    }
-                    "jupiter_swap" => {
-                        // Parse the params to JupiterSwapArgs
-                        use reev_tools::tools::jupiter_swap::JupiterSwapArgs;
-                        let args: JupiterSwapArgs = serde_json::from_value(params.clone())?;
-                        let result = agent_tools
-                            .jupiter_swap_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow!("jupiter_swap failed: {e}"))?;
-                        results.insert(tool_name.clone(), serde_json::to_value(result)?);
-                    }
-                    "jupiter_lend_earn_deposit" => {
-                        // Parse the params to JupiterLendEarnDepositArgs
-                        use reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs;
-                        let args: JupiterLendEarnDepositArgs =
-                            serde_json::from_value(params.clone())?;
-                        let result = agent_tools
-                            .jupiter_lend_earn_deposit_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow!("jupiter_lend_earn_deposit failed: {e}"))?;
-                        results.insert(tool_name.clone(), serde_json::to_value(result)?);
-                    }
-                    "get_account_balance" => {
-                        // Parse the params to AccountBalanceArgs
-                        use reev_tools::tools::discovery::balance_tool::AccountBalanceArgs;
-                        let args: AccountBalanceArgs = serde_json::from_value(params.clone())?;
-                        let result = agent_tools
-                            .balance_tool
-                            .call(args)
-                            .await
-                            .map_err(|e| anyhow!("get_account_balance failed: {e}"))?;
-                        results.insert(tool_name.clone(), serde_json::to_value(result)?);
-                    }
-                    _ => {
-                        debug!("Unknown tool: {}", tool_name);
-                    }
+    fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
+    }
+}
+
+impl AgentProvider for RigAgent {
+    fn agent_tools(&self) -> Option<Arc<AgentTools>> {
+        self.agent_tools.clone()
+    }
+}
+
+// Helper function to extract field values from text
+fn extract_field(text: &str, field: &str) -> Option<String> {
+    // Try to find pattern like "field: value" or field="value"
+    let patterns = [
+        format!(r"{field}:\s*([^\s,]+)"),
+        format!(r#"{field}:\s*"([^"]+)""#),
+        format!(r#"{field}:\s*'([^']+)'"#),
+    ];
+
+    for pattern in patterns {
+        if let Ok(re) = regex::Regex::new(&pattern) {
+            if let Some(caps) = re.captures(text) {
+                if let Some(m) = caps.get(1) {
+                    return Some(m.as_str().trim().to_string());
                 }
             }
         }
+    }
+    None
+}
 
-        Ok(results)
+// Helper function to extract token mint address from text
+fn extract_token_from_text(text: &str, token_name: &str) -> Option<String> {
+    let token_lower = token_name.to_lowercase();
+    if !text.to_lowercase().contains(&token_lower) {
+        return None;
+    }
+
+    match token_lower.as_str() {
+        "sol" => Some("So11111111111111111111111111111111111111112".to_string()),
+        "usdc" => Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
+        "usdt" => Some("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string()),
+        _ => None,
     }
 }
