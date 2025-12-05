@@ -105,6 +105,7 @@ const ONCHAIN_SCORE_WEIGHT: f64 = 0.25;
 ///     tags: vec![],
 ///     prompt: "Test prompt".to_string(),
 ///     initial_state: vec![],
+///     flow_type: "static".to_string(),
 ///     flow: None,
 ///     ground_truth: GroundTruth {
 ///         transaction_status: "Success".to_string(),
