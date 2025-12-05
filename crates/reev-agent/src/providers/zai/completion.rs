@@ -442,13 +442,26 @@ impl completion::CompletionModel for CompletionModel {
         completion_request: CompletionRequest,
     ) -> Result<completion::CompletionResponse<Self::Response>, rig::completion::CompletionError>
     {
-        let request = self.create_completion_request(completion_request)?;
+        // Extract prompt from completion request
+        let prompt = completion_request.preamble.unwrap_or_default();
 
-        // For ZAI API, we always need to add /chat/completions to base URL
-        // Whether it's regular or coding endpoint, completion path is always /chat/completions
-        let endpoint = "chat/completions";
+        // Use zai-sdk for completion
+        let content = self.client.completion_with_zai_sdk(&prompt).await?;
 
-        let response: CompletionResponse = self.client.post(endpoint, &request).await?;
+        // Create a simple response with the content
+        let response = CompletionResponse {
+            choices: vec![Choice {
+                index: 0,
+                message: Some(ZaiMessage::Assistant {
+                    content: Some(content.clone()),
+                    name: None,
+                    tool_calls: None,
+                }),
+                logprobs: None,
+                finish_reason: Some("stop".to_string()),
+            }],
+            usage: None,
+        };
 
         response.try_into()
     }

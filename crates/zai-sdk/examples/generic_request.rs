@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Response ID: {}", response.id);
 
     if let Some(content) = response.content() {
-        println!("Content: {}", content);
+        println!("Content: {content}");
     }
 
     if let Some(usage) = response.usage() {
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
     let tool_response = client.send_completion_request(tool_request).await?;
 
     if let Some(content) = tool_response.content() {
-        println!("Response: {}", content);
+        println!("Response: {content}");
     }
 
     // Example with the Coding model
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     if let Some(content) = coding_response.content() {
-        println!("Code:\n{}", content);
+        println!("Code:\n{content}");
     }
 
     Ok(())

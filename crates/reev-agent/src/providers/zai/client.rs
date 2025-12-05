@@ -7,6 +7,10 @@ use rig::client::{
 };
 use rig::{completion::CompletionError, prelude::ProviderClient};
 
+// Import zai-sdk
+use std::sync::Arc;
+use zai_sdk::{GlmVariant, ZaiClient};
+
 const ZAI_API_BASE_URL: &str = "https://api.z.ai/api/coding/paas/v4";
 
 /// ZAI client builder
@@ -54,6 +58,8 @@ pub struct Client {
     pub base_url: String,
     pub api_key: String,
     pub http_client: reqwest::Client,
+    // Internal zai-sdk client wrapped in Arc for shared access
+    zai_client: Arc<ZaiClient>,
 }
 
 impl std::fmt::Debug for Client {
@@ -68,10 +74,28 @@ impl std::fmt::Debug for Client {
 impl Client {
     /// Create a new ZAI client
     pub fn new(base_url: impl Into<String>, api_key: &str, http_client: reqwest::Client) -> Self {
+        let base_url_str = base_url.into();
+
+        // Create zai-sdk client
+        let variant = if base_url_str.contains("coding") {
+            GlmVariant::Coding
+        } else {
+            GlmVariant::Standard
+        };
+
+        let zai_client = Arc::new(
+            ZaiClient::builder()
+                .variant(variant)
+                .api_key(api_key)
+                .build()
+                .expect("Failed to create ZAI client"),
+        );
+
         Self {
-            base_url: base_url.into(),
+            base_url: base_url_str,
             api_key: api_key.to_string(),
             http_client,
+            zai_client,
         }
     }
 
@@ -150,6 +174,14 @@ impl Client {
 
         response
             .json()
+            .await
+            .map_err(|e| CompletionError::ProviderError(e.to_string()))
+    }
+
+    /// Send a completion request using zai-sdk
+    pub async fn completion_with_zai_sdk(&self, prompt: &str) -> Result<String, CompletionError> {
+        self.zai_client
+            .completion(prompt)
             .await
             .map_err(|e| CompletionError::ProviderError(e.to_string()))
     }

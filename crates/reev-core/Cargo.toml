@@ -29,6 +29,7 @@ reev-tools = { path = "../reev-tools" }
 reev-flow = { path = "../reev-flow" }
 reev-lib = { path = "../reev-lib" }
 reev-protocols = { path = "../reev-protocols" }
+zai-sdk = { path = "../zai-sdk" }
 
 # Additional dependencies for Solana key handling
 solana-sdk = { workspace = true }

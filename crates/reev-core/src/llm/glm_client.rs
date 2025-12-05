@@ -1,27 +1,36 @@
 //! GLM Client Implementation for reev-core
 //!
 //! This module implements the LlmClient trait using the GLM-4.6-coding model
-//! via the ZAI provider, leveraging existing implementation in reev-agent.
+//! via the ZAI SDK, providing a more robust and feature-rich implementation.
 
 use crate::planner::LlmClient;
 use anyhow::{anyhow, Result};
-use serde_json::json;
 use tracing::{debug, error, info, instrument, warn};
+use zai_sdk::{GlmVariant, Message, ZaiClient};
 
 /// GLM Client implementation for reev-core planner
 pub struct GLMClient {
-    model_name: String,
-    #[allow(dead_code)]
-    api_key: String,
+    client: ZaiClient,
 }
 
 impl GLMClient {
     /// Create a new GLM client
-    pub fn new(model_name: &str, api_key: &str) -> Self {
-        Self {
-            model_name: model_name.to_string(),
-            api_key: api_key.to_string(),
-        }
+    pub fn new(model_name: &str, api_key: &str) -> Result<Self> {
+        // Determine the variant based on model name
+        let variant = if model_name == "glm-4.6-coding" {
+            GlmVariant::Coding
+        } else {
+            GlmVariant::Standard
+        };
+
+        // Create the zai-sdk client
+        let client = ZaiClient::builder()
+            .variant(variant)
+            .api_key(api_key)
+            .build()
+            .map_err(|e| anyhow!("Failed to create ZAI client: {e}"))?;
+
+        Ok(Self { client })
     }
 
     /// Initialize with environment variables
@@ -34,7 +43,7 @@ impl GLMClient {
         let api_key = std::env::var("ZAI_API_KEY")
             .map_err(|_| anyhow!("ZAI_API_KEY environment variable not set"))?;
 
-        Ok(Self::new(&model_name, &api_key))
+        Self::new(&model_name, &api_key)
     }
 }
 
@@ -42,7 +51,7 @@ impl GLMClient {
 impl LlmClient for GLMClient {
     #[instrument(skip(self))]
     async fn generate_flow(&self, prompt: &str) -> Result<String> {
-        info!("Extracting intent using ZAI API");
+        info!("Extracting intent using ZAI SDK");
         debug!("Prompt: {}", prompt);
 
         // Build a simple prompt for intent extraction
@@ -59,84 +68,28 @@ Respond with a simple JSON object containing:
 "#
         );
 
-        debug!("Calling ZAI API with prompt: {}", flow_prompt);
+        debug!("Calling ZAI SDK with prompt: {}", flow_prompt);
 
-        // Create a simple HTTP client for ZAI API
-        let api_key = std::env::var("ZAI_API_KEY")
-            .map_err(|_| anyhow!("ZAI_API_KEY environment variable not set"))?;
+        // Create messages for the request
+        let messages = vec![
+            Message::system("You are a DeFi assistant that extracts user intent from prompts. Always respond with valid JSON only. Respond in English only."),
+            Message::user(flow_prompt),
+        ];
 
-        info!(
-            "Using API key: {}...",
-            &api_key[..std::cmp::min(8, api_key.len())]
-        );
-
-        let client = reqwest::Client::new();
-
-        // Create request body for ZAI API
-        // Use the correct model name for ZAI API
-        let model_name = if self.model_name == "glm-4.6-coding" {
-            "glm-4.6"
-        } else {
-            &self.model_name
-        };
-
-        let request_body = json!({
-            "model": model_name,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a DeFi assistant that extracts user intent from prompts. Always respond with valid JSON only. Respond in English only."
-                },
-                {
-                    "role": "user",
-                    "content": flow_prompt
-                }
-            ],
-            "temperature": 0.1,
-            "max_tokens": 500
-        });
-
-        // Send request to ZAI API
-        let response = client
-            .post("https://api.z.ai/api/coding/paas/v4/chat/completions")
-            .header("Authorization", format!("Bearer {api_key}"))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
+        // Send request using the zai-sdk
+        let response = self
+            .client
+            .completion_with_messages(messages)
             .await
             .map_err(|e| {
-                error!("Failed to send request to ZAI API: {}", e);
+                error!("Failed to get response from ZAI SDK: {}", e);
                 anyhow!("LLM generation failed: {e}")
             })?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(anyhow!("ZAI API returned error: {status} - {error_text}"));
-        }
+        info!("Received response from ZAI SDK");
 
-        let response_json: serde_json::Value = response.json().await.map_err(|e| {
-            error!("Failed to parse ZAI API response: {}", e);
-            anyhow!("LLM generation failed: {e}")
-        })?;
-
-        info!("Received ZAI API response: {:?}", response_json);
-
-        // Extract content from response - try reasoning_content first, then content
-        let message = response_json
-            .get("choices")
-            .and_then(|choices| choices.get(0))
-            .and_then(|choice| choice.get("message"))
-            .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
-
-        // Try reasoning_content first (for GLM model), then content
-        let content = message
-            .get("reasoning_content")
-            .and_then(|c| c.as_str())
-            .or_else(|| message.get("content").and_then(|c| c.as_str()))
-            .ok_or_else(|| anyhow!("Invalid response format from ZAI API"))?;
-
-        info!("Extracted content: {}", content);
+        // Extract content from response
+        let content = &response;
 
         // Check if the response is empty
         if content.trim().is_empty() {
@@ -222,4 +175,32 @@ Respond with a simple JSON object containing:
 pub fn init_glm_client() -> Result<Box<dyn crate::planner::LlmClient>> {
     let client = GLMClient::from_env()?;
     Ok(Box::new(client))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planner::LlmClient;
+
+    #[tokio::test]
+    #[ignore = "Requires ZAI_API_KEY environment variable"]
+    async fn test_glm_client_with_zai_sdk() {
+        std::env::set_var("ZAI_API_KEY", "test-key");
+        std::env::set_var("GLM_MODEL", "glm-4.6-coding");
+
+        let client = GLMClient::from_env().expect("Failed to create client");
+
+        // Test with a simple prompt
+        let result = client
+            .generate_flow("Swap 1 SOL to USDC")
+            .await
+            .expect("Failed to generate flow");
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value =
+            serde_json::from_str(&result).expect("Result should be valid JSON");
+
+        assert!(parsed.get("intent").is_some());
+        assert!(parsed.get("parameters").is_some());
+    }
 }
