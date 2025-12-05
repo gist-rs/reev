@@ -2,14 +2,15 @@
 
 use reev_types::flow::{StepResult, WalletContext};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+
 use std::collections::HashMap;
 use tracing::info;
 
 // Import typed structs for tool results
 mod types;
 pub use types::{
-    ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, ToolResultWrapper, TypedToolResult,
+    ErrorKeyInfo, ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, KeyInfo, LendKeyInfo,
+    OperationKeyInfo, SwapKeyInfo, ToolResultWrapper, TypedToolResult,
 };
 
 // Import token mint wrapper
@@ -279,41 +280,16 @@ impl MinimalAiContext {
                     }
                 }
 
-                // Add extracted key info
-                for (key, value) in &result.key_info {
-                    match key.as_str() {
-                        "swap" => {
-                            if let Some(output_mint) =
-                                value.get("output_mint").and_then(|v| v.as_str())
-                            {
-                                if let Some(output_amount) =
-                                    value.get("output_amount").and_then(|v| v.as_u64())
-                                {
-                                    prompt.push_str(&format!(
-                                        "  Key info: Swapped for {output_amount} units of {output_mint}\n"
-                                    ));
-                                }
-                            }
-                        }
-                        "lend" => {
-                            if let Some(asset_mint) =
-                                value.get("asset_mint").and_then(|v| v.as_str())
-                            {
-                                if let Some(amount) = value.get("amount").and_then(|v| v.as_u64()) {
-                                    prompt.push_str(&format!(
-                                        "  Key info: Lent {amount} units of {asset_mint}\n"
-                                    ));
-                                }
-                            }
-                        }
-                        "operation" => {
-                            if let Some(op_type) = value.get("type").and_then(|v| v.as_str()) {
-                                prompt.push_str(&format!(
-                                    "  Key info: Completed operation: {op_type}\n"
-                                ));
-                            }
-                        }
-                        _ => {}
+                // Add extracted key info using typed KeyInfo enum
+                for (_key, value) in &result.key_info {
+                    // Try to deserialize into KeyInfo enum
+                    if let Ok(key_info) = serde_json::from_value::<
+                        crate::execution::context_builder::types::KeyInfo,
+                    >(value.clone())
+                    {
+                        prompt.push_str(&format!("  {}\n", key_info.to_prompt_string()));
+                    } else {
+                        // Unknown key type - skip
                     }
                 }
             }
@@ -438,15 +414,23 @@ impl YmlContextBuilder {
                             }
                         }
                         // Extract generic operation info
-                        else if let Some(operation_type) =
-                            tool_result.get("operation_type").and_then(|v| v.as_str())
-                        {
+                        else {
+                            // Handle generic operation with typed KeyInfo
+                            let operation_type = tool_result
+                                .get("operation_type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("generic");
+
+                            // Create typed OperationKeyInfo
+                            let op_info = OperationKeyInfo {
+                                operation_type: operation_type.to_string(),
+                                details: tool_result.clone(),
+                            };
+
+                            // Store as KeyInfo enum
                             key_info.insert(
                                 "operation".to_string(),
-                                json!({
-                                    "type": operation_type,
-                                    "details": tool_result,
-                                }),
+                                serde_json::to_value(KeyInfo::Operation(op_info)).unwrap(),
                             );
                         }
                     }
@@ -510,19 +494,21 @@ impl YmlContextBuilder {
         for result in &mut self.previous_results {
             if !result.success {
                 // Add recovery constraints based on error message
-                // Note: We need to extract error info from key_info for failed steps
+                // Try to deserialize error info from key_info
                 if let Some(error_info) = result.key_info.get("error") {
-                    if let Some(error_message) = error_info.get("message").and_then(|v| v.as_str())
+                    if let Ok(error_key_info) =
+                        serde_json::from_value::<ErrorKeyInfo>(error_info.clone())
                     {
+                        // Use typed error handling
                         result
                             .next_step_constraints
-                            .push(format!("Previous step failed: {error_message}"));
+                            .push(format!("Previous step failed: {}", error_key_info.message));
 
-                        if error_message.contains("insufficient") {
+                        if error_key_info.is_error_type("insufficient") {
                             result
                                 .next_step_constraints
                                 .push("Consider reducing amount for next operation".to_string());
-                        } else if error_message.contains("slippage") {
+                        } else if error_key_info.is_error_type("slippage") {
                             result
                                 .next_step_constraints
                                 .push("Increase slippage tolerance for next attempt".to_string());
@@ -530,6 +516,29 @@ impl YmlContextBuilder {
                             result
                                 .next_step_constraints
                                 .push("Alternative operation path may be required".to_string());
+                        }
+                    } else {
+                        // Fallback for backward compatibility
+                        if let Some(error_message) =
+                            error_info.get("message").and_then(|v| v.as_str())
+                        {
+                            result
+                                .next_step_constraints
+                                .push(format!("Previous step failed: {error_message}"));
+
+                            if error_message.contains("insufficient") {
+                                result.next_step_constraints.push(
+                                    "Consider reducing amount for next operation".to_string(),
+                                );
+                            } else if error_message.contains("slippage") {
+                                result.next_step_constraints.push(
+                                    "Increase slippage tolerance for next attempt".to_string(),
+                                );
+                            } else {
+                                result
+                                    .next_step_constraints
+                                    .push("Alternative operation path may be required".to_string());
+                            }
                         }
                     }
                 }

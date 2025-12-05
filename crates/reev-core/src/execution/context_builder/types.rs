@@ -30,6 +30,102 @@ pub struct JupiterSwapResult {
     pub message: String,
 }
 
+/// Typed representation of key_info for swap operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwapKeyInfo {
+    /// Input token mint address
+    pub input_mint: String,
+    /// Output token mint address
+    pub output_mint: String,
+    /// Amount of input token swapped
+    pub input_amount: u64,
+    /// Amount of output token received
+    pub output_amount: u64,
+    /// Amount of output available for lending
+    pub output_amount_for_lend: u64,
+}
+
+/// Typed representation of key_info for lend operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LendKeyInfo {
+    /// Asset mint address that was lent
+    pub asset_mint: String,
+    /// Amount of asset lent
+    pub amount: u64,
+}
+
+/// Typed representation of key_info for generic operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OperationKeyInfo {
+    /// Type of operation
+    pub operation_type: String,
+    /// Additional operation details
+    pub details: serde_json::Value,
+}
+
+/// Enum representing different types of key_info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum KeyInfo {
+    Swap(SwapKeyInfo),
+    Lend(LendKeyInfo),
+    Operation(OperationKeyInfo),
+    Error(ErrorKeyInfo),
+}
+
+/// Typed representation of key_info for error handling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorKeyInfo {
+    /// Error message
+    pub message: String,
+    /// Error type (insufficient, slippage, etc.)
+    pub error_type: String,
+    /// Additional error details
+    pub details: serde_json::Value,
+}
+
+impl ErrorKeyInfo {
+    /// Check if error is of a specific type
+    pub fn is_error_type(&self, error_type: &str) -> bool {
+        self.error_type == error_type
+    }
+}
+
+/// Helper methods for working with key_info
+impl KeyInfo {
+    /// Convert to a display-friendly prompt string
+    pub fn to_prompt_string(&self) -> String {
+        match self {
+            KeyInfo::Swap(swap) => {
+                format!(
+                    "Key info: Swapped for {} units of {}",
+                    swap.output_amount, swap.output_mint
+                )
+            }
+            KeyInfo::Lend(lend) => {
+                format!(
+                    "Key info: Lent {} units of {}",
+                    lend.amount, lend.asset_mint
+                )
+            }
+            KeyInfo::Operation(op) => {
+                format!("Key info: Completed operation: {}", op.operation_type)
+            }
+            KeyInfo::Error(error) => {
+                format!("Key info: Error - {}", error.message)
+            }
+        }
+    }
+
+    /// Extract error message from ErrorKeyInfo
+    pub fn get_error_message(&self) -> Option<String> {
+        match self {
+            KeyInfo::Error(error) => Some(error.message.clone()),
+            _ => None,
+        }
+    }
+}
+
 /// Typed representation of Jupiter lend tool result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JupiterLendResult {
@@ -119,15 +215,20 @@ pub trait ExtractKeyInfo {
 impl ExtractKeyInfo for JupiterSwapResult {
     fn extract_key_info(&self) -> HashMap<String, serde_json::Value> {
         let mut key_info = HashMap::new();
+
+        // Create typed SwapKeyInfo
+        let swap_info = SwapKeyInfo {
+            input_mint: self.input_mint.clone(),
+            output_mint: self.output_mint.clone(),
+            input_amount: self.input_amount,
+            output_amount: self.output_amount,
+            output_amount_for_lend: self.output_amount,
+        };
+
+        // Store as KeyInfo enum
         key_info.insert(
             "swap".to_string(),
-            serde_json::json!({
-                "input_mint": self.input_mint,
-                "output_mint": self.output_mint,
-                "input_amount": self.input_amount,
-                "output_amount": self.output_amount,
-                "output_amount_for_lend": self.output_amount,
-            }),
+            serde_json::to_value(KeyInfo::Swap(swap_info)).unwrap(),
         );
         key_info
     }
@@ -170,12 +271,17 @@ impl ExtractKeyInfo for JupiterSwapResult {
 impl ExtractKeyInfo for JupiterLendResult {
     fn extract_key_info(&self) -> HashMap<String, serde_json::Value> {
         let mut key_info = HashMap::new();
+
+        // Create typed LendKeyInfo
+        let lend_info = LendKeyInfo {
+            asset_mint: self.asset_mint.clone(),
+            amount: self.amount,
+        };
+
+        // Store as KeyInfo enum
         key_info.insert(
             "lend".to_string(),
-            serde_json::json!({
-                "asset_mint": self.asset_mint,
-                "amount": self.amount,
-            }),
+            serde_json::to_value(KeyInfo::Lend(lend_info)).unwrap(),
         );
         key_info
     }

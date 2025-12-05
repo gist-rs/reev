@@ -336,6 +336,41 @@ pub struct StepResult {
     pub execution_time_ms: u64,
 }
 
+impl StepResult {
+    /// Get tool results as a typed array, if available
+    pub fn get_tool_results(&self) -> Option<Vec<serde_json::Value>> {
+        self.output.get("tool_results")?.as_array().cloned()
+    }
+
+    /// Find a specific tool result by name
+    pub fn get_tool_result(&self, tool_name: &str) -> Option<serde_json::Value> {
+        if let Some(results_array) = self.get_tool_results() {
+            for tool_result in results_array {
+                if let Some(_result) = tool_result.get(tool_name) {
+                    return Some(tool_result);
+                }
+            }
+        }
+        None
+    }
+
+    /// Try to deserialize a specific tool result
+    pub fn get_typed_tool_result<T: serde::de::DeserializeOwned>(
+        &self,
+        tool_name: &str,
+    ) -> Option<T> {
+        if let Some(tool_result) = self.get_tool_result(tool_name) {
+            if let Some(result_value) = tool_result.get(tool_name) {
+                serde_json::from_value(result_value.clone()).ok()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+
 /// Complete execution result with consolidation support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
