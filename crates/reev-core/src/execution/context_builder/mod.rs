@@ -343,7 +343,7 @@ impl YmlContextBuilder {
 
         // Extract key information based on tool calls using typed deserialization
         if result.success {
-            if let Some(tool_results) = result.output.get("tool_results") {
+            if let Some(tool_results) = result.get_tool_results().map(|v| serde_json::Value::Array(v)) {
                 if let Some(results_array) = tool_results.as_array() {
                     for tool_result in results_array {
                         // Try to deserialize tool result into typed structs
