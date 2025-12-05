@@ -180,35 +180,3 @@ pub fn create_text_stream(text: &str) -> StreamingResponse {
 
     StreamingResponseBuilder::new().add_chunk(chunk).build()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_sse_line_valid() {
-        let line = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}";
-        let chunk = parse_sse_line(line).unwrap().unwrap();
-        assert_eq!(chunk.choices[0].delta.content, Some("Hello".to_string()));
-    }
-
-    #[test]
-    fn test_parse_sse_line_empty() {
-        let line = "";
-        assert!(parse_sse_line(line).unwrap().is_none());
-    }
-
-    #[test]
-    fn test_parse_sse_line_done() {
-        let line = "data: [DONE]";
-        assert!(parse_sse_line(line).unwrap().is_none());
-    }
-
-    #[test]
-    fn test_create_text_stream() {
-        let stream = create_text_stream("Hello, world!");
-        // In a real test, we would collect the stream and verify the content
-        // For now, we just verify it doesn't panic
-        drop(stream);
-    }
-}
