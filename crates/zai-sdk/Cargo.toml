@@ -1,0 +1,43 @@
+[package]
+name = "zai-sdk"
+version = "0.1.0"
+edition = "2021"
+authors = ["ZAI SDK Developers"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gist-rs/zai-sdk"
+description = "A generic SDK for interacting with ZAI's GLM-4.6 models"
+keywords = ["ai", "glm", "sdk", "zai", "llm"]
+categories = ["api-bindings", "development-tools"]
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+tracing = "0.1"
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+anyhow = "1.0"
+tracing-subscriber = "0.3"
+tokio = { version = "1", features = ["full"] }
+
+[[example]]
+name = "simple_completion"
+path = "examples/simple_completion.rs"
+
+[[example]]
+name = "streaming"
+path = "examples/streaming.rs"
+
+[[example]]
+name = "generic_request"
+path = "examples/generic_request.rs"
+
+[[example]]
+name = "tool_calling"
+path = "examples/tool_calling.rs"
