@@ -158,7 +158,7 @@ mod tests {
     fn test_insufficient_balance_error() {
         let error = insufficient_balance_error(1_000_000, 1_000_000);
         assert!(error.contains("Insufficient balance"));
-        assert!(error.contains("1.0 SOL"));
+        assert!(error.contains("0.001 SOL"));
         assert!(error.contains("0.001 SOL"));
     }
 

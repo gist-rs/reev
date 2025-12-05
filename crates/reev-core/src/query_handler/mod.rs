@@ -96,10 +96,15 @@ impl QueryHandler {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use reev_core::query_handler::QueryHandler;
-    ///
-    /// let handler = QueryHandler::new().await?;
+    /// ```rust,no_run
+    /// # use reev_core::query_handler::QueryHandler;
+    /// # use solana_sdk::pubkey::Pubkey;
+    /// # use std::str::FromStr;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> anyhow::Result<()> {
+    /// let mut handler = QueryHandler::new().await?;
+    /// let user_pubkey = Pubkey::from_str("3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr")?;
     ///
     /// // Process a transfer with benchmark scoring
     /// let (result, report) = handler.process_query_with_benchmark(
@@ -109,6 +114,8 @@ impl QueryHandler {
     ///
     /// println!("Execution succeeded: {}", result.success);
     /// println!("Benchmark score: {:.2}", report.overall_score);
+    /// # Ok(())
+    /// # }
     /// ```
     #[instrument(skip(self))]
     pub async fn process_query_with_benchmark(
@@ -245,10 +252,15 @@ impl QueryHandler {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// use reev_core::query_handler::QueryHandler;
-    ///
-    /// let handler = QueryHandler::new().await?;
+    /// ```rust,no_run
+    /// # use reev_core::query_handler::QueryHandler;
+    /// # use solana_sdk::pubkey::Pubkey;
+    /// # use std::str::FromStr;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> anyhow::Result<()> {
+    /// let mut handler = QueryHandler::new().await?;
+    /// let user_pubkey = Pubkey::from_str("3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr")?;
     ///
     /// // Process a transfer with specific amount
     /// let result = handler.process_query(
@@ -261,6 +273,8 @@ impl QueryHandler {
     ///     "send all sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
     ///     &user_pubkey
     /// ).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[instrument(skip(self))]
     pub async fn process_query(
