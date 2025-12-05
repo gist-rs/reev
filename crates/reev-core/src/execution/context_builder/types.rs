@@ -147,55 +147,101 @@ pub struct JupiterLendResult {
     pub message: String,
 }
 
+/// Enum representing different types of tool results with proper serde deserialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "tool_name", content = "result")]
+pub enum TypedToolResult {
+    /// Jupiter swap operation result
+    #[serde(rename = "jupiter_swap")]
+    JupiterSwap(JupiterSwapResult),
+    /// Jupiter lend operation result
+    #[serde(rename = "jupiter_lend")]
+    JupiterLend(JupiterLendResult),
+    /// Generic operation result for tools without specific typed results
+    #[serde(untagged)]
+    GenericOperation {
+        /// Tool name
+        tool_name: String,
+        /// Raw result data
+        result: serde_json::Value,
+        /// Whether the operation succeeded
+        success: bool,
+        /// Error message if operation failed
+        error: Option<String>,
+        /// Execution time in milliseconds
+        execution_time_ms: Option<u64>,
+        /// Additional metadata
+        metadata: HashMap<String, serde_json::Value>,
+    },
+}
+
 /// Generic wrapper for tool results with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResultWrapper {
-    /// Name of the tool that generated the result
-    pub tool_name: String,
-    /// Whether the operation succeeded
-    pub success: bool,
-    /// Raw result data (will be deserialized to specific types)
-    pub data: serde_json::Value,
-    /// Error message if operation failed
-    pub error: Option<String>,
-    /// Execution time in milliseconds
-    pub execution_time_ms: Option<u64>,
-    /// Additional metadata
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-/// Enum representing different types of tool results
-#[derive(Debug, Clone)]
-pub enum TypedToolResult {
-    JupiterSwap(JupiterSwapResult),
-    JupiterLend(JupiterLendResult),
-    // Add other tool result types as needed
-    Other(String, serde_json::Value), // tool_name, raw_value
+    /// The typed result of the tool
+    #[serde(flatten)]
+    pub result: TypedToolResult,
 }
 
 impl ToolResultWrapper {
-    /// Try to deserialize into a specific tool result type
-    pub fn into_typed_result(self) -> TypedToolResult {
-        match self.tool_name.as_str() {
-            "jupiter_swap" => {
-                // Clone data to avoid moving
-                let data_clone = self.data.clone();
-                if let Ok(swap_result) = serde_json::from_value::<JupiterSwapResult>(data_clone) {
-                    TypedToolResult::JupiterSwap(swap_result)
-                } else {
-                    TypedToolResult::Other(self.tool_name, self.data)
-                }
-            }
-            "jupiter_lend" => {
-                // Clone data to avoid moving
-                let data_clone = self.data.clone();
-                if let Ok(lend_result) = serde_json::from_value::<JupiterLendResult>(data_clone) {
-                    TypedToolResult::JupiterLend(lend_result)
-                } else {
-                    TypedToolResult::Other(self.tool_name, self.data)
-                }
-            }
-            _ => TypedToolResult::Other(self.tool_name, self.data),
+    /// Create a new wrapper from a Jupiter swap result
+    pub fn from_jupiter_swap(result: JupiterSwapResult) -> Self {
+        Self {
+            result: TypedToolResult::JupiterSwap(result),
+        }
+    }
+
+    /// Create a new wrapper from a Jupiter lend result
+    pub fn from_jupiter_lend(result: JupiterLendResult) -> Self {
+        Self {
+            result: TypedToolResult::JupiterLend(result),
+        }
+    }
+
+    /// Create a new wrapper from a generic operation result
+    pub fn from_generic_operation(
+        tool_name: String,
+        result: serde_json::Value,
+        success: bool,
+        error: Option<String>,
+        execution_time_ms: Option<u64>,
+        metadata: HashMap<String, serde_json::Value>,
+    ) -> Self {
+        Self {
+            result: TypedToolResult::GenericOperation {
+                tool_name,
+                result,
+                success,
+                error,
+                execution_time_ms,
+                metadata,
+            },
+        }
+    }
+
+    /// Get the tool name from the wrapped result
+    pub fn get_tool_name(&self) -> String {
+        match &self.result {
+            TypedToolResult::JupiterSwap(_) => "jupiter_swap".to_string(),
+            TypedToolResult::JupiterLend(_) => "jupiter_lend".to_string(),
+            TypedToolResult::GenericOperation { tool_name, .. } => tool_name.clone(),
+        }
+    }
+
+    /// Check if the operation was successful
+    pub fn is_success(&self) -> bool {
+        match &self.result {
+            TypedToolResult::JupiterSwap(result) => result.completed,
+            TypedToolResult::JupiterLend(result) => result.completed,
+            TypedToolResult::GenericOperation { success, .. } => *success,
+        }
+    }
+
+    /// Get the error message if the operation failed
+    pub fn get_error(&self) -> Option<String> {
+        match &self.result {
+            TypedToolResult::JupiterSwap(_) | TypedToolResult::JupiterLend(_) => None,
+            TypedToolResult::GenericOperation { error, .. } => error.clone(),
         }
     }
 }
@@ -210,6 +256,86 @@ pub trait ExtractKeyInfo {
     fn extract_next_step_constraints(&self) -> Vec<String>;
     /// Extract available tokens for next step
     fn extract_available_tokens(&self) -> HashMap<String, u64>;
+}
+
+/// Implement ExtractKeyInfo for TypedToolResult to handle all tool types uniformly
+impl ExtractKeyInfo for TypedToolResult {
+    fn extract_key_info(&self) -> HashMap<String, serde_json::Value> {
+        match self {
+            TypedToolResult::JupiterSwap(swap_result) => swap_result.extract_key_info(),
+            TypedToolResult::JupiterLend(lend_result) => lend_result.extract_key_info(),
+            TypedToolResult::GenericOperation {
+                tool_name, result, ..
+            } => {
+                // Create typed OperationKeyInfo for generic operations
+                let op_info = OperationKeyInfo {
+                    operation_type: tool_name.clone(),
+                    details: result.clone(),
+                };
+
+                let mut key_info = HashMap::new();
+                key_info.insert(
+                    "operation".to_string(),
+                    serde_json::to_value(KeyInfo::Operation(op_info)).unwrap(),
+                );
+                key_info
+            }
+        }
+    }
+
+    fn extract_balance_changes(&self) -> Vec<crate::execution::context_builder::BalanceChange> {
+        match self {
+            TypedToolResult::JupiterSwap(swap_result) => swap_result.extract_balance_changes(),
+            TypedToolResult::JupiterLend(lend_result) => lend_result.extract_balance_changes(),
+            TypedToolResult::GenericOperation { .. } => Vec::new(), // No balance changes for generic operations
+        }
+    }
+
+    fn extract_next_step_constraints(&self) -> Vec<String> {
+        match self {
+            TypedToolResult::JupiterSwap(swap_result) => {
+                swap_result.extract_next_step_constraints()
+            }
+            TypedToolResult::JupiterLend(lend_result) => {
+                lend_result.extract_next_step_constraints()
+            }
+            TypedToolResult::GenericOperation { result, .. } => {
+                // Extract any constraints from the generic operation result
+                result
+                    .get("constraints")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            }
+        }
+    }
+
+    fn extract_available_tokens(&self) -> HashMap<String, u64> {
+        match self {
+            TypedToolResult::JupiterSwap(swap_result) => swap_result.extract_available_tokens(),
+            TypedToolResult::JupiterLend(lend_result) => lend_result.extract_available_tokens(),
+            TypedToolResult::GenericOperation { result, .. } => {
+                // Extract any available tokens from the generic operation result
+                result
+                    .get("available_tokens")
+                    .and_then(|v| v.as_object())
+                    .map(|obj| {
+                        obj.iter()
+                            .filter_map(|(k, v)| {
+                                let amount = v.as_u64()?;
+                                Some((k.clone(), amount))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            }
+        }
+    }
 }
 
 impl ExtractKeyInfo for JupiterSwapResult {

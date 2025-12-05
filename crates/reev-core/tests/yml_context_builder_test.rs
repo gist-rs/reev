@@ -59,7 +59,8 @@ fn create_swap_step_result() -> StepResult {
         "tool_results".to_string(),
         serde_json::json!([
             {
-                "jupiter_swap": {
+                "tool_name": "jupiter_swap",
+                "result": {
                     "input_mint": "So11111111111111111111111111111111111111112", // SOL
                     "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
                     "input_amount": 1000000000,
@@ -93,15 +94,16 @@ fn create_lend_step_result() -> StepResult {
         "tool_results".to_string(),
         serde_json::json!([
             {
-                "jupiter_lend": {
+                "tool_name": "jupiter_lend",
+                "result": {
                     "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
                     "amount": 950000000, // 950 USDC
-                    "protocol": Some("Mango".to_string()),
-                    "operation_type": "lend".to_string(),
-                    "status": "success".to_string(),
+                    "protocol": "Mango",
+                    "operation_type": "lend",
+                    "status": "success",
                     "completed": true,
-                    "transaction_signature": Some("5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5".to_string()),
-                    "message": "Successfully lent 950 USDC".to_string()
+                    "transaction_signature": "5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5",
+                    "message": "Successfully lent 950 USDC"
                 }
             }
         ]),
@@ -344,4 +346,57 @@ fn test_yml_context_filtering() {
         .ai_context
         .tokens
         .contains_key("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"));
+}
+
+#[test]
+fn test_typed_tool_result_structure() {
+    use reev_core::execution::context_builder::{
+        ExtractKeyInfo, JupiterSwapResult, TypedToolResult,
+    };
+
+    // Create a swap result
+    let swap_result = JupiterSwapResult {
+        input_mint: "So11111111111111111111111111111111111111112".to_string(),
+        output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+        input_amount: 1000000000,
+        output_amount: 1000000000,
+        slippage_bps: Some(100),
+        instruction_count: Some(5),
+        operation_type: "swap".to_string(),
+        status: "success".to_string(),
+        completed: true,
+        transaction_signature: Some("5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5".to_string()),
+        message: "Successfully swapped 1 SOL for 1000 USDC".to_string(),
+    };
+
+    // Wrap in TypedToolResult
+    let typed_result = TypedToolResult::JupiterSwap(swap_result);
+
+    // Test extraction methods
+    let key_info = typed_result.extract_key_info();
+    assert!(key_info.contains_key("swap"));
+
+    let balance_changes = typed_result.extract_balance_changes();
+    assert_eq!(balance_changes.len(), 2); // Input and output tokens
+
+    let constraints = typed_result.extract_next_step_constraints();
+    assert!(!constraints.is_empty());
+
+    let available_tokens = typed_result.extract_available_tokens();
+    assert_eq!(
+        available_tokens.get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+        Some(&1000000000u64)
+    );
+
+    // Test serialization/deserialization
+    let json = serde_json::to_value(&typed_result).unwrap();
+    let deserialized: TypedToolResult = serde_json::from_value(json).unwrap();
+
+    match deserialized {
+        TypedToolResult::JupiterSwap(swap) => {
+            assert_eq!(swap.input_amount, 1000000000);
+            assert_eq!(swap.output_amount, 1000000000);
+        }
+        _ => panic!("Expected JupiterSwap variant"),
+    }
 }
