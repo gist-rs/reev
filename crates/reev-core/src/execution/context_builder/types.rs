@@ -175,6 +175,95 @@ pub enum TypedToolResult {
     },
 }
 
+/// Struct representing a collection of typed tool results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypedToolResults {
+    /// Vector of typed tool results
+    pub results: Vec<TypedToolResult>,
+}
+
+impl TypedToolResults {
+    /// Create a new empty collection
+    pub fn new() -> Self {
+        Self {
+            results: Vec::new(),
+        }
+    }
+
+    /// Add a tool result to the collection
+    pub fn add_result(&mut self, result: TypedToolResult) {
+        self.results.push(result);
+    }
+
+    /// Get an iterator over the results
+    pub fn iter(&self) -> impl Iterator<Item = &TypedToolResult> {
+        self.results.iter()
+    }
+
+    /// Get a mutable iterator over the results
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut TypedToolResult> {
+        self.results.iter_mut()
+    }
+
+    /// Check if the collection is empty
+    pub fn is_empty(&self) -> bool {
+        self.results.is_empty()
+    }
+
+    /// Get the number of results
+    pub fn len(&self) -> usize {
+        self.results.len()
+    }
+
+    /// Extract all key information from all results
+    pub fn extract_all_key_info(&self) -> HashMap<String, serde_json::Value> {
+        let mut key_info = HashMap::new();
+        for result in &self.results {
+            let result_key_info = result.extract_key_info();
+            key_info.extend(result_key_info);
+        }
+        key_info
+    }
+
+    /// Extract all balance changes from all results
+    pub fn extract_all_balance_changes(
+        &self,
+    ) -> Vec<crate::execution::context_builder::BalanceChange> {
+        let mut balance_changes = Vec::new();
+        for result in &self.results {
+            let result_balance_changes = result.extract_balance_changes();
+            balance_changes.extend(result_balance_changes);
+        }
+        balance_changes
+    }
+
+    /// Extract all constraints from all results
+    pub fn extract_all_constraints(&self) -> Vec<String> {
+        let mut constraints = Vec::new();
+        for result in &self.results {
+            let result_constraints = result.extract_next_step_constraints();
+            constraints.extend(result_constraints);
+        }
+        constraints
+    }
+
+    /// Extract all available tokens from all results
+    pub fn extract_all_available_tokens(&self) -> HashMap<String, u64> {
+        let mut available_tokens = HashMap::new();
+        for result in &self.results {
+            let result_tokens = result.extract_available_tokens();
+            available_tokens.extend(result_tokens);
+        }
+        available_tokens
+    }
+}
+
+impl Default for TypedToolResults {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Generic wrapper for tool results with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResultWrapper {

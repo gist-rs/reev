@@ -10,7 +10,7 @@ use tracing::info;
 mod types;
 pub use types::{
     ErrorKeyInfo, ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, KeyInfo, LendKeyInfo,
-    OperationKeyInfo, SwapKeyInfo, ToolResultWrapper, TypedToolResult,
+    OperationKeyInfo, SwapKeyInfo, ToolResultWrapper, TypedToolResult, TypedToolResults,
 };
 
 // Import token mint wrapper
@@ -343,38 +343,130 @@ impl YmlContextBuilder {
 
         // Extract key information based on tool calls using typed deserialization
         if result.success {
-            if let Some(tool_results) = result.get_tool_results().map(serde_json::Value::Array) {
-                if let Some(results_array) = tool_results.as_array() {
-                    for tool_result in results_array {
-                        // Try to deserialize tool result into typed structs
-                        if let Ok(typed_result) =
-                            serde_json::from_value::<TypedToolResult>(tool_result.clone())
+            if let Some(tool_results_vec) = result.get_tool_results() {
+                // Convert Vec<serde_json::Value> to a single JSON value
+                let tool_results_json = serde_json::Value::Array(tool_results_vec);
+
+                // Try to deserialize array directly into Vec<TypedToolResult>
+                if let Ok(typed_results_vec) =
+                    serde_json::from_value::<Vec<TypedToolResult>>(tool_results_json.clone())
+                {
+                    // Create TypedToolResults from the vector
+                    let typed_results = TypedToolResults {
+                        results: typed_results_vec,
+                    };
+
+                    // Extract all key information from all results
+                    key_info.extend(typed_results.extract_all_key_info());
+
+                    // Extract all balance changes and update with symbols from wallet context
+                    let mut results_balance_changes = typed_results.extract_all_balance_changes();
+                    for change in &mut results_balance_changes {
+                        if let Some(symbol) = self
+                            .wallet_context
+                            .token_balances
+                            .get(&change.mint)
+                            .and_then(|t| t.symbol.as_ref())
                         {
-                            // Extract key information using the trait implementation
-                            let result_key_info = typed_result.extract_key_info();
-                            key_info.extend(result_key_info);
+                            change.symbol = Some(symbol.clone());
+                        }
+                    }
+                    balance_changes.extend(results_balance_changes);
 
-                            // Extract balance changes and update with symbols from wallet context
-                            let mut result_balance_changes = typed_result.extract_balance_changes();
-                            for change in &mut result_balance_changes {
-                                if let Some(symbol) = self
-                                    .wallet_context
-                                    .token_balances
-                                    .get(&change.mint)
-                                    .and_then(|t| t.symbol.as_ref())
-                                {
-                                    change.symbol = Some(symbol.clone());
+                    // Extract all next step constraints
+                    next_step_constraints.extend(typed_results.extract_all_constraints());
+
+                    // Extract all available tokens
+                    available_tokens.extend(typed_results.extract_all_available_tokens());
+                } else {
+                    // Fallback to old method if deserialization fails
+                    for tool_result in tool_results_json.as_array().unwrap() {
+                        // Try to deserialize tool result into typed structs
+                        if let Some(jupiter_swap) = tool_result.get("jupiter_swap") {
+                            // Use typed deserialization for Jupiter swap results
+                            if let Ok(swap_result) =
+                                serde_json::from_value::<JupiterSwapResult>(jupiter_swap.clone())
+                            {
+                                // Extract key information using the trait implementation
+                                let swap_key_info = swap_result.extract_key_info();
+                                key_info.extend(swap_key_info);
+
+                                // Extract balance changes and update with symbols from wallet context
+                                let mut swap_balance_changes =
+                                    swap_result.extract_balance_changes();
+                                for change in &mut swap_balance_changes {
+                                    if let Some(symbol) = self
+                                        .wallet_context
+                                        .token_balances
+                                        .get(&change.mint)
+                                        .and_then(|t| t.symbol.as_ref())
+                                    {
+                                        change.symbol = Some(symbol.clone());
+                                    }
                                 }
+                                balance_changes.extend(swap_balance_changes);
+
+                                // Extract next step constraints
+                                let swap_constraints = swap_result.extract_next_step_constraints();
+                                next_step_constraints.extend(swap_constraints);
+
+                                // Extract available tokens
+                                let swap_tokens = swap_result.extract_available_tokens();
+                                available_tokens.extend(swap_tokens);
                             }
-                            balance_changes.extend(result_balance_changes);
+                        }
+                        // Extract lend information using typed deserialization
+                        else if let Some(jupiter_lend) = tool_result.get("jupiter_lend") {
+                            if let Ok(lend_result) =
+                                serde_json::from_value::<JupiterLendResult>(jupiter_lend.clone())
+                            {
+                                // Extract key information using the trait implementation
+                                let lend_key_info = lend_result.extract_key_info();
+                                key_info.extend(lend_key_info);
 
-                            // Extract next step constraints
-                            let result_constraints = typed_result.extract_next_step_constraints();
-                            next_step_constraints.extend(result_constraints);
+                                // Extract balance changes and update with symbols from wallet context
+                                let mut lend_balance_changes =
+                                    lend_result.extract_balance_changes();
+                                for change in &mut lend_balance_changes {
+                                    if let Some(symbol) = self
+                                        .wallet_context
+                                        .token_balances
+                                        .get(&change.mint)
+                                        .and_then(|t| t.symbol.as_ref())
+                                    {
+                                        change.symbol = Some(symbol.clone());
+                                    }
+                                }
+                                balance_changes.extend(lend_balance_changes);
 
-                            // Extract available tokens
-                            let result_tokens = typed_result.extract_available_tokens();
-                            available_tokens.extend(result_tokens);
+                                // Extract next step constraints
+                                let lend_constraints = lend_result.extract_next_step_constraints();
+                                next_step_constraints.extend(lend_constraints);
+
+                                // Extract available tokens
+                                let lend_tokens = lend_result.extract_available_tokens();
+                                available_tokens.extend(lend_tokens);
+                            }
+                        }
+                        // Extract generic operation info
+                        else {
+                            // Handle generic operation with typed KeyInfo
+                            let operation_type = tool_result
+                                .get("operation_type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("generic");
+
+                            // Create typed OperationKeyInfo
+                            let op_info = OperationKeyInfo {
+                                operation_type: operation_type.to_string(),
+                                details: tool_result.clone(),
+                            };
+
+                            // Store as KeyInfo enum
+                            key_info.insert(
+                                "operation".to_string(),
+                                serde_json::to_value(KeyInfo::Operation(op_info)).unwrap(),
+                            );
                         }
                     }
                 }

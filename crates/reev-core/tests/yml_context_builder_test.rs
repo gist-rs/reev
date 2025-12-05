@@ -351,7 +351,7 @@ fn test_yml_context_filtering() {
 #[test]
 fn test_typed_tool_result_structure() {
     use reev_core::execution::context_builder::{
-        ExtractKeyInfo, JupiterSwapResult, TypedToolResult,
+        ExtractKeyInfo, JupiterSwapResult, TypedToolResult, TypedToolResults,
     };
 
     // Create a swap result
@@ -399,4 +399,30 @@ fn test_typed_tool_result_structure() {
         }
         _ => panic!("Expected JupiterSwap variant"),
     }
+
+    // Test TypedToolResults collection
+    let mut results = TypedToolResults::new();
+    results.add_result(typed_result);
+
+    // Test collection extraction methods
+    let all_key_info = results.extract_all_key_info();
+    assert!(all_key_info.contains_key("swap"));
+
+    let all_balance_changes = results.extract_all_balance_changes();
+    assert_eq!(all_balance_changes.len(), 2); // Input and output tokens
+
+    let all_constraints = results.extract_all_constraints();
+    assert!(!all_constraints.is_empty());
+
+    let all_available_tokens = results.extract_all_available_tokens();
+    assert_eq!(
+        all_available_tokens.get("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+        Some(&1000000000u64)
+    );
+
+    // Test serialization/deserialization of the collection
+    let collection_json = serde_json::to_value(&results).unwrap();
+    let deserialized_collection: TypedToolResults =
+        serde_json::from_value(collection_json).unwrap();
+    assert_eq!(deserialized_collection.len(), 1);
 }
