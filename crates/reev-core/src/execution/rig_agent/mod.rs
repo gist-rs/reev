@@ -142,7 +142,10 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
             .await
             .map_err(|e| anyhow!("LLM generation failed: {e}"))?;
 
-        debug!("LLM response: {}", response_content);
+        debug!(
+            "LLM response from {}: {}",
+            self.model_name, response_content
+        );
 
         // Parse tool calls from the response
         let tool_calls = self.parse_tool_calls_from_response(&response_content)?;
@@ -233,7 +236,10 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
             .await
             .map_err(|e| anyhow!("LLM generation failed: {e}"))?;
 
-        debug!("LLM response: {}", response_content);
+        debug!(
+            "LLM response from {}: {}",
+            self.model_name, response_content
+        );
 
         // Parse tool calls from the response
         let tool_calls = self.parse_tool_calls_from_response(&response_content)?;

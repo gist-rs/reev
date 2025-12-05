@@ -3796,6 +3796,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zai-sdk",
 ]
 
 [[package]]
@@ -3892,6 +3893,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
+ "zai-sdk",
 ]
 
 [[package]]

@@ -1,11 +1,4 @@
-    /// Total portfolio value in USD
-    pub total_value_usd: f64,
-
-dont add test in file, use folder crates/reev-core/tests
-
-con impl, step by step, be concise, no fallback, no legacy, no mock, use serde_yml deserialzed to struct not manually parse
-
-glm client should be in one place, create reev-llm and copy crates/reev-agent/src/providers then consolidate remain
+fix it one by one with smaller change step by step and stop each step and ask me to con so we can consider commit for each, be concise, no fallback, no legacy, no mock, use serde_json, serde_yml to deserialze untyped to struct as possible. dont add test in file, use tests folder.
 
 action must be enum, strum, no string allow
         match action {
@@ -16,3 +9,6 @@ action must be enum, strum, no string allow
             "earn" => PromptAction::Earn,
             _ => PromptAction::Unknown,
         }
+
+    /// Total portfolio value in USD
+    pub total_value_usd: f64,
