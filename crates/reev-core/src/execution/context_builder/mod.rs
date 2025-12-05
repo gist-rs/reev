@@ -6,6 +6,16 @@ use serde_json::json;
 use std::collections::HashMap;
 use tracing::info;
 
+// Import typed structs for tool results
+mod types;
+pub use types::{
+    ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, ToolResultWrapper, TypedToolResult,
+};
+
+// Import token mint wrapper
+mod token_mint;
+pub use token_mint::{helpers, mints, MintError, TokenMint};
+
 /// Minimal AI context containing only relevant information for AI operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MinimalAiContext {
@@ -355,106 +365,76 @@ impl YmlContextBuilder {
         let mut next_step_constraints = Vec::new();
         let mut available_tokens = HashMap::new();
 
-        // Extract key information based on tool calls
+        // Extract key information based on tool calls using typed deserialization
         if result.success {
             if let Some(tool_results) = result.output.get("tool_results") {
                 if let Some(results_array) = tool_results.as_array() {
                     for tool_result in results_array {
-                        // Extract swap information
+                        // Try to deserialize tool result into typed structs
                         if let Some(jupiter_swap) = tool_result.get("jupiter_swap") {
-                            if let (
-                                Some(input_mint),
-                                Some(output_mint),
-                                Some(input_amount),
-                                Some(output_amount),
-                            ) = (
-                                jupiter_swap.get("input_mint").and_then(|v| v.as_str()),
-                                jupiter_swap.get("output_mint").and_then(|v| v.as_str()),
-                                jupiter_swap.get("input_amount").and_then(|v| v.as_u64()),
-                                jupiter_swap.get("output_amount").and_then(|v| v.as_u64()),
-                            ) {
-                                key_info.insert(
-                                    "swap".to_string(),
-                                    json!({
-                                        "input_mint": input_mint,
-                                        "output_mint": output_mint,
-                                        "input_amount": input_amount,
-                                        "output_amount": output_amount,
-                                        "output_amount_for_lend": output_amount,
-                                    }),
-                                );
+                            // Use typed deserialization for Jupiter swap results
+                            if let Ok(swap_result) =
+                                serde_json::from_value::<JupiterSwapResult>(jupiter_swap.clone())
+                            {
+                                // Extract key information using the trait implementation
+                                let swap_key_info = swap_result.extract_key_info();
+                                key_info.extend(swap_key_info);
 
-                                // Track balance changes for swap
-                                let input_symbol = self
-                                    .wallet_context
-                                    .token_balances
-                                    .get(input_mint)
-                                    .and_then(|t| t.symbol.clone());
+                                // Extract balance changes and update with symbols from wallet context
+                                let mut swap_balance_changes =
+                                    swap_result.extract_balance_changes();
+                                for change in &mut swap_balance_changes {
+                                    if let Some(symbol) = self
+                                        .wallet_context
+                                        .token_balances
+                                        .get(&change.mint)
+                                        .and_then(|t| t.symbol.as_ref())
+                                    {
+                                        change.symbol = Some(symbol.clone());
+                                    }
+                                }
+                                balance_changes.extend(swap_balance_changes);
 
-                                balance_changes.push(BalanceChange {
-                                    mint: input_mint.to_string(),
-                                    balance_before: input_amount,
-                                    balance_after: 0,
-                                    change_amount: -(input_amount as i64),
-                                    symbol: input_symbol,
-                                });
+                                // Extract next step constraints
+                                let swap_constraints = swap_result.extract_next_step_constraints();
+                                next_step_constraints.extend(swap_constraints);
 
-                                let output_symbol = self
-                                    .wallet_context
-                                    .token_balances
-                                    .get(output_mint)
-                                    .and_then(|t| t.symbol.clone());
-
-                                balance_changes.push(BalanceChange {
-                                    mint: output_mint.to_string(),
-                                    balance_before: 0,
-                                    balance_after: output_amount,
-                                    change_amount: output_amount as i64,
-                                    symbol: output_symbol,
-                                });
-
-                                // Add constraint for next step
-                                next_step_constraints.push(format!(
-                                    "Use exactly {output_amount} units of {output_mint} from previous swap"
-                                ));
-
-                                // Update available tokens
-                                available_tokens.insert(output_mint.to_string(), output_amount);
+                                // Extract available tokens
+                                let swap_tokens = swap_result.extract_available_tokens();
+                                available_tokens.extend(swap_tokens);
                             }
                         }
-                        // Extract lend information
+                        // Extract lend information using typed deserialization
                         else if let Some(jupiter_lend) = tool_result.get("jupiter_lend") {
-                            if let (Some(asset_mint), Some(amount)) = (
-                                jupiter_lend.get("asset_mint").and_then(|v| v.as_str()),
-                                jupiter_lend.get("amount").and_then(|v| v.as_u64()),
-                            ) {
-                                key_info.insert(
-                                    "lend".to_string(),
-                                    json!({
-                                        "asset_mint": asset_mint,
-                                        "amount": amount,
-                                    }),
-                                );
+                            if let Ok(lend_result) =
+                                serde_json::from_value::<JupiterLendResult>(jupiter_lend.clone())
+                            {
+                                // Extract key information using the trait implementation
+                                let lend_key_info = lend_result.extract_key_info();
+                                key_info.extend(lend_key_info);
 
-                                // Track balance changes for lend
-                                let symbol = self
-                                    .wallet_context
-                                    .token_balances
-                                    .get(asset_mint)
-                                    .and_then(|t| t.symbol.clone());
+                                // Extract balance changes and update with symbols from wallet context
+                                let mut lend_balance_changes =
+                                    lend_result.extract_balance_changes();
+                                for change in &mut lend_balance_changes {
+                                    if let Some(symbol) = self
+                                        .wallet_context
+                                        .token_balances
+                                        .get(&change.mint)
+                                        .and_then(|t| t.symbol.as_ref())
+                                    {
+                                        change.symbol = Some(symbol.clone());
+                                    }
+                                }
+                                balance_changes.extend(lend_balance_changes);
 
-                                balance_changes.push(BalanceChange {
-                                    mint: asset_mint.to_string(),
-                                    balance_before: amount,
-                                    balance_after: 0,
-                                    change_amount: -(amount as i64),
-                                    symbol,
-                                });
+                                // Extract next step constraints
+                                let lend_constraints = lend_result.extract_next_step_constraints();
+                                next_step_constraints.extend(lend_constraints);
 
-                                // Add constraint for next step
-                                next_step_constraints.push(format!(
-                                    "{amount} units of {asset_mint} are now lent and unavailable"
-                                ));
+                                // Extract available tokens
+                                let lend_tokens = lend_result.extract_available_tokens();
+                                available_tokens.extend(lend_tokens);
                             }
                         }
                         // Extract generic operation info
