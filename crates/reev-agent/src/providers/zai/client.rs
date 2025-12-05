@@ -1,5 +1,5 @@
 //! ZAI API client implementation
-use serde::{Deserialize, Serialize};
+// serde imports no longer needed after migration to zai-sdk
 
 use super::completion::CompletionModel as ZaiCompletionModel;
 use rig::client::{
@@ -59,7 +59,7 @@ pub struct Client {
     pub api_key: String,
     pub http_client: reqwest::Client,
     // Internal zai-sdk client wrapped in Arc for shared access
-    zai_client: Arc<ZaiClient>,
+    pub(crate) zai_client: Arc<ZaiClient>,
 }
 
 impl std::fmt::Debug for Client {
@@ -104,80 +104,6 @@ impl Client {
         ClientBuilder::new(api_key)
     }
 
-    /// Send a POST request to the ZAI API
-    pub(crate) async fn post<T: Serialize, R: for<'de> Deserialize<'de>>(
-        &self,
-        path: &str,
-        request: &T,
-    ) -> Result<R, CompletionError> {
-        let url = if path.is_empty() {
-            self.base_url.clone()
-        } else {
-            format!("{}/{}", self.base_url, path)
-        };
-
-        let response = self
-            .http_client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .header("Content-Type", "application/json")
-            .json(request)
-            .send()
-            .await
-            .map_err(CompletionError::HttpError)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Failed to read error response".to_string());
-
-            return Err(CompletionError::ProviderError(format!(
-                "ZAI API error {status}: {text}"
-            )));
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|e| CompletionError::ProviderError(e.to_string()))
-    }
-
-    /// Send a GET request to the ZAI API
-    #[allow(unused)]
-    pub(crate) async fn get<R: for<'de> Deserialize<'de>>(
-        &self,
-        path: &str,
-    ) -> Result<R, CompletionError> {
-        let url = format!("{}/{}", self.base_url, path);
-
-        let response = self
-            .http_client
-            .get(&url)
-            .bearer_auth(&self.api_key)
-            .send()
-            .await
-            .map_err(CompletionError::HttpError)?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Failed to read error response".to_string());
-
-            return Err(CompletionError::ProviderError(format!(
-                "ZAI API error {status}: {text}"
-            )));
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|e| CompletionError::ProviderError(e.to_string()))
-    }
-
     /// Send a completion request using zai-sdk
     pub async fn completion_with_zai_sdk(&self, prompt: &str) -> Result<String, CompletionError> {
         self.zai_client
@@ -220,31 +146,27 @@ impl VerifyClient for Client {
 impl Client {
     /// Verify a specific model is available and accessible
     pub async fn verify_model(&self, model_name: &str) -> Result<(), VerifyError> {
-        let test_request = serde_json::json!({
-            "model": model_name,
-            "messages": [{"role": "user", "content": "test"}],
-            "max_tokens": 1
-        });
-
-        let _: serde_json::Value =
-            self.post("chat/completions", &test_request)
-                .await
-                .map_err(|e| match e {
-                    CompletionError::HttpError(http_err) => VerifyError::HttpError(http_err),
-                    CompletionError::ProviderError(provider_err) => {
-                        // Check if it's a model not found error
-                        if provider_err.to_lowercase().contains("model")
-                            && provider_err.to_lowercase().contains("not found")
-                        {
-                            VerifyError::ProviderError(format!(
-                                "Model '{model_name}' is not available"
-                            ))
-                        } else {
-                            VerifyError::InvalidAuthentication
-                        }
-                    }
-                    _ => VerifyError::ProviderError(e.to_string()),
-                })?;
+        // Use zai-sdk for model verification
+        self.zai_client
+            .verify_model(Some(model_name))
+            .await
+            .map_err(|e| match e {
+                zai_sdk::ZaiError::Authentication { .. } => VerifyError::InvalidAuthentication,
+                zai_sdk::ZaiError::ModelUnavailable { .. } => {
+                    VerifyError::ProviderError(format!("Model '{model_name}' is not available"))
+                }
+                zai_sdk::ZaiError::RateLimit { .. } => {
+                    VerifyError::ProviderError("Rate limit exceeded".to_string())
+                }
+                zai_sdk::ZaiError::ApiRequest { message } => VerifyError::ProviderError(message),
+                zai_sdk::ZaiError::Network { .. } => {
+                    VerifyError::ProviderError("Network error".to_string())
+                }
+                zai_sdk::ZaiError::InvalidResponse { message } => {
+                    VerifyError::ProviderError(message)
+                }
+                _ => VerifyError::ProviderError(format!("Verification error: {e}")),
+            })?;
         Ok(())
     }
 }

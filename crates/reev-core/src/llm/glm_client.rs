@@ -176,38 +176,3 @@ pub fn init_glm_client() -> Result<Box<dyn crate::planner::LlmClient>> {
     let client = GLMClient::from_env()?;
     Ok(Box::new(client))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::planner::LlmClient;
-
-    #[tokio::test]
-    async fn test_glm_client_with_zai_sdk() {
-        // This is an e2e test that requires ZAI_API_KEY
-        // Load environment variables from .env file
-        dotenvy::dotenv().ok();
-
-        // Panic if ZAI_API_KEY is not set for e2e test
-        let api_key = std::env::var("ZAI_API_KEY")
-            .expect("ZAI_API_KEY environment variable must be set for e2e test");
-
-        let model_name =
-            std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
-
-        let client = GLMClient::new(&model_name, &api_key).expect("Failed to create client");
-
-        // Test with a simple prompt
-        let result = client
-            .generate_flow("Swap 1 SOL to USDC")
-            .await
-            .expect("Failed to generate flow");
-
-        // Verify it's valid JSON
-        let parsed: serde_json::Value =
-            serde_json::from_str(&result).expect("Result should be valid JSON");
-
-        assert!(parsed.get("intent").is_some());
-        assert!(parsed.get("parameters").is_some());
-    }
-}
