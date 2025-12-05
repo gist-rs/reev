@@ -2738,6 +2738,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libyml"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e281a65eeba3d4503a2839252f86374528f9ceafe6fed97c1d3b52e1fb625c1"
+
+[[package]]
 name = "libz-sys"
 version = "1.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4704,6 +4710,23 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "serde_yml"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ce6afeda22f0b55dde2c34897bce76a629587348480384231205c14b59a01f"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "libyml",
+ "log",
+ "memchr",
+ "ryu",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -9223,6 +9246,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "serde_yml",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",

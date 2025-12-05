@@ -1,4 +1,4 @@
-fix it one by one with smaller change step by step and stop each step and ask me to con so we can consider commit for each, be concise, no fallback, no legacy, no mock, use serde_json, serde_yml to deserialze untyped to struct as possible. dont add test in file, use tests folder.
+fix it one by one with smaller change step by step and stop each step and ask me to con so we can consider commit for each, be concise, no fallback, no legacy, no mock in prod code, use serde_json, serde_yml to deserialze untyped to struct as possible. dont add test in file, use tests folder.
 
 action must be enum, strum, no string allow
         match action {

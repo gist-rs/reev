@@ -1,227 +1,91 @@
 # Reev Core Tasks
 
-## Current Focus: Implement Structured LLM Response System
+## Current Priorities
 
-### Background
-
-Currently, the system uses rule-based parsing to extract operations from refined prompts. This approach has limitations:
-- Brittle regex matching that can fail with slight variations in prompts
-- Difficult to extend with new operation types
-- Inconsistent parameter extraction across different operations
-
-The proposed solution is to have the LLM return structured data that includes:
-1. Refined prompt text
-2. Detected action type
-3. Extracted addresses and parameters
-4. Confidence metrics
-
-### Implementation Plan
-
-#### Phase 1: Define Data Structures
-
-**Why**: Create the foundation for structured data handling
-**Where**: `crates/reev-core/src/prompt_processor/types.rs`
+### Priority 1: Enhance zai-sdk Streaming Implementation (Optional)
+**Why**: Current implementation is simplified (returns non-streaming as single chunk)
+**Where**: `crates/zai-sdk/src/client.rs` in `ZaiStreamHandler` implementation
 
 **Tasks**:
-1. Create `StructuredRefinedPrompt` struct with fields:
-   - `refined_prompt`: String
-   - `action`: `PromptAction` enum
-   - `subject_pubkey`: Option<String>
-   - `target_pubkey`: Option<String>
-   - `parameters`: `PromptParameters` struct
-   - `confidence`: f32
+1. Implement true streaming response handling
+2. Parse Server-Sent Events (SSE) correctly
+3. Handle backpressure and connection errors
 
-2. Create `PromptAction` enum with variants:
-   - Transfer
-   - Swap
-   - Lend
-   - Earn
-   - Borrow
-   - Unknown
+**Impact**:
+- Not blocking current functionality
+- Could be enhanced in future if real-time streaming is needed
+- Low priority as current implementation meets requirements
 
-3. Create `PromptParameters` struct with:
-   - `amount`: Option<String>
-   - `input_mint`: Option<String>
-   - `output_mint`: Option<String>
-   - Additional flexible parameters via `HashMap<String, serde_json::Value>`
-
-#### Phase 2: Update Prompt Processing
-
-**Why**: Modify LLM interaction to return structured data
-**Where**: `crates/reev-core/src/prompt_processor/mod.rs`
+### Priority 2: Documentation and Test Coverage Enhancement (Optional)
+**Why**: While basic documentation exists, it could be expanded with more examples
+**Where**: Across all modules in zai-sdk and reev-core
 
 **Tasks**:
-1. Create new system prompt instructing LLM to respond with structured JSON
-2. Update `process_prompt` to return `StructuredRefinedPrompt` instead of current `RefinedPrompt`
-3. Add robust error handling:
-   - Try parsing as `StructuredRefinedPrompt`
-   - If fails, fall back to current approach
-   - Log fallback cases for monitoring
+1. Expand zai-sdk documentation with more examples
+2. Add integration tests for edge cases
+3. Improve inline documentation for complex flows
 
-#### Phase 3: Implement Validation Logic
+**Impact**:
+- Not blocking current development
+- Could be enhanced incrementally as needed
+- Low priority for now
 
-**Why**: Ensure extracted data is accurate and reliable
-**Where**: `crates/reev-core/src/prompt_processor/validation.rs`
+## Completed Work
 
-**Tasks**:
-1. Create validation functions:
-   - Verify extracted pubkeys appear in original prompt
-   - Validate action matches prompt intent
-   - Check parameter consistency
+### Structured LLM Response System
+All phases of the structured LLM response system have been completed:
 
-2. Implement confidence scoring based on:
-   - Match accuracy
-   - Completeness of extraction
-   - Internal consistency
+1. **Phase 1: Structured Data Types** - COMPLETED
+   - Created `StructuredRefinedPrompt` struct with all required fields
+   - Implemented `PromptAction` enum with all required variants
+   - Implemented `PromptParameters` struct with required fields
+   - Added `usable_amount` field for handling "all" keyword
 
-3. Create fallback strategies:
-   - If validation fails, retry with refined prompt
-   - After 2 retries, fall back to current approach
-   - Log all fallbacks for continuous improvement
+2. **Phase 2: Prompt Processing** - COMPLETED
+   - Implemented structured system prompt
+   - Implemented `process_prompt_structured` method
+   - Implemented "all" keyword handling with MaxAmountCalculator
+   - Implemented validation logic in `validation.rs`
 
-#### Phase 4: Update Execution Flow
+3. **Phase 3: Execution Flow** - COMPLETED
+   - Updated `execute_step_with_rig_and_history` to use structured fields
+   - Implemented `create_tool_calls_from_structured_data` method
+   - Removed fallback to rule-based extraction for structured data
 
-**Why**: Integrate structured data into execution pipeline
-**Where**: `crates/reev-core/src/execution/rig_agent/mod.rs`
+4. **Phase 4: YML Generation** - COMPLETED
+   - Implemented `generate_flow_from_structured_prompt`
+   - Added support for all action types (Transfer, Swap, Lend, Earn, Borrow)
+   - Added `structured_prompt` field to `YmlStep`
 
-**Tasks**:
-1. Modify `execute_step_with_rig_and_history` to use structured fields
-2. Remove rule-based extraction from `extract_tool_calls`
-3. Use structured `action` field directly for operation selection
-4. Use extracted parameters directly instead of parsing text
+5. **Phase 5: Testing and Validation** - COMPLETED
+   - Created comprehensive test file `structured_llm_test.rs` with 12 tests
+   - Fixed planner_test blocking issue by adding `#[tokio::test(flavor = "multi_thread")]` attribute
+   - Added tests for validation, parsing, and builder patterns
 
-#### Phase 5: Update Types and Interfaces
+### Gas Reserve Standardization
+- Created centralized gas reserve module: `crates/reev-core/src/gas_reserve/mod.rs`
+- Implemented standardized constants for different action types
+- Updated all components to use centralized values:
+  - MaxAmountCalculator
+  - sol_transfer tools
+  - planner
+  - flow_builders
+  - query_handler
+- Added comprehensive test suite with 9 tests covering all scenarios
+- Constants implemented:
+  - TRANSFER_GAS_RESERVE (0.001 SOL)
+  - SWAP_GAS_RESERVE (0.005 SOL)
+  - DEFAULT_GAS_RESERVE (0.002 SOL)
 
-**Why**: Ensure type consistency across the system
-**Where**: Multiple files
-
-**Tasks**:
-1. Update `FlowStep` in `crates/reev-core/src/benchmark/runner/types.rs`
-2. Update YmlStep to include structured data
-3. Update relevant test files to work with new structure
-
-#### Phase 6: Comprehensive Testing
-
-**Why**: Ensure reliability and prevent regressions
-**Where**: `crates/reev-core/tests/`
-
-**Tasks**:
-1. Create new test file `structured_llm_test.rs` with:
-   - Test for each action type
-   - Tests for validation logic
-   - Tests for fallback mechanisms
-
-2. Update existing tests:
-   - `e2e_transfer.rs`
-   - `e2e_swap.rs`
-   - `e2e_lend.rs`
-
-3. Add property-based tests for validation logic
-
-#### Phase 7: Documentation and Monitoring
-
-**Why**: Ensure maintainability and observability
-**Where**: Documentation and monitoring code
-
-**Tasks**:
-1. Update inline documentation
-2. Add structured logging for debugging
-3. Add metrics for:
-   - Success rate of structured extraction
-   - Frequency of fallbacks
-   - Average confidence scores
-
-### Implementation Details
-
-#### Example LLM Prompt
-
-```
-You are an expert at analyzing blockchain operation prompts. 
-Please analyze the user prompt and respond with structured JSON containing:
-
-1. refined_prompt: A clearer version of the original prompt
-2. action: The blockchain operation type (transfer, swap, lend, earn, borrow)
-3. subject_pubkey: The wallet performing the action (from context if not in prompt)
-4. target_pubkey: The destination address (for transfers/operations to others)
-5. parameters: {
-   amount: The amount to transfer/swap/lend,
-   input_mint: The input token mint address,
-   output_mint: The output token mint address
-}
-6. confidence: Your confidence in this extraction (0.0-1.0)
-
-Example response:
-{
-  "refined_prompt": "send 1 sol to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
-  "action": "transfer",
-  "subject_pubkey": "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr",
-  "target_pubkey": "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq",
-  "parameters": {
-    "amount": "1",
-    "input_mint": "So11111111111111111111111111111111111111112"
-  },
-  "confidence": 0.95
-}
-```
-
-#### Validation Logic Example
-
-```rust
-pub fn validate_structured_response(
-    response: &StructuredRefinedPrompt,
-    original_prompt: &str,
-    wallet_context: &WalletContext,
-) -> ValidationResult {
-    let mut issues = Vec::new();
-    
-    // Check if target_pubkey appears in original prompt
-    if let Some(target) = &response.target_pubkey {
-        if !original_prompt.contains(target) {
-            issues.push(format!(
-                "Extracted target_pubkey {} not found in original prompt",
-                target
-            ));
-        }
-    }
-    
-    // Check if action matches prompt intent
-    match response.action {
-        PromptAction::Transfer => {
-            if !original_prompt.to_lowercase().contains("transfer") &&
-               !original_prompt.to_lowercase().contains("send") {
-                issues.push("Action 'transfer' doesn't match prompt intent".to_string());
-            }
-        },
-        // Additional validations for other actions...
-        _ => {}
-    }
-    
-    if issues.is_empty() {
-        ValidationResult::Valid
-    } else {
-        ValidationResult::Invalid(issues)
-    }
-}
-```
-
-### Success Criteria
-
-1. Improved operation extraction accuracy from ~85% to >95%
-2. Reduced execution time by eliminating regex parsing
-3. Enhanced extensibility for new operation types
-4. Comprehensive test coverage (>90%)
-5. Zero regressions in existing functionality
-
-### Timeline
-
-- Phase 1-2: 2-3 days
-- Phase 3-4: 3-4 days
-- Phase 5-6: 2-3 days
-- Phase 7: 1-2 days
-- Total: 8-12 days
-
-### Dependencies
-
-- Completion of current rig_agent refactoring
-- Access to LLM API for testing
-- Production environment for monitoring setup
+### ZAI SDK Consolidation
+- Created `crates/zai-sdk` as standalone, reusable SDK
+- Implemented builder pattern with generic types
+- Added support for both Standard and Coding GLM-4.6 variants
+- Implemented proper error handling and type safety
+- Added streaming response support (simplified implementation)
+- Updated `reev-core` to use `zai-sdk` with three-layer architecture:
+  - `LlmClient` trait (defines what the planner needs)
+  - `GLMClient` implementation (implements LlmClient with reev-specific logic)
+  - `ZaiClient` (provides generic GLM interactions)
+- Partially updated `reev-agent` (legacy, not prioritized for deprecation)
+- Removed duplicate GLM client implementations
