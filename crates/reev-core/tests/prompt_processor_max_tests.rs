@@ -279,6 +279,8 @@ fn test_structured_refined_prompt_builder() -> Result<()> {
         input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
         output_mint: None,
         additional: HashMap::new(),
+        transfer_params: None,
+        swap_params: None,
     };
 
     let response = StructuredRefineResponse {

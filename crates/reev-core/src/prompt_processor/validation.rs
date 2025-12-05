@@ -534,6 +534,8 @@ mod tests {
                 input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
                 output_mint: None,
                 additional: std::collections::HashMap::new(),
+                transfer_params: None,
+                swap_params: None,
             })
             .build();
 
@@ -572,6 +574,8 @@ mod tests {
                 input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
                 output_mint: None,
                 additional: std::collections::HashMap::new(),
+                transfer_params: None,
+                swap_params: None,
             })
             .build();
 
@@ -614,6 +618,8 @@ mod tests {
                 input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
                 output_mint: None,
                 additional: std::collections::HashMap::new(),
+                transfer_params: None,
+                swap_params: None,
             })
             .usable_amount(Some(10.5))
             .build();

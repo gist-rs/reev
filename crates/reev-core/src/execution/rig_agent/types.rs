@@ -37,3 +37,21 @@ pub struct LLMChoice {
 pub struct LLMResponseMessage {
     pub content: String,
 }
+
+/// Tool call in API response
+#[derive(Debug, Deserialize)]
+pub struct ToolCall {
+    /// Name of the tool
+    pub name: String,
+    /// Parameters for the tool
+    pub parameters: serde_json::Value,
+}
+
+/// Structured API response with tool calls
+#[derive(Debug, Deserialize)]
+pub struct StructuredLLMResponse {
+    /// Content of the response
+    pub content: String,
+    /// Tool calls to execute
+    pub tool_calls: Option<Vec<ToolCall>>,
+}

@@ -5,6 +5,7 @@
 //! Reev Core Architecture.
 
 // Removed unused import
+use crate::{prompt_processor::types::SwapAdditionalParams, YmlStep};
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::{StepResult, WalletContext};
@@ -17,8 +18,6 @@ use std::string::String;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 use zai_sdk::{GlmVariant, Message, ZaiClient};
-
-use crate::yml_schema::YmlStep;
 
 // Import modules
 mod context;
@@ -293,35 +292,48 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Parsing tool calls from response: {}", response);
 
-        // Try to parse the response as JSON
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
-            debug!("Successfully parsed JSON response");
+        // First try to parse as a JSON object with a top-level tool_calls field
+        // This is the actual format returned by the LLM
+        if let Ok(llm_response) = serde_json::from_str::<serde_json::Value>(response) {
+            if let Some(tool_calls) = llm_response.get("tool_calls").and_then(|v| v.as_array()) {
+                debug!("Found {} tool calls in LLM response", tool_calls.len());
+                let mut tool_map = HashMap::new();
 
-            if let Some(tool_calls) = json_value.get("tool_calls").and_then(|v| v.as_array()) {
+                for tool_call in tool_calls {
+                    if let Some(name) = tool_call.get("name").and_then(|v| v.as_str()) {
+                        if let Some(parameters) = tool_call.get("parameters") {
+                            debug!("Extracted tool call: {} with params: {}", name, parameters);
+                            tool_map.insert(name.to_string(), parameters.clone());
+                        }
+                    }
+                }
+                return Ok(tool_map);
+            }
+        }
+
+        // Try to parse the response as structured JSON with typed structs (fallback)
+        if let Ok(structured_response) = serde_json::from_str::<StructuredLLMResponse>(response) {
+            debug!("Successfully parsed structured JSON response");
+
+            if let Some(tool_calls) = structured_response.tool_calls {
                 debug!("Found {} tool calls in response", tool_calls.len());
                 let mut tool_map = HashMap::new();
                 for tool_call in tool_calls {
-                    if let (Some(name), Some(params)) = (
-                        tool_call.get("name").and_then(|v| v.as_str()),
-                        tool_call.get("parameters"),
-                    ) {
-                        debug!("Extracted tool call: {} with params: {}", name, params);
-                        tool_map.insert(name.to_string(), params.clone());
-                    } else {
-                        debug!("Tool call missing name or parameters: {:?}", tool_call);
-                    }
+                    debug!(
+                        "Extracted tool call: {} with params: {}",
+                        tool_call.name, tool_call.parameters
+                    );
+                    tool_map.insert(tool_call.name, tool_call.parameters);
                 }
-
-                Ok(tool_map)
+                return Ok(tool_map);
             } else {
                 debug!("No tool_calls found in JSON response");
                 // Fall back to text extraction if no tool_calls in JSON
-                self.extract_tool_calls_from_text(response)
             }
-        } else {
-            debug!("Failed to parse response as JSON, trying text extraction");
-            self.extract_tool_calls_from_text(response)
         }
+
+        debug!("Failed to parse response as JSON, trying text extraction");
+        self.extract_tool_calls_from_text(response)
     }
 
     /// Extract tool calls from text response (fallback)
@@ -435,28 +447,37 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
                         "spl_transfer".to_string()
                     };
 
-                    // Get user pubkey from structured prompt or use default
+                    // Get user pubkey from structured prompt or typed transfer parameters
                     let user_pubkey = if let Some(sp) = structured_prompt {
                         sp.subject_pubkey.clone().unwrap_or_else(|| {
                             "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
                         })
-                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(transfer_params) = &parameters.transfer_params {
+                        transfer_params
+                            .subject_pubkey
+                            .clone()
+                            .or_else(|| transfer_params.user_pubkey.clone())
+                            .unwrap_or_else(|| {
+                                "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                            })
                     } else {
                         "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
                     };
 
-                    // Get recipient pubkey from structured prompt or additional parameters
+                    // Get recipient pubkey from structured prompt or typed transfer parameters
                     let recipient_pubkey = if let Some(sp) = structured_prompt {
                         sp.target_pubkey.clone().unwrap_or_else(|| {
                             "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
                         })
-                    } else if let Some(value) = parameters.additional.get("recipient") {
-                        value.as_str().unwrap_or("").to_string()
-                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
-                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(transfer_params) = &parameters.transfer_params {
+                        transfer_params
+                            .recipient
+                            .clone()
+                            .or_else(|| transfer_params.target_pubkey.clone())
+                            .or_else(|| transfer_params.recipient_pubkey.clone())
+                            .unwrap_or_else(|| {
+                                "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                            })
                     } else {
                         "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
                     };
@@ -506,30 +527,37 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
 
                     let amount = amount.clone();
 
-                    // Get user pubkey from structured prompt or use default
+                    // Get user pubkey from structured prompt or typed transfer parameters
                     let user_pubkey = if let Some(sp) = structured_prompt {
                         sp.subject_pubkey.clone().unwrap_or_else(|| {
                             "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
                         })
-                    } else if let Some(value) = parameters.additional.get("subject_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
-                    } else if let Some(value) = parameters.additional.get("user_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(transfer_params) = &parameters.transfer_params {
+                        transfer_params
+                            .subject_pubkey
+                            .clone()
+                            .or_else(|| transfer_params.user_pubkey.clone())
+                            .unwrap_or_else(|| {
+                                "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
+                            })
                     } else {
                         "3F42CLVYyxuMYNTBRKuCQ6o3XnzPky6raWTPHtW8myLr".to_string()
                     };
 
-                    // Get recipient pubkey from structured prompt or additional parameters
+                    // Get recipient pubkey from structured prompt or typed transfer parameters
                     let recipient_pubkey = if let Some(sp) = structured_prompt {
                         sp.target_pubkey.clone().unwrap_or_else(|| {
                             "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
                         })
-                    } else if let Some(value) = parameters.additional.get("recipient") {
-                        value.as_str().unwrap_or("").to_string()
-                    } else if let Some(value) = parameters.additional.get("target_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
-                    } else if let Some(value) = parameters.additional.get("recipient_pubkey") {
-                        value.as_str().unwrap_or("").to_string()
+                    } else if let Some(transfer_params) = &parameters.transfer_params {
+                        transfer_params
+                            .recipient
+                            .clone()
+                            .or_else(|| transfer_params.target_pubkey.clone())
+                            .or_else(|| transfer_params.recipient_pubkey.clone())
+                            .unwrap_or_else(|| {
+                                "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
+                            })
                     } else {
                         "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string()
                     };
@@ -631,19 +659,22 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
             && !existing_calls.contains_key("jupiter_lend_earn_deposit")
         {
             if let Some(swap_params) = existing_calls.get("jupiter_swap") {
-                if let Some(output_mint) = swap_params.get("output_mint").and_then(|v| v.as_str()) {
-                    if output_mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
-                        if let Some(input_amount) =
-                            swap_params.get("input_amount").and_then(|v| v.as_u64())
-                        {
-                            info!("Adding lend operation for multi-step scenario");
-                            new_calls.insert(
-                                "jupiter_lend_earn_deposit".to_string(),
-                                json!({
-                                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                                    "amount": input_amount
-                                }),
-                            );
+                // Try to deserialize into typed swap parameters
+                if let Ok(typed_params) =
+                    serde_json::from_value::<SwapAdditionalParams>(swap_params.clone())
+                {
+                    if let Some(output_mint) = &typed_params.output_mint {
+                        if output_mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
+                            if let Some(input_amount) = typed_params.input_amount {
+                                info!("Adding lend operation for multi-step scenario");
+                                new_calls.insert(
+                                    "jupiter_lend_earn_deposit".to_string(),
+                                    json!({
+                                        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                        "amount": input_amount
+                                    }),
+                                );
+                            }
                         }
                     }
                 }

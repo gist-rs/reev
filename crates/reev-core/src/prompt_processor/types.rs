@@ -37,7 +37,7 @@ pub enum PromptAction {
     Unknown,
 }
 
-/// Parameters extracted from the prompt
+/// Parameters extracted from prompt
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct PromptParameters {
     /// Amount to transfer/swap/lend
@@ -49,6 +49,36 @@ pub struct PromptParameters {
     /// Additional flexible parameters
     #[serde(default)]
     pub additional: HashMap<String, serde_json::Value>,
+    /// Typed additional parameters for transfer operations
+    pub transfer_params: Option<TransferAdditionalParams>,
+    /// Typed additional parameters for swap operations
+    pub swap_params: Option<SwapAdditionalParams>,
+}
+
+/// Additional parameters for transfer operations
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct TransferAdditionalParams {
+    /// Recipient pubkey address
+    pub recipient: Option<String>,
+    /// Target pubkey address (alternative to recipient)
+    pub target_pubkey: Option<String>,
+    /// Recipient pubkey address (alternative to recipient)
+    pub recipient_pubkey: Option<String>,
+    /// Subject pubkey address
+    pub subject_pubkey: Option<String>,
+    /// User pubkey address (alternative to subject_pubkey)
+    pub user_pubkey: Option<String>,
+}
+
+/// Additional parameters for swap operations
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct SwapAdditionalParams {
+    /// Input token mint address
+    pub input_mint: Option<String>,
+    /// Output token mint address
+    pub output_mint: Option<String>,
+    /// Amount of input token to swap
+    pub input_amount: Option<u64>,
 }
 
 /// Result of validation

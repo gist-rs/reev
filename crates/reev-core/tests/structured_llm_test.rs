@@ -26,6 +26,8 @@ fn create_test_transfer_prompt() -> StructuredRefinedPrompt {
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: None,
             additional: std::collections::HashMap::new(),
+            transfer_params: None,
+            swap_params: None,
         })
         .confidence(0.95)
         .original_prompt("send 1 SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string())
@@ -46,6 +48,8 @@ fn create_test_swap_prompt() -> StructuredRefinedPrompt {
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
             additional: std::collections::HashMap::new(),
+            transfer_params: None,
+            swap_params: None,
         })
         .confidence(0.9)
         .original_prompt("swap 0.5 SOL to USDC".to_string())
@@ -69,6 +73,8 @@ fn create_test_all_keyword_prompt() -> StructuredRefinedPrompt {
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: None,
             additional: std::collections::HashMap::new(),
+            transfer_params: None,
+            swap_params: None,
         })
         .confidence(0.85)
         .original_prompt("send all SOL to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string())
@@ -89,6 +95,8 @@ async fn test_structured_refine_response_to_prompt() {
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: None,
             additional: std::collections::HashMap::new(),
+            transfer_params: None,
+            swap_params: None,
         },
         confidence: 0.95,
     };
@@ -172,7 +180,10 @@ async fn test_structured_prompt_builder() {
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
             additional: Default::default(),
+            transfer_params: None,
+            swap_params: None,
         })
+        .usable_amount(Some(0.5))
         .confidence(0.9)
         .original_prompt("swap 0.5 SOL to USDC".to_string())
         .build();
