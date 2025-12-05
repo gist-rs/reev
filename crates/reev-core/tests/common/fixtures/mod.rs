@@ -58,18 +58,16 @@ pub async fn surfpool_client() -> SurfpoolClient {
 
 /// Fixture that provides a configured environment
 #[fixture]
-pub async fn configured_env() -> Result<()> {
+pub async fn configured_env() -> () {
     // Load .env file for ZAI_API_KEY
     dotenvy::dotenv().ok();
 
-    // Check for ZAI_API_KEY
-    let _zai_api_key = env::var("ZAI_API_KEY").map_err(|_| {
-        anyhow::anyhow!("ZAI_API_KEY environment variable not set. Please set it in .env file.")
-    })?;
+    // Check for ZAI_API_KEY - panic if not set for e2e tests
+    let _zai_api_key = env::var("ZAI_API_KEY").expect(
+        "ZAI_API_KEY environment variable must be set for e2e tests. Please set it in .env file.",
+    );
 
     tracing::info!("✅ ZAI_API_KEY is configured");
-
-    Ok(())
 }
 
 /// Fixture that sets up a wallet for transfer tests

@@ -183,12 +183,19 @@ mod tests {
     use crate::planner::LlmClient;
 
     #[tokio::test]
-    #[ignore = "Requires ZAI_API_KEY environment variable"]
     async fn test_glm_client_with_zai_sdk() {
-        std::env::set_var("ZAI_API_KEY", "test-key");
-        std::env::set_var("GLM_MODEL", "glm-4.6-coding");
+        // This is an e2e test that requires ZAI_API_KEY
+        // Load environment variables from .env file
+        dotenvy::dotenv().ok();
 
-        let client = GLMClient::from_env().expect("Failed to create client");
+        // Panic if ZAI_API_KEY is not set for e2e test
+        let api_key = std::env::var("ZAI_API_KEY")
+            .expect("ZAI_API_KEY environment variable must be set for e2e test");
+
+        let model_name =
+            std::env::var("GLM_MODEL").unwrap_or_else(|_| "glm-4.6-coding".to_string());
+
+        let client = GLMClient::new(&model_name, &api_key).expect("Failed to create client");
 
         // Test with a simple prompt
         let result = client
