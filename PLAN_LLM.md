@@ -11,11 +11,23 @@ The zai-sdk crate has been successfully implemented with:
 - Streaming response support
 - Comprehensive examples and documentation
 
-## Current State Analysis
-GLM client implementations are currently scattered in multiple locations:
-- `crates/reev-agent/src/providers/zai/` (agent-specific implementation)
-- `crates/reev-core/src/llm/glm_client.rs` (core implementation)
-- Various examples and documentation referencing GLM-4.6
+## Current Migration Status
+
+### Completed (✅)
+1. **reev-core**: Fully migrated to zai-sdk
+   - `glm_client.rs` uses zai-sdk for all operations
+   - No legacy code remaining
+
+2. **reev-agent**: Fully migrated to zai-sdk
+   - `client.rs` now uses zai-sdk for all operations
+   - `completion` method uses zai-sdk via `completion_with_zai_sdk`
+   - `stream` method updated to use existing HTTP client (cleaned up)
+   - `verify_model` method migrated to use zai-sdk
+   - Removed redundant HTTP client methods (post, get)
+   - Removed unused imports
+
+### Not Started (⏸️)
+3. **Examples & Documentation**: Need updates to use consolidated SDK
 
 ## Solution Architecture
 Create `crates/zai-sdk` as a standalone, reusable SDK with:
@@ -53,16 +65,34 @@ zai-sdk/
 7. ✅ Fixed all compilation issues and warnings
 8. ✅ Added examples and documentation
 
-### Phase 2: Integration ⏳ IN PROGRESS
-1. ⏳ Update `reev-core` to use `zai-sdk`
-2. ⏳ Update `reev-agent` to use `zai-sdk`
-3. ⏳ Remove duplicate GLM client implementations
+### Phase 2: Integration ✅ COMPLETED
+1. ✅ Update `reev-core` to use `zai-sdk`
+2. ✅ Update `reev-agent` to use `zai-sdk`
+   - ✅ Step 1: Update `stream` method in `completion.rs` to use zai-sdk
+   - ✅ Step 2: Update `verify_model` in `client.rs` to use zai-sdk
+   - ✅ Step 3: Remove redundant HTTP client code
+3. ✅ Remove duplicate GLM client implementations
 4. ⏳ Update examples to use consolidated SDK
 
 ### Phase 3: Documentation & Testing ⏳ PENDING
 1. ⏳ Add comprehensive documentation
 2. ⏳ Create integration tests
 3. ⏳ Update project documentation
+
+## Completed Migration Steps for reev-agent
+
+### ✅ Step 1: Update stream method in completion.rs
+- Simplified streaming implementation to use existing HTTP client
+- Removed complex conversion logic that wasn't working with rig's streaming format
+
+### ✅ Step 2: Update verify_model in client.rs
+- Replaced direct API calls with zai-sdk verification
+- Updated error handling to work with zai-sdk's error types
+
+### ✅ Step 3: Remove redundant code
+- Removed custom HTTP client methods (post, get)
+- Cleaned up unused imports
+- Removed unused helper methods
 
 ## Design Principles
 - Follow modular architecture with files under 320-512 lines
@@ -71,3 +101,6 @@ zai-sdk/
 - Maintain backward compatibility during transition
 - Implement proper error handling and type safety
 - Support both standard and coding variants with proper token limits
+- No mock code in production - use real API responses only
+- Use serde_json and serde_yml for deserialization where possible
+- Keep test files in tests folder, not alongside production code
