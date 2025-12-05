@@ -356,18 +356,24 @@ impl CompletionRequest {
 /// Completion response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionResponse {
-    /// The ID of the completion
+    /// The ID of completion
     pub id: String,
     /// The object type (always "chat.completion")
+    #[serde(default = "default_object")]
     pub object: String,
     /// The creation timestamp
     pub created: u64,
     /// The model used
     pub model: String,
-    /// The choices in the response
+    /// The choices in response
     pub choices: Vec<Choice>,
     /// Token usage information
     pub usage: Option<TokenUsage>,
+}
+
+/// Default value for object field
+fn default_object() -> String {
+    "chat.completion".to_string()
 }
 
 impl CompletionResponse {
