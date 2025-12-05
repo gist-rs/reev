@@ -6,7 +6,7 @@
 //!
 //! # Quick Start
 //!
-//! ```rust
+//! ```rust,no_run
 //! use zai_sdk::{ZaiClient, GlmVariant};
 //!
 //! #[tokio::main]
@@ -16,53 +16,11 @@
 //!         .api_key("your-api-key")
 //!         .build()?;
 //!
-//!     // In a real example, you would make an API call here:
-//!     // let response = client
-//!     //     .completion("What is the capital of France?")
-//!     //     .await?;
-//!     // println!("Response: {}", response);
-//!     Ok(())
-//! }
-//! ```
+//!     let response = client
+//!         .completion("What is the capital of France?")
+//!         .await?;
 //!
-//! # Generic Request/Response Handling
-//!
-//! The SDK provides flexible request/response handling with generic types:
-//!
-//! ```rust
-//! use zai_sdk::{ZaiClient, GlmVariant};
-//! use serde::{Deserialize, Serialize};
-//!
-//! #[derive(Serialize)]
-//! struct CustomRequest {
-//!     model: String,
-//!     messages: Vec<serde_json::Value>,
-//!     custom_param: bool,
-//! }
-//!
-//! #[derive(Deserialize)]
-//! struct CustomResponse {
-//!     custom_field: String,
-//!     // ... other fields
-//! }
-//!
-//! #[tokio::main]
-//! async fn main() -> anyhow::Result<()> {
-//!     let client = ZaiClient::builder()
-//!         .variant(GlmVariant::Standard)
-//!         .api_key("your-api-key")
-//!         .build()?;
-//!
-//!     let request = CustomRequest {
-//!         model: "glm-4.6".to_string(),
-//!         messages: vec![],
-//!         custom_param: true,
-//!     };
-//!     // In a real example, you would make an API call here:
-//!     // let response: CustomResponse = client
-//!     //     .send_generic_request("custom/endpoint", &request)
-//!     //     .await?;
-//!     // println!("Response: {}", response.custom_field);
+//!     println!("Response: {}", response);
 //!     Ok(())
 //! }
 //! ```

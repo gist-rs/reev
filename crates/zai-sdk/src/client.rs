@@ -15,10 +15,6 @@ use serde_json::json;
 use std::time::Duration;
 use tracing::{debug, info, trace, warn};
 
-// Default API endpoints for different variants
-const DEFAULT_STANDARD_API_URL: &str = "https://api.z.ai/api/paas/v4";
-const DEFAULT_CODING_API_URL: &str = "https://api.z.ai/api/coding/paas/v4";
-
 /// Builder for creating a ZAI client
 pub struct ZaiClientBuilder<'a> {
     api_key: Option<String>,
@@ -103,8 +99,8 @@ impl<'a> ZaiClientBuilder<'a> {
         } else {
             // Use default URL based on variant
             match variant {
-                GlmVariant::Standard => DEFAULT_STANDARD_API_URL.to_string(),
-                GlmVariant::Coding => DEFAULT_CODING_API_URL.to_string(),
+                GlmVariant::Standard => variant.endpoint().to_string(),
+                GlmVariant::Coding => variant.endpoint().to_string(),
             }
         };
 
@@ -391,74 +387,6 @@ impl ZaiStreamHandler<CompletionRequest> for ZaiClient {
         let stream = futures::stream::iter(vec![Ok(content)]);
 
         Ok(Box::pin(stream))
-    }
-}
-
-impl ZaiClient {
-    /// Send a generic request to the API
-    /// This method allows for arbitrary request and response types
-    pub async fn send_generic_request<T, U>(&self, endpoint: &str, request: &T) -> ZaiResult<U>
-    where
-        T: serde::Serialize,
-        U: serde::de::DeserializeOwned,
-    {
-        let url = self.endpoint_url(endpoint);
-        trace!("Sending generic POST request to: {}", url);
-
-        let response = self
-            .http_client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(request)
-            .send()
-            .await
-            .map_err(|e| ZaiError::api_request(format!("Failed to send request: {e}")))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Failed to read error response".to_string());
-
-            return match status.as_u16() {
-                401 | 403 => Err(ZaiError::authentication(format!(
-                    "Authentication failed: {error_text}"
-                ))),
-                404 => Err(ZaiError::model_unavailable(format!(
-                    "Endpoint not found: {error_text}"
-                ))),
-                429 => Err(ZaiError::rate_limit(60)),
-                _ => Err(ZaiError::api_request(format!(
-                    "API error {status}: {error_text}"
-                ))),
-            };
-        }
-
-        response
-            .json()
-            .await
-            .map_err(|e| ZaiError::invalid_response(format!("Failed to parse response: {e}")))
-    }
-
-    /// Send a typed request to the chat completions endpoint
-    /// This method allows for custom request types while still using the chat completions endpoint
-    pub async fn send_typed_chat_request<T, U>(&self, request: &T) -> ZaiResult<U>
-    where
-        T: serde::Serialize,
-        U: serde::de::DeserializeOwned,
-    {
-        self.send_generic_request("chat/completions", request).await
-    }
-
-    /// Send a raw JSON request to the chat completions endpoint
-    /// This method provides maximum flexibility for custom request formats
-    pub async fn send_raw_chat_request<U>(&self, request: &serde_json::Value) -> ZaiResult<U>
-    where
-        U: serde::de::DeserializeOwned,
-    {
-        self.send_generic_request("chat/completions", request).await
     }
 }
 

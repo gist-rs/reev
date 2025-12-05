@@ -228,6 +228,9 @@ fn test_zai_result() {
 
 #[test]
 fn test_client_with_custom_http_client() {
+    // Set a temporary environment variable for testing
+    std::env::set_var("ZAI_API_KEY", "test-key");
+
     // Create a custom HTTP client
     let http_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -235,11 +238,11 @@ fn test_client_with_custom_http_client() {
         .build()
         .unwrap();
 
-    // Set a temporary environment variable for testing
-    std::env::set_var("ZAI_API_KEY", "test-key");
-
-    // Create a ZAI client with the custom HTTP client
-    let client_result = ZaiClient::builder().http_client(http_client).build();
+    // Create a ZAI client with the custom HTTP client and explicit API key
+    let client_result = ZaiClient::builder()
+        .api_key("test-key")
+        .http_client(http_client)
+        .build();
 
     assert!(client_result.is_ok());
 

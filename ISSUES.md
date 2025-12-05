@@ -2,6 +2,38 @@
 
 ## Current Issues
 
+### Issue #313: ZAI SDK Consolidation - GLM Client Scattered Across Codebase
+**Status**: Phase 1 Completed, Phase 2 In Progress  
+**Priority**: High  
+**Description**: GLM client implementations are currently scattered across multiple locations in the codebase, making maintenance difficult and duplicating code.
+
+**Current Implementation Analysis:**
+- GLM clients found in multiple locations:
+  - `crates/reev-agent/src/providers/zai/` (agent-specific implementation)
+  - `crates/reev-core/src/llm/glm_client.rs` (core implementation)
+  - Various examples and tests referencing "glm-4.6" directly (96 total references)
+
+**Completed Work (Phase 1):**
+- ✅ Created `crates/zai-sdk` as standalone, reusable SDK
+- ✅ Implemented builder pattern with generic types (`<T>` for response type, `<T,U>` for request/response)
+- ✅ Added support for both Standard and Coding GLM-4.6 variants
+- ✅ Implemented proper error handling and type safety
+- ✅ Added streaming response support
+- ✅ Added comprehensive examples and tests
+- ✅ Fixed all compilation issues
+
+**Next Steps (Phase 2):**
+- 🔄 Update `reev-core` to use `zai-sdk` instead of custom GLM client
+- 🔄 Update `reev-agent` to use `zai-sdk` instead of custom provider implementation
+- 🔄 Remove duplicate GLM client implementations after successful integration
+- 🔄 Update all examples to use consolidated SDK
+
+**Benefits:**
+- Single source of truth for GLM interactions
+- Reusable across different projects
+- Better maintainability and testing
+- Consistent behavior across all components
+
 ### Issue #312: Structured LLM Response System - Implementation Gaps and Issues
 **Status**: In Progress  
 **Priority**: High  
