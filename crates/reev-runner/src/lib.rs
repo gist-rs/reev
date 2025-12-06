@@ -1468,6 +1468,7 @@ async fn run_flow_benchmark_with_recovery(
                     tool_calls: step_actions.iter().map(|a| format!("{a:?}")).collect(),
                     output: serde_json::Value::Null,
                     error_message: None,
+                    tool_results: None,
                 });
 
                 successful_steps += 1;
@@ -1483,6 +1484,7 @@ async fn run_flow_benchmark_with_recovery(
                     tool_calls: vec![],
                     output: serde_json::Value::Null,
                     error_message: Some(error_message),
+                    tool_results: None,
                 });
 
                 failed_steps += 1;

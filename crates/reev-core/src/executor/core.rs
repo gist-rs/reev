@@ -128,6 +128,7 @@ impl Executor {
                             "error": format!("Step execution failed: {}", e)
                         }),
                         execution_time_ms: 0,
+                        tool_results: None,
                     };
 
                     if step.critical {

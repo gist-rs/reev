@@ -3,6 +3,7 @@
 //! This module contains typed result structs for each tool implementation
 //! to replace the untyped serde_json::Value returns.
 
+use crate::execution::context_builder::ToolResultWrapper;
 use serde::{Deserialize, Serialize};
 
 /// Result for SOL transfer operations
@@ -216,5 +217,31 @@ impl ToolResults {
 impl Default for ToolResults {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl From<ToolResult> for ToolResultWrapper {
+    fn from(result: ToolResult) -> Self {
+        // Create a generic tool result wrapper with operation info
+        let operation_info = serde_json::json!({
+            "tool_name": result.tool_name(),
+            "success": result.success(),
+            "error": result.error(),
+            "transaction_signature": result.transaction_signature(),
+            "metadata": serde_json::to_value(&result).unwrap_or_default()
+        });
+
+        // Create wrapper with minimal required fields
+        ToolResultWrapper {
+            result: crate::execution::context_builder::TypedToolResult::GenericOperation {
+                tool_name: result.tool_name().to_string(),
+                result: operation_info,
+                success: result.success(),
+                error: result.error().cloned(),
+                available_tokens: None,
+                execution_time_ms: None,
+                metadata: std::collections::HashMap::new(),
+            },
+        }
     }
 }

@@ -272,14 +272,26 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         // Create list of tool names that were executed
         let executed_tool_names: Vec<String> = tool_calls.keys().cloned().collect();
 
-        // Create the step result
+        // Serialize ToolResultWrapper to JSON for storage in StepResult
+        let tool_results_json: Result<Vec<_>, _> =
+            tool_results.into_iter().map(serde_json::to_value).collect();
+
+        let tool_results_json = match tool_results_json {
+            Ok(results) => results,
+            Err(e) => {
+                return Err(anyhow!("Failed to serialize tool results: {e}"));
+            }
+        };
+
+        // Create the step result with serialized ToolResultWrapper
         let step_result = StepResult {
             step_id: step.step_id.clone(),
             success: true,
             error_message: None,
             tool_calls: executed_tool_names,
-            output: json!({ "tool_results": tool_results }),
+            output: json!({}),
             execution_time_ms: 100, // This would be calculated in a real implementation
+            tool_results: Some(tool_results_json),
         };
 
         Ok(step_result)

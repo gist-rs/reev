@@ -5,6 +5,7 @@
 
 use super::tools::ToolName;
 use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 
 /// Wallet context containing balance, prices, and metadata
@@ -334,20 +335,36 @@ pub struct StepResult {
     pub output: serde_json::Value,
     /// Execution duration in milliseconds
     pub execution_time_ms: u64,
+    /// Tool results (new field for standardized tool outputs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_results: Option<Vec<serde_json::Value>>,
 }
 
 impl StepResult {
     /// Get tool results as a typed array, if available
     pub fn get_tool_results(&self) -> Option<Vec<serde_json::Value>> {
+        // First try the new direct field
+        if let Some(results) = &self.tool_results {
+            return Some(results.clone());
+        }
+        // Fallback to the old approach for backward compatibility
         self.output.get("tool_results")?.as_array().cloned()
+    }
+
+    /// Set tool results from a vector of ToolResultWrapper
+    pub fn set_tool_results(&mut self, tool_results: Vec<serde_json::Value>) {
+        self.tool_results = Some(tool_results);
     }
 
     /// Find a specific tool result by name
     pub fn get_tool_result(&self, tool_name: &str) -> Option<serde_json::Value> {
         if let Some(results_array) = self.get_tool_results() {
             for tool_result in results_array {
-                if let Some(_result) = tool_result.get(tool_name) {
-                    return Some(tool_result);
+                // Try to extract tool name from the result
+                if let Some(result_name) = tool_result.get("tool_name").and_then(|v| v.as_str()) {
+                    if result_name == tool_name {
+                        return Some(tool_result);
+                    }
                 }
             }
         }

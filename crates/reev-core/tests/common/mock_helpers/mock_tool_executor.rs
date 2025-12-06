@@ -83,7 +83,8 @@ impl MockToolExecutor {
             },
             tool_calls,
             output: json!({ "tool_results": tool_results }),
-            execution_time_ms: 50, // Simulated execution time
+            execution_time_ms: 100,
+            tool_results: Some(tool_results),
         };
 
         debug!("Mock step execution completed: {:?}", step_result);

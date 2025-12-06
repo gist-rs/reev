@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::tool_results::ToolResult;
+use crate::execution::context_builder::ToolResultWrapper;
 
 /// Trait for tool execution operations
 #[allow(async_fn_in_trait)]
@@ -19,7 +20,7 @@ pub trait ToolExecutor {
         &self,
         tool_calls: HashMap<String, Value>,
         wallet_context: &WalletContext,
-    ) -> Result<Vec<ToolResult>>;
+    ) -> Result<Vec<ToolResultWrapper>>;
 
     /// Execute a single tool
     async fn execute_single_tool(
@@ -27,7 +28,7 @@ pub trait ToolExecutor {
         tool_name: &str,
         params: Value,
         wallet_context: &WalletContext,
-    ) -> Result<ToolResult>;
+    ) -> Result<ToolResultWrapper>;
 
     /// Execute SOL transfer
     async fn execute_sol_transfer(

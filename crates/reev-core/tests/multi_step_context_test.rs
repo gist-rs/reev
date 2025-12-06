@@ -76,12 +76,13 @@ fn create_swap_step_result() -> StepResult {
     );
 
     StepResult {
-        step_id: "swap_step_1".to_string(),
+        step_id: "final_step".to_string(),
         success: true,
         error_message: None,
         tool_calls: vec!["jupiter_swap".to_string()],
         output: serde_json::Value::Object(output),
-        execution_time_ms: 1500,
+        execution_time_ms: 100,
+        tool_results: None,
     }
 }
 
@@ -108,12 +109,13 @@ fn create_lend_step_result() -> StepResult {
     );
 
     StepResult {
-        step_id: "lend_step_2".to_string(),
+        step_id: "lend_step_1".to_string(),
         success: true,
         error_message: None,
         tool_calls: vec!["jupiter_lend".to_string()],
         output: serde_json::Value::Object(output),
-        execution_time_ms: 1200,
+        execution_time_ms: 100,
+        tool_results: None,
     }
 }
 
@@ -125,7 +127,8 @@ fn create_failed_step_result() -> StepResult {
         error_message: Some("Insufficient balance for requested operation".to_string()),
         tool_calls: vec![],
         output: json!({}),
-        execution_time_ms: 500,
+        execution_time_ms: 0,
+        tool_results: None,
     }
 }
 

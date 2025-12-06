@@ -23,6 +23,7 @@ use super::{
     sol_transfer::execute_sol_transfer_with_hashmap, spl_transfer::execute_spl_transfer,
     spl_transfer::execute_spl_transfer_with_hashmap,
 };
+use crate::execution::context_builder::ToolResultWrapper;
 
 /// Implementation for any struct with agent_tools field
 impl<T> ToolExecutor for T
@@ -34,7 +35,7 @@ where
         &self,
         tool_calls: HashMap<String, Value>,
         wallet_context: &WalletContext,
-    ) -> Result<Vec<ToolResult>> {
+    ) -> Result<Vec<ToolResultWrapper>> {
         let mut results = Vec::new();
 
         for (tool_name, params) in tool_calls {
@@ -53,7 +54,7 @@ where
         tool_name: &str,
         params: Value,
         wallet_context: &WalletContext,
-    ) -> Result<ToolResult> {
+    ) -> Result<ToolResultWrapper> {
         // Execute the tool using the agent's tool_set
         debug!("Executing tool {} with params: {}", tool_name, params);
 
@@ -99,20 +100,26 @@ where
         // Execute the tool based on its parameters
         match tool_params {
             Ok(ToolParams::SolTransfer(params)) => {
-                execute_sol_transfer(&params, wallet_context).await
+                let result = execute_sol_transfer(&params, wallet_context).await?;
+                Ok(ToolResultWrapper::from(result))
             }
             Ok(ToolParams::SplTransfer(params)) => {
-                execute_spl_transfer(&params, wallet_context).await
+                let result = execute_spl_transfer(&params, wallet_context).await?;
+                Ok(ToolResultWrapper::from(result))
             }
             Ok(ToolParams::JupiterSwap(params)) => {
-                execute_jupiter_swap(&params, wallet_context).await
+                let result = execute_jupiter_swap(&params, wallet_context).await?;
+                Ok(ToolResultWrapper::from(result))
             }
             Ok(ToolParams::JupiterLend(params)) => {
                 let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
-                execute_jupiter_lend_deposit(&params, wallet_context, agent_tools).await
+                let result =
+                    execute_jupiter_lend_deposit(&params, wallet_context, agent_tools).await?;
+                Ok(ToolResultWrapper::from(result))
             }
             Ok(ToolParams::AccountBalance(params)) => {
-                execute_get_account_balance(&params, wallet_context).await
+                let result = execute_get_account_balance(&params, wallet_context).await?;
+                Ok(ToolResultWrapper::from(result))
             }
             Err(e) => {
                 // Return an error result for invalid parameters
@@ -120,7 +127,7 @@ where
                 debug!("{}", error_msg);
 
                 // Create a generic error result
-                Ok(ToolResult::SolTransfer(SolTransferResult {
+                let result = ToolResult::SolTransfer(SolTransferResult {
                     tool_name: tool_name.to_string(),
                     recipient: String::new(),
                     amount: 0.0,
@@ -129,7 +136,8 @@ where
                     transaction_signature: None,
                     success: false,
                     error: Some(error_msg),
-                }))
+                });
+                Ok(ToolResultWrapper::from(result))
             }
         }
     }
