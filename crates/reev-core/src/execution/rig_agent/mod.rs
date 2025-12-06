@@ -23,7 +23,7 @@ use zai_sdk::{GlmVariant, Message, ZaiClient};
 mod context;
 mod prompting;
 mod tools;
-mod types;
+pub mod types;
 
 // Re-export types and traits
 pub use context::ContextProvider;
@@ -292,26 +292,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Parsing tool calls from response: {}", response);
 
-        // First try to parse as a JSON object with a top-level tool_calls field
-        // This is the actual format returned by the LLM
-        if let Ok(llm_response) = serde_json::from_str::<serde_json::Value>(response) {
-            if let Some(tool_calls) = llm_response.get("tool_calls").and_then(|v| v.as_array()) {
-                debug!("Found {} tool calls in LLM response", tool_calls.len());
-                let mut tool_map = HashMap::new();
-
-                for tool_call in tool_calls {
-                    if let Some(name) = tool_call.get("name").and_then(|v| v.as_str()) {
-                        if let Some(parameters) = tool_call.get("parameters") {
-                            debug!("Extracted tool call: {} with params: {}", name, parameters);
-                            tool_map.insert(name.to_string(), parameters.clone());
-                        }
-                    }
-                }
-                return Ok(tool_map);
-            }
-        }
-
-        // Try to parse the response as structured JSON with typed structs (fallback)
+        // Parse the response as structured JSON with typed structs
         if let Ok(structured_response) = serde_json::from_str::<StructuredLLMResponse>(response) {
             debug!("Successfully parsed structured JSON response");
 
@@ -332,7 +313,7 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
             }
         }
 
-        debug!("Failed to parse response as JSON, trying text extraction");
+        debug!("Failed to parse response as structured JSON, trying text extraction");
         self.extract_tool_calls_from_text(response)
     }
 
