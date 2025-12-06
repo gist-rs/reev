@@ -84,6 +84,44 @@ pub struct ErrorKeyInfo {
     pub details: serde_json::Value,
 }
 
+/// Typed representation of available tokens for operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AvailableTokens {
+    /// Map of token mint addresses to available amounts
+    pub tokens: HashMap<String, u64>,
+}
+
+impl AvailableTokens {
+    /// Create a new available tokens instance
+    pub fn new() -> Self {
+        Self {
+            tokens: HashMap::new(),
+        }
+    }
+
+    /// Add a token with its available amount
+    pub fn add_token(mut self, mint: String, amount: u64) -> Self {
+        self.tokens.insert(mint, amount);
+        self
+    }
+
+    /// Get available amount for a specific token
+    pub fn get_amount(&self, mint: &str) -> Option<u64> {
+        self.tokens.get(mint).copied()
+    }
+
+    /// Convert to HashMap
+    pub fn to_hashmap(&self) -> HashMap<String, u64> {
+        self.tokens.clone()
+    }
+}
+
+impl Default for AvailableTokens {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ErrorKeyInfo {
     /// Check if error is of a specific type
     pub fn is_error_type(&self, error_type: &str) -> bool {
@@ -168,6 +206,8 @@ pub enum TypedToolResult {
         success: bool,
         /// Error message if operation failed
         error: Option<String>,
+        /// Available tokens for next operations
+        available_tokens: Option<AvailableTokens>,
         /// Execution time in milliseconds
         execution_time_ms: Option<u64>,
         /// Additional metadata
@@ -302,6 +342,30 @@ impl ToolResultWrapper {
                 result,
                 success,
                 error,
+                available_tokens: None,
+                execution_time_ms,
+                metadata,
+            },
+        }
+    }
+
+    /// Create a new wrapper from a generic operation result with available tokens
+    pub fn from_generic_operation_with_tokens(
+        tool_name: String,
+        result: serde_json::Value,
+        success: bool,
+        error: Option<String>,
+        available_tokens: AvailableTokens,
+        execution_time_ms: Option<u64>,
+        metadata: HashMap<String, serde_json::Value>,
+    ) -> Self {
+        Self {
+            result: TypedToolResult::GenericOperation {
+                tool_name,
+                result,
+                success,
+                error,
+                available_tokens: Some(available_tokens),
                 execution_time_ms,
                 metadata,
             },
@@ -408,19 +472,13 @@ impl ExtractKeyInfo for TypedToolResult {
         match self {
             TypedToolResult::JupiterSwap(swap_result) => swap_result.extract_available_tokens(),
             TypedToolResult::JupiterLend(lend_result) => lend_result.extract_available_tokens(),
-            TypedToolResult::GenericOperation { result, .. } => {
-                // Extract any available tokens from the generic operation result
-                result
-                    .get("available_tokens")
-                    .and_then(|v| v.as_object())
-                    .map(|obj| {
-                        obj.iter()
-                            .filter_map(|(k, v)| {
-                                let amount = v.as_u64()?;
-                                Some((k.clone(), amount))
-                            })
-                            .collect()
-                    })
+            TypedToolResult::GenericOperation {
+                available_tokens, ..
+            } => {
+                // Extract available tokens from the structured type
+                available_tokens
+                    .as_ref()
+                    .map(|tokens| tokens.to_hashmap())
                     .unwrap_or_default()
             }
         }

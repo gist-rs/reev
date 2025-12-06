@@ -9,8 +9,9 @@ use tracing::info;
 // Import typed structs for tool results
 mod types;
 pub use types::{
-    ErrorKeyInfo, ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, KeyInfo, LendKeyInfo,
-    OperationKeyInfo, SwapKeyInfo, ToolResultWrapper, TypedToolResult, TypedToolResults,
+    AvailableTokens, ErrorKeyInfo, ExtractKeyInfo, JupiterLendResult, JupiterSwapResult, KeyInfo,
+    LendKeyInfo, OperationKeyInfo, SwapKeyInfo, ToolResultWrapper, TypedToolResult,
+    TypedToolResults,
 };
 
 // Import token mint wrapper

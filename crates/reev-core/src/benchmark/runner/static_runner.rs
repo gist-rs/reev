@@ -138,6 +138,7 @@ impl StaticBenchmarkRunner {
                         result: json!({ "error": e.to_string() }),
                         success: false,
                         error: Some(e.to_string()),
+                        available_tokens: None,
                         execution_time_ms: None,
                         metadata: HashMap::new(),
                     };

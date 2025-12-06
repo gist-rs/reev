@@ -83,6 +83,7 @@ impl From<(&ProtocolsJupiterEarnResult, &ProtocolOperation)> for TypedToolResult
             result: json!({ "message": "Earn operation executed" }),
             success: true,
             error: None,
+            available_tokens: None,
             execution_time_ms: None,
             metadata: HashMap::new(),
         }
@@ -97,6 +98,7 @@ impl From<(&str, &ProtocolOperation)> for TypedToolResult {
             result: json!({ "message": message }),
             success: true,
             error: None,
+            available_tokens: None,
             execution_time_ms: None,
             metadata: HashMap::new(),
         }
