@@ -15,11 +15,13 @@ use super::tool_params::ToolParams;
 use super::tool_results::{SolTransferResult, ToolResult};
 use super::traits::{AgentProvider, AgentToolHelper, ToolExecutor};
 use super::{
-    account_balance::{execute_get_account_balance, execute_get_account_balance_with_params},
-    jupiter_lend::{execute_jupiter_lend_deposit, execute_jupiter_lend_deposit_with_params},
-    jupiter_swap::{execute_jupiter_swap, execute_jupiter_swap_with_params},
-    sol_transfer::{execute_sol_transfer, execute_sol_transfer_with_params},
-    spl_transfer::{execute_spl_transfer, execute_spl_transfer_with_params},
+    account_balance::execute_get_account_balance,
+    account_balance::execute_get_account_balance_with_hashmap,
+    jupiter_lend::execute_jupiter_lend_deposit,
+    jupiter_lend::execute_jupiter_lend_deposit_with_hashmap, jupiter_swap::execute_jupiter_swap,
+    jupiter_swap::execute_jupiter_swap_with_hashmap, sol_transfer::execute_sol_transfer,
+    sol_transfer::execute_sol_transfer_with_hashmap, spl_transfer::execute_spl_transfer,
+    spl_transfer::execute_spl_transfer_with_hashmap,
 };
 
 /// Implementation for any struct with agent_tools field
@@ -97,20 +99,20 @@ where
         // Execute the tool based on its parameters
         match tool_params {
             Ok(ToolParams::SolTransfer(params)) => {
-                execute_sol_transfer_with_params(&params, wallet_context).await
+                execute_sol_transfer(&params, wallet_context).await
             }
             Ok(ToolParams::SplTransfer(params)) => {
-                execute_spl_transfer_with_params(&params, wallet_context).await
+                execute_spl_transfer(&params, wallet_context).await
             }
             Ok(ToolParams::JupiterSwap(params)) => {
-                execute_jupiter_swap_with_params(&params, wallet_context).await
+                execute_jupiter_swap(&params, wallet_context).await
             }
             Ok(ToolParams::JupiterLend(params)) => {
                 let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
-                execute_jupiter_lend_deposit_with_params(&params, wallet_context, agent_tools).await
+                execute_jupiter_lend_deposit(&params, wallet_context, agent_tools).await
             }
             Ok(ToolParams::AccountBalance(params)) => {
-                execute_get_account_balance_with_params(&params, wallet_context).await
+                execute_get_account_balance(&params, wallet_context).await
             }
             Err(e) => {
                 // Return an error result for invalid parameters
@@ -138,7 +140,7 @@ where
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<ToolResult> {
-        execute_sol_transfer(params, wallet_context).await
+        execute_sol_transfer_with_hashmap(params, wallet_context).await
     }
 
     /// Execute Jupiter swap
@@ -147,7 +149,7 @@ where
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<ToolResult> {
-        execute_jupiter_swap(params, wallet_context).await
+        execute_jupiter_swap_with_hashmap(params, wallet_context).await
     }
 
     /// Execute Jupiter lend/earn deposit
@@ -157,7 +159,7 @@ where
         wallet_context: &WalletContext,
     ) -> Result<ToolResult> {
         let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
-        execute_jupiter_lend_deposit(params, wallet_context, agent_tools).await
+        execute_jupiter_lend_deposit_with_hashmap(params, wallet_context, agent_tools).await
     }
 
     /// Execute get account balance
@@ -166,7 +168,7 @@ where
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<ToolResult> {
-        execute_get_account_balance(params, wallet_context).await
+        execute_get_account_balance_with_hashmap(params, wallet_context).await
     }
 
     /// Execute SPL transfer
@@ -175,7 +177,7 @@ where
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
     ) -> Result<ToolResult> {
-        execute_spl_transfer(params, wallet_context).await
+        execute_spl_transfer_with_hashmap(params, wallet_context).await
     }
 }
 

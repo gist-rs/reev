@@ -15,14 +15,11 @@ use super::tool_results::{JupiterLendResult, ToolResult};
 
 /// Execute Jupiter lend/earn deposit
 pub async fn execute_jupiter_lend_deposit(
-    params: &HashMap<String, String>,
+    params: &JupiterLendParams,
     wallet_context: &WalletContext,
     agent_tools: Arc<AgentTools>,
 ) -> Result<ToolResult> {
-    // Parse parameters into typed struct
-    let lend_params = JupiterLendParams::from_hashmap(params)?;
-    let mint = &lend_params.mint;
-    let amount_str = &lend_params.amount;
+    let amount_str = &params.amount;
 
     debug!(
         "DEBUG: execute_jupiter_lend_deposit received amount_str: {}",
@@ -59,11 +56,11 @@ pub async fn execute_jupiter_lend_deposit(
     debug!("DEBUG: Final amount for Jupiter lend: {}", amount_lamports);
 
     // Execute Jupiter Lend Earn Deposit using AgentTools
-    // Note: The amount is already in the correct units (smallest denomination)
+    // Note: The amount is already in correct units (smallest denomination)
     // as provided by the LLM, so we don't need to multiply by 1_000_000
     let deposit_args = reev_tools::tools::jupiter_lend_earn_deposit::JupiterLendEarnDepositArgs {
         user_pubkey: wallet_context.owner.clone(),
-        asset_mint: mint.clone(),
+        asset_mint: params.mint.clone(),
         amount: amount_lamports,
     };
 
@@ -149,7 +146,7 @@ pub async fn execute_jupiter_lend_deposit(
                         );
                         Ok(ToolResult::JupiterLend(JupiterLendResult {
                             tool_name: "jupiter_lend_earn_deposit".to_string(),
-                            mint: mint.clone(),
+                            mint: params.mint.clone(),
                             amount: amount_lamports,
                             wallet: wallet_context.owner.clone(),
                             transaction_signature: Some(signature),
@@ -163,7 +160,7 @@ pub async fn execute_jupiter_lend_deposit(
 
                         Ok(ToolResult::JupiterLend(JupiterLendResult {
                             tool_name: "jupiter_lend_earn_deposit".to_string(),
-                            mint: mint.clone(),
+                            mint: params.mint.clone(),
                             amount: amount as u64,
                             wallet: wallet_context.owner.clone(),
                             transaction_signature: None,
@@ -177,7 +174,7 @@ pub async fn execute_jupiter_lend_deposit(
                 error!("Failed to parse Jupiter lend deposit instructions: {}", e);
                 Ok(ToolResult::JupiterLend(JupiterLendResult {
                     tool_name: "jupiter_lend_earn_deposit".to_string(),
-                    mint: mint.clone(),
+                    mint: params.mint.clone(),
                     amount: amount as u64,
                     wallet: wallet_context.owner.clone(),
                     transaction_signature: None,
@@ -190,7 +187,7 @@ pub async fn execute_jupiter_lend_deposit(
         error!("Failed to parse Jupiter lend deposit response as JSON");
         Ok(ToolResult::JupiterLend(JupiterLendResult {
             tool_name: "jupiter_lend_earn_deposit".to_string(),
-            mint: mint.clone(),
+            mint: params.mint.clone(),
             amount: amount as u64,
             wallet: wallet_context.owner.clone(),
             transaction_signature: None,
@@ -200,16 +197,13 @@ pub async fn execute_jupiter_lend_deposit(
     }
 }
 
-/// Execute Jupiter lend/earn deposit using typed parameters
-pub async fn execute_jupiter_lend_deposit_with_params(
-    params: &JupiterLendParams,
+/// Execute Jupiter lend/earn deposit using HashMap parameters
+pub async fn execute_jupiter_lend_deposit_with_hashmap(
+    params: &HashMap<String, String>,
     wallet_context: &WalletContext,
     agent_tools: Arc<AgentTools>,
 ) -> Result<ToolResult> {
-    // Convert the typed params back to HashMap to reuse the main function
-    let mut params_map = HashMap::new();
-    params_map.insert("mint".to_string(), params.mint.clone());
-    params_map.insert("amount".to_string(), params.amount.clone());
-
-    execute_jupiter_lend_deposit(&params_map, wallet_context, agent_tools).await
+    // Parse parameters into typed struct
+    let lend_params = JupiterLendParams::from_hashmap(params)?;
+    execute_jupiter_lend_deposit(&lend_params, wallet_context, agent_tools).await
 }

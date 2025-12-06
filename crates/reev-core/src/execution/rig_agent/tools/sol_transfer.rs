@@ -14,13 +14,11 @@ use super::tool_results::{SolTransferResult, ToolResult};
 
 /// Execute SOL transfer
 pub async fn execute_sol_transfer(
-    params: &std::collections::HashMap<String, String>,
+    params: &SolTransferParams,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Parse parameters into typed struct
-    let transfer_params = SolTransferParams::from_hashmap(params)?;
-    let recipient = &transfer_params.recipient;
-    let amount_str = &transfer_params.amount;
+    let recipient = &params.recipient;
+    let amount_str = &params.amount;
 
     // Handle "all" keyword case
     let amount: f64 = if amount_str.to_lowercase() == "all" {
@@ -89,15 +87,12 @@ pub async fn execute_sol_transfer(
     }))
 }
 
-/// Execute SOL transfer using typed parameters
-pub async fn execute_sol_transfer_with_params(
-    params: &SolTransferParams,
+/// Execute SOL transfer using HashMap parameters
+pub async fn execute_sol_transfer_with_hashmap(
+    params: &std::collections::HashMap<String, String>,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Convert the typed params back to HashMap to reuse the main function
-    let mut params_map = std::collections::HashMap::new();
-    params_map.insert("recipient".to_string(), params.recipient.clone());
-    params_map.insert("amount".to_string(), params.amount.clone());
-
-    execute_sol_transfer(&params_map, wallet_context).await
+    // Parse parameters into typed struct
+    let transfer_params = SolTransferParams::from_hashmap(params)?;
+    execute_sol_transfer(&transfer_params, wallet_context).await
 }

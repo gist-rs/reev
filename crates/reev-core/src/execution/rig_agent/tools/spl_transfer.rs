@@ -16,35 +16,32 @@ use super::tool_results::{SplTransferResult, ToolResult};
 
 /// Execute SPL token transfer
 pub async fn execute_spl_transfer(
-    params: &HashMap<String, String>,
+    params: &SplTransferParams,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Parse parameters into typed struct
-    let transfer_params = SplTransferParams::from_hashmap(params)?;
-
     // Convert mint address string to Pubkey
-    let token_mint = Pubkey::from_str(&transfer_params.mint_address)
-        .map_err(|e| anyhow!("Invalid mint address: {e}"))?;
+    let token_mint =
+        Pubkey::from_str(&params.mint_address).map_err(|e| anyhow!("Invalid mint address: {e}"))?;
 
     // Parse amount (convert to token units)
-    let amount = if transfer_params.amount.to_lowercase() == "all" {
+    let amount = if params.amount.to_lowercase() == "all" {
         // For "all" keyword, we'll transfer the entire balance
         u64::MAX
     } else {
         // Parse the amount and convert to token units based on decimals
-        let amount_value: f64 = transfer_params
+        let amount_value: f64 = params
             .amount
             .parse()
-            .map_err(|_| anyhow!("Invalid amount: {}", transfer_params.amount))?;
+            .map_err(|_| anyhow!("Invalid amount: {}", params.amount))?;
 
         // Get decimals for token (default to 6 for common SPL tokens)
-        let decimals = get_token_decimals_from_mint(&transfer_params.mint_address);
+        let decimals = get_token_decimals_from_mint(&params.mint_address);
 
         (amount_value * 10_f64.powi(decimals)) as u64
     };
 
     // Parse recipient and sender pubkeys
-    let recipient_pubkey = Pubkey::from_str(&transfer_params.recipient)
+    let recipient_pubkey = Pubkey::from_str(&params.recipient)
         .map_err(|e| anyhow!("Invalid recipient address: {e}"))?;
     let sender_pubkey = Pubkey::from_str(&wallet_context.owner)
         .map_err(|e| anyhow!("Invalid sender address: {e}"))?;
@@ -80,9 +77,9 @@ pub async fn execute_spl_transfer(
 
     Ok(ToolResult::SplTransfer(SplTransferResult {
         tool_name: "spl_transfer".to_string(),
-        recipient: transfer_params.recipient.clone(),
-        amount: transfer_params.amount.clone(),
-        mint_address: transfer_params.mint_address.clone(),
+        recipient: params.recipient.clone(),
+        amount: params.amount.clone(),
+        mint_address: params.mint_address.clone(),
         token_mint: token_mint.to_string(),
         wallet: wallet_context.owner.clone(),
         transaction_signature: Some(transaction_signature),
@@ -149,16 +146,12 @@ async fn get_or_create_token_accounts(
     Ok((sender_ata, recipient_ata))
 }
 
-/// Execute SPL token transfer using typed parameters
-pub async fn execute_spl_transfer_with_params(
-    params: &SplTransferParams,
+/// Execute SPL token transfer using HashMap parameters
+pub async fn execute_spl_transfer_with_hashmap(
+    params: &HashMap<String, String>,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Convert the typed params back to HashMap to reuse the main function
-    let mut params_map = HashMap::new();
-    params_map.insert("recipient".to_string(), params.recipient.clone());
-    params_map.insert("amount".to_string(), params.amount.clone());
-    params_map.insert("mint_address".to_string(), params.mint_address.clone());
-
-    execute_spl_transfer(&params_map, wallet_context).await
+    // Parse parameters into typed struct
+    let transfer_params = SplTransferParams::from_hashmap(params)?;
+    execute_spl_transfer(&transfer_params, wallet_context).await
 }

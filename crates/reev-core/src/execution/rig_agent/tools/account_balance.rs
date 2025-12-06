@@ -11,13 +11,11 @@ use super::tool_results::{AccountBalanceResult, ToolResult};
 
 /// Execute get account balance
 pub async fn execute_get_account_balance(
-    params: &HashMap<String, String>,
+    params: &AccountBalanceParams,
     _wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Parse parameters into typed struct
-    let balance_params = AccountBalanceParams::from_hashmap(params)?;
-    let _account = &balance_params.account;
-    let mint = &balance_params.mint;
+    let _account = &params.account;
+    let mint = &params.mint;
 
     // Mock balance for now
     // In a real implementation, this would query the blockchain
@@ -38,23 +36,20 @@ pub async fn execute_get_account_balance(
 
     Ok(ToolResult::AccountBalance(AccountBalanceResult {
         tool_name: "get_account_balance".to_string(),
-        account: balance_params.account.clone(),
-        mint: balance_params.mint.clone(),
+        account: params.account.clone(),
+        mint: params.mint.clone(),
         balance,
         success: true,
         error: None,
     }))
 }
 
-/// Execute get account balance using typed parameters
-pub async fn execute_get_account_balance_with_params(
-    params: &AccountBalanceParams,
+/// Execute get account balance using HashMap parameters
+pub async fn execute_get_account_balance_with_hashmap(
+    params: &HashMap<String, String>,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    // Convert the typed params back to HashMap to reuse the main function
-    let mut params_map = HashMap::new();
-    params_map.insert("account".to_string(), params.account.clone());
-    params_map.insert("mint".to_string(), params.mint.clone());
-
-    execute_get_account_balance(&params_map, wallet_context).await
+    // Parse parameters into typed struct
+    let balance_params = AccountBalanceParams::from_hashmap(params)?;
+    execute_get_account_balance(&balance_params, wallet_context).await
 }
