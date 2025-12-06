@@ -6,24 +6,21 @@ use anyhow::{anyhow, Result};
 use reev_protocols::native::handle_sol_transfer;
 use reev_types::flow::WalletContext;
 use solana_sdk::pubkey::Pubkey;
-use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::info;
 
+use super::tool_params::SolTransferParams;
 use super::tool_results::{SolTransferResult, ToolResult};
 
 /// Execute SOL transfer
 pub async fn execute_sol_transfer(
-    params: &HashMap<String, String>,
+    params: &std::collections::HashMap<String, String>,
     wallet_context: &WalletContext,
 ) -> Result<ToolResult> {
-    let recipient = params
-        .get("recipient")
-        .ok_or_else(|| anyhow!("recipient parameter is required"))?;
-
-    let amount_str = params
-        .get("amount")
-        .ok_or_else(|| anyhow!("amount parameter is required"))?;
+    // Parse parameters into typed struct
+    let transfer_params = SolTransferParams::from_hashmap(params)?;
+    let recipient = &transfer_params.recipient;
+    let amount_str = &transfer_params.amount;
 
     // Handle "all" keyword case
     let amount: f64 = if amount_str.to_lowercase() == "all" {

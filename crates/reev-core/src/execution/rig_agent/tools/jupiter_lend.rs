@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
+use super::tool_params::JupiterLendParams;
 use super::tool_results::{JupiterLendResult, ToolResult};
 
 /// Execute Jupiter lend/earn deposit
@@ -18,13 +19,10 @@ pub async fn execute_jupiter_lend_deposit(
     wallet_context: &WalletContext,
     agent_tools: Arc<AgentTools>,
 ) -> Result<ToolResult> {
-    let mint = params
-        .get("mint")
-        .ok_or_else(|| anyhow!("mint parameter is required"))?;
-
-    let amount_str = params
-        .get("amount")
-        .ok_or_else(|| anyhow!("amount parameter is required"))?;
+    // Parse parameters into typed struct
+    let lend_params = JupiterLendParams::from_hashmap(params)?;
+    let mint = &lend_params.mint;
+    let amount_str = &lend_params.amount;
 
     debug!(
         "DEBUG: execute_jupiter_lend_deposit received amount_str: {}",
@@ -151,7 +149,7 @@ pub async fn execute_jupiter_lend_deposit(
                         );
                         Ok(ToolResult::JupiterLend(JupiterLendResult {
                             tool_name: "jupiter_lend_earn_deposit".to_string(),
-                            mint: mint.to_string(),
+                            mint: mint.clone(),
                             amount: amount_lamports,
                             wallet: wallet_context.owner.clone(),
                             transaction_signature: Some(signature),
@@ -165,7 +163,7 @@ pub async fn execute_jupiter_lend_deposit(
 
                         Ok(ToolResult::JupiterLend(JupiterLendResult {
                             tool_name: "jupiter_lend_earn_deposit".to_string(),
-                            mint: mint.to_string(),
+                            mint: mint.clone(),
                             amount: amount as u64,
                             wallet: wallet_context.owner.clone(),
                             transaction_signature: None,
@@ -179,7 +177,7 @@ pub async fn execute_jupiter_lend_deposit(
                 error!("Failed to parse Jupiter lend deposit instructions: {}", e);
                 Ok(ToolResult::JupiterLend(JupiterLendResult {
                     tool_name: "jupiter_lend_earn_deposit".to_string(),
-                    mint: mint.to_string(),
+                    mint: mint.clone(),
                     amount: amount as u64,
                     wallet: wallet_context.owner.clone(),
                     transaction_signature: None,
@@ -192,7 +190,7 @@ pub async fn execute_jupiter_lend_deposit(
         error!("Failed to parse Jupiter lend deposit response as JSON");
         Ok(ToolResult::JupiterLend(JupiterLendResult {
             tool_name: "jupiter_lend_earn_deposit".to_string(),
-            mint: mint.to_string(),
+            mint: mint.clone(),
             amount: amount as u64,
             wallet: wallet_context.owner.clone(),
             transaction_signature: None,

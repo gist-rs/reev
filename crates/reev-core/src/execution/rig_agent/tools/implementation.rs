@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
+use super::tool_params::ToolParams;
 use super::tool_results::{SolTransferResult, ToolResult};
 use super::traits::{AgentProvider, AgentToolHelper, ToolExecutor};
 use super::{
@@ -52,7 +53,7 @@ where
         // Execute the tool using the agent's tool_set
         debug!("Executing tool {} with params: {}", tool_name, params);
 
-        // Convert the parameters to a string map
+        // Convert the parameters to a string map for backwards compatibility
         let mut params_map = HashMap::new();
         if let Value::Object(map) = &params {
             for (key, value) in map {
@@ -88,19 +89,30 @@ where
             }
         }
 
-        // Execute the tool based on its name
-        match tool_name {
-            "sol_transfer" => execute_sol_transfer(&params_map, wallet_context).await,
-            "spl_transfer" => execute_spl_transfer(&params_map, wallet_context).await,
-            "jupiter_swap" => execute_jupiter_swap(&params_map, wallet_context).await,
-            "jupiter_lend_earn_deposit" => {
+        // Parse parameters into typed struct using ToolParams
+        let tool_params = ToolParams::from_tool_name_and_params(tool_name, &params_map);
+
+        // Execute the tool based on its parameters
+        match tool_params {
+            Ok(ToolParams::SolTransfer(_)) => {
+                execute_sol_transfer(&params_map, wallet_context).await
+            }
+            Ok(ToolParams::SplTransfer(_)) => {
+                execute_spl_transfer(&params_map, wallet_context).await
+            }
+            Ok(ToolParams::JupiterSwap(_)) => {
+                execute_jupiter_swap(&params_map, wallet_context).await
+            }
+            Ok(ToolParams::JupiterLend(_)) => {
                 let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
                 execute_jupiter_lend_deposit(&params_map, wallet_context, agent_tools).await
             }
-            "get_account_balance" => execute_get_account_balance(&params_map, wallet_context).await,
-            _ => {
-                // Return an error result for unknown tools
-                let error_msg = format!("Unknown tool: {tool_name}");
+            Ok(ToolParams::AccountBalance(_)) => {
+                execute_get_account_balance(&params_map, wallet_context).await
+            }
+            Err(e) => {
+                // Return an error result for invalid parameters
+                let error_msg = format!("Invalid parameters for tool {tool_name}: {e}");
                 debug!("{}", error_msg);
 
                 // Create a generic error result
