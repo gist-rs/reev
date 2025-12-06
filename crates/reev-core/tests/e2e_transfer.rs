@@ -85,7 +85,7 @@ async fn test_transfer(#[case] prompt: &str) -> Result<()> {
 #[case("transfer 0.1 usdt to gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq")]
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "temporary"]
+#[ignore = "temporary for faster test"]
 async fn test_spl_transfer(#[case] prompt: &str) -> Result<()> {
     info!("Testing SPL transfer prompt: {prompt}");
 

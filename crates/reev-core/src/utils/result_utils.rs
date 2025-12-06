@@ -75,7 +75,19 @@ pub fn extract_transaction_signature(result: &FlowResult) -> Result<String> {
 /// # Returns
 /// An Option containing the transaction signature string if found
 fn extract_signature_from_tool_result(tool_result: &Value) -> Option<String> {
-    // Check for transfer tool signatures
+    // Handle tagged enum serialization - check for tool_name field
+    if let Some(tool_name) = tool_result.get("tool_name") {
+        if let Some(_name) = tool_name.as_str() {
+            // Check for transaction_signature directly in the enum variant
+            if let Some(sig) = tool_result.get("transaction_signature") {
+                if let Some(sig_str) = sig.as_str() {
+                    return Some(sig_str.to_string());
+                }
+            }
+        }
+    }
+
+    // Handle nested object format for backward compatibility
     if let Some(sol_transfer) = tool_result.get("sol_transfer") {
         if let Some(sig) = sol_transfer.get("transaction_signature") {
             if let Some(sig_str) = sig.as_str() {
@@ -119,6 +131,18 @@ fn extract_signature_from_output(output: &Value) -> Option<String> {
     if let Some(sig) = output.get("transaction_signature") {
         if let Some(sig_str) = sig.as_str() {
             return Some(sig_str.to_string());
+        }
+    }
+
+    // Handle tagged enum serialization - check for tool_name field
+    if let Some(tool_name) = output.get("tool_name") {
+        if let Some(_name) = tool_name.as_str() {
+            // Check for transaction_signature directly in the enum variant
+            if let Some(sig) = output.get("transaction_signature") {
+                if let Some(sig_str) = sig.as_str() {
+                    return Some(sig_str.to_string());
+                }
+            }
         }
     }
 

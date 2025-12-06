@@ -293,27 +293,35 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         debug!("Parsing tool calls from response: {}", response);
 
         // Parse the response as structured JSON with typed structs
+        // Parse the response as structured JSON with typed structs
         if let Ok(structured_response) = serde_json::from_str::<StructuredLLMResponse>(response) {
-            debug!("Successfully parsed structured JSON response");
-
             if let Some(tool_calls) = structured_response.tool_calls {
-                debug!("Found {} tool calls in response", tool_calls.len());
                 let mut tool_map = HashMap::new();
                 for tool_call in tool_calls {
-                    debug!(
-                        "Extracted tool call: {} with params: {}",
-                        tool_call.name, tool_call.parameters
-                    );
                     tool_map.insert(tool_call.name, tool_call.parameters);
                 }
                 return Ok(tool_map);
-            } else {
-                debug!("No tool_calls found in JSON response");
-                // Fall back to text extraction if no tool_calls in JSON
             }
         }
 
-        debug!("Failed to parse response as structured JSON, trying text extraction");
+        // Try parsing as a generic JSON object to see if tool_calls field exists
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
+            if let Some(tool_calls) = json_value.get("tool_calls") {
+                if let Some(tool_calls_array) = tool_calls.as_array() {
+                    let mut tool_map = HashMap::new();
+                    for tool_call in tool_calls_array {
+                        if let Some(name) = tool_call.get("name").and_then(|v| v.as_str()) {
+                            if let Some(params) = tool_call.get("parameters") {
+                                tool_map.insert(name.to_string(), params.clone());
+                            }
+                        }
+                    }
+                    return Ok(tool_map);
+                }
+            }
+        }
+
+        // Fall back to text extraction if JSON parsing fails
         self.extract_tool_calls_from_text(response)
     }
 
@@ -322,8 +330,6 @@ CRITICAL INSTRUCTION: When the prompt contains multiple operations (e.g., "swap 
         &self,
         response: &str,
     ) -> Result<HashMap<String, serde_json::Value>> {
-        debug!("Extracting tool calls from text response");
-
         // Use serde_json to extract structured data
         // First, try to find JSON-like structures in the text
         let mut tool_calls = HashMap::new();
