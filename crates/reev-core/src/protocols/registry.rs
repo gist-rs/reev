@@ -112,8 +112,8 @@ impl ProtocolRegistry {
             return self.get(protocol_name);
         }
 
-        // Fallback to first protocol for unsupported operations
-        self.protocols.values().next().map(|p| p.as_ref())
+        // Return None for unsupported operations
+        None
     }
 
     /// Get all registered protocol names
