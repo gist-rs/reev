@@ -24,6 +24,45 @@ pub fn extract_transaction_signature(result: &FlowResult) -> Result<String> {
     // Iterate through step results to find the signature
     for step_result in &result.step_results {
         // Check for signature in tool_results array (RigAgent format)
+        if let Some(tool_results) = &step_result.tool_results {
+            for result_item in tool_results {
+                // Check for transaction_signature in the result field (ToolResultWrapper format)
+                if let Some(result_field) = result_item.get("result") {
+                    // Check for GenericOperation variant
+                    if let Some(result_obj) = result_field.as_object() {
+                        // Check for transaction_signature in metadata
+                        if let Some(metadata) = result_obj.get("metadata") {
+                            if let Some(sig) = metadata.get("transaction_signature") {
+                                if let Some(sig_str) = sig.as_str() {
+                                    return Ok(sig_str.to_string());
+                                }
+                            }
+                        }
+
+                        // Check for transaction_signature directly in result object
+                        if let Some(sig) = result_obj.get("transaction_signature") {
+                            if let Some(sig_str) = sig.as_str() {
+                                return Ok(sig_str.to_string());
+                            }
+                        }
+                    }
+                }
+
+                // Check for transaction_signature directly in the tool result (backward compatibility)
+                if let Some(sig) = result_item.get("transaction_signature") {
+                    if let Some(sig_str) = sig.as_str() {
+                        return Ok(sig_str.to_string());
+                    }
+                }
+
+                // Check for signatures in various tool-specific formats
+                if let Some(signature) = extract_signature_from_tool_result(result_item) {
+                    return Ok(signature);
+                }
+            }
+        }
+
+        // Check for signature in output object (older format)
         if let Some(tool_results) = step_result.output.get("tool_results") {
             if let Some(results_array) = tool_results.as_array() {
                 for result_item in results_array {
@@ -76,13 +115,11 @@ pub fn extract_transaction_signature(result: &FlowResult) -> Result<String> {
 /// An Option containing the transaction signature string if found
 fn extract_signature_from_tool_result(tool_result: &Value) -> Option<String> {
     // Handle tagged enum serialization - check for tool_name field
-    if let Some(tool_name) = tool_result.get("tool_name") {
-        if let Some(_name) = tool_name.as_str() {
-            // Check for transaction_signature directly in the enum variant
-            if let Some(sig) = tool_result.get("transaction_signature") {
-                if let Some(sig_str) = sig.as_str() {
-                    return Some(sig_str.to_string());
-                }
+    if tool_result.get("tool_name").is_some() {
+        // Check for transaction_signature directly in the enum variant
+        if let Some(sig) = tool_result.get("transaction_signature") {
+            if let Some(sig_str) = sig.as_str() {
+                return Some(sig_str.to_string());
             }
         }
     }
@@ -135,13 +172,11 @@ fn extract_signature_from_output(output: &Value) -> Option<String> {
     }
 
     // Handle tagged enum serialization - check for tool_name field
-    if let Some(tool_name) = output.get("tool_name") {
-        if let Some(_name) = tool_name.as_str() {
-            // Check for transaction_signature directly in the enum variant
-            if let Some(sig) = output.get("transaction_signature") {
-                if let Some(sig_str) = sig.as_str() {
-                    return Some(sig_str.to_string());
-                }
+    if output.get("tool_name").is_some() {
+        // Check for transaction_signature directly in the enum variant
+        if let Some(sig) = output.get("transaction_signature") {
+            if let Some(sig_str) = sig.as_str() {
+                return Some(sig_str.to_string());
             }
         }
     }
