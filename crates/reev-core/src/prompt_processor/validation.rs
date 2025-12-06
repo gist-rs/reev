@@ -125,6 +125,7 @@ pub fn validate_structured_response_with_max_amounts(
     if issues.is_empty() {
         ValidationResult::Valid
     } else {
+        println!("DEBUG: Validation issues: {issues:?}");
         ValidationResult::Invalid(issues)
     }
 }

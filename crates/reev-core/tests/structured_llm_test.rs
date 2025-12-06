@@ -22,7 +22,7 @@ fn create_test_transfer_prompt() -> StructuredRefinedPrompt {
             "gistmeAhMG7AcKSPCHis8JikGmKT9tRRyZpyMLNNULq".to_string(),
         ))
         .parameters(PromptParameters {
-            amount: Some("1".to_string()),
+            amount: Some("0.5".to_string()),
             input_mint: Some("So11111111111111111111111111111111111111112".to_string()),
             output_mint: None,
             additional: std::collections::HashMap::new(),

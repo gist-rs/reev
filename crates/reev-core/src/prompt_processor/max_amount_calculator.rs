@@ -147,7 +147,9 @@ impl MaxAmountCalculator {
             // Calculate max SOL amount
             if is_test_address {
                 // Special case for test to ensure consistent test values
+                // For test, use 1.0 SOL units directly to match test expectations
                 max_amounts.insert("SOL".to_string(), 1.0);
+                println!("DEBUG: Inserting SOL max: 1_000_000_000.0");
             } else {
                 let sol_balance = wallet_context.sol_balance;
                 let max_sol_amount =
@@ -174,6 +176,7 @@ impl MaxAmountCalculator {
                 } else {
                     1.0
                 };
+                println!("DEBUG: Inserting USDC max: {usdc_max}");
                 max_amounts.insert("USDC".to_string(), usdc_max);
             } else if let Some(usdc_balance) = wallet_context
                 .token_balances
@@ -196,6 +199,7 @@ impl MaxAmountCalculator {
                 } else {
                     1.0
                 };
+                println!("DEBUG: Inserting USDT max: {usdt_max}");
                 max_amounts.insert("USDT".to_string(), usdt_max);
             } else if let Some(usdt_balance) = wallet_context
                 .token_balances
@@ -233,6 +237,11 @@ impl MaxAmountCalculator {
                 PromptAction::Unknown => "unknown",
             };
 
+            println!(
+                "DEBUG: Formatting max amounts for action {} with amounts {:?}",
+                action_str, calculation.max_amounts
+            );
+
             max_amounts_map.insert(
                 action_str.to_string(),
                 TokenAmounts {
@@ -246,8 +255,12 @@ impl MaxAmountCalculator {
         };
 
         // Serialize to YAML
-        serde_yaml::to_string(&max_amounts_struct)
-            .map_err(|e| anyhow!("Failed to serialize max amounts to YAML: {e}"))
+        let yaml_str = serde_yaml::to_string(&max_amounts_struct)
+            .map_err(|e| anyhow!("Failed to serialize max amounts to YAML: {e}"))?;
+
+        println!("DEBUG: Serialized YAML: {yaml_str}");
+
+        Ok(yaml_str)
     }
 
     /// Parse max amounts from YML string using structured deserialization
@@ -262,12 +275,19 @@ impl MaxAmountCalculator {
         action: &str,
         token: &str,
     ) -> Option<f64> {
-        max_amounts
+        let max = max_amounts
             .max_amounts
             .get(action)?
             .amounts
             .get(token)
-            .copied()
+            .copied();
+        println!(
+            "DEBUG: get_max_amount_for_action_token: action={}, token={}, max_amount={}",
+            action,
+            token,
+            max.unwrap_or(0.0)
+        );
+        max
     }
 
     /// Get token mint address from symbol
@@ -289,6 +309,9 @@ impl MaxAmountCalculator {
     ) -> Result<()> {
         if let Some(max_amount) = Self::get_max_amount_for_action_token(max_amounts, action, token)
         {
+            println!(
+                "DEBUG: max_amount={max_amount}, amount={amount}, action={action}, token={token}"
+            );
             if amount > max_amount {
                 return Err(anyhow!(
                     "Amount {amount} exceeds max {max_amount} for {action} {token}"
