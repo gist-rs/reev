@@ -15,9 +15,11 @@ use super::tool_params::ToolParams;
 use super::tool_results::{SolTransferResult, ToolResult};
 use super::traits::{AgentProvider, AgentToolHelper, ToolExecutor};
 use super::{
-    account_balance::execute_get_account_balance, jupiter_lend::execute_jupiter_lend_deposit,
-    jupiter_swap::execute_jupiter_swap, sol_transfer::execute_sol_transfer,
-    spl_transfer::execute_spl_transfer,
+    account_balance::{execute_get_account_balance, execute_get_account_balance_with_params},
+    jupiter_lend::{execute_jupiter_lend_deposit, execute_jupiter_lend_deposit_with_params},
+    jupiter_swap::{execute_jupiter_swap, execute_jupiter_swap_with_params},
+    sol_transfer::{execute_sol_transfer, execute_sol_transfer_with_params},
+    spl_transfer::{execute_spl_transfer, execute_spl_transfer_with_params},
 };
 
 /// Implementation for any struct with agent_tools field
@@ -94,21 +96,21 @@ where
 
         // Execute the tool based on its parameters
         match tool_params {
-            Ok(ToolParams::SolTransfer(_)) => {
-                execute_sol_transfer(&params_map, wallet_context).await
+            Ok(ToolParams::SolTransfer(params)) => {
+                execute_sol_transfer_with_params(&params, wallet_context).await
             }
-            Ok(ToolParams::SplTransfer(_)) => {
-                execute_spl_transfer(&params_map, wallet_context).await
+            Ok(ToolParams::SplTransfer(params)) => {
+                execute_spl_transfer_with_params(&params, wallet_context).await
             }
-            Ok(ToolParams::JupiterSwap(_)) => {
-                execute_jupiter_swap(&params_map, wallet_context).await
+            Ok(ToolParams::JupiterSwap(params)) => {
+                execute_jupiter_swap_with_params(&params, wallet_context).await
             }
-            Ok(ToolParams::JupiterLend(_)) => {
+            Ok(ToolParams::JupiterLend(params)) => {
                 let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
-                execute_jupiter_lend_deposit(&params_map, wallet_context, agent_tools).await
+                execute_jupiter_lend_deposit_with_params(&params, wallet_context, agent_tools).await
             }
-            Ok(ToolParams::AccountBalance(_)) => {
-                execute_get_account_balance(&params_map, wallet_context).await
+            Ok(ToolParams::AccountBalance(params)) => {
+                execute_get_account_balance_with_params(&params, wallet_context).await
             }
             Err(e) => {
                 // Return an error result for invalid parameters

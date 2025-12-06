@@ -199,3 +199,17 @@ pub async fn execute_jupiter_lend_deposit(
         }))
     }
 }
+
+/// Execute Jupiter lend/earn deposit using typed parameters
+pub async fn execute_jupiter_lend_deposit_with_params(
+    params: &JupiterLendParams,
+    wallet_context: &WalletContext,
+    agent_tools: Arc<AgentTools>,
+) -> Result<ToolResult> {
+    // Convert the typed params back to HashMap to reuse the main function
+    let mut params_map = HashMap::new();
+    params_map.insert("mint".to_string(), params.mint.clone());
+    params_map.insert("amount".to_string(), params.amount.clone());
+
+    execute_jupiter_lend_deposit(&params_map, wallet_context, agent_tools).await
+}

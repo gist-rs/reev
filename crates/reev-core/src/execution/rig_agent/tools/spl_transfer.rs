@@ -148,3 +148,17 @@ async fn get_or_create_token_accounts(
 
     Ok((sender_ata, recipient_ata))
 }
+
+/// Execute SPL token transfer using typed parameters
+pub async fn execute_spl_transfer_with_params(
+    params: &SplTransferParams,
+    wallet_context: &WalletContext,
+) -> Result<ToolResult> {
+    // Convert the typed params back to HashMap to reuse the main function
+    let mut params_map = HashMap::new();
+    params_map.insert("recipient".to_string(), params.recipient.clone());
+    params_map.insert("amount".to_string(), params.amount.clone());
+    params_map.insert("mint_address".to_string(), params.mint_address.clone());
+
+    execute_spl_transfer(&params_map, wallet_context).await
+}

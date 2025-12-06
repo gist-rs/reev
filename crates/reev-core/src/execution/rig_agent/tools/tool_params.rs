@@ -196,14 +196,14 @@ impl ToolParams {
         }
     }
 
-    /// Get the tool name as a string
-    pub fn tool_name(&self) -> &str {
-        match self {
-            ToolParams::SolTransfer(_) => "sol_transfer",
-            ToolParams::SplTransfer(_) => "spl_transfer",
-            ToolParams::JupiterSwap(_) => "jupiter_swap",
-            ToolParams::JupiterLend(_) => "jupiter_lend_earn_deposit",
-            ToolParams::AccountBalance(_) => "get_account_balance",
-        }
-    }
+    // The tool_name method is currently unused but might be useful in the future
+    // pub fn tool_name(&self) -> &str {
+    //     match self {
+    //         ToolParams::SolTransfer(_) => "sol_transfer",
+    //         ToolParams::SplTransfer(_) => "spl_transfer",
+    //         ToolParams::JupiterSwap(_) => "jupiter_swap",
+    //         ToolParams::JupiterLend(_) => "jupiter_lend_earn_deposit",
+    //         ToolParams::AccountBalance(_) => "get_account_balance",
+    //     }
+    // }
 }

@@ -86,3 +86,17 @@ pub async fn execute_jupiter_swap(
         error: None,
     }))
 }
+
+/// Execute Jupiter swap using typed parameters
+pub async fn execute_jupiter_swap_with_params(
+    params: &JupiterSwapParams,
+    wallet_context: &WalletContext,
+) -> Result<ToolResult> {
+    // Convert the typed params back to HashMap to reuse the main function
+    let mut params_map = std::collections::HashMap::new();
+    params_map.insert("input_mint".to_string(), params.input_mint.clone());
+    params_map.insert("output_mint".to_string(), params.output_mint.clone());
+    params_map.insert("input_amount".to_string(), params.input_amount.clone());
+
+    execute_jupiter_swap(&params_map, wallet_context).await
+}
