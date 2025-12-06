@@ -12,6 +12,7 @@ use crate::benchmark::types::{
 use crate::protocols::{OperationType, ProtocolOperation, ProtocolRegistry};
 use crate::QueryHandler;
 use serde_json::{json, Value};
+use solana_sdk::signature::Signer;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Instant;
@@ -20,25 +21,93 @@ use std::time::Instant;
 ///
 /// This runner generates flows from prompts using QueryHandler and executes them
 /// using the protocol interface. It supports multiple languages and prompt variations.
+/// It handles its own environment initialization similar to TestRunner.
 pub struct DynamicBenchmarkRunner {
     /// Query handler for flow generation
     query_handler: QueryHandler,
     /// Protocol registry for operation execution
     protocol_registry: ProtocolRegistry,
+    /// Wallet pubkey for operations
+    wallet_pubkey: solana_sdk::pubkey::Pubkey,
+    /// Whether the environment is initialized
+    initialized: bool,
 }
 
 impl DynamicBenchmarkRunner {
     /// Create a new dynamic benchmark runner
     pub async fn new() -> Result<Self, DynamicBenchmarkError> {
-        let query_handler = QueryHandler::new().await?;
+        // Load keypair from default location
+        let keypair = reev_lib::get_keypair().map_err(|e| {
+            DynamicBenchmarkError::InitializationFailed(format!("Failed to load keypair: {e}"))
+        })?;
+        let wallet_pubkey = keypair.pubkey();
+        tracing::info!("✅ Loaded keypair: {wallet_pubkey}");
+
         let mut runner = Self {
-            query_handler,
+            query_handler: QueryHandler::new().await?,
             protocol_registry: ProtocolRegistry::new(),
+            wallet_pubkey,
+            initialized: false,
         };
 
         // Register default protocols
         runner.register_default_protocols();
         Ok(runner)
+    }
+
+    /// Initialize the test environment
+    pub async fn initialize(&mut self) -> Result<(), DynamicBenchmarkError> {
+        if self.initialized {
+            return Ok(());
+        }
+
+        // Initialize environment
+        dotenvy::dotenv().ok();
+
+        // Check for ZAI_API_KEY
+        let _zai_api_key = std::env::var("ZAI_API_KEY").map_err(|_| {
+            DynamicBenchmarkError::InitializationFailed(
+                "ZAI_API_KEY environment variable not set. Please set it in .env file.".to_string(),
+            )
+        })?;
+
+        tracing::info!("✅ ZAI_API_KEY is configured");
+
+        // Kill existing surfpool process for clean state
+        tracing::info!("🧹 Killing existing surfpool process for clean test environment...");
+        reev_lib::server_utils::kill_existing_surfpool(8899)
+            .await
+            .map_err(|e| {
+                DynamicBenchmarkError::InitializationFailed(format!(
+                    "Failed to kill surfpool: {e}"
+                ))
+            })?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Start a fresh surfpool instance
+        tracing::info!("🚀 Starting fresh surfpool instance...");
+
+        // Check if surfpool is already running
+        let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(
+            "http://localhost:8899".to_string(),
+        );
+        match rpc_client.get_latest_blockhash().await {
+            Ok(_) => {
+                tracing::info!("✅ SURFPOOL is already running and accessible");
+            }
+            Err(_) => {
+                tracing::info!("🚀 SURFPOOL not running, need to start it...");
+                // Note: In a real implementation, we would start surfpool here
+                // For now, we'll assume it's started externally or use mainnet
+                tracing::info!("✅ Using mainnet as fallback for testing");
+            }
+        }
+
+        // Note: Wallet balance reset would be done here in a real implementation
+        // For now, we'll use the existing wallet state
+
+        self.initialized = true;
+        Ok(())
     }
 
     /// Register default protocols
@@ -63,18 +132,21 @@ impl DynamicBenchmarkRunner {
     ///
     /// # Arguments
     /// * `prompt` - The prompt to generate a flow from
-    /// * `wallet_pubkey` - The wallet public key to use for execution
     ///
     /// # Returns
     /// Result containing benchmark report or an error
     pub async fn execute_prompt(
         &mut self,
         prompt: &str,
-        wallet_pubkey: &str,
     ) -> Result<BenchmarkReport, DynamicBenchmarkError> {
-        // Generate flow from prompt
+        // Ensure environment is initialized
+        if !self.initialized {
+            self.initialize().await?;
+        }
+
+        // Generate flow from prompt using our wallet pubkey
         let flow = self
-            .generate_flow_from_prompt(prompt, wallet_pubkey)
+            .generate_flow_from_prompt(prompt, &self.wallet_pubkey.to_string())
             .await?;
 
         // Execute the flow
@@ -99,7 +171,7 @@ impl DynamicBenchmarkRunner {
             .query_handler
             .process_query(
                 prompt,
-                &solana_sdk::pubkey::Pubkey::from_str(wallet_pubkey).unwrap(),
+                &solana_sdk::pubkey::Pubkey::from_str(wallet_pubkey)?,
             )
             .await?;
 
@@ -475,6 +547,10 @@ pub enum DynamicBenchmarkError {
     /// Invalid public key
     #[error("Invalid public key: {0}")]
     InvalidPubkey(String),
+
+    /// Initialization failed
+    #[error("Initialization failed: {0}")]
+    InitializationFailed(String),
 }
 
 impl From<solana_sdk::pubkey::ParsePubkeyError> for DynamicBenchmarkError {

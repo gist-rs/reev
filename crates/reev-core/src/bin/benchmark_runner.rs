@@ -168,7 +168,7 @@ async fn run_dynamic_benchmarks(
     };
 
     // Get wallet pubkey
-    let wallet_pubkey = match matches.get_one::<String>("wallet") {
+    let _wallet_pubkey = match matches.get_one::<String>("wallet") {
         Some(w) => w.clone(),
         None => {
             eprintln!("Error: --wallet is required for dynamic benchmarks");
@@ -191,9 +191,7 @@ async fn run_dynamic_benchmarks(
             let category_prompt = format!("{cat} {prompt}");
 
             // Generate and execute flow
-            let report = runner
-                .execute_prompt(&category_prompt, &wallet_pubkey)
-                .await?;
+            let report = runner.execute_prompt(&category_prompt).await?;
 
             reports.push(report);
         }
@@ -204,9 +202,7 @@ async fn run_dynamic_benchmarks(
         let category_prompt = format!("{category} {prompt}");
 
         // Generate and execute flow
-        let report = runner
-            .execute_prompt(&category_prompt, &wallet_pubkey)
-            .await?;
+        let report = runner.execute_prompt(&category_prompt).await?;
 
         reports.push(report);
     }

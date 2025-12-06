@@ -112,8 +112,8 @@ impl ProtocolRegistry {
             return self.get(protocol_name);
         }
 
-        // Default to the first protocol that supports the operation
-        self.protocols.values().next().map(|p| p.as_ref())
+        // Return None for unsupported operations
+        None
     }
 
     /// Get all registered protocol names

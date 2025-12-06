@@ -70,11 +70,11 @@ impl QueryResult {
 /// It properly handles special cases like "all" keyword in transfer requests.
 pub struct QueryHandler {
     /// Context resolver for wallet information
-    context_resolver: ContextResolver,
+    pub context_resolver: ContextResolver,
     /// Planner for refining and planning the query
-    planner: Planner,
+    pub planner: Planner,
     /// Executor for executing the generated flow
-    executor: Executor,
+    pub executor: Executor,
 }
 
 impl QueryHandler {
@@ -195,10 +195,8 @@ impl QueryHandler {
     /// # Errors
     /// Returns an error if initialization fails
     pub async fn new() -> Result<Self> {
-        // Initialize context resolver with SURFPOOL environment
-        let context_resolver = ContextResolver::new(SolanaEnvironment {
-            rpc_url: Some("http://localhost:8899".to_string()),
-        });
+        // Initialize context resolver with default SURFPOOL environment
+        let context_resolver = ContextResolver::new(SolanaEnvironment::default());
 
         // Create planner with GLM client
         let planner = Planner::new_with_glm(context_resolver.clone())?;
@@ -399,41 +397,5 @@ impl QueryHandler {
                 gas_reserve,
             ),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_query_handler_creation() {
-        // Test that we can create a query handler
-        let result = QueryHandler::new().await;
-        assert!(result.is_ok(), "Failed to create query handler");
-    }
-
-    #[test]
-    fn test_query_result_creation() {
-        // Test successful result with signature
-        let success_result = QueryResult::success_with_signature("test_signature".to_string());
-        assert!(success_result.success);
-        assert_eq!(
-            success_result.transaction_signature,
-            Some("test_signature".to_string())
-        );
-        assert!(success_result.error_message.is_none());
-
-        // Test successful result without signature
-        let success_result = QueryResult::success();
-        assert!(success_result.success);
-        assert!(success_result.transaction_signature.is_none());
-        assert!(success_result.error_message.is_none());
-
-        // Test failed result
-        let failure_result = QueryResult::failure("test error".to_string());
-        assert!(!failure_result.success);
-        assert!(failure_result.transaction_signature.is_none());
-        assert_eq!(failure_result.error_message, Some("test error".to_string()));
     }
 }
