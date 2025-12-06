@@ -15,7 +15,7 @@ pub use types::{
 };
 
 // Import token mint wrapper
-mod token_mint;
+pub mod token_mint;
 pub use token_mint::{helpers, mints, MintError, TokenMint};
 
 /// Minimal AI context containing only relevant information for AI operations
