@@ -330,8 +330,10 @@ fn validate_parameters_with_max_amounts(
         }
     }
 
+    // Only validate output_mint if it's a string (not null)
     if let Some(mint) = &parameters.output_mint {
-        if !is_valid_pubkey(mint) {
+        // Skip validation if output_mint is "null" string (which is valid for transfers)
+        if mint != "null" && !is_valid_pubkey(mint) {
             issues.push("Invalid output_mint address".to_string());
         }
     }
