@@ -223,11 +223,163 @@ pub struct TypedToolResults {
 }
 
 impl TypedToolResults {
-    /// Create a new empty collection
+    /// Create a new collection of typed tool results
     pub fn new() -> Self {
         Self {
             results: Vec::new(),
         }
+    }
+
+    /// Create from a vector of tool result JSON values
+    pub fn from_values(values: Vec<serde_json::Value>) -> Result<Self, serde_json::Error> {
+        let mut results = Vec::new();
+
+        for value in values {
+            // Check if this is a structured result with tool_name and result fields
+            if let Some(tool_name) = value.get("tool_name").and_then(|v| v.as_str()) {
+                if let Some(result) = value.get("result") {
+                    match tool_name {
+                        "jupiter_swap" => {
+                            if let Ok(swap_result) =
+                                serde_json::from_value::<JupiterSwapResult>(result.clone())
+                            {
+                                results.push(TypedToolResult::JupiterSwap(swap_result));
+                            } else {
+                                // Fallback to GenericOperation if deserialization fails
+                                // Extract the needed fields for GenericOperation
+                                let tool_name = value
+                                    .get("tool_name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let result = value.get("result").cloned().unwrap_or_default();
+                                let success = value
+                                    .get("success")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(true);
+                                let error = value
+                                    .get("error")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+
+                                results.push(TypedToolResult::GenericOperation {
+                                    tool_name,
+                                    result,
+                                    success,
+                                    error,
+                                    available_tokens: None,
+                                    execution_time_ms: None,
+                                    metadata: HashMap::new(),
+                                });
+                            }
+                        }
+                        "jupiter_lend" => {
+                            if let Ok(lend_result) =
+                                serde_json::from_value::<JupiterLendResult>(result.clone())
+                            {
+                                results.push(TypedToolResult::JupiterLend(lend_result));
+                            } else {
+                                // Fallback to GenericOperation if deserialization fails
+                                // Extract the needed fields for GenericOperation
+                                let tool_name = value
+                                    .get("tool_name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let result = value.get("result").cloned().unwrap_or_default();
+                                let success = value
+                                    .get("success")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(true);
+                                let error = value
+                                    .get("error")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+
+                                results.push(TypedToolResult::GenericOperation {
+                                    tool_name,
+                                    result,
+                                    success,
+                                    error,
+                                    available_tokens: None,
+                                    execution_time_ms: None,
+                                    metadata: HashMap::new(),
+                                });
+                            }
+                        }
+                        _ => {
+                            // For unknown tool names, use GenericOperation
+                            // Extract the needed fields for GenericOperation
+                            let tool_name = value
+                                .get("tool_name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            let result = value.get("result").cloned().unwrap_or_default();
+                            let success = value
+                                .get("success")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true);
+                            let error = value
+                                .get("error")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            results.push(TypedToolResult::GenericOperation {
+                                tool_name,
+                                result,
+                                success,
+                                error,
+                                available_tokens: None,
+                                execution_time_ms: None,
+                                metadata: HashMap::new(),
+                            });
+                        }
+                    }
+                } else {
+                    // No result field, treat as GenericOperation
+                    // Extract the needed fields for GenericOperation
+                    let tool_name = value
+                        .get("tool_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let result = value.get("result").cloned().unwrap_or_default();
+                    let success = value
+                        .get("success")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    let error = value
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    results.push(TypedToolResult::GenericOperation {
+                        tool_name,
+                        result,
+                        success,
+                        error,
+                        available_tokens: None,
+                        execution_time_ms: None,
+                        metadata: HashMap::new(),
+                    });
+                }
+            } else {
+                // Not a structured result, treat as GenericOperation
+                // Create a minimal GenericOperation from the raw value
+                results.push(TypedToolResult::GenericOperation {
+                    tool_name: "unknown".to_string(),
+                    result: value,
+                    success: true,
+                    error: None,
+                    available_tokens: None,
+                    execution_time_ms: None,
+                    metadata: HashMap::new(),
+                });
+            }
+        }
+
+        Ok(Self { results })
     }
 
     /// Add a tool result to the collection

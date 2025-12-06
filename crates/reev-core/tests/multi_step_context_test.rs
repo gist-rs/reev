@@ -57,11 +57,19 @@ fn create_swap_step_result() -> StepResult {
         "tool_results".to_string(),
         serde_json::json!([
             {
-                "jupiter_swap": {
+                "tool_name": "jupiter_swap",
+                "result": {
                     "input_mint": "So11111111111111111111111111111111111111112", // SOL
                     "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
                     "input_amount": 1000000000, // 1 SOL
-                    "output_amount": 100000000 // 100 USDC (assuming 1 SOL = 100 USDC)
+                    "output_amount": 100000000, // 100 USDC (assuming 1 SOL = 100 USDC)
+                    "slippage_bps": 100,
+                    "instruction_count": 5,
+                    "operation_type": "swap",
+                    "status": "success",
+                    "completed": true,
+                    "transaction_signature": "5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5",
+                    "message": "Successfully swapped 1 SOL for 100 USDC"
                 }
             }
         ]),
@@ -84,9 +92,16 @@ fn create_lend_step_result() -> StepResult {
         "tool_results".to_string(),
         serde_json::json!([
             {
-                "jupiter_lend": {
+                "tool_name": "jupiter_lend",
+                "result": {
                     "asset_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-                    "amount": 95000000 // 95 USDC
+                    "amount": 95000000, // 95 USDC
+                    "protocol": "Mango",
+                    "operation_type": "lend",
+                    "status": "success",
+                    "completed": true,
+                    "transaction_signature": "5xVzU1GzRZ6u1zQpMGJhMGWXV2gLPJUBM9QRKpKx8U4RvKRvXoHfJQK1xVvQYzqB2eWkT1gRjL5Qz6N2R2xHf3L5",
+                    "message": "Successfully lent 95 USDC"
                 }
             }
         ]),

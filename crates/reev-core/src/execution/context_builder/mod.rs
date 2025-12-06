@@ -345,18 +345,9 @@ impl YmlContextBuilder {
         // Extract key information based on tool calls using typed deserialization
         if result.success {
             if let Some(tool_results_vec) = result.get_tool_results() {
-                // Convert Vec<serde_json::Value> to a single JSON value
-                let tool_results_json = serde_json::Value::Array(tool_results_vec);
-
-                // Deserialize array directly into Vec<TypedToolResult>
-                let typed_results_vec =
-                    serde_json::from_value::<Vec<TypedToolResult>>(tool_results_json)
-                        .expect("Failed to deserialize TypedToolResult from JSON");
-
-                // Create TypedToolResults from vector
-                let typed_results = TypedToolResults {
-                    results: typed_results_vec,
-                };
+                // Convert to TypedToolResults using the from_values method
+                let typed_results = TypedToolResults::from_values(tool_results_vec)
+                    .expect("Failed to convert tool results to TypedToolResults");
 
                 // Extract all key information from all results
                 key_info.extend(typed_results.extract_all_key_info());
