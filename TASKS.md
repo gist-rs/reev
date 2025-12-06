@@ -23,10 +23,12 @@
 - Created `ToolResultWrapper` in `types.rs` with standard metadata fields
 - Created `TypedToolResult` enum for different result types (JupiterSwap, JupiterLend, GenericOperation)
 - Implemented `ExtractKeyInfo` trait for standardized extraction
+- Added conversion from tool-specific `ToolResult` to `ToolResultWrapper`
 
 **Not Yet Implemented**:
-- Individual tool implementations still don't use `ToolResultWrapper`
-- Tools in `crates/reev-core/src/execution/rig_agent/tools/` return untyped `serde_json::Value`
+- Individual tool implementations still don't use `ToolResultWrapper` directly
+- Tools in `crates/reev-core/src/execution/rig_agent/tools/` return tool-specific `ToolResult` enum
+- Need to update tool implementations to return `ToolResultWrapper` directly
 
 ## 3. Type Safety in Context Builder (TODO)
 
@@ -47,10 +49,13 @@ pub struct StepResult {
     pub output: serde_json::Value,
     /// Execution duration in milliseconds
     pub execution_time_ms: u64,
+    /// Tool results (new field for standardized tool outputs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_results: Option<Vec<serde_json::Value>>,
 }
 ```
 
-*Status: Still using generic `output: serde_json::Value` field. This is a breaking change that requires coordination with other parts of the system.*
+*Status: Still using generic `output: serde_json::Value` field. A new `tool_results` field has been added but still uses generic JSON values. This is a breaking change that requires coordination with other parts of the system.*
 
 ## 4. Input Mint Consolidation (COMPLETED)
 
@@ -85,7 +90,7 @@ pub struct StepResult {
 
 ## Next Steps
 
-1. Create unit tests for typed structures in `types.rs`
-2. Create unit tests for `TokenMint` implementation
-3. Update tool implementations in `crates/reev-core/src/execution/rig_agent/tools/` to return typed results instead of `serde_json::Value`
-4. Consider refactoring `StepResult` to use typed results instead of generic `output: serde_json::Value`
+1. Create unit tests for `TokenMint` implementation
+2. Update tool implementations in `crates/reev-core/src/execution/rig_agent/tools/` to return `ToolResultWrapper` directly
+3. Consider refactoring `StepResult` to use typed results instead of generic `output: serde_json::Value`
+4. Add tests for tool implementations to verify they return proper typed results
