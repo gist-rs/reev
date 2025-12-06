@@ -14,4 +14,23 @@
 - All other tests in benchmark_runner_tests.rs continue to pass
 - benchmarks_test.rs continues to pass
 
+## Issue #323 - FIXED
+
+**Problem**: Multiple tests failing after ProtocolRegistry changes
+- protocol_core_tests.rs test_protocol_registry failed
+- benchmarks_test.rs failed
+
+**Solution**: Updated tests to match new ProtocolRegistry behavior
+- Modified tests in registry.rs and protocol_core_tests.rs to expect None for unsupported operations
+- All tests now pass after removing fallback behavior in get_for_operation
+
+**Files Changed**:
+- crates/reev-core/src/protocols/registry.rs: Fixed test to expect None for unsupported operations
+- crates/reev-core/tests/protocol_core_tests.rs: Fixed test to expect None for unsupported operations
+
+**Tests Passing**: 
+- All tests in protocol_core_tests.rs now pass
+- All tests in registry.rs now pass
+- benchmarks_test.rs continues to pass
+
 ## Issue #321
