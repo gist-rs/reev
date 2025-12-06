@@ -6,11 +6,12 @@
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::WalletContext;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
+use super::tool_results::{SolTransferResult, ToolResult};
 use super::traits::{AgentProvider, AgentToolHelper, ToolExecutor};
 use super::{
     account_balance::execute_get_account_balance, jupiter_lend::execute_jupiter_lend_deposit,
@@ -28,7 +29,7 @@ where
         &self,
         tool_calls: HashMap<String, Value>,
         wallet_context: &WalletContext,
-    ) -> Result<Vec<Value>> {
+    ) -> Result<Vec<ToolResult>> {
         let mut results = Vec::new();
 
         for (tool_name, params) in tool_calls {
@@ -47,7 +48,7 @@ where
         tool_name: &str,
         params: Value,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         // Execute the tool using the agent's tool_set
         debug!("Executing tool {} with params: {}", tool_name, params);
 
@@ -97,11 +98,23 @@ where
                 execute_jupiter_lend_deposit(&params_map, wallet_context, agent_tools).await
             }
             "get_account_balance" => execute_get_account_balance(&params_map, wallet_context).await,
-            _ => Ok(json!({
-                "tool_name": tool_name,
-                "params": params,
-                "error": format!("Unknown tool: {tool_name}")
-            })),
+            _ => {
+                // Return an error result for unknown tools
+                let error_msg = format!("Unknown tool: {tool_name}");
+                debug!("{}", error_msg);
+
+                // Create a generic error result
+                Ok(ToolResult::SolTransfer(SolTransferResult {
+                    tool_name: tool_name.to_string(),
+                    recipient: String::new(),
+                    amount: 0.0,
+                    amount_lamports: 0,
+                    wallet: wallet_context.owner.clone(),
+                    transaction_signature: None,
+                    success: false,
+                    error: Some(error_msg),
+                }))
+            }
         }
     }
 
@@ -110,7 +123,7 @@ where
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         execute_sol_transfer(params, wallet_context).await
     }
 
@@ -119,7 +132,7 @@ where
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         execute_jupiter_swap(params, wallet_context).await
     }
 
@@ -128,7 +141,7 @@ where
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         let agent_tools = self.get_or_create_agent_tools(wallet_context)?;
         execute_jupiter_lend_deposit(params, wallet_context, agent_tools).await
     }
@@ -138,7 +151,7 @@ where
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         execute_get_account_balance(params, wallet_context).await
     }
 
@@ -147,7 +160,7 @@ where
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value> {
+    ) -> Result<ToolResult> {
         execute_spl_transfer(params, wallet_context).await
     }
 }

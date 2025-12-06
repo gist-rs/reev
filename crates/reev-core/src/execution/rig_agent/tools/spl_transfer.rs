@@ -5,18 +5,19 @@
 use anyhow::{anyhow, Result};
 use reev_protocols::native::handle_spl_transfer;
 use reev_types::flow::WalletContext;
-use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::info;
 
+use super::tool_results::{SplTransferResult, ToolResult};
+
 /// Execute SPL token transfer
 pub async fn execute_spl_transfer(
     params: &HashMap<String, String>,
     wallet_context: &WalletContext,
-) -> Result<serde_json::Value> {
+) -> Result<ToolResult> {
     let recipient = params
         .get("recipient")
         .ok_or_else(|| anyhow!("recipient parameter is required"))?;
@@ -86,17 +87,16 @@ pub async fn execute_spl_transfer(
         transaction_signature
     );
 
-    Ok(json!({
-        "tool_name": "spl_transfer",
-        "params": {
-            "recipient": recipient,
-            "amount": amount_str,
-            "mint_address": mint_address.to_string(),
-            "token_mint": token_mint.to_string(),
-            "wallet": wallet_context.owner
-        },
-        "transaction_signature": transaction_signature,
-        "success": true
+    Ok(ToolResult::SplTransfer(SplTransferResult {
+        tool_name: "spl_transfer".to_string(),
+        recipient: recipient.to_string(),
+        amount: amount_str.to_string(),
+        mint_address: mint_address.to_string(),
+        token_mint: token_mint.to_string(),
+        wallet: wallet_context.owner.clone(),
+        transaction_signature: Some(transaction_signature),
+        success: true,
+        error: None,
     }))
 }
 

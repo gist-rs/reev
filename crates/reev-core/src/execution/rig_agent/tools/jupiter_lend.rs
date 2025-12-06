@@ -1,22 +1,23 @@
 //! Jupiter Lend/Earn Deposit Tool Implementation
 //!
-//! This module contains the implementation of the Jupiter lend/earn deposit tool.
+//! This module contains implementation of the Jupiter lend/earn deposit tool.
 
 use anyhow::{anyhow, Result};
 use reev_agent::enhanced::common::AgentTools;
 use reev_types::flow::WalletContext;
 use rig::tool::Tool;
-use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info};
+
+use super::tool_results::{JupiterLendResult, ToolResult};
 
 /// Execute Jupiter lend/earn deposit
 pub async fn execute_jupiter_lend_deposit(
     params: &HashMap<String, String>,
     wallet_context: &WalletContext,
     agent_tools: Arc<AgentTools>,
-) -> Result<serde_json::Value> {
+) -> Result<ToolResult> {
     let mint = params
         .get("mint")
         .ok_or_else(|| anyhow!("mint parameter is required"))?;
@@ -148,59 +149,55 @@ pub async fn execute_jupiter_lend_deposit(
                             "Jupiter lend deposit transaction executed with signature: {}",
                             signature
                         );
-                        Ok(json!({
-                            "tool_name": "jupiter_lend_earn_deposit",
-                            "params": {
-                                "mint": mint,
-                                "amount": amount_lamports,
-                                "wallet": wallet_context.owner
-                            },
-                            "transaction_signature": signature,
-                            "success": true
+                        Ok(ToolResult::JupiterLend(JupiterLendResult {
+                            tool_name: "jupiter_lend_earn_deposit".to_string(),
+                            mint: mint.to_string(),
+                            amount: amount_lamports,
+                            wallet: wallet_context.owner.clone(),
+                            transaction_signature: Some(signature),
+                            success: true,
+                            error: None,
                         }))
                     }
                     Err(e) => {
                         error!("Failed to execute Jupiter lend deposit transaction: {}", e);
                         debug!("Transaction execution error details: {:#?}", e);
 
-                        Ok(json!({
-                            "tool_name": "jupiter_lend_earn_deposit",
-                            "params": {
-                                "mint": mint,
-                                "amount": amount,
-                                "wallet": wallet_context.owner
-                            },
-                            "error": format!("Transaction execution failed: {}", e),
-                            "success": false
+                        Ok(ToolResult::JupiterLend(JupiterLendResult {
+                            tool_name: "jupiter_lend_earn_deposit".to_string(),
+                            mint: mint.to_string(),
+                            amount: amount as u64,
+                            wallet: wallet_context.owner.clone(),
+                            transaction_signature: None,
+                            success: false,
+                            error: Some(format!("Transaction execution failed: {e}")),
                         }))
                     }
                 }
             }
             Err(e) => {
                 error!("Failed to parse Jupiter lend deposit instructions: {}", e);
-                Ok(json!({
-                    "tool_name": "jupiter_lend_earn_deposit",
-                    "params": {
-                        "mint": mint,
-                        "amount": amount,
-                        "wallet": wallet_context.owner
-                    },
-                    "error": format!("Failed to parse instructions: {}", e),
-                    "success": false
+                Ok(ToolResult::JupiterLend(JupiterLendResult {
+                    tool_name: "jupiter_lend_earn_deposit".to_string(),
+                    mint: mint.to_string(),
+                    amount: amount as u64,
+                    wallet: wallet_context.owner.clone(),
+                    transaction_signature: None,
+                    success: false,
+                    error: Some(format!("Failed to parse instructions: {e}")),
                 }))
             }
         }
     } else {
         error!("Failed to parse Jupiter lend deposit response as JSON");
-        Ok(json!({
-            "tool_name": "jupiter_lend_earn_deposit",
-            "params": {
-                "mint": mint,
-                "amount": amount,
-                "wallet": wallet_context.owner
-            },
-            "error": "Failed to parse response as JSON",
-            "success": false
+        Ok(ToolResult::JupiterLend(JupiterLendResult {
+            tool_name: "jupiter_lend_earn_deposit".to_string(),
+            mint: mint.to_string(),
+            amount: amount as u64,
+            wallet: wallet_context.owner.clone(),
+            transaction_signature: None,
+            success: false,
+            error: Some("Failed to parse response as JSON".to_string()),
         }))
     }
 }

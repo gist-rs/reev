@@ -4,14 +4,15 @@
 
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
-use serde_json::json;
 use std::collections::HashMap;
+
+use super::tool_results::{AccountBalanceResult, ToolResult};
 
 /// Execute get account balance
 pub async fn execute_get_account_balance(
     params: &HashMap<String, String>,
     _wallet_context: &WalletContext,
-) -> Result<serde_json::Value> {
+) -> Result<ToolResult> {
     let account = params
         .get("account")
         .ok_or_else(|| anyhow!("account parameter is required"))?;
@@ -36,13 +37,12 @@ pub async fn execute_get_account_balance(
         }
     };
 
-    Ok(json!({
-        "tool_name": "get_account_balance",
-        "params": {
-            "account": account,
-            "mint": mint
-        },
-        "balance": balance,
-        "success": true
+    Ok(ToolResult::AccountBalance(AccountBalanceResult {
+        tool_name: "get_account_balance".to_string(),
+        account: account.to_string(),
+        mint: mint.to_string(),
+        balance,
+        success: true,
+        error: None,
     }))
 }

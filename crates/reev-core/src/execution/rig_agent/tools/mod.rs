@@ -9,7 +9,8 @@ pub mod jupiter_lend;
 pub mod jupiter_swap;
 pub mod sol_transfer;
 pub mod spl_transfer;
+pub mod tool_results;
 pub mod traits;
 
-// Re-export the traits for convenience
+// Re-export the traits and result types for convenience
 pub use traits::{AgentProvider, AgentToolHelper, ToolExecutor};

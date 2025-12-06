@@ -9,6 +9,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::tool_results::ToolResult;
+
 /// Trait for tool execution operations
 #[allow(async_fn_in_trait)]
 pub trait ToolExecutor {
@@ -17,7 +19,7 @@ pub trait ToolExecutor {
         &self,
         tool_calls: HashMap<String, Value>,
         wallet_context: &WalletContext,
-    ) -> Result<Vec<Value>>;
+    ) -> Result<Vec<ToolResult>>;
 
     /// Execute a single tool
     async fn execute_single_tool(
@@ -25,42 +27,42 @@ pub trait ToolExecutor {
         tool_name: &str,
         params: Value,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 
     /// Execute SOL transfer
     async fn execute_sol_transfer(
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 
     /// Execute Jupiter swap
     async fn execute_jupiter_swap(
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 
     /// Execute Jupiter lend/earn deposit
     async fn execute_jupiter_lend_deposit(
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 
     /// Execute get account balance
     async fn execute_get_account_balance(
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 
     /// Execute SPL transfer
     async fn execute_spl_transfer(
         &self,
         params: &HashMap<String, String>,
         wallet_context: &WalletContext,
-    ) -> Result<Value>;
+    ) -> Result<ToolResult>;
 }
 
 /// Trait for accessing agent tools and HTTP client

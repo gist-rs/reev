@@ -5,17 +5,18 @@
 use anyhow::{anyhow, Result};
 use reev_protocols::native::handle_sol_transfer;
 use reev_types::flow::WalletContext;
-use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::info;
 
+use super::tool_results::{SolTransferResult, ToolResult};
+
 /// Execute SOL transfer
 pub async fn execute_sol_transfer(
     params: &HashMap<String, String>,
     wallet_context: &WalletContext,
-) -> Result<serde_json::Value> {
+) -> Result<ToolResult> {
     let recipient = params
         .get("recipient")
         .ok_or_else(|| anyhow!("recipient parameter is required"))?;
@@ -79,15 +80,14 @@ pub async fn execute_sol_transfer(
         transaction_signature
     );
 
-    Ok(json!({
-        "tool_name": "sol_transfer",
-        "params": {
-            "recipient": recipient,
-            "amount": amount,
-            "amount_lamports": amount_lamports,
-            "wallet": wallet_context.owner
-        },
-        "transaction_signature": transaction_signature,
-        "success": true
+    Ok(ToolResult::SolTransfer(SolTransferResult {
+        tool_name: "sol_transfer".to_string(),
+        recipient: recipient.to_string(),
+        amount,
+        amount_lamports,
+        wallet: wallet_context.owner.clone(),
+        transaction_signature: Some(transaction_signature),
+        success: true,
+        error: None,
     }))
 }

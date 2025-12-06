@@ -4,17 +4,18 @@
 
 use anyhow::{anyhow, Result};
 use reev_types::flow::WalletContext;
-use serde_json::json;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::str::FromStr;
 use tracing::info;
 
+use super::tool_results::{JupiterSwapResult, ToolResult};
+
 /// Execute Jupiter swap
 pub async fn execute_jupiter_swap(
     params: &HashMap<String, String>,
     wallet_context: &WalletContext,
-) -> Result<serde_json::Value> {
+) -> Result<ToolResult> {
     let input_mint = params
         .get("input_mint")
         .ok_or_else(|| anyhow!("input_mint parameter is required"))?;
@@ -81,13 +82,14 @@ pub async fn execute_jupiter_swap(
         transaction_signature
     );
 
-    Ok(json!({
-        "tool_name": "jupiter_swap",
-        "input_mint": input_mint,
-        "output_mint": output_mint,
-        "amount": final_amount_lamports,
-        "wallet": wallet_context.owner,
-        "transaction_signature": transaction_signature,
-        "success": true
+    Ok(ToolResult::JupiterSwap(JupiterSwapResult {
+        tool_name: "jupiter_swap".to_string(),
+        input_mint: input_mint.to_string(),
+        output_mint: output_mint.to_string(),
+        amount: final_amount_lamports,
+        wallet: wallet_context.owner.clone(),
+        transaction_signature: Some(transaction_signature),
+        success: true,
+        error: None,
     }))
 }
