@@ -198,7 +198,7 @@ mod tests {
 
         // Test unsupported operation
         let retrieved_unsupported = registry.get_for_operation(&OperationType::Lend);
-        assert!(retrieved_unsupported.is_some()); // Falls back to first protocol
+        assert!(retrieved_unsupported.is_none()); // Returns None for unsupported operations
 
         // Test protocol list
         let protocols = registry.list_protocols();

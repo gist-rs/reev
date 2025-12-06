@@ -255,9 +255,9 @@ async fn test_protocol_registry() {
     let earn_protocol = registry.get_for_operation(&OperationType::Earn);
     assert!(earn_protocol.is_some());
 
-    // Test unsupported operation (falls back to first protocol)
+    // Test unsupported operation (returns None)
     let stake_protocol = registry.get_for_operation(&OperationType::Stake);
-    assert!(stake_protocol.is_some());
+    assert!(stake_protocol.is_none());
 
     // Test protocol list
     let protocols = registry.list_protocols();
