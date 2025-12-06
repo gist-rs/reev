@@ -76,7 +76,7 @@ fn create_swap_step_result() -> StepResult {
     );
 
     StepResult {
-        step_id: "final_step".to_string(),
+        step_id: "swap_step_1".to_string(),
         success: true,
         error_message: None,
         tool_calls: vec!["jupiter_swap".to_string()],
