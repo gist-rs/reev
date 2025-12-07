@@ -8,7 +8,7 @@ pub mod runner;
 pub mod scorer;
 pub mod types;
 
-pub use runner::{DynamicBenchmarkRunner, StaticBenchmarkRunner};
+pub use runner::{BenchmarkRunner, DynamicBenchmarkRunner, StaticBenchmarkRunner};
 pub use scorer::BenchmarkScorer;
 pub use types::{
     BenchmarkCategory, BenchmarkReport, BenchmarkScore, ExecutionMetrics, ScoredResult,

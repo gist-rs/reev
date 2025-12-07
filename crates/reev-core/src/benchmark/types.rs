@@ -247,9 +247,24 @@ pub struct BenchmarkReport {
     pub timestamp: chrono::DateTime<Utc>,
 }
 
+impl Default for BenchmarkReport {
+    fn default() -> Self {
+        Self {
+            flow_id: String::new(),
+            execution_id: String::new(),
+            prompt: String::new(),
+            overall_score: 0.0,
+            category_scores: HashMap::new(),
+            validation_results: ValidationResults::default(),
+            execution_metrics: ExecutionMetrics::default(),
+            improvement_suggestions: Vec::new(),
+            timestamp: Utc::now(),
+        }
+    }
+}
+
 /// Execution metrics captured during benchmarking
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExecutionMetrics {
     /// Total execution time in milliseconds
     pub total_execution_time_ms: u64,
@@ -266,4 +281,3 @@ pub struct ExecutionMetrics {
     /// CPU usage percentage (if available)
     pub cpu_usage_percent: Option<f32>,
 }
-

@@ -18,6 +18,7 @@ serde_yaml.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 chrono.workspace = true
 
 # UUID v7 for time-sortable IDs - using workspace uuid with v7 feature
