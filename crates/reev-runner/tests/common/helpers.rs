@@ -139,7 +139,7 @@ fn create_spl_transfer_instruction(
 /// This is used for the 004-partial-score-spl-transfer benchmark to test partial scoring
 fn create_partial_score_spl_transfer_instruction(
     key_map: &HashMap<String, String>,
-    amount: u64,
+    _amount: u64,
 ) -> Result<Instruction> {
     let source_pubkey_str = key_map
         .get("USER_USDC_ATA")
