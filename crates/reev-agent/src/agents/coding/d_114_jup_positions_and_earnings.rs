@@ -7,7 +7,7 @@ use tracing::info;
 // Import enhanced OTEL logging macros
 use reev_flow::{log_tool_call, log_tool_completion};
 
-/// Handles the deterministic logic for the `114-JUP-POSITIONS-AND-EARNINGS` benchmark.
+/// Handles the deterministic logic for the `114-jup-positions-and-earnings` benchmark.
 ///
 /// This is a multi-step flow benchmark that demonstrates fetching Jupiter positions
 /// and then getting earnings data. For the deterministic agent, we return mock

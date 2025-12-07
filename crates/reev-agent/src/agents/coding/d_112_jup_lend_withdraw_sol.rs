@@ -6,7 +6,7 @@ use spl_token::native_mint;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-/// Handles the deterministic logic for the `112-JUP-LEND-WITHDRAW-SOL` benchmark.
+/// Handles the deterministic logic for the `112-jup-lend-withdraw-sol` benchmark.
 ///
 /// This agent calls the centralized Jupiter lend withdraw handler, which fetches
 /// instructions from the Jupiter API and prepares the `surfpool` environment.

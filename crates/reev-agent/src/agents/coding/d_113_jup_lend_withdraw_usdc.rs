@@ -6,7 +6,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-/// Handles the deterministic logic for the `113-JUP-LEND-WITHDRAW-USDC` benchmark.
+/// Handles the deterministic logic for the `113-jup-lend-withdraw-usdc` benchmark.
 ///
 /// This agent calls the centralized Jupiter lend withdraw handler, which fetches
 /// instructions from the Jupiter API and prepares the `surfpool` environment.

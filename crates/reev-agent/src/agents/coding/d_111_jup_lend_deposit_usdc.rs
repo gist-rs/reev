@@ -6,7 +6,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, str::FromStr};
 use tracing::info;
 
-/// Handles the deterministic logic for the `111-JUP-LEND-DEPOSIT-USDC` benchmark.
+/// Handles the deterministic logic for the `111-jup-lend-deposit-usdc` benchmark.
 ///
 /// This agent acts as an oracle by calling the centralized Jupiter lend deposit handler.
 /// This handler calls the public Jupiter API to get the deposit instructions

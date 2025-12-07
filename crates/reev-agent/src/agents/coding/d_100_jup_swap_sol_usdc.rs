@@ -10,7 +10,7 @@ use tracing::{error, info};
 // Import enhanced OTEL logging macros
 use reev_flow::{log_tool_call, log_tool_completion};
 
-/// Handles the deterministic logic for the `100-JUP-SWAP-SOL-USDC` benchmark.
+/// Handles the deterministic logic for the `100-jup-swap-sol-usdc` benchmark.
 ///
 /// This agent acts as an oracle by calling the centralized Jupiter swap handler.
 /// This handler performs two critical functions:
