@@ -71,6 +71,9 @@ pub fn mock_perfect_instruction(
         "002-spl-transfer" | "003-spl-transfer-fail" => {
             create_spl_transfer_instruction(key_map, 15_000_000) // 15 USDC
         }
+        "004-partial-score-spl-transfer" => {
+            create_partial_score_spl_transfer_instruction(key_map, 5_000_000) // 5 USDC
+        }
         _ => Err(anyhow!(
             "No mock instruction builder found for benchmark ID: {}",
             test_case.id
@@ -132,6 +135,42 @@ fn create_spl_transfer_instruction(
     Ok(instruction)
 }
 
+/// Helper to create an SPL transfer instruction with correct program ID but wrong instruction data
+/// This is used for the 004-partial-score-spl-transfer benchmark to test partial scoring
+fn create_partial_score_spl_transfer_instruction(
+    key_map: &HashMap<String, String>,
+    amount: u64,
+) -> Result<Instruction> {
+    let source_pubkey_str = key_map
+        .get("USER_USDC_ATA")
+        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_USDC_ATA' not found in key_map"))?;
+    let authority_pubkey_str = key_map
+        .get("USER_WALLET_PUBKEY")
+        .ok_or_else(|| anyhow!("Pubkey placeholder 'USER_WALLET_PUBKEY' not found in key_map"))?;
+    let destination_pubkey_str = key_map.get("RECIPIENT_USDC_ATA").ok_or_else(|| {
+        anyhow!("Pubkey placeholder 'RECIPIENT_USDC_ATA' not found in key_map after setup")
+    })?;
+
+    let source_pubkey = Pubkey::from_str(source_pubkey_str)?;
+    let destination_pubkey = Pubkey::from_str(destination_pubkey_str)?;
+    let authority_pubkey = Pubkey::from_str(authority_pubkey_str)?;
+
+    // Create an instruction with the correct program ID but wrong instruction data
+    // The correct discriminator for SPL token transfer is "3Bxs4vKJW" (0x3)
+    // We'll use an incorrect discriminator to get partial credit for correct program ID but wrong data
+    let incorrect_data = vec![0x1, 0, 0, 0]; // Wrong instruction discriminator
+
+    Ok(Instruction {
+        program_id: spl_token::ID,
+        accounts: vec![
+            solana_sdk::instruction::AccountMeta::new(source_pubkey, false),
+            solana_sdk::instruction::AccountMeta::new(destination_pubkey, false),
+            solana_sdk::instruction::AccountMeta::new_readonly(authority_pubkey, true),
+        ],
+        data: incorrect_data,
+    })
+}
+
 /// Prepares the on-chain environment for a Jupiter swap using the `jup-sdk`.
 ///
 /// This function encapsulates all the off-chain work required for a successful
@@ -148,11 +187,24 @@ pub async fn prepare_jupiter_swap(
         .context("USER_WALLET_PUBKEY not found")?;
     let user_pubkey = Pubkey::from_str(user_pubkey_str)?;
 
-    // Parameters are specific to the `100-JUP-SWAP-SOL-USDC` benchmark.
+    // Parameters are specific to the `100-jup-swap-sol-usdc` benchmark.
     let input_mint = spl_token::native_mint::ID;
     let output_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?;
     let amount = 100_000_000; // 0.1 SOL
     let slippage_bps = 500; // 5%
+
+    // --- 0. Set up USDC token account (required for SOL->USDC swap) ---
+    // Jupiter swap requires the destination token account to exist before swapping
+    info!("[TestSetup] Setting up USDC token account for user...");
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    surfpool_client
+        .set_token_account(
+            &user_pubkey.to_string(),
+            &output_mint.to_string(),
+            0, // Starting with 0 USDC
+        )
+        .await
+        .context("Failed to set up USDC token account")?;
 
     // 1. Initialize the Jupiter SDK client for surfpool.
     // We clone the RpcClient from the environment to use it here.
@@ -175,7 +227,6 @@ pub async fn prepare_jupiter_swap(
 
     // 3. Use the SDK's utilities to preload all necessary accounts.
     info!("[TestSetup] Pre-loading all required accounts via SDK...");
-    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
     jup_sdk::surfpool::preload_accounts(
         &env.rpc_client,
         &surfpool_client,
@@ -204,6 +255,19 @@ pub async fn prepare_jupiter_lend_deposit(
     let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
     let amount = 100_000_000; // 0.1 SOL
 
+    // --- 0. Set up wSOL token account (required for SOL deposits) ---
+    // Jupiter lending requires a wrapped SOL token account to exist before depositing
+    info!("[Test Helper] Setting up wSOL token account for user...");
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    surfpool_client
+        .set_token_account(
+            &user_pubkey.to_string(),
+            &spl_token::native_mint::ID.to_string(),
+            amount, // Give the account the amount we'll deposit
+        )
+        .await
+        .context("Failed to set up wSOL token account")?;
+
     // --- 1. Jupiter Lend Instruction ---
     let rpc_client = RpcClient::new(env.rpc_client.url());
     let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
@@ -221,7 +285,6 @@ pub async fn prepare_jupiter_lend_deposit(
 
     // --- 2. Preload all accounts for Jupiter instructions ---
     info!("[Test Helper] Starting account pre-loading process via SDK...");
-    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
     jup_sdk::surfpool::preload_accounts(
         &env.rpc_client,
         &surfpool_client,
@@ -330,6 +393,19 @@ pub async fn prepare_jupiter_lend_withdraw_sol(
     let user_pubkey = Pubkey::from_str(key_map.get("USER_WALLET_PUBKEY").unwrap())?;
     let amount = 100_000_000; // 0.1 SOL from benchmark prompt
 
+    // --- 0. Set up L-SOL token account if needed ---
+    // For withdraw to work, the user needs to have L-SOL tokens (from a previous deposit)
+    let l_sol_mint = Pubkey::from_str("2uQsyo1fXXQkDtcpXnLofWy88PxcvnfH2L8FPSE62FVU")?; // L-SOL Mint
+    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
+    surfpool_client
+        .set_token_account(
+            &user_pubkey.to_string(),
+            &l_sol_mint.to_string(),
+            amount, // Give account amount to withdraw
+        )
+        .await
+        .context("Failed to set up L-SOL token account")?;
+
     // --- 1. Jupiter Withdraw Instruction (for WSOL) ---
     let rpc_client = RpcClient::new(env.rpc_client.url());
     let jupiter_client = Jupiter::surfpool_with_rpc(rpc_client).with_user_pubkey(user_pubkey);
@@ -347,7 +423,6 @@ pub async fn prepare_jupiter_lend_withdraw_sol(
 
     // --- 2. Preload all accounts for Jupiter instructions ---
     info!("[Test Helper] Starting account pre-loading process via SDK...");
-    let surfpool_client = SurfpoolClient::new(&env.rpc_client.url());
     jup_sdk::surfpool::preload_accounts(
         &env.rpc_client,
         &surfpool_client,

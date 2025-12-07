@@ -75,7 +75,7 @@ async fn test_all_benchmarks_with_deterministic_agent(
 
         // 2. Get the "perfect" action for this benchmark and execute.
         match test_case.id.as_str() {
-            "112-JUP-LEND-WITHDRAW-SOL" => {
+            "112-jup-lend-withdraw-sol" => {
                 info!("[Test] Jupiter SOL lend deposit-withdraw benchmark detected (3-step).");
 
                 // --- Step 1: Deposit ---
@@ -138,18 +138,18 @@ async fn test_all_benchmarks_with_deterministic_agent(
             _ => {
                 // Standard 1-step logic for all other benchmarks.
                 let instructions = match test_case.id.as_str() {
-                    "100-JUP-SWAP-SOL-USDC" => {
+                    "100-jup-swap-sol-usdc" => {
                         info!("[Test] Jupiter swap benchmark detected. Preparing environment...");
                         prepare_jupiter_swap(&env, &test_case, &initial_observation.key_map).await?
                     }
-                    "110-JUP-LEND-DEPOSIT-SOL" => {
+                    "110-jup-lend-deposit-sol" => {
                         info!(
                             "[Test] Jupiter SOL lend benchmark detected. Preparing environment..."
                         );
                         prepare_jupiter_lend_deposit(&env, &test_case, &initial_observation.key_map)
                             .await?
                     }
-                    "111-JUP-LEND-DEPOSIT-USDC" => {
+                    "111-jup-lend-deposit-usdc" => {
                         info!(
                             "[Test] Jupiter USDC lend deposit benchmark detected. Preparing environment..."
                         );
@@ -160,7 +160,7 @@ async fn test_all_benchmarks_with_deterministic_agent(
                         )
                         .await?
                     }
-                    "113-JUP-LEND-WITHDRAW-USDC" => {
+                    "113-jup-lend-withdraw-usdc" => {
                         info!(
                             "[Test] Jupiter USDC lend withdraw benchmark detected. Preparing environment..."
                         );
