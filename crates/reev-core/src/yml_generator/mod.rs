@@ -5,6 +5,7 @@
 //! with appropriate expected_tools hints for the rig agent. This implementation
 //! follows the V3 plan where RigAgent handles tool selection based on refined prompts.
 
+use crate::prompt_processor::types::Operation;
 use reev_types::tools::ToolName;
 
 mod flow_templates;
@@ -149,12 +150,26 @@ impl YmlGenerator {
             final_wallet_info = final_wallet_info.with_token(token.clone());
         }
 
+        // Check if this is a multi-step operation
+        if !structured_prompt.operation_sequence.is_empty() {
+            // Generate multi-step flow
+            return self
+                .generate_multi_step_flow_from_operations(
+                    &structured_prompt.operation_sequence,
+                    structured_prompt.original_prompt.clone(),
+                    structured_prompt.refined_prompt.clone(),
+                    final_wallet_info,
+                    wallet_context,
+                )
+                .await;
+        }
+
         // Create a single step with the refined prompt and extracted parameters
         // For structured prompts, we use the refined_prompt directly
         let expected_tools =
             determine_expected_tools(&structured_prompt.refined_prompt).unwrap_or_default();
 
-        // Create YML step with expected tool calls based on the structured response
+        // Create YML step with expected tool calls based on the structured response parameters
         let mut step = crate::yml_schema::YmlStep::new(
             uuid::Uuid::new_v4().to_string(),
             structured_prompt.refined_prompt.clone(),
@@ -276,6 +291,206 @@ impl YmlGenerator {
             flow.steps.len(),
             flow.flow_id
         );
+        Ok(flow)
+    }
+
+    /// Generate a multi-step flow from a sequence of operations
+    async fn generate_multi_step_flow_from_operations(
+        &self,
+        operations: &[Operation],
+        original_prompt: String,
+        refined_prompt: String,
+        wallet_info: crate::yml_schema::YmlWalletInfo,
+        wallet_context: &WalletContext,
+    ) -> Result<YmlFlow> {
+        // Create multi-step flow
+
+        // Create a step for each operation in the sequence
+        let flow_id = uuid::Uuid::new_v4().to_string();
+        let mut steps = Vec::new();
+
+        // Create a step for each operation in the sequence
+        for (i, operation) in operations.iter().enumerate() {
+            let step_id = format!("step_{}", i + 1);
+            let mut context = format!("Step {} of multi-step operation", i + 1);
+
+            // Add context about previous steps
+            if i > 0 {
+                context = format!("{context} after completing previous step");
+            }
+
+            // Create step description based on operation
+            let step_description = match operation.action {
+                crate::prompt_processor::PromptAction::Swap => {
+                    if let (Some(amount), Some(input_mint), Some(output_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                        &operation.parameters.output_mint,
+                    ) {
+                        format!("Swap {amount} {input_mint} to {output_mint}")
+                    } else {
+                        "Swap tokens".to_string()
+                    }
+                }
+                crate::prompt_processor::PromptAction::Transfer => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        if let Some(recipient) = &operation.target_pubkey {
+                            format!("Transfer {amount} {input_mint} to {recipient}")
+                        } else {
+                            format!("Transfer {amount} {input_mint}")
+                        }
+                    } else {
+                        "Transfer tokens".to_string()
+                    }
+                }
+                crate::prompt_processor::PromptAction::Lend => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        format!("Lend {amount} {input_mint}")
+                    } else {
+                        "Lend tokens".to_string()
+                    }
+                }
+                crate::prompt_processor::PromptAction::Earn => {
+                    if let Some(input_mint) = &operation.parameters.input_mint {
+                        format!("Earn with {input_mint}")
+                    } else {
+                        "Earn tokens".to_string()
+                    }
+                }
+                crate::prompt_processor::PromptAction::Borrow => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        format!("Borrow {amount} {input_mint}")
+                    } else {
+                        "Borrow tokens".to_string()
+                    }
+                }
+                crate::prompt_processor::PromptAction::Unknown => {
+                    "Execute unknown operation".to_string()
+                }
+            };
+
+            let mut step =
+                crate::yml_schema::YmlStep::new(step_id, step_description.clone(), context);
+
+            // Add expected tool calls based on the operation
+            match operation.action {
+                crate::prompt_processor::PromptAction::Swap => {
+                    if let (Some(amount), Some(input_mint), Some(output_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                        &operation.parameters.output_mint,
+                    ) {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterSwap,
+                            true,
+                        )
+                        .with_parameter_str("input_mint".to_string(), input_mint.to_string())
+                        .with_parameter_str("output_mint".to_string(), output_mint.to_string())
+                        .with_parameter_str("input_amount".to_string(), amount.clone());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+                crate::prompt_processor::PromptAction::Transfer => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        // Select tool based on token type
+                        let tool_name =
+                            if input_mint == "So11111111111111111111111111111111111111112" {
+                                reev_types::tools::ToolName::SolTransfer
+                            } else {
+                                reev_types::tools::ToolName::SplTransfer
+                            };
+
+                        let mut tool_call = crate::yml_schema::YmlToolCall::new(tool_name, true)
+                            .with_parameter_str("amount".to_string(), amount.clone())
+                            .with_parameter_str("mint_address".to_string(), input_mint.to_string());
+
+                        // Add recipient if available
+                        if let Some(recipient) = &operation.target_pubkey {
+                            tool_call = tool_call
+                                .with_parameter_str("recipient".to_string(), recipient.to_string());
+                        }
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+                crate::prompt_processor::PromptAction::Lend => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                            true,
+                        )
+                        .with_parameter_str("amount".to_string(), amount.clone())
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+                crate::prompt_processor::PromptAction::Earn => {
+                    if let Some(input_mint) = &operation.parameters.input_mint {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterLendEarnDeposit,
+                            true,
+                        )
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+                crate::prompt_processor::PromptAction::Borrow => {
+                    if let (Some(amount), Some(input_mint)) = (
+                        &operation.parameters.amount,
+                        &operation.parameters.input_mint,
+                    ) {
+                        let tool_call = crate::yml_schema::YmlToolCall::new(
+                            reev_types::tools::ToolName::JupiterLendEarnWithdraw,
+                            true,
+                        )
+                        .with_parameter_str("amount".to_string(), amount.clone())
+                        .with_parameter_str("mint".to_string(), input_mint.to_string());
+
+                        step = step.with_tool_call(tool_call);
+                    }
+                }
+                crate::prompt_processor::PromptAction::Unknown => {
+                    // For unknown actions, we don't add any specific tool calls
+                }
+            }
+
+            steps.push(step);
+        }
+
+        // Create the flow
+        let mut flow = YmlFlow::new(flow_id, original_prompt, wallet_info)
+            .with_steps(steps)
+            .with_refined_prompt(refined_prompt);
+
+        // Generate comprehensive ground truth for benchmarking
+        let ground_truth =
+            generate_comprehensive_ground_truth(&flow, &flow.refined_prompt, wallet_context);
+        flow = flow.with_ground_truth(ground_truth);
+
+        info!(
+            "Generated multi-step YML flow with {} steps, ID: {}",
+            flow.steps.len(),
+            flow.flow_id
+        );
+        // Multi-step flow created successfully
         Ok(flow)
     }
 }

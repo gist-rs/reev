@@ -5,7 +5,8 @@
 
 use crate::prompt_processor::max_amount_calculator::MaxAmountCalculator;
 use crate::prompt_processor::types::{
-    StructuredRefineRequest, StructuredRefineResponse, StructuredRefinedPrompt, ValidationResult,
+    Operation, StructuredRefineRequest, StructuredRefineResponse, StructuredRefinedPrompt,
+    ValidationResult,
 };
 use crate::prompt_processor::validation::validate_structured_response_with_max_amounts;
 use crate::prompts::prompt_processor::STRUCTURED_PROMPT_SYSTEM_PROMPT;
@@ -116,6 +117,11 @@ impl StructuredProcessor {
             None
         };
 
+        // Check if this is a multi-step operation
+        let operations = self
+            .extract_operations_from_prompt(prompt, owner_wallet_address, &max_amounts_yml)
+            .await?;
+
         // Convert to StructuredRefinedPrompt
         let mut structured_prompt = response_obj
             .to_structured_prompt(prompt.to_string(), usable_amount)
@@ -125,6 +131,9 @@ impl StructuredProcessor {
         if structured_prompt.subject_pubkey.is_none() {
             structured_prompt.subject_pubkey = Some(owner_wallet_address.to_string());
         }
+
+        // Set operation sequence
+        structured_prompt.operation_sequence = operations;
 
         // Validate response with max amounts
         let validation_result = validate_structured_response_with_max_amounts(
@@ -243,5 +252,120 @@ Max amounts provided:
 {max_amounts_yml}
 "#
         )
+    }
+
+    /// Extract multiple operations from a multi-step prompt
+    async fn extract_operations_from_prompt(
+        &self,
+        prompt: &str,
+        owner_wallet_address: &str,
+        max_amounts_yml: &str,
+    ) -> Result<Vec<Operation>> {
+        let prompt_lower = prompt.to_lowercase();
+        let mut operations = Vec::new();
+
+        // Check if this is a multi-step prompt with "then" or "and"
+        if prompt_lower.contains(" then ") {
+            let parts: Vec<&str> = prompt.split(" then ").collect();
+
+            for part in parts {
+                if !part.trim().is_empty() {
+                    let operation = self
+                        .extract_single_operation(part, owner_wallet_address, max_amounts_yml)
+                        .await?;
+                    operations.push(operation);
+                }
+            }
+        } else if prompt_lower.contains(" and ") {
+            let parts: Vec<&str> = prompt.split(" and ").collect();
+
+            for part in parts {
+                if !part.trim().is_empty() {
+                    let operation = self
+                        .extract_single_operation(part, owner_wallet_address, max_amounts_yml)
+                        .await?;
+                    operations.push(operation);
+                }
+            }
+        }
+
+        // If we found multiple operations, return them
+        if operations.len() > 1 {
+            info!("Found {} operations, returning them", operations.len());
+            return Ok(operations);
+        }
+
+        // Otherwise, return empty vector to indicate single-step operation
+        // No multiple operations found, returning empty vector
+        debug!(
+            "Found {} operations, returning empty vector",
+            operations.len()
+        );
+        Ok(Vec::new())
+    }
+
+    /// Extract a single operation from a prompt
+    async fn extract_single_operation(
+        &self,
+        prompt: &str,
+        owner_wallet_address: &str,
+        max_amounts_yml: &str,
+    ) -> Result<Operation> {
+        // Use the structured processor to extract the operation
+        let request = StructuredRefineRequest {
+            prompt: prompt.to_string(),
+            owner_wallet_address: Some(owner_wallet_address.to_string()),
+            max_amount: None,
+            max_amounts_yml: Some(max_amounts_yml.to_string()),
+        };
+
+        let response = self
+            .send_structured_refine_request(&request, max_amounts_yml)
+            .await?;
+
+        // Parse JSON response
+        let response_obj: StructuredRefineResponse = serde_json::from_str(&response)
+            .map_err(|e| anyhow!("Failed to parse LLM JSON response: {e}"))?;
+
+        // Parse action string to enum
+        let action = match response_obj.action.to_lowercase().as_str() {
+            "transfer" => crate::prompt_processor::PromptAction::Transfer,
+            "swap" => crate::prompt_processor::PromptAction::Swap,
+            "lend" => crate::prompt_processor::PromptAction::Lend,
+            "earn" => crate::prompt_processor::PromptAction::Earn,
+            "borrow" => crate::prompt_processor::PromptAction::Borrow,
+            _ => crate::prompt_processor::PromptAction::Unknown,
+        };
+
+        // Check if "all" keyword was used and extract usable amount
+        let usable_amount = if prompt.to_lowercase().contains("all")
+            && response_obj.parameters.amount.is_some()
+            && response_obj
+                .parameters
+                .amount
+                .as_ref()
+                .unwrap_or(&"0".to_string())
+                != "all"
+        {
+            response_obj
+                .parameters
+                .amount
+                .as_ref()
+                .and_then(|a| a.parse::<f64>().ok())
+        } else {
+            None
+        };
+
+        // Create operation
+        Ok(Operation {
+            action,
+            subject_pubkey: response_obj
+                .subject_pubkey
+                .or(Some(owner_wallet_address.to_string())),
+            target_pubkey: response_obj.target_pubkey,
+            parameters: response_obj.parameters,
+            confidence: response_obj.confidence as f32,
+            usable_amount,
+        })
     }
 }

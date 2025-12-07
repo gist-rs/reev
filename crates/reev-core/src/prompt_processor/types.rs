@@ -22,6 +22,25 @@ pub struct StructuredRefinedPrompt {
     pub original_prompt: String,
     /// Usable amount for transfers (when "all" keyword was used)
     pub usable_amount: Option<f64>,
+    /// Sequence of operations for multi-step prompts
+    pub operation_sequence: Vec<Operation>,
+}
+
+/// Operation in a multi-step sequence
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Operation {
+    /// Action type for this operation
+    pub action: PromptAction,
+    /// The wallet performing this action
+    pub subject_pubkey: Option<String>,
+    /// The destination address (for transfers/operations to others)
+    pub target_pubkey: Option<String>,
+    /// Extracted parameters for this operation
+    pub parameters: PromptParameters,
+    /// Confidence in this extraction (0.0-1.0)
+    pub confidence: f32,
+    /// Usable amount for this operation
+    pub usable_amount: Option<f64>,
 }
 
 /// Action types that can be detected in prompts
@@ -109,6 +128,7 @@ impl StructuredRefinedPrompt {
             confidence: 0.8,
             original_prompt,
             usable_amount: None,
+            operation_sequence: Vec::new(),
         }
     }
 
@@ -128,6 +148,7 @@ impl StructuredRefinedPrompt {
             confidence: 0.8,
             original_prompt,
             usable_amount,
+            operation_sequence: Vec::new(),
         }
     }
 }
@@ -202,6 +223,7 @@ pub struct StructuredRefinedPromptBuilder {
     confidence: Option<f32>,
     original_prompt: Option<String>,
     usable_amount: Option<f64>,
+    operation_sequence: Option<Vec<Operation>>,
 }
 
 impl Default for StructuredRefinedPromptBuilder {
@@ -221,6 +243,7 @@ impl StructuredRefinedPromptBuilder {
             confidence: None,
             original_prompt: None,
             usable_amount: None,
+            operation_sequence: None,
         }
     }
 
@@ -264,6 +287,11 @@ impl StructuredRefinedPromptBuilder {
         self
     }
 
+    pub fn operation_sequence(mut self, operation_sequence: Vec<Operation>) -> Self {
+        self.operation_sequence = Some(operation_sequence);
+        self
+    }
+
     pub fn build(self) -> StructuredRefinedPrompt {
         StructuredRefinedPrompt {
             refined_prompt: self.refined_prompt.unwrap_or_default(),
@@ -274,6 +302,7 @@ impl StructuredRefinedPromptBuilder {
             confidence: self.confidence.unwrap_or(0.8),
             original_prompt: self.original_prompt.unwrap_or_default(),
             usable_amount: self.usable_amount,
+            operation_sequence: self.operation_sequence.unwrap_or_default(),
         }
     }
 }
