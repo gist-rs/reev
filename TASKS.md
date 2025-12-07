@@ -34,15 +34,23 @@ The project currently has two separate benchmark systems that need to be unified
 - Currently only used for tests, could be moved to a real runner
 - Contains valuable code that shouldn't be limited to tests
 
+### 4. Deterministic Agents (crates/reev-agent/src/agents/coding/)
+- Reference implementations for each benchmark scenario
+- Provide "oracle" implementations with known-correct instruction sequences
+- Integrate with external APIs (Jupiter) with account pre-loading
+- Enhanced logging for debugging and analysis
+- Currently not integrated with the benchmark system
+
 ### Key Insight
-The `StaticBenchmarkRunner` and `DynamicBenchmarkRunner` in `crates/reev-core/src/benchmark/` represent the modern implementation we should be using. The legacy system in `crates/reev-runner` needs to be updated to use this newer approach.
+The `StaticBenchmarkRunner` and `DynamicBenchmarkRunner` in `crates/reev-core/src/benchmark/` represent the modern implementation we should be using. The legacy system in `crates/reev-runner` needs to be updated to use this newer approach. Additionally, the deterministic agents in `crates/reev-agent/src/agents/coding/` should be integrated with the benchmark system as reference implementations.
 
 ## Recommended Approach: Integration Plan
 
 1. **Move test framework** from `tests/common/framework/mod.rs` to `crates/reev-core/src/benchmark/runner/` as a reusable component
-2. **Create unified interface** that supports both static and dynamic flows
-3. **Integrate advanced scoring** from the modern system with the legacy runner
-4. **Maintain backward compatibility** during transition
+2. **Integrate deterministic agents** from `crates/reev-agent/src/agents/coding/` with the benchmark system
+3. **Create unified interface** that supports both static and dynamic flows
+4. **Integrate advanced scoring** from the modern system with the legacy runner
+5. **Maintain backward compatibility** during transition
 
 ## Related Documents
 
@@ -71,10 +79,11 @@ When creating a new task file:
 
 Based on the analysis in BENCHMARK_IMPLEMENTATION.md:
 
-### Phase 1: Basic Infrastructure (10 days)
+### Phase 1: Basic Infrastructure (13 days)
 - Create unified benchmark runner (Task 1.1)
 - Implement advanced scoring criteria (Task 1.2)
 - Enhance performance metrics (Task 1.3)
+- Integrate deterministic agents with benchmark system (Task 1.4)
 
 ### Phase 2: Error Recovery (7 days)
 - Implement error recovery scenarios (Task 2.1)
@@ -88,4 +97,4 @@ Based on the analysis in BENCHMARK_IMPLEMENTATION.md:
 - Enhanced benchmark reports (Task 4.1)
 - Benchmark visualization (Task 4.2)
 
-### Total Estimated Timeline: 32 days (approx. 6 weeks)
+### Total Estimated Timeline: 35 days (approx. 7 weeks)

@@ -41,3 +41,10 @@
 - **Status**: Open
 - **Priority**: Low
 - **Solution**: Implement visualization for benchmark results (Phase 4 of TASKS.md)
+
+## Issue #331: Deterministic Agent Location
+- **Description**: Deterministic agents in `crates/reev-agent/src/agents/coding/` could be better utilized in the benchmark system
+- **Impact**: Valuable reference implementations are not integrated with benchmark framework
+- **Status**: Open
+- **Priority**: High
+- **Solution**: Move to `crates/reev-core/src/benchmark/deterministic_agents/` and integrate with benchmark runner (Task 1.4 of TASKS.md)

@@ -26,6 +26,13 @@ For current issues related to this implementation, see [ISSUES.md](./ISSUES.md).
    - Environment setup and management
    - Could be moved out of tests for reuse as a real runner
 
+4. **Deterministic Agents** (`crates/reev-agent/src/agents/coding/`):
+   - Reference implementations for each benchmark scenario
+   - Provide "oracle" implementations with known-correct instruction sequences
+   - Integrate with external APIs (Jupiter) with account pre-loading
+   - Enhanced logging for debugging and analysis
+   - Currently not integrated with the benchmark system
+
 ### What We Need
 1. **Enhanced Scoring**: Implement the sophisticated evaluation criteria from PLAN_CORE_BENCHMARK.md
 2. **Performance Metrics**: Add comprehensive performance tracking
@@ -71,6 +78,18 @@ For current issues related to this implementation, see [ISSUES.md](./ISSUES.md).
   - Implement step execution time metrics
   - Add resource usage tracking (memory, CPU)
   - Implement recovery overhead metrics
+
+#### Task 1.4: Integrate Deterministic Agents with Benchmark System
+- **Description**: Integrate the deterministic agents from `crates/reev-agent/src/agents/coding/` with the new benchmark system
+- **Priority**: High
+- **Related Issues**: #325, #331
+- **Dependencies**: Task 1.1
+- **Estimated Effort**: 3 days
+- **Implementation Details**:
+  - Move deterministic agents to `crates/reev-core/src/benchmark/deterministic_agents/`
+  - Create a registry for deterministic agents
+  - Integrate with unified benchmark runner for validation scenarios
+  - Add support for comparing agent outputs against deterministic implementations
 
 ### Phase 2: Error Recovery Benchmarking
 
@@ -189,11 +208,11 @@ For current issues related to this implementation, see [ISSUES.md](./ISSUES.md).
 
 ## Timeline
 
-- **Phase 1**: 10 days
+- **Phase 1**: 13 days (increased due to addition of Task 1.4)
 - **Phase 2**: 7 days
 - **Phase 3**: 8 days
 - **Phase 4**: 7 days
-- **Total**: 32 days (approx. 6 weeks)
+- **Total**: 35 days (approx. 7 weeks)
 
 ## Next Steps
 

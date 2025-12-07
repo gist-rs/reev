@@ -443,6 +443,13 @@ The current implementation uses single-step templates as reusable building block
 ## 📝 **Next Immediate Steps**
 
 1. **Remove Duplication and Clean Up** (Week 1)
+
+2. **Integrate Deterministic Agents** (Week 1-2)
+   - Move deterministic agents from `crates/reev-agent/src/agents/coding/` to `crates/reev-core/src/benchmark/deterministic_agents/`
+   - Create a registry for deterministic agents
+   - Integrate with benchmark runner for validation scenarios
+   - Add support for comparing agent outputs against deterministic implementations
+   - Refactor `crates/reev-agent` if needed after moving deterministic agents
    - Remove unused functions in planner.rs
    - Ensure existing tests still pass after removal
    - Update documentation to reflect current implementation

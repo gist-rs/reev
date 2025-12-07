@@ -54,6 +54,18 @@ Evaluate system performance under various conditions:
 - Resource usage: Memory, CPU, API calls
 - Recovery overhead: Time and cost of error recovery
 
+### **Deterministic Agents for Benchmark Validation**
+
+Deterministic agents serve as reference implementations for complex DeFi operations. They provide:
+- Known-good instruction sequences for validation scenarios
+- Integration with external APIs (Jupiter) with account pre-loading
+- Enhanced logging for debugging and analysis
+
+These agents should be integrated into the benchmark framework for:
+- Validation of generated flows against reference implementations
+- Error scenario testing with known expected outcomes
+- Performance benchmarking against optimized implementations
+
 ## 🏗️ **Benchmark YML Structure**
 
 ### **Complete Benchmark YML Example**
